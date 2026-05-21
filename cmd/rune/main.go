@@ -12,6 +12,7 @@ import (
 	"github.com/oboard/rune-lang/internal/compiler"
 	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/lsp"
+	"github.com/oboard/rune-lang/internal/repl"
 )
 
 func main() {
@@ -26,7 +27,7 @@ func rootCmd() *cobra.Command {
 		Use:   "rune",
 		Short: "Rune language toolchain",
 	}
-	cmd.AddCommand(runCmd(), buildCmd(), checkCmd(), fmtCmd(), lspCmd())
+	cmd.AddCommand(runCmd(), buildCmd(), checkCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
 
@@ -144,13 +145,24 @@ func lspCmd() *cobra.Command {
 	}
 }
 
+func replCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "repl",
+		Short: "Start the Rune REPL",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return repl.Serve(os.Stdin, os.Stdout)
+		},
+	}
+}
+
 func compileToTemp(path string) (string, func(), error) {
 	prog, diags := compiler.AnalyzeFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return "", func() {}, fmt.Errorf("compile failed")
 	}
-	src, err := gocodegen.Generate(prog.File, prog.Info)
+	src, err := gocodegen.GenerateIR(prog.IR)
 	if err != nil {
 		return "", func() {}, err
 	}

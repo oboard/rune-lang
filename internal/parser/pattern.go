@@ -1,0 +1,45 @@
+package parser
+
+import (
+	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/lexer"
+)
+
+func (p *Parser) parsePattern() ast.Pattern {
+	tok := p.peek()
+	switch tok.Kind {
+	case lexer.Underscore:
+		p.advance()
+		return &ast.WildcardPattern{Pos: tok.Pos}
+	case lexer.Int, lexer.String:
+		return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
+	case lexer.Ident:
+		if tok.Lexeme == "true" || tok.Lexeme == "false" {
+			return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
+		}
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		op := p.advance()
+		value := p.parsePrimary()
+		return &ast.ComparePattern{Op: op.Kind, Value: value, Pos: op.Pos}
+	case lexer.LParen:
+		start := p.advance()
+		p.skipNewlines()
+		var elems []ast.Pattern
+		if !p.check(lexer.RParen) {
+			for {
+				elems = append(elems, p.parsePattern())
+				p.skipNewlines()
+				if !p.match(lexer.Comma) {
+					break
+				}
+				p.skipNewlines()
+			}
+		}
+		p.consume(lexer.RParen, "expected ')' after tuple pattern")
+		return &ast.TuplePattern{Elements: elems, Pos: start.Pos}
+	}
+
+	p.errorAt(tok, "expected pattern")
+	p.advance()
+	return &ast.WildcardPattern{Pos: tok.Pos}
+}

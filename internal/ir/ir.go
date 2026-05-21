@@ -1,15 +1,26 @@
-package ast
+package ir
 
 import (
-	"strings"
-
+	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
+
+type Package struct {
+	Name    string
+	Modules []*Module
+}
+
+type Module struct {
+	Name  string
+	Files []*File
+}
 
 type File struct {
 	GoImports []GoImport
 	Types     []*StructType
 	Functions []*Function
+	Stdlib    *stdlib.Registry
 }
 
 type GoImport struct {
@@ -27,38 +38,22 @@ type StructType struct {
 
 type Field struct {
 	Name string
-	Type string
+	Type checker.Type
 	Pos  lexer.Position
 }
 
 type Function struct {
 	Name         string
-	ReceiverType string
+	ReceiverType checker.Type
 	Params       []Param
-	ReturnType   string
+	Return       checker.Type
 	Body         Expr
 	Pos          lexer.Position
 	NamePos      lexer.Position
 }
 
-func (f *Function) Signature() string {
-	var b strings.Builder
-	b.WriteString(f.Name)
-	b.WriteByte('(')
-	for i, param := range f.Params {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		b.WriteString(param.Name)
-		b.WriteString(": ")
-		b.WriteString(param.Type)
-	}
-	b.WriteByte(')')
-	return b.String()
-}
-
 type Param struct {
 	Name string
-	Type string
+	Type checker.Type
 	Pos  lexer.Position
 }

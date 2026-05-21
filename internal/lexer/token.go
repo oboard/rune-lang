@@ -19,6 +19,8 @@ const (
 	Colon
 	LParen
 	RParen
+	LBracket
+	RBracket
 	LBrace
 	RBrace
 
@@ -97,6 +99,10 @@ func (k Kind) String() string {
 		return "("
 	case RParen:
 		return ")"
+	case LBracket:
+		return "["
+	case RBracket:
+		return "]"
 	case LBrace:
 		return "{"
 	case RBrace:

@@ -1,0 +1,9 @@
+main() {
+    arr := [1, 2, 3, 4, 5]
+    @io.println(arr[0]) // prints 1
+    arr.push(6)
+    @io.println(arr.length()) // prints 6
+    @io.println(arr.isEmpty()) // prints false
+
+    arr.each(value => @io.println(value)) // prints 1, 2, 3, 4, 5, 6
+}

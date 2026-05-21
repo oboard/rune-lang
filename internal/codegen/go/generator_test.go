@@ -140,3 +140,49 @@ main() => {
 		}
 	}
 }
+
+func TestGenerateArrayProgram(t *testing.T) {
+	src := `main() {
+  arr := [1, 2, 3]
+  @io.println(arr[0])
+  arr.push(4)
+  @io.println(arr[3])
+  @io.println(arr.length())
+  @io.println(arr.isEmpty())
+  arr.each(value => @io.println(value))
+  mapped := arr.map(value => value + 1)
+  @io.println(mapped[0])
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`__arr := []int{1, 2, 3}`,
+		`fmt.Println(__arr[0])`,
+		`__arr = append(__arr, 4)`,
+		`fmt.Println(__arr[3])`,
+		`fmt.Println(len(__arr))`,
+		`fmt.Println(len(__arr) == 0)`,
+		`for _, __value := range __arr`,
+		`fmt.Println(__value)`,
+		`__mapped := func() []int`,
+		`__rune_map_out = append(__rune_map_out, __value+1)`,
+		`fmt.Println(__mapped[0])`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}

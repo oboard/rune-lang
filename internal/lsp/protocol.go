@@ -1,0 +1,50 @@
+package lsp
+
+import "encoding/json"
+
+type request struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id,omitempty"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
+}
+
+type textDocumentIdentifier struct {
+	URI string `json:"uri"`
+}
+
+type textDocumentItem struct {
+	URI  string `json:"uri"`
+	Text string `json:"text"`
+}
+
+type didOpenParams struct {
+	TextDocument textDocumentItem `json:"textDocument"`
+}
+
+type didChangeParams struct {
+	TextDocument   textDocumentIdentifier `json:"textDocument"`
+	ContentChanges []struct {
+		Text string `json:"text"`
+	} `json:"contentChanges"`
+}
+
+type textPositionParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Position     position               `json:"position"`
+}
+
+type documentSymbolParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
+type renameParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Position     position               `json:"position"`
+	NewName      string                 `json:"newName"`
+}
+
+type position struct {
+	Line      int `json:"line"`
+	Character int `json:"character"`
+}
