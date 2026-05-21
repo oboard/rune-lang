@@ -1,0 +1,17 @@
+User: {
+    id: Int
+    name: String
+    age: Int
+
+    isAdult() => .age >= 18
+}
+
+main() => {
+    user := User {
+        id: 1
+        name: "oboard"
+        age: 22
+    }
+    @fmt.println(user.name)
+    @fmt.println(user.isAdult())
+}

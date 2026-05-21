@@ -1,0 +1,26 @@
+{
+  "Function mapping": {
+    "prefix": "fn",
+    "body": [
+      "${1:name}(${2:arg}: ${3:Int}) => ${4:arg}"
+    ],
+    "description": "Create a Rune function mapping"
+  },
+  "Pattern block": {
+    "prefix": "match",
+    "body": [
+      "${1:name}(${2:value}: ${3:Int}) => {",
+      "  ${4:0} => ${5:0}",
+      "  _ => ${6:value}",
+      "}"
+    ],
+    "description": "Create a Rune pattern block"
+  },
+  "Print line": {
+    "prefix": "println",
+    "body": [
+      "@fmt.println(${1:value})"
+    ],
+    "description": "Print a value with the fmt module"
+  }
+}

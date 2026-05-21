@@ -1,0 +1,19 @@
+{
+  "name": "tree-sitter-rune",
+  "version": "0.1.0",
+  "description": "Tree-sitter grammar for Rune.",
+  "main": "grammar.js",
+  "license": "MIT",
+  "devDependencies": {
+    "tree-sitter-cli": "^0.22.6"
+  },
+  "tree-sitter": [
+    {
+      "scope": "source.rune",
+      "file-types": [
+        "rn"
+      ],
+      "highlights": "queries/highlights.scm"
+    }
+  ]
+}
