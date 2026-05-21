@@ -43,6 +43,7 @@ The MVP compiler currently supports:
 
 * function mappings: `name(args) => expr`
 * `Int`, `String`, `Bool`, and `Void`
+* explicit return annotations: `name(args) -> Type => expr`
 * block bodies with final-expression returns
 * immutable and mutable bindings: `:=`, `~=`
 * assignment: `=`
@@ -52,12 +53,35 @@ The MVP compiler currently supports:
 * struct methods and implicit receivers: `isAdult() => .age >= 18`
 * single-parameter pattern blocks with literals, comparisons, and `_`
 * calls to Rune functions
-* initial std mapping: `@fmt.println`, `@fmt.print`, `@fmt.printf`
+* core library declarations under `/core`: `array`, `map`, `io`, and `go`
+* declared I/O calls: `@io.println`, `@io.print`, `@io.printf`
+* inline Go FFI: `@go.import`, `@go.stmt`, and `@go.expr`
 
 The Go backend prefixes Rune-defined identifiers with `__` during code
 generation to avoid collisions with Go keywords and runtime names. Rune
 `main` is generated as `__main`, with a small Go `main` wrapper as the process
 entrypoint.
+
+Inline Go FFI is intentionally string-based for the first implementation, so
+Rune does not need to parse Go syntax. Use `$name` inside FFI strings to refer
+to Rune identifiers after backend name mangling:
+
+```rune
+@go.import("fmt")
+
+isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+
+main() => {
+  name := "oboard"
+  @go.stmt("fmt.Println($name)")
+  @io.println(isAdult(22))
+}
+```
+
+Standard library calls are not compiler-invented names. The checker and Go
+backend load module declarations from `/core/<module>/<module>.rn` stub files;
+an undeclared
+module call such as `@fmt.println(...)` is rejected.
 
 Editor scaffolding is included under:
 
@@ -441,9 +465,9 @@ main() => {
         name: "Luo Yuhang"
         age: 22
     }
-    @fmt.println(user.name)
-    @fmt.println(abs(-10))
-    @fmt.println(fib(10))
+    @io.println(user.name)
+    @io.println(abs(-10))
+    @io.println(fib(10))
 }
 
 ⸻

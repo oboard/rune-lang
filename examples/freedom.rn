@@ -10,7 +10,7 @@ main() => {
         func: 1
         def: 2
     }
-    @fmt.println(freedom.return)
-    @fmt.println(freedom.func)
-    @fmt.println(freedom.def)
+    @io.println(freedom.return)
+    @io.println(freedom.func)
+    @io.println(freedom.def)
 }

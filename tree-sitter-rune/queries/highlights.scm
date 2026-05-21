@@ -1,5 +1,6 @@
 [
   "=>"
+  "->"
   ":="
   "~="
   "="
@@ -10,6 +11,7 @@
 (call_expression function: (identifier) @function.call)
 (parameter name: (identifier) @variable.parameter)
 (parameter type: (identifier) @type)
+(return_type (identifier) @type)
 (number) @number
 (string) @string
 (line_comment) @comment

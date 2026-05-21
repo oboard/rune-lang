@@ -1,0 +1,2 @@
+len(map: Map) -> Int => "%map.len"
+has(map: Map, key: Any) -> Bool => "%map.has"

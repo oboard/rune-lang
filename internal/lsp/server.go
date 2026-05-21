@@ -177,11 +177,21 @@ func (s *server) hover(uri string, pos position) any {
 
 func (s *server) completion(uri string) any {
 	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
-	items := []map[string]any{
-		{"label": "@fmt.println", "kind": 3, "detail": "print a line"},
-	}
+	var items []map[string]any
 	if prog == nil {
 		return items
+	}
+	if prog.Info.Stdlib != nil {
+		for _, moduleName := range prog.Info.Stdlib.ModuleNames() {
+			module := prog.Info.Stdlib.Modules[moduleName]
+			for _, fn := range module.Functions {
+				items = append(items, map[string]any{
+					"label":  "@" + moduleName + "." + fn.Name,
+					"kind":   3,
+					"detail": "core/" + moduleName,
+				})
+			}
+		}
 	}
 	for _, fn := range prog.File.Functions {
 		items = append(items, map[string]any{

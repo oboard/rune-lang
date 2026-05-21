@@ -8,8 +8,14 @@ import (
 )
 
 type File struct {
+	GoImports []GoImport
 	Types     []*StructType
 	Functions []*Function
+}
+
+type GoImport struct {
+	Path string
+	Pos  lexer.Position
 }
 
 type StructType struct {
@@ -30,6 +36,7 @@ type Function struct {
 	Name         string
 	ReceiverType string
 	Params       []Param
+	ReturnType   string
 	Body         Expr
 	Pos          lexer.Position
 	NamePos      lexer.Position

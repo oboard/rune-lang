@@ -10,6 +10,12 @@ import (
 
 func File(file *ast.File) string {
 	f := formatter{}
+	for _, imp := range file.GoImports {
+		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
+	}
+	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Functions) > 0) {
+		f.line("")
+	}
 	for i, typ := range file.Types {
 		if i > 0 {
 			f.line("")
@@ -57,9 +63,13 @@ func (f *formatter) function(fn *ast.Function) {
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", param.Name, param.Type))
 	}
+	ret := ""
+	if fn.ReturnType != "" {
+		ret = " -> " + fn.ReturnType
+	}
 	switch body := fn.Body.(type) {
 	case *ast.PatternBlock:
-		f.linef("%s(%s) => {", fn.Name, strings.Join(params, ", "))
+		f.linef("%s(%s)%s => {", fn.Name, strings.Join(params, ", "), ret)
 		f.indent++
 		for _, branch := range body.Branches {
 			f.linef("%s => %s", f.pattern(branch.Pattern), f.expr(branch.Expr))
@@ -67,7 +77,7 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	case *ast.BlockExpr:
-		f.linef("%s(%s) => {", fn.Name, strings.Join(params, ", "))
+		f.linef("%s(%s)%s => {", fn.Name, strings.Join(params, ", "), ret)
 		f.indent++
 		for _, stmt := range body.Statements {
 			f.line(f.stmt(stmt))
@@ -75,7 +85,7 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	default:
-		f.linef("%s(%s) => %s", fn.Name, strings.Join(params, ", "), f.expr(fn.Body))
+		f.linef("%s(%s)%s => %s", fn.Name, strings.Join(params, ", "), ret, f.expr(fn.Body))
 	}
 }
 

@@ -13,6 +13,7 @@ module.exports = grammar({
     function_definition: ($) => seq(
       field("name", $.identifier),
       field("parameters", $.parameter_list),
+      optional(field("return_type", $.return_type)),
       "=>",
       field("body", choice($.expression, $.block))
     ),
@@ -28,6 +29,8 @@ module.exports = grammar({
       ":",
       field("type", $.identifier)
     ),
+
+    return_type: ($) => seq("->", $.identifier),
 
     block: ($) => seq(
       "{",

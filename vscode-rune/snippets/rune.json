@@ -2,7 +2,7 @@
   "Function mapping": {
     "prefix": "fn",
     "body": [
-      "${1:name}(${2:arg}: ${3:Int}) => ${4:arg}"
+      "${1:name}(${2:arg}: ${3:Int}) -> ${4:Int} => ${5:arg}"
     ],
     "description": "Create a Rune function mapping"
   },
@@ -19,8 +19,8 @@
   "Print line": {
     "prefix": "println",
     "body": [
-      "@fmt.println(${1:value})"
+      "@io.println(${1:value})"
     ],
-    "description": "Print a value with the fmt module"
+    "description": "Print a value with the core io module"
   }
 }

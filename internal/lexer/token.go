@@ -26,6 +26,7 @@ const (
 	Assign
 	Declare
 	MutDeclare
+	Arrow
 
 	Plus
 	Minus
@@ -108,6 +109,8 @@ func (k Kind) String() string {
 		return ":="
 	case MutDeclare:
 		return "~="
+	case Arrow:
+		return "->"
 	case Plus:
 		return "+"
 	case Minus:

@@ -16,7 +16,7 @@ func TestGenerateFibProgram(t *testing.T) {
 }
 
 main() => {
-  @fmt.println(fib(10))
+  @io.println(fib(10))
 }
 `
 	file, parseErrs := parser.Parse(src)
@@ -64,8 +64,8 @@ main() => {
     name: "oboard"
     age: 22
   }
-  @fmt.println(user.name)
-  @fmt.println(user.isAdult())
+  @io.println(user.name)
+  @io.println(user.isAdult())
 }
 `
 	file, parseErrs := parser.Parse(src)
@@ -91,6 +91,48 @@ main() => {
 		`__user := __User{__id: 1, __name: "oboard", __age: 22}`,
 		`fmt.Println(__user.__name)`,
 		`fmt.Println(__user.__isAdult())`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateInlineGoFFI(t *testing.T) {
+	src := `@go.import("fmt")
+
+isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+
+main() => {
+  name := "oboard"
+  age := 22
+  @go.stmt("fmt.Println($name)")
+  @go.stmt("fmt.Println($age)")
+  @io.println(isAdult(age))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`"fmt"`,
+		`func __isAdult(__age int) bool`,
+		`return __age >= 18`,
+		`__name := "oboard"`,
+		`fmt.Println(__name)`,
+		`fmt.Println(__age)`,
+		`fmt.Println(__isAdult(__age))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

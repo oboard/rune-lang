@@ -68,7 +68,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|String|Bool|Void)\\b"
+          "match": "\\b(Int|String|Bool|Void|Any|Dynamic|Array|Map)\\b"
         }
       ]
     },
@@ -76,7 +76,7 @@
       "patterns": [
         {
           "name": "keyword.operator.arrow.rune",
-          "match": "=>"
+          "match": "(=>|->)"
         },
         {
           "name": "keyword.operator.assignment.rune",

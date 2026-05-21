@@ -6,27 +6,28 @@ import (
 	goformat "go/format"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func Generate(file *ast.File, info *checker.Info) (string, error) {
 	g := &generator{info: info, imports: map[string]bool{}}
+	for _, imp := range file.GoImports {
+		g.imports[imp.Path] = true
+	}
 	for _, fn := range file.Functions {
 		ast.WalkExpr(fn.Body, func(expr ast.Expr) {
-			if usesFmt(expr) {
-				g.imports["fmt"] = true
-			}
+			g.collectExprImports(expr)
 		})
 	}
 	for _, typ := range file.Types {
 		for _, method := range typ.Methods {
 			ast.WalkExpr(method.Body, func(expr ast.Expr) {
-				if usesFmt(expr) {
-					g.imports["fmt"] = true
-				}
+				g.collectExprImports(expr)
 			})
 		}
 	}
@@ -155,7 +156,9 @@ func (g *generator) body(fn *ast.Function, expr ast.Expr, ret checker.Type) erro
 		return g.block(e, ret)
 	default:
 		if ret == checker.Void {
-			g.line(g.expr(expr))
+			if expr := g.expr(expr); expr != "" {
+				g.line(expr)
+			}
 		} else {
 			g.linef("return %s", g.expr(expr))
 		}
@@ -172,10 +175,14 @@ func (g *generator) block(block *ast.BlockExpr, ret checker.Type) error {
 		case *ast.AssignStmt:
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ast.ExprStmt:
+			expr := g.expr(s.Expr)
+			if expr == "" {
+				continue
+			}
 			if last && ret != checker.Void {
-				g.linef("return %s", g.expr(s.Expr))
+				g.linef("return %s", expr)
 			} else {
-				g.line(g.expr(s.Expr))
+				g.line(expr)
 			}
 		}
 	}
@@ -202,7 +209,9 @@ func (g *generator) patternBlock(fn *ast.Function, block *ast.PatternBlock, ret 
 		}
 		g.indent++
 		if ret == checker.Void {
-			g.line(g.expr(branch.Expr))
+			if expr := g.expr(branch.Expr); expr != "" {
+				g.line(expr)
+			}
 		} else {
 			g.linef("return %s", g.expr(branch.Expr))
 		}
@@ -264,6 +273,9 @@ func (g *generator) exprPrec(expr ast.Expr, parentPrec int) string {
 		}
 		return s
 	case *ast.CallExpr:
+		if ffi, ok := g.goFFICall(e); ok {
+			return ffi
+		}
 		args := make([]string, 0, len(e.Args))
 		for _, arg := range e.Args {
 			args = append(args, g.expr(arg))
@@ -271,8 +283,8 @@ func (g *generator) exprPrec(expr ast.Expr, parentPrec int) string {
 		return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
 	case *ast.SelectorExpr:
 		if at, ok := e.Receiver.(*ast.AtExpr); ok {
-			if at.Name == "fmt" {
-				return "fmt." + exportedFmtName(e.Name)
+			if fn, ok := g.info.Stdlib.Function(at.Name, e.Name); ok && fn.Go != nil && fn.Go.Symbol != "" {
+				return fn.Go.Symbol
 			}
 		}
 		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
@@ -355,24 +367,96 @@ func mangleIdent(name string) string {
 	return "__" + name
 }
 
-func usesFmt(expr ast.Expr) bool {
-	sel, ok := expr.(*ast.SelectorExpr)
-	if !ok {
-		return false
+func (g *generator) collectExprImports(expr ast.Expr) {
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Go != nil && fn.Go.Import != "" {
+		g.imports[fn.Go.Import] = true
 	}
-	at, ok := sel.Receiver.(*ast.AtExpr)
-	return ok && at.Name == "fmt"
 }
 
-func exportedFmtName(name string) string {
-	switch name {
-	case "println":
-		return "Println"
-	case "print":
-		return "Print"
-	case "printf":
-		return "Printf"
-	default:
-		return name
+func (g *generator) goFFICall(call *ast.CallExpr) (string, bool) {
+	fn, ok := g.stdlibFunctionFromCall(call)
+	if !ok || fn.Intrinsic == "" {
+		return "", false
 	}
+	switch fn.Intrinsic {
+	case "go.import":
+		return "/* @go.import must be top-level */", true
+	case "go.stmt":
+		if len(call.Args) != 1 {
+			return "/* invalid @go.stmt */", true
+		}
+		lit, ok := call.Args[0].(*ast.StringLiteral)
+		if !ok {
+			return "/* invalid @go.stmt */", true
+		}
+		return rewriteGoFFI(lit.Value), true
+	case "go.expr":
+		if len(call.Args) != 1 {
+			return "/* invalid @go.expr */", true
+		}
+		lit, ok := call.Args[0].(*ast.StringLiteral)
+		if !ok {
+			return "/* invalid @go.expr */", true
+		}
+		return rewriteGoFFI(lit.Value), true
+	default:
+		return "/* unknown intrinsic */", true
+	}
+}
+
+func (g *generator) stdlibFunctionFromExpr(expr ast.Expr) (*stdlib.Function, bool) {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return nil, false
+	}
+	return g.stdlibFunctionFromCall(call)
+}
+
+func (g *generator) stdlibFunctionFromCall(call *ast.CallExpr) (*stdlib.Function, bool) {
+	sel, ok := call.Callee.(*ast.SelectorExpr)
+	if !ok {
+		return nil, false
+	}
+	at, ok := sel.Receiver.(*ast.AtExpr)
+	if !ok || g.info.Stdlib == nil {
+		return nil, false
+	}
+	return g.info.Stdlib.Function(at.Name, sel.Name)
+}
+
+func rewriteGoFFI(src string) string {
+	var b strings.Builder
+	for i := 0; i < len(src); {
+		if src[i] != '$' {
+			b.WriteByte(src[i])
+			i++
+			continue
+		}
+		if i+1 < len(src) && src[i+1] == '$' {
+			b.WriteByte('$')
+			i += 2
+			continue
+		}
+		j := i + 1
+		if j >= len(src) || !isGoFFIIdentStart(rune(src[j])) {
+			b.WriteByte('$')
+			i++
+			continue
+		}
+		j++
+		for j < len(src) && isGoFFIIdentContinue(rune(src[j])) {
+			j++
+		}
+		b.WriteString(mangleIdent(src[i+1 : j]))
+		i = j
+	}
+	return b.String()
+}
+
+func isGoFFIIdentStart(r rune) bool {
+	return r == '_' || unicode.IsLetter(r)
+}
+
+func isGoFFIIdentContinue(r rune) bool {
+	return isGoFFIIdentStart(r) || unicode.IsDigit(r)
 }

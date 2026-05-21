@@ -1,0 +1,3 @@
+print(value: Any) => "%go:fmt.Print"
+println(value: Any) => "%go:fmt.Println"
+printf(format: String, value: Any) => "%go:fmt.Printf"

@@ -12,6 +12,6 @@ main() => {
         name: "oboard"
         age: 22
     }
-    @fmt.println(user.name)
-    @fmt.println(user.isAdult())
+    @io.println(user.name)
+    @io.println(user.isAdult())
 }

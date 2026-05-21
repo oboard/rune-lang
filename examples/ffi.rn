@@ -1,0 +1,11 @@
+@go.import("fmt")
+
+isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+
+main() => {
+  name := "oboard"
+  age := 22
+  @go.stmt("fmt.Println($name)")
+  @go.stmt("fmt.Println($age)")
+  @io.println(isAdult(age))
+}

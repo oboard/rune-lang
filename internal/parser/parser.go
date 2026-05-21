@@ -35,7 +35,11 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 	file := &ast.File{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
-		if p.check(lexer.Ident) && p.checkNext(lexer.Colon) {
+		if p.check(lexer.At) {
+			if imp := p.parseGoImportDecl(); imp != nil {
+				file.GoImports = append(file.GoImports, *imp)
+			}
+		} else if p.check(lexer.Ident) && p.checkNext(lexer.Colon) {
 			typ := p.parseStructType()
 			if typ != nil {
 				file.Types = append(file.Types, typ)
@@ -49,6 +53,29 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 		p.skipNewlines()
 	}
 	return file, p.errors
+}
+
+func (p *Parser) parseGoImportDecl() *ast.GoImport {
+	at := p.consume(lexer.At, "expected '@'")
+	module := p.consume(lexer.Ident, "expected module name after '@'")
+	if module.Lexeme != "go" {
+		p.errorAt(module, "only @go.import can appear at the top level")
+		return nil
+	}
+	p.consume(lexer.Dot, "expected '.' after @go")
+	name := p.consume(lexer.Ident, "expected import after @go.")
+	if name.Lexeme != "import" {
+		p.errorAt(name, "only @go.import can appear at the top level")
+		return nil
+	}
+	p.consume(lexer.LParen, "expected '(' after @go.import")
+	path := p.consume(lexer.String, "expected Go import path string")
+	value, err := strconv.Unquote(path.Lexeme)
+	if err != nil {
+		p.errorAt(path, "invalid Go import path string")
+	}
+	p.consume(lexer.RParen, "expected ')' after @go.import")
+	return &ast.GoImport{Path: value, Pos: at.Pos}
 }
 
 func (p *Parser) parseStructType() *ast.StructType {
@@ -119,6 +146,12 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	}
 	p.consume(lexer.RParen, "expected ')' after parameter list")
 	p.skipNewlines()
+	if p.match(lexer.Arrow) {
+		p.skipNewlines()
+		returnType := p.consume(lexer.Ident, "expected return type after '->'")
+		fn.ReturnType = returnType.Lexeme
+		p.skipNewlines()
+	}
 	p.consume(lexer.FatArrow, "expected '=>' after function signature")
 	p.skipNewlines()
 	fn.Body = p.parseBody()

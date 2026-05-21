@@ -71,6 +71,9 @@ func (l *Lexer) Next() Token {
 	case '+':
 		return l.token(Plus)
 	case '-':
+		if l.match('>') {
+			return l.token(Arrow)
+		}
 		return l.token(Minus)
 	case '*':
 		return l.token(Star)

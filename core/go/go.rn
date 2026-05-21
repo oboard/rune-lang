@@ -1,0 +1,3 @@
+import(pkg: String) => "%go.import"
+stmt(stmt: String) => "%go.stmt"
+expr(expr: String) => "%go.expr"

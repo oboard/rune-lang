@@ -1,0 +1,2 @@
+len(array: Array) -> Int => "%array.len"
+isEmpty(array: Array) -> Bool => "%array.isEmpty"

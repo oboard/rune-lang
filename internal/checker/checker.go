@@ -5,6 +5,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 type Type string
@@ -28,11 +29,12 @@ type ParamInfo struct {
 }
 
 type FuncInfo struct {
-	Name         string
-	ReceiverType Type
-	Params       []ParamInfo
-	Return       Type
-	Node         *ast.Function
+	Name           string
+	ReceiverType   Type
+	Params         []ParamInfo
+	Return         Type
+	ReturnDeclared bool
+	Node           *ast.Function
 }
 
 type FieldInfo struct {
@@ -51,15 +53,22 @@ type StructInfo struct {
 type Info struct {
 	Functions map[string]*FuncInfo
 	Types     map[string]*StructInfo
+	Stdlib    *stdlib.Registry
 }
 
 func Check(file *ast.File) (*Info, []Diagnostic) {
+	reg, err := stdlib.LoadDefault()
 	c := &checker{
 		info: &Info{
 			Functions: map[string]*FuncInfo{},
 			Types:     map[string]*StructInfo{},
+			Stdlib:    reg,
 		},
 	}
+	if err != nil {
+		c.errorf(lexer.Position{}, "%s", err.Error())
+	}
+	c.checkGoImports(file)
 	c.collect(file)
 	for _, typ := range file.Types {
 		c.inferMethods(typ)
@@ -73,6 +82,15 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 type checker struct {
 	info  *Info
 	diags []Diagnostic
+}
+
+func (c *checker) checkGoImports(file *ast.File) {
+	for _, imp := range file.GoImports {
+		fn, ok := c.info.Stdlib.Function("go", "import")
+		if !ok || fn.Intrinsic != "go.import" || !fn.TopLevelOnly {
+			c.errorf(imp.Pos, "@go.import is not declared in core/go")
+		}
+	}
 }
 
 func (c *checker) collect(file *ast.File) {
@@ -139,6 +157,14 @@ func (c *checker) collectFunction(fn *ast.Function) *FuncInfo {
 		}
 		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: typ})
 	}
+	if fn.ReturnType != "" {
+		typ := c.resolveType(fn.ReturnType)
+		if typ == Unknown {
+			c.errorf(fn.NamePos, "unknown return type %q", fn.ReturnType)
+		}
+		info.Return = typ
+		info.ReturnDeclared = true
+	}
 	return info
 }
 
@@ -157,10 +183,7 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 			env[param.Name] = param.Type
 		}
 		ret := c.inferExpr(method.Body, env)
-		if ret == Unknown {
-			ret = Void
-		}
-		info.Return = ret
+		c.finishFunctionReturn(info, ret, method)
 	}
 }
 
@@ -175,7 +198,20 @@ func (c *checker) inferFunction(fn *ast.Function) {
 	}
 	ret := c.inferExpr(fn.Body, env)
 	if fn.Name == "main" {
+		if info.ReturnDeclared && info.Return != Void {
+			c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
+		}
 		info.Return = Void
+		return
+	}
+	c.finishFunctionReturn(info, ret, fn)
+}
+
+func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, fn *ast.Function) {
+	if info.ReturnDeclared {
+		if ret != Unknown && ret != info.Return {
+			c.errorf(fn.Body.Position(), "function %q returns %s, expected %s", fn.Name, ret, info.Return)
+		}
 		return
 	}
 	if ret == Unknown {
@@ -280,8 +316,8 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	}
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
 		if at, ok := sel.Receiver.(*ast.AtExpr); ok {
-			if at.Name == "fmt" && (sel.Name == "println" || sel.Name == "print" || sel.Name == "printf") {
-				return Void
+			if fn, ok := c.info.Stdlib.Function(at.Name, sel.Name); ok {
+				return c.inferStdlibCall(at.Name, sel, call, argTypes, fn)
 			}
 			c.errorf(sel.Pos, "unknown module function @%s.%s", at.Name, sel.Name)
 			return Unknown
@@ -313,6 +349,71 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	}
 	c.inferExpr(call.Callee, env)
 	return Unknown
+}
+
+func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, fn *stdlib.Function) Type {
+	if fn.TopLevelOnly {
+		c.errorf(sel.Pos, "@%s.%s must be a top-level declaration", moduleName, sel.Name)
+		return Void
+	}
+
+	switch fn.Intrinsic {
+	case "go.stmt":
+		c.checkStdlibArgs(moduleName, sel.Name, fn, call.Args, argTypes, sel.Pos)
+		if len(call.Args) == 1 {
+			if _, ok := call.Args[0].(*ast.StringLiteral); !ok {
+				c.errorf(call.Args[0].Position(), "@go.stmt argument must be a string literal")
+			}
+		}
+		return Void
+	case "go.expr":
+		c.checkStdlibArgs(moduleName, sel.Name, fn, call.Args, argTypes, sel.Pos)
+		if len(call.Args) != 1 {
+			return Unknown
+		}
+		if _, ok := call.Args[0].(*ast.StringLiteral); !ok {
+			c.errorf(call.Args[0].Position(), "@go.expr body must be a string literal")
+		}
+		return c.resolveDeclaredReturn(fn.Return)
+	}
+
+	c.checkStdlibArgs(moduleName, sel.Name, fn, call.Args, argTypes, sel.Pos)
+	return c.resolveDeclaredReturn(fn.Return)
+}
+
+func (c *checker) checkStdlibArgs(moduleName string, functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, pos lexer.Position) {
+	if fn.Variadic {
+		minArgs := len(fn.Params)
+		if minArgs > 0 {
+			minArgs--
+		}
+		if len(args) < minArgs {
+			c.errorf(pos, "@%s.%s expects at least %d args, got %d", moduleName, functionName, minArgs, len(args))
+		}
+	} else if len(fn.Params) != len(args) {
+		c.errorf(pos, "@%s.%s expects %d args, got %d", moduleName, functionName, len(fn.Params), len(args))
+	}
+
+	for i := 0; i < len(args) && i < len(fn.Params); i++ {
+		expected := fn.Params[i]
+		if fn.Variadic && i >= len(fn.Params)-1 {
+			expected = fn.Params[len(fn.Params)-1]
+		}
+		c.checkDeclaredArg(moduleName, functionName, i, expected, args[i], argTypes[i])
+	}
+}
+
+func (c *checker) checkDeclaredArg(moduleName string, functionName string, index int, expected string, arg ast.Expr, actual Type) {
+	if expected == "Any" || expected == "Dynamic" {
+		return
+	}
+	expectedType := c.resolveType(expected)
+	if expectedType == Unknown {
+		return
+	}
+	if actual != Unknown && actual != expectedType {
+		c.errorf(arg.Position(), "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
+	}
 }
 
 func (c *checker) checkArgs(name string, params []ParamInfo, args []ast.Expr, argTypes []Type, pos lexer.Position) {
@@ -434,6 +535,13 @@ func (c *checker) resolveType(name string) Type {
 		}
 		return Unknown
 	}
+}
+
+func (c *checker) resolveDeclaredReturn(name string) Type {
+	if name == "Dynamic" || name == "Any" {
+		return Unknown
+	}
+	return c.resolveType(name)
 }
 
 func min(a, b int) int {
