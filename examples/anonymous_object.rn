@@ -10,7 +10,7 @@ main() => {
 
     obj2 := {
         parent: obj,
-        name: "Bob",
+        name: "Bob"
     }
 
     @io.println(obj.name) // prints "Alice"

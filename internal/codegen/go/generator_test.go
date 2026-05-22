@@ -197,7 +197,13 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
     nextAge() => .age + 1
   }
 
+  obj2 := {
+    parent: obj
+    name: "Bob"
+  }
+
   @io.println(obj.name)
+  @io.println(obj2.parent.name)
   @io.println(obj.age)
   @io.println(obj.nextAge())
   obj.greet()
@@ -224,7 +230,12 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		`__nextAge func() int`,
 		`fmt.Println("Hello, my name is " + __obj.__name)`,
 		`return __obj.__age + 1`,
+		`var __obj2 struct`,
+		`__parent struct`,
+		`__name string`,
+		`_ = __obj2`,
 		`fmt.Println(__obj.__name)`,
+		`fmt.Println(__obj2.__parent.__name)`,
 		`fmt.Println(__obj.__age)`,
 		`fmt.Println(__obj.__nextAge())`,
 		`__obj.__greet()`,

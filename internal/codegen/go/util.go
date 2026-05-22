@@ -24,6 +24,13 @@ func goType(typ checker.Type) string {
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
+	if fields, ok := parseGoObjectType(string(typ)); ok {
+		parts := make([]string, 0, len(fields))
+		for _, field := range fields {
+			parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
+		}
+		return "struct{" + strings.Join(parts, "; ") + "}"
+	}
 	if params, ret, ok := parseGoFuncType(string(typ)); ok {
 		goParams := make([]string, 0, len(params))
 		for _, param := range params {
@@ -48,6 +55,48 @@ func goType(typ checker.Type) string {
 	}
 }
 
+type goObjectField struct {
+	name string
+	typ  string
+}
+
+func parseGoObjectType(name string) ([]goObjectField, bool) {
+	if !strings.HasPrefix(name, "{") || !strings.HasSuffix(name, "}") {
+		return nil, false
+	}
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(name, "{"), "}"))
+	if inner == "" {
+		return nil, true
+	}
+	parts := splitGoTypeList(inner)
+	fields := make([]goObjectField, 0, len(parts))
+	for _, part := range parts {
+		fieldName, fieldType, ok := splitGoObjectField(part)
+		if !ok {
+			return nil, false
+		}
+		fields = append(fields, goObjectField{name: fieldName, typ: fieldType})
+	}
+	return fields, true
+}
+
+func splitGoObjectField(src string) (string, string, bool) {
+	depth := 0
+	for i, ch := range src {
+		switch ch {
+		case '[', '{', '(':
+			depth++
+		case ']', '}', ')':
+			depth--
+		case ':':
+			if depth == 0 {
+				return strings.TrimSpace(src[:i]), strings.TrimSpace(src[i+1:]), true
+			}
+		}
+	}
+	return "", "", false
+}
+
 func parseGoFuncType(name string) ([]string, string, bool) {
 	if !strings.HasPrefix(name, "Func[") || !strings.HasSuffix(name, "]") {
 		return nil, "", false
@@ -65,9 +114,9 @@ func splitGoTypeList(src string) []string {
 	start := 0
 	for i, ch := range src {
 		switch ch {
-		case '[':
+		case '[', '{', '(':
 			depth++
-		case ']':
+		case ']', '}', ')':
 			depth--
 		case ',':
 			if depth == 0 {

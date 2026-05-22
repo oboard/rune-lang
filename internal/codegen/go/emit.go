@@ -85,9 +85,11 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 					return g.expr(s.Value)
 				})
 				g.linef("%s = %s", mangleIdent(s.Name), value)
+				g.linef("_ = %s", mangleIdent(s.Name))
 				continue
 			}
 			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
+			g.linef("_ = %s", mangleIdent(s.Name))
 		case *ir.AssignStmt:
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
