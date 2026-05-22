@@ -34,8 +34,15 @@ func (f *formatter) expr(expr ast.Expr) string {
 		}
 		return fmt.Sprintf("%s(%s)", f.expr(e.Callee), strings.Join(args, ", "))
 	case *ast.LambdaExpr:
-		params := strings.Join(e.Params, ", ")
-		return "(" + params + ") => " + f.expr(e.Body)
+		params := make([]string, 0, len(e.Params))
+		for i, param := range e.Params {
+			if i < len(e.ParamTypes) && e.ParamTypes[i] != "" {
+				params = append(params, fmt.Sprintf("%s: %s", param, e.ParamTypes[i]))
+			} else {
+				params = append(params, param)
+			}
+		}
+		return "(" + strings.Join(params, ", ") + ") => " + f.expr(e.Body)
 	case *ast.IndexExpr:
 		return fmt.Sprintf("%s[%s]", f.expr(e.Receiver), f.expr(e.Index))
 	case *ast.SelectorExpr:

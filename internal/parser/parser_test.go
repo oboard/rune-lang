@@ -67,6 +67,35 @@ func TestLambdaWithParenthesizedParams(t *testing.T) {
 	}
 }
 
+func TestLambdaWithAnnotatedParams(t *testing.T) {
+	file, errs := Parse(`Input: {
+    a: Int
+}
+
+main() => {
+    f := (value: Input) => value.a + 1
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 1 {
+		t.Fatalf("main body = %#v, want one statement", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("statement = %T, want LetStmt", block.Statements[0])
+	}
+	lambda, ok := let.Value.(*ast.LambdaExpr)
+	if !ok {
+		t.Fatalf("let value = %T, want LambdaExpr", let.Value)
+	}
+	if len(lambda.ParamTypes) != 1 || lambda.ParamTypes[0] != "Input" {
+		t.Fatalf("lambda param types = %v, want [Input]", lambda.ParamTypes)
+	}
+}
+
 func TestAnonymousObjectMethodMembers(t *testing.T) {
 	file, errs := Parse(`main() => {
     obj := {

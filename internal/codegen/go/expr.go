@@ -101,12 +101,24 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 }
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
-	if _, ok := parseGoObjectType(string(expected)); ok {
-		if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
+	if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
+		if _, ok := parseGoObjectType(string(expected)); ok {
+			return fmt.Sprintf("%s{%s}", goType(expected), anonymousObjectFieldsForType(g, obj, expected))
+		}
+		if g.hasStructType(expected) {
 			return fmt.Sprintf("%s{%s}", goType(expected), anonymousObjectFieldsForType(g, obj, expected))
 		}
 	}
 	return g.expr(expr)
+}
+
+func (g *generator) hasStructType(typ checker.Type) bool {
+	for _, candidate := range g.file.Types {
+		if candidate.Name == string(typ) {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *generator) matchExpr(match *ir.MatchExpr) string {

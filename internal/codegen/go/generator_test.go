@@ -292,3 +292,42 @@ main() => {
 		}
 	}
 }
+
+func TestGenerateAnnotatedFunctionValueCallWithAnonymousArgument(t *testing.T) {
+	src := `Return: {
+  b: Int
+  z: Bool
+  a: Int
+}
+
+fun(flag) => {
+  (flag {
+    true => (x: Return) => {
+      k: x.a + 1,
+    }
+    false => (y: Return) => {
+      k: y.b + 1,
+    }
+  })({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	if !strings.Contains(got, `__Return{__b: 2, __z: false, __a: 1}`) {
+		t.Fatalf("generated Go missing __Return literal conversion:\n%s", got)
+	}
+}

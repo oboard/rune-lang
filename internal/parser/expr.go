@@ -99,16 +99,18 @@ func (p *Parser) parseLambda() ast.Expr {
 		body = p.parseBody()
 	}
 	return &ast.LambdaExpr{
-		Params:   params.names,
-		ParamPos: params.positions,
-		Body:     body,
-		Pos:      params.pos,
+		Params:     params.names,
+		ParamPos:   params.positions,
+		ParamTypes: params.types,
+		Body:       body,
+		Pos:        params.pos,
 	}
 }
 
 type lambdaParams struct {
 	names     []string
 	positions []lexer.Position
+	types     []string
 	pos       lexer.Position
 }
 
@@ -117,12 +119,18 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 		pos := p.previous().Pos
 		var names []string
 		var positions []lexer.Position
+		var types []string
 		p.skipNewlines()
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
 			name := p.consume(lexer.Ident, "expected lambda parameter")
 			if name.Kind == lexer.Ident {
 				names = append(names, name.Lexeme)
 				positions = append(positions, name.Pos)
+				paramType := ""
+				if p.match(lexer.Colon) {
+					paramType = p.parseTypeName()
+				}
+				types = append(types, paramType)
 			}
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
@@ -131,7 +139,7 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 			p.skipNewlines()
 		}
 		p.consume(lexer.RParen, "expected ')' after lambda parameters")
-		return lambdaParams{names: names, positions: positions, pos: pos}
+		return lambdaParams{names: names, positions: positions, types: types, pos: pos}
 	}
 	tok := p.peek()
 	p.errorAt(tok, "lambda parameters must be parenthesized")

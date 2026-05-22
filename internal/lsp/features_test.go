@@ -269,6 +269,101 @@ main() => {
 	}
 }
 
+func TestLambdaParamsRefineToNamedStructArgument(t *testing.T) {
+	uri := "file:///tmp/named_return.rn"
+	src := `Return: {
+  b: Int
+  z: Bool
+  a: Int
+}
+
+fun(flag) => {
+  flag {
+    true => (x) => {
+      k: x.a + 1,
+    }
+    false => (y) => {
+      k: y.b + 1,
+    }
+  }(Return {
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if len(diags) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	xHover := s.hover(uri, positionOf(src, "x.a", "x")).(map[string]any)
+	if got := hoverValue(xHover); !strings.Contains(got, "x: Return") {
+		t.Fatalf("x hover = %q, want Return", got)
+	}
+	yHover := s.hover(uri, positionOf(src, "y.b", "y")).(map[string]any)
+	if got := hoverValue(yHover); !strings.Contains(got, "y: Return") {
+		t.Fatalf("y hover = %q, want Return", got)
+	}
+
+	def := s.definition(uri, positionOf(src, "Return {", "Return")).(map[string]any)
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("Return definition start = %+v, want line 0 char 0", start)
+	}
+
+	edit := s.rename(uri, positionOf(src, "Return {", "Return"), "Result").(map[string]any)
+	changes := edit["changes"].(map[string]any)[uri].([]map[string]any)
+	if len(changes) != 2 {
+		t.Fatalf("rename edits = %d, want 2: %#v", len(changes), changes)
+	}
+
+	hints := s.inlayHints(uri).([]map[string]any)
+	if !inlayLabelsContain(hints, ": Return") {
+		t.Fatalf("inlay hints = %#v, want lambda param Return hints", hints)
+	}
+}
+
+func TestAnnotatedLambdaParamsAcceptAnonymousStructArgument(t *testing.T) {
+	uri := "file:///tmp/annotated_lambda_anon_arg.rn"
+	src := `Return: {
+  b: Int
+  z: Bool
+  a: Int
+}
+
+fun(flag) => {
+  (flag {
+    true => (x: Return) => {
+      k: x.a + 1,
+    }
+    false => (y: Return) => {
+      k: y.b + 1,
+    }
+  })({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if len(diags) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	xHover := s.hover(uri, positionOf(src, "x.a", "x")).(map[string]any)
+	if got := hoverValue(xHover); !strings.Contains(got, "x: Return") {
+		t.Fatalf("x hover = %q, want Return", got)
+	}
+	hints := s.inlayHints(uri).([]map[string]any)
+	if !inlayLabelsContain(hints, " -> { k: Int } ") {
+		t.Fatalf("inlay hints = %#v, want anonymous lambda return hint", hints)
+	}
+}
+
 func TestComplexTypeFunctionSignaturesRejectMismatch(t *testing.T) {
 	uri := "file:///tmp/complex_type2.rn"
 	src := `h(x) => h(x) + 1

@@ -468,8 +468,11 @@ func (c *checker) refineArgumentType(expected Type, actual Type) (Type, bool) {
 	if unified, ok := c.unifyTypes(expected, actual); ok {
 		return unified, true
 	}
-	if isObjectType(expected) && isObjectType(actual) && c.objectHasFields(actual, expected) {
-		return actual, true
+	if c.objectHasFields(actual, expected) {
+		if isObjectType(expected) {
+			return actual, true
+		}
+		return expected, true
 	}
 	return Unknown, false
 }

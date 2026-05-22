@@ -175,8 +175,9 @@ func (c *checker) applyExpectedType(expr ast.Expr, typ Type) {
 	c.info.ExprTypes[expr] = typ
 	switch e := expr.(type) {
 	case *ast.LambdaExpr:
-		_, ret, ok := parseFuncType(string(typ))
+		params, ret, ok := parseFuncType(string(typ))
 		if ok {
+			c.applyLambdaParamTypes(e, params)
 			c.applyExpectedType(e.Body, Type(ret))
 		}
 	case *ast.AnonymousObjectLiteral:
@@ -192,6 +193,27 @@ func (c *checker) applyExpectedType(expr ast.Expr, typ Type) {
 			c.applyExpectedType(branch.Expr, typ)
 		}
 	}
+}
+
+func (c *checker) applyLambdaParamTypes(lambda *ast.LambdaExpr, params []string) {
+	types := map[string]Type{}
+	for i, name := range lambda.Params {
+		if i < len(params) {
+			types[name] = Type(params[i])
+		}
+	}
+	if len(types) == 0 {
+		return
+	}
+	ast.WalkExpr(lambda.Body, func(expr ast.Expr) {
+		ident, ok := expr.(*ast.Identifier)
+		if !ok {
+			return
+		}
+		if typ, ok := types[ident.Name]; ok {
+			c.info.ExprTypes[ident] = typ
+		}
+	})
 }
 
 func (c *checker) inferPatternSubject(branches []ast.PatternBranch) Type {

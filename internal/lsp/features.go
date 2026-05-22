@@ -183,6 +183,9 @@ func (s *server) definition(uri string, pos position) any {
 	if target := fieldTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
+	if target := typeTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
 	if target := localTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
@@ -210,6 +213,19 @@ func localTarget(uri string, prog *compiler.Program, pos position) *methodTarget
 	}
 	if target := paramTarget(uri, prog.File, name); target != nil {
 		return target
+	}
+	return nil
+}
+
+func typeTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	name := wordAt(prog.Source, pos)
+	if name == "" {
+		return nil
+	}
+	for _, typ := range prog.File.Types {
+		if typ.Name == name {
+			return &methodTarget{uri: uri, name: typ.Name, pos: typ.NamePos}
+		}
 	}
 	return nil
 }
@@ -455,6 +471,11 @@ func (s *server) rename(uri string, pos position, newName string) any {
 	}
 	prog, _ := compiler.AnalyzeSource(uri, text)
 	if prog != nil {
+		if target := typeTarget(uri, prog, pos); target != nil {
+			return map[string]any{
+				"changes": map[string]any{uri: wordRenameEdits(text, target.name, newName)},
+			}
+		}
 		if target := s.methodTarget(uri, prog, pos); target != nil {
 			if target.structName == "" {
 				return nil
@@ -464,7 +485,13 @@ func (s *server) rename(uri string, pos position, newName string) any {
 			}
 		}
 	}
-	ident := regexp.MustCompile(`\b` + regexp.QuoteMeta(word) + `\b`)
+	return map[string]any{
+		"changes": map[string]any{uri: wordRenameEdits(text, word, newName)},
+	}
+}
+
+func wordRenameEdits(text string, oldName string, newName string) []map[string]any {
+	ident := regexp.MustCompile(`\b` + regexp.QuoteMeta(oldName) + `\b`)
 	var edits []map[string]any
 	lines := strings.Split(text, "\n")
 	for lineNo, line := range lines {
@@ -478,9 +505,7 @@ func (s *server) rename(uri string, pos position, newName string) any {
 			})
 		}
 	}
-	return map[string]any{
-		"changes": map[string]any{uri: edits},
-	}
+	return edits
 }
 
 type methodTarget struct {
