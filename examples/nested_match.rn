@@ -1,0 +1,16 @@
+
+nestedMatch() => {
+  x := 1
+  y := 2
+  x {
+    1 => y {
+      2 => @io.println("x is 1 and y is 2")
+      _ => @io.println("x is 1 and y is not 2")
+    }
+    _ => @io.println("x is not 1")
+  }
+}
+
+main() => {
+  nestedMatch()
+}

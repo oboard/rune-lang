@@ -331,3 +331,36 @@ fun(flag) => {
 		t.Fatalf("generated Go missing __Return literal conversion:\n%s", got)
 	}
 }
+
+func TestGenerateNestedVoidMatch(t *testing.T) {
+	src := `nestedMatch() => {
+  x := 1
+  y := 2
+  x {
+    1 => y {
+      2 => @io.println("x is 1 and y is 2")
+      _ => @io.println("x is 1 and y is not 2")
+    }
+    _ => @io.println("x is not 1")
+  }
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	if strings.Contains(got, "__Void") {
+		t.Fatalf("generated Go should not mention __Void:\n%s", got)
+	}
+	if !strings.Contains(got, `fmt.Println("x is 1 and y is 2")`) {
+		t.Fatalf("generated Go missing nested println:\n%s", got)
+	}
+}

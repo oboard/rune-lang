@@ -96,6 +96,61 @@ main() => {
 	}
 }
 
+func TestBlockStartingWithCallIsNotObjectLiteral(t *testing.T) {
+	file, errs := Parse(`nestedMatch() => {
+}
+
+main() => {
+    nestedMatch()
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Functions) != 2 {
+		t.Fatalf("functions = %d, want 2", len(file.Functions))
+	}
+	block, ok := file.Functions[1].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 1 {
+		t.Fatalf("main body = %#v, want one block statement", file.Functions[1].Body)
+	}
+	stmt, ok := block.Statements[0].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("statement = %T, want ExprStmt", block.Statements[0])
+	}
+	if _, ok := stmt.Expr.(*ast.CallExpr); !ok {
+		t.Fatalf("expression = %T, want CallExpr", stmt.Expr)
+	}
+}
+
+func TestObjectMethodDependsOnObjectContext(t *testing.T) {
+	file, errs := Parse(`main() => {
+    obj := {
+        greet() => @io.println("hi")
+    }
+    obj.greet()
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("main body = %#v, want two block statements", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
+	}
+	obj, ok := let.Value.(*ast.AnonymousObjectLiteral)
+	if !ok || len(obj.Fields) != 1 {
+		t.Fatalf("let value = %#v, want object with one method", let.Value)
+	}
+	if _, ok := obj.Fields[0].Value.(*ast.LambdaExpr); !ok {
+		t.Fatalf("object field = %T, want LambdaExpr method", obj.Fields[0].Value)
+	}
+}
+
 func TestAnonymousObjectMethodMembers(t *testing.T) {
 	file, errs := Parse(`main() => {
     obj := {

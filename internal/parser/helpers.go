@@ -89,7 +89,7 @@ func (p *Parser) looksLikeObjectLiteralBody() bool {
 		return false
 	}
 	switch p.tokens[i+1].Kind {
-	case lexer.Colon, lexer.LParen, lexer.LBracket:
+	case lexer.Colon:
 		return true
 	default:
 		return false

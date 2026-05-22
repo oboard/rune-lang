@@ -122,10 +122,14 @@ func (g *generator) hasStructType(typ checker.Type) bool {
 }
 
 func (g *generator) matchExpr(match *ir.MatchExpr) string {
-	ret := goType(match.ResultType())
+	isVoid := match.ResultType() == checker.Void
+	ret := ""
+	if !isVoid {
+		ret = " " + goType(match.ResultType())
+	}
 	subject := g.expr(match.Subject)
 	var b strings.Builder
-	b.WriteString("func() ")
+	b.WriteString("func()")
 	b.WriteString(ret)
 	b.WriteString(" { switch { ")
 	hasDefault := false
@@ -138,12 +142,17 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 			b.WriteString(g.patternCondition(subject, branch.Pattern))
 			b.WriteString(": ")
 		}
-		b.WriteString("return ")
-		b.WriteString(g.expr(branch.Expr))
-		b.WriteString("; ")
+		if isVoid {
+			b.WriteString(g.expr(branch.Expr))
+			b.WriteString("; return; ")
+		} else {
+			b.WriteString("return ")
+			b.WriteString(g.expr(branch.Expr))
+			b.WriteString("; ")
+		}
 	}
 	b.WriteString("}; ")
-	if !hasDefault {
+	if !hasDefault && !isVoid {
 		b.WriteString("return ")
 		b.WriteString(zeroValue(match.ResultType()))
 		b.WriteString("; ")
