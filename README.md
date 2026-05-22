@@ -1,31 +1,23 @@
 # Rune Language
 
-A minimal expression-oriented programming language built around pattern selection, implicit returns, and symbolic structure.
-
-## Current MVP
-
-This repository now contains the first Go-based Rune toolchain slice:
+Rune is an expression-oriented language toolchain written in Go. The current
+implementation parses Rune source, checks types, lowers to IR, and can either
+interpret or compile to Go.
 
 ```text
 Rune source
   -> lexer/parser
   -> AST
   -> semantic/type check
-  -> Go source
+  -> IR
+  -> interpreter or Go codegen
   -> go run / go build
 ```
 
-Implemented commands:
+The fastest path for Rune is still: build a practical language that compiles to
+Go and reuses Go's runtime, GC, module system, and cross compilation.
 
-```sh
-go run ./cmd/rune check examples/fib.rn
-go run ./cmd/rune fmt examples/fib.rn
-go run ./cmd/rune run examples/fib.rn
-go run ./cmd/rune build -o /tmp/rune-fib examples/fib.rn
-go run ./cmd/rune lsp
-```
-
-Start the local development environment:
+## Quick Start
 
 ```sh
 scripts/dev.sh
@@ -33,38 +25,245 @@ scripts/dev.sh --shell
 scripts/dev.sh --vscode
 ```
 
-Install the CLI locally:
+Or run the toolchain directly:
 
 ```sh
-go install ./cmd/rune
+go run ./cmd/rune check examples/fib.rn
+go run ./cmd/rune fmt examples/fib.rn
+go run ./cmd/rune run examples/fib.rn
+go run ./cmd/rune build -o /tmp/rune-fib examples/fib.rn
+go run ./cmd/rune repl
+go run ./cmd/rune lsp
 ```
 
-The MVP compiler currently supports:
+Build the local CLI used by the VSCode extension:
 
-* function mappings: `name(args) => expr`
-* `Int`, `String`, `Bool`, and `Void`
-* explicit return annotations: `name(args) -> Type => expr`
-* block bodies with final-expression returns
-* immutable and mutable bindings: `:=`, `~=`
-* assignment: `=`
-* arithmetic and comparison expressions
-* struct declarations: `Name: { field: Type }`
-* struct literals and field access: `User { id: 1 }`, `user.id`
-* struct methods and implicit receivers: `isAdult() => .age >= 18`
-* single-parameter pattern blocks with literals, comparisons, and `_`
-* calls to Rune functions
-* core library declarations under `/core`: `array`, `map`, `io`, and `go`
-* declared I/O calls: `@io.println`, `@io.print`, `@io.printf`
-* inline Go FFI: `@go.import`, `@go.stmt`, and `@go.expr`
+```sh
+go build -o .bin/rune ./cmd/rune
+```
 
-The Go backend prefixes Rune-defined identifiers with `__` during code
-generation to avoid collisions with Go keywords and runtime names. Rune
-`main` is generated as `__main`, with a small Go `main` wrapper as the process
-entrypoint.
+## CLI
 
-Inline Go FFI is intentionally string-based for the first implementation, so
-Rune does not need to parse Go syntax. Use `$name` inside FFI strings to refer
-to Rune identifiers after backend name mangling:
+```text
+rune check <file.rn>   Parse and type-check a Rune program
+rune fmt <file.rn>     Format a Rune source file
+rune run <file.rn>     Compile and run a Rune program
+rune build <file.rn>   Compile a Rune program to an executable
+rune repl              Start the Rune REPL
+rune lsp               Start the Rune language server
+```
+
+`rune lsp` serves over stdio by default and also accepts `--stdio`.
+
+## Project Layout
+
+```text
+cmd/rune/              CLI entrypoint
+internal/lexer/        Lexer
+internal/parser/       Parser
+internal/ast/          AST
+internal/checker/      Type checking and inference
+internal/ir/           Shared IR
+internal/interpreter/  IR interpreter
+internal/codegen/go/   Rune -> Go backend
+internal/format/       Formatter
+internal/lsp/          Language server
+internal/repl/         REPL
+core/                  Rune core library stubs
+examples/              Runnable and type-checking examples
+vscode-rune/           VSCode extension
+tree-sitter-rune/      Future Tree-sitter grammar scaffold
+```
+
+## Language Snapshot
+
+Rune functions are mappings from parameters to expressions:
+
+```rune
+add(a: Int, b: Int) -> Int => a + b
+
+main() => {
+  @io.println(add(1, 2))
+}
+```
+
+Blocks return their final expression:
+
+```rune
+sum(a: Int, b: Int) => {
+  result := a + b
+  result
+}
+```
+
+Pattern bodies are supported for single-parameter functions:
+
+```rune
+fib(n: Int) -> Int => {
+  0 => 0
+  1 => 1
+  _ => fib(n - 1) + fib(n - 2)
+}
+```
+
+Match expressions use the same pattern syntax:
+
+```rune
+value {
+  true => "yes"
+  false => "no"
+}
+```
+
+## Types
+
+The built-in scalar types are:
+
+```text
+Int
+String
+Bool
+Void
+```
+
+Struct types use symbolic object syntax:
+
+```rune
+User: {
+  id: Int
+  name: String
+  age: Int
+}
+
+main() => {
+  user := User {
+    id: 1,
+    name: "oboard",
+    age: 22,
+  }
+
+  @io.println(user.name)
+}
+```
+
+Methods live inside type declarations. Inside a method, `.field` means
+`this.field`:
+
+```rune
+User: {
+  age: Int
+
+  isAdult() -> Bool => .age >= 18
+}
+```
+
+Anonymous records are expressions:
+
+```rune
+obj := {
+  name: "Alice",
+  age: 30,
+
+  nextAge() => .age + 1
+  greetText() => "Hello, " + .name
+}
+```
+
+## Type Inference
+
+Rune uses a Hindley-Milner-style inference direction with closed anonymous
+records. There is intentionally no row polymorphism: two anonymous record types
+only unify when their fields match as closed types.
+
+Function values can still be refined by call sites. If a function value only
+uses `x.a` and is called with `{ b, z, a }`, the call site can refine the
+parameter to the full argument shape.
+
+Named struct arguments are preserved:
+
+```rune
+Return: {
+  b: Int
+  z: Bool
+  a: Int
+}
+
+fun(flag) => {
+  (flag {
+    true => (x: Return) => {
+      k: x.a + 1,
+    }
+    false => (y: Return) => {
+      k: y.b + 1,
+    }
+  })({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+```
+
+Here `x` and `y` are typed as `Return`; the anonymous argument is accepted
+because it structurally satisfies `Return`, and Go codegen emits a `Return`
+literal.
+
+## Lambdas
+
+Lambda parameters must be parenthesized:
+
+```rune
+arr.map((value) => value * 2)
+```
+
+This is invalid:
+
+```rune
+arr.map(value => value * 2)
+```
+
+Lambda parameter annotations are supported:
+
+```rune
+(value: Int) => value + 1
+(user: User) => user.name
+```
+
+## Core Library
+
+Core library calls are declaration-driven. The checker and backend load stubs
+from `core/<module>/<module>.rn`; compiler-invented module calls are rejected.
+
+Currently included modules:
+
+```text
+core/array
+core/go
+core/io
+core/map
+```
+
+I/O:
+
+```rune
+@io.print(value)
+@io.println(value)
+@io.printf(format, value)
+```
+
+Arrays:
+
+```rune
+main() => {
+  arr := [1, 2, 3]
+  arr.push(4)
+  arr.each((value) => @io.println(value))
+  doubled := arr.map((value) => value * 2)
+  @io.println(doubled[0])
+}
+```
+
+Inline Go FFI:
 
 ```rune
 @go.import("fmt")
@@ -78,433 +277,98 @@ main() => {
 }
 ```
 
-Standard library calls are not compiler-invented names. The checker and Go
-backend load module declarations from `/core/<module>/<module>.rn` stub files;
-an undeclared
-module call such as `@fmt.println(...)` is rejected.
+FFI strings can reference Rune identifiers with `$name`; the Go backend expands
+them after identifier mangling.
 
-Editor scaffolding is included under:
+## Go Codegen
 
-* `vscode-rune/` for TextMate highlighting, snippets, and `rune lsp`
-* `tree-sitter-rune/` as the later incremental parser starting point
+Rune-defined identifiers are prefixed with `__` in generated Go to avoid
+collisions with Go keywords and runtime names. Rune `main` becomes `__main`,
+with a small Go `main` wrapper as the process entrypoint.
 
-⸻
+Anonymous records are emitted as Go struct literals. Named structs remain named
+Go structs. Function values are emitted as Go function values.
 
-1. Introduction
+## REPL
 
-Rune is a modern programming language designed around one core idea:
+Start an interactive session:
 
-Most programming syntax is structural noise.
+```sh
+rune repl
+```
 
-Traditional languages rely heavily on ceremonial keywords:
+The REPL evaluates expressions and definitions through the interpreter path, so
+it does not require a `main` function.
 
-fn
-function
-return
-if
-else
-match
-import
-class
-new
+## VSCode
 
-Rune removes most of them and replaces them with:
+The VSCode extension in `vscode-rune/` provides:
 
-* expressions
-* pattern selection
-* symbolic structure
-* implicit semantics
+* TextMate highlighting
+* snippets
+* `rune lsp` integration
+* diagnostics
+* hover
+* completion
+* go to definition
+* rename
+* document symbols
+* formatting
+* inlay hints for inferred function and lambda types
+* Run / Debug code lenses for `main`
 
-Rune aims to be:
+For local development:
 
-* concise
-* expressive
-* parser-friendly
-* IDE-friendly
-* compiler-friendly
-* readable at scale
+```sh
+scripts/dev.sh --vscode
+```
 
-It is not a symbolic joke language like Brainfuck or APL.
+Inlay hints show inferred parameter and return types, including anonymous
+lambda types:
 
-Instead, Rune is intended to be a practical modern systems/application language.
-
-⸻
-
-1. Core Philosophy
-
-Rune is built on several principles.
-
-⸻
-
-2.1 Functions Are Mappings
-
-A function is defined as:
-
-name(args) => expression
-
-Example:
-
-add(a: Int, b: Int) => a + b
-
-There is no:
-
-* fn
-* function
-* def
-* return
-
-The expression itself is the return value.
-
-⸻
-
-2.2 Control Flow Is Pattern Selection
-
-Rune does not use traditional if/else.
-
-Instead, all branching is expressed through pattern selection.
-
-Example:
-
-abs(x: Int) => {
-    <0 => -x
-    _  => x
-}
-
-This means:
-
-match x {
-    <0 => -x
-    _  => x
-}
-
-without explicitly writing match.
-
-⸻
-
-2.3 One Function = One Definition
-
-Rune does not allow multi-definition functions.
-
-Invalid:
-
-fib(0) => 0
-fib(1) => 1
-
-Correct:
-
-fib(n: Int) => {
-    0 => 0
-    1 => 1
-    _ => fib(n - 1) + fib(n - 2)
-}
-
-This keeps:
-
-* AST structure simple
-* tooling predictable
-* symbol ownership explicit
-* incremental compilation efficient
-
-⸻
-
-2.4 Expressions Over Statements
-
-Everything possible should be an expression.
-
-Blocks return values.
-
-Pattern branches return values.
-
-Functions return values.
-
-There are very few statement-like constructs.
-
-⸻
-
-1. Imports
-
-Rune uses symbolic path imports.
-
-@std.io
-@std.math
-@net.http.Client
-
-Optional aliasing:
-
-@std.io as io
-
-Imports are declarations, not executable statements.
-
-⸻
-
-1. Variables
-
-Immutable bindings:
-
-x := 10
-name := "oboard"
-
-Mutable bindings:
-
-count ~= 0
-
-Mutation:
-
-count = count + 1
-
-⸻
-
-1. Functions
-
-⸻
-
-5.1 Single Expression
-
-square(x: Int) => x * x
-
-⸻
-
-5.2 Block Body
-
-sum(a: Int, b: Int) => {
-    result := a + b
-    result
-}
-
-The final expression becomes the return value.
-
-⸻
-
-1. Pattern Bodies
-
-If a function body contains pattern branches, the parameter list automatically becomes the match target.
-
-⸻
-
-6.1 Single Parameter
-
-abs(x: Int) => {
-    <0 => -x
-    _  => x
-}
-
-Equivalent semantic form:
-
-match x
-
-⸻
-
-6.2 Multiple Parameters
-
-point(x: Int, y: Int) => {
-    (0, 0) => "origin"
-    (_, 0) => "x-axis"
-    (0,_) => "y-axis"
-    _      => "normal"
-}
-
-Equivalent semantic form:
-
-match (x, y)
-
-⸻
-
-1. Patterns
-
-Rune supports:
-
-⸻
-
-7.1 Literal Patterns
-
-0
-1
-"hello"
-true
-
-⸻
-
-7.2 Wildcard
-
-_
-
-Matches anything.
-
-⸻
-
-7.3 Comparison Patterns
-
-<0
->=18
->100
-
-⸻
-
-7.4 Tuple Patterns
-
-(x, y)
-
-⸻
-
-7.5 Object Patterns
-
-{ name, age }
-
-⸻
-
-7.6 Enum Patterns
-
-Ok(v)
-Err(e)
-
-⸻
-
-1. Types
-
-⸻
-
-8.1 Struct Types
-
-User: {
-    id: Int
-    name: String
-    age: Int
-}
-
-⸻
-
-8.2 Algebraic Types
-
-Result[T, E]: {
-    Ok(T)
-    Err(E)
-}
-
-⸻
-
-1. Lambdas
-
-Single parameter:
-
-x => x * 2
-
-Multiple parameters:
-
-(a, b) => a + b
-
-⸻
-
-1. Pipelines
-
-Rune supports pipeline composition.
-
-data
-    |> filter(x => x > 0)
-    |> map(x => x * 2)
-    |> sum()
-
-⸻
-
-1. Error Propagation
-
-Rune uses postfix ?.
-
-read(path: String) => {
-    text := fs.read(path)?
-    parse(text)?
-}
-
-⸻
-
-1. Methods
-
-Rune avoids traditional classes.
-
-Methods are implemented through extension scopes.
-
-Point: {
-    x: Int
-    y: Int
-}
-Point:len(self) => math.sqrt(self.x *self.x + self.y* self.y)
-
-⸻
-
-1. Comments
-
-// single line
-/*
-multi line
-*/
-
-⸻
-
-1. Example Program
-
-User: {
-    id: Int
-    name: String
-    age: Int
-}
-abs(x: Int) => {
-    <0 => -x
-    _=> x
-}
-fib(n: Int) => {
-    0 => 0
-    1 => 1
-    _ => fib(n - 1) + fib(n - 2)
-}
-isAdult(user: User) => user.age {
-    >=18 => true
-    _    => false
-}
-main() => {
-    user := User {
-        id: 1
-        name: "Luo Yuhang"
-        age: 22
+```rune
+fun(flag) => {
+  (flag {
+    true => (x) => {
+      k: x.a + 1,
     }
-    @io.println(user.name)
-    @io.println(abs(-10))
-    @io.println(fib(10))
+    false => (y) => {
+      k: y.b + 1,
+    }
+  })({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
 }
+```
 
-⸻
+The editor can display `flag: Bool`, `x: { ... }`, and return hints inline.
 
-1. Design Goals
+## Examples
 
-Rune prioritizes:
+```sh
+rune run examples/fib.rn
+rune run examples/array.rn
+rune run examples/anonymous_object.rn
+rune run examples/complex_type.rn
+rune run examples/ffi.rn
+```
 
-* low syntax noise
-* unified expression semantics
-* minimal keywords
-* strong pattern matching
-* modern tooling support
+`examples/complex_type2.rn` is a static type-inference example. It intentionally
+contains recursive functions that should be checked, not run.
+
+## Design Notes
+
+Rune currently prioritizes:
+
+* expression-first syntax
 * deterministic parsing
-* compiler simplicity
-* readability under scale
+* strong editor support
+* shared IR for interpreter and compiler
+* Go backend pragmatism
+* closed record types without row polymorphism
 
-Rune intentionally avoids:
-
-* statement-heavy syntax
-* keyword ceremony
-* declaration duplication
-* implicit global mutation
-* parser ambiguity explosion
-
-⸻
-
-1. Language Summary
-
-Rune can be summarized in two rules:
-
-function(args) => expression
-
-and:
-
-value {
-    pattern => expression
-}
-
-Everything else emerges from these two structures.
+Rune intentionally does not yet implement LLVM, a custom VM, GC, JIT, package
+manager, or Tree-sitter parser. Those can come after the language core and LSP
+are stable.
