@@ -53,7 +53,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
 	case *ir.LambdaExpr:
-		return "/* lambda */"
+		return g.lambda(e)
 	case *ir.IndexExpr:
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.SelectorExpr:
@@ -79,13 +79,82 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
 		}
 		return fmt.Sprintf("%s{%s}", mangleIdent(e.TypeName), strings.Join(fields, ", "))
+	case *ir.AnonymousObjectLiteral:
+		return fmt.Sprintf("%s{%s}", anonymousObjectType(e), anonymousObjectFields(g, e))
 	case *ir.AtExpr:
 		return e.Name
 	case *ir.ThisExpr:
+		if name := g.currentThisName(); name != "" {
+			return name
+		}
 		return mangleIdent("this")
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) withThisName(name string, render func() string) string {
+	g.thisNames = append(g.thisNames, name)
+	defer func() {
+		g.thisNames = g.thisNames[:len(g.thisNames)-1]
+	}()
+	return render()
+}
+
+func (g *generator) currentThisName() string {
+	if len(g.thisNames) == 0 {
+		return ""
+	}
+	return g.thisNames[len(g.thisNames)-1]
+}
+
+func (g *generator) lambda(lambda *ir.LambdaExpr) string {
+	params, ret, ok := parseGoFuncType(string(lambda.ResultType()))
+	if !ok {
+		params = make([]string, len(lambda.Params))
+		for i := range params {
+			params[i] = string(checker.Unknown)
+		}
+		ret = string(checker.Void)
+	}
+	goParams := make([]string, 0, len(lambda.Params))
+	for i, name := range lambda.Params {
+		typ := checker.Unknown
+		if i < len(params) {
+			typ = checker.Type(params[i])
+		}
+		goParams = append(goParams, fmt.Sprintf("%s %s", mangleIdent(name), goType(typ)))
+	}
+	result := "func(" + strings.Join(goParams, ", ") + ")"
+	if ret != string(checker.Void) {
+		result += " " + goType(checker.Type(ret))
+	}
+	result += " { "
+	if ret == string(checker.Void) {
+		if expr := g.expr(lambda.Body); expr != "" {
+			result += expr
+		}
+	} else {
+		result += "return " + g.expr(lambda.Body)
+	}
+	result += " }"
+	return result
+}
+
+func anonymousObjectType(obj *ir.AnonymousObjectLiteral) string {
+	fields := make([]string, 0, len(obj.Fields))
+	for _, field := range obj.Fields {
+		fields = append(fields, fmt.Sprintf("%s %s", mangleIdent(field.Name), goType(field.Value.ResultType())))
+	}
+	return "struct{" + strings.Join(fields, "; ") + "}"
+}
+
+func anonymousObjectFields(g *generator, obj *ir.AnonymousObjectLiteral) string {
+	fields := make([]string, 0, len(obj.Fields))
+	for _, field := range obj.Fields {
+		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+	}
+	return strings.Join(fields, ", ")
 }
 
 func goPrecedence(op lexer.Kind) int {

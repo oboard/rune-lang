@@ -29,11 +29,12 @@ type GoImport struct {
 }
 
 type StructType struct {
-	Name    string
-	Fields  []Field
-	Methods []*Function
-	Pos     lexer.Position
-	NamePos lexer.Position
+	Name     string
+	Generics []string
+	Fields   []Field
+	Methods  []*Function
+	Pos      lexer.Position
+	NamePos  lexer.Position
 }
 
 type Field struct {
@@ -44,6 +45,7 @@ type Field struct {
 
 type Function struct {
 	Name         string
+	Generics     []string
 	ReceiverType checker.Type
 	Params       []Param
 	Return       checker.Type

@@ -25,6 +25,9 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		case *Array:
 			return i.callArrayMethod(value, sel.Name, call.Args, env)
 		case *Struct:
+			if field, ok := value.Fields[sel.Name]; ok {
+				return i.callCallable(field, call.Args, env)
+			}
 			return i.callMethod(value, sel.Name, call.Args, env)
 		default:
 			return nil, fmt.Errorf("type %s has no method %q", typeName(value), sel.Name)
@@ -34,15 +37,28 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	if err != nil {
 		return nil, err
 	}
-	args, err := i.evalArgs(call.Args, env)
+	switch fn := callee.(type) {
+	case *ir.Function:
+		args, err := i.evalArgs(call.Args, env)
+		if err != nil {
+			return nil, err
+		}
+		return i.callFunctionValue(fn, args)
+	default:
+		return i.callCallable(fn, call.Args, env)
+	}
+}
+
+func (i *Interpreter) callCallable(callee Value, args []ir.Expr, env *Env) (Value, error) {
+	values, err := i.evalArgs(args, env)
 	if err != nil {
 		return nil, err
 	}
 	switch fn := callee.(type) {
 	case *Closure:
-		return i.callClosure(fn, args)
+		return i.callClosure(fn, values)
 	case *ir.Function:
-		return i.callFunctionValue(fn, args)
+		return i.callFunctionValue(fn, values)
 	default:
 		return nil, fmt.Errorf("%s is not callable", typeName(callee))
 	}

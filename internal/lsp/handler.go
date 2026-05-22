@@ -10,12 +10,13 @@ func (s *server) handle(req request) error {
 	case "initialize":
 		return s.respond(req.ID, map[string]any{
 			"capabilities": map[string]any{
-				"textDocumentSync":       1,
-				"hoverProvider":          true,
-				"completionProvider":     map[string]any{"triggerCharacters": []string{"@", "."}},
-				"definitionProvider":     true,
-				"documentSymbolProvider": true,
-				"renameProvider":         true,
+				"textDocumentSync":           1,
+				"hoverProvider":              true,
+				"completionProvider":         map[string]any{"triggerCharacters": []string{"@", "."}},
+				"definitionProvider":         true,
+				"documentSymbolProvider":     true,
+				"documentFormattingProvider": true,
+				"renameProvider":             true,
 			},
 			"serverInfo": map[string]any{
 				"name":    "rune-lsp",
@@ -66,6 +67,12 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		return s.respond(req.ID, s.documentSymbols(params.TextDocument.URI))
+	case "textDocument/formatting":
+		var params formattingParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return s.respond(req.ID, s.formatting(params.TextDocument.URI))
 	case "textDocument/rename":
 		var params renameParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

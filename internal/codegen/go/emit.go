@@ -79,6 +79,14 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
+				g.linef("var %s %s", mangleIdent(s.Name), anonymousObjectType(obj))
+				value := g.withThisName(mangleIdent(s.Name), func() string {
+					return g.expr(s.Value)
+				})
+				g.linef("%s = %s", mangleIdent(s.Name), value)
+				continue
+			}
 			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.AssignStmt:
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))

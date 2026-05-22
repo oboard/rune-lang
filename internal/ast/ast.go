@@ -17,12 +17,19 @@ type GoImport struct {
 	Pos  lexer.Position
 }
 
+type Annotation struct {
+	Name  string
+	Value string
+	Pos   lexer.Position
+}
+
 type StructType struct {
-	Name    string
-	Fields  []Field
-	Methods []*Function
-	Pos     lexer.Position
-	NamePos lexer.Position
+	Name     string
+	Generics []string
+	Fields   []Field
+	Methods  []*Function
+	Pos      lexer.Position
+	NamePos  lexer.Position
 }
 
 type Field struct {
@@ -33,6 +40,8 @@ type Field struct {
 
 type Function struct {
 	Name         string
+	Generics     []string
+	Annotations  []Annotation
 	ReceiverType string
 	Params       []Param
 	ReturnType   string
@@ -44,6 +53,11 @@ type Function struct {
 func (f *Function) Signature() string {
 	var b strings.Builder
 	b.WriteString(f.Name)
+	if len(f.Generics) > 0 {
+		b.WriteByte('[')
+		b.WriteString(strings.Join(f.Generics, ", "))
+		b.WriteByte(']')
+	}
 	b.WriteByte('(')
 	for i, param := range f.Params {
 		if i > 0 {

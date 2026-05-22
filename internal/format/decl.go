@@ -8,7 +8,7 @@ import (
 )
 
 func (f *formatter) structType(typ *ast.StructType) {
-	f.linef("%s: {", typ.Name)
+	f.linef("%s%s: {", typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
 		f.linef("%s: %s", field.Name, field.Type)
@@ -27,6 +27,13 @@ func (f *formatter) structType(typ *ast.StructType) {
 }
 
 func (f *formatter) function(fn *ast.Function) {
+	for _, ann := range fn.Annotations {
+		if ann.Value == "" {
+			f.linef("@%s", ann.Name)
+		} else {
+			f.linef("@%s(%q)", ann.Name, ann.Value)
+		}
+	}
 	var params []string
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", param.Name, param.Type))
@@ -37,7 +44,7 @@ func (f *formatter) function(fn *ast.Function) {
 	}
 	switch body := fn.Body.(type) {
 	case *ast.PatternBlock:
-		f.linef("%s(%s)%s => {", fn.Name, strings.Join(params, ", "), ret)
+		f.linef("%s%s(%s)%s => {", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret)
 		f.indent++
 		for _, branch := range body.Branches {
 			f.linef("%s => %s", f.pattern(branch.Pattern), f.expr(branch.Expr))
@@ -45,7 +52,7 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	case *ast.BlockExpr:
-		f.linef("%s(%s)%s => {", fn.Name, strings.Join(params, ", "), ret)
+		f.linef("%s%s(%s)%s => {", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret)
 		f.indent++
 		for _, stmt := range body.Statements {
 			f.line(f.stmt(stmt))
@@ -53,6 +60,13 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	default:
-		f.linef("%s(%s)%s => %s", fn.Name, strings.Join(params, ", "), ret, f.expr(fn.Body))
+		f.linef("%s%s(%s)%s => %s", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret, f.expr(fn.Body))
 	}
+}
+
+func formatGenerics(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(names, ", ") + "]"
 }

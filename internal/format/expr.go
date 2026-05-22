@@ -34,7 +34,11 @@ func (f *formatter) expr(expr ast.Expr) string {
 		}
 		return fmt.Sprintf("%s(%s)", f.expr(e.Callee), strings.Join(args, ", "))
 	case *ast.LambdaExpr:
-		return strings.Join(e.Params, ", ") + " => " + f.expr(e.Body)
+		params := strings.Join(e.Params, ", ")
+		if len(e.Params) != 1 {
+			params = "(" + params + ")"
+		}
+		return params + " => " + f.expr(e.Body)
 	case *ast.IndexExpr:
 		return fmt.Sprintf("%s[%s]", f.expr(e.Receiver), f.expr(e.Index))
 	case *ast.SelectorExpr:
@@ -60,6 +64,28 @@ func (f *formatter) expr(expr ast.Expr) string {
 			b.WriteString(field.Name)
 			b.WriteString(": ")
 			b.WriteString(f.expr(field.Value))
+		}
+		b.WriteString(" }")
+		return b.String()
+	case *ast.AnonymousObjectLiteral:
+		var b strings.Builder
+		b.WriteString("{")
+		for i, field := range e.Fields {
+			if i > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString(" ")
+			if lambda, ok := field.Value.(*ast.LambdaExpr); ok {
+				b.WriteString(field.Name)
+				b.WriteString("(")
+				b.WriteString(strings.Join(lambda.Params, ", "))
+				b.WriteString(") => ")
+				b.WriteString(f.expr(lambda.Body))
+			} else {
+				b.WriteString(field.Name)
+				b.WriteString(": ")
+				b.WriteString(f.expr(field.Value))
+			}
 		}
 		b.WriteString(" }")
 		return b.String()

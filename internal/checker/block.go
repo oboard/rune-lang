@@ -39,6 +39,56 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 	return Type(lit.TypeName)
 }
 
+func (c *checker) inferAnonymousObjectLiteral(lit *ast.AnonymousObjectLiteral, env map[string]Type) Type {
+	return c.inferAnonymousObjectLiteralWithSelf(lit, env, "")
+}
+
+func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLiteral, env map[string]Type, selfName string) Type {
+	var fields []FieldInfo
+	byName := map[string]FieldInfo{}
+	for _, field := range lit.Fields {
+		if _, exists := byName[field.Name]; exists {
+			c.errorf(field.Pos, "duplicate field value %q", field.Name)
+		}
+		if _, isLambda := field.Value.(*ast.LambdaExpr); isLambda && selfName != "" {
+			fieldInfo := FieldInfo{Name: field.Name, Type: Unknown}
+			fields = append(fields, fieldInfo)
+			byName[field.Name] = fieldInfo
+			continue
+		}
+		valueType := c.inferExpr(field.Value, env)
+		fieldInfo := FieldInfo{Name: field.Name, Type: valueType}
+		fields = append(fields, fieldInfo)
+		byName[field.Name] = fieldInfo
+	}
+	typ := ObjectOf(fields)
+	if selfName != "" {
+		c.registerAnonymousObjectType(typ, fields, byName)
+		selfEnv := cloneEnv(env)
+		selfEnv[selfName] = typ
+		selfEnv["this"] = typ
+		fields = fields[:0]
+		byName = map[string]FieldInfo{}
+		for _, field := range lit.Fields {
+			valueType := c.inferExpr(field.Value, selfEnv)
+			fieldInfo := FieldInfo{Name: field.Name, Type: valueType}
+			fields = append(fields, fieldInfo)
+			byName[field.Name] = fieldInfo
+		}
+		typ = ObjectOf(fields)
+	}
+	c.registerAnonymousObjectType(typ, fields, byName)
+	return typ
+}
+
+func (c *checker) registerAnonymousObjectType(typ Type, fields []FieldInfo, byName map[string]FieldInfo) {
+	c.info.Types[string(typ)] = &StructInfo{
+		Name:   string(typ),
+		Fields: append([]FieldInfo(nil), fields...),
+		ByName: byName,
+	}
+}
+
 func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 	local := cloneEnv(env)
 	result := Void
@@ -48,7 +98,13 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 			if _, exists := local[s.Name]; exists {
 				c.errorf(s.Pos, "name %q is already defined", s.Name)
 			}
-			local[s.Name] = c.inferExpr(s.Value, local)
+			if lit, ok := s.Value.(*ast.AnonymousObjectLiteral); ok {
+				typ := c.inferAnonymousObjectLiteralWithSelf(lit, local, s.Name)
+				c.info.ExprTypes[lit] = typ
+				local[s.Name] = typ
+			} else {
+				local[s.Name] = c.inferExpr(s.Value, local)
+			}
 			result = Void
 		case *ast.AssignStmt:
 			if _, exists := local[s.Name]; !exists {

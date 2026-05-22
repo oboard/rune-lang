@@ -82,8 +82,9 @@ func GenerateIR(file *ir.File) (string, error) {
 }
 
 type generator struct {
-	buf     bytes.Buffer
-	file    *ir.File
-	imports map[string]bool
-	indent  int
+	buf       bytes.Buffer
+	file      *ir.File
+	imports   map[string]bool
+	indent    int
+	thisNames []string
 }

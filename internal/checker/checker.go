@@ -28,6 +28,7 @@ type ParamInfo struct {
 
 type FuncInfo struct {
 	Name           string
+	Generics       []string
 	ReceiverType   Type
 	Params         []ParamInfo
 	Return         Type
@@ -41,11 +42,12 @@ type FieldInfo struct {
 }
 
 type StructInfo struct {
-	Name    string
-	Fields  []FieldInfo
-	ByName  map[string]FieldInfo
-	Methods map[string]*FuncInfo
-	Node    *ast.StructType
+	Name     string
+	Generics []string
+	Fields   []FieldInfo
+	ByName   map[string]FieldInfo
+	Methods  map[string]*FuncInfo
+	Node     *ast.StructType
 }
 
 type Info struct {

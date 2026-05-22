@@ -66,7 +66,7 @@ func (c *checker) checkDeclaredArg(moduleName string, functionName string, index
 	if expectedType == Unknown {
 		return
 	}
-	if actual != Unknown && actual != expectedType {
+	if !typesCompatible(expectedType, actual, nil) {
 		c.errorf(arg.Position(), "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
 	}
 }
@@ -77,7 +77,7 @@ func (c *checker) checkArgs(name string, params []ParamInfo, args []ast.Expr, ar
 	}
 	limit := min(len(params), len(argTypes))
 	for i := 0; i < limit; i++ {
-		if argTypes[i] != Unknown && params[i].Type != Unknown && argTypes[i] != params[i].Type {
+		if !typesCompatible(params[i].Type, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], params[i].Type)
 		}
 	}

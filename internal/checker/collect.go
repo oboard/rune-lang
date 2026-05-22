@@ -20,10 +20,11 @@ func (c *checker) collect(file *ast.File) {
 			continue
 		}
 		c.info.Types[typ.Name] = &StructInfo{
-			Name:    typ.Name,
-			ByName:  map[string]FieldInfo{},
-			Methods: map[string]*FuncInfo{},
-			Node:    typ,
+			Name:     typ.Name,
+			Generics: append([]string(nil), typ.Generics...),
+			ByName:   map[string]FieldInfo{},
+			Methods:  map[string]*FuncInfo{},
+			Node:     typ,
 		}
 	}
 	for _, typ := range file.Types {
@@ -31,13 +32,14 @@ func (c *checker) collect(file *ast.File) {
 		if info == nil {
 			continue
 		}
+		typeGenerics := genericSet(typ.Generics...)
 		for _, field := range typ.Fields {
 			if _, exists := info.ByName[field.Name]; exists {
 				c.errorf(field.Pos, "duplicate field %q", field.Name)
 				continue
 			}
-			fieldType := c.resolveType(field.Type)
-			if fieldType == Unknown {
+			fieldType := c.resolveTypeWithGenerics(field.Type, typeGenerics)
+			if fieldType == Unknown && !isDynamicTypeName(field.Type) {
 				c.errorf(field.Pos, "unknown type %q", field.Type)
 			}
 			fieldInfo := FieldInfo{Name: field.Name, Type: fieldType}
@@ -49,8 +51,8 @@ func (c *checker) collect(file *ast.File) {
 				c.errorf(method.NamePos, "duplicate method %s.%s", typ.Name, method.Name)
 				continue
 			}
-			methodInfo := c.collectFunction(method)
-			methodInfo.ReceiverType = Type(typ.Name)
+			methodInfo := c.collectFunction(method, typ.Generics)
+			methodInfo.ReceiverType = receiverType(typ)
 			info.Methods[method.Name] = methodInfo
 		}
 	}
@@ -59,27 +61,30 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(fn.NamePos, "duplicate function %q", fn.Name)
 			continue
 		}
-		c.info.Functions[fn.Name] = c.collectFunction(fn)
+		c.info.Functions[fn.Name] = c.collectFunction(fn, nil)
 	}
 }
 
-func (c *checker) collectFunction(fn *ast.Function) *FuncInfo {
-	info := &FuncInfo{Name: fn.Name, Node: fn, Return: Unknown}
+func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) *FuncInfo {
+	generics := append([]string(nil), inheritedGenerics...)
+	generics = append(generics, fn.Generics...)
+	genericTypes := genericSet(generics...)
+	info := &FuncInfo{Name: fn.Name, Generics: generics, Node: fn, Return: Unknown}
 	seenParams := map[string]bool{}
 	for _, param := range fn.Params {
 		if seenParams[param.Name] {
 			c.errorf(param.Pos, "duplicate parameter %q", param.Name)
 		}
 		seenParams[param.Name] = true
-		typ := c.resolveType(param.Type)
-		if typ == Unknown {
+		typ := c.resolveTypeWithGenerics(param.Type, genericTypes)
+		if typ == Unknown && !isDynamicTypeName(param.Type) {
 			c.errorf(param.Pos, "unknown type %q", param.Type)
 		}
 		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: typ})
 	}
 	if fn.ReturnType != "" {
-		typ := c.resolveType(fn.ReturnType)
-		if typ == Unknown {
+		typ := c.resolveTypeWithGenerics(fn.ReturnType, genericTypes)
+		if typ == Unknown && !isDynamicTypeName(fn.ReturnType) {
 			c.errorf(fn.NamePos, "unknown return type %q", fn.ReturnType)
 		}
 		info.Return = typ

@@ -12,6 +12,9 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 	if minPrec <= 1 && p.check(lexer.Ident) && p.checkNext(lexer.FatArrow) {
 		return p.parseLambda()
 	}
+	if minPrec <= 1 && p.check(lexer.LParen) && p.looksLikeLambda() {
+		return p.parseLambda()
+	}
 	left := p.parseUnary()
 	for {
 		if p.check(lexer.LBrace) {
@@ -47,7 +50,7 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 		}
 		if p.match(lexer.Dot) {
 			name := p.consume(lexer.Ident, "expected selector name after '.'")
-			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position()}
+			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position(), NamePos: name.Pos}
 			continue
 		}
 
@@ -63,14 +66,42 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 }
 
 func (p *Parser) parseLambda() ast.Expr {
-	param := p.consume(lexer.Ident, "expected lambda parameter")
+	params := p.parseLambdaParams()
 	p.consume(lexer.FatArrow, "expected '=>' after lambda parameter")
 	p.skipNewlines()
 	return &ast.LambdaExpr{
-		Params: []string{param.Lexeme},
+		Params: params.names,
 		Body:   p.parseBody(),
-		Pos:    param.Pos,
+		Pos:    params.pos,
 	}
+}
+
+type lambdaParams struct {
+	names []string
+	pos   lexer.Position
+}
+
+func (p *Parser) parseLambdaParams() lambdaParams {
+	if p.match(lexer.LParen) {
+		pos := p.previous().Pos
+		var names []string
+		p.skipNewlines()
+		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
+			name := p.consume(lexer.Ident, "expected lambda parameter")
+			if name.Kind == lexer.Ident {
+				names = append(names, name.Lexeme)
+			}
+			p.skipNewlines()
+			if !p.match(lexer.Comma) {
+				break
+			}
+			p.skipNewlines()
+		}
+		p.consume(lexer.RParen, "expected ')' after lambda parameters")
+		return lambdaParams{names: names, pos: pos}
+	}
+	param := p.consume(lexer.Ident, "expected lambda parameter")
+	return lambdaParams{names: []string{param.Lexeme}, pos: param.Pos}
 }
 
 func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
@@ -141,9 +172,12 @@ func (p *Parser) parsePrimary() ast.Expr {
 			Receiver: &ast.ThisExpr{Pos: dot.Pos},
 			Name:     name.Lexeme,
 			Pos:      dot.Pos,
+			NamePos:  name.Pos,
 		}
 	case lexer.LBracket:
 		return p.parseArrayLiteral()
+	case lexer.LBrace:
+		return p.parseAnonymousObjectLiteral()
 	case lexer.LParen:
 		p.advance()
 		p.skipNewlines()
@@ -155,6 +189,56 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.errorAt(tok, fmt.Sprintf("expected expression, got %s", tok.Kind))
 		p.advance()
 		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
+	}
+}
+
+func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
+	start := p.consume(lexer.LBrace, "expected '{'")
+	lit := &ast.AnonymousObjectLiteral{Pos: start.Pos}
+	p.skipNewlines()
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		if p.looksLikeFunctionDecl() {
+			lit.Fields = append(lit.Fields, p.parseAnonymousObjectMethod())
+			p.consumeStatementEnd()
+			p.match(lexer.Comma)
+			p.skipNewlines()
+			continue
+		}
+		fieldName := p.consume(lexer.Ident, "expected field name")
+		p.consume(lexer.Colon, "expected ':' after field name")
+		p.skipNewlines()
+		value := p.parseExpression(1)
+		lit.Fields = append(lit.Fields, ast.FieldValue{
+			Name:  fieldName.Lexeme,
+			Value: value,
+			Pos:   fieldName.Pos,
+		})
+		p.consumeStatementEnd()
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after object literal")
+	return lit
+}
+
+func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
+	fn := p.parseFunctionWithReceiver("")
+	params := make([]string, 0, len(fn.Params))
+	paramTypes := make([]string, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		params = append(params, param.Name)
+		paramTypes = append(paramTypes, param.Type)
+	}
+	return ast.FieldValue{
+		Name: fn.Name,
+		Value: &ast.LambdaExpr{
+			Params:     params,
+			ParamTypes: paramTypes,
+			ReturnType: fn.ReturnType,
+			Body:       fn.Body,
+			Pos:        fn.Pos,
+		},
+		Pos: fn.NamePos,
 	}
 }
 

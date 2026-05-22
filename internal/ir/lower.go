@@ -55,7 +55,7 @@ func (l lowerer) base(expr ast.Expr) ExprBase {
 }
 
 func (l lowerer) structType(typ *ast.StructType) *StructType {
-	out := &StructType{Name: typ.Name, Pos: typ.Pos, NamePos: typ.NamePos}
+	out := &StructType{Name: typ.Name, Generics: append([]string(nil), typ.Generics...), Pos: typ.Pos, NamePos: typ.NamePos}
 	if l.info != nil {
 		if info := l.info.Types[typ.Name]; info != nil {
 			for _, field := range typ.Fields {
@@ -83,6 +83,7 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 	out := &Function{
 		Name:         fn.Name,
+		Generics:     append([]string(nil), fn.Generics...),
 		ReceiverType: checker.Type(receiver),
 		Return:       checker.Unknown,
 		Body:         l.expr(fn.Body),
@@ -157,6 +158,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return out
 	case *ast.StructLiteral:
 		out := &StructLiteral{ExprBase: l.base(e), TypeName: e.TypeName}
+		for _, field := range e.Fields {
+			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Value: l.expr(field.Value), Pos: field.Pos})
+		}
+		return out
+	case *ast.AnonymousObjectLiteral:
+		out := &AnonymousObjectLiteral{ExprBase: l.base(e)}
 		for _, field := range e.Fields {
 			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Value: l.expr(field.Value), Pos: field.Pos})
 		}

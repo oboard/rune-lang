@@ -1,5 +1,4 @@
-Array[T] {
-
+Array[T]: {
     length[T]() -> Int => "%array.len"
 
     isEmpty[T]() -> Bool => .length() == 0
@@ -8,9 +7,12 @@ Array[T] {
 
     each[T](f: (T) -> Void) => "%array.each"
 
-    map[T, U](f: (T) -> U) -> Array[U] => "%array.map"
+    map[T, U](f: (T) -> U) -> Array[U] => {
+        result := []
+        .each(value => result.push(f(value)))
+        result
+    }
 
     @alias("_[_]")
     at[T](index: Int) -> T => "%array.get"
-
 }

@@ -11,7 +11,9 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:rune"
+    "onLanguage:rune",
+    "onCommand:rune.restartLanguageServer",
+    "onCommand:rune.showLanguageServerOutput"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -22,9 +24,24 @@
           "type": "string",
           "default": "",
           "description": "Path to the rune executable. Empty means use workspace .bin/rune first, then PATH."
+        },
+        "rune.root": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the Rune repository root. Empty means auto-detect from the workspace."
         }
       }
     },
+    "commands": [
+      {
+        "command": "rune.restartLanguageServer",
+        "title": "Rune: Restart Language Server"
+      },
+      {
+        "command": "rune.showLanguageServerOutput",
+        "title": "Rune: Show Language Server Output"
+      }
+    ],
     "languages": [
       {
         "id": "rune",

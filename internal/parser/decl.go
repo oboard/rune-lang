@@ -2,6 +2,7 @@ package parser
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -35,15 +36,17 @@ func (p *Parser) parseStructType() *ast.StructType {
 	if name.Kind == lexer.EOF {
 		return nil
 	}
-	typ := &ast.StructType{Name: name.Lexeme, Pos: name.Pos, NamePos: name.Pos}
+	typ := &ast.StructType{Name: name.Lexeme, Generics: p.parseGenericNames(), Pos: name.Pos, NamePos: name.Pos}
 	p.consume(lexer.Colon, "expected ':' after type name")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after type declaration")
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
-		if p.check(lexer.Ident) && p.checkNext(lexer.LParen) {
+		annotations := p.parseAnnotations()
+		if p.looksLikeFunctionDecl() {
 			method := p.parseFunctionWithReceiver(typ.Name)
 			if method != nil {
+				method.Annotations = annotations
 				typ.Methods = append(typ.Methods, method)
 			}
 			p.consumeStatementEnd()
@@ -52,10 +55,10 @@ func (p *Parser) parseStructType() *ast.StructType {
 		}
 		fieldName := p.consume(lexer.Ident, "expected field name")
 		p.consume(lexer.Colon, "expected ':' after field name")
-		fieldType := p.consume(lexer.Ident, "expected field type")
+		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
 			Name: fieldName.Lexeme,
-			Type: fieldType.Lexeme,
+			Type: fieldType,
 			Pos:  fieldName.Pos,
 		})
 		p.consumeStatementEnd()
@@ -77,16 +80,17 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	}
 
 	fn := &ast.Function{Name: name.Lexeme, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
+	fn.Generics = p.parseGenericNames()
 	p.consume(lexer.LParen, "expected '(' after function name")
 	p.skipNewlines()
 	if !p.check(lexer.RParen) {
 		for {
 			paramName := p.consume(lexer.Ident, "expected parameter name")
 			p.consume(lexer.Colon, "expected ':' after parameter name")
-			paramType := p.consume(lexer.Ident, "expected parameter type")
+			paramType := p.parseTypeName()
 			fn.Params = append(fn.Params, ast.Param{
 				Name: paramName.Lexeme,
-				Type: paramType.Lexeme,
+				Type: paramType,
 				Pos:  paramName.Pos,
 			})
 			p.skipNewlines()
@@ -100,16 +104,101 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	p.skipNewlines()
 	if p.match(lexer.Arrow) {
 		p.skipNewlines()
-		returnType := p.consume(lexer.Ident, "expected return type after '->'")
-		fn.ReturnType = returnType.Lexeme
+		fn.ReturnType = p.parseTypeName()
 		p.skipNewlines()
 	}
-	if !p.match(lexer.FatArrow) && !p.check(lexer.LBrace) {
-		p.consume(lexer.FatArrow, "expected '=>' after function signature")
-	}
+	p.consume(lexer.FatArrow, "expected '=>' after function signature")
 	p.skipNewlines()
 	fn.Body = p.parseBody()
 	return fn
+}
+
+func (p *Parser) parseGenericNames() []string {
+	if !p.match(lexer.LBracket) {
+		return nil
+	}
+	var names []string
+	for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
+		if p.check(lexer.Ident) {
+			names = append(names, p.advance().Lexeme)
+		} else {
+			p.advance()
+		}
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBracket, "expected ']' after generic parameters")
+	return names
+}
+
+func (p *Parser) parseTypeName() string {
+	p.skipNewlines()
+	if p.match(lexer.LParen) {
+		var args []string
+		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
+			args = append(args, p.parseTypeName())
+			p.skipNewlines()
+			if !p.match(lexer.Comma) {
+				break
+			}
+			p.skipNewlines()
+		}
+		p.consume(lexer.RParen, "expected ')' after function parameter types")
+		p.skipNewlines()
+		p.consume(lexer.Arrow, "expected '->' after function parameter types")
+		p.skipNewlines()
+		ret := p.parseTypeName()
+		return "Func[" + strings.Join(append(args, ret), ",") + "]"
+	}
+	name := p.consume(lexer.Ident, "expected type name")
+	typ := name.Lexeme
+	if p.match(lexer.LBracket) {
+		var args []string
+		for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
+			args = append(args, p.parseTypeName())
+			p.skipNewlines()
+			if !p.match(lexer.Comma) {
+				break
+			}
+			p.skipNewlines()
+		}
+		p.consume(lexer.RBracket, "expected ']' after type arguments")
+		typ += "[" + strings.Join(args, ",") + "]"
+	}
+	return typ
+}
+
+func (p *Parser) parseAnnotations() []ast.Annotation {
+	var annotations []ast.Annotation
+	for p.match(lexer.At) {
+		at := p.previous()
+		name := p.consume(lexer.Ident, "expected annotation name")
+		annotation := ast.Annotation{Name: name.Lexeme, Pos: at.Pos}
+		if p.match(lexer.LParen) {
+			if p.check(lexer.String) {
+				value := p.advance()
+				unquoted, err := strconv.Unquote(value.Lexeme)
+				if err != nil {
+					p.errorAt(value, "invalid annotation string")
+				} else {
+					annotation.Value = unquoted
+				}
+			}
+			depth := 1
+			for !p.check(lexer.EOF) && depth > 0 {
+				tok := p.advance()
+				switch tok.Kind {
+				case lexer.LParen:
+					depth++
+				case lexer.RParen:
+					depth--
+				}
+			}
+		}
+		annotations = append(annotations, annotation)
+		p.skipNewlines()
+	}
+	return annotations
 }
 
 func (p *Parser) parseBody() ast.Expr {

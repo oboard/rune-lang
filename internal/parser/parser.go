@@ -38,16 +38,19 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			if imp := p.parseGoImportDecl(); imp != nil {
 				file.GoImports = append(file.GoImports, *imp)
 			}
-		} else if p.check(lexer.Ident) && p.checkNext(lexer.Colon) {
+		} else if p.looksLikeTypeDecl() {
 			typ := p.parseStructType()
 			if typ != nil {
 				file.Types = append(file.Types, typ)
 			}
-		} else {
+		} else if p.looksLikeFunctionDecl() {
 			fn := p.parseFunction()
 			if fn != nil {
 				file.Functions = append(file.Functions, fn)
 			}
+		} else {
+			p.errorAt(p.peek(), "expected declaration")
+			p.advance()
 		}
 		p.skipNewlines()
 	}

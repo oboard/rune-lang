@@ -32,12 +32,14 @@ func (p *stubParser) looksLikeReceiverBlock() bool {
 	}
 	p.parseGenericNames()
 	p.skipNewlines()
-	return p.check(lexer.LBrace)
+	return p.check(lexer.Colon)
 }
 
 func (p *stubParser) parseReceiverBlock() ([]Function, error) {
 	receiver := p.consume(lexer.Ident, "expected receiver name").Lexeme
 	p.parseGenericNames()
+	p.skipNewlines()
+	p.consume(lexer.Colon, "expected ':' after receiver declaration")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after receiver declaration")
 	p.skipNewlines()
@@ -63,7 +65,7 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 	name := p.consume(lexer.Ident, "expected function name")
 	generics := p.parseGenericNames()
 	p.consume(lexer.LParen, "expected '(' after function name")
-	params, err := p.parseParams()
+	paramNames, params, err := p.parseParams()
 	if err != nil {
 		return Function{}, err
 	}
@@ -85,12 +87,15 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 	}
 
 	fn := Function{
-		Name:     name.Lexeme,
-		Receiver: receiver,
-		Generics: generics,
-		Params:   params,
-		Return:   returnType,
-		Body:     body,
+		Name:       name.Lexeme,
+		SourcePath: p.path,
+		Pos:        name.Pos,
+		Receiver:   receiver,
+		Generics:   generics,
+		ParamNames: paramNames,
+		Params:     params,
+		Return:     returnType,
+		Body:       body,
 	}
 	for _, ann := range annotations {
 		if ann.Name == "alias" {
@@ -113,19 +118,21 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 	return fn, nil
 }
 
-func (p *stubParser) parseParams() ([]string, error) {
+func (p *stubParser) parseParams() ([]string, []string, error) {
+	var names []string
 	var params []string
 	p.skipNewlines()
 	if p.check(lexer.RParen) {
-		return params, nil
+		return names, params, nil
 	}
 	for {
-		p.consume(lexer.Ident, "expected parameter name")
+		name := p.consume(lexer.Ident, "expected parameter name")
 		p.consume(lexer.Colon, "expected ':' after parameter name")
 		typ, err := p.parseTypeName()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		names = append(names, name.Lexeme)
 		params = append(params, typ)
 		p.skipNewlines()
 		if !p.match(lexer.Comma) {
@@ -133,7 +140,7 @@ func (p *stubParser) parseParams() ([]string, error) {
 		}
 		p.skipNewlines()
 	}
-	return params, nil
+	return names, params, nil
 }
 
 func (p *stubParser) parseGenericNames() []string {

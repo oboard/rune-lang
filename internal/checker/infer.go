@@ -1,6 +1,8 @@
 package checker
 
 import (
+	"strings"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
 )
@@ -15,7 +17,13 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 		if info == nil {
 			continue
 		}
-		env := map[string]Type{"this": Type(typ.Name)}
+		if isIntrinsicStub(method) {
+			if !info.ReturnDeclared {
+				info.Return = Void
+			}
+			continue
+		}
+		env := map[string]Type{"this": info.ReceiverType}
 		for _, param := range info.Params {
 			env[param.Name] = param.Type
 		}
@@ -27,6 +35,12 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 func (c *checker) inferFunction(fn *ast.Function) {
 	info := c.info.Functions[fn.Name]
 	if info == nil {
+		return
+	}
+	if isIntrinsicStub(fn) {
+		if !info.ReturnDeclared {
+			info.Return = Void
+		}
 		return
 	}
 	env := map[string]Type{}
@@ -46,7 +60,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 
 func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, fn *ast.Function) {
 	if info.ReturnDeclared {
-		if ret != Unknown && ret != info.Return {
+		if !typesCompatible(info.Return, ret, info.Generics) {
 			c.errorf(fn.Body.Position(), "function %q returns %s, expected %s", fn.Name, ret, info.Return)
 		}
 		return
@@ -95,7 +109,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return typ
 	case *ast.SelectorExpr:
 		receiver := c.inferExpr(e.Receiver, env)
-		structInfo := c.info.Types[string(receiver)]
+		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
 			if receiver != Unknown {
 				c.errorf(e.Pos, "type %s has no fields", receiver)
@@ -110,6 +124,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return field.Type
 	case *ast.StructLiteral:
 		return c.inferStructLiteral(e, env)
+	case *ast.AnonymousObjectLiteral:
+		return c.inferAnonymousObjectLiteral(e, env)
 	case *ast.ArrayLiteral:
 		return c.inferArrayLiteral(e, env)
 	case *ast.IndexExpr:
@@ -134,7 +150,24 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)
 		switch e.Op {
-		case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+		case lexer.Plus:
+			if left == String || right == String {
+				if left != String && left != Unknown {
+					c.errorf(e.Left.Position(), "string concatenation expects String, got %s", left)
+				}
+				if right != String && right != Unknown {
+					c.errorf(e.Right.Position(), "string concatenation expects String, got %s", right)
+				}
+				return String
+			}
+			if left != Int && left != Unknown {
+				c.errorf(e.Left.Position(), "arithmetic expects Int, got %s", left)
+			}
+			if right != Int && right != Unknown {
+				c.errorf(e.Right.Position(), "arithmetic expects Int, got %s", right)
+			}
+			return Int
+		case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
 			if left != Int && left != Unknown {
 				c.errorf(e.Left.Position(), "arithmetic expects Int, got %s", left)
 			}
@@ -150,7 +183,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 	case *ast.CallExpr:
 		return c.inferCall(e, env)
 	case *ast.LambdaExpr:
-		return Unknown
+		return c.inferLambda(e, env)
 	case *ast.BlockExpr:
 		return c.inferBlock(e, env)
 	case *ast.PatternBlock:
@@ -177,7 +210,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
 		}
-		structInfo := c.info.Types[string(receiver)]
+		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
 			if receiver != Unknown {
 				c.errorf(sel.Pos, "type %s has no methods", receiver)
@@ -185,6 +218,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			return Unknown
 		}
 		method := structInfo.Methods[sel.Name]
+		if field, ok := structInfo.ByName[sel.Name]; ok {
+			return c.inferFunctionValueCall(sel.Name, field.Type, call.Args, argTypes, sel.Pos)
+		}
 		if method == nil {
 			c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
 			return Unknown
@@ -193,6 +229,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		return method.Return
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
+		if localType, ok := env[ident.Name]; ok {
+			return c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, ident.Pos)
+		}
 		fn := c.info.Functions[ident.Name]
 		if fn == nil {
 			c.errorf(ident.Pos, "undefined function %q", ident.Name)
@@ -203,4 +242,61 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	}
 	c.inferExpr(call.Callee, env)
 	return Unknown
+}
+
+func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type {
+	local := cloneEnv(env)
+	params := make([]Type, 0, len(lambda.Params))
+	for i, name := range lambda.Params {
+		paramType := Unknown
+		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+			paramType = c.resolveType(lambda.ParamTypes[i])
+			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
+				c.errorf(lambda.Pos, "unknown type %q", lambda.ParamTypes[i])
+			}
+		}
+		params = append(params, paramType)
+		local[name] = paramType
+	}
+	ret := c.inferExpr(lambda.Body, local)
+	if lambda.ReturnType != "" {
+		declared := c.resolveDeclaredReturn(lambda.ReturnType)
+		if declared == Unknown && !isDynamicTypeName(lambda.ReturnType) {
+			c.errorf(lambda.Pos, "unknown return type %q", lambda.ReturnType)
+		}
+		if !typesCompatible(declared, ret, nil) {
+			c.errorf(lambda.Body.Position(), "lambda returns %s, expected %s", ret, declared)
+		}
+		return FuncOfTypes(params, declared)
+	}
+	if ret == Unknown {
+		ret = Void
+	}
+	return FuncOfTypes(params, ret)
+}
+
+func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, pos lexer.Position) Type {
+	params, ret, ok := parseFuncType(string(typ))
+	if !ok {
+		if typ != Unknown {
+			c.errorf(pos, "type %s is not callable", typ)
+		}
+		return Unknown
+	}
+	if len(params) != len(args) {
+		c.errorf(pos, "function %q expects %d args, got %d", name, len(params), len(args))
+	}
+	limit := min(len(params), len(argTypes))
+	for i := 0; i < limit; i++ {
+		expected := Type(params[i])
+		if !typesCompatible(expected, argTypes[i], nil) {
+			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], expected)
+		}
+	}
+	return Type(ret)
+}
+
+func isIntrinsicStub(fn *ast.Function) bool {
+	lit, ok := fn.Body.(*ast.StringLiteral)
+	return ok && strings.HasPrefix(lit.Value, "%")
 }

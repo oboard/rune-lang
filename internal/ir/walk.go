@@ -31,6 +31,10 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		for _, field := range e.Fields {
 			WalkExpr(field.Value, visit)
 		}
+	case *AnonymousObjectLiteral:
+		for _, field := range e.Fields {
+			WalkExpr(field.Value, visit)
+		}
 	case *BlockExpr:
 		for _, stmt := range e.Statements {
 			WalkStmt(stmt, visit)

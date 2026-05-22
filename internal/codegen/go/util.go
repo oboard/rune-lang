@@ -2,6 +2,7 @@ package gocodegen
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
@@ -23,6 +24,16 @@ func goType(typ checker.Type) string {
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
+	if params, ret, ok := parseGoFuncType(string(typ)); ok {
+		goParams := make([]string, 0, len(params))
+		for _, param := range params {
+			goParams = append(goParams, goType(checker.Type(param)))
+		}
+		if ret == string(checker.Void) {
+			return "func(" + strings.Join(goParams, ", ") + ")"
+		}
+		return "func(" + strings.Join(goParams, ", ") + ") " + goType(checker.Type(ret))
+	}
 	switch typ {
 	case checker.Int:
 		return "int"
@@ -35,6 +46,38 @@ func goType(typ checker.Type) string {
 	default:
 		return mangleIdent(string(typ))
 	}
+}
+
+func parseGoFuncType(name string) ([]string, string, bool) {
+	if !strings.HasPrefix(name, "Func[") || !strings.HasSuffix(name, "]") {
+		return nil, "", false
+	}
+	parts := splitGoTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "Func["), "]"))
+	if len(parts) == 0 {
+		return nil, "", false
+	}
+	return parts[:len(parts)-1], parts[len(parts)-1], true
+}
+
+func splitGoTypeList(src string) []string {
+	var out []string
+	depth := 0
+	start := 0
+	for i, ch := range src {
+		switch ch {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, strings.TrimSpace(src[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, strings.TrimSpace(src[start:]))
+	return out
 }
 
 func zeroValue(typ checker.Type) string {

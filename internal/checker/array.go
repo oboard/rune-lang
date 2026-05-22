@@ -1,6 +1,8 @@
 package checker
 
 import (
+	"strings"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/stdlib"
@@ -49,82 +51,165 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 		c.errorf(sel.Pos, "type Array has no method %q", sel.Name)
 		return Unknown
 	}
-	switch fn.Intrinsic {
-	case "array.each":
-		return c.inferArrayEach(elem, sel, call, env)
-	case "array.map":
-		return c.inferArrayMap(elem, sel, call, env)
-	}
-	c.checkArrayArgs(sel.Name, fn, call.Args, argTypes, elem, sel.Pos)
-	if fn.Return == "T" {
-		return elem
-	}
-	return c.resolveDeclaredReturn(fn.Return)
+	bindings := c.arrayTypeBindings(fn, elem)
+	c.checkArrayDeclaredArgs(sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	return c.resolveDeclaredType(fn.Return, bindings)
 }
 
-func (c *checker) inferArrayEach(elem Type, sel *ast.SelectorExpr, call *ast.CallExpr, env map[string]Type) Type {
-	lambda, ok := c.arrayLambdaArg("each", sel, call)
-	if !ok {
-		return Void
+func (c *checker) arrayTypeBindings(fn *stdlib.Function, elem Type) map[string]Type {
+	bindings := map[string]Type{}
+	for _, name := range fn.Generics {
+		bindings[name] = Unknown
 	}
-	ret := c.inferLambda(lambda, elem, env)
-	if ret != Void && ret != Unknown {
-		c.errorf(lambda.Body.Position(), "array.each lambda returns %s, expected Void", ret)
+	if _, ok := bindings["T"]; ok {
+		bindings["T"] = elem
 	}
-	return Void
+	return bindings
 }
 
-func (c *checker) inferArrayMap(elem Type, sel *ast.SelectorExpr, call *ast.CallExpr, env map[string]Type) Type {
-	lambda, ok := c.arrayLambdaArg("map", sel, call)
-	if !ok {
-		return ArrayOf(Unknown)
-	}
-	ret := c.inferLambda(lambda, elem, env)
-	if ret == Void {
-		c.errorf(lambda.Body.Position(), "array.map lambda must return a value")
-		return ArrayOf(Unknown)
-	}
-	return ArrayOf(ret)
-}
-
-func (c *checker) arrayLambdaArg(functionName string, sel *ast.SelectorExpr, call *ast.CallExpr) (*ast.LambdaExpr, bool) {
-	if len(call.Args) != 1 {
-		c.errorf(sel.Pos, "array.%s expects 1 args, got %d", functionName, len(call.Args))
-		return nil, false
-	}
-	lambda, ok := call.Args[0].(*ast.LambdaExpr)
-	if !ok {
-		c.errorf(call.Args[0].Position(), "array.%s expects a lambda", functionName)
-		return nil, false
-	}
-	if len(lambda.Params) != 1 {
-		c.errorf(lambda.Pos, "array.%s lambda expects exactly 1 parameter", functionName)
-		return nil, false
-	}
-	return lambda, true
-}
-
-func (c *checker) inferLambda(lambda *ast.LambdaExpr, elem Type, env map[string]Type) Type {
-	local := cloneEnv(env)
-	local[lambda.Params[0]] = elem
-	ret := c.inferExpr(lambda.Body, local)
-	c.info.ExprTypes[lambda] = FuncOf(elem, ret)
-	return ret
-}
-
-func (c *checker) checkArrayArgs(functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, elem Type, pos lexer.Position) {
+func (c *checker) checkArrayDeclaredArgs(functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, bindings map[string]Type, env map[string]Type, pos lexer.Position) {
 	if len(fn.Params) != len(args) {
 		c.errorf(pos, "array.%s expects %d args, got %d", functionName, len(fn.Params), len(args))
 	}
 	limit := min(len(fn.Params), len(args))
 	for i := 0; i < limit; i++ {
-		expected := fn.Params[i]
-		if expected == "T" {
-			if argTypes[i] != Unknown && elem != Unknown && argTypes[i] != elem {
-				c.errorf(args[i].Position(), "argument %d to array.%s has type %s, expected %s", i+1, functionName, argTypes[i], elem)
-			}
-			continue
-		}
-		c.checkDeclaredArg("array", functionName, i, expected, args[i], argTypes[i])
+		c.checkDeclaredGenericArg("array", functionName, i, fn.Params[i], args[i], argTypes[i], bindings, env)
 	}
+}
+
+func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string, index int, expected string, arg ast.Expr, actual Type, bindings map[string]Type, env map[string]Type) {
+	if expected == "Any" || expected == "Dynamic" {
+		return
+	}
+	if params, ret, ok := parseFuncType(expected); ok {
+		lambda, ok := arg.(*ast.LambdaExpr)
+		if !ok {
+			expectedType := c.resolveDeclaredType(expected, bindings)
+			if actual != Unknown && expectedType != Unknown && actual != expectedType {
+				c.errorf(arg.Position(), "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
+			}
+			return
+		}
+		if len(lambda.Params) != len(params) {
+			c.errorf(lambda.Pos, "argument %d to @%s.%s expects lambda with %d parameters, got %d", index+1, moduleName, functionName, len(params), len(lambda.Params))
+			return
+		}
+		local := cloneEnv(env)
+		paramTypes := make([]Type, 0, len(params))
+		for i, param := range params {
+			paramType := c.resolveDeclaredType(param, bindings)
+			paramTypes = append(paramTypes, paramType)
+			local[lambda.Params[i]] = paramType
+		}
+		retType := c.inferExpr(lambda.Body, local)
+		c.info.ExprTypes[lambda] = funcTypeOf(paramTypes, retType)
+		c.bindDeclaredType(ret, retType, bindings, arg.Position(), moduleName, functionName, index)
+		return
+	}
+	c.bindDeclaredType(expected, actual, bindings, arg.Position(), moduleName, functionName, index)
+}
+
+func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[string]Type, pos lexer.Position, moduleName string, functionName string, index int) {
+	if expected == "" || expected == "Any" || expected == "Dynamic" || actual == Unknown {
+		return
+	}
+	if _, ok := bindings[expected]; ok {
+		if bindings[expected] == Unknown {
+			bindings[expected] = actual
+			return
+		}
+		if bindings[expected] != actual {
+			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, bindings[expected])
+		}
+		return
+	}
+	if elem, ok := parseArrayType(expected); ok {
+		actualElem, ok := ArrayElement(actual)
+		if !ok {
+			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, c.resolveDeclaredType(expected, bindings))
+			return
+		}
+		c.bindDeclaredType(elem, actualElem, bindings, pos, moduleName, functionName, index)
+		return
+	}
+	expectedType := c.resolveDeclaredType(expected, bindings)
+	if actual != Unknown && expectedType != Unknown && actual != expectedType {
+		c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
+	}
+}
+
+func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Type {
+	if name == "" {
+		return Void
+	}
+	if name == "Dynamic" || name == "Any" {
+		return Unknown
+	}
+	if typ, ok := bindings[name]; ok {
+		return typ
+	}
+	if elem, ok := parseArrayType(name); ok {
+		elemType := c.resolveDeclaredType(elem, bindings)
+		if elemType == Unknown {
+			return Unknown
+		}
+		return ArrayOf(elemType)
+	}
+	if params, ret, ok := parseFuncType(name); ok {
+		types := make([]Type, 0, len(params)+1)
+		for _, param := range params {
+			types = append(types, c.resolveDeclaredType(param, bindings))
+		}
+		types = append(types, c.resolveDeclaredType(ret, bindings))
+		return funcTypeOf(types[:len(types)-1], types[len(types)-1])
+	}
+	return c.resolveDeclaredReturn(name)
+}
+
+func parseArrayType(name string) (string, bool) {
+	if !strings.HasPrefix(name, "Array[") || !strings.HasSuffix(name, "]") {
+		return "", false
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(name, "Array["), "]"), true
+}
+
+func parseFuncType(name string) ([]string, string, bool) {
+	if !strings.HasPrefix(name, "Func[") || !strings.HasSuffix(name, "]") {
+		return nil, "", false
+	}
+	parts := splitTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "Func["), "]"))
+	if len(parts) == 0 {
+		return nil, "", false
+	}
+	return parts[:len(parts)-1], parts[len(parts)-1], true
+}
+
+func splitTypeList(src string) []string {
+	var out []string
+	depth := 0
+	start := 0
+	for i, ch := range src {
+		switch ch {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		case ',':
+			if depth == 0 {
+				out = append(out, strings.TrimSpace(src[start:i]))
+				start = i + 1
+			}
+		}
+	}
+	out = append(out, strings.TrimSpace(src[start:]))
+	return out
+}
+
+func funcTypeOf(params []Type, ret Type) Type {
+	parts := make([]string, 0, len(params)+1)
+	for _, param := range params {
+		parts = append(parts, string(param))
+	}
+	parts = append(parts, string(ret))
+	return Type("Func[" + strings.Join(parts, ",") + "]")
 }

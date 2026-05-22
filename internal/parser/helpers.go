@@ -2,6 +2,65 @@ package parser
 
 import "github.com/oboard/rune-lang/internal/lexer"
 
+func (p *Parser) looksLikeTypeDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.parseGenericNames()
+	p.skipNewlines()
+	return p.check(lexer.Colon)
+}
+
+func (p *Parser) looksLikeFunctionDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.parseGenericNames()
+	if !p.match(lexer.LParen) {
+		return false
+	}
+	depth := 1
+	for !p.check(lexer.EOF) && depth > 0 {
+		tok := p.advance()
+		switch tok.Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		}
+	}
+	p.skipNewlines()
+	if p.match(lexer.Arrow) {
+		p.skipTypeNameTokens()
+	}
+	p.skipNewlines()
+	return p.check(lexer.FatArrow)
+}
+
+func (p *Parser) looksLikeLambda() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.LParen) {
+		return false
+	}
+	depth := 1
+	for !p.check(lexer.EOF) && depth > 0 {
+		tok := p.advance()
+		switch tok.Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		}
+	}
+	p.skipNewlines()
+	return p.check(lexer.FatArrow)
+}
+
 func (p *Parser) looksLikePatternBranch() bool {
 	i := p.curr
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
@@ -115,4 +174,25 @@ func (p *Parser) previous() lexer.Token {
 
 func (p *Parser) errorAt(tok lexer.Token, message string) {
 	p.errors = append(p.errors, Error{Message: message, Pos: tok.Pos})
+}
+
+func (p *Parser) skipTypeNameTokens() {
+	depth := 0
+	for !p.check(lexer.EOF) {
+		switch p.peek().Kind {
+		case lexer.Ident, lexer.Comma, lexer.Arrow:
+			p.advance()
+		case lexer.LBracket, lexer.LParen:
+			depth++
+			p.advance()
+		case lexer.RBracket, lexer.RParen:
+			if depth == 0 {
+				return
+			}
+			depth--
+			p.advance()
+		default:
+			return
+		}
+	}
 }

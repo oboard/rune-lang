@@ -101,9 +101,11 @@ func (e *CallExpr) Position() lexer.Position {
 }
 
 type LambdaExpr struct {
-	Params []string
-	Body   Expr
-	Pos    lexer.Position
+	Params     []string
+	ParamTypes []string
+	ReturnType string
+	Body       Expr
+	Pos        lexer.Position
 }
 
 func (*LambdaExpr) exprNode() {}
@@ -115,6 +117,7 @@ type SelectorExpr struct {
 	Receiver Expr
 	Name     string
 	Pos      lexer.Position
+	NamePos  lexer.Position
 }
 
 func (*SelectorExpr) exprNode() {}
@@ -151,6 +154,16 @@ type StructLiteral struct {
 
 func (*StructLiteral) exprNode() {}
 func (e *StructLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type AnonymousObjectLiteral struct {
+	Fields []FieldValue
+	Pos    lexer.Position
+}
+
+func (*AnonymousObjectLiteral) exprNode() {}
+func (e *AnonymousObjectLiteral) Position() lexer.Position {
 	return e.Pos
 }
 

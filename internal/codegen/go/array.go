@@ -71,12 +71,8 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	if fn.Intrinsic == "array.map" {
-		lambda, ok := singleLambdaArg(call)
-		if !ok {
-			return "/* invalid array.map */", true
-		}
-		return g.arrayMapExpr(g.expr(sel.Receiver), lambda, call), true
+	if fn.Body != nil {
+		return g.arrayBodyExpr(fn, g.expr(sel.Receiver), call), true
 	}
 	if fn.Intrinsic == "array.each" {
 		return "/* array.each is only valid as a statement */", true
@@ -104,8 +100,6 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 		return fmt.Sprintf("%s[%s]", receiver, args[0])
 	case "array.each":
 		return "/* array.each is only valid as a statement */"
-	case "array.map":
-		return "/* invalid array.map */"
 	}
 	if fn.Body != nil {
 		return g.stdlibBodyExpr(ir.LowerExpr(fn.Body, nil), receiver)
@@ -113,31 +107,251 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 	return "/* unsupported array method */"
 }
 
-func (g *generator) arrayMapExpr(receiver string, lambda *ir.LambdaExpr, call *ir.CallExpr) string {
-	if len(lambda.Params) != 1 {
-		return "/* invalid array.map */"
+func (g *generator) arrayBodyExpr(fn *stdlib.Function, receiver string, call *ir.CallExpr) string {
+	if len(call.Args) != len(fn.ParamNames) {
+		return fmt.Sprintf("/* invalid array.%s */", fn.Name)
 	}
-	resultType := checker.Unknown
-	if elem, ok := checker.ArrayElement(call.ResultType()); ok {
-		resultType = elem
+	ctx := &stdlibContext{
+		g:       g,
+		this:    receiver,
+		vars:    map[string]string{},
+		lambdas: map[string]*ir.LambdaExpr{},
 	}
-	out := "__rune_map_out"
-	param := mangleIdent(lambda.Params[0])
-	return fmt.Sprintf(`func() []%s {
-%s := make([]%s, 0, len(%s))
-for _, %s := range %s {
-%s = append(%s, %s)
-}
-return %s
-}()`, goType(resultType), out, goType(resultType), receiver, param, receiver, out, out, g.expr(lambda.Body), out)
+	for idx, name := range fn.ParamNames {
+		if lambda, ok := call.Args[idx].(*ir.LambdaExpr); ok {
+			ctx.lambdas[name] = lambda
+			continue
+		}
+		ctx.vars[name] = g.expr(call.Args[idx])
+	}
+	return ctx.expr(ir.LowerExpr(fn.Body, nil), call.ResultType())
 }
 
-func singleLambdaArg(call *ir.CallExpr) (*ir.LambdaExpr, bool) {
-	if len(call.Args) != 1 {
+type stdlibContext struct {
+	g       *generator
+	this    string
+	vars    map[string]string
+	lambdas map[string]*ir.LambdaExpr
+}
+
+func (c *stdlibContext) child() *stdlibContext {
+	vars := make(map[string]string, len(c.vars))
+	for name, value := range c.vars {
+		vars[name] = value
+	}
+	return &stdlibContext{
+		g:       c.g,
+		this:    c.this,
+		vars:    vars,
+		lambdas: cloneLambdaMap(c.lambdas),
+	}
+}
+
+func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
+	switch e := expr.(type) {
+	case *ir.ThisExpr:
+		return c.this
+	case *ir.Identifier:
+		if value, ok := c.vars[e.Name]; ok {
+			return value
+		}
+		return mangleIdent(e.Name)
+	case *ir.IntegerLiteral:
+		return strconv.Itoa(e.Value)
+	case *ir.StringLiteral:
+		return strconv.Quote(e.Value)
+	case *ir.BoolLiteral:
+		if e.Value {
+			return "true"
+		}
+		return "false"
+	case *ir.UnaryExpr:
+		return e.Op.String() + c.expr(e.Expr, checker.Unknown)
+	case *ir.BinaryExpr:
+		return fmt.Sprintf("%s %s %s", c.expr(e.Left, checker.Unknown), e.Op, c.expr(e.Right, checker.Unknown))
+	case *ir.ArrayLiteral:
+		elemType := checker.Unknown
+		if elem, ok := checker.ArrayElement(expected); ok {
+			elemType = elem
+		} else if elem, ok := checker.ArrayElement(e.ResultType()); ok {
+			elemType = elem
+		}
+		elems := make([]string, 0, len(e.Elements))
+		for _, elem := range e.Elements {
+			elems = append(elems, c.expr(elem, elem.ResultType()))
+		}
+		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+	case *ir.CallExpr:
+		if expr, ok := c.arrayCallExpr(e, expected); ok {
+			return expr
+		}
+		if ident, ok := e.Callee.(*ir.Identifier); ok {
+			if lambda, ok := c.lambdas[ident.Name]; ok {
+				child := c.child()
+				for idx, param := range lambda.Params {
+					if idx < len(e.Args) {
+						child.vars[param] = c.expr(e.Args[idx], e.Args[idx].ResultType())
+					}
+				}
+				return child.expr(lambda.Body, e.ResultType())
+			}
+		}
+		args := make([]string, 0, len(e.Args))
+		for _, arg := range e.Args {
+			args = append(args, c.expr(arg, arg.ResultType()))
+		}
+		return fmt.Sprintf("%s(%s)", c.expr(e.Callee, checker.Unknown), strings.Join(args, ", "))
+	case *ir.SelectorExpr:
+		return c.expr(e.Receiver, e.Receiver.ResultType()) + "." + mangleIdent(e.Name)
+	case *ir.IndexExpr:
+		return fmt.Sprintf("%s[%s]", c.expr(e.Receiver, e.Receiver.ResultType()), c.expr(e.Index, checker.Int))
+	case *ir.BlockExpr:
+		return c.blockExpr(e, expected)
+	default:
+		return c.g.expr(expr)
+	}
+}
+
+func (c *stdlibContext) arrayCallExpr(call *ir.CallExpr, expected checker.Type) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	fn, ok := c.g.file.Stdlib.Function("array", sel.Name)
+	if !ok {
+		return "", false
+	}
+	receiver := c.expr(sel.Receiver, sel.Receiver.ResultType())
+	args := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		args = append(args, c.expr(arg, arg.ResultType()))
+	}
+	if fn.Body != nil {
+		return c.arrayBodyExpr(fn, receiver, call.Args, expected), true
+	}
+	return c.g.arrayFunctionExpr(fn, receiver, args), true
+}
+
+func (c *stdlibContext) arrayBodyExpr(fn *stdlib.Function, receiver string, args []ir.Expr, expected checker.Type) string {
+	if len(args) != len(fn.ParamNames) {
+		return fmt.Sprintf("/* invalid array.%s */", fn.Name)
+	}
+	child := &stdlibContext{
+		g:       c.g,
+		this:    receiver,
+		vars:    map[string]string{},
+		lambdas: cloneLambdaMap(c.lambdas),
+	}
+	for idx, name := range fn.ParamNames {
+		if lambda, ok := args[idx].(*ir.LambdaExpr); ok {
+			child.lambdas[name] = lambda
+			continue
+		}
+		child.vars[name] = c.expr(args[idx], args[idx].ResultType())
+	}
+	return child.expr(ir.LowerExpr(fn.Body, nil), expected)
+}
+
+func (c *stdlibContext) blockExpr(block *ir.BlockExpr, resultType checker.Type) string {
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("func() %s {\n", goType(resultType)))
+	resultName := returnedIdentifier(block)
+	for idx, stmt := range block.Statements {
+		last := idx == len(block.Statements)-1
+		for _, line := range c.stmt(stmt, last, resultType, resultName) {
+			b.WriteByte('\t')
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+	}
+	b.WriteString("}()")
+	return b.String()
+}
+
+func (c *stdlibContext) stmt(stmt ir.Stmt, last bool, resultType checker.Type, resultName string) []string {
+	switch s := stmt.(type) {
+	case *ir.LetStmt:
+		c.vars[s.Name] = mangleIdent(s.Name)
+		expected := s.Value.ResultType()
+		if s.Name == resultName {
+			expected = resultType
+		}
+		return []string{fmt.Sprintf("%s := %s", mangleIdent(s.Name), c.expr(s.Value, expected))}
+	case *ir.AssignStmt:
+		return []string{fmt.Sprintf("%s = %s", mangleIdent(s.Name), c.expr(s.Value, s.Value.ResultType()))}
+	case *ir.ExprStmt:
+		if last && resultType != checker.Void {
+			return []string{"return " + c.expr(s.Expr, resultType)}
+		}
+		if stmt, ok := c.callStmt(s.Expr); ok {
+			return stmt
+		}
+		return []string{c.expr(s.Expr, s.Expr.ResultType())}
+	default:
+		return nil
+	}
+}
+
+func (c *stdlibContext) callStmt(expr ir.Expr) ([]string, bool) {
+	call, ok := expr.(*ir.CallExpr)
+	if !ok {
 		return nil, false
 	}
-	lambda, ok := call.Args[0].(*ir.LambdaExpr)
-	return lambda, ok
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return nil, false
+	}
+	if sel.Name == "push" && len(call.Args) == 1 {
+		if fn, ok := c.g.file.Stdlib.Function("array", "push"); ok && fn.Intrinsic == "array.push" {
+			receiver := c.expr(sel.Receiver, sel.Receiver.ResultType())
+			return []string{fmt.Sprintf("%s = append(%s, %s)", receiver, receiver, c.expr(call.Args[0], call.Args[0].ResultType()))}, true
+		}
+	}
+	if sel.Name == "each" && len(call.Args) == 1 {
+		if fn, ok := c.g.file.Stdlib.Function("array", "each"); ok && fn.Intrinsic == "array.each" {
+			lambda, ok := call.Args[0].(*ir.LambdaExpr)
+			if !ok || len(lambda.Params) != 1 {
+				return []string{"/* invalid array.each */"}, true
+			}
+			child := c.child()
+			param := mangleIdent(lambda.Params[0])
+			child.vars[lambda.Params[0]] = param
+			lines := []string{fmt.Sprintf("for _, %s := range %s {", param, c.expr(sel.Receiver, sel.Receiver.ResultType()))}
+			if stmt, ok := child.callStmt(lambda.Body); ok {
+				for _, line := range stmt {
+					lines = append(lines, "\t"+line)
+				}
+			} else {
+				lines = append(lines, "\t"+child.expr(lambda.Body, lambda.Body.ResultType()))
+			}
+			lines = append(lines, "}")
+			return lines, true
+		}
+	}
+	return nil, false
+}
+
+func returnedIdentifier(block *ir.BlockExpr) string {
+	if len(block.Statements) == 0 {
+		return ""
+	}
+	stmt, ok := block.Statements[len(block.Statements)-1].(*ir.ExprStmt)
+	if !ok {
+		return ""
+	}
+	ident, ok := stmt.Expr.(*ir.Identifier)
+	if !ok {
+		return ""
+	}
+	return ident.Name
+}
+
+func cloneLambdaMap(in map[string]*ir.LambdaExpr) map[string]*ir.LambdaExpr {
+	out := make(map[string]*ir.LambdaExpr, len(in))
+	for name, lambda := range in {
+		out[name] = lambda
+	}
+	return out
 }
 
 func (g *generator) stdlibBodyExpr(expr ir.Expr, this string) string {

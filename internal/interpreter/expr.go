@@ -72,6 +72,19 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			fields[field.Name] = value
 		}
 		return &Struct{TypeName: e.TypeName, Fields: fields}, nil
+	case *ir.AnonymousObjectLiteral:
+		fields := map[string]Value{}
+		obj := &Struct{TypeName: string(e.ResultType()), Fields: fields}
+		objectEnv := NewEnv(env)
+		objectEnv.Define("this", obj)
+		for _, field := range e.Fields {
+			value, err := i.eval(field.Value, objectEnv)
+			if err != nil {
+				return nil, err
+			}
+			fields[field.Name] = value
+		}
+		return obj, nil
 	case *ir.BlockExpr:
 		return i.evalBlock(e, env)
 	case *ir.PatternBlock:
@@ -114,7 +127,27 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		return nil, err
 	}
 	switch expr.Op {
-	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.Plus:
+		if leftString, ok := left.(string); ok {
+			rightString, ok := right.(string)
+			if !ok {
+				return nil, fmt.Errorf("string concatenation expects String")
+			}
+			return leftString + rightString, nil
+		}
+		if _, ok := right.(string); ok {
+			return nil, fmt.Errorf("string concatenation expects String")
+		}
+		l, ok := left.(int)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic expects Int")
+		}
+		r, ok := right.(int)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic expects Int")
+		}
+		return l + r, nil
+	case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
 		l, ok := left.(int)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic expects Int")
@@ -124,8 +157,6 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 			return nil, fmt.Errorf("arithmetic expects Int")
 		}
 		switch expr.Op {
-		case lexer.Plus:
-			return l + r, nil
 		case lexer.Minus:
 			return l - r, nil
 		case lexer.Star:

@@ -67,7 +67,7 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array map declaration")
 	}
-	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,U]" {
-		t.Fatalf("unexpected array.map declaration: %#v", mapFn)
+	if mapFn.Body == nil || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,U]" {
+		t.Fatalf("unexpected array map declaration: %#v", mapFn)
 	}
 }

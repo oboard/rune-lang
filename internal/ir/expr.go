@@ -129,6 +129,13 @@ type StructLiteral struct {
 
 func (*StructLiteral) exprNode() {}
 
+type AnonymousObjectLiteral struct {
+	ExprBase
+	Fields []FieldValue
+}
+
+func (*AnonymousObjectLiteral) exprNode() {}
+
 type FieldValue struct {
 	Name  string
 	Value Expr

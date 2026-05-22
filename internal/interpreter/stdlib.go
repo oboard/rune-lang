@@ -73,10 +73,10 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 	if !ok {
 		return nil, fmt.Errorf("type Array has no method %q", name)
 	}
-	switch fn.Intrinsic {
-	case "array.len":
+	switch {
+	case fn.Intrinsic == "array.len":
 		return len(array.Elements), nil
-	case "array.get":
+	case fn.Intrinsic == "array.get":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.%s expects 1 args, got %d", name, len(args))
 		}
@@ -85,7 +85,7 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			return nil, err
 		}
 		return indexValue(array, index)
-	case "array.push":
+	case fn.Intrinsic == "array.push":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.push expects 1 args, got %d", len(args))
 		}
@@ -95,7 +95,7 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		}
 		array.Elements = append(array.Elements, value)
 		return nil, nil
-	case "array.each":
+	case fn.Intrinsic == "array.each":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.each expects 1 args, got %d", len(args))
 		}
@@ -109,29 +109,22 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			}
 		}
 		return nil, nil
-	case "array.map":
-		if len(args) != 1 {
-			return nil, fmt.Errorf("array.map expects 1 args, got %d", len(args))
-		}
-		closure, err := i.evalLambdaArg(args[0], env)
-		if err != nil {
-			return nil, err
-		}
-		out := &Array{Elements: make([]Value, 0, len(array.Elements))}
-		for _, elem := range array.Elements {
-			value, err := i.callClosure(closure, []Value{elem})
-			if err != nil {
-				return nil, err
-			}
-			out.Elements = append(out.Elements, value)
-		}
-		return out, nil
 	default:
 		if fn.Body == nil {
 			return nil, fmt.Errorf("array.%s is not supported by the interpreter", name)
 		}
+		values, err := i.evalArgs(args, env)
+		if err != nil {
+			return nil, err
+		}
+		if len(values) != len(fn.ParamNames) {
+			return nil, fmt.Errorf("array.%s expects %d args, got %d", name, len(fn.ParamNames), len(values))
+		}
 		local := NewEnv(env)
 		local.Define("this", array)
+		for idx, param := range fn.ParamNames {
+			local.Define(param, values[idx])
+		}
 		return i.eval(ir.LowerExpr(fn.Body, nil), local)
 	}
 }

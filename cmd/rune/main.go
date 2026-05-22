@@ -135,7 +135,8 @@ func fmtCmd() *cobra.Command {
 }
 
 func lspCmd() *cobra.Command {
-	return &cobra.Command{
+	var stdio bool
+	cmd := &cobra.Command{
 		Use:   "lsp",
 		Short: "Start the Rune language server",
 		Args:  cobra.NoArgs,
@@ -143,6 +144,8 @@ func lspCmd() *cobra.Command {
 			return lsp.Serve(os.Stdin, os.Stdout)
 		},
 	}
+	cmd.Flags().BoolVar(&stdio, "stdio", true, "serve LSP over stdin/stdout")
+	return cmd
 }
 
 func replCmd() *cobra.Command {

@@ -1,0 +1,14 @@
+main() => {
+    obj := {
+        name: "Alice",
+        age: 30,
+
+        greet() => @io.println("Hello, my name is " + obj.name)
+        nextAge() => .age + 1
+    }
+
+    @io.println(obj.name) // prints "Alice"
+    @io.println(obj.age) // prints 30
+    @io.println(obj.nextAge()) // prints 31
+    obj.greet() // prints "Hello, my name is Alice"
+}

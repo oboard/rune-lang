@@ -142,7 +142,7 @@ main() => {
 }
 
 func TestGenerateArrayProgram(t *testing.T) {
-	src := `main() {
+	src := `main() => {
   arr := [1, 2, 3]
   @io.println(arr[0])
   arr.push(4)
@@ -177,8 +177,57 @@ func TestGenerateArrayProgram(t *testing.T) {
 		`for _, __value := range __arr`,
 		`fmt.Println(__value)`,
 		`__mapped := func() []int`,
-		`__rune_map_out = append(__rune_map_out, __value+1)`,
+		`__result = append(__result, __value+1)`,
 		`fmt.Println(__mapped[0])`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateAnonymousObjectProgram(t *testing.T) {
+	src := `main() => {
+  obj := {
+    name: "Alice"
+    age: 30
+
+    greet() => @io.println("Hello, my name is " + obj.name)
+    nextAge() => .age + 1
+  }
+
+  @io.println(obj.name)
+  @io.println(obj.age)
+  @io.println(obj.nextAge())
+  obj.greet()
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+
+	wantParts := []string{
+		`var __obj struct`,
+		`__name    string`,
+		`__age     int`,
+		`__greet   func()`,
+		`__nextAge func() int`,
+		`fmt.Println("Hello, my name is " + __obj.__name)`,
+		`return __obj.__age + 1`,
+		`fmt.Println(__obj.__name)`,
+		`fmt.Println(__obj.__age)`,
+		`fmt.Println(__obj.__nextAge())`,
+		`__obj.__greet()`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
