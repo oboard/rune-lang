@@ -3,8 +3,9 @@ main() => {
         name: "Alice",
         age: 30,
 
-        greet() => @io.println("Hello, my name is " + obj.name)
+        greet() => @io.println(.greetText())
         nextAge() => .age + 1
+        greetText() => "Hello, my name is " + .name
     }
 
     @io.println(obj.name) // prints "Alice"

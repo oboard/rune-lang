@@ -411,31 +411,55 @@ func displayType(name string) string {
 }
 
 func displayCheckerType(info *checker.Info, typ checker.Type) string {
+	return displayCheckerTypeIndent(info, typ, 0)
+}
+
+func displayCheckerTypeIndent(info *checker.Info, typ checker.Type, indent int) string {
 	name := string(typ)
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
 		if info != nil {
 			if structInfo := info.Types[name]; structInfo != nil {
-				fields := make([]string, 0, len(structInfo.Fields))
-				for _, field := range structInfo.Fields {
-					fields = append(fields, fmt.Sprintf("%s: %s", field.Name, displayCheckerType(info, field.Type)))
+				if len(structInfo.Fields) == 0 {
+					return "{}"
 				}
-				return "{ " + strings.Join(fields, ", ") + " }"
+				currentIndent := strings.Repeat("  ", indent)
+				fieldIndent := strings.Repeat("  ", indent+1)
+				lines := []string{"{"}
+				for _, field := range structInfo.Fields {
+					lines = append(lines, fmt.Sprintf("%s%s: %s", fieldIndent, field.Name, displayCheckerTypeIndent(info, field.Type, indent+1)))
+				}
+				lines = append(lines, currentIndent+"}")
+				return strings.Join(lines, "\n")
 			}
 		}
 	}
-	return displayType(name)
+	if params, ret, ok := parseRawDisplayFuncType(name); ok {
+		for i, param := range params {
+			params[i] = displayCheckerTypeIndent(info, checker.Type(param), indent)
+		}
+		return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), displayCheckerTypeIndent(info, checker.Type(ret), indent))
+	}
+	return name
 }
 
 func parseDisplayFuncType(name string) ([]string, string, bool) {
+	params, ret, ok := parseRawDisplayFuncType(name)
+	if !ok {
+		return nil, "", false
+	}
+	for i, param := range params {
+		params[i] = displayType(param)
+	}
+	return params, displayType(ret), true
+}
+
+func parseRawDisplayFuncType(name string) ([]string, string, bool) {
 	if !strings.HasPrefix(name, "Func[") || !strings.HasSuffix(name, "]") {
 		return nil, "", false
 	}
 	parts := splitDisplayTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "Func["), "]"))
 	if len(parts) == 0 {
 		return nil, "", false
-	}
-	for i, part := range parts {
-		parts[i] = displayType(part)
 	}
 	return parts[:len(parts)-1], parts[len(parts)-1], true
 }
@@ -446,9 +470,9 @@ func splitDisplayTypeList(src string) []string {
 	start := 0
 	for i, ch := range src {
 		switch ch {
-		case '[':
+		case '[', '{', '(':
 			depth++
-		case ']':
+		case ']', '}', ')':
 			depth--
 		case ',':
 			if depth == 0 {

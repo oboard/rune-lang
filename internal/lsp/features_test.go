@@ -95,7 +95,12 @@ func TestAnonymousObjectHover(t *testing.T) {
 
 	objHover := s.hover(uri, positionOf(src, "obj :=", "obj")).(map[string]any)
 	objValue := hoverValue(objHover)
-	wantObject := "{ name: String, age: Int, greet: () -> Void, nextAge: () -> Int }"
+	wantObject := `obj: {
+  name: String
+  age: Int
+  greet: () -> Void
+  nextAge: () -> Int
+}`
 	if !strings.Contains(objValue, wantObject) {
 		t.Fatalf("hover = %q, want %s", objValue, wantObject)
 	}

@@ -12,6 +12,9 @@
   ],
   "activationEvents": [
     "onLanguage:rune",
+    "onDebug:rune",
+    "onCommand:rune.runFile",
+    "onCommand:rune.debugFile",
     "onCommand:rune.restartLanguageServer",
     "onCommand:rune.showLanguageServerOutput"
   ],
@@ -34,12 +37,60 @@
     },
     "commands": [
       {
+        "command": "rune.runFile",
+        "title": "Rune: Run File"
+      },
+      {
+        "command": "rune.debugFile",
+        "title": "Rune: Debug File"
+      },
+      {
         "command": "rune.restartLanguageServer",
         "title": "Rune: Restart Language Server"
       },
       {
         "command": "rune.showLanguageServerOutput",
         "title": "Rune: Show Language Server Output"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "rune",
+        "label": "Rune",
+        "languages": [
+          "rune"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "default": "${file}",
+                "description": "Rune source file to debug."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [],
+                "description": "Arguments passed to the Rune program."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "rune",
+            "request": "launch",
+            "name": "Debug Rune File",
+            "program": "${file}",
+            "args": []
+          }
+        ]
       }
     ],
     "languages": [
