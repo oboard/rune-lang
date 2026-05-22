@@ -68,27 +68,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 		b.WriteString(" }")
 		return b.String()
 	case *ast.AnonymousObjectLiteral:
-		var b strings.Builder
-		b.WriteString("{")
-		for i, field := range e.Fields {
-			if i > 0 {
-				b.WriteString(",")
-			}
-			b.WriteString(" ")
-			if lambda, ok := field.Value.(*ast.LambdaExpr); ok {
-				b.WriteString(field.Name)
-				b.WriteString("(")
-				b.WriteString(strings.Join(lambda.Params, ", "))
-				b.WriteString(") => ")
-				b.WriteString(f.expr(lambda.Body))
-			} else {
-				b.WriteString(field.Name)
-				b.WriteString(": ")
-				b.WriteString(f.expr(field.Value))
-			}
-		}
-		b.WriteString(" }")
-		return b.String()
+		return f.anonymousObjectLiteral(e)
 	case *ast.BlockExpr:
 		return "{ ... }"
 	case *ast.PatternBlock:
@@ -98,6 +78,57 @@ func (f *formatter) expr(expr ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) string {
+	if len(obj.Fields) == 0 {
+		return "{}"
+	}
+	var b strings.Builder
+	fieldIndent := indentString(f.indent + 1)
+	closeIndent := indentString(f.indent)
+	b.WriteString("{\n")
+	seenMethod := false
+	for i, field := range obj.Fields {
+		lambda, isMethod := field.Value.(*ast.LambdaExpr)
+		if isMethod && !seenMethod && i > 0 {
+			b.WriteByte('\n')
+		}
+		seenMethod = seenMethod || isMethod
+		b.WriteString(fieldIndent)
+		if isMethod {
+			b.WriteString(f.anonymousObjectMethod(field.Name, lambda))
+		} else {
+			b.WriteString(field.Name)
+			b.WriteString(": ")
+			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+			b.WriteString(",")
+		}
+		b.WriteByte('\n')
+	}
+	b.WriteString(closeIndent)
+	b.WriteString("}")
+	return b.String()
+}
+
+func (f *formatter) anonymousObjectMethod(name string, lambda *ast.LambdaExpr) string {
+	params := make([]string, 0, len(lambda.Params))
+	for i, param := range lambda.Params {
+		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+			params = append(params, fmt.Sprintf("%s: %s", param, lambda.ParamTypes[i]))
+		} else {
+			params = append(params, param)
+		}
+	}
+	return fmt.Sprintf("%s(%s) => %s", name, strings.Join(params, ", "), f.exprWithIndent(lambda.Body, f.indent+1))
+}
+
+func (f *formatter) exprWithIndent(expr ast.Expr, indent int) string {
+	previous := f.indent
+	f.indent = indent
+	out := f.expr(expr)
+	f.indent = previous
+	return out
 }
 
 func (f *formatter) exprWithParens(expr ast.Expr) string {

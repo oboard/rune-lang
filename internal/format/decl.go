@@ -54,8 +54,12 @@ func (f *formatter) function(fn *ast.Function) {
 	case *ast.BlockExpr:
 		f.linef("%s%s(%s)%s => {", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret)
 		f.indent++
-		for _, stmt := range body.Statements {
-			f.line(f.stmt(stmt))
+		for i, stmt := range body.Statements {
+			formatted := f.stmt(stmt)
+			f.line(formatted)
+			if i < len(body.Statements)-1 && strings.Contains(formatted, "\n") {
+				f.line("")
+			}
 		}
 		f.indent--
 		f.line("}")
