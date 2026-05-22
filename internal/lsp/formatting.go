@@ -16,7 +16,7 @@ func (s *server) formatting(uri string) any {
 	if prog == nil || len(diags) > 0 {
 		return nil
 	}
-	formatted := runefmt.File(prog.File)
+	formatted := runefmt.Source(prog.File, text)
 	if formatted == text {
 		return []map[string]any{}
 	}

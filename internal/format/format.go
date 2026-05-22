@@ -31,3 +31,7 @@ func File(file *ast.File) string {
 	}
 	return f.b.String()
 }
+
+func Source(file *ast.File, source string) string {
+	return preserveLineComments(source, File(file))
+}

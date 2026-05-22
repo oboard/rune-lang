@@ -111,14 +111,14 @@ func fmtCmd() *cobra.Command {
 				printDiagnostics(args[0], diags)
 				return fmt.Errorf("format failed")
 			}
-			formatted := runefmt.File(prog.File)
-			if stdout {
-				fmt.Fprint(cmd.OutOrStdout(), formatted)
-				return nil
-			}
 			original, err := os.ReadFile(args[0])
 			if err != nil {
 				return err
+			}
+			formatted := runefmt.Source(prog.File, string(original))
+			if stdout {
+				fmt.Fprint(cmd.OutOrStdout(), formatted)
+				return nil
 			}
 			if string(original) == formatted {
 				return nil

@@ -8,6 +8,11 @@ main() => {
         greetText() => "Hello, my name is " + .name
     }
 
+    obj2 := {
+        parent: obj,
+        name: "Bob",
+    }
+
     @io.println(obj.name) // prints "Alice"
     @io.println(obj.age) // prints 30
     @io.println(obj.nextAge()) // prints 31
