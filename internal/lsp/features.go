@@ -411,7 +411,7 @@ func (s *server) inlayHints(uri string) any {
 		if pos, ok := fatArrowPosition(text, fn); ok {
 			hints = append(hints, map[string]any{
 				"position": pos,
-				"label":    " -> " + displayCheckerTypeOneLine(prog.Info, fnInfo.Return) + " ",
+				"label":    "-> " + displayCheckerTypeOneLine(prog.Info, fnInfo.Return) + " ",
 				"kind":     1,
 				"tooltip":  functionSignature(prog.Info, fn),
 			})
@@ -454,7 +454,7 @@ func (s *server) inlayHints(uri string) any {
 		if pos, ok := fatArrowPositionFromOffset(text, lambda.Pos.Offset); ok {
 			hints = append(hints, map[string]any{
 				"position": pos,
-				"label":    " -> " + displayCheckerTypeOneLine(prog.Info, checker.Type(ret)) + " ",
+				"label":    "-> " + displayCheckerTypeOneLine(prog.Info, checker.Type(ret)) + " ",
 				"kind":     1,
 				"tooltip":  displayCheckerType(prog.Info, prog.Info.ExprTypes[lambda]),
 			})

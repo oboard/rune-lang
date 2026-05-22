@@ -262,9 +262,9 @@ main() => {
 
 	hints := s.inlayHints(uri).([]map[string]any)
 	if !inlayLabelsContain(hints, ": Bool") ||
-		!inlayLabelsContain(hints, " -> Int ") ||
+		!inlayLabelsContain(hints, "-> Int ") ||
 		!inlayLabelsContain(hints, ": { b: Int z: Bool a: Int }") ||
-		!inlayLabelsContain(hints, " -> { k: Int } ") {
+		!inlayLabelsContain(hints, "-> { k: Int } ") {
 		t.Fatalf("inlay hints = %#v, want inferred named and anonymous function hints", hints)
 	}
 }
@@ -359,7 +359,7 @@ fun(flag) => {
 		t.Fatalf("x hover = %q, want Return", got)
 	}
 	hints := s.inlayHints(uri).([]map[string]any)
-	if !inlayLabelsContain(hints, " -> { k: Int } ") {
+	if !inlayLabelsContain(hints, "-> { k: Int } ") {
 		t.Fatalf("inlay hints = %#v, want anonymous lambda return hint", hints)
 	}
 }
