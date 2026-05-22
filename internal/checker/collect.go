@@ -76,6 +76,10 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 			c.errorf(param.Pos, "duplicate parameter %q", param.Name)
 		}
 		seenParams[param.Name] = true
+		if param.Type == "" {
+			info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: Unknown})
+			continue
+		}
 		typ := c.resolveTypeWithGenerics(param.Type, genericTypes)
 		if typ == Unknown && !isDynamicTypeName(param.Type) {
 			c.errorf(param.Pos, "unknown type %q", param.Type)

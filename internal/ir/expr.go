@@ -155,3 +155,11 @@ type PatternBlock struct {
 }
 
 func (*PatternBlock) exprNode() {}
+
+type MatchExpr struct {
+	ExprBase
+	Subject  Expr
+	Branches []PatternBranch
+}
+
+func (*MatchExpr) exprNode() {}

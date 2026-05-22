@@ -5,6 +5,6 @@ main() => {
     @io.println(arr.length()) // prints 6
     @io.println(arr.isEmpty()) // prints false
 
-    arr.each(value => @io.println(value)) // prints 1, 2, 3, 4, 5, 6
-    arr.map(value => value * 2).each(value => @io.println(value)) // prints 2, 4, 6, 8, 10, 12
+    arr.each((value) => @io.println(value)) // prints 1, 2, 3, 4, 5, 6
+    arr.map((value) => value * 2).each((value) => @io.println(value)) // prints 2, 4, 6, 8, 10, 12
 }

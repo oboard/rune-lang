@@ -9,15 +9,16 @@ import (
 )
 
 func (p *Parser) parseExpression(minPrec int) ast.Expr {
-	if minPrec <= 1 && p.check(lexer.Ident) && p.checkNext(lexer.FatArrow) {
-		return p.parseLambda()
-	}
 	if minPrec <= 1 && p.check(lexer.LParen) && p.looksLikeLambda() {
 		return p.parseLambda()
 	}
 	left := p.parseUnary()
 	for {
 		if p.check(lexer.LBrace) {
+			if p.looksLikePatternBlockAfterSubject() {
+				left = p.parseMatchExpr(left)
+				continue
+			}
 			ident, ok := left.(*ast.Identifier)
 			if !ok {
 				break
@@ -65,31 +66,63 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 	return left
 }
 
+func (p *Parser) parseMatchExpr(subject ast.Expr) ast.Expr {
+	start := p.consume(lexer.LBrace, "expected '{' after match subject")
+	match := &ast.MatchExpr{Subject: subject, Pos: start.Pos}
+	p.skipNewlines()
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		pattern := p.parsePattern()
+		p.consume(lexer.FatArrow, "expected '=>' after pattern")
+		p.skipNewlines()
+		expr := p.parseExpression(1)
+		match.Branches = append(match.Branches, ast.PatternBranch{
+			Pattern: pattern,
+			Expr:    expr,
+			Pos:     pattern.Position(),
+		})
+		p.consumeStatementEnd()
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after match expression")
+	return match
+}
+
 func (p *Parser) parseLambda() ast.Expr {
 	params := p.parseLambdaParams()
 	p.consume(lexer.FatArrow, "expected '=>' after lambda parameter")
 	p.skipNewlines()
+	var body ast.Expr
+	if p.check(lexer.LBrace) && !p.looksLikePatternBranch() {
+		body = p.parseAnonymousObjectLiteral()
+	} else {
+		body = p.parseBody()
+	}
 	return &ast.LambdaExpr{
-		Params: params.names,
-		Body:   p.parseBody(),
-		Pos:    params.pos,
+		Params:   params.names,
+		ParamPos: params.positions,
+		Body:     body,
+		Pos:      params.pos,
 	}
 }
 
 type lambdaParams struct {
-	names []string
-	pos   lexer.Position
+	names     []string
+	positions []lexer.Position
+	pos       lexer.Position
 }
 
 func (p *Parser) parseLambdaParams() lambdaParams {
 	if p.match(lexer.LParen) {
 		pos := p.previous().Pos
 		var names []string
+		var positions []lexer.Position
 		p.skipNewlines()
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
 			name := p.consume(lexer.Ident, "expected lambda parameter")
 			if name.Kind == lexer.Ident {
 				names = append(names, name.Lexeme)
+				positions = append(positions, name.Pos)
 			}
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
@@ -98,10 +131,11 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 			p.skipNewlines()
 		}
 		p.consume(lexer.RParen, "expected ')' after lambda parameters")
-		return lambdaParams{names: names, pos: pos}
+		return lambdaParams{names: names, positions: positions, pos: pos}
 	}
-	param := p.consume(lexer.Ident, "expected lambda parameter")
-	return lambdaParams{names: []string{param.Lexeme}, pos: param.Pos}
+	tok := p.peek()
+	p.errorAt(tok, "lambda parameters must be parenthesized")
+	return lambdaParams{pos: tok.Pos}
 }
 
 func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
@@ -224,15 +258,18 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
 	fn := p.parseFunctionWithReceiver("")
 	params := make([]string, 0, len(fn.Params))
+	paramPos := make([]lexer.Position, 0, len(fn.Params))
 	paramTypes := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
 		params = append(params, param.Name)
+		paramPos = append(paramPos, param.Pos)
 		paramTypes = append(paramTypes, param.Type)
 	}
 	return ast.FieldValue{
 		Name: fn.Name,
 		Value: &ast.LambdaExpr{
 			Params:     params,
+			ParamPos:   paramPos,
 			ParamTypes: paramTypes,
 			ReturnType: fn.ReturnType,
 			Body:       fn.Body,

@@ -86,8 +86,10 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	if !p.check(lexer.RParen) {
 		for {
 			paramName := p.consume(lexer.Ident, "expected parameter name")
-			p.consume(lexer.Colon, "expected ':' after parameter name")
-			paramType := p.parseTypeName()
+			paramType := ""
+			if p.match(lexer.Colon) {
+				paramType = p.parseTypeName()
+			}
 			fn.Params = append(fn.Params, ast.Param{
 				Name: paramName.Lexeme,
 				Type: paramType,
@@ -203,6 +205,9 @@ func (p *Parser) parseAnnotations() []ast.Annotation {
 
 func (p *Parser) parseBody() ast.Expr {
 	if p.check(lexer.LBrace) {
+		if !p.looksLikePatternBranch() && p.looksLikeObjectLiteralBody() {
+			return p.parseAnonymousObjectLiteral()
+		}
 		return p.parseBlock()
 	}
 	return p.parseExpression(1)

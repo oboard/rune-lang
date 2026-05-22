@@ -63,6 +63,40 @@ func (p *Parser) looksLikeLambda() bool {
 
 func (p *Parser) looksLikePatternBranch() bool {
 	i := p.curr
+	return p.tokensLookLikePatternBranch(i)
+}
+
+func (p *Parser) looksLikePatternBlockAfterSubject() bool {
+	if !p.check(lexer.LBrace) {
+		return false
+	}
+	i := p.curr + 1
+	return p.tokensLookLikePatternBranch(i)
+}
+
+func (p *Parser) looksLikeObjectLiteralBody() bool {
+	if !p.check(lexer.LBrace) {
+		return false
+	}
+	i := p.curr + 1
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
+		i++
+	}
+	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Ident {
+		return false
+	}
+	if i+1 >= len(p.tokens) {
+		return false
+	}
+	switch p.tokens[i+1].Kind {
+	case lexer.Colon, lexer.LParen, lexer.LBracket:
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
 		i++
 	}

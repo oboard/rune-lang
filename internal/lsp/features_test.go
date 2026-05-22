@@ -3,6 +3,8 @@ package lsp
 import (
 	"strings"
 	"testing"
+
+	"github.com/oboard/rune-lang/internal/compiler"
 )
 
 func TestMethodDefinitionAndRename(t *testing.T) {
@@ -47,7 +49,7 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
     arr := [1, 2, 3]
-    arr.map(value => value + 1)
+    arr.map((value) => value + 1)
 }
 `
 	s := &server{docs: map[string]string{uri: src}}
@@ -114,6 +116,235 @@ func TestAnonymousObjectHover(t *testing.T) {
 	if got := hoverValue(nextAgeHover); !strings.Contains(got, "nextAge: () -> Int") {
 		t.Fatalf("hover = %q, want nextAge function field type", got)
 	}
+}
+
+func TestAnonymousObjectDefinition(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+    obj := {
+        name: "Alice"
+        age: 30
+
+        greet() => @io.println(.greetText())
+        nextAge() => .age + 1
+        greetText() => "Hello, my name is " + .name
+    }
+
+    obj2 := {
+        parent: obj
+        name: "Bob"
+    }
+
+    @io.println(obj.name)
+    @io.println(obj2.parent.name)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	objDef := s.definition(uri, positionOf(src, "@io.println(obj.name)", "obj")).(map[string]any)
+	if got := objDef["uri"]; got != uri {
+		t.Fatalf("obj definition uri = %v, want %s", got, uri)
+	}
+	objStart := objDef["range"].(map[string]any)["start"].(position)
+	if objStart.Line != 1 || objStart.Character != 4 {
+		t.Fatalf("obj definition start = %+v, want line 1 char 4", objStart)
+	}
+
+	nameDef := s.definition(uri, positionOf(src, "@io.println(obj.name)", "name")).(map[string]any)
+	nameStart := nameDef["range"].(map[string]any)["start"].(position)
+	if nameStart.Line != 2 || nameStart.Character != 8 {
+		t.Fatalf("name definition start = %+v, want line 2 char 8", nameStart)
+	}
+
+	parentDef := s.definition(uri, positionOf(src, "obj2.parent", "parent")).(map[string]any)
+	parentStart := parentDef["range"].(map[string]any)["start"].(position)
+	if parentStart.Line != 11 || parentStart.Character != 8 {
+		t.Fatalf("parent definition start = %+v, want line 11 char 8", parentStart)
+	}
+
+	nestedNameDef := s.definition(uri, positionOf(src, "obj2.parent.name", "name")).(map[string]any)
+	nestedNameStart := nestedNameDef["range"].(map[string]any)["start"].(position)
+	if nestedNameStart.Line != 2 || nestedNameStart.Character != 8 {
+		t.Fatalf("nested name definition start = %+v, want line 2 char 8", nestedNameStart)
+	}
+
+	implicitNameDef := s.definition(uri, positionOf(src, `" + .name`, "name")).(map[string]any)
+	implicitNameStart := implicitNameDef["range"].(map[string]any)["start"].(position)
+	if implicitNameStart.Line != 2 || implicitNameStart.Character != 8 {
+		t.Fatalf("implicit name definition start = %+v, want line 2 char 8", implicitNameStart)
+	}
+}
+
+func TestInferredFunctionSignatureHover(t *testing.T) {
+	uri := "file:///tmp/complex_type.rn"
+	src := `fun(flag) => {
+  f := (flag {
+    true => ((x) => {
+      k: x.value + 1,
+      label: "left"
+    })
+    false => ((y) => {
+      k: y.value + 2,
+      label: "right"
+    })
+  })
+
+  f({
+    value: 1
+  }).k
+}
+
+main() => {
+  @io.println(fun(true))
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	hover := s.hover(uri, positionOf(src, "fun(flag)", "fun")).(map[string]any)
+	value := hoverValue(hover)
+	if !strings.Contains(value, "fun(flag: Bool) -> Int") {
+		t.Fatalf("hover = %q, want inferred fun signature", value)
+	}
+
+	paramHover := s.hover(uri, positionOf(src, "fun(flag)", "flag")).(map[string]any)
+	if got := hoverValue(paramHover); !strings.Contains(got, "flag: Bool") {
+		t.Fatalf("param hover = %q, want inferred Bool", got)
+	}
+
+	completion := s.completion(uri).([]map[string]any)
+	var detail string
+	for _, item := range completion {
+		if item["label"] == "fun" {
+			detail = item["detail"].(string)
+			break
+		}
+	}
+	if !strings.Contains(detail, "fun(flag: Bool) -> Int") {
+		t.Fatalf("completion detail = %q, want inferred fun signature", detail)
+	}
+}
+
+func TestLocalFunctionTypeRefinesFromCall(t *testing.T) {
+	uri := "file:///tmp/complex_type.rn"
+	src := `fun(flag) => {
+  f := flag {
+    true => (x) => {
+      k: x.a + 1,
+    }
+    false => (y) => {
+      k: y.b + 1,
+    }
+  }
+
+  f({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+
+main() => {
+  @io.println(fun(true) + fun(false))
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if len(diags) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	hover := s.hover(uri, positionOf(src, "f :=", "f")).(map[string]any)
+	value := hoverValue(hover)
+	want := "f: {\n  b: Int\n  z: Bool\n  a: Int\n} -> {\n  k: Int\n}"
+	if !strings.Contains(value, want) {
+		t.Fatalf("hover = %q, want %q", value, want)
+	}
+
+	hints := s.inlayHints(uri).([]map[string]any)
+	if !inlayLabelsContain(hints, ": Bool") ||
+		!inlayLabelsContain(hints, " -> Int ") ||
+		!inlayLabelsContain(hints, ": { b: Int z: Bool a: Int }") ||
+		!inlayLabelsContain(hints, " -> { k: Int } ") {
+		t.Fatalf("inlay hints = %#v, want inferred named and anonymous function hints", hints)
+	}
+}
+
+func TestComplexTypeFunctionSignaturesRejectMismatch(t *testing.T) {
+	uri := "file:///tmp/complex_type2.rn"
+	src := `h(x) => h(x) + 1
+
+f(x) => {
+  k: x.a + h(1),
+  onlyLeft: true,
+}
+
+g(y) => {
+  onlyRight: h(0),
+  k: y.b + 1,
+}
+
+r(flag) => {
+  j := flag {
+    true => f
+    false => g
+  }
+
+  j({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if !diagnosticsContain(diags, "match branch returns {b: Int} -> {onlyRight: Int, k: Int}, expected {a: Int} -> {k: Int, onlyLeft: Bool}") {
+		t.Fatalf("diagnostics = %#v, want function branch mismatch", diags)
+	}
+
+	cases := []struct {
+		name string
+		want string
+	}{
+		{name: "h", want: "h(x: Int) -> Int"},
+		{name: "f", want: "f(x: {\n  a: Int\n}) -> {\n  k: Int\n  onlyLeft: Bool\n}"},
+		{name: "g", want: "g(y: {\n  b: Int\n}) -> {\n  onlyRight: Int\n  k: Int\n}"},
+	}
+	for _, tc := range cases {
+		hover := s.hover(uri, positionOf(src, tc.name+"(", tc.name)).(map[string]any)
+		if got := hoverValue(hover); !strings.Contains(got, tc.want) {
+			t.Fatalf("%s hover = %q, want %q", tc.name, got, tc.want)
+		}
+	}
+
+	symbols := s.documentSymbols(uri).([]map[string]any)
+	details := map[string]string{}
+	for _, symbol := range symbols {
+		details[symbol["name"].(string)] = symbol["detail"].(string)
+	}
+	for _, tc := range cases {
+		if !strings.Contains(details[tc.name], tc.want) {
+			t.Fatalf("%s symbol detail = %q, want %q", tc.name, details[tc.name], tc.want)
+		}
+	}
+}
+
+func inlayLabelsContain(hints []map[string]any, want string) bool {
+	for _, hint := range hints {
+		if hint["label"] == want {
+			return true
+		}
+	}
+	return false
+}
+
+func diagnosticsContain(diags []compiler.Diagnostic, want string) bool {
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, want) {
+			return true
+		}
+	}
+	return false
 }
 
 func hoverValue(hover map[string]any) string {

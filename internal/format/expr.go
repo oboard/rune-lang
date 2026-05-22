@@ -35,10 +35,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return fmt.Sprintf("%s(%s)", f.expr(e.Callee), strings.Join(args, ", "))
 	case *ast.LambdaExpr:
 		params := strings.Join(e.Params, ", ")
-		if len(e.Params) != 1 {
-			params = "(" + params + ")"
-		}
-		return params + " => " + f.expr(e.Body)
+		return "(" + params + ") => " + f.expr(e.Body)
 	case *ast.IndexExpr:
 		return fmt.Sprintf("%s[%s]", f.expr(e.Receiver), f.expr(e.Index))
 	case *ast.SelectorExpr:
@@ -73,11 +70,31 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return "{ ... }"
 	case *ast.PatternBlock:
 		return "{ ... }"
+	case *ast.MatchExpr:
+		return f.matchExpr(e)
 	case *ast.ThisExpr:
 		return "this"
 	default:
 		return ""
 	}
+}
+
+func (f *formatter) matchExpr(match *ast.MatchExpr) string {
+	var b strings.Builder
+	b.WriteString(f.expr(match.Subject))
+	b.WriteString(" {\n")
+	branchIndent := indentString(f.indent + 1)
+	closeIndent := indentString(f.indent)
+	for _, branch := range match.Branches {
+		b.WriteString(branchIndent)
+		b.WriteString(f.pattern(branch.Pattern))
+		b.WriteString(" => ")
+		b.WriteString(f.exprWithIndent(branch.Expr, f.indent+1))
+		b.WriteByte('\n')
+	}
+	b.WriteString(closeIndent)
+	b.WriteString("}")
+	return b.String()
 }
 
 func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) string {

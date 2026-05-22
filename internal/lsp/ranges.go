@@ -29,6 +29,37 @@ func functionRange(fn *ast.Function) map[string]any {
 	}
 }
 
+func fatArrowPosition(text string, fn *ast.Function) (position, bool) {
+	return fatArrowPositionFromOffset(text, fn.NamePos.Offset)
+}
+
+func fatArrowPositionFromOffset(text string, offset int) (position, bool) {
+	start := max(offset, 0)
+	if start >= len(text) {
+		start = 0
+	}
+	idx := strings.Index(text[start:], "=>")
+	if idx < 0 {
+		return position{}, false
+	}
+	return positionAtOffset(text, start+idx), true
+}
+
+func positionAtOffset(text string, offset int) position {
+	line := 0
+	lineStart := 0
+	for i, ch := range text {
+		if i >= offset {
+			break
+		}
+		if ch == '\n' {
+			line++
+			lineStart = i + 1
+		}
+	}
+	return position{Line: line, Character: offset - lineStart}
+}
+
 func wordAt(text string, pos position) string {
 	lines := strings.Split(text, "\n")
 	if pos.Line < 0 || pos.Line >= len(lines) {

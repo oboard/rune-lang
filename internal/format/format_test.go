@@ -32,6 +32,27 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestFunctionReturningAnonymousObjectFormatting(t *testing.T) {
+	src := `left(x:Input)=>({k:x.a+1,onlyLeft:true})`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `left(x: Input) => ({
+  k: x.a + 1,
+  onlyLeft: true,
+})
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestSourcePreservesLineComments(t *testing.T) {
 	src := `main()=>{
 // construct a user

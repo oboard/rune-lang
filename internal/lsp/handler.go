@@ -16,6 +16,7 @@ func (s *server) handle(req request) error {
 				"definitionProvider":         true,
 				"documentSymbolProvider":     true,
 				"documentFormattingProvider": true,
+				"inlayHintProvider":          true,
 				"renameProvider":             true,
 			},
 			"serverInfo": map[string]any{
@@ -73,6 +74,12 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		return s.respond(req.ID, s.formatting(params.TextDocument.URI))
+	case "textDocument/inlayHint":
+		var params inlayHintParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return s.respond(req.ID, s.inlayHints(params.TextDocument.URI))
 	case "textDocument/rename":
 		var params renameParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

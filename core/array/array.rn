@@ -9,7 +9,7 @@ Array[T]: {
 
     map[T, U](f: (T) -> U) -> Array[U] => {
         result := []
-        .each(value => result.push(f(value)))
+        .each((value) => result.push(f(value)))
         result
     }
 

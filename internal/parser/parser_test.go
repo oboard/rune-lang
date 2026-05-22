@@ -47,6 +47,26 @@ func TestFunctionDeclRequiresFatArrow(t *testing.T) {
 	}
 }
 
+func TestLambdaRequiresParenthesizedParams(t *testing.T) {
+	_, errs := Parse(`main() => {
+    values.map(value => value + 1)
+}
+`)
+	if len(errs) == 0 {
+		t.Fatalf("Parse() accepted lambda without parenthesized params")
+	}
+}
+
+func TestLambdaWithParenthesizedParams(t *testing.T) {
+	_, errs := Parse(`main() => {
+    values.map((value) => value + 1)
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+}
+
 func TestAnonymousObjectMethodMembers(t *testing.T) {
 	file, errs := Parse(`main() => {
     obj := {

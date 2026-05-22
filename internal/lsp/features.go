@@ -44,24 +44,28 @@ func (s *server) hover(uri string, pos position) any {
 	}
 	for _, fn := range prog.File.Functions {
 		if fn.Name == word {
-			ret := checker.Void
-			if info := prog.Info.Functions[fn.Name]; info != nil {
-				ret = info.Return
-			}
 			return map[string]any{
 				"contents": map[string]any{
 					"kind":  "markdown",
-					"value": fmt.Sprintf("```rune\n%s -> %s\n```", fn.Signature(), ret),
+					"value": fmt.Sprintf("```rune\n%s\n```", functionSignature(prog.Info, fn)),
 				},
 				"range": symbolRange(fn.NamePos, len(fn.Name)),
 			}
 		}
-		for _, param := range fn.Params {
+		fnInfo := prog.Info.Functions[fn.Name]
+		for i, param := range fn.Params {
 			if param.Name == word {
+				typ := param.Type
+				if fnInfo != nil && i < len(fnInfo.Params) && fnInfo.Params[i].Type != "" && fnInfo.Params[i].Type != checker.Unknown {
+					typ = displayCheckerType(prog.Info, fnInfo.Params[i].Type)
+				}
+				if typ == "" {
+					typ = string(checker.Unknown)
+				}
 				return map[string]any{
 					"contents": map[string]any{
 						"kind":  "markdown",
-						"value": fmt.Sprintf("```rune\n%s: %s\n```", param.Name, param.Type),
+						"value": fmt.Sprintf("```rune\n%s: %s\n```", param.Name, typ),
 					},
 					"range": symbolRange(param.Pos, len(param.Name)),
 				}
@@ -161,7 +165,7 @@ func (s *server) completion(uri string) any {
 		items = append(items, map[string]any{
 			"label":  fn.Name,
 			"kind":   3,
-			"detail": fn.Signature(),
+			"detail": functionSignature(prog.Info, fn),
 		})
 	}
 	return items
@@ -176,6 +180,12 @@ func (s *server) definition(uri string, pos position) any {
 	if target := s.methodTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
+	if target := fieldTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
+	if target := localTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
 	for _, fn := range prog.File.Functions {
 		if fn.Name == word {
 			return map[string]any{
@@ -185,6 +195,148 @@ func (s *server) definition(uri string, pos position) any {
 		}
 	}
 	return nil
+}
+
+func localTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	name := identifierNameAt(prog.File, pos)
+	if name == "" {
+		name = letNameAt(prog.File, pos)
+	}
+	if name == "" {
+		return nil
+	}
+	if target := letTarget(uri, prog.File, name); target != nil {
+		return target
+	}
+	if target := paramTarget(uri, prog.File, name); target != nil {
+		return target
+	}
+	return nil
+}
+
+func identifierNameAt(file *ast.File, pos position) string {
+	var found string
+	walkFileExprs(file, func(expr ast.Expr) {
+		if found != "" {
+			return
+		}
+		if ident, ok := expr.(*ast.Identifier); ok && containsSymbol(pos, ident.Pos, ident.Name) {
+			found = ident.Name
+		}
+	})
+	return found
+}
+
+func letNameAt(file *ast.File, pos position) string {
+	var found string
+	walkFileStatements(file, func(stmt ast.Stmt) {
+		if found != "" {
+			return
+		}
+		if let, ok := stmt.(*ast.LetStmt); ok && containsSymbol(pos, let.Pos, let.Name) {
+			found = let.Name
+		}
+	})
+	return found
+}
+
+func letTarget(uri string, file *ast.File, name string) *methodTarget {
+	var found *methodTarget
+	walkFileStatements(file, func(stmt ast.Stmt) {
+		if found != nil {
+			return
+		}
+		if let, ok := stmt.(*ast.LetStmt); ok && let.Name == name {
+			found = &methodTarget{uri: uri, name: let.Name, pos: let.Pos}
+		}
+	})
+	return found
+}
+
+func paramTarget(uri string, file *ast.File, name string) *methodTarget {
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			for _, param := range method.Params {
+				if param.Name == name {
+					return &methodTarget{uri: uri, name: param.Name, pos: param.Pos}
+				}
+			}
+		}
+	}
+	for _, fn := range file.Functions {
+		for _, param := range fn.Params {
+			if param.Name == name {
+				return &methodTarget{uri: uri, name: param.Name, pos: param.Pos}
+			}
+		}
+	}
+	return nil
+}
+
+func fieldTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	sel := selectorAt(prog.File, pos)
+	if sel == nil {
+		return nil
+	}
+	receiver := prog.Info.ExprTypes[sel.Receiver]
+	structInfo := prog.Info.Types[baseType(receiver)]
+	if structInfo == nil {
+		return nil
+	}
+	if structInfo.Node != nil {
+		for _, field := range structInfo.Node.Fields {
+			if field.Name == sel.Name {
+				return &methodTarget{uri: uri, name: field.Name, pos: field.Pos, structName: structInfo.Name}
+			}
+		}
+	}
+	return anonymousFieldTarget(uri, prog, structInfo.Name, sel.Name)
+}
+
+func anonymousFieldTarget(uri string, prog *compiler.Program, typeName string, fieldName string) *methodTarget {
+	var found *methodTarget
+	walkFileExprs(prog.File, func(expr ast.Expr) {
+		if found != nil {
+			return
+		}
+		obj, ok := expr.(*ast.AnonymousObjectLiteral)
+		if !ok {
+			return
+		}
+		if baseType(prog.Info.ExprTypes[obj]) != typeName {
+			objTypeName := baseType(prog.Info.ExprTypes[obj])
+			if !anonymousObjectTypeCanSatisfyField(prog.Info, objTypeName, typeName, fieldName) {
+				return
+			}
+		}
+		for _, field := range obj.Fields {
+			if field.Name == fieldName {
+				found = &methodTarget{uri: uri, name: field.Name, pos: field.Pos, structName: typeName}
+				return
+			}
+		}
+	})
+	return found
+}
+
+func anonymousObjectTypeCanSatisfyField(info *checker.Info, objectType string, targetType string, fieldName string) bool {
+	if info == nil {
+		return false
+	}
+	objectInfo := info.Types[objectType]
+	targetInfo := info.Types[targetType]
+	if objectInfo == nil || targetInfo == nil {
+		return false
+	}
+	if _, ok := targetInfo.ByName[fieldName]; !ok {
+		return false
+	}
+	for _, targetField := range targetInfo.Fields {
+		if _, ok := objectInfo.ByName[targetField.Name]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *server) documentSymbols(uri string) any {
@@ -200,10 +352,99 @@ func (s *server) documentSymbols(uri string) any {
 			"kind":           12,
 			"range":          rng,
 			"selectionRange": symbolRange(fn.NamePos, len(fn.Name)),
-			"detail":         fn.Signature(),
+			"detail":         functionSignature(prog.Info, fn),
 		})
 	}
 	return items
+}
+
+func (s *server) inlayHints(uri string) any {
+	text := s.docs[uri]
+	prog, _ := compiler.AnalyzeSource(uri, text)
+	if prog == nil {
+		return []any{}
+	}
+	var hints []map[string]any
+	for _, fn := range prog.File.Functions {
+		fnInfo := prog.Info.Functions[fn.Name]
+		if fnInfo == nil {
+			continue
+		}
+		for i, param := range fn.Params {
+			if param.Type != "" || i >= len(fnInfo.Params) {
+				continue
+			}
+			typ := fnInfo.Params[i].Type
+			if typ == "" || typ == checker.Unknown {
+				continue
+			}
+			pos := position{
+				Line:      max(param.Pos.Line-1, 0),
+				Character: max(param.Pos.Column-1, 0) + len(param.Name),
+			}
+			hints = append(hints, map[string]any{
+				"position": pos,
+				"label":    ": " + displayCheckerTypeOneLine(prog.Info, typ),
+				"kind":     1,
+				"tooltip":  functionSignature(prog.Info, fn),
+			})
+		}
+		if fn.ReturnType != "" || fnInfo.Return == "" || fnInfo.Return == checker.Unknown {
+			continue
+		}
+		if pos, ok := fatArrowPosition(text, fn); ok {
+			hints = append(hints, map[string]any{
+				"position": pos,
+				"label":    " -> " + displayCheckerTypeOneLine(prog.Info, fnInfo.Return) + " ",
+				"kind":     1,
+				"tooltip":  functionSignature(prog.Info, fn),
+			})
+		}
+	}
+	walkFileExprs(prog.File, func(expr ast.Expr) {
+		lambda, ok := expr.(*ast.LambdaExpr)
+		if !ok {
+			return
+		}
+		params, ret, ok := parseRawDisplayFuncType(string(prog.Info.ExprTypes[lambda]))
+		if !ok {
+			return
+		}
+		for i, name := range lambda.Params {
+			if i >= len(lambda.ParamPos) || i >= len(params) {
+				continue
+			}
+			if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+				continue
+			}
+			typ := checker.Type(params[i])
+			if typ == "" || typ == checker.Unknown {
+				continue
+			}
+			pos := position{
+				Line:      max(lambda.ParamPos[i].Line-1, 0),
+				Character: max(lambda.ParamPos[i].Column-1, 0) + len(name),
+			}
+			hints = append(hints, map[string]any{
+				"position": pos,
+				"label":    ": " + displayCheckerTypeOneLine(prog.Info, typ),
+				"kind":     1,
+				"tooltip":  displayCheckerType(prog.Info, prog.Info.ExprTypes[lambda]),
+			})
+		}
+		if lambda.ReturnType != "" || ret == "" || ret == string(checker.Unknown) {
+			return
+		}
+		if pos, ok := fatArrowPositionFromOffset(text, lambda.Pos.Offset); ok {
+			hints = append(hints, map[string]any{
+				"position": pos,
+				"label":    " -> " + displayCheckerTypeOneLine(prog.Info, checker.Type(ret)) + " ",
+				"kind":     1,
+				"tooltip":  displayCheckerType(prog.Info, prog.Info.ExprTypes[lambda]),
+			})
+		}
+	})
+	return hints
 }
 
 func (s *server) rename(uri string, pos position, newName string) any {
@@ -378,6 +619,39 @@ func classMethodSignature(typeName string, fn *checker.FuncInfo) string {
 	return fmt.Sprintf("%s.%s -> %s", typeName, sig, ret)
 }
 
+func functionSignature(info *checker.Info, fn *ast.Function) string {
+	fnInfo := info.Functions[fn.Name]
+	if fnInfo == nil {
+		return fn.Signature()
+	}
+	params := make([]string, 0, len(fn.Params))
+	for i, param := range fn.Params {
+		typ := param.Type
+		if i < len(fnInfo.Params) && fnInfo.Params[i].Type != "" && fnInfo.Params[i].Type != checker.Unknown {
+			typ = displayCheckerType(info, fnInfo.Params[i].Type)
+		}
+		if typ == "" {
+			typ = string(checker.Unknown)
+		}
+		params = append(params, fmt.Sprintf("%s: %s", param.Name, typ))
+	}
+	ret := fn.ReturnType
+	if fnInfo.Return != "" && fnInfo.Return != checker.Unknown {
+		ret = displayCheckerType(info, fnInfo.Return)
+	}
+	if ret == "" {
+		ret = string(checker.Void)
+	}
+	return fmt.Sprintf("%s%s(%s) -> %s", fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+}
+
+func formatSignatureGenerics(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(names, ", ") + "]"
+}
+
 func stdlibSignature(moduleName string, fn *stdlib.Function) string {
 	owner := "@" + moduleName
 	if fn.Receiver != "" {
@@ -414,6 +688,10 @@ func displayCheckerType(info *checker.Info, typ checker.Type) string {
 	return displayCheckerTypeIndent(info, typ, 0)
 }
 
+func displayCheckerTypeOneLine(info *checker.Info, typ checker.Type) string {
+	return strings.Join(strings.Fields(displayCheckerType(info, typ)), " ")
+}
+
 func displayCheckerTypeIndent(info *checker.Info, typ checker.Type, indent int) string {
 	name := string(typ)
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
@@ -437,9 +715,20 @@ func displayCheckerTypeIndent(info *checker.Info, typ checker.Type, indent int) 
 		for i, param := range params {
 			params[i] = displayCheckerTypeIndent(info, checker.Type(param), indent)
 		}
-		return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), displayCheckerTypeIndent(info, checker.Type(ret), indent))
+		return displayFuncType(params, displayCheckerTypeIndent(info, checker.Type(ret), indent))
 	}
 	return name
+}
+
+func displayFuncType(params []string, ret string) string {
+	switch len(params) {
+	case 0:
+		return "() -> " + ret
+	case 1:
+		return params[0] + " -> " + ret
+	default:
+		return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), ret)
+	}
 }
 
 func parseDisplayFuncType(name string) ([]string, string, bool) {

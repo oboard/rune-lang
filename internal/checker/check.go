@@ -15,6 +15,7 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 			Stdlib:    reg,
 			ExprTypes: map[ast.Expr]Type{},
 		},
+		bindings: map[string]ast.Expr{},
 	}
 	if err != nil {
 		c.errorf(lexer.Position{}, "%s", err.Error())
@@ -31,6 +32,7 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 }
 
 type checker struct {
-	info  *Info
-	diags []Diagnostic
+	info     *Info
+	diags    []Diagnostic
+	bindings map[string]ast.Expr
 }

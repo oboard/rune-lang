@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -44,10 +45,26 @@ func (c *checker) inferFunction(fn *ast.Function) {
 		return
 	}
 	env := map[string]Type{}
+	inferredFields := inferParamFields(fn.Body, paramNames(info.Params))
 	for _, param := range info.Params {
-		env[param.Name] = param.Type
+		paramType := param.Type
+		if paramType == Unknown {
+			if inferred := c.objectTypeFromFields(inferredFields[param.Name]); inferred != Unknown {
+				paramType = inferred
+			}
+		}
+		env[param.Name] = paramType
 	}
 	ret := c.inferExpr(fn.Body, env)
+	for idx, param := range info.Params {
+		if param.Type == Unknown {
+			if inferred := env[param.Name]; inferred != "" && inferred != Unknown {
+				info.Params[idx].Type = inferred
+			} else if inferred := c.inferredParamUseType(fn.Body, param.Name); inferred != Unknown {
+				info.Params[idx].Type = inferred
+			}
+		}
+	}
 	if fn.Name == "main" {
 		if info.ReturnDeclared && info.Return != Void {
 			c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
@@ -56,6 +73,21 @@ func (c *checker) inferFunction(fn *ast.Function) {
 		return
 	}
 	c.finishFunctionReturn(info, ret, fn)
+}
+
+func (c *checker) inferredParamUseType(body ast.Expr, name string) Type {
+	result := Unknown
+	ast.WalkExpr(body, func(expr ast.Expr) {
+		if result != Unknown {
+			return
+		}
+		if ident, ok := expr.(*ast.Identifier); ok && ident.Name == name {
+			if typ := c.info.ExprTypes[ident]; typ != "" && typ != Unknown {
+				result = typ
+			}
+		}
+	})
+	return result
 }
 
 func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, fn *ast.Function) {
@@ -91,8 +123,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		if typ, ok := env[e.Name]; ok {
 			return typ
 		}
-		if _, ok := c.info.Functions[e.Name]; ok {
-			return Unknown
+		if fn, ok := c.info.Functions[e.Name]; ok {
+			typ := FuncOfTypes(paramTypes(fn.Params), fn.Return)
+			c.info.ExprTypes[e] = typ
+			return typ
 		}
 		if e.Name != "<error>" {
 			c.errorf(e.Pos, "undefined name %q", e.Name)
@@ -188,6 +222,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return c.inferBlock(e, env)
 	case *ast.PatternBlock:
 		return c.inferPatternBlock(e, env)
+	case *ast.MatchExpr:
+		return c.inferMatchExpr(e, env)
 	default:
 		return Unknown
 	}
@@ -219,7 +255,8 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		method := structInfo.Methods[sel.Name]
 		if field, ok := structInfo.ByName[sel.Name]; ok {
-			return c.inferFunctionValueCall(sel.Name, field.Type, call.Args, argTypes, sel.Pos)
+			ret, _ := c.inferFunctionValueCall(sel.Name, field.Type, call.Args, argTypes, sel.Pos)
+			return ret
 		}
 		if method == nil {
 			c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
@@ -230,23 +267,45 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
 		if localType, ok := env[ident.Name]; ok {
-			return c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, ident.Pos)
+			ret, refined := c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, ident.Pos)
+			if refined != Unknown && refined != localType {
+				env[ident.Name] = refined
+				if binding := c.bindings[ident.Name]; binding != nil {
+					c.info.ExprTypes[binding] = refined
+					c.applyExpectedType(binding, refined)
+				}
+				localType = refined
+			}
+			c.info.ExprTypes[ident] = localType
+			return ret
 		}
 		fn := c.info.Functions[ident.Name]
 		if fn == nil {
 			c.errorf(ident.Pos, "undefined function %q", ident.Name)
 			return Unknown
 		}
+		for i, argType := range argTypes {
+			if i < len(fn.Params) && fn.Params[i].Type == Unknown && argType != Unknown {
+				fn.Params[i].Type = argType
+			}
+		}
+		c.info.ExprTypes[ident] = FuncOfTypes(paramTypes(fn.Params), fn.Return)
 		c.checkArgs(ident.Name, fn.Params, call.Args, argTypes, ident.Pos)
 		return fn.Return
 	}
-	c.inferExpr(call.Callee, env)
-	return Unknown
+	calleeType := c.inferExpr(call.Callee, env)
+	ret, refined := c.inferFunctionValueCall("<expr>", calleeType, call.Args, argTypes, call.Callee.Position())
+	if refined != Unknown && refined != calleeType {
+		c.info.ExprTypes[call.Callee] = refined
+		c.applyExpectedType(call.Callee, refined)
+	}
+	return ret
 }
 
 func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type {
 	local := cloneEnv(env)
 	params := make([]Type, 0, len(lambda.Params))
+	inferredFields := inferParamFields(lambda.Body, lambda.Params)
 	for i, name := range lambda.Params {
 		paramType := Unknown
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
@@ -254,6 +313,8 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
 				c.errorf(lambda.Pos, "unknown type %q", lambda.ParamTypes[i])
 			}
+		} else if fields := inferredFields[name]; len(fields) > 0 {
+			paramType = c.objectTypeFromFields(fields)
 		}
 		params = append(params, paramType)
 		local[name] = paramType
@@ -275,25 +336,150 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	return FuncOfTypes(params, ret)
 }
 
-func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, pos lexer.Position) Type {
+func paramNames(params []ParamInfo) []string {
+	out := make([]string, 0, len(params))
+	for _, param := range params {
+		out = append(out, param.Name)
+	}
+	return out
+}
+
+func (c *checker) objectTypeFromFields(fields map[string]FieldInfo) Type {
+	if len(fields) == 0 {
+		return Unknown
+	}
+	var infos []FieldInfo
+	names := make([]string, 0, len(fields))
+	for fieldName := range fields {
+		names = append(names, fieldName)
+	}
+	sort.Strings(names)
+	for _, fieldName := range names {
+		field := fields[fieldName]
+		infos = append(infos, field)
+	}
+	typ := ObjectOf(infos)
+	byName := map[string]FieldInfo{}
+	for _, field := range infos {
+		byName[field.Name] = field
+	}
+	c.registerAnonymousObjectType(typ, infos, byName)
+	return typ
+}
+
+func inferParamFields(body ast.Expr, names []string) map[string]map[string]FieldInfo {
+	params := map[string]bool{}
+	for _, name := range names {
+		params[name] = true
+	}
+	out := map[string]map[string]FieldInfo{}
+	var walk func(ast.Expr, Type)
+	walk = func(expr ast.Expr, expected Type) {
+		switch e := expr.(type) {
+		case *ast.SelectorExpr:
+			if ident, ok := e.Receiver.(*ast.Identifier); ok && params[ident.Name] {
+				fields := out[ident.Name]
+				if fields == nil {
+					fields = map[string]FieldInfo{}
+					out[ident.Name] = fields
+				}
+				if expected == Unknown {
+					expected = Int
+				}
+				fields[e.Name] = FieldInfo{Name: e.Name, Type: expected}
+				return
+			}
+			walk(e.Receiver, Unknown)
+		case *ast.BinaryExpr:
+			switch e.Op {
+			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+				walk(e.Left, Int)
+				walk(e.Right, Int)
+			default:
+				walk(e.Left, Unknown)
+				walk(e.Right, Unknown)
+			}
+		case *ast.UnaryExpr:
+			walk(e.Expr, expected)
+		case *ast.CallExpr:
+			walk(e.Callee, Unknown)
+			for _, arg := range e.Args {
+				walk(arg, Unknown)
+			}
+		case *ast.AnonymousObjectLiteral:
+			for _, field := range e.Fields {
+				walk(field.Value, Unknown)
+			}
+		case *ast.BlockExpr:
+			for _, stmt := range e.Statements {
+				switch s := stmt.(type) {
+				case *ast.LetStmt:
+					walk(s.Value, Unknown)
+				case *ast.AssignStmt:
+					walk(s.Value, Unknown)
+				case *ast.ExprStmt:
+					walk(s.Expr, Unknown)
+				}
+			}
+		case *ast.MatchExpr:
+			walk(e.Subject, Unknown)
+			for _, branch := range e.Branches {
+				walk(branch.Expr, Unknown)
+			}
+		}
+	}
+	walk(body, Unknown)
+	return out
+}
+
+func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, pos lexer.Position) (Type, Type) {
 	params, ret, ok := parseFuncType(string(typ))
 	if !ok {
 		if typ != Unknown {
 			c.errorf(pos, "type %s is not callable", typ)
 		}
-		return Unknown
+		return Unknown, typ
 	}
 	if len(params) != len(args) {
 		c.errorf(pos, "function %q expects %d args, got %d", name, len(params), len(args))
 	}
 	limit := min(len(params), len(argTypes))
+	refinedParams := make([]Type, 0, len(params))
+	for _, param := range params {
+		refinedParams = append(refinedParams, Type(param))
+	}
 	for i := 0; i < limit; i++ {
 		expected := Type(params[i])
+		if refined, ok := c.refineArgumentType(expected, argTypes[i]); ok {
+			refinedParams[i] = refined
+			continue
+		}
 		if !typesCompatible(expected, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], expected)
 		}
 	}
-	return Type(ret)
+	return Type(ret), FuncOfTypes(refinedParams, Type(ret))
+}
+
+func (c *checker) refineArgumentType(expected Type, actual Type) (Type, bool) {
+	if expected == Unknown || actual == Unknown {
+		return expected, true
+	}
+	if unified, ok := c.unifyTypes(expected, actual); ok {
+		return unified, true
+	}
+	if isObjectType(expected) && isObjectType(actual) && c.objectHasFields(actual, expected) {
+		return actual, true
+	}
+	return Unknown, false
+}
+
+func paramTypes(params []ParamInfo) []Type {
+	out := make([]Type, 0, len(params))
+	for _, param := range params {
+		out = append(out, param.Type)
+	}
+	return out
 }
 
 func isIntrinsicStub(fn *ast.Function) bool {

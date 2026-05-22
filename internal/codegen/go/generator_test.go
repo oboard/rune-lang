@@ -149,8 +149,8 @@ func TestGenerateArrayProgram(t *testing.T) {
   @io.println(arr[3])
   @io.println(arr.length())
   @io.println(arr.isEmpty())
-  arr.each(value => @io.println(value))
-  mapped := arr.map(value => value + 1)
+  arr.each((value) => @io.println(value))
+  mapped := arr.map((value) => value + 1)
   @io.println(mapped[0])
 }
 `
@@ -239,6 +239,52 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		`fmt.Println(__obj.__age)`,
 		`fmt.Println(__obj.__nextAge())`,
 		`__obj.__greet()`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateInlineFunctionValueCall(t *testing.T) {
+	src := `fun(flag) => {
+  (flag {
+    true => (x) => {
+      k: x.a + 1,
+    }
+    false => (y) => {
+      k: y.b + 1,
+    }
+  }) ({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+
+main() => {
+  @io.println(fun(true) + fun(false))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+
+	wantParts := []string{
+		`func() func(struct {`,
+		`__z bool`,
+		`}) struct{ __k int }`,
+		`{__b: 2, __z: false, __a: 1}).__k`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

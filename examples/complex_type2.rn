@@ -1,0 +1,22 @@
+h(x) => h(x) + 1
+
+f(x) => {
+  k: x.a + h(1),
+}
+
+g(y) => {
+  k: y.b + 1,
+}
+
+r(flag) => {
+  j := flag {
+    true => f
+    false => g
+  }
+
+  j({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}

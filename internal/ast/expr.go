@@ -102,6 +102,7 @@ func (e *CallExpr) Position() lexer.Position {
 
 type LambdaExpr struct {
 	Params     []string
+	ParamPos   []lexer.Position
 	ParamTypes []string
 	ReturnType string
 	Body       Expr
@@ -190,5 +191,16 @@ type PatternBlock struct {
 
 func (*PatternBlock) exprNode() {}
 func (e *PatternBlock) Position() lexer.Position {
+	return e.Pos
+}
+
+type MatchExpr struct {
+	Subject  Expr
+	Branches []PatternBranch
+	Pos      lexer.Position
+}
+
+func (*MatchExpr) exprNode() {}
+func (e *MatchExpr) Position() lexer.Position {
 	return e.Pos
 }

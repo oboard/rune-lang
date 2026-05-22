@@ -184,6 +184,16 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			})
 		}
 		return out
+	case *ast.MatchExpr:
+		out := &MatchExpr{ExprBase: l.base(e), Subject: l.expr(e.Subject)}
+		for _, branch := range e.Branches {
+			out.Branches = append(out.Branches, PatternBranch{
+				Pattern: l.pattern(branch.Pattern),
+				Expr:    l.expr(branch.Expr),
+				Pos:     branch.Pos,
+			})
+		}
+		return out
 	default:
 		return nil
 	}

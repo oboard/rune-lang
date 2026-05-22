@@ -36,7 +36,11 @@ func (f *formatter) function(fn *ast.Function) {
 	}
 	var params []string
 	for _, param := range fn.Params {
-		params = append(params, fmt.Sprintf("%s: %s", param.Name, param.Type))
+		if param.Type == "" {
+			params = append(params, param.Name)
+		} else {
+			params = append(params, fmt.Sprintf("%s: %s", param.Name, param.Type))
+		}
 	}
 	ret := ""
 	if fn.ReturnType != "" {
@@ -64,7 +68,11 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	default:
-		f.linef("%s%s(%s)%s => %s", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret, f.expr(fn.Body))
+		bodyText := f.expr(fn.Body)
+		if _, ok := fn.Body.(*ast.AnonymousObjectLiteral); ok {
+			bodyText = "(" + bodyText + ")"
+		}
+		f.linef("%s%s(%s)%s => %s", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret, bodyText)
 	}
 }
 

@@ -44,6 +44,12 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 			WalkPattern(branch.Pattern, visit)
 			WalkExpr(branch.Expr, visit)
 		}
+	case *MatchExpr:
+		WalkExpr(e.Subject, visit)
+		for _, branch := range e.Branches {
+			WalkPattern(branch.Pattern, visit)
+			WalkExpr(branch.Expr, visit)
+		}
 	}
 }
 

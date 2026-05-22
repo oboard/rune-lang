@@ -1,0 +1,18 @@
+fun(flag) => {
+  (flag {
+    true => (x) => {
+      k: x.a + 1,
+    }
+    false => (y) => {
+      k: y.b + 1,
+    }
+  }) ({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
+}
+
+main() => {
+  @io.println(fun(true) + fun(false))
+}

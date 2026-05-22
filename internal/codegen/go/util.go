@@ -133,6 +133,9 @@ func zeroValue(typ checker.Type) string {
 	if _, ok := checker.ArrayElement(typ); ok {
 		return "nil"
 	}
+	if _, _, ok := parseGoFuncType(string(typ)); ok {
+		return "nil"
+	}
 	switch typ {
 	case checker.Int:
 		return "0"

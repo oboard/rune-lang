@@ -82,6 +82,53 @@ func FuncOfTypes(params []Type, ret Type) Type {
 	return Type("Func[" + strings.Join(parts, ",") + "]")
 }
 
+func DisplayType(typ Type) string {
+	return displayTypeName(string(typ))
+}
+
+func displayTypeName(name string) string {
+	if params, ret, ok := parseFuncType(name); ok {
+		for i, param := range params {
+			params[i] = displayTypeName(param)
+		}
+		return displayFuncType(params, displayTypeName(ret))
+	}
+	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
+		return displayObjectTypeName(name)
+	}
+	return name
+}
+
+func displayFuncType(params []string, ret string) string {
+	switch len(params) {
+	case 0:
+		return "() -> " + ret
+	case 1:
+		return params[0] + " -> " + ret
+	default:
+		return "(" + strings.Join(params, ", ") + ") -> " + ret
+	}
+}
+
+func displayObjectTypeName(name string) string {
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(name, "{"), "}"))
+	if inner == "" {
+		return "{}"
+	}
+	fields := make([]string, 0)
+	for _, part := range splitTypeList(inner) {
+		idx := strings.Index(part, ":")
+		if idx < 0 {
+			fields = append(fields, strings.TrimSpace(part))
+			continue
+		}
+		fieldName := strings.TrimSpace(part[:idx])
+		fieldType := displayTypeName(strings.TrimSpace(part[idx+1:]))
+		fields = append(fields, fieldName+": "+fieldType)
+	}
+	return "{" + strings.Join(fields, ", ") + "}"
+}
+
 func ArrayElement(typ Type) (Type, bool) {
 	name := string(typ)
 	elem, ok := parseArrayType(name)
@@ -166,7 +213,138 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 		}
 		return typesCompatibleWithSet(Type(expectedRet), Type(actualRet), generics)
 	}
+	if isObjectType(expected) && isObjectType(actual) {
+		return objectTypesCompatible(expected, actual)
+	}
 	return false
+}
+
+func objectTypesCompatible(expected Type, actual Type) bool {
+	expectedFields := parseObjectFields(string(expected))
+	actualFields := parseObjectFields(string(actual))
+	if len(expectedFields) == 0 || len(actualFields) == 0 {
+		return false
+	}
+	if len(expectedFields) != len(actualFields) {
+		return false
+	}
+	for name, expectedType := range expectedFields {
+		actualType, ok := actualFields[name]
+		if !ok {
+			return false
+		}
+		if !typesCompatible(expectedType, actualType, nil) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *checker) unifyTypes(left Type, right Type) (Type, bool) {
+	if left == Unknown {
+		return right, true
+	}
+	if right == Unknown || left == right {
+		return left, true
+	}
+	if leftElem, ok := parseArrayType(string(left)); ok {
+		rightElem, rightArray := parseArrayType(string(right))
+		if !rightArray {
+			return Unknown, false
+		}
+		elem, ok := c.unifyTypes(Type(leftElem), Type(rightElem))
+		if !ok {
+			return Unknown, false
+		}
+		return ArrayOf(elem), true
+	}
+	if leftParams, leftRet, ok := parseFuncType(string(left)); ok {
+		rightParams, rightRet, rightFunc := parseFuncType(string(right))
+		if !rightFunc || len(leftParams) != len(rightParams) {
+			return Unknown, false
+		}
+		params := make([]Type, 0, len(leftParams))
+		for i := range leftParams {
+			param, ok := c.unifyTypes(Type(leftParams[i]), Type(rightParams[i]))
+			if !ok {
+				return Unknown, false
+			}
+			params = append(params, param)
+		}
+		ret, ok := c.unifyTypes(Type(leftRet), Type(rightRet))
+		if !ok {
+			return Unknown, false
+		}
+		return FuncOfTypes(params, ret), true
+	}
+	if isObjectType(left) && isObjectType(right) {
+		return c.unifyObjectTypes(left, right)
+	}
+	return Unknown, false
+}
+
+func (c *checker) unifyObjectTypes(left Type, right Type) (Type, bool) {
+	leftInfo := c.info.Types[baseTypeName(left)]
+	rightInfo := c.info.Types[baseTypeName(right)]
+	if leftInfo == nil || rightInfo == nil || len(leftInfo.Fields) != len(rightInfo.Fields) {
+		return Unknown, false
+	}
+	fields := make([]FieldInfo, 0, len(leftInfo.Fields))
+	for _, leftField := range leftInfo.Fields {
+		rightField, ok := rightInfo.ByName[leftField.Name]
+		if !ok {
+			return Unknown, false
+		}
+		fieldType, ok := c.unifyTypes(leftField.Type, rightField.Type)
+		if !ok {
+			return Unknown, false
+		}
+		fields = append(fields, FieldInfo{Name: leftField.Name, Type: fieldType})
+	}
+	typ := ObjectOf(fields)
+	byName := map[string]FieldInfo{}
+	for _, field := range fields {
+		byName[field.Name] = field
+	}
+	c.registerAnonymousObjectType(typ, fields, byName)
+	return typ, true
+}
+
+func (c *checker) objectHasFields(actual Type, expected Type) bool {
+	actualInfo := c.info.Types[baseTypeName(actual)]
+	expectedInfo := c.info.Types[baseTypeName(expected)]
+	if actualInfo == nil || expectedInfo == nil {
+		return false
+	}
+	for _, expectedField := range expectedInfo.Fields {
+		actualField, ok := actualInfo.ByName[expectedField.Name]
+		if !ok {
+			return false
+		}
+		if _, ok := c.unifyTypes(expectedField.Type, actualField.Type); !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func parseObjectFields(name string) map[string]Type {
+	out := map[string]Type{}
+	if !strings.HasPrefix(name, "{") || !strings.HasSuffix(name, "}") {
+		return out
+	}
+	inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(name, "{"), "}"))
+	if inner == "" {
+		return out
+	}
+	for _, part := range splitTypeList(inner) {
+		idx := strings.Index(part, ":")
+		if idx < 0 {
+			continue
+		}
+		out[strings.TrimSpace(part[:idx])] = Type(strings.TrimSpace(part[idx+1:]))
+	}
+	return out
 }
 
 func min(a, b int) int {
@@ -185,5 +363,17 @@ func cloneEnv(env map[string]Type) map[string]Type {
 }
 
 func (c *checker) errorf(pos lexer.Position, format string, args ...any) {
-	c.diags = append(c.diags, Diagnostic{Message: fmt.Sprintf(format, args...), Pos: pos})
+	c.diags = append(c.diags, Diagnostic{Message: fmt.Sprintf(format, displayArgs(args)...), Pos: pos})
+}
+
+func displayArgs(args []any) []any {
+	out := make([]any, 0, len(args))
+	for _, arg := range args {
+		if typ, ok := arg.(Type); ok {
+			out = append(out, DisplayType(typ))
+			continue
+		}
+		out = append(out, arg)
+	}
+	return out
 }

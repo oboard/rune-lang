@@ -190,9 +190,9 @@ func splitTypeList(src string) []string {
 	start := 0
 	for i, ch := range src {
 		switch ch {
-		case '[':
+		case '[', '{', '(':
 			depth++
-		case ']':
+		case ']', '}', ')':
 			depth--
 		case ',':
 			if depth == 0 {

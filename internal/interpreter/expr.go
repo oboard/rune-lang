@@ -89,6 +89,12 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return i.evalBlock(e, env)
 	case *ir.PatternBlock:
 		return nil, fmt.Errorf("pattern block cannot be evaluated without a subject")
+	case *ir.MatchExpr:
+		subject, err := i.eval(e.Subject, env)
+		if err != nil {
+			return nil, err
+		}
+		return i.evalPatternBlock(&ir.PatternBlock{ExprBase: e.ExprBase, Branches: e.Branches}, subject, env)
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", expr)
 	}
