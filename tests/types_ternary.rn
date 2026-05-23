@@ -1,0 +1,34 @@
+choose(flag: Bool) -> Int => flag ? 1 : 2
+
+chooseNullable(flag: Bool) -> Int? => flag ? 7 : null
+
+? "ternary expressions" {
+  @assert.eq(true ? 1 : 2, 1)
+  @assert.eq(false ? 1 : 2, 2)
+  @assert.eq(false || true ? "yes" : "no", "yes")
+  @assert.eq(false ? 1 : true ? 2 : 3, 2)
+  @assert.eq(choose(true), 1)
+  @assert.eq(choose(false), 2)
+  @assert.eq(chooseNullable(true), 7)
+  @assert.eq(chooseNullable(false), null)
+}
+
+? "ternary short circuits" {
+  values := [0]
+  @assert.eq(true ? values.push(1) : values.push(2), 2)
+  @assert.eq(values.length(), 2)
+  @assert.eq(values[1], 1)
+
+  @assert.eq(false ? values.push(3) : values.push(4), 3)
+  @assert.eq(values.length(), 3)
+  @assert.eq(values[2], 4)
+}
+
+? "ternary void branches" {
+  seen ~= 0
+  true ? seen = 1 : seen = 2
+  @assert.eq(seen, 1)
+
+  false ? seen = 3 : seen = 4
+  @assert.eq(seen, 4)
+}

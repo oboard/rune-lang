@@ -24,6 +24,10 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		switch value := receiver.(type) {
 		case *Array:
 			return i.callArrayMethod(value, sel.Name, call.Args, env)
+		case *Map:
+			return i.callMapMethod(value, sel.Name, call.Args, env)
+		case *Set:
+			return i.callSetMethod(value, sel.Name, call.Args, env)
 		case string:
 			return i.callStringMethod(value, sel.Name, call.Args, env)
 		case bool:

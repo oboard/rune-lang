@@ -67,7 +67,7 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 		return Unknown
 	}
 	bindings := c.arrayTypeBindings(fn, elem)
-	c.checkArrayDeclaredArgs(sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	c.checkDeclaredReceiverArgs("array", sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
 	return c.resolveDeclaredType(fn.Return, bindings)
 }
 
@@ -82,7 +82,7 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 		return Unknown, true
 	}
 	bindings := c.receiverTypeBindings(fn, receiver)
-	c.checkArrayDeclaredArgs(sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	c.checkDeclaredReceiverArgs(moduleName, sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
 	return c.resolveDeclaredType(fn.Return, bindings), true
 }
 
@@ -130,13 +130,13 @@ func (c *checker) arrayTypeBindings(fn *stdlib.Function, elem Type) map[string]T
 	return bindings
 }
 
-func (c *checker) checkArrayDeclaredArgs(functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, bindings map[string]Type, env map[string]Type, pos lexer.Position) {
+func (c *checker) checkDeclaredReceiverArgs(moduleName string, functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, bindings map[string]Type, env map[string]Type, pos lexer.Position) {
 	if len(fn.Params) != len(args) {
-		c.errorf(pos, "array.%s expects %d args, got %d", functionName, len(fn.Params), len(args))
+		c.errorf(pos, "%s.%s expects %d args, got %d", moduleName, functionName, len(fn.Params), len(args))
 	}
 	limit := min(len(fn.Params), len(args))
 	for i := 0; i < limit; i++ {
-		c.checkDeclaredGenericArg("array", functionName, i, fn.Params[i], args[i], argTypes[i], bindings, env)
+		c.checkDeclaredGenericArg(moduleName, functionName, i, fn.Params[i], args[i], argTypes[i], bindings, env)
 	}
 }
 
@@ -181,7 +181,11 @@ func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[st
 			bindings[expected] = actual
 			return
 		}
-		if bindings[expected] != actual {
+		if unified, ok := c.unifyTypes(bindings[expected], actual); ok {
+			bindings[expected] = unified
+			return
+		}
+		if !typesCompatible(bindings[expected], actual, nil) {
 			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, bindings[expected])
 		}
 		return
@@ -196,7 +200,7 @@ func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[st
 		return
 	}
 	expectedType := c.resolveDeclaredType(expected, bindings)
-	if actual != Unknown && expectedType != Unknown && actual != expectedType {
+	if actual != Unknown && expectedType != Unknown && !typesCompatible(expectedType, actual, nil) {
 		c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
 	}
 }

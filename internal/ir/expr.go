@@ -111,6 +111,15 @@ type BinaryExpr struct {
 
 func (*BinaryExpr) exprNode() {}
 
+type TernaryExpr struct {
+	ExprBase
+	Condition   Expr
+	Consequence Expr
+	Alternative Expr
+}
+
+func (*TernaryExpr) exprNode() {}
+
 type AssignExpr struct {
 	ExprBase
 	Name  string

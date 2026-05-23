@@ -53,11 +53,26 @@ func (g *generator) arrayEachStmt(expr ir.Expr) (string, bool) {
 		return "", false
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
-	if !ok || len(lambda.Params) != 1 {
+	if !ok || len(lambda.Params) == 0 || len(lambda.Params) > 3 {
 		return "", false
 	}
+	valueParam := mangleIdent(lambda.Params[0])
+	indexParam := "_"
+	if len(lambda.Params) >= 2 {
+		indexParam = mangleIdent(lambda.Params[1])
+	}
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("for _, %s := range %s {\n", mangleIdent(lambda.Params[0]), g.expr(sel.Receiver)))
+	receiver := g.expr(sel.Receiver)
+	b.WriteString(fmt.Sprintf("for %s, %s := range %s {\n", indexParam, valueParam, receiver))
+	b.WriteString(fmt.Sprintf("\t_ = %s\n", valueParam))
+	if indexParam != "_" {
+		b.WriteString(fmt.Sprintf("\t_ = %s\n", indexParam))
+	}
+	if len(lambda.Params) >= 3 {
+		arrayParam := mangleIdent(lambda.Params[2])
+		b.WriteString(fmt.Sprintf("\t%s := %s\n", arrayParam, receiver))
+		b.WriteString(fmt.Sprintf("\t_ = %s\n", arrayParam))
+	}
 	b.WriteByte('\t')
 	b.WriteString(g.expr(lambda.Body))
 	b.WriteByte('\n')
@@ -81,7 +96,7 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayBodyExpr(fn, g.expr(sel.Receiver), call), true
 	}
 	if fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach" {
-		return "/* array.forEach is only valid as a statement */", true
+		return g.arrayForEachExpr(call, g.expr(sel.Receiver)), true
 	}
 	if fn.Intrinsic == "array.map" {
 		return g.arrayMapExpr(call, g.expr(sel.Receiver)), true
@@ -90,10 +105,10 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	for _, arg := range call.Args {
 		args = append(args, g.expr(arg))
 	}
-	return g.arrayFunctionExpr(fn, g.expr(sel.Receiver), args), true
+	return g.arrayFunctionExpr(fn, g.expr(sel.Receiver), args, call.ResultType(), sel.Receiver.ResultType()), true
 }
 
-func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args []string) string {
+func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args []string, resultType checker.Type, receiverType checker.Type) string {
 	switch fn.Intrinsic {
 	case "array.len":
 		return fmt.Sprintf("len(%s)", receiver)
@@ -102,6 +117,32 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 			return "/* invalid array.push */"
 		}
 		return fmt.Sprintf("func() int { %s = append(%s, %s); return len(%s) }()", receiver, receiver, args[0], receiver)
+	case "array.set":
+		if len(args) != 2 {
+			return "/* invalid array.set */"
+		}
+		return fmt.Sprintf("func() %s { value := %s; %s[%s] = value; return value }()", goType(resultType), args[1], receiver, args[0])
+	case "array.pop":
+		return fmt.Sprintf("func() %s { value := %s[len(%s)-1]; %s = %s[:len(%s)-1]; return value }()", goType(resultType), receiver, receiver, receiver, receiver, receiver)
+	case "array.first":
+		return fmt.Sprintf("%s[0]", receiver)
+	case "array.last":
+		return fmt.Sprintf("%s[len(%s)-1]", receiver, receiver)
+	case "array.slice":
+		if len(args) != 2 {
+			return "/* invalid array.slice */"
+		}
+		return fmt.Sprintf("append([]%s{}, %s[%s:%s]...)", goType(arrayElemOrUnknown(resultType, receiverType)), receiver, args[0], args[1])
+	case "array.clone":
+		return fmt.Sprintf("append([]%s{}, %s...)", goType(arrayElemOrUnknown(resultType, receiverType)), receiver)
+	case "array.reverse":
+		elemType := goType(arrayElemOrUnknown(resultType, receiverType))
+		return fmt.Sprintf("func() []%s { out := append([]%s{}, %s...); for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 { out[i], out[j] = out[j], out[i] }; return out }()", elemType, elemType, receiver)
+	case "array.contains":
+		if len(args) != 1 {
+			return "/* invalid array.contains */"
+		}
+		return fmt.Sprintf("func() bool { for _, item := range %s { if item == %s { return true } }; return false }()", receiver, args[0])
 	case "array.get", "array.at":
 		if len(args) != 1 {
 			return "/* invalid array.at */"
@@ -121,23 +162,79 @@ func (g *generator) arrayMapExpr(call *ir.CallExpr, receiver string) string {
 		return "/* invalid array.map */"
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
-	if !ok || len(lambda.Params) == 0 {
+	if !ok || len(lambda.Params) == 0 || len(lambda.Params) > 3 {
 		return "/* invalid array.map */"
 	}
 	elemType := checker.Unknown
 	if elem, ok := checker.ArrayElement(call.ResultType()); ok {
 		elemType = elem
 	}
-	param := mangleIdent(lambda.Params[0])
+	valueParam := mangleIdent(lambda.Params[0])
+	indexParam := "_"
+	if len(lambda.Params) >= 2 {
+		indexParam = mangleIdent(lambda.Params[1])
+	}
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf("func() []%s {\n", goType(elemType)))
 	b.WriteString(fmt.Sprintf("\t%s := make([]%s, 0, len(%s))\n", mangleIdent("result"), goType(elemType), receiver))
-	b.WriteString(fmt.Sprintf("\tfor _, %s := range %s {\n", param, receiver))
+	b.WriteString(fmt.Sprintf("\tfor %s, %s := range %s {\n", indexParam, valueParam, receiver))
+	b.WriteString(fmt.Sprintf("\t\t_ = %s\n", valueParam))
+	if indexParam != "_" {
+		b.WriteString(fmt.Sprintf("\t\t_ = %s\n", indexParam))
+	}
+	if len(lambda.Params) >= 3 {
+		arrayParam := mangleIdent(lambda.Params[2])
+		b.WriteString(fmt.Sprintf("\t\t%s := %s\n", arrayParam, receiver))
+		b.WriteString(fmt.Sprintf("\t\t_ = %s\n", arrayParam))
+	}
 	b.WriteString(fmt.Sprintf("\t\t%s = append(%s, %s)\n", mangleIdent("result"), mangleIdent("result"), g.expr(lambda.Body)))
 	b.WriteString("\t}\n")
 	b.WriteString(fmt.Sprintf("\treturn %s\n", mangleIdent("result")))
 	b.WriteString("}()")
 	return b.String()
+}
+
+func (g *generator) arrayForEachExpr(call *ir.CallExpr, receiver string) string {
+	if len(call.Args) != 1 {
+		return "/* invalid array.forEach */"
+	}
+	lambda, ok := call.Args[0].(*ir.LambdaExpr)
+	if !ok || len(lambda.Params) == 0 || len(lambda.Params) > 3 {
+		return "/* invalid array.forEach */"
+	}
+	valueParam := mangleIdent(lambda.Params[0])
+	indexParam := "_"
+	if len(lambda.Params) >= 2 {
+		indexParam = mangleIdent(lambda.Params[1])
+	}
+	var b strings.Builder
+	b.WriteString("func() {\n")
+	b.WriteString(fmt.Sprintf("\tfor %s, %s := range %s {\n", indexParam, valueParam, receiver))
+	b.WriteString(fmt.Sprintf("\t\t_ = %s\n", valueParam))
+	if indexParam != "_" {
+		b.WriteString(fmt.Sprintf("\t\t_ = %s\n", indexParam))
+	}
+	if len(lambda.Params) >= 3 {
+		arrayParam := mangleIdent(lambda.Params[2])
+		b.WriteString(fmt.Sprintf("\t\t%s := %s\n", arrayParam, receiver))
+		b.WriteString(fmt.Sprintf("\t\t_ = %s\n", arrayParam))
+	}
+	b.WriteString("\t\t")
+	b.WriteString(g.expr(lambda.Body))
+	b.WriteByte('\n')
+	b.WriteString("\t}\n")
+	b.WriteString("}()")
+	return b.String()
+}
+
+func arrayElemOrUnknown(resultType checker.Type, receiverType checker.Type) checker.Type {
+	if elem, ok := checker.ArrayElement(resultType); ok {
+		return elem
+	}
+	if elem, ok := checker.ArrayElement(receiverType); ok {
+		return elem
+	}
+	return checker.Unknown
 }
 
 func (g *generator) arrayBodyExpr(fn *stdlib.Function, receiver string, call *ir.CallExpr) string {
@@ -271,7 +368,7 @@ func (c *stdlibContext) arrayCallExpr(call *ir.CallExpr, expected checker.Type) 
 	if fn.Body != nil {
 		return c.arrayBodyExpr(fn, receiver, call.Args, expected), true
 	}
-	return c.g.arrayFunctionExpr(fn, receiver, args), true
+	return c.g.arrayFunctionExpr(fn, receiver, args, call.ResultType(), sel.Receiver.ResultType()), true
 }
 
 func (c *stdlibContext) arrayBodyExpr(fn *stdlib.Function, receiver string, args []ir.Expr, expected checker.Type) string {
@@ -439,7 +536,7 @@ func (g *generator) stdlibBodyExpr(expr ir.Expr, this string) string {
 					for _, arg := range e.Args {
 						args = append(args, g.stdlibBodyExpr(arg, this))
 					}
-					return g.arrayFunctionExpr(fn, this, args)
+					return g.arrayFunctionExpr(fn, this, args, e.ResultType(), sel.Receiver.ResultType())
 				}
 			}
 		}

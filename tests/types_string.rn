@@ -17,6 +17,14 @@
   @assert.eq("rune language".includes(""), true)
 }
 
+? "string indexing and slicing" {
+  @assert.eq("rune".at(0), "r")
+  @assert.eq("rune".charAt(3), "e")
+  @assert.eq("rune".slice(1, 3), "un")
+  @assert.eq("你好世界".at(1), "好")
+  @assert.eq("你好世界".slice(1, 3), "好世")
+}
+
 ? "string prefix and suffix" {
   @assert.eq("typescript".startsWith("type"), true)
   @assert.eq("typescript".startsWith("script"), false)

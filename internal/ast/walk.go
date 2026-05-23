@@ -15,6 +15,10 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	case *BinaryExpr:
 		WalkExpr(e.Left, visit)
 		WalkExpr(e.Right, visit)
+	case *TernaryExpr:
+		WalkExpr(e.Condition, visit)
+		WalkExpr(e.Consequence, visit)
+		WalkExpr(e.Alternative, visit)
 	case *AssignExpr:
 		WalkExpr(e.Value, visit)
 	case *CallExpr:

@@ -6,7 +6,7 @@ import (
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
-func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, fn *stdlib.Function) Type {
+func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, fn *stdlib.Function, env map[string]Type) Type {
 	if fn.TopLevelOnly {
 		c.errorf(sel.Pos, "@%s.%s must be a top-level declaration", moduleName, sel.Name)
 		return Void
@@ -32,8 +32,39 @@ func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call
 		return c.resolveDeclaredReturn(fn.Return)
 	}
 
-	c.checkStdlibArgs(moduleName, sel.Name, fn, call.Args, argTypes, sel.Pos)
-	return c.resolveDeclaredReturn(fn.Return)
+	bindings := c.stdlibTypeBindings(fn)
+	c.checkStdlibGenericArgs(moduleName, sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	return c.resolveDeclaredType(fn.Return, bindings)
+}
+
+func (c *checker) stdlibTypeBindings(fn *stdlib.Function) map[string]Type {
+	bindings := map[string]Type{}
+	for _, name := range fn.Generics {
+		bindings[name] = Unknown
+	}
+	return bindings
+}
+
+func (c *checker) checkStdlibGenericArgs(moduleName string, functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, bindings map[string]Type, env map[string]Type, pos lexer.Position) {
+	if fn.Variadic {
+		minArgs := len(fn.Params)
+		if minArgs > 0 {
+			minArgs--
+		}
+		if len(args) < minArgs {
+			c.errorf(pos, "@%s.%s expects at least %d args, got %d", moduleName, functionName, minArgs, len(args))
+		}
+	} else if len(fn.Params) != len(args) {
+		c.errorf(pos, "@%s.%s expects %d args, got %d", moduleName, functionName, len(fn.Params), len(args))
+	}
+
+	for i := 0; i < len(args) && i < len(fn.Params); i++ {
+		expected := fn.Params[i]
+		if fn.Variadic && i >= len(fn.Params)-1 {
+			expected = fn.Params[len(fn.Params)-1]
+		}
+		c.checkDeclaredGenericArg(moduleName, functionName, i, expected, args[i], argTypes[i], bindings, env)
+	}
 }
 
 func (c *checker) checkStdlibArgs(moduleName string, functionName string, fn *stdlib.Function, args []ast.Expr, argTypes []Type, pos lexer.Position) {

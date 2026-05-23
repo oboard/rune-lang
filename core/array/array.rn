@@ -5,12 +5,28 @@ Array[T]: {
 
   push(value: T) -> Int => "%array.push"
 
-  forEach(
+  set(index: Int, value: T) -> T => "%array.set"
+
+  pop() -> T => "%array.pop"
+
+  first() -> T => "%array.first"
+
+  last() -> T => "%array.last"
+
+  slice(start: Int, end: Int) -> Array[T] => "%array.slice"
+
+  clone() -> Array[T] => "%array.clone"
+
+  reverse() -> Array[T] => "%array.reverse"
+
+  contains(value: T) -> Bool => "%array.contains"
+
+  forEach[U](
     callbackfn: (
       value: T,
       index?: Int,
       array?: Array[T]
-    ) -> Void
+    ) -> Any
   ) => "%array.forEach"
 
   each(
@@ -18,7 +34,7 @@ Array[T]: {
       value: T,
       index?: Int,
       array?: Array[T]
-    ) -> Void
+    ) -> Any
   ) => .forEach(callbackfn)
 
   map[U](

@@ -40,6 +40,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return f.expr(e.Expr) + e.Op.String()
 	case *ast.BinaryExpr:
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
+	case *ast.TernaryExpr:
+		return f.ternaryExpr(e)
 	case *ast.AssignExpr:
 		return fmt.Sprintf("%s = %s", e.Name, f.expr(e.Value))
 	case *ast.CallExpr:
@@ -439,8 +441,22 @@ func (f *formatter) exprWithIndent(expr ast.Expr, indent int) string {
 	return out
 }
 
+func (f *formatter) ternaryExpr(expr *ast.TernaryExpr) string {
+	condition := f.expr(expr.Condition)
+	if _, ok := expr.Condition.(*ast.TernaryExpr); ok {
+		condition = "(" + condition + ")"
+	}
+	return fmt.Sprintf(
+		"%s ? %s : %s",
+		condition,
+		f.expr(expr.Consequence),
+		f.expr(expr.Alternative),
+	)
+}
+
 func (f *formatter) exprWithParens(expr ast.Expr) string {
-	if _, ok := expr.(*ast.BinaryExpr); ok {
+	switch expr.(type) {
+	case *ast.BinaryExpr, *ast.TernaryExpr:
 		return "(" + f.expr(expr) + ")"
 	}
 	return f.expr(expr)
@@ -463,6 +479,10 @@ func (f *formatter) exprNeedsMultiline(expr ast.Expr) bool {
 			}
 		}
 		return false
+	case *ast.TernaryExpr:
+		return f.exprNeedsMultiline(e.Condition) ||
+			f.exprNeedsMultiline(e.Consequence) ||
+			f.exprNeedsMultiline(e.Alternative)
 	default:
 		return false
 	}

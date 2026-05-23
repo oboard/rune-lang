@@ -25,6 +25,16 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		return i.callGoBackedFunction(fn.Go.Symbol, values)
 	}
 	switch fn.Intrinsic {
+	case "map.new":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@map.newMap expects 2 args, got %d", len(values))
+		}
+		return &Map{Entries: map[string]mapEntry{}}, nil
+	case "set.new":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@map.newSet expects 1 arg, got %d", len(values))
+		}
+		return &Set{Entries: map[string]Value{}}, nil
 	case "assert.eq":
 		if len(values) != 2 {
 			return nil, fmt.Errorf("@assert.eq expects 2 args, got %d", len(values))
@@ -119,6 +129,93 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		}
 		array.Elements = append(array.Elements, value)
 		return len(array.Elements), nil
+	case fn.Intrinsic == "array.set":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("array.set expects 2 args, got %d", len(args))
+		}
+		index, err := i.eval(args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		value, err := i.eval(args[1], env)
+		if err != nil {
+			return nil, err
+		}
+		n, ok := index.(int)
+		if !ok {
+			return nil, fmt.Errorf("array.set index expects Int")
+		}
+		if n < 0 || n >= len(array.Elements) {
+			return nil, fmt.Errorf("array index %d out of range", n)
+		}
+		array.Elements[n] = value
+		return value, nil
+	case fn.Intrinsic == "array.pop":
+		if len(args) != 0 {
+			return nil, fmt.Errorf("array.pop expects 0 args, got %d", len(args))
+		}
+		if len(array.Elements) == 0 {
+			return nil, fmt.Errorf("array.pop on empty array")
+		}
+		last := array.Elements[len(array.Elements)-1]
+		array.Elements = array.Elements[:len(array.Elements)-1]
+		return last, nil
+	case fn.Intrinsic == "array.first":
+		if len(array.Elements) == 0 {
+			return nil, fmt.Errorf("array.first on empty array")
+		}
+		return array.Elements[0], nil
+	case fn.Intrinsic == "array.last":
+		if len(array.Elements) == 0 {
+			return nil, fmt.Errorf("array.last on empty array")
+		}
+		return array.Elements[len(array.Elements)-1], nil
+	case fn.Intrinsic == "array.slice":
+		if len(args) != 2 {
+			return nil, fmt.Errorf("array.slice expects 2 args, got %d", len(args))
+		}
+		start, err := i.eval(args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		end, err := i.eval(args[1], env)
+		if err != nil {
+			return nil, err
+		}
+		s, ok := start.(int)
+		if !ok {
+			return nil, fmt.Errorf("array.slice start expects Int")
+		}
+		e, ok := end.(int)
+		if !ok {
+			return nil, fmt.Errorf("array.slice end expects Int")
+		}
+		if s < 0 || e < s || e > len(array.Elements) {
+			return nil, fmt.Errorf("array.slice range out of bounds")
+		}
+		return &Array{Elements: append([]Value{}, array.Elements[s:e]...)}, nil
+	case fn.Intrinsic == "array.clone":
+		return &Array{Elements: append([]Value{}, array.Elements...)}, nil
+	case fn.Intrinsic == "array.reverse":
+		out := append([]Value{}, array.Elements...)
+		for left, right := 0, len(out)-1; left < right; left, right = left+1, right-1 {
+			out[left], out[right] = out[right], out[left]
+		}
+		return &Array{Elements: out}, nil
+	case fn.Intrinsic == "array.contains":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("array.contains expects 1 args, got %d", len(args))
+		}
+		value, err := i.eval(args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		for _, elem := range array.Elements {
+			if valuesEqual(elem, value) {
+				return true, nil
+			}
+		}
+		return false, nil
 	case fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.each expects 1 args, got %d", len(args))
@@ -127,8 +224,8 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		if err != nil {
 			return nil, err
 		}
-		for _, elem := range array.Elements {
-			if _, err := i.callClosure(closure, []Value{elem}); err != nil {
+		for idx, elem := range array.Elements {
+			if _, err := i.callClosure(closure, arrayCallbackArgs(closure, elem, idx, array)); err != nil {
 				return nil, err
 			}
 		}
@@ -142,8 +239,8 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			return nil, err
 		}
 		result := &Array{Elements: make([]Value, 0, len(array.Elements))}
-		for _, elem := range array.Elements {
-			value, err := i.callClosure(closure, []Value{elem})
+		for idx, elem := range array.Elements {
+			value, err := i.callClosure(closure, arrayCallbackArgs(closure, elem, idx, array))
 			if err != nil {
 				return nil, err
 			}
@@ -168,6 +265,17 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		}
 		return i.eval(ir.LowerExpr(fn.Body, nil), local)
 	}
+}
+
+func arrayCallbackArgs(closure *Closure, elem Value, idx int, array *Array) []Value {
+	values := []Value{elem}
+	if len(closure.Params) >= 2 {
+		values = append(values, idx)
+	}
+	if len(closure.Params) >= 3 {
+		values = append(values, array)
+	}
+	return values
 }
 
 func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr, env *Env) (Value, error) {
@@ -197,6 +305,36 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 		return len([]rune(value)), nil
 	case "string.toString":
 		return value, nil
+	case "string.at":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("string.%s expects 1 arg, got %d", name, len(values))
+		}
+		index, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("string.%s expects Int", name)
+		}
+		runes := []rune(value)
+		if index < 0 || index >= len(runes) {
+			return nil, fmt.Errorf("string index %d out of range", index)
+		}
+		return string(runes[index]), nil
+	case "string.slice":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("string.slice expects 2 args, got %d", len(values))
+		}
+		start, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("string.slice start expects Int")
+		}
+		end, ok := values[1].(int)
+		if !ok {
+			return nil, fmt.Errorf("string.slice end expects Int")
+		}
+		runes := []rune(value)
+		if start < 0 || end < start || end > len(runes) {
+			return nil, fmt.Errorf("string.slice range out of bounds")
+		}
+		return string(runes[start:end]), nil
 	case "string.concat":
 		arg, err := stringArg(0)
 		if err != nil {
@@ -335,6 +473,168 @@ func (i *Interpreter) callBoolMethod(value bool, name string, args []ir.Expr, en
 	default:
 		return nil, fmt.Errorf("bool.%s is not supported by the interpreter", name)
 	}
+}
+
+func (i *Interpreter) callMapMethod(value *Map, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("map", "Map", name)
+	if !ok {
+		return nil, fmt.Errorf("type Map has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "map.size":
+		return len(value.Entries), nil
+	case "map.has":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("map.has expects 1 arg, got %d", len(values))
+		}
+		_, ok := value.Entries[valueKey(values[0])]
+		return ok, nil
+	case "map.getOr":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("map.getOr expects 2 args, got %d", len(values))
+		}
+		if entry, ok := value.Entries[valueKey(values[0])]; ok {
+			return entry.Value, nil
+		}
+		return values[1], nil
+	case "map.set":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("map.set expects 2 args, got %d", len(values))
+		}
+		value.Entries[valueKey(values[0])] = mapEntry{Key: values[0], Value: values[1]}
+		return value, nil
+	case "map.delete":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("map.delete expects 1 arg, got %d", len(values))
+		}
+		key := valueKey(values[0])
+		_, existed := value.Entries[key]
+		delete(value.Entries, key)
+		return existed, nil
+	case "map.clear":
+		for key := range value.Entries {
+			delete(value.Entries, key)
+		}
+		return nil, nil
+	case "map.keys":
+		out := &Array{Elements: make([]Value, 0, len(value.Entries))}
+		for _, entry := range value.Entries {
+			out.Elements = append(out.Elements, entry.Key)
+		}
+		return out, nil
+	case "map.values":
+		out := &Array{Elements: make([]Value, 0, len(value.Entries))}
+		for _, entry := range value.Entries {
+			out.Elements = append(out.Elements, entry.Value)
+		}
+		return out, nil
+	case "map.forEach":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("map.forEach expects 1 arg, got %d", len(args))
+		}
+		closure, err := i.evalLambdaArg(args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range value.Entries {
+			callbackArgs := []Value{entry.Value}
+			if len(closure.Params) >= 2 {
+				callbackArgs = append(callbackArgs, entry.Key)
+			}
+			if len(closure.Params) >= 3 {
+				callbackArgs = append(callbackArgs, value)
+			}
+			if _, err := i.callClosure(closure, callbackArgs); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("map.%s is not supported by the interpreter", name)
+	}
+}
+
+func (i *Interpreter) callSetMethod(value *Set, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("map", "Set", name)
+	if !ok {
+		return nil, fmt.Errorf("type Set has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "set.size":
+		return len(value.Entries), nil
+	case "set.has":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("set.has expects 1 arg, got %d", len(values))
+		}
+		_, ok := value.Entries[valueKey(values[0])]
+		return ok, nil
+	case "set.add":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("set.add expects 1 arg, got %d", len(values))
+		}
+		value.Entries[valueKey(values[0])] = values[0]
+		return value, nil
+	case "set.delete":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("set.delete expects 1 arg, got %d", len(values))
+		}
+		key := valueKey(values[0])
+		_, existed := value.Entries[key]
+		delete(value.Entries, key)
+		return existed, nil
+	case "set.clear":
+		for key := range value.Entries {
+			delete(value.Entries, key)
+		}
+		return nil, nil
+	case "set.values":
+		out := &Array{Elements: make([]Value, 0, len(value.Entries))}
+		for _, entry := range value.Entries {
+			out.Elements = append(out.Elements, entry)
+		}
+		return out, nil
+	case "set.forEach":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("set.forEach expects 1 arg, got %d", len(args))
+		}
+		closure, err := i.evalLambdaArg(args[0], env)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range value.Entries {
+			callbackArgs := []Value{entry}
+			if len(closure.Params) >= 2 {
+				callbackArgs = append(callbackArgs, entry)
+			}
+			if len(closure.Params) >= 3 {
+				callbackArgs = append(callbackArgs, value)
+			}
+			if _, err := i.callClosure(closure, callbackArgs); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("set.%s is not supported by the interpreter", name)
+	}
+}
+
+func valueKey(value Value) string {
+	return typeName(value) + ":" + Format(value)
 }
 
 func (i *Interpreter) evalLambdaArg(expr ir.Expr, env *Env) (*Closure, error) {

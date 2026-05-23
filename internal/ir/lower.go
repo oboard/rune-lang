@@ -157,6 +157,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
+	case *ast.TernaryExpr:
+		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.expr(e.Consequence), Alternative: l.expr(e.Alternative)}
 	case *ast.AssignExpr:
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Value: l.expr(e.Value)}
 	case *ast.CallExpr:

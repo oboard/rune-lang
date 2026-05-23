@@ -75,6 +75,20 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.AssignExpr{Name: ident.Name, Value: p.parseExpression(1), Pos: ident.Pos}
 			continue
 		}
+		if minPrec <= 1 && p.match(lexer.Question) {
+			p.skipNewlines()
+			consequence := p.parseExpression(1)
+			p.skipNewlines()
+			p.consume(lexer.Colon, "expected ':' after ternary consequence")
+			p.skipNewlines()
+			left = &ast.TernaryExpr{
+				Condition:   left,
+				Consequence: consequence,
+				Alternative: p.parseExpression(1),
+				Pos:         left.Position(),
+			}
+			continue
+		}
 
 		prec := precedence(p.peek().Kind)
 		if prec < minPrec {

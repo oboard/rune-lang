@@ -5,6 +5,12 @@ String: {
 
     toString() -> String => "%string.toString"
 
+    at(index: Int) -> String => "%string.at"
+
+    charAt(index: Int) -> String => "%string.at"
+
+    slice(start: Int, end: Int) -> String => "%string.slice"
+
     concat(value: String) -> String => "%string.concat"
 
     includes(searchString: String) -> Bool => "%string.includes"

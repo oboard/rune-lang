@@ -252,6 +252,19 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		default:
 			return Unknown
 		}
+	case *ast.TernaryExpr:
+		condition := c.inferExpr(e.Condition, env)
+		if condition != Bool && condition != Unknown {
+			c.errorf(e.Condition.Position(), "ternary condition expects Bool, got %s", condition)
+		}
+		consequence := c.inferExpr(e.Consequence, env)
+		alternative := c.inferExpr(e.Alternative, env)
+		result, ok := c.unifyTypes(consequence, alternative)
+		if !ok {
+			c.errorf(e.Pos, "ternary branches return %s and %s", consequence, alternative)
+			return Unknown
+		}
+		return result
 	case *ast.AssignExpr:
 		if _, exists := env[e.Name]; !exists {
 			c.errorf(e.Pos, "cannot assign undefined name %q", e.Name)
@@ -298,7 +311,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
 		if at, ok := sel.Receiver.(*ast.AtExpr); ok {
 			if fn, ok := c.info.Stdlib.Function(at.Name, sel.Name); ok {
-				return c.inferStdlibCall(at.Name, sel, call, argTypes, fn)
+				return c.inferStdlibCall(at.Name, sel, call, argTypes, fn, env)
 			}
 			c.errorf(sel.Pos, "unknown module function @%s.%s", at.Name, sel.Name)
 			return Unknown
@@ -522,6 +535,10 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 				walk(e.Left, Unknown)
 				walk(e.Right, Unknown)
 			}
+		case *ast.TernaryExpr:
+			walk(e.Condition, Bool)
+			walk(e.Consequence, expected)
+			walk(e.Alternative, expected)
 		case *ast.UnaryExpr:
 			walk(e.Expr, expected)
 		case *ast.PostfixExpr:

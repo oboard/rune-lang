@@ -19,6 +19,19 @@ type Array struct {
 	Elements []Value
 }
 
+type Map struct {
+	Entries map[string]mapEntry
+}
+
+type mapEntry struct {
+	Key   Value
+	Value Value
+}
+
+type Set struct {
+	Entries map[string]Value
+}
+
 type Struct struct {
 	TypeName string
 	Fields   map[string]Value
@@ -47,6 +60,18 @@ func Format(value Value) string {
 			parts = append(parts, Format(elem))
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
+	case *Map:
+		parts := make([]string, 0, len(v.Entries))
+		for _, entry := range v.Entries {
+			parts = append(parts, Format(entry.Key)+": "+Format(entry.Value))
+		}
+		return "Map { " + strings.Join(parts, ", ") + " }"
+	case *Set:
+		parts := make([]string, 0, len(v.Entries))
+		for _, value := range v.Entries {
+			parts = append(parts, Format(value))
+		}
+		return "Set { " + strings.Join(parts, ", ") + " }"
 	case *Struct:
 		parts := make([]string, 0, len(v.Fields))
 		for name, value := range v.Fields {

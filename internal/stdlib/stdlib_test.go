@@ -79,7 +79,7 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
       value: T,
       index?: Int,
       array?: Array[T]
-    ) -> Void
+    ) -> Any
   ) => "%array.forEach"
 }
 `)
@@ -90,7 +90,7 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	if fn == nil {
 		t.Fatal("missing forEach declaration")
 	}
-	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],Void]" {
+	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],Any]" {
 		t.Fatalf("forEach params = %v, want callback Func", fn.Params)
 	}
 }

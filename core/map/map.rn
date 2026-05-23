@@ -1,3 +1,7 @@
+newMap[K, V](keyType: K, valueType: V) -> Map[K, V] => "%map.new"
+
+newSet[T](valueType: T) -> Set[T] => "%set.new"
+
 Map[K, V]: {
     size() -> Int => "%map.size"
 
@@ -15,7 +19,7 @@ Map[K, V]: {
 
     values() -> Array[V] => "%map.values"
 
-    forEach(callbackfn: (value: V, key?: K, map?: Map[K, V]) -> Void) => "%map.forEach"
+    forEach(callbackfn: (value: V, key?: K, map?: Map[K, V]) -> Any) => "%map.forEach"
 }
 
 Set[T]: {
@@ -31,7 +35,7 @@ Set[T]: {
 
     values() -> Array[T] => "%set.values"
 
-    forEach(callbackfn: (value: T, value2?: T, set?: Set[T]) -> Void) => "%set.forEach"
+    forEach(callbackfn: (value: T, value2?: T, set?: Set[T]) -> Any) => "%set.forEach"
 }
 
 WeakMap[K, V]: {

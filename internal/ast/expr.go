@@ -130,6 +130,18 @@ func (e *BinaryExpr) Position() lexer.Position {
 	return e.Pos
 }
 
+type TernaryExpr struct {
+	Condition   Expr
+	Consequence Expr
+	Alternative Expr
+	Pos         lexer.Position
+}
+
+func (*TernaryExpr) exprNode() {}
+func (e *TernaryExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 type AssignExpr struct {
 	Name  string
 	Value Expr

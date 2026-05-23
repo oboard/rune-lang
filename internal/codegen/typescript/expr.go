@@ -62,6 +62,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.TernaryExpr:
+		condition := g.exprPrec(e.Condition, 1)
+		s := fmt.Sprintf("%s ? %s : %s", condition, g.expr(e.Consequence), g.exprPrec(e.Alternative, 0))
+		if parentPrec > 0 {
+			return "(" + s + ")"
+		}
+		return s
 	case *ir.AssignExpr:
 		if g.isSignal(e.Name) {
 			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))

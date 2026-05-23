@@ -47,6 +47,19 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return i.evalUnary(e, env)
 	case *ir.BinaryExpr:
 		return i.evalBinary(e, env)
+	case *ir.TernaryExpr:
+		condition, err := i.eval(e.Condition, env)
+		if err != nil {
+			return nil, err
+		}
+		value, ok := condition.(bool)
+		if !ok {
+			return nil, fmt.Errorf("ternary condition expects Bool")
+		}
+		if value {
+			return i.eval(e.Consequence, env)
+		}
+		return i.eval(e.Alternative, env)
 	case *ir.AssignExpr:
 		value, err := i.eval(e.Value, env)
 		if err != nil {
@@ -426,6 +439,10 @@ func typeName(value Value) string {
 		return string(checker.Bool)
 	case *Array:
 		return "Array"
+	case *Map:
+		return "Map"
+	case *Set:
+		return "Set"
 	case *Struct:
 		return v.TypeName
 	default:

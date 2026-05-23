@@ -60,6 +60,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.TernaryExpr:
+		return g.ternaryExpr(e)
 	case *ir.AssignExpr:
 		if g.isSignal(e.Name) {
 			return fmt.Sprintf("%s.Set(%s)", mangleIdent(e.Name), g.expr(e.Value))
@@ -69,11 +71,17 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if jsonCall, ok := g.jsonStringifyCall(e); ok {
 			return jsonCall
 		}
+		if mapCall, ok := g.mapModuleCall(e); ok {
+			return mapCall
+		}
 		if ffi, ok := g.goFFICall(e); ok {
 			return ffi
 		}
 		if arrayCall, ok := g.arrayMethodCall(e); ok {
 			return arrayCall
+		}
+		if mapCall, ok := g.mapMethodCall(e); ok {
+			return mapCall
 		}
 		if primitiveCall, ok := g.primitiveMethodCall(e); ok {
 			return primitiveCall
@@ -216,6 +224,16 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 			return fmt.Sprintf("len(%s) == 0", receiver), true
 		case "toString":
 			return receiver, true
+		case "at", "charAt":
+			if len(args) != 1 {
+				return "/* invalid string.at */", true
+			}
+			return fmt.Sprintf("string([]rune(%s)[%s])", receiver, args[0]), true
+		case "slice":
+			if len(args) != 2 {
+				return "/* invalid string.slice */", true
+			}
+			return fmt.Sprintf("func() string { runes := []rune(%s); return string(runes[%s:%s]) }()", receiver, args[0], args[1]), true
 		case "concat":
 			if len(args) != 1 {
 				return "/* invalid string.concat */", true
@@ -319,6 +337,16 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 		}
 	}
 	return g.expr(expr)
+}
+
+func (g *generator) ternaryExpr(expr *ir.TernaryExpr) string {
+	condition := g.expr(expr.Condition)
+	consequence := g.expr(expr.Consequence)
+	alternative := g.expr(expr.Alternative)
+	if expr.ResultType() == checker.Void {
+		return fmt.Sprintf("func() { if %s { %s; return }; %s }()", condition, consequence, alternative)
+	}
+	return fmt.Sprintf("func() %s { if %s { return %s }; return %s }()", goType(expr.ResultType()), condition, consequence, alternative)
 }
 
 func (g *generator) hasStructType(typ checker.Type) bool {
