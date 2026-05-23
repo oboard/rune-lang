@@ -360,15 +360,19 @@ main() => {
 
 	wantParts := []string{
 		`"encoding/json"`,
-		"json.Marshal(func() struct",
+		"type json1 struct",
+		"type json0 struct",
 		"F0 string `json:\"name\"`",
-		"F1 struct",
+		"F1 json1",
 		"`json:\"user\"`",
-		"F2 []string `json:\"tags\"`",
-		`F0: __rune_json_value.__name`,
-		`__rune_json_value := __rune_json_value.__user`,
-		`{F0: __rune_json_value.__name, F1: __rune_json_value.__age}`,
-		`F2: __rune_json_value.__tags`,
+		"F2 []string",
+		"`json:\"tags\"`",
+		"json.Marshal(func() json0",
+		"return json0{",
+		`F0: v.__name`,
+		`v := v.__user`,
+		`return json1{F0: v.__name, F1: v.__age}`,
+		`F2: v.__tags`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -377,6 +381,12 @@ main() => {
 	}
 	if strings.Contains(got, `json:"greet"`) {
 		t.Fatalf("generated Go should omit function fields:\n%s", got)
+	}
+	if strings.Contains(got, "func() struct") {
+		t.Fatalf("generated Go should reuse named json types:\n%s", got)
+	}
+	if strings.Contains(got, "__rune_json") {
+		t.Fatalf("generated Go should use short json temporaries:\n%s", got)
 	}
 }
 

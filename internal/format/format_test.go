@@ -162,6 +162,35 @@ main() => {
 	}
 }
 
+func TestSourcePreservesLeadingCommentsAcrossDeclarationReflow(t *testing.T) {
+	src := `// file header
+maxInt(a:Int,b:Int)->Int=>(a>b){true=>a false=>b}
+
+// 001. Split Signature
+lc001TwoSum(nums:Array[Int],target:Int)->Array[Int]=>nums`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := Source(file, src)
+	want := `// file header
+maxInt(a: Int, b: Int) -> Int => a > b {
+  true => a
+  false => b
+}
+
+// 001. Split Signature
+lc001TwoSum(
+  nums: Array[Int],
+  target: Int
+) -> Array[Int] => nums
+`
+	if got != want {
+		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestSourcePreservesLineComments(t *testing.T) {
 	src := `main()=>{
 // construct a user

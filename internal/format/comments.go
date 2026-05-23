@@ -115,6 +115,20 @@ func takeLeadingComments(comments map[string][][]string, keys []string, formatte
 			}
 		}
 	}
+	if anchor, ok := declarationAnchor(formattedKey); ok {
+		for _, key := range keys {
+			if key == formattedKey {
+				continue
+			}
+			keyAnchor, keyOK := declarationAnchor(key)
+			if !keyOK || keyAnchor != anchor {
+				continue
+			}
+			if groups := comments[key]; len(groups) > 0 {
+				return groups, key
+			}
+		}
+	}
 	return nil, ""
 }
 
@@ -159,6 +173,43 @@ func isExpandedLineKey(originalKey string, formattedKey string) bool {
 	return strings.HasSuffix(formattedKey, "{") &&
 		strings.HasPrefix(originalKey, formattedKey) &&
 		len(originalKey) > len(formattedKey)
+}
+
+func declarationAnchor(key string) (string, bool) {
+	open := strings.IndexByte(key, '(')
+	if open <= 0 {
+		return "", false
+	}
+	head := key[:open]
+	if !validDeclarationAnchorHead(head) {
+		return "", false
+	}
+	tail := key[open:]
+	if strings.HasSuffix(key, "(") || strings.Contains(tail, ")=>") || strings.Contains(tail, ")->") {
+		return head, true
+	}
+	return "", false
+}
+
+func validDeclarationAnchorHead(head string) bool {
+	for i, ch := range head {
+		if i == 0 && !isIdentStart(ch) {
+			return false
+		}
+		if isIdentContinue(ch) || ch == '[' || ch == ']' || ch == ',' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func isIdentStart(ch rune) bool {
+	return ch == '_' || ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z')
+}
+
+func isIdentContinue(ch rune) bool {
+	return isIdentStart(ch) || ('0' <= ch && ch <= '9')
 }
 
 func containsKey(keys []string, key string) bool {
