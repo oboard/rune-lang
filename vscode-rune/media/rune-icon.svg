@@ -1,0 +1,26 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="runeGradient" x1="160" y1="90" x2="380" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B8F7FF"/>
+      <stop offset="0.45" stop-color="#35CFFF"/>
+      <stop offset="1" stop-color="#168BFF"/>
+    </linearGradient>
+    <filter id="glow" x="80" y="40" width="360" height="440" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.06  0 0 0 0 0.70  0 0 0 0 1.00  0 0 0 0.75 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#glow)">
+    <path d="M184 76 L184 436 L230 390 L230 284 L310 410 L360 360 L278 248 L354 176 L184 76 Z
+             M230 160 L292 190 L230 248 L230 160 Z"
+          fill="url(#runeGradient)"/>
+    <path d="M184 76 L184 436 L230 390 L230 284 L310 410 L360 360 L278 248 L354 176 L184 76 Z
+             M230 160 L292 190 L230 248 L230 160 Z"
+          stroke="#D8FBFF" stroke-width="8" stroke-linejoin="round"/>
+  </g>
+</svg>

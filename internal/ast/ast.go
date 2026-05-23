@@ -33,21 +33,23 @@ type StructType struct {
 }
 
 type Field struct {
-	Name string
-	Type string
-	Pos  lexer.Position
+	Name        string
+	Type        string
+	TypeDisplay string
+	Pos         lexer.Position
 }
 
 type Function struct {
-	Name         string
-	Generics     []string
-	Annotations  []Annotation
-	ReceiverType string
-	Params       []Param
-	ReturnType   string
-	Body         Expr
-	Pos          lexer.Position
-	NamePos      lexer.Position
+	Name          string
+	Generics      []string
+	Annotations   []Annotation
+	ReceiverType  string
+	Params        []Param
+	ReturnType    string
+	ReturnDisplay string
+	Body          Expr
+	Pos           lexer.Position
+	NamePos       lexer.Position
 }
 
 func (f *Function) Signature() string {
@@ -72,7 +74,8 @@ func (f *Function) Signature() string {
 }
 
 type Param struct {
-	Name string
-	Type string
-	Pos  lexer.Position
+	Name        string
+	Type        string
+	TypeDisplay string
+	Pos         lexer.Position
 }

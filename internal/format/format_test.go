@@ -215,3 +215,54 @@ greet()=>@io.println(.name) // print greeting
 		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestSourceWrapsLongChainAndKeepsInlineComment(t *testing.T) {
+	src := `main()=>{
+arr.map((value)=>value*2).each((value,index)=>@io.println(value)) // prints 2, 4, 6, 8, 10, 12
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := Source(file, src)
+	want := `main() => {
+  arr.map((value) => value * 2)
+       .each((value, index) => @io.println(value)) // prints 2, 4, 6, 8, 10, 12
+}
+`
+	if got != want {
+		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestSourceWrapsFunctionTypeSignature(t *testing.T) {
+	src := `Array[T]: {
+forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := Source(file, src)
+	want := `Array[T]: {
+  forEach(
+    callbackfn: (
+      value: T,
+      index?: Int,
+      array?: Array[T]
+    ) -> Void
+  ) => "%array.forEach"
+}
+`
+	if got != want {
+		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}

@@ -96,6 +96,27 @@ main() => {
 	}
 }
 
+func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
+	file, errs := Parse(`Array[T]: {
+    forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Types) != 1 || len(file.Types[0].Methods) != 1 {
+		t.Fatalf("parsed file = %#v, want one array method", file)
+	}
+	param := file.Types[0].Methods[0].Params[0]
+	if param.Type != "Func[T,Int,Array[T],Void]" {
+		t.Fatalf("param type = %q, want canonical Func type", param.Type)
+	}
+	wantDisplay := "(value: T, index?: Int, array?: Array[T]) -> Void"
+	if param.TypeDisplay != wantDisplay {
+		t.Fatalf("param type display = %q, want %q", param.TypeDisplay, wantDisplay)
+	}
+}
+
 func TestBlockStartingWithCallIsNotObjectLiteral(t *testing.T) {
 	file, errs := Parse(`nestedMatch() => {
 }

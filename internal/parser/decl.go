@@ -57,9 +57,10 @@ func (p *Parser) parseStructType() *ast.StructType {
 		p.consume(lexer.Colon, "expected ':' after field name")
 		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
-			Name: fieldName.Lexeme,
-			Type: fieldType,
-			Pos:  fieldName.Pos,
+			Name:        fieldName.Lexeme,
+			Type:        fieldType.canonical,
+			TypeDisplay: fieldType.display,
+			Pos:         fieldName.Pos,
 		})
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
@@ -86,14 +87,15 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	if !p.check(lexer.RParen) {
 		for {
 			paramName := p.consume(lexer.Ident, "expected parameter name")
-			paramType := ""
+			paramType := parsedType{}
 			if p.match(lexer.Colon) {
 				paramType = p.parseTypeName()
 			}
 			fn.Params = append(fn.Params, ast.Param{
-				Name: paramName.Lexeme,
-				Type: paramType,
-				Pos:  paramName.Pos,
+				Name:        paramName.Lexeme,
+				Type:        paramType.canonical,
+				TypeDisplay: paramType.display,
+				Pos:         paramName.Pos,
 			})
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
@@ -106,7 +108,9 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 	p.skipNewlines()
 	if p.match(lexer.Arrow) {
 		p.skipNewlines()
-		fn.ReturnType = p.parseTypeName()
+		ret := p.parseTypeName()
+		fn.ReturnType = ret.canonical
+		fn.ReturnDisplay = ret.display
 		p.skipNewlines()
 	}
 	p.consume(lexer.FatArrow, "expected '=>' after function signature")
@@ -133,12 +137,20 @@ func (p *Parser) parseGenericNames() []string {
 	return names
 }
 
-func (p *Parser) parseTypeName() string {
+type parsedType struct {
+	canonical string
+	display   string
+}
+
+func (p *Parser) parseTypeName() parsedType {
 	p.skipNewlines()
 	if p.match(lexer.LParen) {
-		var args []string
+		var canonicalArgs []string
+		var displayArgs []string
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
-			args = append(args, p.parseFunctionTypeParam())
+			arg := p.parseFunctionTypeParam()
+			canonicalArgs = append(canonicalArgs, arg.canonical)
+			displayArgs = append(displayArgs, arg.display)
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
@@ -150,14 +162,21 @@ func (p *Parser) parseTypeName() string {
 		p.consume(lexer.Arrow, "expected '->' after function parameter types")
 		p.skipNewlines()
 		ret := p.parseTypeName()
-		return "Func[" + strings.Join(append(args, ret), ",") + "]"
+		return parsedType{
+			canonical: "Func[" + strings.Join(append(canonicalArgs, ret.canonical), ",") + "]",
+			display:   "(" + strings.Join(displayArgs, ", ") + ") -> " + ret.display,
+		}
 	}
 	name := p.consume(lexer.Ident, "expected type name")
 	typ := name.Lexeme
+	display := name.Lexeme
 	if p.match(lexer.LBracket) {
-		var args []string
+		var canonicalArgs []string
+		var displayArgs []string
 		for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
-			args = append(args, p.parseTypeName())
+			arg := p.parseTypeName()
+			canonicalArgs = append(canonicalArgs, arg.canonical)
+			displayArgs = append(displayArgs, arg.display)
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
@@ -165,20 +184,32 @@ func (p *Parser) parseTypeName() string {
 			p.skipNewlines()
 		}
 		p.consume(lexer.RBracket, "expected ']' after type arguments")
-		typ += "[" + strings.Join(args, ",") + "]"
+		typ += "[" + strings.Join(canonicalArgs, ",") + "]"
+		display += "[" + strings.Join(displayArgs, ", ") + "]"
 	}
-	return typ
+	return parsedType{canonical: typ, display: display}
 }
 
-func (p *Parser) parseFunctionTypeParam() string {
+func (p *Parser) parseFunctionTypeParam() parsedType {
 	p.skipNewlines()
+	name := ""
+	optional := false
 	if p.check(lexer.Ident) && p.typeParamHasName() {
-		p.advance()
-		p.match(lexer.Question)
+		name = p.advance().Lexeme
+		optional = p.match(lexer.Question)
 		p.consume(lexer.Colon, "expected ':' after function type parameter name")
 		p.skipNewlines()
 	}
-	return p.parseTypeName()
+	typ := p.parseTypeName()
+	if name == "" {
+		return typ
+	}
+	suffix := ": "
+	if optional {
+		suffix = "?: "
+	}
+	typ.display = name + suffix + typ.display
+	return typ
 }
 
 func (p *Parser) typeParamHasName() bool {

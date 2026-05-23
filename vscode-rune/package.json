@@ -4,6 +4,7 @@
   "description": "Language support for Rune source files.",
   "version": "0.1.0",
   "publisher": "oboard",
+  "icon": "media/rune-icon.png",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -115,7 +116,18 @@
         "extensions": [
           ".rn"
         ],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/rune-icon.svg",
+          "dark": "./media/rune-icon.svg"
+        }
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "rune-file-icons",
+        "label": "Rune File Icons",
+        "path": "./media/rune-icon-theme.json"
       }
     ],
     "grammars": [

@@ -1,0 +1,13 @@
+{
+  "iconDefinitions": {
+    "_rune": {
+      "iconPath": "./rune-icon.svg"
+    }
+  },
+  "fileExtensions": {
+    "rn": "_rune"
+  },
+  "languageIds": {
+    "rune": "_rune"
+  }
+}

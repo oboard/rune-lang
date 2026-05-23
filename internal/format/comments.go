@@ -65,6 +65,9 @@ func preserveLineComments(source string, formatted string) string {
 			} else if closeComment, ok := takeCloseComment(closeComments, line); ok {
 				line += " " + closeComment
 				closeComments = closeComments[:len(closeComments)-1]
+			} else if comment, matchedKey, ok := takeChainContinuationInlineComment(inlineComments, inlineKeys, key); ok {
+				line += " " + comment
+				inlineComments[matchedKey] = inlineComments[matchedKey][1:]
 			} else if comment, matchedKey, ok := takeExpandedInlineComment(inlineComments, inlineKeys, key); ok {
 				inlineComments[matchedKey] = inlineComments[matchedKey][1:]
 				closeComments = append(closeComments, pendingCloseComment{
@@ -121,6 +124,21 @@ func takeExpandedInlineComment(comments map[string][]string, keys []string, form
 			if values := comments[key]; len(values) > 0 {
 				return values[0], key, true
 			}
+		}
+	}
+	return "", "", false
+}
+
+func takeChainContinuationInlineComment(comments map[string][]string, keys []string, formattedKey string) (string, string, bool) {
+	if !strings.HasPrefix(formattedKey, ".") {
+		return "", "", false
+	}
+	for _, key := range keys {
+		if key == formattedKey || !strings.HasSuffix(key, formattedKey) {
+			continue
+		}
+		if values := comments[key]; len(values) > 0 {
+			return values[0], key, true
 		}
 	}
 	return "", "", false

@@ -93,11 +93,12 @@ func (p *Parser) parseWatchHandler() ast.Expr {
 		p.consume(lexer.FatArrow, "expected '=>' after watch handler parameter")
 		p.skipNewlines()
 		return &ast.LambdaExpr{
-			Params:     params.names,
-			ParamPos:   params.positions,
-			ParamTypes: params.types,
-			Body:       p.parseBody(),
-			Pos:        params.pos,
+			Params:            params.names,
+			ParamPos:          params.positions,
+			ParamTypes:        params.types,
+			ParamTypeDisplays: params.typeDisplays,
+			Body:              p.parseBody(),
+			Pos:               params.pos,
 		}
 	}
 	if p.check(lexer.LBrace) {
@@ -143,19 +144,21 @@ func (p *Parser) parseLambda() ast.Expr {
 		body = p.parseBody()
 	}
 	return &ast.LambdaExpr{
-		Params:     params.names,
-		ParamPos:   params.positions,
-		ParamTypes: params.types,
-		Body:       body,
-		Pos:        params.pos,
+		Params:            params.names,
+		ParamPos:          params.positions,
+		ParamTypes:        params.types,
+		ParamTypeDisplays: params.typeDisplays,
+		Body:              body,
+		Pos:               params.pos,
 	}
 }
 
 type lambdaParams struct {
-	names     []string
-	positions []lexer.Position
-	types     []string
-	pos       lexer.Position
+	names        []string
+	positions    []lexer.Position
+	types        []string
+	typeDisplays []string
+	pos          lexer.Position
 }
 
 func (p *Parser) parseLambdaParams() lambdaParams {
@@ -164,17 +167,19 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 		var names []string
 		var positions []lexer.Position
 		var types []string
+		var typeDisplays []string
 		p.skipNewlines()
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
 			name := p.consume(lexer.Ident, "expected lambda parameter")
 			if name.Kind == lexer.Ident {
 				names = append(names, name.Lexeme)
 				positions = append(positions, name.Pos)
-				paramType := ""
+				paramType := parsedType{}
 				if p.match(lexer.Colon) {
 					paramType = p.parseTypeName()
 				}
-				types = append(types, paramType)
+				types = append(types, paramType.canonical)
+				typeDisplays = append(typeDisplays, paramType.display)
 			}
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
@@ -183,7 +188,7 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 			p.skipNewlines()
 		}
 		p.consume(lexer.RParen, "expected ')' after lambda parameters")
-		return lambdaParams{names: names, positions: positions, types: types, pos: pos}
+		return lambdaParams{names: names, positions: positions, types: types, typeDisplays: typeDisplays, pos: pos}
 	}
 	tok := p.peek()
 	p.errorAt(tok, "lambda parameters must be parenthesized")
@@ -329,20 +334,24 @@ func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
 	params := make([]string, 0, len(fn.Params))
 	paramPos := make([]lexer.Position, 0, len(fn.Params))
 	paramTypes := make([]string, 0, len(fn.Params))
+	paramTypeDisplays := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
 		params = append(params, param.Name)
 		paramPos = append(paramPos, param.Pos)
 		paramTypes = append(paramTypes, param.Type)
+		paramTypeDisplays = append(paramTypeDisplays, param.TypeDisplay)
 	}
 	return ast.FieldValue{
 		Name: fn.Name,
 		Value: &ast.LambdaExpr{
-			Params:     params,
-			ParamPos:   paramPos,
-			ParamTypes: paramTypes,
-			ReturnType: fn.ReturnType,
-			Body:       fn.Body,
-			Pos:        fn.Pos,
+			Params:            params,
+			ParamPos:          paramPos,
+			ParamTypes:        paramTypes,
+			ParamTypeDisplays: paramTypeDisplays,
+			ReturnType:        fn.ReturnType,
+			ReturnDisplay:     fn.ReturnDisplay,
+			Body:              fn.Body,
+			Pos:               fn.Pos,
 		},
 		Pos: fn.NamePos,
 	}

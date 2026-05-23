@@ -7,7 +7,7 @@ Array[T]: {
 
     forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
 
-    each(f: (T) -> Void) => .forEach(f)
+    each(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => .forEach(callbackfn)
 
     map[U](callbackfn: (value: T, index?: Int, array?: Array[T]) -> U) -> Array[U] => "%array.map"
 

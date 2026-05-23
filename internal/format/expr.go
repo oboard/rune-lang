@@ -8,6 +8,8 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 )
 
+const maxLineLength = 40
+
 func (f *formatter) expr(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Identifier:
@@ -32,11 +34,10 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.AssignExpr:
 		return fmt.Sprintf("%s = %s", e.Name, f.expr(e.Value))
 	case *ast.CallExpr:
-		args := make([]string, 0, len(e.Args))
-		for _, arg := range e.Args {
-			args = append(args, f.expr(arg))
+		if formatted, ok := f.chainCallExpr(e); ok {
+			return formatted
 		}
-		return fmt.Sprintf("%s(%s)", f.expr(e.Callee), strings.Join(args, ", "))
+		return f.expr(e.Callee) + f.formatCallArgs(e.Args)
 	case *ast.LambdaExpr:
 		return f.lambdaExpr(e)
 	case *ast.IndexExpr:
@@ -75,6 +76,56 @@ func (f *formatter) expr(expr ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+func (f *formatter) chainCallExpr(call *ast.CallExpr) (string, bool) {
+	parts := f.callChainParts(call)
+	if len(parts) < 2 {
+		return "", false
+	}
+	flat := strings.Join(parts, "")
+	if len(flat) <= maxLineLength || len(parts) < 3 || strings.Contains(flat, "\n") {
+		return flat, true
+	}
+	continuationIndent := indentString(f.indent) + strings.Repeat(" ", len(parts[0])+2)
+	var b strings.Builder
+	b.WriteString(parts[0])
+	b.WriteString(parts[1])
+	for _, part := range parts[2:] {
+		b.WriteByte('\n')
+		b.WriteString(continuationIndent)
+		b.WriteString(part)
+	}
+	return b.String(), true
+}
+
+func (f *formatter) callChainParts(expr ast.Expr) []string {
+	if call, ok := expr.(*ast.CallExpr); ok {
+		if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
+			parts := f.callChainParts(sel.Receiver)
+			if len(parts) == 0 {
+				parts = []string{f.chainReceiverExpr(sel.Receiver)}
+			}
+			parts = append(parts, "."+sel.Name+f.formatCallArgs(call.Args))
+			return parts
+		}
+	}
+	return nil
+}
+
+func (f *formatter) formatCallArgs(args []ast.Expr) string {
+	formatted := make([]string, 0, len(args))
+	for _, arg := range args {
+		formatted = append(formatted, f.expr(arg))
+	}
+	return "(" + strings.Join(formatted, ", ") + ")"
+}
+
+func (f *formatter) chainReceiverExpr(expr ast.Expr) string {
+	if _, ok := expr.(*ast.ThisExpr); ok {
+		return ""
+	}
+	return f.expr(expr)
 }
 
 func (f *formatter) xmlElement(elem *ast.XMLElement) string {
@@ -234,12 +285,20 @@ func (f *formatter) lambdaParams(lambda *ast.LambdaExpr) []string {
 	params := make([]string, 0, len(lambda.Params))
 	for i, param := range lambda.Params {
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
-			params = append(params, fmt.Sprintf("%s: %s", param, lambda.ParamTypes[i]))
+			params = append(params, fmt.Sprintf("%s: %s", param, f.lambdaParamType(lambda, i)))
 		} else {
 			params = append(params, param)
 		}
 	}
 	return params
+}
+
+func (f *formatter) lambdaParamType(lambda *ast.LambdaExpr, index int) string {
+	display := ""
+	if index < len(lambda.ParamTypeDisplays) {
+		display = lambda.ParamTypeDisplays[index]
+	}
+	return formatType(lambda.ParamTypes[index], display)
 }
 
 func (f *formatter) watchExpr(watch *ast.WatchExpr) string {
@@ -355,7 +414,7 @@ func (f *formatter) anonymousObjectMethod(name string, lambda *ast.LambdaExpr) s
 	params := make([]string, 0, len(lambda.Params))
 	for i, param := range lambda.Params {
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
-			params = append(params, fmt.Sprintf("%s: %s", param, lambda.ParamTypes[i]))
+			params = append(params, fmt.Sprintf("%s: %s", param, f.lambdaParamType(lambda, i)))
 		} else {
 			params = append(params, param)
 		}
