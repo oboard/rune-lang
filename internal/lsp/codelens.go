@@ -14,7 +14,7 @@ func (s *server) codeLenses(uri string) any {
 		lenses = append(lenses, map[string]any{
 			"range": symbolRange(test.Pos, 1),
 			"command": map[string]any{
-				"title":   "▶ Run Test",
+				"title":   "$(play) Run Test",
 				"command": "rune.runTest",
 				"arguments": []any{map[string]any{
 					"uri":       uri,
