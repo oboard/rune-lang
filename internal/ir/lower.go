@@ -136,6 +136,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &BoolLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.UnaryExpr:
 		return &UnaryExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
+	case *ast.PostfixExpr:
+		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
 	case *ast.CallExpr:
@@ -166,6 +168,15 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		out := &AnonymousObjectLiteral{ExprBase: l.base(e)}
 		for _, field := range e.Fields {
 			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Value: l.expr(field.Value), Pos: field.Pos})
+		}
+		return out
+	case *ast.XMLElement:
+		out := &XMLElement{ExprBase: l.base(e), Tag: e.Tag}
+		for _, attr := range e.Attrs {
+			out.Attrs = append(out.Attrs, XMLAttr{Name: attr.Name, Event: attr.Event, Value: l.expr(attr.Value), Pos: attr.Pos})
+		}
+		for _, child := range e.Children {
+			out.Children = append(out.Children, XMLChild{Text: child.Text, Expr: l.expr(child.Expr), Pos: child.Pos})
 		}
 		return out
 	case *ast.BlockExpr:

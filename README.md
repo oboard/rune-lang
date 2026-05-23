@@ -2,7 +2,7 @@
 
 Rune is an expression-oriented language toolchain written in Go. The current
 implementation parses Rune source, checks types, lowers to IR, and can either
-interpret or compile to Go.
+interpret, compile to Go, or emit TypeScript.
 
 ```text
 Rune source
@@ -10,7 +10,7 @@ Rune source
   -> AST
   -> semantic/type check
   -> IR
-  -> interpreter or Go codegen
+  -> interpreter, Go codegen, or TypeScript codegen
   -> go run / go build
 ```
 
@@ -32,6 +32,7 @@ go run ./cmd/rune check examples/fib.rn
 go run ./cmd/rune fmt examples/fib.rn
 go run ./cmd/rune run examples/fib.rn
 go run ./cmd/rune build -o /tmp/rune-fib examples/fib.rn
+go run ./cmd/rune ts examples/counter.rn
 go run ./cmd/rune repl
 go run ./cmd/rune lsp
 ```
@@ -49,6 +50,7 @@ rune check <file.rn>   Parse and type-check a Rune program
 rune fmt <file.rn>     Format a Rune source file
 rune run <file.rn>     Compile and run a Rune program
 rune build <file.rn>   Compile a Rune program to an executable
+rune ts <file.rn>      Compile a Rune program to TypeScript
 rune repl              Start the Rune REPL
 rune lsp               Start the Rune language server
 ```
@@ -66,6 +68,8 @@ internal/checker/      Type checking and inference
 internal/ir/           Shared IR
 internal/interpreter/  IR interpreter
 internal/codegen/go/   Rune -> Go backend
+internal/codegen/typescript/
+                       Rune -> TypeScript backend
 internal/format/       Formatter
 internal/lsp/          Language server
 internal/repl/         REPL
@@ -124,6 +128,7 @@ Int
 String
 Bool
 Void
+HTMLElement
 ```
 
 Struct types use symbolic object syntax:
@@ -288,6 +293,30 @@ with a small Go `main` wrapper as the process entrypoint.
 
 Anonymous records are emitted as Go struct literals. Named structs remain named
 Go structs. Function values are emitted as Go function values.
+
+## TypeScript Codegen
+
+The TypeScript backend emits DOM-oriented TypeScript from the shared IR. It
+does not support `@go` FFI. XML elements are Rune expressions and embedded
+`{expr}` children become text nodes unless the expression returns
+`HTMLElement`.
+
+```rune
+render() -> HTMLElement => {
+  count $= 0
+
+  <div>
+    <p>Count: {count}</p>
+    <button @click={count++}>Click Me</button>
+  </div>
+}
+```
+
+Compile it with:
+
+```sh
+rune ts examples/counter.rn
+```
 
 ## REPL
 

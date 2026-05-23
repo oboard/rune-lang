@@ -80,7 +80,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|String|Bool|Void|Any|Dynamic|Array|Map)\\b"
+          "match": "\\b(Int|String|Bool|Void|HTMLElement|Any|Dynamic|Array|Map)\\b"
         }
       ]
     },
@@ -100,7 +100,7 @@
         },
         {
           "name": "keyword.operator.arithmetic.rune",
-          "match": "[+\\-*/%]"
+          "match": "(\\+\\+|[+\\-*/%])"
         }
       ]
     },

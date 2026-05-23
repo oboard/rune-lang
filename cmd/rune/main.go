@@ -27,7 +27,7 @@ func rootCmd() *cobra.Command {
 		Use:   "rune",
 		Short: "Rune language toolchain",
 	}
-	cmd.AddCommand(runCmd(), buildCmd(), checkCmd(), fmtCmd(), replCmd(), lspCmd())
+	cmd.AddCommand(runCmd(), buildCmd(), tsCmd(), checkCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
 
@@ -78,6 +78,29 @@ func buildCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output executable path")
+	return cmd
+}
+
+func tsCmd() *cobra.Command {
+	var output string
+	cmd := &cobra.Command{
+		Use:   "ts <file.rn>",
+		Short: "Compile a Rune program to TypeScript",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			src, diags := compiler.GenerateTypeScriptFile(args[0])
+			if len(diags) > 0 {
+				printDiagnostics(args[0], diags)
+				return fmt.Errorf("compile failed")
+			}
+			if output == "" {
+				fmt.Fprint(cmd.OutOrStdout(), src)
+				return nil
+			}
+			return os.WriteFile(output, []byte(src), 0o644)
+		},
+	}
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output TypeScript path")
 	return cmd
 }
 

@@ -13,6 +13,17 @@ func (l *Lexer) skipSpaces() {
 	}
 }
 
+func (l *Lexer) skipXMLSpaces() {
+	for !l.isAtEnd() {
+		switch l.peek() {
+		case ' ', '\t', '\r', '\n':
+			l.advance()
+		default:
+			return
+		}
+	}
+}
+
 func (l *Lexer) matchComment() bool {
 	if l.peek() != '/' || l.peekNext() == 0 {
 		return false
@@ -68,6 +79,13 @@ func (l *Lexer) number() Token {
 
 func (l *Lexer) identifier() Token {
 	for isIdentContinue(l.peek()) {
+		l.advance()
+	}
+	return l.token(Ident)
+}
+
+func (l *Lexer) xmlIdentifier() Token {
+	for isIdentContinue(l.peek()) || l.peek() == '-' || l.peek() == ':' {
 		l.advance()
 	}
 	return l.token(Ident)

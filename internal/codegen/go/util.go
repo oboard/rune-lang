@@ -48,6 +48,8 @@ func goType(typ checker.Type) string {
 		return "string"
 	case checker.Bool:
 		return "bool"
+	case checker.HTMLElement:
+		return "any"
 	case checker.Unknown:
 		return "any"
 	default:
@@ -143,6 +145,8 @@ func zeroValue(typ checker.Type) string {
 		return `""`
 	case checker.Bool:
 		return "false"
+	case checker.HTMLElement:
+		return "nil"
 	default:
 		return fmt.Sprintf("%s{}", goType(typ))
 	}

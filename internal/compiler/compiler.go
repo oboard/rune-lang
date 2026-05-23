@@ -8,6 +8,7 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
+	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/parser"
@@ -53,6 +54,18 @@ func GenerateGoFile(path string) (string, []Diagnostic) {
 		return "", diags
 	}
 	src, err := gocodegen.GenerateIR(prog.IR)
+	if err != nil {
+		return "", []Diagnostic{{Message: err.Error()}}
+	}
+	return src, nil
+}
+
+func GenerateTypeScriptFile(path string) (string, []Diagnostic) {
+	prog, diags := AnalyzeFile(path)
+	if len(diags) > 0 {
+		return "", diags
+	}
+	src, err := tscodegen.GenerateIR(prog.IR)
 	if err != nil {
 		return "", []Diagnostic{{Message: err.Error()}}
 	}

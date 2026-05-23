@@ -9,11 +9,12 @@ import (
 type Type string
 
 const (
-	Unknown Type = "Unknown"
-	Int     Type = "Int"
-	String  Type = "String"
-	Bool    Type = "Bool"
-	Void    Type = "Void"
+	Unknown     Type = "Unknown"
+	Int         Type = "Int"
+	String      Type = "String"
+	Bool        Type = "Bool"
+	Void        Type = "Void"
+	HTMLElement Type = "HTMLElement"
 )
 
 type Diagnostic struct {

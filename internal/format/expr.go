@@ -25,6 +25,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return "false"
 	case *ast.UnaryExpr:
 		return e.Op.String() + f.expr(e.Expr)
+	case *ast.PostfixExpr:
+		return f.expr(e.Expr) + e.Op.String()
 	case *ast.BinaryExpr:
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
 	case *ast.CallExpr:
@@ -52,6 +54,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return f.structLiteral(e)
 	case *ast.AnonymousObjectLiteral:
 		return f.anonymousObjectLiteral(e)
+	case *ast.XMLElement:
+		return f.xmlElement(e)
 	case *ast.BlockExpr:
 		return f.blockExpr(e)
 	case *ast.PatternBlock:
@@ -67,10 +71,155 @@ func (f *formatter) expr(expr ast.Expr) string {
 	}
 }
 
+func (f *formatter) xmlElement(elem *ast.XMLElement) string {
+	return f.xmlElementWithIndent(elem, f.indent, false)
+}
+
+func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadingIndent bool) string {
+	if f.xmlElementCanInline(elem) {
+		prefix := ""
+		if leadingIndent {
+			prefix = indentString(indent)
+		}
+		return prefix + f.xmlElementInline(elem)
+	}
+
+	var b strings.Builder
+	if leadingIndent {
+		b.WriteString(indentString(indent))
+	}
+	b.WriteByte('<')
+	b.WriteString(elem.Tag)
+	for _, attr := range elem.Attrs {
+		b.WriteByte(' ')
+		b.WriteString(f.xmlAttr(attr))
+	}
+	b.WriteByte('>')
+	b.WriteByte('\n')
+	for _, child := range elem.Children {
+		if child.Text != "" {
+			b.WriteString(indentString(indent + 1))
+			b.WriteString(child.Text)
+			b.WriteByte('\n')
+			continue
+		}
+		if child.Expr == nil {
+			continue
+		}
+		if nested, ok := child.Expr.(*ast.XMLElement); ok {
+			b.WriteString(f.xmlElementWithIndent(nested, indent+1, true))
+			b.WriteByte('\n')
+			continue
+		}
+		b.WriteString(f.xmlChildExpr(child.Expr, indent+1))
+		b.WriteByte('\n')
+	}
+	b.WriteString(indentString(indent))
+	b.WriteString("</")
+	b.WriteString(elem.Tag)
+	b.WriteByte('>')
+	return b.String()
+}
+
+func (f *formatter) xmlElementCanInline(elem *ast.XMLElement) bool {
+	if len(elem.Children) == 0 {
+		return true
+	}
+	for _, child := range elem.Children {
+		if child.Expr == nil {
+			continue
+		}
+		if _, ok := child.Expr.(*ast.XMLElement); ok {
+			return false
+		}
+		if f.exprNeedsMultiline(child.Expr) {
+			return false
+		}
+	}
+	return true
+}
+
+func (f *formatter) xmlElementInline(elem *ast.XMLElement) string {
+	var b strings.Builder
+	b.WriteByte('<')
+	b.WriteString(elem.Tag)
+	for _, attr := range elem.Attrs {
+		b.WriteByte(' ')
+		b.WriteString(f.xmlAttr(attr))
+	}
+	if len(elem.Children) == 0 {
+		b.WriteString(" />")
+		return b.String()
+	}
+	b.WriteByte('>')
+	for _, child := range elem.Children {
+		if child.Text != "" {
+			b.WriteString(child.Text)
+			continue
+		}
+		if child.Expr == nil {
+			continue
+		}
+		if nested, ok := child.Expr.(*ast.XMLElement); ok {
+			b.WriteString(f.xmlElementInline(nested))
+			continue
+		}
+		b.WriteByte('{')
+		b.WriteString(f.expr(child.Expr))
+		b.WriteByte('}')
+	}
+	b.WriteString("</")
+	b.WriteString(elem.Tag)
+	b.WriteByte('>')
+	return b.String()
+}
+
+func (f *formatter) xmlAttr(attr ast.XMLAttr) string {
+	var b strings.Builder
+	if attr.Event {
+		b.WriteByte('@')
+	}
+	b.WriteString(attr.Name)
+	if attr.Value != nil {
+		b.WriteString("={")
+		b.WriteString(f.expr(attr.Value))
+		b.WriteByte('}')
+	}
+	return b.String()
+}
+
+func (f *formatter) xmlChildExpr(expr ast.Expr, indent int) string {
+	previous := f.indent
+	f.indent = indent
+	formatted := f.expr(expr)
+	f.indent = previous
+	lines := strings.Split(formatted, "\n")
+	if len(lines) == 1 {
+		return indentString(indent) + "{" + lines[0] + "}"
+	}
+	var b strings.Builder
+	b.WriteString(indentString(indent))
+	b.WriteByte('{')
+	b.WriteString(lines[0])
+	b.WriteByte('\n')
+	for _, line := range lines[1 : len(lines)-1] {
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	b.WriteString(lines[len(lines)-1])
+	b.WriteByte('}')
+	return b.String()
+}
+
 func (f *formatter) lambdaExpr(lambda *ast.LambdaExpr) string {
 	params := f.lambdaParams(lambda)
 	if lambda.Implicit {
 		return f.expr(lambda.Body)
+	}
+	if xml, ok := lambda.Body.(*ast.XMLElement); ok {
+		return "(" + strings.Join(params, ", ") + ") => (\n" +
+			f.xmlElementWithIndent(xml, f.indent+2, true) + "\n" +
+			indentString(f.indent) + ")"
 	}
 	return "(" + strings.Join(params, ", ") + ") => " + f.expr(lambda.Body)
 }
@@ -116,7 +265,7 @@ func (f *formatter) blockExpr(block *ast.BlockExpr) string {
 			b.WriteString(line)
 			b.WriteByte('\n')
 		}
-		if i < len(block.Statements)-1 && strings.Contains(formatted, "\n") && separatesFollowingStatement(stmt) {
+		if i < len(block.Statements)-1 && separatesFollowingStatement(stmt, block.Statements[i+1], formatted) {
 			b.WriteByte('\n')
 		}
 	}
@@ -221,4 +370,26 @@ func (f *formatter) exprWithParens(expr ast.Expr) string {
 		return "(" + f.expr(expr) + ")"
 	}
 	return f.expr(expr)
+}
+
+func (f *formatter) exprNeedsMultiline(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.XMLElement:
+		return !f.xmlElementCanInline(e)
+	case *ast.LambdaExpr:
+		_, ok := e.Body.(*ast.XMLElement)
+		return ok || f.exprNeedsMultiline(e.Body)
+	case *ast.CallExpr:
+		if f.exprNeedsMultiline(e.Callee) {
+			return true
+		}
+		for _, arg := range e.Args {
+			if f.exprNeedsMultiline(arg) {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
 }

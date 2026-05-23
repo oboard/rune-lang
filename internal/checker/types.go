@@ -22,6 +22,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Bool
 	case "Void":
 		return Void
+	case "HTMLElement":
+		return HTMLElement
 	default:
 		if isDynamicTypeName(name) {
 			return Unknown

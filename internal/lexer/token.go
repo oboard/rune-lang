@@ -12,6 +12,7 @@ const (
 	Ident
 	Int
 	String
+	XMLText
 
 	At
 	Dot
@@ -32,6 +33,7 @@ const (
 	Arrow
 
 	Plus
+	PlusPlus
 	Minus
 	Star
 	Slash
@@ -88,6 +90,8 @@ func (k Kind) String() string {
 		return "Int"
 	case String:
 		return "String"
+	case XMLText:
+		return "XMLText"
 	case At:
 		return "@"
 	case Dot:
@@ -122,6 +126,8 @@ func (k Kind) String() string {
 		return "->"
 	case Plus:
 		return "+"
+	case PlusPlus:
+		return "++"
 	case Minus:
 		return "-"
 	case Star:

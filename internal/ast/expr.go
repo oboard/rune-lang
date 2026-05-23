@@ -77,6 +77,17 @@ func (e *UnaryExpr) Position() lexer.Position {
 	return e.Pos
 }
 
+type PostfixExpr struct {
+	Op   lexer.Kind
+	Expr Expr
+	Pos  lexer.Position
+}
+
+func (*PostfixExpr) exprNode() {}
+func (e *PostfixExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 type BinaryExpr struct {
 	Left  Expr
 	Op    lexer.Kind
@@ -173,6 +184,31 @@ type FieldValue struct {
 	Name  string
 	Value Expr
 	Pos   lexer.Position
+}
+
+type XMLElement struct {
+	Tag      string
+	Attrs    []XMLAttr
+	Children []XMLChild
+	Pos      lexer.Position
+}
+
+func (*XMLElement) exprNode() {}
+func (e *XMLElement) Position() lexer.Position {
+	return e.Pos
+}
+
+type XMLAttr struct {
+	Name  string
+	Event bool
+	Value Expr
+	Pos   lexer.Position
+}
+
+type XMLChild struct {
+	Text string
+	Expr Expr
+	Pos  lexer.Position
 }
 
 type BlockExpr struct {

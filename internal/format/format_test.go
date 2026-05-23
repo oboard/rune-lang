@@ -109,6 +109,46 @@ func TestSignalWatchFormatting(t *testing.T) {
 	}
 }
 
+func TestXMLElementFormatting(t *testing.T) {
+	src := `render() => {
+  list := ["Item 1", "Item 2", "Item 3"]
+
+  <div>
+    <h1>List Example</h1>
+    <ul>
+      {list.map((item) => (
+          <li>{item}</li>
+      ))}
+    </ul>
+  </div>
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `render() => {
+  list := ["Item 1", "Item 2", "Item 3"]
+
+  <div>
+    <h1>List Example</h1>
+    <ul>
+      {list.map((item) => (
+          <li>{item}</li>
+      ))}
+    </ul>
+  </div>
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestSourcePreservesCommentsAroundStructLiteralExpansion(t *testing.T) {
 	src := `User:{id:Int name:String age:Int}
 main()=>{

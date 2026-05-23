@@ -73,6 +73,14 @@ type UnaryExpr struct {
 
 func (*UnaryExpr) exprNode() {}
 
+type PostfixExpr struct {
+	ExprBase
+	Op   lexer.Kind
+	Expr Expr
+}
+
+func (*PostfixExpr) exprNode() {}
+
 type BinaryExpr struct {
 	ExprBase
 	Left  Expr
@@ -140,6 +148,28 @@ type FieldValue struct {
 	Name  string
 	Value Expr
 	Pos   lexer.Position
+}
+
+type XMLElement struct {
+	ExprBase
+	Tag      string
+	Attrs    []XMLAttr
+	Children []XMLChild
+}
+
+func (*XMLElement) exprNode() {}
+
+type XMLAttr struct {
+	Name  string
+	Event bool
+	Value Expr
+	Pos   lexer.Position
+}
+
+type XMLChild struct {
+	Text string
+	Expr Expr
+	Pos  lexer.Position
 }
 
 type BlockExpr struct {

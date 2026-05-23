@@ -36,6 +36,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.PostfixExpr:
+		return g.postfixExpr(e)
 	case *ir.BinaryExpr:
 		prec := goPrecedence(e.Op)
 		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), e.Op, g.exprPrec(e.Right, prec+1))
@@ -89,6 +91,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return fmt.Sprintf("%s{%s}", mangleIdent(e.TypeName), strings.Join(fields, ", "))
 	case *ir.AnonymousObjectLiteral:
 		return fmt.Sprintf("%s{%s}", anonymousObjectType(e), anonymousObjectFields(g, e))
+	case *ir.XMLElement:
+		return "/* XML is only supported by the TypeScript backend */"
 	case *ir.MatchExpr:
 		return g.matchExpr(e)
 	case *ir.WatchExpr:
@@ -103,6 +107,19 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
+	target, ok := expr.Expr.(*ir.Identifier)
+	if !ok || expr.Op != lexer.PlusPlus {
+		return "/* unsupported postfix expression */"
+	}
+	if g.isSignal(target.Name) {
+		name := mangleIdent(target.Name)
+		return fmt.Sprintf("func() int { old := %s.Get(); %s.Set(old + 1); return old }()", name, name)
+	}
+	name := mangleIdent(target.Name)
+	return fmt.Sprintf("func() int { old := %s; %s++; return old }()", name, name)
 }
 
 func (g *generator) exprRaw(expr ir.Expr) string {

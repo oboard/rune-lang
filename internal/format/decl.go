@@ -61,7 +61,7 @@ func (f *formatter) function(fn *ast.Function) {
 		for i, stmt := range body.Statements {
 			formatted := f.stmt(stmt)
 			f.line(formatted)
-			if i < len(body.Statements)-1 && strings.Contains(formatted, "\n") && separatesFollowingStatement(stmt) {
+			if i < len(body.Statements)-1 && separatesFollowingStatement(stmt, body.Statements[i+1], formatted) {
 				f.line("")
 			}
 		}
@@ -76,12 +76,24 @@ func (f *formatter) function(fn *ast.Function) {
 	}
 }
 
-func separatesFollowingStatement(stmt ast.Stmt) bool {
+func separatesFollowingStatement(stmt ast.Stmt, next ast.Stmt, formatted string) bool {
+	if stmtIsXMLExpr(next) {
+		return true
+	}
 	let, ok := stmt.(*ast.LetStmt)
 	if !ok {
 		return false
 	}
 	_, ok = let.Value.(*ast.AnonymousObjectLiteral)
+	return ok && strings.Contains(formatted, "\n")
+}
+
+func stmtIsXMLExpr(stmt ast.Stmt) bool {
+	expr, ok := stmt.(*ast.ExprStmt)
+	if !ok {
+		return false
+	}
+	_, ok = expr.Expr.(*ast.XMLElement)
 	return ok
 }
 

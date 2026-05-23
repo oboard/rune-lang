@@ -54,6 +54,10 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position(), NamePos: name.Pos}
 			continue
 		}
+		if p.match(lexer.PlusPlus) {
+			left = &ast.PostfixExpr{Expr: left, Op: lexer.PlusPlus, Pos: left.Position()}
+			continue
+		}
 		if minPrec <= 1 && p.match(lexer.Arrow) {
 			p.skipNewlines()
 			handler := p.parseWatchHandler()
@@ -256,6 +260,8 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.skipNewlines()
 		p.consume(lexer.RParen, "expected ')' after expression")
 		return expr
+	case lexer.Less:
+		return p.parseXMLElement()
 	default:
 		p.errorAt(tok, fmt.Sprintf("expected expression, got %s", tok.Kind))
 		p.advance()

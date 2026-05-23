@@ -10,6 +10,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	switch e := expr.(type) {
 	case *UnaryExpr:
 		WalkExpr(e.Expr, visit)
+	case *PostfixExpr:
+		WalkExpr(e.Expr, visit)
 	case *BinaryExpr:
 		WalkExpr(e.Left, visit)
 		WalkExpr(e.Right, visit)
@@ -36,6 +38,13 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	case *AnonymousObjectLiteral:
 		for _, field := range e.Fields {
 			WalkExpr(field.Value, visit)
+		}
+	case *XMLElement:
+		for _, attr := range e.Attrs {
+			WalkExpr(attr.Value, visit)
+		}
+		for _, child := range e.Children {
+			WalkExpr(child.Expr, visit)
 		}
 	case *BlockExpr:
 		for _, stmt := range e.Statements {

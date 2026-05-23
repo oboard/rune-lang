@@ -158,6 +158,7 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
         nextAge() => .age + 1
     }
 }
+
 `)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -186,5 +187,46 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
 	}
 	if obj.Fields[1].Name != "nextAge" || len(method.Params) != 0 {
 		t.Fatalf("method field = %s params=%v, want nextAge()", obj.Fields[1].Name, method.Params)
+	}
+}
+
+func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
+	file, errs := Parse(`render() -> HTMLElement => {
+    count $= 0
+
+    <div>
+        <h1>Counter Example</h1>
+        <p>Count: {count}</p>
+        <button @click={count++}>Click Me</button>
+    </div>
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("render body = %#v, want two statements", file.Functions[0].Body)
+	}
+	stmt, ok := block.Statements[1].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("second statement = %T, want ExprStmt", block.Statements[1])
+	}
+	root, ok := stmt.Expr.(*ast.XMLElement)
+	if !ok {
+		t.Fatalf("expression = %T, want XMLElement", stmt.Expr)
+	}
+	if root.Tag != "div" || len(root.Children) != 3 {
+		t.Fatalf("root = <%s> children=%d, want div with 3 children", root.Tag, len(root.Children))
+	}
+	button, ok := root.Children[2].Expr.(*ast.XMLElement)
+	if !ok || button.Tag != "button" || len(button.Attrs) != 1 {
+		t.Fatalf("button child = %#v, want button with one event", root.Children[2].Expr)
+	}
+	if !button.Attrs[0].Event || button.Attrs[0].Name != "click" {
+		t.Fatalf("button attr = %#v, want @click", button.Attrs[0])
+	}
+	if _, ok := button.Attrs[0].Value.(*ast.PostfixExpr); !ok {
+		t.Fatalf("button attr value = %T, want PostfixExpr", button.Attrs[0].Value)
 	}
 }

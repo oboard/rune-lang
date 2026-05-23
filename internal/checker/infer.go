@@ -180,6 +180,17 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		default:
 			return Unknown
 		}
+	case *ast.PostfixExpr:
+		typ := c.inferExpr(e.Expr, env)
+		switch e.Op {
+		case lexer.PlusPlus:
+			if typ != Int && typ != Unknown {
+				c.errorf(e.Pos, "operator '++' expects Int, got %s", typ)
+			}
+			return Int
+		default:
+			return Unknown
+		}
 	case *ast.BinaryExpr:
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)
@@ -224,6 +235,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return c.inferPatternBlock(e, env)
 	case *ast.MatchExpr:
 		return c.inferMatchExpr(e, env)
+	case *ast.XMLElement:
+		return c.inferXMLElement(e, env)
 	case *ast.WatchExpr:
 		target := c.inferExpr(e.Target, env)
 		if lambda, ok := e.Handler.(*ast.LambdaExpr); ok && len(lambda.Params) == 2 && target != Unknown {
@@ -424,6 +437,8 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			}
 		case *ast.UnaryExpr:
 			walk(e.Expr, expected)
+		case *ast.PostfixExpr:
+			walk(e.Expr, expected)
 		case *ast.CallExpr:
 			walk(e.Callee, Unknown)
 			for _, arg := range e.Args {
@@ -432,6 +447,13 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 		case *ast.AnonymousObjectLiteral:
 			for _, field := range e.Fields {
 				walk(field.Value, Unknown)
+			}
+		case *ast.XMLElement:
+			for _, attr := range e.Attrs {
+				walk(attr.Value, Unknown)
+			}
+			for _, child := range e.Children {
+				walk(child.Expr, Unknown)
 			}
 		case *ast.BlockExpr:
 			for _, stmt := range e.Statements {
