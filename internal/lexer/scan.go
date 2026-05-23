@@ -74,6 +74,17 @@ func (l *Lexer) number() Token {
 	for unicode.IsDigit(l.peek()) {
 		l.advance()
 	}
+	if l.peek() == 'n' {
+		l.advance()
+		return l.token(BigInt)
+	}
+	if l.peek() == '.' && unicode.IsDigit(l.peekNext()) {
+		l.advance()
+		for unicode.IsDigit(l.peek()) {
+			l.advance()
+		}
+		return l.token(Double)
+	}
 	return l.token(Int)
 }
 

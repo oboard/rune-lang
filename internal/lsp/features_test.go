@@ -76,6 +76,33 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	}
 }
 
+func TestCodeLensIncludesSingletonTests(t *testing.T) {
+	uri := "file:///tmp/data.rn"
+	src := `? "int" {
+  @assert.eq(1, 1)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	lenses := s.codeLenses(uri).([]map[string]any)
+	if len(lenses) != 1 {
+		t.Fatalf("code lenses = %d, want 1: %#v", len(lenses), lenses)
+	}
+	start := lenses[0]["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("lens start = %+v, want line 0 char 0", start)
+	}
+	command := lenses[0]["command"].(map[string]any)
+	if command["command"] != "rune.runTest" {
+		t.Fatalf("command = %#v, want rune.runTest", command)
+	}
+	args := command["arguments"].([]any)
+	spec := args[0].(map[string]any)
+	if spec["name"] != "int" {
+		t.Fatalf("test spec = %#v, want int", spec)
+	}
+}
+
 func TestAnonymousObjectHover(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {

@@ -14,6 +14,7 @@ func (s *server) handle(req request) error {
 				"hoverProvider":              true,
 				"completionProvider":         map[string]any{"triggerCharacters": []string{"@", "."}},
 				"definitionProvider":         true,
+				"codeLensProvider":           map[string]any{"resolveProvider": false},
 				"documentSymbolProvider":     true,
 				"documentFormattingProvider": true,
 				"inlayHintProvider":          true,
@@ -69,6 +70,12 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		return s.respond(req.ID, s.definition(params.TextDocument.URI, params.Position))
+	case "textDocument/codeLens":
+		var params codeLensParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return s.respond(req.ID, s.codeLenses(params.TextDocument.URI))
 	case "textDocument/documentSymbol":
 		var params documentSymbolParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

@@ -46,6 +46,26 @@ func (e *IntegerLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+type DoubleLiteral struct {
+	Value float64
+	Pos   lexer.Position
+}
+
+func (*DoubleLiteral) exprNode() {}
+func (e *DoubleLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type BigIntLiteral struct {
+	Value string
+	Pos   lexer.Position
+}
+
+func (*BigIntLiteral) exprNode() {}
+func (e *BigIntLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
 type StringLiteral struct {
 	Value string
 	Pos   lexer.Position
@@ -63,6 +83,24 @@ type BoolLiteral struct {
 
 func (*BoolLiteral) exprNode() {}
 func (e *BoolLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type NullLiteral struct {
+	Pos lexer.Position
+}
+
+func (*NullLiteral) exprNode() {}
+func (e *NullLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type UndefinedLiteral struct {
+	Pos lexer.Position
+}
+
+func (*UndefinedLiteral) exprNode() {}
+func (e *UndefinedLiteral) Position() lexer.Position {
 	return e.Pos
 }
 

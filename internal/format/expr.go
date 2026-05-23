@@ -18,6 +18,10 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return "@" + e.Name
 	case *ast.IntegerLiteral:
 		return strconv.Itoa(e.Value)
+	case *ast.DoubleLiteral:
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
+	case *ast.BigIntLiteral:
+		return e.Value + "n"
 	case *ast.StringLiteral:
 		return strconv.Quote(e.Value)
 	case *ast.BoolLiteral:
@@ -25,6 +29,10 @@ func (f *formatter) expr(expr ast.Expr) string {
 			return "true"
 		}
 		return "false"
+	case *ast.NullLiteral:
+		return "null"
+	case *ast.UndefinedLiteral:
+		return "undefined"
 	case *ast.UnaryExpr:
 		return e.Op.String() + f.expr(e.Expr)
 	case *ast.PostfixExpr:

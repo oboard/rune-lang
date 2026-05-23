@@ -235,6 +235,16 @@ func (p *Parser) parsePrimary() ast.Expr {
 			p.errorAt(tok, "invalid integer literal")
 		}
 		return &ast.IntegerLiteral{Value: value, Pos: tok.Pos}
+	case lexer.Double:
+		p.advance()
+		value, err := strconv.ParseFloat(tok.Lexeme, 64)
+		if err != nil {
+			p.errorAt(tok, "invalid double literal")
+		}
+		return &ast.DoubleLiteral{Value: value, Pos: tok.Pos}
+	case lexer.BigInt:
+		p.advance()
+		return &ast.BigIntLiteral{Value: tok.Lexeme[:len(tok.Lexeme)-1], Pos: tok.Pos}
 	case lexer.String:
 		p.advance()
 		value, err := strconv.Unquote(tok.Lexeme)
@@ -250,6 +260,12 @@ func (p *Parser) parsePrimary() ast.Expr {
 		}
 		if tok.Lexeme == "false" {
 			return &ast.BoolLiteral{Value: false, Pos: tok.Pos}
+		}
+		if tok.Lexeme == "null" {
+			return &ast.NullLiteral{Pos: tok.Pos}
+		}
+		if tok.Lexeme == "undefined" {
+			return &ast.UndefinedLiteral{Pos: tok.Pos}
 		}
 		return &ast.Identifier{Name: tok.Lexeme, Pos: tok.Pos}
 	case lexer.At:

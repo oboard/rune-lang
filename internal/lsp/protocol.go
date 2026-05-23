@@ -38,6 +38,10 @@ type documentSymbolParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }
 
+type codeLensParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type formattingParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }

@@ -11,6 +11,8 @@ const (
 
 	Ident
 	Int
+	Double
+	BigInt
 	String
 	XMLText
 
@@ -91,6 +93,10 @@ func (k Kind) String() string {
 		return "Ident"
 	case Int:
 		return "Int"
+	case Double:
+		return "Double"
+	case BigInt:
+		return "BigInt"
 	case String:
 		return "String"
 	case XMLText:
