@@ -241,7 +241,7 @@ func (p *Parser) parsePrimary() ast.Expr {
 		if err != nil {
 			p.errorAt(tok, "invalid double literal")
 		}
-		return &ast.DoubleLiteral{Value: value, Pos: tok.Pos}
+		return &ast.DoubleLiteral{Value: value, Raw: tok.Lexeme, Pos: tok.Pos}
 	case lexer.BigInt:
 		p.advance()
 		return &ast.BigIntLiteral{Value: tok.Lexeme[:len(tok.Lexeme)-1], Pos: tok.Pos}

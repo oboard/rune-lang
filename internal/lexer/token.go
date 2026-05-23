@@ -44,6 +44,8 @@ const (
 	Slash
 	Percent
 	Bang
+	AndAnd
+	OrOr
 
 	EqualEqual
 	BangEqual
@@ -153,6 +155,10 @@ func (k Kind) String() string {
 		return "%"
 	case Bang:
 		return "!"
+	case AndAnd:
+		return "&&"
+	case OrOr:
+		return "||"
 	case EqualEqual:
 		return "=="
 	case BangEqual:

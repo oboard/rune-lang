@@ -48,6 +48,7 @@ func (e *IntegerLiteral) Position() lexer.Position {
 
 type DoubleLiteral struct {
 	Value float64
+	Raw   string
 	Pos   lexer.Position
 }
 

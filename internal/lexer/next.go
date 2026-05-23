@@ -83,6 +83,16 @@ func (l *Lexer) nextCode() Token {
 			return l.token(BangEqual)
 		}
 		return l.token(Bang)
+	case '&':
+		if l.match('&') {
+			return l.token(AndAnd)
+		}
+		return l.token(Illegal)
+	case '|':
+		if l.match('|') {
+			return l.token(OrOr)
+		}
+		return l.token(Illegal)
 	case '=':
 		if l.match('>') {
 			return l.token(FatArrow)
@@ -286,6 +296,16 @@ func (l *Lexer) nextXMLExpr() Token {
 			return l.token(BangEqual)
 		}
 		return l.token(Bang)
+	case '&':
+		if l.match('&') {
+			return l.token(AndAnd)
+		}
+		return l.token(Illegal)
+	case '|':
+		if l.match('|') {
+			return l.token(OrOr)
+		}
+		return l.token(Illegal)
 	case '=':
 		if l.match('>') {
 			return l.token(FatArrow)
