@@ -35,7 +35,7 @@ func rootCmd() *cobra.Command {
 		},
 	}
 	cmd.PersistentFlags().StringVar(&backend, "backend", "go", "target backend: go or ts")
-	cmd.AddCommand(runCmd(), buildCmd(), tsCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
+	cmd.AddCommand(runCmd(), buildCmd(), goCmd(), tsCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
 
@@ -139,6 +139,29 @@ func tsCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output TypeScript path")
+	return cmd
+}
+
+func goCmd() *cobra.Command {
+	var output string
+	cmd := &cobra.Command{
+		Use:   "go <file.rn>",
+		Short: "Compile a Rune program to Go",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			src, diags := compiler.GenerateGoFile(args[0])
+			if len(diags) > 0 {
+				printDiagnostics(args[0], diags)
+				return fmt.Errorf("compile failed")
+			}
+			if output == "" {
+				fmt.Fprint(cmd.OutOrStdout(), src)
+				return nil
+			}
+			return os.WriteFile(output, []byte(src), 0o644)
+		},
+	}
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output Go path")
 	return cmd
 }
 
