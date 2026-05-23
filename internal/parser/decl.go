@@ -138,7 +138,7 @@ func (p *Parser) parseTypeName() string {
 	if p.match(lexer.LParen) {
 		var args []string
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
-			args = append(args, p.parseTypeName())
+			args = append(args, p.parseFunctionTypeParam())
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
@@ -168,6 +168,31 @@ func (p *Parser) parseTypeName() string {
 		typ += "[" + strings.Join(args, ",") + "]"
 	}
 	return typ
+}
+
+func (p *Parser) parseFunctionTypeParam() string {
+	p.skipNewlines()
+	if p.check(lexer.Ident) && p.typeParamHasName() {
+		p.advance()
+		p.match(lexer.Question)
+		p.consume(lexer.Colon, "expected ':' after function type parameter name")
+		p.skipNewlines()
+	}
+	return p.parseTypeName()
+}
+
+func (p *Parser) typeParamHasName() bool {
+	if p.curr+1 >= len(p.tokens) {
+		return false
+	}
+	switch p.tokens[p.curr+1].Kind {
+	case lexer.Colon:
+		return true
+	case lexer.Question:
+		return p.curr+2 < len(p.tokens) && p.tokens[p.curr+2].Kind == lexer.Colon
+	default:
+		return false
+	}
 }
 
 func (p *Parser) parseAnnotations() []ast.Annotation {

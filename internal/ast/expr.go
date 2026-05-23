@@ -159,6 +159,16 @@ func (e *ArrayLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+type ReactiveLiteral struct {
+	Value Expr
+	Pos   lexer.Position
+}
+
+func (*ReactiveLiteral) exprNode() {}
+func (e *ReactiveLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
 type StructLiteral struct {
 	TypeName string
 	Fields   []FieldValue

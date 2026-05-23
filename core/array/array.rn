@@ -1,18 +1,16 @@
 Array[T]: {
-    length[T]() -> Int => "%array.len"
+    length() -> Int => "%array.len"
 
-    isEmpty[T]() -> Bool => .length() == 0
+    isEmpty() -> Bool => .length() == 0
 
-    push[T](value: T) => "%array.push"
+    push(value: T) -> Int => "%array.push"
 
-    each[T](f: (T) -> Void) => "%array.each"
+    forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
 
-    map[T, U](f: (T) -> U) -> Array[U] => {
-        result := []
-        .each((value) => result.push(f(value)))
-        result
-    }
+    each(f: (T) -> Void) => .forEach(f)
+
+    map[U](callbackfn: (value: T, index?: Int, array?: Array[T]) -> U) -> Array[U] => "%array.map"
 
     @alias("_[_]")
-    at[T](index: Int) -> T => "%array.get"
+    at(index: Int) -> T => "%array.at"
 }

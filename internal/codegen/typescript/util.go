@@ -17,6 +17,7 @@ type generator struct {
 	temp      int
 	thisNames []string
 	signals   []map[string]checker.Type
+	reactives []map[string]checker.Type
 }
 
 func (g *generator) line(s string) {

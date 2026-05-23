@@ -39,7 +39,7 @@ func TestSessionEvalFunctionAndArray(t *testing.T) {
 	if err := session.Eval("arr.length()"); err != nil {
 		t.Fatalf("Eval length: %v", err)
 	}
-	if got := strings.TrimSpace(out.String()); got != "3" {
-		t.Fatalf("output = %q, want 3", got)
+	if got := strings.TrimSpace(out.String()); got != "3\n3" {
+		t.Fatalf("output = %q, want push length and array length", got)
 	}
 }

@@ -129,6 +129,13 @@ type ArrayLiteral struct {
 
 func (*ArrayLiteral) exprNode() {}
 
+type ReactiveLiteral struct {
+	ExprBase
+	Value Expr
+}
+
+func (*ReactiveLiteral) exprNode() {}
+
 type StructLiteral struct {
 	ExprBase
 	TypeName string

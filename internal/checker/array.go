@@ -61,9 +61,7 @@ func (c *checker) arrayTypeBindings(fn *stdlib.Function, elem Type) map[string]T
 	for _, name := range fn.Generics {
 		bindings[name] = Unknown
 	}
-	if _, ok := bindings["T"]; ok {
-		bindings["T"] = elem
-	}
+	bindings["T"] = elem
 	return bindings
 }
 
@@ -90,13 +88,13 @@ func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string
 			}
 			return
 		}
-		if len(lambda.Params) != len(params) {
-			c.errorf(lambda.Pos, "argument %d to @%s.%s expects lambda with %d parameters, got %d", index+1, moduleName, functionName, len(params), len(lambda.Params))
+		if len(lambda.Params) > len(params) {
+			c.errorf(lambda.Pos, "argument %d to @%s.%s expects lambda with at most %d parameters, got %d", index+1, moduleName, functionName, len(params), len(lambda.Params))
 			return
 		}
 		local := cloneEnv(env)
 		paramTypes := make([]Type, 0, len(params))
-		for i, param := range params {
+		for i, param := range params[:len(lambda.Params)] {
 			paramType := c.resolveDeclaredType(param, bindings)
 			paramTypes = append(paramTypes, paramType)
 			local[lambda.Params[i]] = paramType

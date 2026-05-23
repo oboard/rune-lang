@@ -60,15 +60,15 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 		t.Fatalf("definition uri = %s, want core/array/array.rn", defURI)
 	}
 	start := def["range"].(map[string]any)["start"].(position)
-	if start.Line != 9 || start.Character != 4 {
-		t.Fatalf("definition start = %+v, want line 9 char 4", start)
+	if start.Line != 11 || start.Character != 4 {
+		t.Fatalf("definition start = %+v, want line 11 char 4", start)
 	}
 	if got := s.rename(uri, positionOf(src, "arr.map", "map"), "collect"); got != nil {
 		t.Fatalf("array method rename = %#v, want nil", got)
 	}
 	hover := s.hover(uri, positionOf(src, "arr.map", "map")).(map[string]any)
 	value := hoverValue(hover)
-	if !strings.Contains(value, "Array.map[T, U](f: (T) -> U) -> Array[U]") {
+	if !strings.Contains(value, "Array.map[U](callbackfn: (T, Int, Array[T]) -> U) -> Array[U]") {
 		t.Fatalf("hover = %q, want array map signature", value)
 	}
 	if !strings.Contains(value, "core/array/array.rn") {

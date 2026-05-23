@@ -19,6 +19,88 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
   </div>
 }
 `
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function __render(): HTMLElement`,
+		`const __count = runeSignal(0);`,
+		`document.createElement("div")`,
+		`document.createElement("h1")`,
+		`document.createTextNode("Counter Example")`,
+		`document.createTextNode("Count: ")`,
+		`document.createTextNode(String(__count.get()))`,
+		`runeWatch(__count, () => { __text`,
+		`.addEventListener("click", () => { __count.set(__count.get() + 1); });`,
+		`export { __render as render };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateElementArrayChild(t *testing.T) {
+	src := `render() => {
+  list := ["Item 1", "Item 2", "Item 3"]
+
+  <ul>
+    {list.map((item) => (
+        <li>{item}</li>
+    ))}
+  </ul>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __children`,
+		`__list.map((__item: string): HTMLElement =>`,
+		`for (const __child`,
+		`.appendChild(__child`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "String(__list.map") {
+		t.Fatalf("generated TypeScript stringifies element array:\n%s", got)
+	}
+}
+
+func TestGenerateReactiveElementArrayChild(t *testing.T) {
+	src := `render() => {
+  list := $["Item 1", "Item 2", "Item 3"]
+
+  <ul>
+    {list.map((item) => (
+        <li>{item}</li>
+    ))}
+    <button @click={list.push("New Item")}>Add Item</button>
+  </ul>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function runeReactiveArray<T>(initial: T[]): T[]`,
+		`const __list = runeReactiveArray(["Item 1", "Item 2", "Item 3"]);`,
+		`const __start`,
+		`const __render`,
+		`runeWatch(__list, __render`,
+		`.insertBefore(__child`,
+		`.addEventListener("click", () => { __list.push("New Item"); });`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "String(__list.map") {
+		t.Fatalf("generated TypeScript stringifies reactive element array:\n%s", got)
+	}
+}
+
+func generateForTest(t *testing.T, src string) string {
+	t.Helper()
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
 		t.Fatalf("parse errors: %v", parseErrs)
@@ -31,21 +113,5 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	wantParts := []string{
-		`function __render(): HTMLElement`,
-		`const __count = runeSignal(0);`,
-		`document.createElement("div")`,
-		`document.createElement("h1")`,
-		`document.createTextNode("Counter Example")`,
-		`document.createTextNode("Count: ")`,
-		`document.createTextNode(String(__count.get()))`,
-		`__count.watch(() => { __text`,
-		`.addEventListener("click", () => { __count.set(__count.get() + 1); });`,
-		`export { __render as render };`,
-	}
-	for _, want := range wantParts {
-		if !strings.Contains(got, want) {
-			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
-		}
-	}
+	return got
 }

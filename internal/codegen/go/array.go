@@ -36,14 +36,20 @@ func (g *generator) arrayEachStmt(expr ir.Expr) (string, bool) {
 		return "", false
 	}
 	sel, ok := call.Callee.(*ir.SelectorExpr)
-	if !ok || sel.Name != "each" || len(call.Args) != 1 {
+	if !ok || (sel.Name != "each" && sel.Name != "forEach") || len(call.Args) != 1 {
 		return "", false
 	}
 	if _, ok := checker.ArrayElement(sel.Receiver.ResultType()); !ok {
 		return "", false
 	}
-	fn, ok := g.file.Stdlib.Function("array", "each")
-	if !ok || fn.Intrinsic != "array.each" {
+	fn, ok := g.file.Stdlib.Function("array", sel.Name)
+	if !ok {
+		return "", false
+	}
+	if sel.Name == "each" && fn.Body == nil && fn.Intrinsic != "array.each" {
+		return "", false
+	}
+	if sel.Name == "forEach" && fn.Intrinsic != "array.forEach" {
 		return "", false
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
@@ -74,8 +80,11 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	if fn.Body != nil {
 		return g.arrayBodyExpr(fn, g.expr(sel.Receiver), call), true
 	}
-	if fn.Intrinsic == "array.each" {
-		return "/* array.each is only valid as a statement */", true
+	if fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach" {
+		return "/* array.forEach is only valid as a statement */", true
+	}
+	if fn.Intrinsic == "array.map" {
+		return g.arrayMapExpr(call, g.expr(sel.Receiver)), true
 	}
 	args := make([]string, 0, len(call.Args))
 	for _, arg := range call.Args {
@@ -92,19 +101,43 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 		if len(args) != 1 {
 			return "/* invalid array.push */"
 		}
-		return fmt.Sprintf("append(%s, %s)", receiver, args[0])
-	case "array.get":
+		return fmt.Sprintf("func() int { %s = append(%s, %s); return len(%s) }()", receiver, receiver, args[0], receiver)
+	case "array.get", "array.at":
 		if len(args) != 1 {
-			return "/* invalid array.get */"
+			return "/* invalid array.at */"
 		}
 		return fmt.Sprintf("%s[%s]", receiver, args[0])
-	case "array.each":
-		return "/* array.each is only valid as a statement */"
+	case "array.each", "array.forEach":
+		return "/* array.forEach is only valid as a statement */"
 	}
 	if fn.Body != nil {
 		return g.stdlibBodyExpr(ir.LowerExpr(fn.Body, nil), receiver)
 	}
 	return "/* unsupported array method */"
+}
+
+func (g *generator) arrayMapExpr(call *ir.CallExpr, receiver string) string {
+	if len(call.Args) != 1 {
+		return "/* invalid array.map */"
+	}
+	lambda, ok := call.Args[0].(*ir.LambdaExpr)
+	if !ok || len(lambda.Params) == 0 {
+		return "/* invalid array.map */"
+	}
+	elemType := checker.Unknown
+	if elem, ok := checker.ArrayElement(call.ResultType()); ok {
+		elemType = elem
+	}
+	param := mangleIdent(lambda.Params[0])
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("func() []%s {\n", goType(elemType)))
+	b.WriteString(fmt.Sprintf("\t%s := make([]%s, 0, len(%s))\n", mangleIdent("result"), goType(elemType), receiver))
+	b.WriteString(fmt.Sprintf("\tfor _, %s := range %s {\n", param, receiver))
+	b.WriteString(fmt.Sprintf("\t\t%s = append(%s, %s)\n", mangleIdent("result"), mangleIdent("result"), g.expr(lambda.Body)))
+	b.WriteString("\t}\n")
+	b.WriteString(fmt.Sprintf("\treturn %s\n", mangleIdent("result")))
+	b.WriteString("}()")
+	return b.String()
 }
 
 func (g *generator) arrayBodyExpr(fn *stdlib.Function, receiver string, call *ir.CallExpr) string {
@@ -307,8 +340,8 @@ func (c *stdlibContext) callStmt(expr ir.Expr) ([]string, bool) {
 			return []string{fmt.Sprintf("%s = append(%s, %s)", receiver, receiver, c.expr(call.Args[0], call.Args[0].ResultType()))}, true
 		}
 	}
-	if sel.Name == "each" && len(call.Args) == 1 {
-		if fn, ok := c.g.file.Stdlib.Function("array", "each"); ok && fn.Intrinsic == "array.each" {
+	if (sel.Name == "each" || sel.Name == "forEach") && len(call.Args) == 1 {
+		if fn, ok := c.g.file.Stdlib.Function("array", sel.Name); ok && (fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach") {
 			lambda, ok := call.Args[0].(*ir.LambdaExpr)
 			if !ok || len(lambda.Params) != 1 {
 				return []string{"/* invalid array.each */"}, true

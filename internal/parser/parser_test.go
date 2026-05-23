@@ -230,3 +230,32 @@ func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 		t.Fatalf("button attr value = %T, want PostfixExpr", button.Attrs[0].Value)
 	}
 }
+
+func TestParseReactiveLiterals(t *testing.T) {
+	file, errs := Parse(`main() => {
+    list := $["Item 1"]
+    obj := ${name: "Alice"}
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("main body = %#v, want two statements", file.Functions[0].Body)
+	}
+	list, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
+	}
+	if _, ok := list.Value.(*ast.ReactiveLiteral); !ok {
+		t.Fatalf("list value = %T, want ReactiveLiteral", list.Value)
+	}
+	obj, ok := block.Statements[1].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("second statement = %T, want LetStmt", block.Statements[1])
+	}
+	if _, ok := obj.Value.(*ast.ReactiveLiteral); !ok {
+		t.Fatalf("obj value = %T, want ReactiveLiteral", obj.Value)
+	}
+}

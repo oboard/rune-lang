@@ -83,6 +83,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elemType = elem
 		}
 		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+	case *ir.ReactiveLiteral:
+		return g.expr(e.Value)
 	case *ir.StructLiteral:
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {

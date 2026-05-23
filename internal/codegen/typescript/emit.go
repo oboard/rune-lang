@@ -26,9 +26,11 @@ func (g *generator) function(fn *ir.Function) error {
 	g.linef("function %s(%s): %s {", mangleIdent(fn.Name), strings.Join(params, ", "), tsType(fn.Return))
 	g.indent++
 	g.pushSignalScope()
+	g.pushReactiveScope()
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
 		return err
 	}
+	g.popReactiveScope()
 	g.popSignalScope()
 	g.indent--
 	g.line("}")
@@ -43,11 +45,13 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	g.linef("function %s(%s): %s {", mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), tsType(fn.Return))
 	g.indent++
 	g.pushSignalScope()
+	g.pushReactiveScope()
 	g.thisNames = append(g.thisNames, mangleIdent("this"))
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
 		return err
 	}
 	g.thisNames = g.thisNames[:len(g.thisNames)-1]
+	g.popReactiveScope()
 	g.popSignalScope()
 	g.indent--
 	g.line("}")
@@ -77,11 +81,20 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if reactive, ok := s.Value.(*ir.ReactiveLiteral); ok {
+				kind := "const"
+				if s.Mutable {
+					kind = "let"
+				}
+				g.linef("%s %s = %s;", kind, mangleIdent(s.Name), g.expr(reactive))
+				g.addReactive(s.Name, s.Value.ResultType())
+				continue
+			}
 			if s.Signal || g.exprUsesSignal(s.Value) {
 				g.linef("const %s = runeSignal(%s);", mangleIdent(s.Name), g.expr(s.Value))
 				g.addSignal(s.Name, s.Value.ResultType())
 				for _, dep := range g.exprSignalDeps(s.Value) {
-					g.linef("%s.watch(() => { %s.set(%s); });", mangleIdent(dep), mangleIdent(s.Name), g.expr(s.Value))
+					g.linef("runeWatch(%s, () => { %s.set(%s); });", mangleIdent(dep), mangleIdent(s.Name), g.expr(s.Value))
 				}
 				continue
 			}
@@ -202,6 +215,98 @@ func (g *generator) signalRuntime() {
 	g.line("watch: (watcher: (oldValue: T, newValue: T) => void) => { watchers.push(watcher); },")
 	g.indent--
 	g.line("};")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("const runeReactiveWatchers = new WeakMap<object, Array<() => void>>();")
+	g.line("")
+	g.line("function runeWatch(source: any, watcher: () => void): void {")
+	g.indent++
+	g.line("if (source && typeof source.watch === \"function\") {")
+	g.indent++
+	g.line("source.watch(() => watcher());")
+	g.line("return;")
+	g.indent--
+	g.line("}")
+	g.line("if (source && typeof source === \"object\") {")
+	g.indent++
+	g.line("const watchers = runeReactiveWatchers.get(source);")
+	g.line("if (watchers) watchers.push(watcher);")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeNotify(source: object): void {")
+	g.indent++
+	g.line("const watchers = runeReactiveWatchers.get(source);")
+	g.line("if (!watchers) return;")
+	g.line("for (const watcher of watchers) watcher();")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeReactiveArray<T>(initial: T[]): T[] {")
+	g.indent++
+	g.line("let proxy: T[];")
+	g.line("const mutators = new Set([\"copyWithin\", \"fill\", \"pop\", \"push\", \"reverse\", \"shift\", \"sort\", \"splice\", \"unshift\"]);")
+	g.line("proxy = new Proxy(initial, {")
+	g.indent++
+	g.line("get(target, prop, receiver) {")
+	g.indent++
+	g.line("const value = Reflect.get(target, prop, receiver);")
+	g.line("if (typeof prop === \"string\" && mutators.has(prop) && typeof value === \"function\") {")
+	g.indent++
+	g.line("return (...args: unknown[]) => {")
+	g.indent++
+	g.line("const result = value.apply(target, args);")
+	g.line("runeNotify(proxy);")
+	g.line("return result;")
+	g.indent--
+	g.line("};")
+	g.indent--
+	g.line("}")
+	g.line("return value;")
+	g.indent--
+	g.line("},")
+	g.line("set(target, prop, value, receiver) {")
+	g.indent++
+	g.line("const old = Reflect.get(target, prop, receiver);")
+	g.line("const ok = Reflect.set(target, prop, value, receiver);")
+	g.line("if (!Object.is(old, value)) runeNotify(proxy);")
+	g.line("return ok;")
+	g.indent--
+	g.line("},")
+	g.indent--
+	g.line("});")
+	g.line("runeReactiveWatchers.set(proxy, []);")
+	g.line("return proxy;")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeReactiveObject<T extends object>(initial: T): T {")
+	g.indent++
+	g.line("let proxy: T;")
+	g.line("proxy = new Proxy(initial, {")
+	g.indent++
+	g.line("set(target, prop, value, receiver) {")
+	g.indent++
+	g.line("const old = Reflect.get(target, prop, receiver);")
+	g.line("const ok = Reflect.set(target, prop, value, receiver);")
+	g.line("if (!Object.is(old, value)) runeNotify(proxy as object);")
+	g.line("return ok;")
+	g.indent--
+	g.line("},")
+	g.line("deleteProperty(target, prop) {")
+	g.indent++
+	g.line("const ok = Reflect.deleteProperty(target, prop);")
+	g.line("if (ok) runeNotify(proxy as object);")
+	g.line("return ok;")
+	g.indent--
+	g.line("},")
+	g.indent--
+	g.line("});")
+	g.line("runeReactiveWatchers.set(proxy as object, []);")
+	g.line("return proxy;")
 	g.indent--
 	g.line("}")
 }

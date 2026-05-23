@@ -50,6 +50,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 			elems = append(elems, f.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ast.ReactiveLiteral:
+		return "$" + f.expr(e.Value)
 	case *ast.StructLiteral:
 		return f.structLiteral(e)
 	case *ast.AnonymousObjectLiteral:

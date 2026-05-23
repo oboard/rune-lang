@@ -214,7 +214,7 @@ func (p *Parser) skipTypeNameTokens() {
 	depth := 0
 	for !p.check(lexer.EOF) {
 		switch p.peek().Kind {
-		case lexer.Ident, lexer.Comma, lexer.Arrow:
+		case lexer.Ident, lexer.Comma, lexer.Colon, lexer.Question, lexer.Arrow:
 			p.advance()
 		case lexer.LBracket, lexer.LParen:
 			depth++

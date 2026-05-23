@@ -94,7 +94,7 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			return nil, err
 		}
 		array.Elements = append(array.Elements, value)
-		return nil, nil
+		return len(array.Elements), nil
 	case fn.Intrinsic == "array.each":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.each expects 1 args, got %d", len(args))

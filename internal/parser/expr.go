@@ -251,6 +251,8 @@ func (p *Parser) parsePrimary() ast.Expr {
 		}
 	case lexer.LBracket:
 		return p.parseArrayLiteral()
+	case lexer.Dollar:
+		return p.parseReactiveLiteral()
 	case lexer.LBrace:
 		return p.parseAnonymousObjectLiteral()
 	case lexer.LParen:
@@ -266,6 +268,19 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.errorAt(tok, fmt.Sprintf("expected expression, got %s", tok.Kind))
 		p.advance()
 		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
+	}
+}
+
+func (p *Parser) parseReactiveLiteral() ast.Expr {
+	start := p.consume(lexer.Dollar, "expected '$'")
+	switch p.peek().Kind {
+	case lexer.LBracket:
+		return &ast.ReactiveLiteral{Value: p.parseArrayLiteral(), Pos: start.Pos}
+	case lexer.LBrace:
+		return &ast.ReactiveLiteral{Value: p.parseAnonymousObjectLiteral(), Pos: start.Pos}
+	default:
+		p.errorAt(p.peek(), "expected '[' or '{' after '$'")
+		return &ast.Identifier{Name: "<error>", Pos: start.Pos}
 	}
 }
 

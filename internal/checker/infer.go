@@ -162,6 +162,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return c.inferAnonymousObjectLiteral(e, env)
 	case *ast.ArrayLiteral:
 		return c.inferArrayLiteral(e, env)
+	case *ast.ReactiveLiteral:
+		return c.inferExpr(e.Value, env)
 	case *ast.IndexExpr:
 		return c.inferIndexExpr(e, env)
 	case *ast.UnaryExpr:
@@ -448,6 +450,8 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			for _, field := range e.Fields {
 				walk(field.Value, Unknown)
 			}
+		case *ast.ReactiveLiteral:
+			walk(e.Value, Unknown)
 		case *ast.XMLElement:
 			for _, attr := range e.Attrs {
 				walk(attr.Value, Unknown)

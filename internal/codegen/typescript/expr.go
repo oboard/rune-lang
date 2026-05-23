@@ -83,6 +83,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elems = append(elems, g.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ir.ReactiveLiteral:
+		return g.reactiveLiteral(e)
 	case *ir.StructLiteral:
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
@@ -120,6 +122,17 @@ func (g *generator) stmtExpr(expr ir.Expr) string {
 		return name + "++"
 	default:
 		return g.expr(expr)
+	}
+}
+
+func (g *generator) reactiveLiteral(lit *ir.ReactiveLiteral) string {
+	switch value := lit.Value.(type) {
+	case *ir.ArrayLiteral:
+		return "runeReactiveArray(" + g.expr(value) + ")"
+	case *ir.AnonymousObjectLiteral:
+		return "runeReactiveObject(" + g.expr(value) + ")"
+	default:
+		return g.expr(lit.Value)
 	}
 }
 
@@ -184,7 +197,7 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 		return receiver + ".length === 0", true
 	case "push":
 		return fmt.Sprintf("%s.push(%s)", receiver, strings.Join(args, ", ")), true
-	case "each":
+	case "each", "forEach":
 		if len(args) != 1 {
 			return "undefined", true
 		}
@@ -198,7 +211,7 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 		if len(args) != 1 {
 			return "undefined", true
 		}
-		return fmt.Sprintf("%s[%s]", receiver, args[0]), true
+		return fmt.Sprintf("%s.at(%s)", receiver, args[0]), true
 	default:
 		return "", false
 	}
@@ -357,6 +370,10 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 				kind = "let"
 			}
 			value := g.expr(s.Value)
+			if _, ok := s.Value.(*ir.ReactiveLiteral); ok {
+				parts = append(parts, fmt.Sprintf("%s %s = %s", kind, mangleIdent(s.Name), value))
+				continue
+			}
 			if _, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
 				value = g.withThisName(mangleIdent(s.Name), func() string {
 					return g.expr(s.Value)
@@ -410,6 +427,35 @@ func (g *generator) addSignal(name string, typ checker.Type) {
 	g.signals[len(g.signals)-1][name] = typ
 }
 
+func (g *generator) pushReactiveScope() {
+	g.reactives = append(g.reactives, map[string]checker.Type{})
+}
+
+func (g *generator) popReactiveScope() {
+	g.reactives = g.reactives[:len(g.reactives)-1]
+}
+
+func (g *generator) addReactive(name string, typ checker.Type) {
+	if len(g.reactives) == 0 {
+		g.pushReactiveScope()
+	}
+	g.reactives[len(g.reactives)-1][name] = typ
+}
+
+func (g *generator) isReactive(name string) bool {
+	_, ok := g.lookupReactive(name)
+	return ok
+}
+
+func (g *generator) lookupReactive(name string) (checker.Type, bool) {
+	for i := len(g.reactives) - 1; i >= 0; i-- {
+		if typ, ok := g.reactives[i][name]; ok {
+			return typ, true
+		}
+	}
+	return checker.Unknown, false
+}
+
 func (g *generator) isSignal(name string) bool {
 	_, ok := g.lookupSignal(name)
 	return ok
@@ -427,7 +473,7 @@ func (g *generator) lookupSignal(name string) (checker.Type, bool) {
 func (g *generator) exprUsesSignal(expr ir.Expr) bool {
 	used := false
 	ir.WalkExpr(expr, func(e ir.Expr) {
-		if ident, ok := e.(*ir.Identifier); ok && g.isSignal(ident.Name) {
+		if ident, ok := e.(*ir.Identifier); ok && (g.isSignal(ident.Name) || g.isReactive(ident.Name)) {
 			used = true
 		}
 	})
@@ -438,7 +484,7 @@ func (g *generator) exprSignalDeps(expr ir.Expr) []string {
 	seen := map[string]bool{}
 	var deps []string
 	ir.WalkExpr(expr, func(e ir.Expr) {
-		if ident, ok := e.(*ir.Identifier); ok && g.isSignal(ident.Name) && !seen[ident.Name] {
+		if ident, ok := e.(*ir.Identifier); ok && (g.isSignal(ident.Name) || g.isReactive(ident.Name)) && !seen[ident.Name] {
 			seen[ident.Name] = true
 			deps = append(deps, ident.Name)
 		}

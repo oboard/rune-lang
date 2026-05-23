@@ -121,6 +121,9 @@ func blockUsesSignals(expr ir.Expr) bool {
 		if _, ok := expr.(*ir.WatchExpr); ok {
 			found = true
 		}
+		if _, ok := expr.(*ir.ReactiveLiteral); ok {
+			found = true
+		}
 	})
 	if found {
 		return true

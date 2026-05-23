@@ -164,7 +164,7 @@ func (p *stubParser) parseTypeName() (string, error) {
 	if p.match(lexer.LParen) {
 		var args []string
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
-			arg, err := p.parseTypeName()
+			arg, err := p.parseFunctionTypeParam()
 			if err != nil {
 				return "", err
 			}
@@ -204,4 +204,29 @@ func (p *stubParser) parseTypeName() (string, error) {
 		typ += "[" + strings.Join(args, ",") + "]"
 	}
 	return typ, nil
+}
+
+func (p *stubParser) parseFunctionTypeParam() (string, error) {
+	p.skipNewlines()
+	if p.check(lexer.Ident) && p.typeParamHasName() {
+		p.advance()
+		p.match(lexer.Question)
+		p.consume(lexer.Colon, "expected ':' after function type parameter name")
+		p.skipNewlines()
+	}
+	return p.parseTypeName()
+}
+
+func (p *stubParser) typeParamHasName() bool {
+	if p.curr+1 >= len(p.tokens) {
+		return false
+	}
+	switch p.tokens[p.curr+1].Kind {
+	case lexer.Colon:
+		return true
+	case lexer.Question:
+		return p.curr+2 < len(p.tokens) && p.tokens[p.curr+2].Kind == lexer.Colon
+	default:
+		return false
+	}
 }

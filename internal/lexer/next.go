@@ -57,6 +57,8 @@ func (l *Lexer) nextCode() Token {
 		return l.token(LBrace)
 	case '}':
 		return l.token(RBrace)
+	case '?':
+		return l.token(Question)
 	case '+':
 		if l.match('+') {
 			return l.token(PlusPlus)
@@ -95,7 +97,7 @@ func (l *Lexer) nextCode() Token {
 		if l.match('=') {
 			return l.token(SignalDeclare)
 		}
-		return l.token(Illegal)
+		return l.token(Dollar)
 	case '<':
 		if l.match('=') {
 			return l.token(LessEqual)
@@ -255,6 +257,8 @@ func (l *Lexer) nextXMLExpr() Token {
 			l.xmlExprMode = modeCode
 		}
 		return tok
+	case '?':
+		return l.token(Question)
 	case '+':
 		if l.match('+') {
 			return l.token(PlusPlus)
@@ -293,7 +297,7 @@ func (l *Lexer) nextXMLExpr() Token {
 		if l.match('=') {
 			return l.token(SignalDeclare)
 		}
-		return l.token(Illegal)
+		return l.token(Dollar)
 	case '<':
 		if l.match('=') {
 			return l.token(LessEqual)

@@ -158,6 +158,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			out.Elements = append(out.Elements, l.expr(elem))
 		}
 		return out
+	case *ast.ReactiveLiteral:
+		return &ReactiveLiteral{ExprBase: l.base(e), Value: l.expr(e.Value)}
 	case *ast.StructLiteral:
 		out := &StructLiteral{ExprBase: l.base(e), TypeName: e.TypeName}
 		for _, field := range e.Fields {

@@ -29,6 +29,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		for _, elem := range e.Elements {
 			WalkExpr(elem, visit)
 		}
+	case *ReactiveLiteral:
+		WalkExpr(e.Value, visit)
 	case *StructLiteral:
 		for _, field := range e.Fields {
 			WalkExpr(field.Value, visit)

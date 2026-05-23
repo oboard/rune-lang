@@ -15,6 +15,7 @@ const (
 	XMLText
 
 	At
+	Dollar
 	Dot
 	Comma
 	Colon
@@ -24,6 +25,7 @@ const (
 	RBracket
 	LBrace
 	RBrace
+	Question
 
 	FatArrow
 	Assign
@@ -94,6 +96,8 @@ func (k Kind) String() string {
 		return "XMLText"
 	case At:
 		return "@"
+	case Dollar:
+		return "$"
 	case Dot:
 		return "."
 	case Comma:
@@ -112,6 +116,8 @@ func (k Kind) String() string {
 		return "{"
 	case RBrace:
 		return "}"
+	case Question:
+		return "?"
 	case FatArrow:
 		return "=>"
 	case Assign:

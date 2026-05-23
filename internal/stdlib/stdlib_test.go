@@ -43,7 +43,7 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array index alias")
 	}
-	if atFn.Name != "at" || atFn.Intrinsic != "array.get" || atFn.Return != "T" {
+	if atFn.Name != "at" || atFn.Intrinsic != "array.at" || atFn.Return != "T" {
 		t.Fatalf("unexpected array index declaration: %#v", atFn)
 	}
 
@@ -59,15 +59,23 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array each declaration")
 	}
-	if eachFn.Intrinsic != "array.each" || len(eachFn.Params) != 1 || eachFn.Params[0] != "Func[T,Void]" {
+	if eachFn.Body == nil || len(eachFn.Params) != 1 || eachFn.Params[0] != "Func[T,Void]" {
 		t.Fatalf("unexpected array.each declaration: %#v", eachFn)
+	}
+
+	forEachFn, ok := reg.Function("array", "forEach")
+	if !ok {
+		t.Fatal("missing core/array forEach declaration")
+	}
+	if forEachFn.Intrinsic != "array.forEach" || len(forEachFn.Params) != 1 || forEachFn.Params[0] != "Func[T,Int,Array[T],Void]" {
+		t.Fatalf("unexpected array.forEach declaration: %#v", forEachFn)
 	}
 
 	mapFn, ok := reg.Function("array", "map")
 	if !ok {
 		t.Fatal("missing core/array map declaration")
 	}
-	if mapFn.Body == nil || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,U]" {
+	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,Int,Array[T],U]" {
 		t.Fatalf("unexpected array map declaration: %#v", mapFn)
 	}
 }
