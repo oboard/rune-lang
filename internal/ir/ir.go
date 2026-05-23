@@ -20,6 +20,7 @@ type File struct {
 	GoImports []GoImport
 	Types     []*StructType
 	Functions []*Function
+	Tests     []*Test
 	Stdlib    *stdlib.Registry
 }
 
@@ -57,5 +58,11 @@ type Function struct {
 type Param struct {
 	Name string
 	Type checker.Type
+	Pos  lexer.Position
+}
+
+type Test struct {
+	Name string
+	Body Expr
 	Pos  lexer.Position
 }

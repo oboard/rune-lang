@@ -75,6 +75,13 @@ func (c *checker) inferFunction(fn *ast.Function) {
 	c.finishFunctionReturn(info, ret, fn)
 }
 
+func (c *checker) inferTest(test *ast.Test) {
+	if test.Body == nil {
+		return
+	}
+	c.inferExpr(test.Body, map[string]Type{})
+}
+
 func (c *checker) inferredParamUseType(body ast.Expr, name string) Type {
 	result := Unknown
 	ast.WalkExpr(body, func(expr ast.Expr) {

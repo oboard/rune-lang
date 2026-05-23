@@ -10,6 +10,7 @@ type File struct {
 	GoImports []GoImport
 	Types     []*StructType
 	Functions []*Function
+	Tests     []*Test
 }
 
 type GoImport struct {
@@ -78,4 +79,11 @@ type Param struct {
 	Type        string
 	TypeDisplay string
 	Pos         lexer.Position
+}
+
+type Test struct {
+	Name    string
+	Body    Expr
+	Pos     lexer.Position
+	NamePos lexer.Position
 }

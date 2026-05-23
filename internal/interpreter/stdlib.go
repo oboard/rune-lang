@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/oboard/rune-lang/internal/ir"
 )
@@ -22,11 +23,23 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		return i.callGoBackedFunction(fn.Go.Symbol, values)
 	}
 	switch fn.Intrinsic {
+	case "assert.eq":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@assert.eq expects 2 args, got %d", len(values))
+		}
+		if valuesEqual(values[0], values[1]) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("assert.eq failed: actual %s, expected %s", Format(values[0]), Format(values[1]))
 	case "go.stmt", "go.expr", "go.import":
 		return nil, fmt.Errorf("@%s.%s is only supported by the Go backend", module, name)
 	default:
 		return nil, fmt.Errorf("@%s.%s is not supported by the interpreter", module, name)
 	}
+}
+
+func valuesEqual(left Value, right Value) bool {
+	return reflect.DeepEqual(left, right)
 }
 
 func (i *Interpreter) callGoBackedFunction(symbol string, args []Value) (Value, error) {

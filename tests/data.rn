@@ -1,0 +1,6 @@
+// ? is test definition, "int" is test name
+
+? "int" { 
+  @assert.eq(1, 1)
+  @assert.eq(2, 2)
+}

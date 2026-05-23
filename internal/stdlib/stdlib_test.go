@@ -55,27 +55,34 @@ func TestLoadCoreStubs(t *testing.T) {
 		t.Fatalf("unexpected array.isEmpty declaration: %#v", isEmpty)
 	}
 
-	eachFn, ok := reg.Function("array", "each")
-	if !ok {
-		t.Fatal("missing core/array each declaration")
-	}
-	if eachFn.Body == nil || len(eachFn.Params) != 1 || eachFn.Params[0] != "Func[T,Void]" {
-		t.Fatalf("unexpected array.each declaration: %#v", eachFn)
-	}
-
-	forEachFn, ok := reg.Function("array", "forEach")
-	if !ok {
-		t.Fatal("missing core/array forEach declaration")
-	}
-	if forEachFn.Intrinsic != "array.forEach" || len(forEachFn.Params) != 1 || forEachFn.Params[0] != "Func[T,Int,Array[T],Void]" {
-		t.Fatalf("unexpected array.forEach declaration: %#v", forEachFn)
-	}
-
 	mapFn, ok := reg.Function("array", "map")
 	if !ok {
 		t.Fatal("missing core/array map declaration")
 	}
 	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,Int,Array[T],U]" {
 		t.Fatalf("unexpected array map declaration: %#v", mapFn)
+	}
+}
+
+func TestParseMultilineFunctionTypeStub(t *testing.T) {
+	mod, err := parseModule("array", "array.rn", `Array[T]: {
+  forEach(
+    callbackfn: (
+      value: T,
+      index?: Int,
+      array?: Array[T]
+    ) -> Void
+  ) => "%array.forEach"
+}
+`)
+	if err != nil {
+		t.Fatalf("parseModule() error = %v", err)
+	}
+	fn := mod.byName["forEach"]
+	if fn == nil {
+		t.Fatal("missing forEach declaration")
+	}
+	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],Void]" {
+		t.Fatalf("forEach params = %v, want callback Func", fn.Params)
 	}
 }

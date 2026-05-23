@@ -31,6 +31,22 @@ func (p *Parser) parseGoImportDecl() *ast.GoImport {
 	return &ast.GoImport{Path: value, Pos: at.Pos}
 }
 
+func (p *Parser) parseTest() *ast.Test {
+	start := p.consume(lexer.Question, "expected '?'")
+	name := p.consume(lexer.String, "expected test name string after '?'")
+	value, err := strconv.Unquote(name.Lexeme)
+	if err != nil {
+		p.errorAt(name, "invalid test name string")
+	}
+	p.skipNewlines()
+	if !p.check(lexer.LBrace) {
+		p.errorAt(p.peek(), "expected test body block")
+		return &ast.Test{Name: value, Pos: start.Pos, NamePos: name.Pos}
+	}
+	body := p.parseBlock()
+	return &ast.Test{Name: value, Body: body, Pos: start.Pos, NamePos: name.Pos}
+}
+
 func (p *Parser) parseStructType() *ast.StructType {
 	name := p.consume(lexer.Ident, "expected type name")
 	if name.Kind == lexer.EOF {

@@ -25,6 +25,9 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 	for _, fn := range file.Functions {
 		out.Functions = append(out.Functions, l.function(fn, ""))
 	}
+	for _, test := range file.Tests {
+		out.Tests = append(out.Tests, l.test(test))
+	}
 	return out
 }
 
@@ -110,6 +113,14 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 		out.Return = checker.Type(fn.ReturnType)
 	}
 	return out
+}
+
+func (l lowerer) test(test *ast.Test) *Test {
+	return &Test{
+		Name: test.Name,
+		Body: l.expr(test.Body),
+		Pos:  test.Pos,
+	}
 }
 
 func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {

@@ -38,6 +38,11 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			if imp := p.parseGoImportDecl(); imp != nil {
 				file.GoImports = append(file.GoImports, *imp)
 			}
+		} else if p.check(lexer.Question) {
+			test := p.parseTest()
+			if test != nil {
+				file.Tests = append(file.Tests, test)
+			}
 		} else if p.looksLikeTypeDecl() {
 			typ := p.parseStructType()
 			if typ != nil {

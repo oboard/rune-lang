@@ -1,0 +1,1 @@
+eq[T](actual: T, expected: T) => "%assert.eq"

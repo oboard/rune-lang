@@ -161,18 +161,23 @@ func (p *stubParser) parseGenericNames() []string {
 }
 
 func (p *stubParser) parseTypeName() (string, error) {
+	p.skipNewlines()
 	if p.match(lexer.LParen) {
 		var args []string
+		p.skipNewlines()
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
 			arg, err := p.parseFunctionTypeParam()
 			if err != nil {
 				return "", err
 			}
 			args = append(args, arg)
+			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
 			}
+			p.skipNewlines()
 		}
+		p.skipNewlines()
 		p.consume(lexer.RParen, "expected ')' after function parameter types")
 		p.skipNewlines()
 		p.consume(lexer.Arrow, "expected '->' after function parameter types")
@@ -190,16 +195,20 @@ func (p *stubParser) parseTypeName() (string, error) {
 	typ := name.Lexeme
 	if p.match(lexer.LBracket) {
 		var args []string
+		p.skipNewlines()
 		for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
 			arg, err := p.parseTypeName()
 			if err != nil {
 				return "", err
 			}
 			args = append(args, arg)
+			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
 			}
+			p.skipNewlines()
 		}
+		p.skipNewlines()
 		p.consume(lexer.RBracket, "expected ']' after type arguments")
 		typ += "[" + strings.Join(args, ",") + "]"
 	}

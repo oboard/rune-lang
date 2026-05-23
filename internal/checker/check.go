@@ -28,6 +28,9 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 	for _, fn := range file.Functions {
 		c.inferFunction(fn)
 	}
+	for _, test := range file.Tests {
+		c.inferTest(test)
+	}
 	return c.info, c.diags
 }
 

@@ -13,6 +13,7 @@ import (
 	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/repl"
+	"github.com/oboard/rune-lang/internal/tester"
 )
 
 func main() {
@@ -27,7 +28,7 @@ func rootCmd() *cobra.Command {
 		Use:   "rune",
 		Short: "Rune language toolchain",
 	}
-	cmd.AddCommand(runCmd(), buildCmd(), tsCmd(), checkCmd(), fmtCmd(), replCmd(), lspCmd())
+	cmd.AddCommand(runCmd(), buildCmd(), tsCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
 
@@ -117,6 +118,26 @@ func checkCmd() *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "ok %s\n", args[0])
 			return nil
+		},
+	}
+}
+
+func testCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "test [path] [pattern]",
+		Short: "Run Rune tests",
+		Args:  cobra.MaximumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := "tests"
+			pattern := ""
+			if len(args) > 0 {
+				path = args[0]
+			}
+			if len(args) > 1 {
+				pattern = args[1]
+			}
+			_, err := tester.Run(path, pattern, cmd.OutOrStdout())
+			return err
 		},
 	}
 }

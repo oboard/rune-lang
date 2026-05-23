@@ -57,6 +57,14 @@ func (i *Interpreter) RunMain() error {
 	return err
 }
 
+func (i *Interpreter) RunTest(test *ir.Test) error {
+	if test == nil || test.Body == nil {
+		return fmt.Errorf("test body is not defined")
+	}
+	_, err := i.eval(test.Body, NewEnv(i.globals))
+	return err
+}
+
 func (i *Interpreter) Eval(expr ir.Expr) (Value, error) {
 	return i.eval(expr, i.globals)
 }
