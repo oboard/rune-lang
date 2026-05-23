@@ -71,6 +71,29 @@
     "functionDefinition": {
       "patterns": [
         {
+          "name": "meta.function.generic.rune",
+          "begin": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[)(?=[^\\]\\r\\n]*\\]\\s*\\()",
+          "beginCaptures": {
+            "1": { "name": "entity.name.function.rune" },
+            "2": { "name": "punctuation.definition.typeparameters.begin.rune" }
+          },
+          "end": "(\\])\\s*(\\()",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.typeparameters.end.rune" },
+            "2": { "name": "punctuation.definition.parameters.begin.rune" }
+          },
+          "patterns": [
+            {
+              "name": "entity.name.type.parameter.rune",
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+            },
+            {
+              "name": "punctuation.separator.comma.rune",
+              "match": ","
+            }
+          ]
+        },
+        {
           "name": "meta.function.rune",
           "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
           "captures": {
