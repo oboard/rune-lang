@@ -15,6 +15,16 @@ func (c *checker) inferArrayLiteral(lit *ast.ArrayLiteral, env map[string]Type) 
 	elemType := Unknown
 	for _, elem := range lit.Elements {
 		typ := c.inferExpr(elem, env)
+		if spread, ok := elem.(*ast.SpreadExpr); ok {
+			spreadElem, ok := ArrayElement(typ)
+			if !ok {
+				if typ != Unknown {
+					c.errorf(spread.Pos, "spread expects Array, got %s", typ)
+				}
+				continue
+			}
+			typ = spreadElem
+		}
 		if elemType == Unknown {
 			elemType = typ
 			continue

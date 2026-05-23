@@ -90,6 +90,14 @@ type BinaryExpr struct {
 
 func (*BinaryExpr) exprNode() {}
 
+type AssignExpr struct {
+	ExprBase
+	Name  string
+	Value Expr
+}
+
+func (*AssignExpr) exprNode() {}
+
 type CallExpr struct {
 	ExprBase
 	Callee Expr
@@ -128,6 +136,13 @@ type ArrayLiteral struct {
 }
 
 func (*ArrayLiteral) exprNode() {}
+
+type SpreadExpr struct {
+	ExprBase
+	Expr Expr
+}
+
+func (*SpreadExpr) exprNode() {}
 
 type ReactiveLiteral struct {
 	ExprBase

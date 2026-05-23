@@ -100,6 +100,17 @@ func (e *BinaryExpr) Position() lexer.Position {
 	return e.Pos
 }
 
+type AssignExpr struct {
+	Name  string
+	Value Expr
+	Pos   lexer.Position
+}
+
+func (*AssignExpr) exprNode() {}
+func (e *AssignExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 type CallExpr struct {
 	Callee Expr
 	Args   []Expr
@@ -156,6 +167,16 @@ type ArrayLiteral struct {
 
 func (*ArrayLiteral) exprNode() {}
 func (e *ArrayLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type SpreadExpr struct {
+	Expr Expr
+	Pos  lexer.Position
+}
+
+func (*SpreadExpr) exprNode() {}
+func (e *SpreadExpr) Position() lexer.Position {
 	return e.Pos
 }
 

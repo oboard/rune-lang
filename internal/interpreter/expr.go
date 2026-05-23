@@ -36,6 +36,15 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return i.evalUnary(e, env)
 	case *ir.BinaryExpr:
 		return i.evalBinary(e, env)
+	case *ir.AssignExpr:
+		value, err := i.eval(e.Value, env)
+		if err != nil {
+			return nil, err
+		}
+		if err := env.Assign(e.Name, value); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	case *ir.CallExpr:
 		return i.evalCall(e, env)
 	case *ir.LambdaExpr:
@@ -55,6 +64,18 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 	case *ir.ArrayLiteral:
 		array := &Array{Elements: make([]Value, 0, len(e.Elements))}
 		for _, elem := range e.Elements {
+			if spread, ok := elem.(*ir.SpreadExpr); ok {
+				value, err := i.eval(spread.Expr, env)
+				if err != nil {
+					return nil, err
+				}
+				spreadArray, ok := value.(*Array)
+				if !ok {
+					return nil, fmt.Errorf("spread expects Array")
+				}
+				array.Elements = append(array.Elements, spreadArray.Elements...)
+				continue
+			}
 			value, err := i.eval(elem, env)
 			if err != nil {
 				return nil, err

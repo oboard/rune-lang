@@ -141,6 +141,39 @@ main() => {
 	}
 }
 
+func TestGenerateArraySpread(t *testing.T) {
+	src := `main() => {
+  items := ["Item 1"]
+  next := [...items, "New Item"]
+  @io.println(next.length())
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`__next := func() []string`,
+		`out = append(out, __items...)`,
+		`out = append(out, "New Item")`,
+		`fmt.Println(len(__next))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateSignalProgram(t *testing.T) {
 	src := `main() => {
   count $= 0

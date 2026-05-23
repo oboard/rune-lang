@@ -45,6 +45,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.AssignExpr:
+		if g.isSignal(e.Name) {
+			return fmt.Sprintf("%s.Set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+		}
+		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
 		if ffi, ok := g.goFFICall(e); ok {
 			return ffi
@@ -74,15 +79,32 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
 	case *ir.ArrayLiteral:
-		elems := make([]string, 0, len(e.Elements))
-		for _, elem := range e.Elements {
-			elems = append(elems, g.expr(elem))
-		}
 		elemType := checker.Unknown
 		if elem, ok := checker.ArrayElement(e.ResultType()); ok {
 			elemType = elem
 		}
+		if arrayLiteralHasSpread(e) {
+			resultType := goType(elemType)
+			var b strings.Builder
+			b.WriteString(fmt.Sprintf("func() []%s { ", resultType))
+			b.WriteString(fmt.Sprintf("out := []%s{}; ", resultType))
+			for _, elem := range e.Elements {
+				if spread, ok := elem.(*ir.SpreadExpr); ok {
+					b.WriteString(fmt.Sprintf("out = append(out, %s...); ", g.expr(spread.Expr)))
+					continue
+				}
+				b.WriteString(fmt.Sprintf("out = append(out, %s); ", g.expr(elem)))
+			}
+			b.WriteString("return out }()")
+			return b.String()
+		}
+		elems := make([]string, 0, len(e.Elements))
+		for _, elem := range e.Elements {
+			elems = append(elems, g.expr(elem))
+		}
 		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+	case *ir.SpreadExpr:
+		return "/* spread is only supported inside array literals */"
 	case *ir.ReactiveLiteral:
 		return g.expr(e.Value)
 	case *ir.StructLiteral:
@@ -109,6 +131,15 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func arrayLiteralHasSpread(lit *ir.ArrayLiteral) bool {
+	for _, elem := range lit.Elements {
+		if _, ok := elem.(*ir.SpreadExpr); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {

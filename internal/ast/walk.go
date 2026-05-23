@@ -15,6 +15,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	case *BinaryExpr:
 		WalkExpr(e.Left, visit)
 		WalkExpr(e.Right, visit)
+	case *AssignExpr:
+		WalkExpr(e.Value, visit)
 	case *CallExpr:
 		WalkExpr(e.Callee, visit)
 		for _, arg := range e.Args {
@@ -31,6 +33,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		for _, elem := range e.Elements {
 			WalkExpr(elem, visit)
 		}
+	case *SpreadExpr:
+		WalkExpr(e.Expr, visit)
 	case *ReactiveLiteral:
 		WalkExpr(e.Value, visit)
 	case *StructLiteral:

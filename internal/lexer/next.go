@@ -37,6 +37,9 @@ func (l *Lexer) nextCode() Token {
 	case '@':
 		return l.token(At)
 	case '.':
+		if l.match('.') && l.match('.') {
+			return l.token(DotDotDot)
+		}
 		return l.token(Dot)
 	case ',':
 		return l.token(Comma)
@@ -230,6 +233,9 @@ func (l *Lexer) nextXMLExpr() Token {
 	case '@':
 		return l.token(At)
 	case '.':
+		if l.match('.') && l.match('.') {
+			return l.token(DotDotDot)
+		}
 		return l.token(Dot)
 	case ',':
 		return l.token(Comma)

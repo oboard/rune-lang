@@ -17,6 +17,7 @@ const (
 	At
 	Dollar
 	Dot
+	DotDotDot
 	Comma
 	Colon
 	LParen
@@ -100,6 +101,8 @@ func (k Kind) String() string {
 		return "$"
 	case Dot:
 		return "."
+	case DotDotDot:
+		return "..."
 	case Comma:
 		return ","
 	case Colon:

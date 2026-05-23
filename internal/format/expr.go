@@ -29,6 +29,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return f.expr(e.Expr) + e.Op.String()
 	case *ast.BinaryExpr:
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
+	case *ast.AssignExpr:
+		return fmt.Sprintf("%s = %s", e.Name, f.expr(e.Value))
 	case *ast.CallExpr:
 		args := make([]string, 0, len(e.Args))
 		for _, arg := range e.Args {
@@ -50,6 +52,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 			elems = append(elems, f.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ast.SpreadExpr:
+		return "..." + f.expr(e.Expr)
 	case *ast.ReactiveLiteral:
 		return "$" + f.expr(e.Value)
 	case *ast.StructLiteral:

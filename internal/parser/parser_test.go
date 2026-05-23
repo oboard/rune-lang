@@ -259,3 +259,54 @@ func TestParseReactiveLiterals(t *testing.T) {
 		t.Fatalf("obj value = %T, want ReactiveLiteral", obj.Value)
 	}
 }
+
+func TestParseArraySpread(t *testing.T) {
+	file, errs := Parse(`main() => {
+    next := [...items, "New Item"]
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 1 {
+		t.Fatalf("main body = %#v, want one statement", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("statement = %T, want LetStmt", block.Statements[0])
+	}
+	array, ok := let.Value.(*ast.ArrayLiteral)
+	if !ok || len(array.Elements) != 2 {
+		t.Fatalf("let value = %#v, want array with two elements", let.Value)
+	}
+	if _, ok := array.Elements[0].(*ast.SpreadExpr); !ok {
+		t.Fatalf("first element = %T, want SpreadExpr", array.Elements[0])
+	}
+}
+
+func TestParseAssignmentExpression(t *testing.T) {
+	file, errs := Parse(`render() => {
+    list $= ["Item 1"]
+    <button @click={list = [...list, "New Item"]}>Add Item</button>
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("render body = %#v, want two statements", file.Functions[0].Body)
+	}
+	stmt, ok := block.Statements[1].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("second statement = %T, want ExprStmt", block.Statements[1])
+	}
+	button, ok := stmt.Expr.(*ast.XMLElement)
+	if !ok || len(button.Attrs) != 1 {
+		t.Fatalf("expression = %#v, want button with one attr", stmt.Expr)
+	}
+	if _, ok := button.Attrs[0].Value.(*ast.AssignExpr); !ok {
+		t.Fatalf("event value = %T, want AssignExpr", button.Attrs[0].Value)
+	}
+}

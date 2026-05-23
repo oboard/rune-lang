@@ -99,6 +99,43 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	}
 }
 
+func TestGenerateArraySpread(t *testing.T) {
+	src := `main() => {
+  items := ["Item 1"]
+  next := [...items, "New Item"]
+  @io.println(next.length())
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __next = [...__items, "New Item"];`,
+		`console.log(__next.length);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateSignalAssignmentExpression(t *testing.T) {
+	src := `render() => {
+  list $= ["Item 1"]
+  <button @click={list = [...list, "New Item"]}>Add Item</button>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __list = runeSignal(["Item 1"]);`,
+		`.addEventListener("click", () => { __list.set([...__list.get(), "New Item"]); });`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func generateForTest(t *testing.T, src string) string {
 	t.Helper()
 	file, parseErrs := parser.Parse(src)

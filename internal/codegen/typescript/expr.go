@@ -53,6 +53,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.AssignExpr:
+		if g.isSignal(e.Name) {
+			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+		}
+		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
 		if call, ok := g.stdlibCall(e); ok {
 			return call
@@ -83,6 +88,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elems = append(elems, g.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ir.SpreadExpr:
+		return "..." + g.expr(e.Expr)
 	case *ir.ReactiveLiteral:
 		return g.reactiveLiteral(e)
 	case *ir.StructLiteral:

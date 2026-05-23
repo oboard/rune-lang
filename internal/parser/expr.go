@@ -64,6 +64,17 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.WatchExpr{Target: left, Handler: handler, Pos: left.Position()}
 			continue
 		}
+		if minPrec <= 1 && p.match(lexer.Assign) {
+			ident, ok := left.(*ast.Identifier)
+			if !ok {
+				p.errorAt(lexer.Token{Pos: left.Position()}, "assignment target must be an identifier")
+				left = p.parseExpression(1)
+				continue
+			}
+			p.skipNewlines()
+			left = &ast.AssignExpr{Name: ident.Name, Value: p.parseExpression(1), Pos: ident.Pos}
+			continue
+		}
 
 		prec := precedence(p.peek().Kind)
 		if prec < minPrec {
@@ -343,7 +354,11 @@ func (p *Parser) parseArrayLiteral() ast.Expr {
 	p.skipNewlines()
 	if !p.check(lexer.RBracket) {
 		for {
-			lit.Elements = append(lit.Elements, p.parseExpression(1))
+			if p.match(lexer.DotDotDot) {
+				lit.Elements = append(lit.Elements, &ast.SpreadExpr{Expr: p.parseExpression(1), Pos: p.previous().Pos})
+			} else {
+				lit.Elements = append(lit.Elements, p.parseExpression(1))
+			}
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break

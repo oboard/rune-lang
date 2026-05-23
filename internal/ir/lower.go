@@ -140,6 +140,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
+	case *ast.AssignExpr:
+		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Value: l.expr(e.Value)}
 	case *ast.CallExpr:
 		out := &CallExpr{ExprBase: l.base(e), Callee: l.expr(e.Callee)}
 		for _, arg := range e.Args {
@@ -158,6 +160,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			out.Elements = append(out.Elements, l.expr(elem))
 		}
 		return out
+	case *ast.SpreadExpr:
+		return &SpreadExpr{ExprBase: l.base(e), Expr: l.expr(e.Expr)}
 	case *ast.ReactiveLiteral:
 		return &ReactiveLiteral{ExprBase: l.base(e), Value: l.expr(e.Value)}
 	case *ast.StructLiteral:

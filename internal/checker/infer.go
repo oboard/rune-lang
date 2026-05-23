@@ -162,6 +162,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return c.inferAnonymousObjectLiteral(e, env)
 	case *ast.ArrayLiteral:
 		return c.inferArrayLiteral(e, env)
+	case *ast.SpreadExpr:
+		return c.inferExpr(e.Expr, env)
 	case *ast.ReactiveLiteral:
 		return c.inferExpr(e.Value, env)
 	case *ast.IndexExpr:
@@ -227,6 +229,12 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		default:
 			return Unknown
 		}
+	case *ast.AssignExpr:
+		if _, exists := env[e.Name]; !exists {
+			c.errorf(e.Pos, "cannot assign undefined name %q", e.Name)
+		}
+		c.inferExpr(e.Value, env)
+		return Void
 	case *ast.CallExpr:
 		return c.inferCall(e, env)
 	case *ast.LambdaExpr:
