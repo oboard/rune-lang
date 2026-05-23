@@ -65,6 +65,22 @@ func (r *Registry) Function(moduleName string, functionName string) (*Function, 
 	return fn, fn != nil
 }
 
+func (r *Registry) ReceiverFunction(moduleName string, receiver string, functionName string) (*Function, bool) {
+	if r == nil {
+		return nil, false
+	}
+	mod := r.Modules[moduleName]
+	if mod == nil {
+		return nil, false
+	}
+	methods := mod.byReceiver[receiver]
+	if methods == nil {
+		return nil, false
+	}
+	fn := methods[functionName]
+	return fn, fn != nil
+}
+
 func (r *Registry) FunctionByAlias(moduleName string, alias string) (*Function, bool) {
 	if r == nil {
 		return nil, false

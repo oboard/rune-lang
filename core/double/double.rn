@@ -1,0 +1,7 @@
+trunc(value: Double) -> Int => "%double.trunc"
+
+floor(value: Double) -> Int => "%double.floor"
+
+ceil(value: Double) -> Int => "%double.ceil"
+
+round(value: Double) -> Int => "%double.round"

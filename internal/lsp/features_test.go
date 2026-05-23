@@ -103,6 +103,66 @@ func TestCodeLensIncludesSingletonTests(t *testing.T) {
 	}
 }
 
+func TestFunctionReferencesFindCallSites(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `helper(value: Int) => value + 1
+
+main() => {
+    helper(1)
+    other := helper(2)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	refs := s.references(uri, positionOf(src, "helper(value", "helper"), false).([]map[string]any)
+	if len(refs) != 2 {
+		t.Fatalf("references = %d, want 2: %#v", len(refs), refs)
+	}
+	if refStart(refs[0]) != (position{Line: 3, Character: 4}) {
+		t.Fatalf("first reference = %+v, want first helper call", refStart(refs[0]))
+	}
+	if refStart(refs[1]) != (position{Line: 4, Character: 13}) {
+		t.Fatalf("second reference = %+v, want second helper call", refStart(refs[1]))
+	}
+
+	refs = s.references(uri, positionOf(src, "helper(1)", "helper"), true).([]map[string]any)
+	if len(refs) != 3 {
+		t.Fatalf("references with declaration = %d, want 3: %#v", len(refs), refs)
+	}
+	if refStart(refs[0]) != (position{Line: 0, Character: 0}) {
+		t.Fatalf("declaration reference = %+v, want helper definition", refStart(refs[0]))
+	}
+}
+
+func TestMethodReferencesFilterByReceiverType(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `User: {
+    name: String
+    label() => .name
+}
+
+Team: {
+    label() => "team"
+}
+
+main() => {
+    user := User { name: "A" }
+    team := Team {}
+    user.label()
+    team.label()
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	refs := s.references(uri, positionOf(src, "label() => .name", "label"), false).([]map[string]any)
+	if len(refs) != 1 {
+		t.Fatalf("method references = %d, want 1: %#v", len(refs), refs)
+	}
+	if refStart(refs[0]) != (position{Line: 12, Character: 9}) {
+		t.Fatalf("method reference = %+v, want user.label call", refStart(refs[0]))
+	}
+}
+
 func TestAnonymousObjectHover(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
@@ -588,6 +648,10 @@ func diagnosticsContain(diags []compiler.Diagnostic, want string) bool {
 
 func hoverValue(hover map[string]any) string {
 	return hover["contents"].(map[string]any)["value"].(string)
+}
+
+func refStart(ref map[string]any) position {
+	return ref["range"].(map[string]any)["start"].(position)
 }
 
 func positionOf(src string, context string, needle string) position {

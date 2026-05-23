@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
@@ -11,6 +12,25 @@ import (
 func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Go != nil && fn.Go.Import != "" {
 		g.imports[fn.Go.Import] = true
+	}
+	if call, ok := expr.(*ir.CallExpr); ok {
+		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+			switch sel.Receiver.ResultType() {
+			case checker.String:
+				switch sel.Name {
+				case "includes", "startsWith", "endsWith", "indexOf", "lastIndexOf", "toLowerCase", "toUpperCase", "trim", "trimStart", "trimEnd", "repeat", "replace", "replaceAll", "split":
+					g.imports["strings"] = true
+				}
+				switch sel.Name {
+				case "trimStart", "trimEnd":
+					g.imports["unicode"] = true
+				}
+			case checker.Bool:
+				if sel.Name == "toString" {
+					g.imports["strconv"] = true
+				}
+			}
+		}
 	}
 }
 

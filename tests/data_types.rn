@@ -1,0 +1,22 @@
+? "numeric and nullable" {
+  @assert.eq(1 + 2, 3)
+  @assert.eq(1.5 + 2.5, 4.0)
+  @assert.eq(9007199254740993n + 7n, 9007199254741000n)
+
+  values := [1, null]
+  @assert.eq(values[0], 1)
+  @assert.eq(values[1], null)
+}
+
+? "bool and string" {
+  @assert.eq(true && !false, true)
+  @assert.eq(false || true, true)
+  @assert.eq(false.not(), true)
+  @assert.eq(true.xor(false), true)
+  @assert.eq(true.toString(), "true")
+  @assert.eq("rune".length(), 4)
+  @assert.eq("rune".includes("un"), true)
+  @assert.eq("go go".replace("go", "rn"), "rn go")
+  @assert.eq("go go".replaceAll("go", "rn"), "rn rn")
+  @assert.eq("a,b".split(",")[1], "b")
+}

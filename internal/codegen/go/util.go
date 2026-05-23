@@ -24,6 +24,22 @@ func goType(typ checker.Type) string {
 	if _, ok := parseGoNullableType(string(typ)); ok {
 		return "any"
 	}
+	if base, args, ok := parseGoGenericType(string(typ)); ok {
+		switch base {
+		case "ReadonlyArray":
+			return "[]" + goType(checker.Type(args[0]))
+		case "Tuple", "ReadonlyTuple":
+			fields := make([]string, 0, len(args))
+			for idx, arg := range args {
+				fields = append(fields, fmt.Sprintf("F%d %s", idx, goType(checker.Type(arg))))
+			}
+			return "struct{" + strings.Join(fields, "; ") + "}"
+		case "Map", "WeakMap", "Record":
+			return "map[" + goType(checker.Type(args[0])) + "]" + goType(checker.Type(args[1]))
+		case "Set", "WeakSet":
+			return "map[" + goType(checker.Type(args[0])) + "]struct{}"
+		}
+	}
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
@@ -69,6 +85,25 @@ func goType(typ checker.Type) string {
 		return "any"
 	default:
 		return mangleIdent(string(typ))
+	}
+}
+
+func parseGoGenericType(name string) (string, []string, bool) {
+	idx := strings.IndexByte(name, '[')
+	if idx <= 0 || !strings.HasSuffix(name, "]") {
+		return "", nil, false
+	}
+	base := name[:idx]
+	args := splitGoTypeList(strings.TrimSuffix(name[idx+1:], "]"))
+	switch base {
+	case "ReadonlyArray", "Set", "WeakSet":
+		return base, args, len(args) == 1
+	case "Tuple", "ReadonlyTuple":
+		return base, args, len(args) > 0
+	case "Map", "WeakMap", "Record":
+		return base, args, len(args) == 2
+	default:
+		return "", nil, false
 	}
 }
 

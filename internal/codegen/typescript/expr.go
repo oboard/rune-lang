@@ -74,6 +74,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if call, ok := g.arrayMethodCall(e); ok {
 			return call
 		}
+		if call, ok := g.primitiveMethodCall(e); ok {
+			return call
+		}
 		if call, ok := g.methodCall(e); ok {
 			return call
 		}
@@ -231,6 +234,44 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	receiver := g.expr(sel.Receiver)
+	args := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		args = append(args, g.expr(arg))
+	}
+	switch sel.Receiver.ResultType() {
+	case checker.String:
+		switch sel.Name {
+		case "length":
+			return receiver + ".length", true
+		case "isEmpty":
+			return receiver + ".length === 0", true
+		case "toString":
+			return receiver, true
+		case "concat", "includes", "startsWith", "endsWith", "indexOf", "lastIndexOf", "toLowerCase", "toUpperCase", "trim", "trimStart", "trimEnd", "repeat", "replace", "replaceAll", "split":
+			return fmt.Sprintf("%s.%s(%s)", receiver, sel.Name, strings.Join(args, ", ")), true
+		}
+	case checker.Bool:
+		switch sel.Name {
+		case "not":
+			return "!" + receiver, true
+		case "xor":
+			if len(args) != 1 {
+				return "undefined", true
+			}
+			return fmt.Sprintf("%s !== %s", receiver, args[0]), true
+		case "toString":
+			return receiver + ".toString()", true
+		}
+	}
+	return "", false
 }
 
 func (g *generator) methodCall(call *ir.CallExpr) (string, bool) {

@@ -1,0 +1,3 @@
+toDouble(value: Int) -> Double => "%int.toDouble"
+
+toBigInt(value: Int) -> BigInt => "%int.toBigInt"

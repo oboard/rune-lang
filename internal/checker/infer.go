@@ -307,6 +307,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
 		}
+		if ret, ok := c.inferStdlibReceiverMethodCall(receiver, sel, call, argTypes, env); ok {
+			return ret
+		}
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
 			if receiver != Unknown {

@@ -13,8 +13,9 @@ type Module struct {
 	Name      string
 	Functions []Function
 
-	byName  map[string]*Function
-	byAlias map[string]*Function
+	byName     map[string]*Function
+	byReceiver map[string]map[string]*Function
+	byAlias    map[string]*Function
 }
 
 type Function struct {

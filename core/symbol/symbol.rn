@@ -1,0 +1,11 @@
+create(description: String) -> Symbol => "%symbol.create"
+
+unique(description: String) -> Symbol => "%symbol.unique"
+
+for(key: String) -> Symbol => "%symbol.for"
+
+keyFor(value: Symbol) -> String? => "%symbol.keyFor"
+
+description(value: Symbol) -> String? => "%symbol.description"
+
+toString(value: Symbol) -> String => "%symbol.toString"

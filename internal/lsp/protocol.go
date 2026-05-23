@@ -34,6 +34,14 @@ type textPositionParams struct {
 	Position     position               `json:"position"`
 }
 
+type referencesParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Position     position               `json:"position"`
+	Context      struct {
+		IncludeDeclaration bool `json:"includeDeclaration"`
+	} `json:"context"`
+}
+
 type documentSymbolParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }

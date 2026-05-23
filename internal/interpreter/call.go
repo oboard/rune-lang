@@ -24,6 +24,10 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		switch value := receiver.(type) {
 		case *Array:
 			return i.callArrayMethod(value, sel.Name, call.Args, env)
+		case string:
+			return i.callStringMethod(value, sel.Name, call.Args, env)
+		case bool:
+			return i.callBoolMethod(value, sel.Name, call.Args, env)
 		case *Struct:
 			if field, ok := value.Fields[sel.Name]; ok {
 				return i.callCallable(field, call.Args, env)

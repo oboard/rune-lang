@@ -28,9 +28,10 @@ func newStubParser(moduleName string, path string, src string) *stubParser {
 
 func (p *stubParser) parse() (*Module, error) {
 	mod := &Module{
-		Name:    p.moduleName,
-		byName:  map[string]*Function{},
-		byAlias: map[string]*Function{},
+		Name:       p.moduleName,
+		byName:     map[string]*Function{},
+		byReceiver: map[string]map[string]*Function{},
+		byAlias:    map[string]*Function{},
 	}
 	seen := map[string]bool{}
 	p.skipNewlines()
@@ -69,7 +70,19 @@ func (p *stubParser) parse() (*Module, error) {
 	}
 	for i := range mod.Functions {
 		fn := &mod.Functions[i]
-		mod.byName[fn.Name] = fn
+		if fn.Receiver == "" {
+			mod.byName[fn.Name] = fn
+		} else {
+			if _, exists := mod.byName[fn.Name]; !exists {
+				mod.byName[fn.Name] = fn
+			}
+			methods := mod.byReceiver[fn.Receiver]
+			if methods == nil {
+				methods = map[string]*Function{}
+				mod.byReceiver[fn.Receiver] = methods
+			}
+			methods[fn.Name] = fn
+		}
 		if fn.Alias != "" {
 			mod.byAlias[fn.Alias] = fn
 		}
@@ -78,10 +91,11 @@ func (p *stubParser) parse() (*Module, error) {
 }
 
 func addFunction(mod *Module, seen map[string]bool, fn Function) error {
-	if seen[fn.Name] {
-		return fmt.Errorf("duplicate function %s.%s", mod.Name, fn.Name)
+	key := fn.Receiver + "." + fn.Name
+	if seen[key] {
+		return fmt.Errorf("duplicate function %s.%s", mod.Name, key)
 	}
-	seen[fn.Name] = true
+	seen[key] = true
 	mod.Functions = append(mod.Functions, fn)
 	return nil
 }

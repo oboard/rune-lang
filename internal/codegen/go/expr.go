@@ -72,6 +72,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if arrayCall, ok := g.arrayMethodCall(e); ok {
 			return arrayCall
 		}
+		if primitiveCall, ok := g.primitiveMethodCall(e); ok {
+			return primitiveCall
+		}
 		args := make([]string, 0, len(e.Args))
 		params, _, hasFuncType := parseGoFuncType(string(e.Callee.ResultType()))
 		for i, arg := range e.Args {
@@ -189,6 +192,75 @@ func (g *generator) bigIntBinaryExpr(e *ir.BinaryExpr) string {
 	default:
 		return ""
 	}
+}
+
+func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	receiver := g.expr(sel.Receiver)
+	args := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		args = append(args, g.expr(arg))
+	}
+	switch sel.Receiver.ResultType() {
+	case checker.String:
+		switch sel.Name {
+		case "length":
+			return fmt.Sprintf("len([]rune(%s))", receiver), true
+		case "isEmpty":
+			return fmt.Sprintf("len(%s) == 0", receiver), true
+		case "toString":
+			return receiver, true
+		case "concat":
+			if len(args) != 1 {
+				return "/* invalid string.concat */", true
+			}
+			return fmt.Sprintf("%s + %s", receiver, args[0]), true
+		case "includes":
+			return fmt.Sprintf("strings.Contains(%s, %s)", receiver, args[0]), true
+		case "startsWith":
+			return fmt.Sprintf("strings.HasPrefix(%s, %s)", receiver, args[0]), true
+		case "endsWith":
+			return fmt.Sprintf("strings.HasSuffix(%s, %s)", receiver, args[0]), true
+		case "indexOf":
+			return fmt.Sprintf("strings.Index(%s, %s)", receiver, args[0]), true
+		case "lastIndexOf":
+			return fmt.Sprintf("strings.LastIndex(%s, %s)", receiver, args[0]), true
+		case "toLowerCase":
+			return fmt.Sprintf("strings.ToLower(%s)", receiver), true
+		case "toUpperCase":
+			return fmt.Sprintf("strings.ToUpper(%s)", receiver), true
+		case "trim":
+			return fmt.Sprintf("strings.TrimSpace(%s)", receiver), true
+		case "trimStart":
+			return fmt.Sprintf("strings.TrimLeftFunc(%s, unicode.IsSpace)", receiver), true
+		case "trimEnd":
+			return fmt.Sprintf("strings.TrimRightFunc(%s, unicode.IsSpace)", receiver), true
+		case "repeat":
+			return fmt.Sprintf("strings.Repeat(%s, %s)", receiver, args[0]), true
+		case "replace":
+			return fmt.Sprintf("strings.Replace(%s, %s, %s, 1)", receiver, args[0], args[1]), true
+		case "replaceAll":
+			return fmt.Sprintf("strings.ReplaceAll(%s, %s, %s)", receiver, args[0], args[1]), true
+		case "split":
+			return fmt.Sprintf("func() []string { parts := strings.Split(%s, %s); return parts }()", receiver, args[0]), true
+		}
+	case checker.Bool:
+		switch sel.Name {
+		case "not":
+			return "!" + receiver, true
+		case "xor":
+			if len(args) != 1 {
+				return "/* invalid bool.xor */", true
+			}
+			return fmt.Sprintf("%s != %s", receiver, args[0]), true
+		case "toString":
+			return fmt.Sprintf("strconv.FormatBool(%s)", receiver), true
+		}
+	}
+	return "", false
 }
 
 func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {

@@ -58,6 +58,26 @@ func tsType(typ checker.Type) string {
 	if inner, ok := parseTSNullableType(string(typ)); ok {
 		return tsType(checker.Type(inner)) + " | null"
 	}
+	if base, args, ok := parseTSGenericType(string(typ)); ok {
+		switch base {
+		case "ReadonlyArray":
+			return "ReadonlyArray<" + tsType(checker.Type(args[0])) + ">"
+		case "Tuple":
+			return "[" + tsTypeList(args) + "]"
+		case "ReadonlyTuple":
+			return "readonly [" + tsTypeList(args) + "]"
+		case "Map":
+			return "Map<" + tsTypeList(args) + ">"
+		case "Set":
+			return "Set<" + tsType(checker.Type(args[0])) + ">"
+		case "WeakMap":
+			return "WeakMap<" + tsTypeList(args) + ">"
+		case "WeakSet":
+			return "WeakSet<" + tsType(checker.Type(args[0])) + ">"
+		case "Record":
+			return "Record<" + tsTypeList(args) + ">"
+		}
+	}
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return tsType(elem) + "[]"
 	}
@@ -102,6 +122,33 @@ func tsType(typ checker.Type) string {
 		return "any"
 	default:
 		return mangleIdent(string(typ))
+	}
+}
+
+func tsTypeList(args []string) string {
+	out := make([]string, 0, len(args))
+	for _, arg := range args {
+		out = append(out, tsType(checker.Type(arg)))
+	}
+	return strings.Join(out, ", ")
+}
+
+func parseTSGenericType(name string) (string, []string, bool) {
+	idx := strings.IndexByte(name, '[')
+	if idx <= 0 || !strings.HasSuffix(name, "]") {
+		return "", nil, false
+	}
+	base := name[:idx]
+	args := splitTSTypeList(strings.TrimSuffix(name[idx+1:], "]"))
+	switch base {
+	case "ReadonlyArray", "Set", "WeakSet":
+		return base, args, len(args) == 1
+	case "Tuple", "ReadonlyTuple":
+		return base, args, len(args) > 0
+	case "Map", "WeakMap", "Record":
+		return base, args, len(args) == 2
+	default:
+		return "", nil, false
 	}
 }
 

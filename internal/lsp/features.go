@@ -219,6 +219,92 @@ func (s *server) definition(uri string, pos position) any {
 	return nil
 }
 
+func (s *server) references(uri string, pos position, includeDeclaration bool) any {
+	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	if prog == nil {
+		return []map[string]any{}
+	}
+	if target := functionTarget(uri, prog, pos); target != nil {
+		return functionReferences(prog, target, includeDeclaration)
+	}
+	if target := s.methodTarget(uri, prog, pos); target != nil && target.structName != "" {
+		return methodReferences(prog, target, includeDeclaration)
+	}
+	return []map[string]any{}
+}
+
+func functionTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	for _, fn := range prog.File.Functions {
+		if containsSymbol(pos, fn.NamePos, fn.Name) {
+			return &methodTarget{uri: uri, name: fn.Name, pos: fn.NamePos}
+		}
+	}
+	call := functionCallAt(prog.File, pos)
+	if call == nil {
+		return nil
+	}
+	for _, fn := range prog.File.Functions {
+		if fn.Name == call.Name {
+			return &methodTarget{uri: uri, name: fn.Name, pos: fn.NamePos}
+		}
+	}
+	return nil
+}
+
+func functionCallAt(file *ast.File, pos position) *ast.Identifier {
+	var found *ast.Identifier
+	walkFileCalls(file, func(call *ast.CallExpr) {
+		if found != nil {
+			return
+		}
+		ident, ok := call.Callee.(*ast.Identifier)
+		if ok && containsSymbol(pos, ident.Pos, ident.Name) {
+			found = ident
+		}
+	})
+	return found
+}
+
+func functionReferences(prog *compiler.Program, target *methodTarget, includeDeclaration bool) []map[string]any {
+	refs := []map[string]any{}
+	if includeDeclaration {
+		refs = append(refs, target.location())
+	}
+	walkFileCalls(prog.File, func(call *ast.CallExpr) {
+		ident, ok := call.Callee.(*ast.Identifier)
+		if !ok || ident.Name != target.name {
+			return
+		}
+		refs = append(refs, referenceLocation(target.uri, ident.Pos, ident.Name))
+	})
+	return refs
+}
+
+func methodReferences(prog *compiler.Program, target *methodTarget, includeDeclaration bool) []map[string]any {
+	refs := []map[string]any{}
+	if includeDeclaration {
+		refs = append(refs, target.location())
+	}
+	walkFileCalls(prog.File, func(call *ast.CallExpr) {
+		sel, ok := call.Callee.(*ast.SelectorExpr)
+		if !ok || sel.Name != target.name {
+			return
+		}
+		if baseType(prog.Info.ExprTypes[sel.Receiver]) != target.structName {
+			return
+		}
+		refs = append(refs, referenceLocation(target.uri, sel.NamePos, sel.Name))
+	})
+	return refs
+}
+
+func referenceLocation(uri string, pos lexer.Position, name string) map[string]any {
+	return map[string]any{
+		"uri":   uri,
+		"range": symbolRange(pos, len(name)),
+	}
+}
+
 func localTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
 	name := identifierNameAt(prog.File, pos)
 	if name == "" {
@@ -986,6 +1072,14 @@ func walkFileSelectors(file *ast.File, visit func(*ast.SelectorExpr)) {
 	})
 }
 
+func walkFileCalls(file *ast.File, visit func(*ast.CallExpr)) {
+	walkFileExprs(file, func(expr ast.Expr) {
+		if call, ok := expr.(*ast.CallExpr); ok {
+			visit(call)
+		}
+	})
+}
+
 func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
 	for _, typ := range file.Types {
 		for _, method := range typ.Methods {
@@ -994,6 +1088,9 @@ func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
 	}
 	for _, fn := range file.Functions {
 		ast.WalkExpr(fn.Body, visit)
+	}
+	for _, test := range file.Tests {
+		ast.WalkExpr(test.Body, visit)
 	}
 }
 

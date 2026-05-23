@@ -1,0 +1,85 @@
+User: {
+  id: Int
+  name: String
+  age: Int
+
+  isAdult() -> Bool => .age >= 18
+
+  label(prefix: String) -> String => prefix + .name
+}
+
+Address: {
+  city: String
+  zip: Int
+}
+
+Profile: {
+  user: User
+  address: Address
+  active: Bool
+}
+
+acceptObject(value: Object) -> Int => 1
+
+readScore(row) => row.points + row.bonus
+
+? "named object fields and methods" {
+  user := User { id: 7, name: "Ada", age: 36 }
+
+  @assert.eq(user.id, 7)
+  @assert.eq(user.name, "Ada")
+  @assert.eq(user.isAdult(), true)
+  @assert.eq(user.label("user:"), "user:Ada")
+}
+
+? "nested record like named objects" {
+  user := User { id: 2, name: "Lin", age: 17 }
+  address := Address { city: "Shanghai", zip: 200000 }
+  profile := Profile { user: user, address: address, active: true }
+
+  @assert.eq(profile.user.name, "Lin")
+  @assert.eq(profile.user.isAdult(), false)
+  @assert.eq(profile.address.city, "Shanghai")
+  @assert.eq(profile.address.zip, 200000)
+  @assert.eq(profile.active, true)
+}
+
+? "anonymous object fields and methods" {
+  account := {
+    name: "core"
+    age: 4
+    nextAge() -> Int => .age + 1
+    title(prefix: String) -> String => prefix + .name
+  }
+
+  @assert.eq(account.name, "core")
+  @assert.eq(account.nextAge(), 5)
+  @assert.eq(account.title("module:"), "module:core")
+}
+
+? "object typed parameter accepts object values" {
+  user := User { id: 1, name: "Rune", age: 1 }
+  anon := {
+    tag: "anonymous"
+    count: 2
+  }
+  values := [1, 2, 3]
+
+  @assert.eq(acceptObject(user), 1)
+  @assert.eq(acceptObject(anon), 1)
+  @assert.eq(acceptObject(values), 1)
+}
+
+? "record like anonymous object inference" {
+  row := {
+    points: 30
+    bonus: 12
+  }
+  user := {
+    name: "Grace"
+    id: 9
+  }
+
+  @assert.eq(readScore(row), 42)
+  @assert.eq(user.name, "Grace")
+}

@@ -71,6 +71,56 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 	return c.resolveDeclaredType(fn.Return, bindings)
 }
 
+func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
+	moduleName, receiverName, ok := stdlibReceiverModule(receiver)
+	if !ok {
+		return Unknown, false
+	}
+	fn, ok := c.info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
+	if !ok {
+		c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
+		return Unknown, true
+	}
+	bindings := c.receiverTypeBindings(fn, receiver)
+	c.checkArrayDeclaredArgs(sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	return c.resolveDeclaredType(fn.Return, bindings), true
+}
+
+func stdlibReceiverModule(receiver Type) (string, string, bool) {
+	base := baseTypeName(receiver)
+	switch base {
+	case "String":
+		return "string", "String", true
+	case "Bool":
+		return "bool", "Bool", true
+	case "Map", "Set", "WeakMap", "WeakSet":
+		return "map", base, true
+	default:
+		return "", "", false
+	}
+}
+
+func (c *checker) receiverTypeBindings(fn *stdlib.Function, receiver Type) map[string]Type {
+	bindings := map[string]Type{}
+	for _, name := range fn.Generics {
+		bindings[name] = Unknown
+	}
+	if base, args, ok := parseGenericType(string(receiver)); ok {
+		switch base {
+		case "Map", "WeakMap":
+			if len(args) >= 2 {
+				bindings["K"] = Type(args[0])
+				bindings["V"] = Type(args[1])
+			}
+		case "Set", "WeakSet":
+			if len(args) >= 1 {
+				bindings["T"] = Type(args[0])
+			}
+		}
+	}
+	return bindings
+}
+
 func (c *checker) arrayTypeBindings(fn *stdlib.Function, elem Type) map[string]Type {
 	bindings := map[string]Type{}
 	for _, name := range fn.Generics {
@@ -175,6 +225,13 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 		}
 		return ArrayOf(elemType)
 	}
+	if base, args, ok := parseGenericType(name); ok && isBuiltinGenericType(base) {
+		resolved := make([]Type, 0, len(args))
+		for _, arg := range args {
+			resolved = append(resolved, c.resolveDeclaredType(arg, bindings))
+		}
+		return genericTypeOf(base, resolved)
+	}
 	if params, ret, ok := parseFuncType(name); ok {
 		types := make([]Type, 0, len(params)+1)
 		for _, param := range params {
@@ -198,6 +255,28 @@ func parseArrayType(name string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSuffix(strings.TrimPrefix(name, "Array["), "]"), true
+}
+
+func parseGenericType(name string) (string, []string, bool) {
+	idx := strings.IndexByte(name, '[')
+	if idx <= 0 || !strings.HasSuffix(name, "]") {
+		return "", nil, false
+	}
+	base := name[:idx]
+	args := splitTypeList(strings.TrimSuffix(name[idx+1:], "]"))
+	if len(args) == 0 {
+		return "", nil, false
+	}
+	return base, args, true
+}
+
+func isBuiltinGenericType(base string) bool {
+	switch base {
+	case "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "WeakMap", "WeakSet", "Record":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseFuncType(name string) ([]string, string, bool) {

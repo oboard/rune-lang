@@ -1,0 +1,5 @@
+fromInt(value: Int) -> BigInt => "%bigint.fromInt"
+
+toDouble(value: BigInt) -> Double => "%bigint.toDouble"
+
+toString(value: BigInt) -> String => "%bigint.toString"

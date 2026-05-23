@@ -1,0 +1,150 @@
+nullableInt(value: Int?) -> Int? => value
+
+nullableDouble(value: Double?) -> Double? => value
+
+nullableBigInt(value: BigInt?) -> BigInt? => value
+
+nullableString(value: String?) -> String? => value
+
+nullableBool(value: Bool?) -> Bool? => value
+
+returnNullInt() -> Int? => null
+
+returnNullDouble() -> Double? => null
+
+returnNullBigInt() -> BigInt? => null
+
+returnNullString() -> String? => null
+
+returnNullBool() -> Bool? => null
+
+returnIntValue() -> Int? => 42
+
+returnDoubleValue() -> Double? => 3.5
+
+returnBigIntValue() -> BigInt? => 9007199254740993n
+
+returnStringValue() -> String? => "rune"
+
+returnBoolValue() -> Bool? => true
+
+? "null literal and comparison" {
+  @assert.eq(null, null)
+  @assert.eq(null == null, true)
+  @assert.eq(null != null, false)
+}
+
+? "nullable int parameter and return" {
+  @assert.eq(nullableInt(0), 0)
+  @assert.eq(nullableInt(42), 42)
+  @assert.eq(nullableInt(null), null)
+  @assert.eq(returnIntValue(), 42)
+  @assert.eq(returnNullInt(), null)
+  @assert.eq(nullableInt(null) == nullableInt(null), true)
+  @assert.eq(nullableInt(42) != nullableInt(null), true)
+}
+
+? "nullable double parameter and return" {
+  @assert.eq(nullableDouble(0.0), 0.0)
+  @assert.eq(nullableDouble(2.25), 2.25)
+  @assert.eq(nullableDouble(null), null)
+  @assert.eq(returnDoubleValue(), 3.5)
+  @assert.eq(returnNullDouble(), null)
+  @assert.eq(nullableDouble(null) == nullableDouble(null), true)
+  @assert.eq(nullableDouble(2.25) != nullableDouble(null), true)
+}
+
+? "nullable bigint parameter and return" {
+  @assert.eq(nullableBigInt(0n), 0n)
+  @assert.eq(nullableBigInt(9007199254740993n), 9007199254740993n)
+  @assert.eq(nullableBigInt(null), null)
+  @assert.eq(returnBigIntValue(), 9007199254740993n)
+  @assert.eq(returnNullBigInt(), null)
+  @assert.eq(nullableBigInt(null) == nullableBigInt(null), true)
+  @assert.eq(nullableBigInt(7n) != nullableBigInt(null), true)
+}
+
+? "nullable string parameter and return" {
+  @assert.eq(nullableString(""), "")
+  @assert.eq(nullableString("rune"), "rune")
+  @assert.eq(nullableString(null), null)
+  @assert.eq(returnStringValue(), "rune")
+  @assert.eq(returnNullString(), null)
+  @assert.eq(nullableString(null) == nullableString(null), true)
+  @assert.eq(nullableString("rune") != nullableString(null), true)
+}
+
+? "nullable bool parameter and return" {
+  @assert.eq(nullableBool(true), true)
+  @assert.eq(nullableBool(false), false)
+  @assert.eq(nullableBool(null), null)
+  @assert.eq(returnBoolValue(), true)
+  @assert.eq(returnNullBool(), null)
+  @assert.eq(nullableBool(null) == nullableBool(null), true)
+  @assert.eq(nullableBool(false) != nullableBool(null), true)
+}
+
+? "array of nullable int" {
+  values := [1, null, 3, null, 5]
+  @assert.eq(values.length(), 5)
+  @assert.eq(values[0], 1)
+  @assert.eq(values[1], null)
+  @assert.eq(values[2], 3)
+  @assert.eq(values[3], null)
+  @assert.eq(values[4], 5)
+}
+
+? "array of nullable doubles" {
+  values := [1.25, null, 3.75, null]
+  @assert.eq(values.length(), 4)
+  @assert.eq(values[0], 1.25)
+  @assert.eq(values[1], null)
+  @assert.eq(values[2], 3.75)
+  @assert.eq(values[3], null)
+}
+
+? "array of nullable bigints" {
+  values := [1n, null, 9007199254740993n, null]
+  @assert.eq(values.length(), 4)
+  @assert.eq(values[0], 1n)
+  @assert.eq(values[1], null)
+  @assert.eq(values[2], 9007199254740993n)
+  @assert.eq(values[3], null)
+}
+
+? "array of nullable strings" {
+  values := ["alpha", null, "gamma", null]
+  @assert.eq(values.length(), 4)
+  @assert.eq(values[0], "alpha")
+  @assert.eq(values[1], null)
+  @assert.eq(values[2], "gamma")
+  @assert.eq(values[3], null)
+}
+
+? "array of nullable bools" {
+  values := [true, null, false, null]
+  @assert.eq(values.length(), 4)
+  @assert.eq(values[0], true)
+  @assert.eq(values[1], null)
+  @assert.eq(values[2], false)
+  @assert.eq(values[3], null)
+}
+
+? "nullable base types stay separate" {
+  intValue := nullableInt(7)
+  doubleValue := nullableDouble(7.5)
+  bigintValue := nullableBigInt(7n)
+  stringValue := nullableString("7")
+  boolValue := nullableBool(false)
+
+  @assert.eq(intValue, 7)
+  @assert.eq(doubleValue, 7.5)
+  @assert.eq(bigintValue, 7n)
+  @assert.eq(stringValue, "7")
+  @assert.eq(boolValue, false)
+  @assert.eq(nullableInt(null), null)
+  @assert.eq(nullableDouble(null), null)
+  @assert.eq(nullableBigInt(null), null)
+  @assert.eq(nullableString(null), null)
+  @assert.eq(nullableBool(null), null)
+}

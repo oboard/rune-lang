@@ -1,0 +1,104 @@
+? "string length and emptiness" {
+  @assert.eq("".length(), 0)
+  @assert.eq("".isEmpty(), true)
+  @assert.eq("rune".length(), 4)
+  @assert.eq("rune".isEmpty(), false)
+  @assert.eq("你好".length(), 2)
+  @assert.eq("🙂".length(), 1)
+}
+
+? "string concat and containment" {
+  @assert.eq("ru".concat("ne"), "rune")
+  @assert.eq("".concat("core"), "core")
+  @assert.eq("core".concat(""), "core")
+  @assert.eq("rune language".includes("language"), true)
+  @assert.eq("rune language".includes("lang"), true)
+  @assert.eq("rune language".includes("type"), false)
+  @assert.eq("rune language".includes(""), true)
+}
+
+? "string prefix and suffix" {
+  @assert.eq("typescript".startsWith("type"), true)
+  @assert.eq("typescript".startsWith("script"), false)
+  @assert.eq("typescript".startsWith(""), true)
+  @assert.eq("typescript".endsWith("script"), true)
+  @assert.eq("typescript".endsWith("type"), false)
+  @assert.eq("typescript".endsWith(""), true)
+}
+
+? "string index search" {
+  @assert.eq("banana".indexOf("ban"), 0)
+  @assert.eq("banana".indexOf("na"), 2)
+  @assert.eq("banana".indexOf("x"), -1)
+  @assert.eq("banana".indexOf(""), 0)
+  @assert.eq("banana".lastIndexOf("na"), 4)
+  @assert.eq("banana".lastIndexOf("ba"), 0)
+  @assert.eq("banana".lastIndexOf("x"), -1)
+  @assert.eq("banana".lastIndexOf(""), 6)
+}
+
+? "string case conversion" {
+  @assert.eq("Rune".toLowerCase(), "rune")
+  @assert.eq("Rune".toUpperCase(), "RUNE")
+  @assert.eq("MiXeD 123".toLowerCase(), "mixed 123")
+  @assert.eq("MiXeD 123".toUpperCase(), "MIXED 123")
+  @assert.eq("你好".toLowerCase(), "你好")
+  @assert.eq("你好".toUpperCase(), "你好")
+}
+
+? "string trimming" {
+  @assert.eq("  rune  ".trim(), "rune")
+  @assert.eq("\trune\n".trim(), "rune")
+  @assert.eq("  rune  ".trimStart(), "rune  ")
+  @assert.eq("\trune\n".trimStart(), "rune\n")
+  @assert.eq("  rune  ".trimEnd(), "  rune")
+  @assert.eq("\trune\n".trimEnd(), "\trune")
+  @assert.eq("rune".trim(), "rune")
+}
+
+? "string repeat" {
+  @assert.eq("".repeat(5), "")
+  @assert.eq("ha".repeat(0), "")
+  @assert.eq("ha".repeat(1), "ha")
+  @assert.eq("ha".repeat(3), "hahaha")
+  @assert.eq("🙂".repeat(2), "🙂🙂")
+}
+
+? "string replace variants" {
+  @assert.eq("one two one".replace("one", "1"), "1 two one")
+  @assert.eq("one two one".replaceAll("one", "1"), "1 two 1")
+  @assert.eq("aaaa".replace("aa", "b"), "baa")
+  @assert.eq("aaaa".replaceAll("aa", "b"), "bb")
+  @assert.eq("rune".replace("x", "y"), "rune")
+  @assert.eq("rune".replaceAll("x", "y"), "rune")
+}
+
+? "string split" {
+  parts := "r,u,n,e".split(",")
+  @assert.eq(parts.length(), 4)
+  @assert.eq(parts[0], "r")
+  @assert.eq(parts[1], "u")
+  @assert.eq(parts[2], "n")
+  @assert.eq(parts[3], "e")
+
+  words := "core::string::test".split("::")
+  @assert.eq(words.length(), 3)
+  @assert.eq(words[0], "core")
+  @assert.eq(words[1], "string")
+  @assert.eq(words[2], "test")
+
+  noMatch := "rune".split(",")
+  @assert.eq(noMatch.length(), 1)
+  @assert.eq(noMatch[0], "rune")
+}
+
+? "string comparison" {
+  @assert.eq("abc" == "abc", true)
+  @assert.eq("abc" != "abd", true)
+  @assert.eq("abc" < "abd", true)
+  @assert.eq("abd" > "abc", true)
+  @assert.eq("abc" <= "abc", true)
+  @assert.eq("abc" >= "abc", true)
+  @assert.eq("abc" < "ab", false)
+  @assert.eq("b" < "aa", false)
+}
