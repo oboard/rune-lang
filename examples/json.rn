@@ -1,0 +1,21 @@
+JsonUser: {
+  name: String
+  age: Int
+}
+
+main() => {
+  user := JsonUser {
+    name: "Ada"
+    age: 36
+  }
+  value := {
+    name: "Rune",
+    user: user,
+    tags: ["compiler", "json"],
+
+    greet() => @io.println(.name)
+  }
+
+  @io.println(@json.stringify(user))
+  @io.println(@json.stringify(value))
+}
