@@ -105,6 +105,7 @@ type LambdaExpr struct {
 	ParamPos   []lexer.Position
 	ParamTypes []string
 	ReturnType string
+	Implicit   bool
 	Body       Expr
 	Pos        lexer.Position
 }

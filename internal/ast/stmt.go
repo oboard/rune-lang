@@ -10,6 +10,7 @@ type Stmt interface {
 type LetStmt struct {
 	Name    string
 	Mutable bool
+	Signal  bool
 	Value   Expr
 	Pos     lexer.Position
 }
@@ -33,6 +34,17 @@ func (s *AssignStmt) Position() lexer.Position {
 type ExprStmt struct {
 	Expr Expr
 	Pos  lexer.Position
+}
+
+type WatchExpr struct {
+	Target  Expr
+	Handler Expr
+	Pos     lexer.Position
+}
+
+func (*WatchExpr) exprNode() {}
+func (e *WatchExpr) Position() lexer.Position {
+	return e.Pos
 }
 
 func (*ExprStmt) stmtNode() {}

@@ -5,18 +5,14 @@ Return: {
 }
 
 fun(flag) => {
-  (flag {
+  flag {
     true => (x) => {
       k: x.a + 1,
     }
     false => (y) => {
       k: y.b + 1,
     }
-  })(Return {
-    b: 2,
-    z: false,
-    a: 1,
-  }).k
+  }(Return { b: 2, z: false, a: 1 }).k
 }
 
 main() => {

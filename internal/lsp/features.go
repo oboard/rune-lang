@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -106,13 +107,14 @@ func (s *server) methodHover(uri string, prog *compiler.Program, pos position) a
 
 func (s *server) exprHover(prog *compiler.Program, pos position) any {
 	var found any
+	signals := signalGraph(prog.File)
 	walkFileStatements(prog.File, func(stmt ast.Stmt) {
 		if found != nil {
 			return
 		}
 		if let, ok := stmt.(*ast.LetStmt); ok && containsSymbol(pos, let.Pos, let.Name) {
 			if typ := prog.Info.ExprTypes[let.Value]; typ != "" && typ != checker.Unknown {
-				found = hoverResult(fmt.Sprintf("%s: %s", let.Name, displayCheckerType(prog.Info, typ)), let.Pos, let.Name)
+				found = hoverResult(localHoverText(prog.Info, let.Name, typ, signals), let.Pos, let.Name)
 			}
 		}
 	})
@@ -129,7 +131,7 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 				return
 			}
 			if typ := prog.Info.ExprTypes[e]; typ != "" && typ != checker.Unknown {
-				found = hoverResult(fmt.Sprintf("%s: %s", e.Name, displayCheckerType(prog.Info, typ)), e.Pos, e.Name)
+				found = hoverResult(localHoverText(prog.Info, e.Name, typ, signals), e.Pos, e.Name)
 			}
 		case *ast.ThisExpr:
 			if !containsSymbol(pos, e.Pos, "this") {
@@ -141,6 +143,23 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 		}
 	})
 	return found
+}
+
+func localHoverText(info *checker.Info, name string, typ checker.Type, signals map[string][]string) string {
+	text := fmt.Sprintf("%s: %s", name, displayCheckerType(info, typ))
+	deps, ok := signals[name]
+	if !ok {
+		return text
+	}
+	kind := "signal"
+	if len(deps) > 0 {
+		kind = "computed"
+	}
+	text += "\n" + kind
+	if chain := dependencyChain(name, signals); chain != "" {
+		text += "\ndeps: " + chain
+	}
+	return text
 }
 
 func (s *server) completion(uri string) any {
@@ -448,7 +467,7 @@ func (s *server) inlayHints(uri string) any {
 				"tooltip":  displayCheckerType(prog.Info, prog.Info.ExprTypes[lambda]),
 			})
 		}
-		if lambda.ReturnType != "" || ret == "" || ret == string(checker.Unknown) {
+		if lambda.Implicit || lambda.ReturnType != "" || ret == "" || ret == string(checker.Unknown) {
 			return
 		}
 		if pos, ok := fatArrowPositionFromOffset(text, lambda.Pos.Offset); ok {
@@ -461,6 +480,132 @@ func (s *server) inlayHints(uri string) any {
 		}
 	})
 	return hints
+}
+
+func (s *server) semanticTokens(uri string) any {
+	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	if prog == nil {
+		return map[string]any{"data": []int{}}
+	}
+	signals := signalGraph(prog.File)
+	var tokens []semanticToken
+	walkFileStatements(prog.File, func(stmt ast.Stmt) {
+		switch stmt := stmt.(type) {
+		case *ast.LetStmt:
+			if _, ok := signals[stmt.Name]; !ok {
+				return
+			}
+			tokens = append(tokens, semanticToken{
+				line:      max(stmt.Pos.Line-1, 0),
+				character: max(stmt.Pos.Column-1, 0),
+				length:    len(stmt.Name),
+			})
+		case *ast.AssignStmt:
+			if _, ok := signals[stmt.Name]; !ok {
+				return
+			}
+			tokens = append(tokens, semanticToken{
+				line:      max(stmt.Pos.Line-1, 0),
+				character: max(stmt.Pos.Column-1, 0),
+				length:    len(stmt.Name),
+			})
+		}
+	})
+	walkFileExprs(prog.File, func(expr ast.Expr) {
+		ident, ok := expr.(*ast.Identifier)
+		if !ok {
+			return
+		}
+		if _, signal := signals[ident.Name]; !signal {
+			return
+		}
+		tokens = append(tokens, semanticToken{
+			line:      max(ident.Pos.Line-1, 0),
+			character: max(ident.Pos.Column-1, 0),
+			length:    len(ident.Name),
+		})
+	})
+	sort.Slice(tokens, func(i, j int) bool {
+		if tokens[i].line != tokens[j].line {
+			return tokens[i].line < tokens[j].line
+		}
+		return tokens[i].character < tokens[j].character
+	})
+	return map[string]any{"data": encodeSemanticTokens(tokens)}
+}
+
+func signalGraph(file *ast.File) map[string][]string {
+	signals := map[string][]string{}
+	walkFileStatements(file, func(stmt ast.Stmt) {
+		let, ok := stmt.(*ast.LetStmt)
+		if !ok {
+			return
+		}
+		deps := exprSignalDeps(let.Value, signals)
+		if let.Signal || len(deps) > 0 {
+			signals[let.Name] = deps
+		}
+	})
+	return signals
+}
+
+func exprSignalDeps(expr ast.Expr, signals map[string][]string) []string {
+	seen := map[string]bool{}
+	var deps []string
+	ast.WalkExpr(expr, func(expr ast.Expr) {
+		if ident, ok := expr.(*ast.Identifier); ok {
+			if _, signal := signals[ident.Name]; signal && !seen[ident.Name] {
+				seen[ident.Name] = true
+				deps = append(deps, ident.Name)
+			}
+		}
+	})
+	return deps
+}
+
+func dependencyChain(name string, signals map[string][]string) string {
+	deps, ok := signals[name]
+	if !ok || len(deps) == 0 {
+		return ""
+	}
+	chains := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if chain := dependencyChain(dep, signals); chain != "" {
+			chains = append(chains, name+" -> "+chain)
+		} else {
+			chains = append(chains, name+" -> "+dep)
+		}
+	}
+	return strings.Join(chains, ", ")
+}
+
+type semanticToken struct {
+	line      int
+	character int
+	length    int
+}
+
+func encodeSemanticTokens(tokens []semanticToken) []int {
+	data := make([]int, 0, len(tokens)*5)
+	prevLine := 0
+	prevChar := 0
+	for i, token := range tokens {
+		deltaLine := token.line - prevLine
+		deltaChar := token.character
+		if i > 0 && deltaLine == 0 {
+			deltaChar = token.character - prevChar
+		}
+		data = append(data,
+			deltaLine,
+			deltaChar,
+			token.length,
+			0,
+			1,
+		)
+		prevLine = token.line
+		prevChar = token.character
+	}
+	return data
 }
 
 func (s *server) rename(uri string, pos position, newName string) any {

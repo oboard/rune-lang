@@ -61,7 +61,7 @@ func (f *formatter) function(fn *ast.Function) {
 		for i, stmt := range body.Statements {
 			formatted := f.stmt(stmt)
 			f.line(formatted)
-			if i < len(body.Statements)-1 && strings.Contains(formatted, "\n") {
+			if i < len(body.Statements)-1 && strings.Contains(formatted, "\n") && separatesFollowingStatement(stmt) {
 				f.line("")
 			}
 		}
@@ -74,6 +74,15 @@ func (f *formatter) function(fn *ast.Function) {
 		}
 		f.linef("%s%s(%s)%s => %s", fn.Name, formatGenerics(fn.Generics), strings.Join(params, ", "), ret, bodyText)
 	}
+}
+
+func separatesFollowingStatement(stmt ast.Stmt) bool {
+	let, ok := stmt.(*ast.LetStmt)
+	if !ok {
+		return false
+	}
+	_, ok = let.Value.(*ast.AnonymousObjectLiteral)
+	return ok
 }
 
 func formatGenerics(names []string) string {

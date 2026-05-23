@@ -54,6 +54,12 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position(), NamePos: name.Pos}
 			continue
 		}
+		if minPrec <= 1 && p.match(lexer.Arrow) {
+			p.skipNewlines()
+			handler := p.parseWatchHandler()
+			left = &ast.WatchExpr{Target: left, Handler: handler, Pos: left.Position()}
+			continue
+		}
 
 		prec := precedence(p.peek().Kind)
 		if prec < minPrec {
@@ -64,6 +70,29 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 		left = &ast.BinaryExpr{Left: left, Op: op.Kind, Right: right, Pos: left.Position()}
 	}
 	return left
+}
+
+func (p *Parser) parseWatchHandler() ast.Expr {
+	if p.check(lexer.LParen) && p.looksLikeLambda() {
+		params := p.parseLambdaParams()
+		p.consume(lexer.FatArrow, "expected '=>' after watch handler parameter")
+		p.skipNewlines()
+		return &ast.LambdaExpr{
+			Params:     params.names,
+			ParamPos:   params.positions,
+			ParamTypes: params.types,
+			Body:       p.parseBody(),
+			Pos:        params.pos,
+		}
+	}
+	if p.check(lexer.LBrace) {
+		return &ast.LambdaExpr{
+			Implicit: true,
+			Body:     p.parseBody(),
+			Pos:      p.peek().Pos,
+		}
+	}
+	return p.parseExpression(1)
 }
 
 func (p *Parser) parseMatchExpr(subject ast.Expr) ast.Expr {

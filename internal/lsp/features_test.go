@@ -224,6 +224,123 @@ main() => {
 	}
 }
 
+func TestSemanticTokensMarkSignalVariables(t *testing.T) {
+	uri := "file:///tmp/signal.rn"
+	src := `main() => {
+  count $= 0
+  double := count * 2
+  double -> {
+    @io.println(double)
+  }
+  count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  count = count + 1
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	resp := s.semanticTokens(uri).(map[string]any)
+	got := decodeSemanticTokenRanges(resp["data"].([]int))
+	want := map[position]int{
+		{Line: 1, Character: 2}:   5,
+		{Line: 2, Character: 2}:   6,
+		{Line: 2, Character: 12}:  5,
+		{Line: 3, Character: 2}:   6,
+		{Line: 4, Character: 16}:  6,
+		{Line: 6, Character: 2}:   5,
+		{Line: 10, Character: 2}:  5,
+		{Line: 10, Character: 10}: 5,
+	}
+	for pos, length := range want {
+		if got[pos] != length {
+			t.Fatalf("semantic token at %+v = %d, want %d; all tokens %#v", pos, got[pos], length, got)
+		}
+	}
+	if got[position{Line: 6, Character: 12}] != 0 {
+		t.Fatalf("old parameter was marked as signal: %#v", got)
+	}
+}
+
+func TestSignalWatchInlayHintsReturnOnce(t *testing.T) {
+	uri := "file:///tmp/signal.rn"
+	src := `main() => {
+  count $= 0
+  double := count * 2
+  double -> {
+    @io.println(double)
+  }
+  count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	hints := s.inlayHints(uri).([]map[string]any)
+	returnHintsAtWatch := 0
+	returnHintsAtShorthand := 0
+	for _, hint := range hints {
+		pos := hint["position"].(position)
+		if pos.Line == 6 && hint["label"] == "-> Void " {
+			returnHintsAtWatch++
+		}
+		if pos.Line >= 2 && pos.Line <= 4 && hint["label"] == "-> Void " {
+			returnHintsAtShorthand++
+		}
+	}
+	if returnHintsAtWatch != 1 {
+		t.Fatalf("watch return hints = %d, want 1; all hints %#v", returnHintsAtWatch, hints)
+	}
+	if returnHintsAtShorthand != 0 {
+		t.Fatalf("shorthand watch return hints = %d, want 0; all hints %#v", returnHintsAtShorthand, hints)
+	}
+}
+
+func TestSignalHoverShowsDependencyChain(t *testing.T) {
+	uri := "file:///tmp/signal.rn"
+	src := `main() => {
+  count $= 0
+  double := count * 2
+  quadruple := double * 2
+  @io.println(quadruple)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	countHover := hoverValue(s.hover(uri, positionOf(src, "count $=", "count")).(map[string]any))
+	if !strings.Contains(countHover, "count: Int") || !strings.Contains(countHover, "signal") {
+		t.Fatalf("count hover = %q, want signal type", countHover)
+	}
+	doubleHover := hoverValue(s.hover(uri, positionOf(src, "double :=", "double")).(map[string]any))
+	if !strings.Contains(doubleHover, "double: Int") ||
+		!strings.Contains(doubleHover, "computed") ||
+		!strings.Contains(doubleHover, "deps: double -> count") {
+		t.Fatalf("double hover = %q, want computed dependency chain", doubleHover)
+	}
+	quadHover := hoverValue(s.hover(uri, positionOf(src, "@io.println(quadruple)", "quadruple")).(map[string]any))
+	if !strings.Contains(quadHover, "quadruple: Int") ||
+		!strings.Contains(quadHover, "computed") ||
+		!strings.Contains(quadHover, "deps: quadruple -> double -> count") {
+		t.Fatalf("quadruple hover = %q, want nested dependency chain", quadHover)
+	}
+}
+
+func decodeSemanticTokenRanges(data []int) map[position]int {
+	out := map[position]int{}
+	line := 0
+	character := 0
+	for i := 0; i+4 < len(data); i += 5 {
+		line += data[i]
+		if data[i] == 0 {
+			character += data[i+1]
+		} else {
+			character = data[i+1]
+		}
+		out[position{Line: line, Character: character}] = data[i+2]
+	}
+	return out
+}
+
 func TestLocalFunctionTypeRefinesFromCall(t *testing.T) {
 	uri := "file:///tmp/complex_type.rn"
 	src := `fun(flag) => {

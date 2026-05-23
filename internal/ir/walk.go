@@ -50,6 +50,9 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 			WalkPattern(branch.Pattern, visit)
 			WalkExpr(branch.Expr, visit)
 		}
+	case *WatchExpr:
+		WalkExpr(e.Target, visit)
+		WalkExpr(e.Handler, visit)
 	}
 }
 

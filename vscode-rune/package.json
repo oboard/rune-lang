@@ -35,6 +35,18 @@
         }
       }
     },
+    "configurationDefaults": {
+      "[rune]": {
+        "editor.semanticHighlighting.enabled": true
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "variable.modification:rune": {
+            "fontStyle": "bold"
+          }
+        }
+      }
+    },
     "commands": [
       {
         "command": "rune.runFile",

@@ -46,6 +46,10 @@ type inlayHintParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }
 
+type semanticTokensParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type renameParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 	Position     position               `json:"position"`

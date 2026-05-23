@@ -141,6 +141,49 @@ main() => {
 	}
 }
 
+func TestGenerateSignalProgram(t *testing.T) {
+	src := `main() => {
+  count $= 0
+  double := count * 2
+  double -> {
+    @io.println(double)
+  }
+  count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  count = count + 1
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`type runeSignal[T comparable] struct`,
+		`__count := newRuneSignal(0)`,
+		`__double := newRuneSignal(__count.Get() * 2)`,
+		`__count.Watch(func(_, _ int) { __double.Set(__count.Get() * 2) })`,
+		`__double.Watch(func(_ int, _ int) { fmt.Println(__double.Get()) })`,
+		`__count.Watch(func(__old int, __new int) { fmt.Println(__old); fmt.Println(__new) })`,
+		`__count.Set(__count.Get() + 1)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateArrayProgram(t *testing.T) {
 	src := `main() => {
   arr := [1, 2, 3]

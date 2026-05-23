@@ -1,17 +1,13 @@
 User: {
-    id: Int
-    name: String
-    age: Int
+  id: Int
+  name: String
+  age: Int
 
-    isAdult() => .age >= 18
+  isAdult() => .age >= 18
 }
 
 main() => {
-    user := User {
-        id: 1
-        name: "oboard"
-        age: 22
-    }
-    @io.println(user.name)
-    @io.println(user.isAdult())
+  user := User { id: 1, name: "oboard", age: 22 }
+  @io.println(user.name)
+  @io.println(user.isAdult())
 }

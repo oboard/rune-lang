@@ -1,16 +1,12 @@
 Println: {
-    return: Int
-    func: Int
-    def: Int
+  return: Int
+  func: Int
+  def: Int
 }
 
 main() => {
-    freedom := Println {
-        return: 0
-        func: 1
-        def: 2
-    }
-    @io.println(freedom.return)
-    @io.println(freedom.func)
-    @io.println(freedom.def)
+  freedom := Println { return: 0, func: 1, def: 2 }
+  @io.println(freedom.return)
+  @io.println(freedom.func)
+  @io.println(freedom.def)
 }

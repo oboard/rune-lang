@@ -224,6 +224,21 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return c.inferPatternBlock(e, env)
 	case *ast.MatchExpr:
 		return c.inferMatchExpr(e, env)
+	case *ast.WatchExpr:
+		target := c.inferExpr(e.Target, env)
+		if lambda, ok := e.Handler.(*ast.LambdaExpr); ok && len(lambda.Params) == 2 && target != Unknown {
+			c.applyExpectedType(lambda, FuncOfTypes([]Type{target, target}, Void))
+		}
+		handler := c.inferExpr(e.Handler, env)
+		if handler != Unknown {
+			params, _, ok := parseFuncType(string(handler))
+			if !ok {
+				c.errorf(e.Handler.Position(), "watch handler must be a function, got %s", handler)
+			} else if len(params) != 0 && len(params) != 2 {
+				c.errorf(e.Handler.Position(), "watch handler must accept zero or two parameters")
+			}
+		}
+		return Void
 	default:
 		return Unknown
 	}
@@ -306,6 +321,12 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	local := cloneEnv(env)
 	params := make([]Type, 0, len(lambda.Params))
 	inferredFields := inferParamFields(lambda.Body, lambda.Params)
+	var expectedParams []string
+	if expected := c.info.ExprTypes[lambda]; expected != "" {
+		if parsed, _, ok := parseFuncType(string(expected)); ok {
+			expectedParams = parsed
+		}
+	}
 	for i, name := range lambda.Params {
 		paramType := Unknown
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
@@ -313,6 +334,8 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
 				c.errorf(lambda.Pos, "unknown type %q", lambda.ParamTypes[i])
 			}
+		} else if i < len(expectedParams) {
+			paramType = Type(expectedParams[i])
 		} else if fields := inferredFields[name]; len(fields) > 0 {
 			paramType = c.objectTypeFromFields(fields)
 		}

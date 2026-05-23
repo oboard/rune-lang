@@ -17,6 +17,9 @@ func (g *generator) expr(expr ir.Expr) string {
 func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	switch e := expr.(type) {
 	case *ir.Identifier:
+		if g.isSignal(e.Name) {
+			return mangleIdent(e.Name) + ".Get()"
+		}
 		return mangleIdent(e.Name)
 	case *ir.IntegerLiteral:
 		return strconv.Itoa(e.Value)
@@ -88,6 +91,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return fmt.Sprintf("%s{%s}", anonymousObjectType(e), anonymousObjectFields(g, e))
 	case *ir.MatchExpr:
 		return g.matchExpr(e)
+	case *ir.WatchExpr:
+		return g.watchExpr(e)
 	case *ir.AtExpr:
 		return e.Name
 	case *ir.ThisExpr:
@@ -98,6 +103,36 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) exprRaw(expr ir.Expr) string {
+	prev := g.signals
+	g.signals = nil
+	defer func() { g.signals = prev }()
+	return g.expr(expr)
+}
+
+func (g *generator) watchExpr(watch *ir.WatchExpr) string {
+	target, ok := watch.Target.(*ir.Identifier)
+	if !ok || !g.isSignal(target.Name) {
+		return "/* watch target is not a signal */"
+	}
+	handler, ok := watch.Handler.(*ir.LambdaExpr)
+	if !ok {
+		return "/* watch handler is not a lambda */"
+	}
+	params := handler.Params
+	targetType := goType(g.signalType(target.Name))
+	goParams := make([]string, 0, len(params))
+	if len(params) == 0 {
+		goParams = append(goParams, "_ "+targetType, "_ "+targetType)
+	} else {
+		for _, name := range params {
+			goParams = append(goParams, fmt.Sprintf("%s %s", mangleIdent(name), targetType))
+		}
+	}
+	body := g.lambdaBody(handler)
+	return fmt.Sprintf("%s.Watch(func(%s) { %s })", mangleIdent(target.Name), strings.Join(goParams, ", "), body)
 }
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
@@ -198,15 +233,117 @@ func (g *generator) lambda(lambda *ir.LambdaExpr) string {
 		result += " " + goType(checker.Type(ret))
 	}
 	result += " { "
-	if ret == string(checker.Void) {
-		if expr := g.expr(lambda.Body); expr != "" {
-			result += expr
-		}
-	} else {
-		result += "return " + g.expr(lambda.Body)
-	}
+	result += g.lambdaBodyWithReturn(lambda, checker.Type(ret))
 	result += " }"
 	return result
+}
+
+func (g *generator) lambdaBody(lambda *ir.LambdaExpr) string {
+	_, ret, ok := parseGoFuncType(string(lambda.ResultType()))
+	if !ok {
+		ret = string(checker.Void)
+	}
+	return g.lambdaBodyWithReturn(lambda, checker.Type(ret))
+}
+
+func (g *generator) lambdaBodyWithReturn(lambda *ir.LambdaExpr, ret checker.Type) string {
+	if block, ok := lambda.Body.(*ir.BlockExpr); ok {
+		return g.blockInline(block, ret)
+	}
+	if ret == checker.Void {
+		if expr := g.expr(lambda.Body); expr != "" {
+			return expr
+		}
+		return ""
+	}
+	return "return " + g.expr(lambda.Body)
+}
+
+func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
+	parts := make([]string, 0, len(block.Statements))
+	for i, stmt := range block.Statements {
+		last := i == len(block.Statements)-1
+		switch s := stmt.(type) {
+		case *ir.LetStmt:
+			parts = append(parts, fmt.Sprintf("%s := %s; _ = %s", mangleIdent(s.Name), g.expr(s.Value), mangleIdent(s.Name)))
+		case *ir.AssignStmt:
+			if g.isSignal(s.Name) {
+				parts = append(parts, fmt.Sprintf("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s = %s", mangleIdent(s.Name), g.expr(s.Value)))
+			}
+		case *ir.ExprStmt:
+			expr := g.expr(s.Expr)
+			if expr == "" {
+				continue
+			}
+			if last && ret != checker.Void {
+				parts = append(parts, "return "+expr)
+			} else {
+				parts = append(parts, expr)
+			}
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (g *generator) pushSignalScope() {
+	g.signals = append(g.signals, map[string]checker.Type{})
+}
+
+func (g *generator) popSignalScope() {
+	g.signals = g.signals[:len(g.signals)-1]
+}
+
+func (g *generator) addSignal(name string, typ checker.Type) {
+	if len(g.signals) == 0 {
+		g.pushSignalScope()
+	}
+	g.signals[len(g.signals)-1][name] = typ
+}
+
+func (g *generator) isSignal(name string) bool {
+	_, ok := g.lookupSignal(name)
+	return ok
+}
+
+func (g *generator) signalType(name string) checker.Type {
+	typ, ok := g.lookupSignal(name)
+	if !ok {
+		return checker.Unknown
+	}
+	return typ
+}
+
+func (g *generator) lookupSignal(name string) (checker.Type, bool) {
+	for i := len(g.signals) - 1; i >= 0; i-- {
+		if typ, ok := g.signals[i][name]; ok {
+			return typ, true
+		}
+	}
+	return checker.Unknown, false
+}
+
+func (g *generator) exprUsesSignal(expr ir.Expr) bool {
+	used := false
+	ir.WalkExpr(expr, func(e ir.Expr) {
+		if ident, ok := e.(*ir.Identifier); ok && g.isSignal(ident.Name) {
+			used = true
+		}
+	})
+	return used
+}
+
+func (g *generator) exprSignalDeps(expr ir.Expr) []string {
+	seen := map[string]bool{}
+	var deps []string
+	ir.WalkExpr(expr, func(e ir.Expr) {
+		if ident, ok := e.(*ir.Identifier); ok && g.isSignal(ident.Name) && !seen[ident.Name] {
+			seen[ident.Name] = true
+			deps = append(deps, ident.Name)
+		}
+	})
+	return deps
 }
 
 func anonymousObjectType(obj *ir.AnonymousObjectLiteral) string {

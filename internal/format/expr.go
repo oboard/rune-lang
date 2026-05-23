@@ -34,15 +34,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 		}
 		return fmt.Sprintf("%s(%s)", f.expr(e.Callee), strings.Join(args, ", "))
 	case *ast.LambdaExpr:
-		params := make([]string, 0, len(e.Params))
-		for i, param := range e.Params {
-			if i < len(e.ParamTypes) && e.ParamTypes[i] != "" {
-				params = append(params, fmt.Sprintf("%s: %s", param, e.ParamTypes[i]))
-			} else {
-				params = append(params, param)
-			}
-		}
-		return "(" + strings.Join(params, ", ") + ") => " + f.expr(e.Body)
+		return f.lambdaExpr(e)
 	case *ast.IndexExpr:
 		return fmt.Sprintf("%s[%s]", f.expr(e.Receiver), f.expr(e.Index))
 	case *ast.SelectorExpr:
@@ -57,33 +49,102 @@ func (f *formatter) expr(expr ast.Expr) string {
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
 	case *ast.StructLiteral:
-		var b strings.Builder
-		b.WriteString(e.TypeName)
-		b.WriteString(" {")
-		for i, field := range e.Fields {
-			if i > 0 {
-				b.WriteString(",")
-			}
-			b.WriteString(" ")
-			b.WriteString(field.Name)
-			b.WriteString(": ")
-			b.WriteString(f.expr(field.Value))
-		}
-		b.WriteString(" }")
-		return b.String()
+		return f.structLiteral(e)
 	case *ast.AnonymousObjectLiteral:
 		return f.anonymousObjectLiteral(e)
 	case *ast.BlockExpr:
-		return "{ ... }"
+		return f.blockExpr(e)
 	case *ast.PatternBlock:
 		return "{ ... }"
 	case *ast.MatchExpr:
 		return f.matchExpr(e)
+	case *ast.WatchExpr:
+		return f.watchExpr(e)
 	case *ast.ThisExpr:
 		return "this"
 	default:
 		return ""
 	}
+}
+
+func (f *formatter) lambdaExpr(lambda *ast.LambdaExpr) string {
+	params := f.lambdaParams(lambda)
+	if lambda.Implicit {
+		return f.expr(lambda.Body)
+	}
+	return "(" + strings.Join(params, ", ") + ") => " + f.expr(lambda.Body)
+}
+
+func (f *formatter) lambdaParams(lambda *ast.LambdaExpr) []string {
+	params := make([]string, 0, len(lambda.Params))
+	for i, param := range lambda.Params {
+		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+			params = append(params, fmt.Sprintf("%s: %s", param, lambda.ParamTypes[i]))
+		} else {
+			params = append(params, param)
+		}
+	}
+	return params
+}
+
+func (f *formatter) watchExpr(watch *ast.WatchExpr) string {
+	lambda, ok := watch.Handler.(*ast.LambdaExpr)
+	if !ok {
+		return fmt.Sprintf("%s -> %s", f.expr(watch.Target), f.expr(watch.Handler))
+	}
+	if lambda.Implicit {
+		return fmt.Sprintf("%s -> %s", f.expr(watch.Target), f.expr(lambda.Body))
+	}
+	return fmt.Sprintf("%s -> (%s) => %s", f.expr(watch.Target), strings.Join(f.lambdaParams(lambda), ", "), f.expr(lambda.Body))
+}
+
+func (f *formatter) blockExpr(block *ast.BlockExpr) string {
+	var b strings.Builder
+	bodyIndent := indentString(f.indent + 1)
+	closeIndent := indentString(f.indent)
+	b.WriteString("{\n")
+	previous := f.indent
+	f.indent++
+	for i, stmt := range block.Statements {
+		formatted := f.stmt(stmt)
+		for j, line := range strings.Split(formatted, "\n") {
+			if j == 0 {
+				b.WriteString(bodyIndent)
+			} else if line != "" {
+				b.WriteString(indentString(f.indent))
+			}
+			b.WriteString(line)
+			b.WriteByte('\n')
+		}
+		if i < len(block.Statements)-1 && strings.Contains(formatted, "\n") && separatesFollowingStatement(stmt) {
+			b.WriteByte('\n')
+		}
+	}
+	f.indent = previous
+	b.WriteString(closeIndent)
+	b.WriteString("}")
+	return b.String()
+}
+
+func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
+	if len(lit.Fields) == 0 {
+		return lit.TypeName + " {}"
+	}
+	var b strings.Builder
+	fieldIndent := indentString(f.indent + 1)
+	closeIndent := indentString(f.indent)
+	b.WriteString(lit.TypeName)
+	b.WriteString(" {\n")
+	for _, field := range lit.Fields {
+		b.WriteString(fieldIndent)
+		b.WriteString(field.Name)
+		b.WriteString(": ")
+		b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+		b.WriteByte('\n')
+	}
+	b.WriteString(closeIndent)
+	b.WriteString("}")
+	return b.String()
 }
 
 func (f *formatter) matchExpr(match *ast.MatchExpr) string {

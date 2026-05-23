@@ -13,6 +13,9 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 		if s.Mutable {
 			op = "~="
 		}
+		if s.Signal {
+			op = "$="
+		}
 		return fmt.Sprintf("%s %s %s", s.Name, op, f.expr(s.Value))
 	case *ast.AssignStmt:
 		return fmt.Sprintf("%s = %s", s.Name, f.expr(s.Value))

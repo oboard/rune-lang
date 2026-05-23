@@ -75,6 +75,11 @@ func (l *Lexer) Next() Token {
 			return l.token(MutDeclare)
 		}
 		return l.token(Illegal)
+	case '$':
+		if l.match('=') {
+			return l.token(SignalDeclare)
+		}
+		return l.token(Illegal)
 	case '<':
 		if l.match('=') {
 			return l.token(LessEqual)

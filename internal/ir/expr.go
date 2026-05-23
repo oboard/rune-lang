@@ -163,3 +163,11 @@ type MatchExpr struct {
 }
 
 func (*MatchExpr) exprNode() {}
+
+type WatchExpr struct {
+	ExprBase
+	Target  Expr
+	Handler Expr
+}
+
+func (*WatchExpr) exprNode() {}

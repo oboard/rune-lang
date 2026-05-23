@@ -92,7 +92,7 @@
         },
         {
           "name": "keyword.operator.assignment.rune",
-          "match": "(:=|~=|=)"
+          "match": "(:=|~=|\\$=|=)"
         },
         {
           "name": "keyword.operator.comparison.rune",

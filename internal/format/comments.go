@@ -5,6 +5,8 @@ import "strings"
 func preserveLineComments(source string, formatted string) string {
 	inlineComments := map[string][]string{}
 	leadingComments := map[string][][]string{}
+	var leadingKeys []string
+	var inlineKeys []string
 	var pendingLeading []string
 
 	for _, line := range strings.Split(source, "\n") {
@@ -14,6 +16,9 @@ func preserveLineComments(source string, formatted string) string {
 				key := canonicalLineKey(line)
 				if len(pendingLeading) > 0 {
 					leadingComments[key] = append(leadingComments[key], pendingLeading)
+					if !containsKey(leadingKeys, key) {
+						leadingKeys = append(leadingKeys, key)
+					}
 					pendingLeading = nil
 				}
 			}
@@ -30,26 +35,42 @@ func preserveLineComments(source string, formatted string) string {
 		key := canonicalLineKey(code)
 		if len(pendingLeading) > 0 {
 			leadingComments[key] = append(leadingComments[key], pendingLeading)
+			if !containsKey(leadingKeys, key) {
+				leadingKeys = append(leadingKeys, key)
+			}
 			pendingLeading = nil
 		}
 		inlineComments[key] = append(inlineComments[key], comment)
+		if !containsKey(inlineKeys, key) {
+			inlineKeys = append(inlineKeys, key)
+		}
 	}
 
 	hadTrailingNewline := strings.HasSuffix(formatted, "\n")
 	formatted = strings.TrimSuffix(formatted, "\n")
 	var out []string
+	var closeComments []pendingCloseComment
 	if formatted != "" {
 		for _, line := range strings.Split(formatted, "\n") {
 			key := canonicalLineKey(line)
-			if groups := leadingComments[key]; len(groups) > 0 {
+			if groups, matchedKey := takeLeadingComments(leadingComments, leadingKeys, key); len(groups) > 0 {
 				for _, comment := range groups[0] {
 					out = append(out, leadingWhitespace(line)+comment)
 				}
-				leadingComments[key] = groups[1:]
+				leadingComments[matchedKey] = groups[1:]
 			}
 			if comments := inlineComments[key]; len(comments) > 0 {
 				line += " " + comments[0]
 				inlineComments[key] = comments[1:]
+			} else if closeComment, ok := takeCloseComment(closeComments, line); ok {
+				line += " " + closeComment
+				closeComments = closeComments[:len(closeComments)-1]
+			} else if comment, matchedKey, ok := takeExpandedInlineComment(inlineComments, inlineKeys, key); ok {
+				inlineComments[matchedKey] = inlineComments[matchedKey][1:]
+				closeComments = append(closeComments, pendingCloseComment{
+					indent:  leadingWhitespace(line),
+					comment: comment,
+				})
 			}
 			out = append(out, line)
 		}
@@ -70,6 +91,65 @@ func preserveLineComments(source string, formatted string) string {
 		result += "\n"
 	}
 	return result
+}
+
+type pendingCloseComment struct {
+	indent  string
+	comment string
+}
+
+func takeLeadingComments(comments map[string][][]string, keys []string, formattedKey string) ([][]string, string) {
+	if groups := comments[formattedKey]; len(groups) > 0 {
+		return groups, formattedKey
+	}
+	for _, key := range keys {
+		if key == formattedKey {
+			continue
+		}
+		if isExpandedLineKey(key, formattedKey) {
+			if groups := comments[key]; len(groups) > 0 {
+				return groups, key
+			}
+		}
+	}
+	return nil, ""
+}
+
+func takeExpandedInlineComment(comments map[string][]string, keys []string, formattedKey string) (string, string, bool) {
+	for _, key := range keys {
+		if isExpandedLineKey(key, formattedKey) {
+			if values := comments[key]; len(values) > 0 {
+				return values[0], key, true
+			}
+		}
+	}
+	return "", "", false
+}
+
+func takeCloseComment(comments []pendingCloseComment, line string) (string, bool) {
+	if len(comments) == 0 || strings.TrimSpace(line) != "}" {
+		return "", false
+	}
+	last := comments[len(comments)-1]
+	if leadingWhitespace(line) != last.indent {
+		return "", false
+	}
+	return last.comment, true
+}
+
+func isExpandedLineKey(originalKey string, formattedKey string) bool {
+	return strings.HasSuffix(formattedKey, "{") &&
+		strings.HasPrefix(originalKey, formattedKey) &&
+		len(originalKey) > len(formattedKey)
+}
+
+func containsKey(keys []string, key string) bool {
+	for _, existing := range keys {
+		if existing == key {
+			return true
+		}
+	}
+	return false
 }
 
 func appendPendingComments(out []string, comments []string) []string {

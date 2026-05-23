@@ -17,7 +17,14 @@ func (s *server) handle(req request) error {
 				"documentSymbolProvider":     true,
 				"documentFormattingProvider": true,
 				"inlayHintProvider":          true,
-				"renameProvider":             true,
+				"semanticTokensProvider": map[string]any{
+					"legend": map[string]any{
+						"tokenTypes":     []string{"variable"},
+						"tokenModifiers": []string{"modification"},
+					},
+					"full": true,
+				},
+				"renameProvider": true,
 			},
 			"serverInfo": map[string]any{
 				"name":    "rune-lsp",
@@ -80,6 +87,12 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		return s.respond(req.ID, s.inlayHints(params.TextDocument.URI))
+	case "textDocument/semanticTokens/full":
+		var params semanticTokensParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return s.respond(req.ID, s.semanticTokens(params.TextDocument.URI))
 	case "textDocument/rename":
 		var params renameParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

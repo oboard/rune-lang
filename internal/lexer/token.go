@@ -28,6 +28,7 @@ const (
 	Assign
 	Declare
 	MutDeclare
+	SignalDeclare
 	Arrow
 
 	Plus
@@ -115,6 +116,8 @@ func (k Kind) String() string {
 		return ":="
 	case MutDeclare:
 		return "~="
+	case SignalDeclare:
+		return "$="
 	case Arrow:
 		return "->"
 	case Plus:

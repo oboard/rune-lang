@@ -29,9 +29,11 @@ func (g *generator) function(fn *ir.Function) error {
 	}
 	g.linef("func %s(%s)%s {", mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
+	g.pushSignalScope()
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
 		return err
 	}
+	g.popSignalScope()
 	g.indent--
 	g.line("}")
 	return nil
@@ -48,9 +50,11 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	}
 	g.linef("func (%s %s) %s(%s)%s {", mangleIdent("this"), mangleIdent(typ.Name), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
+	g.pushSignalScope()
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
 		return err
 	}
+	g.popSignalScope()
 	g.indent--
 	g.line("}")
 	return nil
@@ -79,6 +83,17 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if s.Signal || g.exprUsesSignal(s.Value) {
+				g.linef("%s := newRuneSignal(%s)", mangleIdent(s.Name), g.expr(s.Value))
+				g.linef("_ = %s", mangleIdent(s.Name))
+				g.addSignal(s.Name, s.Value.ResultType())
+				for _, dep := range g.exprSignalDeps(s.Value) {
+					depName := mangleIdent(dep)
+					name := mangleIdent(s.Name)
+					g.linef("%s.Watch(func(_, _ %s) { %s.Set(%s) })", depName, goType(g.signalType(dep)), name, g.expr(s.Value))
+				}
+				continue
+			}
 			if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
 				g.linef("var %s %s", mangleIdent(s.Name), anonymousObjectType(obj))
 				value := g.withThisName(mangleIdent(s.Name), func() string {
@@ -91,6 +106,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
 			g.linef("_ = %s", mangleIdent(s.Name))
 		case *ir.AssignStmt:
+			if g.isSignal(s.Name) {
+				g.linef("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value))
+				continue
+			}
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
 			if stmt, ok := g.arrayEachStmt(s.Expr); ok {
@@ -166,4 +185,48 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	default:
 		return "true"
 	}
+}
+
+func (g *generator) signalRuntime() {
+	g.line("type runeSignal[T comparable] struct {")
+	g.indent++
+	g.line("value T")
+	g.line("watchers []func(T, T)")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func newRuneSignal[T comparable](value T) *runeSignal[T] {")
+	g.indent++
+	g.line("return &runeSignal[T]{value: value}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func (s *runeSignal[T]) Get() T {")
+	g.indent++
+	g.line("return s.value")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func (s *runeSignal[T]) Set(value T) {")
+	g.indent++
+	g.line("old := s.value")
+	g.line("if old == value {")
+	g.indent++
+	g.line("return")
+	g.indent--
+	g.line("}")
+	g.line("s.value = value")
+	g.line("for _, watcher := range s.watchers {")
+	g.indent++
+	g.line("watcher(old, value)")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func (s *runeSignal[T]) Watch(watcher func(T, T)) {")
+	g.indent++
+	g.line("s.watchers = append(s.watchers, watcher)")
+	g.indent--
+	g.line("}")
 }

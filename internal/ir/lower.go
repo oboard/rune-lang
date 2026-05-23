@@ -194,6 +194,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			})
 		}
 		return out
+	case *ast.WatchExpr:
+		return &WatchExpr{ExprBase: l.base(e), Target: l.expr(e.Target), Handler: l.expr(e.Handler)}
 	default:
 		return nil
 	}
@@ -202,7 +204,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 	switch s := stmt.(type) {
 	case *ast.LetStmt:
-		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Value: l.expr(s.Value), Pos: s.Pos}
+		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.expr(s.Value), Pos: s.Pos}
 	case *ast.AssignStmt:
 		return &AssignStmt{Name: s.Name, Value: l.expr(s.Value), Pos: s.Pos}
 	case *ast.ExprStmt:

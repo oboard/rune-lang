@@ -56,6 +56,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.Types) > 0 && len(file.Functions) > 0 {
 		g.line("")
 	}
+	if fileUsesSignals(file) {
+		g.signalRuntime()
+		if len(file.Functions) > 0 {
+			g.line("")
+		}
+	}
 	for i, fn := range file.Functions {
 		if i > 0 {
 			g.line("")
@@ -81,10 +87,47 @@ func GenerateIR(file *ir.File) (string, error) {
 	return string(formatted), nil
 }
 
+func fileUsesSignals(file *ir.File) bool {
+	for _, fn := range file.Functions {
+		if blockUsesSignals(fn.Body) {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if blockUsesSignals(method.Body) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func blockUsesSignals(expr ir.Expr) bool {
+	found := false
+	ir.WalkExpr(expr, func(expr ir.Expr) {
+		if _, ok := expr.(*ir.WatchExpr); ok {
+			found = true
+		}
+	})
+	if found {
+		return true
+	}
+	if block, ok := expr.(*ir.BlockExpr); ok {
+		for _, stmt := range block.Statements {
+			if let, ok := stmt.(*ir.LetStmt); ok && let.Signal {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 type generator struct {
 	buf       bytes.Buffer
 	file      *ir.File
 	imports   map[string]bool
 	indent    int
 	thisNames []string
+	signals   []map[string]checker.Type
 }

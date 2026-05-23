@@ -10,6 +10,7 @@ type Stmt interface {
 type LetStmt struct {
 	Name    string
 	Mutable bool
+	Signal  bool
 	Value   Expr
 	Pos     lexer.Position
 }
