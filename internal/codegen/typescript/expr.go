@@ -91,7 +91,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
 		}
-		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
+		return tsPropertyAccess(g.expr(e.Receiver), e.Name)
 	case *ir.IndexExpr:
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
@@ -107,13 +107,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.StructLiteral:
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+			fields = append(fields, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.expr(field.Value)))
 		}
 		return "{" + strings.Join(fields, ", ") + "}"
 	case *ir.AnonymousObjectLiteral:
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+			fields = append(fields, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.expr(field.Value)))
 		}
 		return "{" + strings.Join(fields, ", ") + "}"
 	case *ir.MatchExpr:
@@ -178,6 +178,12 @@ func (g *generator) stdlibCall(call *ir.CallExpr) (string, bool) {
 	}
 	if at.Name == "go" {
 		return "undefined /* TypeScript backend does not support @go */", true
+	}
+	if at.Name == "json" && sel.Name == "stringify" {
+		if len(call.Args) != 1 {
+			return "undefined", true
+		}
+		return "JSON.stringify(" + g.jsonValueExpr(call.Args[0]) + ")", true
 	}
 	if at.Name != "io" {
 		return "", false

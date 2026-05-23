@@ -96,17 +96,20 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return array, nil
 	case *ir.StructLiteral:
 		fields := map[string]Value{}
+		order := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
 			value, err := i.eval(field.Value, env)
 			if err != nil {
 				return nil, err
 			}
 			fields[field.Name] = value
+			order = append(order, field.Name)
 		}
-		return &Struct{TypeName: e.TypeName, Fields: fields}, nil
+		return &Struct{TypeName: e.TypeName, Fields: fields, Order: order}, nil
 	case *ir.AnonymousObjectLiteral:
 		fields := map[string]Value{}
-		obj := &Struct{TypeName: string(e.ResultType()), Fields: fields}
+		order := make([]string, 0, len(e.Fields))
+		obj := &Struct{TypeName: string(e.ResultType()), Fields: fields, Order: order}
 		objectEnv := NewEnv(env)
 		objectEnv.Define("this", obj)
 		for _, field := range e.Fields {
@@ -115,6 +118,7 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 				return nil, err
 			}
 			fields[field.Name] = value
+			obj.Order = append(obj.Order, field.Name)
 		}
 		return obj, nil
 	case *ir.BlockExpr:

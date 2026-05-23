@@ -9,6 +9,7 @@ Current modules:
 * `array` - declared placeholder for array APIs
 * `map` - declared placeholder for map APIs
 * `io` - I/O declarations backed by Go `fmt`
+* `json` - JSON serialization helpers
 * `go` - inline Go FFI declarations
 
 Each module directory contains a `<module>.rn` stub file. A stub is still Rune

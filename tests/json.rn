@@ -1,0 +1,27 @@
+JsonUser: {
+  name: String
+  age: Int
+}
+
+? "json stringify anonymous object" {
+  user := JsonUser { name: "Ada", age: 36 }
+  value := {
+    name: "Rune"
+    user: user
+    tags: ["compiler", "json"]
+    greet() => @io.println(.name)
+  }
+
+  @assert.eq(
+    @json.stringify(value),
+    "{\"name\":\"Rune\",\"user\":{\"name\":\"Ada\",\"age\":36},\"tags\":[\"compiler\",\"json\"]}"
+  )
+
+  @assert.eq(
+    @json.stringify({
+      name: "Direct"
+      greet() => @io.println("skip")
+    }),
+    "{\"name\":\"Direct\"}"
+  )
+}

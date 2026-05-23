@@ -31,6 +31,14 @@ func TestLoadCoreStubs(t *testing.T) {
 		t.Fatal("unexpected undeclared fmt.println declaration")
 	}
 
+	stringify, ok := reg.Function("json", "stringify")
+	if !ok {
+		t.Fatal("missing core/json stringify declaration")
+	}
+	if stringify.Intrinsic != "json.stringify" || stringify.Return != "String" || len(stringify.Params) != 1 || stringify.Params[0] != "Object" {
+		t.Fatalf("unexpected json.stringify declaration: %#v", stringify)
+	}
+
 	lenFn, ok := reg.Function("array", "length")
 	if !ok {
 		t.Fatal("missing core/array length declaration")

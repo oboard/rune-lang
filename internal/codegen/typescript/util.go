@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
@@ -84,7 +85,7 @@ func tsType(typ checker.Type) string {
 	if fields, ok := parseTSObjectType(string(typ)); ok {
 		parts := make([]string, 0, len(fields))
 		for _, field := range fields {
-			parts = append(parts, fmt.Sprintf("%s: %s", mangleIdent(field.name), tsType(checker.Type(field.typ))))
+			parts = append(parts, fmt.Sprintf("%s: %s", tsPropertyName(field.name), tsType(checker.Type(field.typ))))
 		}
 		return "{ " + strings.Join(parts, "; ") + " }"
 	}
@@ -284,6 +285,75 @@ func mangleIdent(name string) string {
 	}
 	name = unsafeIdentChars.ReplaceAllString(name, "_")
 	return "__" + name
+}
+
+var tsSafePropertyIdent = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
+
+var tsReservedPropertyNames = map[string]bool{
+	"await":      true,
+	"break":      true,
+	"case":       true,
+	"catch":      true,
+	"class":      true,
+	"const":      true,
+	"continue":   true,
+	"debugger":   true,
+	"default":    true,
+	"delete":     true,
+	"do":         true,
+	"else":       true,
+	"enum":       true,
+	"export":     true,
+	"extends":    true,
+	"false":      true,
+	"finally":    true,
+	"for":        true,
+	"function":   true,
+	"if":         true,
+	"implements": true,
+	"import":     true,
+	"in":         true,
+	"instanceof": true,
+	"interface":  true,
+	"let":        true,
+	"new":        true,
+	"null":       true,
+	"package":    true,
+	"private":    true,
+	"protected":  true,
+	"public":     true,
+	"return":     true,
+	"static":     true,
+	"super":      true,
+	"switch":     true,
+	"this":       true,
+	"throw":      true,
+	"true":       true,
+	"try":        true,
+	"typeof":     true,
+	"var":        true,
+	"void":       true,
+	"while":      true,
+	"with":       true,
+	"yield":      true,
+}
+
+func tsPropertyName(name string) string {
+	if tsCanUseBareProperty(name) {
+		return name
+	}
+	return strconv.Quote(name)
+}
+
+func tsPropertyAccess(receiver string, name string) string {
+	if tsCanUseBareProperty(name) {
+		return receiver + "." + name
+	}
+	return receiver + "[" + strconv.Quote(name) + "]"
+}
+
+func tsCanUseBareProperty(name string) bool {
+	return tsSafePropertyIdent.MatchString(name) && !tsReservedPropertyNames[name]
 }
 
 func mangleMethod(typeName string, methodName string) string {

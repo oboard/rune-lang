@@ -33,6 +33,11 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 			return nil, nil
 		}
 		return nil, fmt.Errorf("assert.eq failed: actual %s, expected %s", Format(values[0]), Format(values[1]))
+	case "json.stringify":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@json.stringify expects 1 arg, got %d", len(values))
+		}
+		return jsonStringify(values[0])
 	case "go.stmt", "go.expr", "go.import":
 		return nil, fmt.Errorf("@%s.%s is only supported by the Go backend", module, name)
 	default:

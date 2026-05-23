@@ -118,6 +118,75 @@ func TestGenerateArraySpread(t *testing.T) {
 	}
 }
 
+func TestGenerateJSONStringifyObject(t *testing.T) {
+	src := `User: {
+  name: String
+  age: Int
+}
+
+main() => {
+  user := User { name: "Ada", age: 36 }
+  obj := {
+    name: "Rune"
+    user: user
+    tags: ["compiler", "json"]
+    greet() => @io.println(.name)
+  }
+
+  @io.println(@json.stringify(obj))
+  @io.println(@json.stringify({
+    name: "Direct"
+    greet() => @io.println("skip")
+  }))
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`JSON.stringify(((__rune_json_value) => ({ name: __rune_json_value.name`,
+		`user: ((__rune_json_value) => ({ name: __rune_json_value.name, age: __rune_json_value.age }))(__rune_json_value.user)`,
+		`tags: __rune_json_value.tags`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `"greet"`) {
+		t.Fatalf("generated TypeScript should omit function fields:\n%s", got)
+	}
+}
+
+func TestGenerateKeywordObjectFields(t *testing.T) {
+	src := `Println: {
+  return: Int
+  func: Int
+  def: Int
+}
+
+main() => {
+  freedom := Println { return: 0, func: 1, def: 2 }
+  @io.println(freedom.return)
+  @io.println(freedom.func)
+  @io.println(freedom.def)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`"return": number;`,
+		`func: number;`,
+		`def: number;`,
+		`const __freedom = {"return": 0, func: 1, def: 2};`,
+		`console.log(__freedom["return"]);`,
+		`console.log(__freedom.func);`,
+		`console.log(__freedom.def);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateSignalAssignmentExpression(t *testing.T) {
 	src := `render() => {
   list $= ["Item 1"]

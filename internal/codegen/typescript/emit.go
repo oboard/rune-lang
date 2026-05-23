@@ -12,7 +12,7 @@ func (g *generator) structType(typ *ir.StructType) {
 	g.linef("type %s = {", mangleIdent(typ.Name))
 	g.indent++
 	for _, field := range typ.Fields {
-		g.linef("%s: %s;", mangleIdent(field.Name), tsType(field.Type))
+		g.linef("%s: %s;", tsPropertyName(field.Name), tsType(field.Type))
 	}
 	g.indent--
 	g.line("};")

@@ -22,6 +22,7 @@ type Array struct {
 type Struct struct {
 	TypeName string
 	Fields   map[string]Value
+	Order    []string
 }
 
 type Closure struct {

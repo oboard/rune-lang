@@ -13,6 +13,9 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Go != nil && fn.Go.Import != "" {
 		g.imports[fn.Go.Import] = true
 	}
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "json.stringify" {
+		g.imports["encoding/json"] = true
+	}
 	if call, ok := expr.(*ir.CallExpr); ok {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			switch sel.Receiver.ResultType() {

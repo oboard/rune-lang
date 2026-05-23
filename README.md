@@ -245,6 +245,7 @@ Currently included modules:
 core/array
 core/go
 core/io
+core/json
 core/map
 ```
 
@@ -266,6 +267,15 @@ main() => {
   doubled := arr.map((value) => value * 2)
   @io.println(doubled[0])
 }
+```
+
+JSON:
+
+```rune
+json := @json.stringify({
+  name: "Rune"
+  version: 1
+})
 ```
 
 Inline Go FFI:

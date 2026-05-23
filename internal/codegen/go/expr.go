@@ -66,6 +66,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
+		if jsonCall, ok := g.jsonStringifyCall(e); ok {
+			return jsonCall
+		}
 		if ffi, ok := g.goFFICall(e); ok {
 			return ffi
 		}

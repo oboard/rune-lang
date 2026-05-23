@@ -323,6 +323,63 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateJSONStringifyObject(t *testing.T) {
+	src := `User: {
+  name: String
+  age: Int
+}
+
+main() => {
+  user := User { name: "Ada", age: 36 }
+  obj := {
+    name: "Rune"
+    user: user
+    tags: ["compiler", "json"]
+    greet() => @io.println(.name)
+  }
+
+  @io.println(@json.stringify(obj))
+  @io.println(@json.stringify({
+    name: "Direct"
+    greet() => @io.println("skip")
+  }))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+
+	wantParts := []string{
+		`"encoding/json"`,
+		"json.Marshal(func() struct",
+		"F0 string `json:\"name\"`",
+		"F1 struct",
+		"`json:\"user\"`",
+		"F2 []string `json:\"tags\"`",
+		`F0: __rune_json_value.__name`,
+		`__rune_json_value := __rune_json_value.__user`,
+		`{F0: __rune_json_value.__name, F1: __rune_json_value.__age}`,
+		`F2: __rune_json_value.__tags`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `json:"greet"`) {
+		t.Fatalf("generated Go should omit function fields:\n%s", got)
+	}
+}
+
 func TestGenerateInlineFunctionValueCall(t *testing.T) {
 	src := `fun(flag) => {
   (flag {
