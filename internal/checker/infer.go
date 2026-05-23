@@ -122,10 +122,16 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 	switch e := expr.(type) {
 	case *ast.IntegerLiteral:
 		return Int
+	case *ast.DoubleLiteral:
+		return Double
+	case *ast.BigIntLiteral:
+		return BigInt
 	case *ast.StringLiteral:
 		return String
 	case *ast.BoolLiteral:
 		return Bool
+	case *ast.NullLiteral:
+		return Null
 	case *ast.Identifier:
 		if typ, ok := env[e.Name]; ok {
 			return typ
@@ -179,10 +185,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		typ := c.inferExpr(e.Expr, env)
 		switch e.Op {
 		case lexer.Minus:
-			if typ != Int && typ != Unknown {
-				c.errorf(e.Pos, "operator '-' expects Int, got %s", typ)
+			if !isNumericType(typ) && typ != Unknown {
+				c.errorf(e.Pos, "operator '-' expects Int, Double, or BigInt, got %s", typ)
 			}
-			return Int
+			return typ
 		case lexer.Bang:
 			if typ != Bool && typ != Unknown {
 				c.errorf(e.Pos, "operator '!' expects Bool, got %s", typ)
@@ -195,10 +201,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		typ := c.inferExpr(e.Expr, env)
 		switch e.Op {
 		case lexer.PlusPlus:
-			if typ != Int && typ != Unknown {
-				c.errorf(e.Pos, "operator '++' expects Int, got %s", typ)
+			if typ != Int && typ != Double && typ != Unknown {
+				c.errorf(e.Pos, "operator '++' expects Int or Double, got %s", typ)
 			}
-			return Int
+			return typ
 		default:
 			return Unknown
 		}
@@ -206,6 +212,14 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)
 		switch e.Op {
+		case lexer.AndAnd, lexer.OrOr:
+			if left != Bool && left != Unknown {
+				c.errorf(e.Left.Position(), "operator '%s' expects Bool, got %s", e.Op, left)
+			}
+			if right != Bool && right != Unknown {
+				c.errorf(e.Right.Position(), "operator '%s' expects Bool, got %s", e.Op, right)
+			}
+			return Bool
 		case lexer.Plus:
 			if left == String || right == String {
 				if left != String && left != Unknown {
@@ -216,22 +230,24 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 				}
 				return String
 			}
-			if left != Int && left != Unknown {
-				c.errorf(e.Left.Position(), "arithmetic expects Int, got %s", left)
-			}
-			if right != Int && right != Unknown {
-				c.errorf(e.Right.Position(), "arithmetic expects Int, got %s", right)
-			}
-			return Int
+			return c.numericBinaryType(e, left, right)
 		case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
-			if left != Int && left != Unknown {
-				c.errorf(e.Left.Position(), "arithmetic expects Int, got %s", left)
+			return c.numericBinaryType(e, left, right)
+		case lexer.EqualEqual, lexer.BangEqual:
+			if !typesComparable(left, right) {
+				c.errorf(e.Pos, "cannot compare %s and %s", left, right)
 			}
-			if right != Int && right != Unknown {
-				c.errorf(e.Right.Position(), "arithmetic expects Int, got %s", right)
+			return Bool
+		case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+			if !orderedComparisonType(left) && left != Unknown {
+				c.errorf(e.Left.Position(), "ordered comparison expects Int, Double, BigInt, or String, got %s", left)
 			}
-			return Int
-		case lexer.EqualEqual, lexer.BangEqual, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+			if !orderedComparisonType(right) && right != Unknown {
+				c.errorf(e.Right.Position(), "ordered comparison expects Int, Double, BigInt, or String, got %s", right)
+			}
+			if left != Unknown && right != Unknown && left != right {
+				c.errorf(e.Pos, "ordered comparison requires matching types, got %s and %s", left, right)
+			}
 			return Bool
 		default:
 			return Unknown
@@ -347,6 +363,54 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	return ret
 }
 
+func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
+	if left == Unknown && right == Unknown {
+		return Int
+	}
+	if left == Unknown && isNumericType(right) {
+		return right
+	}
+	if right == Unknown && isNumericType(left) {
+		return left
+	}
+	if !isNumericType(left) {
+		c.errorf(expr.Left.Position(), "arithmetic expects Int, Double, or BigInt, got %s", left)
+	}
+	if !isNumericType(right) {
+		c.errorf(expr.Right.Position(), "arithmetic expects Int, Double, or BigInt, got %s", right)
+	}
+	if isNumericType(left) && isNumericType(right) && left != right {
+		c.errorf(expr.Pos, "arithmetic requires matching numeric types, got %s and %s", left, right)
+		return Unknown
+	}
+	if expr.Op == lexer.Percent && left == Double && right == Double {
+		c.errorf(expr.Pos, "operator '%%' expects Int or BigInt, got Double")
+		return Unknown
+	}
+	if isNumericType(left) {
+		return left
+	}
+	return Unknown
+}
+
+func isNumericType(typ Type) bool {
+	return typ == Int || typ == Double || typ == BigInt
+}
+
+func orderedComparisonType(typ Type) bool {
+	return isNumericType(typ) || typ == String
+}
+
+func typesComparable(left Type, right Type) bool {
+	if left == Unknown || right == Unknown || left == right {
+		return true
+	}
+	if left == Never || right == Never {
+		return true
+	}
+	return false
+}
+
 func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type {
 	local := cloneEnv(env)
 	params := make([]Type, 0, len(lambda.Params))
@@ -448,6 +512,9 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
 				walk(e.Left, Int)
 				walk(e.Right, Int)
+			case lexer.AndAnd, lexer.OrOr:
+				walk(e.Left, Bool)
+				walk(e.Right, Bool)
 			default:
 				walk(e.Left, Unknown)
 				walk(e.Right, Unknown)

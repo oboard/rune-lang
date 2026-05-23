@@ -16,10 +16,22 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 	switch name {
 	case "Int":
 		return Int
+	case "Double":
+		return Double
+	case "BigInt":
+		return BigInt
 	case "String":
 		return String
 	case "Bool":
 		return Bool
+	case "Null":
+		return Null
+	case "Object":
+		return Object
+	case "Never":
+		return Never
+	case "Symbol":
+		return Symbol
 	case "Void":
 		return Void
 	case "HTMLElement":
@@ -31,12 +43,30 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		if generics[name] {
 			return Type(name)
 		}
+		if innerName, ok := parseNullableType(name); ok {
+			inner := c.resolveTypeWithGenerics(innerName, generics)
+			if inner == Unknown {
+				return Unknown
+			}
+			return NullableOf(inner)
+		}
 		if elemName, ok := parseArrayType(name); ok {
 			elem := c.resolveTypeWithGenerics(elemName, generics)
 			if elem == Unknown {
 				return Unknown
 			}
 			return ArrayOf(elem)
+		}
+		if base, args, ok := parseGenericType(name); ok && isBuiltinGenericType(base) {
+			resolved := make([]Type, 0, len(args))
+			for _, arg := range args {
+				typ := c.resolveTypeWithGenerics(arg, generics)
+				if typ == Unknown && !isDynamicTypeName(arg) {
+					return Unknown
+				}
+				resolved = append(resolved, typ)
+			}
+			return genericTypeOf(base, resolved)
 		}
 		if params, ret, ok := parseFuncType(name); ok {
 			types := make([]Type, 0, len(params)+1)
@@ -71,6 +101,21 @@ func ArrayOf(elem Type) Type {
 	return Type("Array[" + string(elem) + "]")
 }
 
+func genericTypeOf(base string, args []Type) Type {
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		parts = append(parts, string(arg))
+	}
+	return Type(base + "[" + strings.Join(parts, ",") + "]")
+}
+
+func NullableOf(elem Type) Type {
+	if elem == Null {
+		return Null
+	}
+	return Type(string(elem) + "?")
+}
+
 func FuncOf(arg Type, ret Type) Type {
 	return Type("Func[" + string(arg) + "," + string(ret) + "]")
 }
@@ -97,6 +142,9 @@ func displayTypeName(name string) string {
 	}
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
 		return displayObjectTypeName(name)
+	}
+	if inner, ok := parseNullableType(name); ok {
+		return displayTypeName(inner) + "?"
 	}
 	return name
 }
@@ -193,6 +241,24 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 	if expected == Unknown || actual == Unknown || expected == actual {
 		return true
 	}
+	if actual == Never {
+		return true
+	}
+	if expectedInner, ok := parseNullableType(string(expected)); ok {
+		if actual == Null {
+			return true
+		}
+		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
+			return typesCompatibleWithSet(Type(expectedInner), Type(actualInner), generics)
+		}
+		return typesCompatibleWithSet(Type(expectedInner), actual, generics)
+	}
+	if _, ok := parseNullableType(string(actual)); ok {
+		return false
+	}
+	if expected == Object {
+		return isObjectLike(actual)
+	}
 	if generics[string(expected)] || generics[string(actual)] {
 		return true
 	}
@@ -202,6 +268,18 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 			return false
 		}
 		return typesCompatibleWithSet(Type(expectedElem), Type(actualElem), generics)
+	}
+	if expectedBase, expectedArgs, ok := parseGenericType(string(expected)); ok && isBuiltinGenericType(expectedBase) {
+		actualBase, actualArgs, actualGeneric := parseGenericType(string(actual))
+		if !actualGeneric || expectedBase != actualBase || len(expectedArgs) != len(actualArgs) {
+			return false
+		}
+		for i, expectedArg := range expectedArgs {
+			if !typesCompatibleWithSet(Type(expectedArg), Type(actualArgs[i]), generics) {
+				return false
+			}
+		}
+		return true
 	}
 	if expectedParams, expectedRet, ok := parseFuncType(string(expected)); ok {
 		actualParams, actualRet, actualFunc := parseFuncType(string(actual))
@@ -219,6 +297,20 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 		return objectTypesCompatible(expected, actual)
 	}
 	return false
+}
+
+func isObjectLike(typ Type) bool {
+	if isObjectType(typ) {
+		return true
+	}
+	switch baseTypeName(typ) {
+	case "Array", "Map", "Set", "WeakMap", "WeakSet", "Record", "Tuple", "ReadonlyArray", "ReadonlyTuple":
+		return true
+	case string(Int), string(Double), string(BigInt), string(String), string(Bool), string(Null), string(Void), string(Symbol):
+		return false
+	default:
+		return typ != Unknown && typ != Never
+	}
 }
 
 func objectTypesCompatible(expected Type, actual Type) bool {
@@ -249,6 +341,45 @@ func (c *checker) unifyTypes(left Type, right Type) (Type, bool) {
 	if right == Unknown || left == right {
 		return left, true
 	}
+	if left == Null {
+		if right == Void {
+			return Unknown, false
+		}
+		return NullableOf(right), true
+	}
+	if right == Null {
+		if left == Void {
+			return Unknown, false
+		}
+		return NullableOf(left), true
+	}
+	if leftInner, ok := parseNullableType(string(left)); ok {
+		if right == Null {
+			return left, true
+		}
+		if rightInner, rightNullable := parseNullableType(string(right)); rightNullable {
+			elem, ok := c.unifyTypes(Type(leftInner), Type(rightInner))
+			if !ok {
+				return Unknown, false
+			}
+			return NullableOf(elem), true
+		}
+		elem, ok := c.unifyTypes(Type(leftInner), right)
+		if !ok {
+			return Unknown, false
+		}
+		return NullableOf(elem), true
+	}
+	if rightInner, ok := parseNullableType(string(right)); ok {
+		if left == Null {
+			return right, true
+		}
+		elem, ok := c.unifyTypes(left, Type(rightInner))
+		if !ok {
+			return Unknown, false
+		}
+		return NullableOf(elem), true
+	}
 	if leftElem, ok := parseArrayType(string(left)); ok {
 		rightElem, rightArray := parseArrayType(string(right))
 		if !rightArray {
@@ -259,6 +390,21 @@ func (c *checker) unifyTypes(left Type, right Type) (Type, bool) {
 			return Unknown, false
 		}
 		return ArrayOf(elem), true
+	}
+	if leftBase, leftArgs, ok := parseGenericType(string(left)); ok && isBuiltinGenericType(leftBase) {
+		rightBase, rightArgs, rightGeneric := parseGenericType(string(right))
+		if !rightGeneric || leftBase != rightBase || len(leftArgs) != len(rightArgs) {
+			return Unknown, false
+		}
+		args := make([]Type, 0, len(leftArgs))
+		for i := range leftArgs {
+			arg, ok := c.unifyTypes(Type(leftArgs[i]), Type(rightArgs[i]))
+			if !ok {
+				return Unknown, false
+			}
+			args = append(args, arg)
+		}
+		return genericTypeOf(leftBase, args), true
 	}
 	if leftParams, leftRet, ok := parseFuncType(string(left)); ok {
 		rightParams, rightRet, rightFunc := parseFuncType(string(right))

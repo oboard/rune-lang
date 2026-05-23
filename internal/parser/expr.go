@@ -264,9 +264,6 @@ func (p *Parser) parsePrimary() ast.Expr {
 		if tok.Lexeme == "null" {
 			return &ast.NullLiteral{Pos: tok.Pos}
 		}
-		if tok.Lexeme == "undefined" {
-			return &ast.UndefinedLiteral{Pos: tok.Pos}
-		}
 		return &ast.Identifier{Name: tok.Lexeme, Pos: tok.Pos}
 	case lexer.At:
 		at := p.advance()
@@ -397,14 +394,18 @@ func (p *Parser) parseArrayLiteral() ast.Expr {
 
 func precedence(kind lexer.Kind) int {
 	switch kind {
-	case lexer.EqualEqual, lexer.BangEqual:
+	case lexer.OrOr:
 		return 1
-	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.AndAnd:
 		return 2
-	case lexer.Plus, lexer.Minus:
+	case lexer.EqualEqual, lexer.BangEqual:
 		return 3
-	case lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		return 4
+	case lexer.Plus, lexer.Minus:
+		return 5
+	case lexer.Star, lexer.Slash, lexer.Percent:
+		return 6
 	default:
 		return 0
 	}

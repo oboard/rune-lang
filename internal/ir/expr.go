@@ -51,6 +51,21 @@ type IntegerLiteral struct {
 
 func (*IntegerLiteral) exprNode() {}
 
+type DoubleLiteral struct {
+	ExprBase
+	Value float64
+	Raw   string
+}
+
+func (*DoubleLiteral) exprNode() {}
+
+type BigIntLiteral struct {
+	ExprBase
+	Value string
+}
+
+func (*BigIntLiteral) exprNode() {}
+
 type StringLiteral struct {
 	ExprBase
 	Value string
@@ -64,6 +79,12 @@ type BoolLiteral struct {
 }
 
 func (*BoolLiteral) exprNode() {}
+
+type NullLiteral struct {
+	ExprBase
+}
+
+func (*NullLiteral) exprNode() {}
 
 type UnaryExpr struct {
 	ExprBase

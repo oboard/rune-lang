@@ -11,10 +11,10 @@ func (p *Parser) parsePattern() ast.Pattern {
 	case lexer.Underscore:
 		p.advance()
 		return &ast.WildcardPattern{Pos: tok.Pos}
-	case lexer.Int, lexer.String:
+	case lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 	case lexer.Ident:
-		if tok.Lexeme == "true" || tok.Lexeme == "false" {
+		if isLiteralIdentifier(tok.Lexeme) {
 			return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 		}
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:

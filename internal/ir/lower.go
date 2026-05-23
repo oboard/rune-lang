@@ -141,10 +141,16 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &ThisExpr{ExprBase: l.base(e)}
 	case *ast.IntegerLiteral:
 		return &IntegerLiteral{ExprBase: l.base(e), Value: e.Value}
+	case *ast.DoubleLiteral:
+		return &DoubleLiteral{ExprBase: l.base(e), Value: e.Value, Raw: e.Raw}
+	case *ast.BigIntLiteral:
+		return &BigIntLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.StringLiteral:
 		return &StringLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.BoolLiteral:
 		return &BoolLiteral{ExprBase: l.base(e), Value: e.Value}
+	case *ast.NullLiteral:
+		return &NullLiteral{ExprBase: l.base(e)}
 	case *ast.UnaryExpr:
 		return &UnaryExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.PostfixExpr:

@@ -30,6 +30,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return mangleIdent("this")
 	case *ir.IntegerLiteral:
 		return strconv.Itoa(e.Value)
+	case *ir.DoubleLiteral:
+		if e.Raw != "" {
+			return e.Raw
+		}
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
+	case *ir.BigIntLiteral:
+		return e.Value + "n"
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
 	case *ir.BoolLiteral:
@@ -37,6 +44,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "true"
 		}
 		return "false"
+	case *ir.NullLiteral:
+		return "null"
 	case *ir.UnaryExpr:
 		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 5))
 		if 5 < parentPrec {
@@ -512,12 +521,18 @@ func tsBinaryOp(op lexer.Kind) string {
 
 func tsPrecedence(op lexer.Kind) int {
 	switch op {
-	case lexer.EqualEqual, lexer.BangEqual, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.OrOr:
 		return 1
-	case lexer.Plus, lexer.Minus:
+	case lexer.AndAnd:
 		return 2
-	case lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.EqualEqual, lexer.BangEqual:
 		return 3
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		return 4
+	case lexer.Plus, lexer.Minus:
+		return 5
+	case lexer.Star, lexer.Slash, lexer.Percent:
+		return 6
 	default:
 		return 0
 	}

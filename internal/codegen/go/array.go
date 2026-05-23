@@ -191,6 +191,13 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 		return mangleIdent(e.Name)
 	case *ir.IntegerLiteral:
 		return strconv.Itoa(e.Value)
+	case *ir.DoubleLiteral:
+		if e.Raw != "" {
+			return e.Raw
+		}
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
+	case *ir.BigIntLiteral:
+		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
 	case *ir.BoolLiteral:
@@ -198,6 +205,8 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 			return "true"
 		}
 		return "false"
+	case *ir.NullLiteral:
+		return "any(nil)"
 	case *ir.UnaryExpr:
 		return e.Op.String() + c.expr(e.Expr, checker.Unknown)
 	case *ir.BinaryExpr:
@@ -395,6 +404,13 @@ func (g *generator) stdlibBodyExpr(expr ir.Expr, this string) string {
 		return mangleIdent(e.Name)
 	case *ir.IntegerLiteral:
 		return strconv.Itoa(e.Value)
+	case *ir.DoubleLiteral:
+		if e.Raw != "" {
+			return e.Raw
+		}
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
+	case *ir.BigIntLiteral:
+		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
 	case *ir.BoolLiteral:
@@ -402,6 +418,8 @@ func (g *generator) stdlibBodyExpr(expr ir.Expr, this string) string {
 			return "true"
 		}
 		return "false"
+	case *ir.NullLiteral:
+		return "any(nil)"
 	case *ir.UnaryExpr:
 		return e.Op.String() + g.stdlibBodyExpr(e.Expr, this)
 	case *ir.BinaryExpr:

@@ -104,10 +104,10 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 		return false
 	}
 	switch p.tokens[i].Kind {
-	case lexer.Underscore, lexer.Int, lexer.String:
+	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		i++
 	case lexer.Ident:
-		if p.tokens[i].Lexeme != "true" && p.tokens[i].Lexeme != "false" {
+		if !isLiteralIdentifier(p.tokens[i].Lexeme) {
 			return false
 		}
 		i++
@@ -116,7 +116,7 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 		if i >= len(p.tokens) {
 			return false
 		}
-		if p.tokens[i].Kind != lexer.Int && p.tokens[i].Kind != lexer.String && p.tokens[i].Kind != lexer.Ident {
+		if p.tokens[i].Kind != lexer.Int && p.tokens[i].Kind != lexer.Double && p.tokens[i].Kind != lexer.BigInt && p.tokens[i].Kind != lexer.String && p.tokens[i].Kind != lexer.Ident {
 			return false
 		}
 		i++
@@ -139,6 +139,15 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 		i++
 	}
 	return i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow
+}
+
+func isLiteralIdentifier(name string) bool {
+	switch name {
+	case "true", "false", "null":
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Parser) consumeStatementEnd() {

@@ -17,6 +17,19 @@ func applyIntrinsicSpec(moduleName string, fn *Function, spec string) error {
 		}
 		return nil
 	}
+	if moduleName == "io" {
+		switch spec {
+		case "io.print":
+			fn.Go = &GoBinding{Import: "fmt", Symbol: "fmt.Print"}
+			fn.Variadic = true
+		case "io.println":
+			fn.Go = &GoBinding{Import: "fmt", Symbol: "fmt.Println"}
+			fn.Variadic = true
+		case "io.printf":
+			fn.Go = &GoBinding{Import: "fmt", Symbol: "fmt.Printf"}
+			fn.Variadic = true
+		}
+	}
 
 	fn.Intrinsic = spec
 	if spec == "go.import" {

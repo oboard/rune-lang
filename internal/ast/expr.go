@@ -96,15 +96,6 @@ func (e *NullLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
-type UndefinedLiteral struct {
-	Pos lexer.Position
-}
-
-func (*UndefinedLiteral) exprNode() {}
-func (e *UndefinedLiteral) Position() lexer.Position {
-	return e.Pos
-}
-
 type UnaryExpr struct {
 	Op   lexer.Kind
 	Expr Expr

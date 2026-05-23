@@ -212,6 +212,9 @@ func (p *stubParser) parseTypeName() (string, error) {
 		p.consume(lexer.RBracket, "expected ']' after type arguments")
 		typ += "[" + strings.Join(args, ",") + "]"
 	}
+	if p.match(lexer.Question) {
+		typ += "?"
+	}
 	return typ, nil
 }
 

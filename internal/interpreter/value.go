@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 
@@ -9,6 +10,10 @@ import (
 )
 
 type Value any
+
+type nullValue struct{}
+
+var NullValue Value = nullValue{}
 
 type Array struct {
 	Elements []Value
@@ -29,8 +34,12 @@ func Format(value Value) string {
 	switch v := value.(type) {
 	case nil:
 		return "void"
+	case nullValue:
+		return "null"
 	case string:
 		return strconv.Quote(v)
+	case *big.Int:
+		return v.String() + "n"
 	case *Array:
 		parts := make([]string, 0, len(v.Elements))
 		for _, elem := range v.Elements {

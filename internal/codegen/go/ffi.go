@@ -41,7 +41,7 @@ func (g *generator) goFFICall(call *ir.CallExpr) (string, bool) {
 		}
 		return rewriteGoFFI(lit.Value), true
 	default:
-		return "/* unknown intrinsic */", true
+		return "", false
 	}
 }
 

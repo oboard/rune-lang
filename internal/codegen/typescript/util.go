@@ -55,6 +55,9 @@ func (g *generator) nextTemp(prefix string) string {
 }
 
 func tsType(typ checker.Type) string {
+	if inner, ok := parseTSNullableType(string(typ)); ok {
+		return tsType(checker.Type(inner)) + " | null"
+	}
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return tsType(elem) + "[]"
 	}
@@ -75,10 +78,22 @@ func tsType(typ checker.Type) string {
 	switch typ {
 	case checker.Int:
 		return "number"
+	case checker.Double:
+		return "number"
+	case checker.BigInt:
+		return "bigint"
 	case checker.String:
 		return "string"
 	case checker.Bool:
 		return "boolean"
+	case checker.Null:
+		return "null"
+	case checker.Object:
+		return "object"
+	case checker.Never:
+		return "never"
+	case checker.Symbol:
+		return "symbol"
 	case checker.Void:
 		return "void"
 	case checker.HTMLElement:
@@ -88,6 +103,13 @@ func tsType(typ checker.Type) string {
 	default:
 		return mangleIdent(string(typ))
 	}
+}
+
+func parseTSNullableType(name string) (string, bool) {
+	if !strings.HasSuffix(name, "?") || name == "?" {
+		return "", false
+	}
+	return strings.TrimSuffix(name, "?"), true
 }
 
 type tsObjectField struct {
@@ -165,6 +187,9 @@ func splitTSTypeList(src string) []string {
 }
 
 func zeroValue(typ checker.Type) string {
+	if _, ok := parseTSNullableType(string(typ)); ok {
+		return "null"
+	}
 	if _, ok := checker.ArrayElement(typ); ok {
 		return "[]"
 	}
@@ -174,10 +199,18 @@ func zeroValue(typ checker.Type) string {
 	switch typ {
 	case checker.Int:
 		return "0"
+	case checker.Double:
+		return "0"
+	case checker.BigInt:
+		return "0n"
 	case checker.String:
 		return `""`
 	case checker.Bool:
 		return "false"
+	case checker.Null:
+		return "null"
+	case checker.Never:
+		return "undefined as never"
 	case checker.Void:
 		return "undefined"
 	case checker.HTMLElement:

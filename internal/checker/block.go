@@ -242,8 +242,14 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 			return Bool
 		case *ast.IntegerLiteral:
 			return Int
+		case *ast.DoubleLiteral:
+			return Double
+		case *ast.BigIntLiteral:
+			return BigInt
 		case *ast.StringLiteral:
 			return String
+		case *ast.NullLiteral:
+			return Null
 		}
 	}
 	return Unknown
@@ -327,8 +333,8 @@ func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
 		c.inferExpr(p.Value, env)
 	case *ast.ComparePattern:
 		typ := c.inferExpr(p.Value, env)
-		if typ != Int && typ != Unknown {
-			c.errorf(p.Pos, "comparison pattern expects Int literal")
+		if !orderedComparisonType(typ) && typ != Unknown {
+			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, or String literal")
 		}
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {

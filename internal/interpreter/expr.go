@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 
 	"github.com/oboard/rune-lang/internal/checker"
@@ -28,10 +29,20 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return nil, fmt.Errorf("this is not defined")
 	case *ir.IntegerLiteral:
 		return e.Value, nil
+	case *ir.DoubleLiteral:
+		return e.Value, nil
+	case *ir.BigIntLiteral:
+		value, ok := new(big.Int).SetString(e.Value, 10)
+		if !ok {
+			return nil, fmt.Errorf("invalid BigInt literal %q", e.Value)
+		}
+		return value, nil
 	case *ir.StringLiteral:
 		return e.Value, nil
 	case *ir.BoolLiteral:
 		return e.Value, nil
+	case *ir.NullLiteral:
+		return NullValue, nil
 	case *ir.UnaryExpr:
 		return i.evalUnary(e, env)
 	case *ir.BinaryExpr:
@@ -128,11 +139,16 @@ func (i *Interpreter) evalUnary(expr *ir.UnaryExpr, env *Env) (Value, error) {
 	}
 	switch expr.Op {
 	case lexer.Minus:
-		n, ok := value.(int)
-		if !ok {
-			return nil, fmt.Errorf("operator '-' expects Int")
+		switch n := value.(type) {
+		case int:
+			return -n, nil
+		case float64:
+			return -n, nil
+		case *big.Int:
+			return new(big.Int).Neg(n), nil
+		default:
+			return nil, fmt.Errorf("operator '-' expects Int, Double, or BigInt")
 		}
-		return -n, nil
 	case lexer.Bang:
 		b, ok := value.(bool)
 		if !ok {
@@ -148,6 +164,42 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 	left, err := i.eval(expr.Left, env)
 	if err != nil {
 		return nil, err
+	}
+	switch expr.Op {
+	case lexer.AndAnd:
+		l, ok := left.(bool)
+		if !ok {
+			return nil, fmt.Errorf("operator '&&' expects Bool")
+		}
+		if !l {
+			return false, nil
+		}
+		right, err := i.eval(expr.Right, env)
+		if err != nil {
+			return nil, err
+		}
+		r, ok := right.(bool)
+		if !ok {
+			return nil, fmt.Errorf("operator '&&' expects Bool")
+		}
+		return r, nil
+	case lexer.OrOr:
+		l, ok := left.(bool)
+		if !ok {
+			return nil, fmt.Errorf("operator '||' expects Bool")
+		}
+		if l {
+			return true, nil
+		}
+		right, err := i.eval(expr.Right, env)
+		if err != nil {
+			return nil, err
+		}
+		r, ok := right.(bool)
+		if !ok {
+			return nil, fmt.Errorf("operator '||' expects Bool")
+		}
+		return r, nil
 	}
 	right, err := i.eval(expr.Right, env)
 	if err != nil {
@@ -165,25 +217,29 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		if _, ok := right.(string); ok {
 			return nil, fmt.Errorf("string concatenation expects String")
 		}
-		l, ok := left.(int)
-		if !ok {
-			return nil, fmt.Errorf("arithmetic expects Int")
-		}
-		r, ok := right.(int)
-		if !ok {
-			return nil, fmt.Errorf("arithmetic expects Int")
-		}
-		return l + r, nil
+		return evalNumericBinary(expr.Op, left, right)
 	case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
-		l, ok := left.(int)
-		if !ok {
-			return nil, fmt.Errorf("arithmetic expects Int")
-		}
+		return evalNumericBinary(expr.Op, left, right)
+	case lexer.EqualEqual:
+		return reflect.DeepEqual(left, right), nil
+	case lexer.BangEqual:
+		return !reflect.DeepEqual(left, right), nil
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		return evalOrderedComparison(expr.Op, left, right)
+	}
+	return nil, fmt.Errorf("unsupported binary operator %s", expr.Op)
+}
+
+func evalNumericBinary(op lexer.Kind, left Value, right Value) (Value, error) {
+	switch l := left.(type) {
+	case int:
 		r, ok := right.(int)
 		if !ok {
-			return nil, fmt.Errorf("arithmetic expects Int")
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		switch expr.Op {
+		switch op {
+		case lexer.Plus:
+			return l + r, nil
 		case lexer.Minus:
 			return l - r, nil
 		case lexer.Star:
@@ -193,31 +249,114 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		case lexer.Percent:
 			return l % r, nil
 		}
-	case lexer.EqualEqual:
-		return reflect.DeepEqual(left, right), nil
-	case lexer.BangEqual:
-		return !reflect.DeepEqual(left, right), nil
-	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
-		l, ok := left.(int)
+	case float64:
+		r, ok := right.(float64)
 		if !ok {
-			return nil, fmt.Errorf("comparison expects Int")
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		r, ok := right.(int)
+		switch op {
+		case lexer.Plus:
+			return l + r, nil
+		case lexer.Minus:
+			return l - r, nil
+		case lexer.Star:
+			return l * r, nil
+		case lexer.Slash:
+			return l / r, nil
+		case lexer.Percent:
+			return nil, fmt.Errorf("operator '%%' expects Int or BigInt")
+		}
+	case *big.Int:
+		r, ok := right.(*big.Int)
 		if !ok {
-			return nil, fmt.Errorf("comparison expects Int")
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		switch expr.Op {
-		case lexer.Less:
-			return l < r, nil
-		case lexer.LessEqual:
-			return l <= r, nil
-		case lexer.Greater:
-			return l > r, nil
-		case lexer.GreaterEqual:
-			return l >= r, nil
+		out := new(big.Int)
+		switch op {
+		case lexer.Plus:
+			return out.Add(l, r), nil
+		case lexer.Minus:
+			return out.Sub(l, r), nil
+		case lexer.Star:
+			return out.Mul(l, r), nil
+		case lexer.Slash:
+			return out.Quo(l, r), nil
+		case lexer.Percent:
+			return out.Rem(l, r), nil
 		}
 	}
-	return nil, fmt.Errorf("unsupported binary operator %s", expr.Op)
+	return nil, fmt.Errorf("arithmetic expects Int, Double, or BigInt")
+}
+
+func evalOrderedComparison(op lexer.Kind, left Value, right Value) (Value, error) {
+	cmp, err := compareOrdered(left, right)
+	if err != nil {
+		return nil, err
+	}
+	switch op {
+	case lexer.Less:
+		return cmp < 0, nil
+	case lexer.LessEqual:
+		return cmp <= 0, nil
+	case lexer.Greater:
+		return cmp > 0, nil
+	case lexer.GreaterEqual:
+		return cmp >= 0, nil
+	default:
+		return nil, fmt.Errorf("unsupported comparison operator %s", op)
+	}
+}
+
+func compareOrdered(left Value, right Value) (int, error) {
+	switch l := left.(type) {
+	case int:
+		r, ok := right.(int)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		switch {
+		case l < r:
+			return -1, nil
+		case l > r:
+			return 1, nil
+		default:
+			return 0, nil
+		}
+	case float64:
+		r, ok := right.(float64)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		switch {
+		case l < r:
+			return -1, nil
+		case l > r:
+			return 1, nil
+		default:
+			return 0, nil
+		}
+	case *big.Int:
+		r, ok := right.(*big.Int)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return l.Cmp(r), nil
+	case string:
+		r, ok := right.(string)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		switch {
+		case l < r:
+			return -1, nil
+		case l > r:
+			return 1, nil
+		default:
+			return 0, nil
+		}
+	default:
+		return 0, fmt.Errorf("comparison expects Int, Double, BigInt, or String")
+	}
 }
 
 func (i *Interpreter) evalBlock(block *ir.BlockExpr, env *Env) (Value, error) {
@@ -271,6 +410,12 @@ func typeName(value Value) string {
 		return "Void"
 	case int:
 		return string(checker.Int)
+	case float64:
+		return string(checker.Double)
+	case *big.Int:
+		return string(checker.BigInt)
+	case nullValue:
+		return string(checker.Null)
 	case string:
 		return string(checker.String)
 	case bool:

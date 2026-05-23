@@ -11,8 +11,14 @@ type Type string
 const (
 	Unknown     Type = "Unknown"
 	Int         Type = "Int"
+	Double      Type = "Double"
+	BigInt      Type = "BigInt"
 	String      Type = "String"
 	Bool        Type = "Bool"
+	Null        Type = "Null"
+	Object      Type = "Object"
+	Never       Type = "Never"
+	Symbol      Type = "Symbol"
 	Void        Type = "Void"
 	HTMLElement Type = "HTMLElement"
 )

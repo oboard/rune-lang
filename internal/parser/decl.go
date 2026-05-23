@@ -203,6 +203,10 @@ func (p *Parser) parseTypeName() parsedType {
 		typ += "[" + strings.Join(canonicalArgs, ",") + "]"
 		display += "[" + strings.Join(displayArgs, ", ") + "]"
 	}
+	if p.match(lexer.Question) {
+		typ += "?"
+		display += "?"
+	}
 	return parsedType{canonical: typ, display: display}
 }
 

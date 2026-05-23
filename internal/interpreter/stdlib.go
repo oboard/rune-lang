@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math/big"
 	"reflect"
 
 	"github.com/oboard/rune-lang/internal/ir"
@@ -39,6 +40,10 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 }
 
 func valuesEqual(left Value, right Value) bool {
+	if l, ok := left.(*big.Int); ok {
+		r, ok := right.(*big.Int)
+		return ok && l.Cmp(r) == 0
+	}
 	return reflect.DeepEqual(left, right)
 }
 

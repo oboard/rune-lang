@@ -23,6 +23,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return mangleIdent(e.Name)
 	case *ir.IntegerLiteral:
 		return strconv.Itoa(e.Value)
+	case *ir.DoubleLiteral:
+		if e.Raw != "" {
+			return e.Raw
+		}
+		return strconv.FormatFloat(e.Value, 'f', -1, 64)
+	case *ir.BigIntLiteral:
+		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
 	case *ir.BoolLiteral:
@@ -30,7 +37,12 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "true"
 		}
 		return "false"
+	case *ir.NullLiteral:
+		return "any(nil)"
 	case *ir.UnaryExpr:
+		if e.Op == lexer.Minus && e.Expr.ResultType() == checker.BigInt {
+			return fmt.Sprintf("new(big.Int).Neg(%s)", g.exprPrec(e.Expr, 5))
+		}
 		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 5))
 		if 5 < parentPrec {
 			return "(" + s + ")"
@@ -39,6 +51,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.PostfixExpr:
 		return g.postfixExpr(e)
 	case *ir.BinaryExpr:
+		if expr := g.bigIntBinaryExpr(e); expr != "" {
+			return expr
+		}
 		prec := goPrecedence(e.Op)
 		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), e.Op, g.exprPrec(e.Right, prec+1))
 		if prec < parentPrec {
@@ -140,6 +155,40 @@ func arrayLiteralHasSpread(lit *ir.ArrayLiteral) bool {
 		}
 	}
 	return false
+}
+
+func (g *generator) bigIntBinaryExpr(e *ir.BinaryExpr) string {
+	if e.Left.ResultType() != checker.BigInt || e.Right.ResultType() != checker.BigInt {
+		return ""
+	}
+	left := g.expr(e.Left)
+	right := g.expr(e.Right)
+	switch e.Op {
+	case lexer.Plus:
+		return fmt.Sprintf("new(big.Int).Add(%s, %s)", left, right)
+	case lexer.Minus:
+		return fmt.Sprintf("new(big.Int).Sub(%s, %s)", left, right)
+	case lexer.Star:
+		return fmt.Sprintf("new(big.Int).Mul(%s, %s)", left, right)
+	case lexer.Slash:
+		return fmt.Sprintf("new(big.Int).Quo(%s, %s)", left, right)
+	case lexer.Percent:
+		return fmt.Sprintf("new(big.Int).Rem(%s, %s)", left, right)
+	case lexer.EqualEqual:
+		return fmt.Sprintf("%s.Cmp(%s) == 0", left, right)
+	case lexer.BangEqual:
+		return fmt.Sprintf("%s.Cmp(%s) != 0", left, right)
+	case lexer.Less:
+		return fmt.Sprintf("%s.Cmp(%s) < 0", left, right)
+	case lexer.LessEqual:
+		return fmt.Sprintf("%s.Cmp(%s) <= 0", left, right)
+	case lexer.Greater:
+		return fmt.Sprintf("%s.Cmp(%s) > 0", left, right)
+	case lexer.GreaterEqual:
+		return fmt.Sprintf("%s.Cmp(%s) >= 0", left, right)
+	default:
+		return ""
+	}
 }
 
 func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
@@ -437,12 +486,18 @@ func anonymousObjectFieldsForType(g *generator, obj *ir.AnonymousObjectLiteral, 
 
 func goPrecedence(op lexer.Kind) int {
 	switch op {
-	case lexer.EqualEqual, lexer.BangEqual, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.OrOr:
 		return 1
-	case lexer.Plus, lexer.Minus:
+	case lexer.AndAnd:
 		return 2
-	case lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.EqualEqual, lexer.BangEqual:
 		return 3
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		return 4
+	case lexer.Plus, lexer.Minus:
+		return 5
+	case lexer.Star, lexer.Slash, lexer.Percent:
+		return 6
 	default:
 		return 0
 	}

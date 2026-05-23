@@ -21,6 +21,9 @@ func (g *generator) linef(format string, args ...any) {
 }
 
 func goType(typ checker.Type) string {
+	if _, ok := parseGoNullableType(string(typ)); ok {
+		return "any"
+	}
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
@@ -44,10 +47,22 @@ func goType(typ checker.Type) string {
 	switch typ {
 	case checker.Int:
 		return "int"
+	case checker.Double:
+		return "float64"
+	case checker.BigInt:
+		return "*big.Int"
 	case checker.String:
 		return "string"
 	case checker.Bool:
 		return "bool"
+	case checker.Null:
+		return "any"
+	case checker.Object:
+		return "any"
+	case checker.Never:
+		return "struct{}"
+	case checker.Symbol:
+		return "runeSymbol"
 	case checker.HTMLElement:
 		return "any"
 	case checker.Unknown:
@@ -55,6 +70,13 @@ func goType(typ checker.Type) string {
 	default:
 		return mangleIdent(string(typ))
 	}
+}
+
+func parseGoNullableType(name string) (string, bool) {
+	if !strings.HasSuffix(name, "?") || name == "?" {
+		return "", false
+	}
+	return strings.TrimSuffix(name, "?"), true
 }
 
 type goObjectField struct {
@@ -132,6 +154,9 @@ func splitGoTypeList(src string) []string {
 }
 
 func zeroValue(typ checker.Type) string {
+	if _, ok := parseGoNullableType(string(typ)); ok {
+		return "any(nil)"
+	}
 	if _, ok := checker.ArrayElement(typ); ok {
 		return "nil"
 	}
@@ -141,10 +166,16 @@ func zeroValue(typ checker.Type) string {
 	switch typ {
 	case checker.Int:
 		return "0"
+	case checker.Double:
+		return "0"
+	case checker.BigInt:
+		return "runeBigInt(\"0\")"
 	case checker.String:
 		return `""`
 	case checker.Bool:
 		return "false"
+	case checker.Null:
+		return "any(nil)"
 	case checker.HTMLElement:
 		return "nil"
 	default:

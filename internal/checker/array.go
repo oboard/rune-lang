@@ -29,8 +29,13 @@ func (c *checker) inferArrayLiteral(lit *ast.ArrayLiteral, env map[string]Type) 
 			elemType = typ
 			continue
 		}
-		if typ != Unknown && typ != elemType {
-			c.errorf(elem.Position(), "array element has type %s, expected %s", typ, elemType)
+		if typ != Unknown {
+			unified, ok := c.unifyTypes(elemType, typ)
+			if !ok {
+				c.errorf(elem.Position(), "array element has type %s, expected %s", typ, elemType)
+				continue
+			}
+			elemType = unified
 		}
 	}
 	return ArrayOf(elemType)
@@ -156,6 +161,13 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 	if typ, ok := bindings[name]; ok {
 		return typ
 	}
+	if inner, ok := parseNullableType(name); ok {
+		innerType := c.resolveDeclaredType(inner, bindings)
+		if innerType == Unknown {
+			return Unknown
+		}
+		return NullableOf(innerType)
+	}
 	if elem, ok := parseArrayType(name); ok {
 		elemType := c.resolveDeclaredType(elem, bindings)
 		if elemType == Unknown {
@@ -172,6 +184,13 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 		return funcTypeOf(types[:len(types)-1], types[len(types)-1])
 	}
 	return c.resolveDeclaredReturn(name)
+}
+
+func parseNullableType(name string) (string, bool) {
+	if !strings.HasSuffix(name, "?") || name == "?" {
+		return "", false
+	}
+	return strings.TrimSuffix(name, "?"), true
 }
 
 func parseArrayType(name string) (string, bool) {
