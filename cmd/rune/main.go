@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/oboard/rune-lang/internal/repl"
 	"github.com/oboard/rune-lang/internal/tester"
 )
+
+var backend string
 
 func main() {
 	if err := rootCmd().Execute(); err != nil {
@@ -27,7 +30,11 @@ func rootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rune",
 		Short: "Rune language toolchain",
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			return validateBackend(backend)
+		},
 	}
+	cmd.PersistentFlags().StringVar(&backend, "backend", "go", "target backend: go or ts")
 	cmd.AddCommand(runCmd(), buildCmd(), tsCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
@@ -38,40 +45,69 @@ func runCmd() *cobra.Command {
 		Short: "Compile and run a Rune program",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			goFile, cleanup, err := compileToTemp(args[0])
-			if err != nil {
-				return err
-			}
-			defer cleanup()
+			switch backend {
+			case "go":
+				goFile, cleanup, err := compileGoToTemp(args[0])
+				if err != nil {
+					return err
+				}
+				defer cleanup()
 
-			goArgs := append([]string{"run", goFile}, args[1:]...)
-			run := exec.Command("go", goArgs...)
-			run.Stdout = os.Stdout
-			run.Stderr = os.Stderr
-			run.Stdin = os.Stdin
-			return run.Run()
+				goArgs := append([]string{"run", goFile}, args[1:]...)
+				run := exec.Command("go", goArgs...)
+				run.Stdout = os.Stdout
+				run.Stderr = os.Stderr
+				run.Stdin = os.Stdin
+				return run.Run()
+			case "ts":
+				tsFile, cleanup, err := compileTypeScriptToTemp(args[0])
+				if err != nil {
+					return err
+				}
+				defer cleanup()
+				run, err := typeScriptRuntimeCommand(tsFile, args[1:])
+				if err != nil {
+					return err
+				}
+				run.Stdout = os.Stdout
+				run.Stderr = os.Stderr
+				run.Stdin = os.Stdin
+				return run.Run()
+			default:
+				return validateBackend(backend)
+			}
 		},
 	}
 }
 
 func buildCmd() *cobra.Command {
 	var output string
+	var target string
 	cmd := &cobra.Command{
 		Use:   "build <file.rn>",
 		Short: "Compile a Rune program to an executable",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			goFile, cleanup, err := compileToTemp(args[0])
+			if backend != "go" {
+				return fmt.Errorf("rune build only supports --backend go")
+			}
+			goFile, cleanup, err := compileGoToTemp(args[0])
 			if err != nil {
 				return err
 			}
 			defer cleanup()
+
+			env, err := buildEnv(target)
+			if err != nil {
+				return err
+			}
 
 			out := output
 			if out == "" {
 				out = defaultBinaryName(args[0])
 			}
 			build := exec.Command("go", "build", "-o", out, goFile)
+			build.Env = env
 			build.Stdout = os.Stdout
 			build.Stderr = os.Stderr
 			build.Stdin = os.Stdin
@@ -79,6 +115,7 @@ func buildCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output executable path")
+	cmd.Flags().StringVar(&target, "target", "", "build target as GOOS-GOARCH, for example linux-amd64")
 	return cmd
 }
 
@@ -203,7 +240,7 @@ func replCmd() *cobra.Command {
 	}
 }
 
-func compileToTemp(path string) (string, func(), error) {
+func compileGoToTemp(path string) (string, func(), error) {
 	prog, diags := compiler.AnalyzeFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
@@ -226,6 +263,70 @@ func compileToTemp(path string) (string, func(), error) {
 		return "", func() {}, err
 	}
 	return goFile, cleanup, nil
+}
+
+func compileTypeScriptToTemp(path string) (string, func(), error) {
+	src, diags := compiler.GenerateTypeScriptFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return "", func() {}, fmt.Errorf("compile failed")
+	}
+	dir, err := os.MkdirTemp("", "rune-*")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup := func() {
+		_ = os.RemoveAll(dir)
+	}
+	tsFile := filepath.Join(dir, "main.ts")
+	src += "\nif (typeof __main === \"function\") {\n  __main();\n}\n"
+	if err := os.WriteFile(tsFile, []byte(src), 0o644); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+	return tsFile, cleanup, nil
+}
+
+func typeScriptRuntimeCommand(path string, args []string) (*exec.Cmd, error) {
+	if runner, err := exec.LookPath("bun"); err == nil {
+		return exec.Command(runner, append([]string{path}, args...)...), nil
+	}
+	if runner, err := exec.LookPath("deno"); err == nil {
+		return exec.Command(runner, append([]string{"run", path}, args...)...), nil
+	}
+	if runner, err := exec.LookPath("node"); err == nil {
+		return exec.Command(runner, append([]string{path}, args...)...), nil
+	}
+	return nil, fmt.Errorf("TypeScript backend requires bun, deno, or node")
+}
+
+func buildEnv(target string) ([]string, error) {
+	env := os.Environ()
+	if target == "" {
+		return env, nil
+	}
+	goos, goarch, err := parseTarget(target)
+	if err != nil {
+		return nil, err
+	}
+	return append(env, "GOOS="+goos, "GOARCH="+goarch), nil
+}
+
+func parseTarget(target string) (string, string, error) {
+	parts := strings.Split(target, "-")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", fmt.Errorf("invalid target %q, expected GOOS-GOARCH", target)
+	}
+	return parts[0], parts[1], nil
+}
+
+func validateBackend(value string) error {
+	switch value {
+	case "go", "ts":
+		return nil
+	default:
+		return fmt.Errorf("invalid backend %q, expected go or ts", value)
+	}
 }
 
 func printDiagnostics(path string, diags []compiler.Diagnostic) {
