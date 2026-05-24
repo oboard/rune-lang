@@ -37,7 +37,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.NullLiteral:
 		return "null"
 	case *ast.UnaryExpr:
-		return e.Op.String() + f.expr(e.Expr)
+		return e.Op.String() + f.unaryOperandExpr(e.Expr)
 	case *ast.PostfixExpr:
 		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
 	case *ast.BinaryExpr:
@@ -96,20 +96,7 @@ func (f *formatter) chainCallExpr(call *ast.CallExpr) (string, bool) {
 	if len(parts) < 2 {
 		return "", false
 	}
-	flat := strings.Join(parts, "")
-	if len(flat) <= maxLineLength || len(parts) < 3 || strings.Contains(flat, "\n") {
-		return flat, true
-	}
-	continuationIndent := f.indentString(f.indent) + strings.Repeat(" ", len(parts[0])+2)
-	var b strings.Builder
-	b.WriteString(parts[0])
-	b.WriteString(parts[1])
-	for _, part := range parts[2:] {
-		b.WriteByte('\n')
-		b.WriteString(continuationIndent)
-		b.WriteString(part)
-	}
-	return b.String(), true
+	return strings.Join(parts, ""), true
 }
 
 func (f *formatter) callChainParts(expr ast.Expr) []string {
@@ -144,7 +131,17 @@ func (f *formatter) chainReceiverExpr(expr ast.Expr) string {
 func (f *formatter) postfixReceiverExpr(expr ast.Expr) string {
 	formatted := f.expr(expr)
 	switch expr.(type) {
-	case *ast.TernaryExpr:
+	case *ast.AssignExpr, *ast.BinaryExpr, *ast.LambdaExpr, *ast.TernaryExpr, *ast.WatchExpr:
+		return "(" + formatted + ")"
+	default:
+		return formatted
+	}
+}
+
+func (f *formatter) unaryOperandExpr(expr ast.Expr) string {
+	formatted := f.expr(expr)
+	switch expr.(type) {
+	case *ast.AssignExpr, *ast.BinaryExpr, *ast.TernaryExpr, *ast.WatchExpr:
 		return "(" + formatted + ")"
 	default:
 		return formatted

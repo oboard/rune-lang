@@ -3,6 +3,7 @@ package format
 import (
 	"testing"
 
+	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
@@ -45,6 +46,28 @@ func TestAnonymousObjectMethodReturnTypeFormatting(t *testing.T) {
     nextAge() -> Int => .age + 1
     title(prefix: String) -> String => prefix + .name
   }
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestExpressionPrecedenceFormatting(t *testing.T) {
+	src := `main()=>{a:=true b:=false c:=true @assert.eq(!(true&&false),true) @assert.eq((a&&b).not()&&(b||c),true) @assert.eq(((a&&b)||(!b&&c)).toString(),"true")}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  a := true
+  b := false
+  c := true
+  @assert.eq(!(true && false), true)
+  @assert.eq((a && b).not() && (b || c), true)
+  @assert.eq(((a && b) || (!b && c)).toString(), "true")
 }
 `
 	if got != want {
@@ -285,8 +308,27 @@ greet()=>@io.println(.name) // print greeting
 	}
 }
 
-func TestSourceWrapsLongChainAndKeepsInlineComment(t *testing.T) {
+func TestSourcePreservesIndentedCommentBeforeClose(t *testing.T) {
+	src := "main()=>{\nvalue:=1\n  // done\n}\n"
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := Source(file, src)
+	want := `main() => {
+  value := 1
+  // done
+}
+`
+	if got != want {
+		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestSourceKeepsLongChainParseableAndKeepsInlineComment(t *testing.T) {
 	src := `main()=>{
+arr:=[1,2,3]
 arr.map((value)=>value*2).each((value,index)=>@io.println(value)) // prints 2, 4, 6, 8, 10, 12
 }`
 	file, errs := parser.Parse(src)
@@ -296,15 +338,15 @@ arr.map((value)=>value*2).each((value,index)=>@io.println(value)) // prints 2, 4
 
 	got := Source(file, src)
 	want := `main() => {
-  arr.map((value) => value * 2)
-       .each((value, index) => @io.println(value)) // prints 2, 4, 6, 8, 10, 12
+  arr := [1, 2, 3]
+  arr.map((value) => value * 2).each((value, index) => @io.println(value)) // prints 2, 4, 6, 8, 10, 12
 }
 `
 	if got != want {
 		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
 	}
-	if _, errs := parser.Parse(got); len(errs) > 0 {
-		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	if _, diags := compiler.AnalyzeSource("chain.rn", got); len(diags) > 0 {
+		t.Fatalf("formatted source does not check: %v\n%s", diags, got)
 	}
 }
 

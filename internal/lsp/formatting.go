@@ -3,8 +3,8 @@ package lsp
 import (
 	"strings"
 
-	"github.com/oboard/rune-lang/internal/compiler"
 	runefmt "github.com/oboard/rune-lang/internal/format"
+	"github.com/oboard/rune-lang/internal/parser"
 )
 
 func (s *server) formatting(uri string, options *formattingOptions) any {
@@ -12,11 +12,11 @@ func (s *server) formatting(uri string, options *formattingOptions) any {
 	if !ok {
 		return nil
 	}
-	prog, diags := compiler.AnalyzeSource(uri, text)
-	if prog == nil || len(diags) > 0 {
+	file, errs := parser.Parse(text)
+	if len(errs) > 0 {
 		return nil
 	}
-	formatted := runefmt.SourceWithOptions(prog.File, text, formatOptions(options))
+	formatted := runefmt.SourceWithOptions(file, text, formatOptions(options))
 	if formatted == text {
 		return []map[string]any{}
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/oboard/rune-lang/internal/compiler"
 	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/lsp"
+	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/repl"
 	"github.com/oboard/rune-lang/internal/tester"
 )
@@ -210,16 +211,16 @@ func fmtCmd() *cobra.Command {
 		Short: "Format a Rune source file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			prog, diags := compiler.AnalyzeFile(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("format failed")
-			}
 			original, err := os.ReadFile(args[0])
 			if err != nil {
 				return err
 			}
-			formatted := runefmt.Source(prog.File, string(original))
+			file, errs := parser.Parse(string(original))
+			if len(errs) > 0 {
+				printDiagnostics(args[0], parseDiagnostics(errs))
+				return fmt.Errorf("format failed")
+			}
+			formatted := runefmt.Source(file, string(original))
 			if stdout {
 				fmt.Fprint(cmd.OutOrStdout(), formatted)
 				return nil
@@ -360,6 +361,17 @@ func printDiagnostics(path string, diags []compiler.Diagnostic) {
 			fmt.Fprintf(os.Stderr, "%s: %s\n", path, diag.Message)
 		}
 	}
+}
+
+func parseDiagnostics(errs []parser.Error) []compiler.Diagnostic {
+	diags := make([]compiler.Diagnostic, 0, len(errs))
+	for _, err := range errs {
+		diags = append(diags, compiler.Diagnostic{
+			Message: err.Message,
+			Pos:     err.Pos,
+		})
+	}
+	return diags
 }
 
 func defaultBinaryName(path string) string {

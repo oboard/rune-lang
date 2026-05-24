@@ -28,7 +28,7 @@ func preserveLineComments(source string, formatted string) string {
 		code := line[:commentStart]
 		comment := strings.TrimSpace(line[commentStart:])
 		if strings.TrimSpace(code) == "" {
-			pendingLeading = append(pendingLeading, comment)
+			pendingLeading = append(pendingLeading, leadingWhitespace(line)+comment)
 			continue
 		}
 
@@ -55,7 +55,7 @@ func preserveLineComments(source string, formatted string) string {
 			key := canonicalLineKey(line)
 			if groups, matchedKey := takeLeadingComments(leadingComments, leadingKeys, key); len(groups) > 0 {
 				for _, comment := range groups[0] {
-					out = append(out, leadingWhitespace(line)+comment)
+					out = append(out, formatLeadingComment(line, comment))
 				}
 				leadingComments[matchedKey] = groups[1:]
 			}
@@ -99,6 +99,14 @@ func preserveLineComments(source string, formatted string) string {
 type pendingCloseComment struct {
 	indent  string
 	comment string
+}
+
+func formatLeadingComment(line string, comment string) string {
+	originalIndent := leadingWhitespace(comment)
+	if strings.TrimSpace(line) == "}" && originalIndent != "" {
+		return comment
+	}
+	return leadingWhitespace(line) + strings.TrimLeft(comment, " \t")
 }
 
 func takeLeadingComments(comments map[string][][]string, keys []string, formattedKey string) ([][]string, string) {
