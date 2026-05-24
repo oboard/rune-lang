@@ -268,7 +268,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 		consequence := c.inferExpr(e.Consequence, env)
 		alternative := c.inferExpr(e.Alternative, env)
-		result, ok := c.unifyTypes(consequence, alternative)
+		result, ok := c.mergeFunctionValueTypes(consequence, alternative)
+		if !ok {
+			result, ok = c.unifyTypes(consequence, alternative)
+		}
 		if !ok {
 			c.errorf(e.Pos, "ternary branches return %s and %s", consequence, alternative)
 			return Unknown

@@ -192,6 +192,9 @@ func (c *checker) applyExpectedType(expr ast.Expr, typ Type) {
 		for _, branch := range e.Branches {
 			c.applyExpectedType(branch.Expr, typ)
 		}
+	case *ast.TernaryExpr:
+		c.applyExpectedType(e.Consequence, typ)
+		c.applyExpectedType(e.Alternative, typ)
 	}
 }
 

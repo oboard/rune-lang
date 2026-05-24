@@ -1,16 +1,13 @@
-Return: {
-  b: Int
-  z: Bool
-  a: Int
-}
-
 fun(flag) => {
-  flag ? (x) => {
+  (flag ? (x) => {
     k: x.a + 1,
   } : (y) => {
     k: y.b + 1,
-  }
-  }(Return { b: 2, z: false, a: 1 }).k
+  })({
+    b: 2,
+    z: false,
+    a: 1,
+  }).k
 }
 
 main() => {
