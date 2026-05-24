@@ -195,7 +195,12 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		switch e.Op {
 		case lexer.Minus:
 			if !isNumericType(typ) && typ != Unknown {
-				c.errorf(e.Pos, "operator '-' expects Int, Double, or BigInt, got %s", typ)
+				c.errorf(e.Pos, "operator '-' expects a numeric type, got %s", typ)
+			}
+			return typ
+		case lexer.Tilde:
+			if !isBitwiseType(typ) && typ != Unknown {
+				c.errorf(e.Pos, "operator '~' expects an integer type, got %s", typ)
 			}
 			return typ
 		case lexer.Bang:
@@ -210,8 +215,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		typ := c.inferExpr(e.Expr, env)
 		switch e.Op {
 		case lexer.PlusPlus:
-			if typ != Int && typ != Double && typ != Unknown {
-				c.errorf(e.Pos, "operator '++' expects Int or Double, got %s", typ)
+			if !isNumericType(typ) && typ != Unknown {
+				c.errorf(e.Pos, "operator '++' expects a numeric type, got %s", typ)
 			}
 			return typ
 		default:
@@ -242,6 +247,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return c.numericBinaryType(e, left, right)
 		case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
 			return c.numericBinaryType(e, left, right)
+		case lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+			return c.bitwiseBinaryType(e, left, right)
 		case lexer.EqualEqual, lexer.BangEqual:
 			if !typesComparable(left, right) {
 				c.errorf(e.Pos, "cannot compare %s and %s", left, right)
@@ -249,10 +256,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return Bool
 		case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 			if !orderedComparisonType(left) && left != Unknown {
-				c.errorf(e.Left.Position(), "ordered comparison expects Int, Double, BigInt, or String, got %s", left)
+				c.errorf(e.Left.Position(), "ordered comparison expects a numeric type or String, got %s", left)
 			}
 			if !orderedComparisonType(right) && right != Unknown {
-				c.errorf(e.Right.Position(), "ordered comparison expects Int, Double, BigInt, or String, got %s", right)
+				c.errorf(e.Right.Position(), "ordered comparison expects a numeric type or String, got %s", right)
 			}
 			if left != Unknown && right != Unknown && left != right {
 				c.errorf(e.Pos, "ordered comparison requires matching types, got %s and %s", left, right)
@@ -441,17 +448,17 @@ func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type)
 		return left
 	}
 	if !isNumericType(left) {
-		c.errorf(expr.Left.Position(), "arithmetic expects Int, Double, or BigInt, got %s", left)
+		c.errorf(expr.Left.Position(), "arithmetic expects numeric operands, got %s", left)
 	}
 	if !isNumericType(right) {
-		c.errorf(expr.Right.Position(), "arithmetic expects Int, Double, or BigInt, got %s", right)
+		c.errorf(expr.Right.Position(), "arithmetic expects numeric operands, got %s", right)
 	}
 	if isNumericType(left) && isNumericType(right) && left != right {
 		c.errorf(expr.Pos, "arithmetic requires matching numeric types, got %s and %s", left, right)
 		return Unknown
 	}
-	if expr.Op == lexer.Percent && left == Double && right == Double {
-		c.errorf(expr.Pos, "operator '%%' expects Int or BigInt, got Double")
+	if expr.Op == lexer.Percent && isFloatType(left) && isFloatType(right) {
+		c.errorf(expr.Pos, "operator '%%' expects integer operands, got %s", left)
 		return Unknown
 	}
 	if isNumericType(left) {
@@ -460,8 +467,67 @@ func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type)
 	return Unknown
 }
 
+func (c *checker) bitwiseBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
+	if left == Unknown && right == Unknown {
+		return Int
+	}
+	if left == Unknown && isBitwiseType(right) {
+		return right
+	}
+	if right == Unknown && isBitwiseType(left) {
+		return left
+	}
+	if !isBitwiseType(left) {
+		c.errorf(expr.Left.Position(), "bitwise operator expects integer operands, got %s", left)
+	}
+	if !isBitwiseType(right) {
+		c.errorf(expr.Right.Position(), "bitwise operator expects integer operands, got %s", right)
+	}
+	if expr.Op == lexer.UnsignedShiftRight && !isUnsignedIntegerType(left) && left != Unknown {
+		c.errorf(expr.Left.Position(), "operator '>>>' expects an unsigned integer left operand, got %s", left)
+	}
+	if isBitwiseType(left) && isBitwiseType(right) && left != right {
+		c.errorf(expr.Pos, "bitwise operator requires matching integer types, got %s and %s", left, right)
+		return Unknown
+	}
+	if isBitwiseType(left) {
+		return left
+	}
+	return Unknown
+}
+
 func isNumericType(typ Type) bool {
-	return typ == Int || typ == Double || typ == BigInt
+	return isIntegerType(typ) || isFloatType(typ) || typ == BigInt
+}
+
+func isIntegerType(typ Type) bool {
+	return isSignedIntegerType(typ) || isUnsignedIntegerType(typ)
+}
+
+func isSignedIntegerType(typ Type) bool {
+	switch typ {
+	case Int, Int4, Int8, Int16, Int64:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUnsignedIntegerType(typ Type) bool {
+	switch typ {
+	case UInt, UInt8, UInt16, UInt64:
+		return true
+	default:
+		return false
+	}
+}
+
+func isFloatType(typ Type) bool {
+	return typ == Float || typ == Double
+}
+
+func isBitwiseType(typ Type) bool {
+	return isIntegerType(typ) || typ == BigInt
 }
 
 func orderedComparisonType(typ Type) bool {
@@ -576,7 +642,7 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			walk(e.Receiver, Unknown)
 		case *ast.BinaryExpr:
 			switch e.Op {
-			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent, lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
 				walk(e.Left, Int)
 				walk(e.Right, Int)
 			case lexer.AndAnd, lexer.OrOr:

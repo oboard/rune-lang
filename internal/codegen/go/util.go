@@ -63,10 +63,26 @@ func goType(typ checker.Type) string {
 	switch typ {
 	case checker.Int:
 		return "int"
+	case checker.Int4, checker.Int8:
+		return "int8"
+	case checker.Int16:
+		return "int16"
+	case checker.Int64:
+		return "int64"
 	case checker.Double:
 		return "float64"
+	case checker.Float:
+		return "float32"
 	case checker.BigInt:
 		return "*big.Int"
+	case checker.UInt:
+		return "uint"
+	case checker.UInt8:
+		return "uint8"
+	case checker.UInt16:
+		return "uint16"
+	case checker.UInt64:
+		return "uint64"
 	case checker.String:
 		return "string"
 	case checker.Bool:
@@ -75,6 +91,8 @@ func goType(typ checker.Type) string {
 		return "any"
 	case checker.Object:
 		return "any"
+	case checker.Binary:
+		return "*runeBinary"
 	case checker.Never:
 		return "struct{}"
 	case checker.Symbol:
@@ -201,9 +219,9 @@ func zeroValue(typ checker.Type) string {
 		return "nil"
 	}
 	switch typ {
-	case checker.Int:
+	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.Int64, checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
 		return "0"
-	case checker.Double:
+	case checker.Double, checker.Float:
 		return "0"
 	case checker.BigInt:
 		return "runeBigInt(\"0\")"
@@ -213,6 +231,8 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `newRuneRegex("", "")`
+	case checker.Binary:
+		return "newRuneBinary(0)"
 	case checker.Null:
 		return "any(nil)"
 	case checker.HTMLElement:

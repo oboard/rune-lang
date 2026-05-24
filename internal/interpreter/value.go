@@ -33,6 +33,10 @@ type Set struct {
 	Entries map[string]Value
 }
 
+type Binary struct {
+	Data []byte
+}
+
 type Regex struct {
 	Source    string
 	Flags     string
@@ -86,6 +90,12 @@ func Format(value Value) string {
 			parts = append(parts, Format(value))
 		}
 		return "Set { " + strings.Join(parts, ", ") + " }"
+	case *Binary:
+		parts := make([]string, 0, len(v.Data))
+		for _, value := range v.Data {
+			parts = append(parts, strconv.Itoa(int(value)))
+		}
+		return "Binary [" + strings.Join(parts, ", ") + "]"
 	case *Regex:
 		return "/" + v.Source + "/" + v.Flags
 	case EnumValue:

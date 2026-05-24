@@ -98,11 +98,11 @@ func tsType(typ checker.Type) string {
 		return "(" + strings.Join(tsParams, ", ") + ") => " + tsType(checker.Type(ret))
 	}
 	switch typ {
-	case checker.Int:
+	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "number"
-	case checker.Double:
+	case checker.Double, checker.Float:
 		return "number"
-	case checker.BigInt:
+	case checker.BigInt, checker.Int64, checker.UInt64:
 		return "bigint"
 	case checker.String:
 		return "string"
@@ -112,6 +112,8 @@ func tsType(typ checker.Type) string {
 		return "null"
 	case checker.Object:
 		return "object"
+	case checker.Binary:
+		return "DataView"
 	case checker.Never:
 		return "never"
 	case checker.Symbol:
@@ -248,11 +250,11 @@ func zeroValue(typ checker.Type) string {
 		return "undefined as any"
 	}
 	switch typ {
-	case checker.Int:
+	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "0"
-	case checker.Double:
+	case checker.Double, checker.Float:
 		return "0"
-	case checker.BigInt:
+	case checker.BigInt, checker.Int64, checker.UInt64:
 		return "0n"
 	case checker.String:
 		return `""`
@@ -260,6 +262,8 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `/(?:)/`
+	case checker.Binary:
+		return "new DataView(new ArrayBuffer(0))"
 	case checker.Null:
 		return "null"
 	case checker.Never:

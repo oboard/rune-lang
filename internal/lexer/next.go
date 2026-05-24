@@ -103,12 +103,14 @@ func (l *Lexer) nextCode() Token {
 		if l.match('&') {
 			return l.token(AndAnd)
 		}
-		return l.token(Illegal)
+		return l.token(BitAnd)
 	case '|':
 		if l.match('|') {
 			return l.token(OrOr)
 		}
-		return l.token(Illegal)
+		return l.token(BitOr)
+	case '^':
+		return l.token(BitXor)
 	case '=':
 		if l.match('>') {
 			return l.token(FatArrow)
@@ -121,7 +123,7 @@ func (l *Lexer) nextCode() Token {
 		if l.match('=') {
 			return l.token(MutDeclare)
 		}
-		return l.token(Illegal)
+		return l.token(Tilde)
 	case '$':
 		if l.match('=') {
 			return l.token(SignalDeclare)
@@ -130,6 +132,9 @@ func (l *Lexer) nextCode() Token {
 	case '<':
 		if l.match('=') {
 			return l.token(LessEqual)
+		}
+		if l.match('<') {
+			return l.token(ShiftLeft)
 		}
 		if l.peek() == '/' || isIdentStart(l.peek()) {
 			l.mode = modeXMLTag
@@ -140,6 +145,12 @@ func (l *Lexer) nextCode() Token {
 	case '>':
 		if l.match('=') {
 			return l.token(GreaterEqual)
+		}
+		if l.match('>') {
+			if l.match('>') {
+				return l.token(UnsignedShiftRight)
+			}
+			return l.token(ShiftRight)
 		}
 		return l.token(Greater)
 	case '"':
@@ -319,12 +330,14 @@ func (l *Lexer) nextXMLExpr() Token {
 		if l.match('&') {
 			return l.token(AndAnd)
 		}
-		return l.token(Illegal)
+		return l.token(BitAnd)
 	case '|':
 		if l.match('|') {
 			return l.token(OrOr)
 		}
-		return l.token(Illegal)
+		return l.token(BitOr)
+	case '^':
+		return l.token(BitXor)
 	case '=':
 		if l.match('>') {
 			return l.token(FatArrow)
@@ -337,7 +350,7 @@ func (l *Lexer) nextXMLExpr() Token {
 		if l.match('=') {
 			return l.token(MutDeclare)
 		}
-		return l.token(Illegal)
+		return l.token(Tilde)
 	case '$':
 		if l.match('=') {
 			return l.token(SignalDeclare)
@@ -347,10 +360,19 @@ func (l *Lexer) nextXMLExpr() Token {
 		if l.match('=') {
 			return l.token(LessEqual)
 		}
+		if l.match('<') {
+			return l.token(ShiftLeft)
+		}
 		return l.token(Less)
 	case '>':
 		if l.match('=') {
 			return l.token(GreaterEqual)
+		}
+		if l.match('>') {
+			if l.match('>') {
+				return l.token(UnsignedShiftRight)
+			}
+			return l.token(ShiftRight)
 		}
 		return l.token(Greater)
 	case '"':

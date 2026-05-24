@@ -1,0 +1,95 @@
+? "bitwise operators on Int" {
+  @assert.eq(6 & 3, 2)
+  @assert.eq(6 | 3, 7)
+  @assert.eq(6 ^ 3, 5)
+  @assert.eq(1 << 3, 8)
+  @assert.eq(16 >> 2, 4)
+  @assert.eq(~0, 0 - 1)
+}
+
+? "bitwise operators on widened integers" {
+  left := @int8.fromInt(6)
+  right := @int8.fromInt(3)
+  @assert.eq(@int8.toInt(left & right), 2)
+  @assert.eq(@int8.toInt(left | right), 7)
+  @assert.eq(@int8.toInt(left ^ right), 5)
+
+  value := @uint.fromInt(16)
+  shift := @uint.fromInt(2)
+  @assert.eq(@uint.toInt(value >>> shift), 4)
+}
+
+? "bitwise operators on BigInt" {
+  @assert.eq(6n & 3n, 2n)
+  @assert.eq(6n | 3n, 7n)
+  @assert.eq(6n ^ 3n, 5n)
+  @assert.eq(1n << 3n, 8n)
+  @assert.eq(16n >> 2n, 4n)
+}
+
+? "widened numeric conversions" {
+  @assert.eq(@int4.toInt(@int4.fromInt(15)), 0 - 1)
+  @assert.eq(@int8.toInt(@int8.fromInt(130)), 0 - 126)
+  @assert.eq(@int16.toInt(@int16.fromInt(65535)), 0 - 1)
+  @assert.eq(@int64.toInt(@int64.fromInt(123456)), 123456)
+
+  @assert.eq(@uint.toInt(@uint.fromInt(123456)), 123456)
+  @assert.eq(@uint8.toInt(@uint8.fromInt(255)), 255)
+  @assert.eq(@uint16.toInt(@uint16.fromInt(65535)), 65535)
+  @assert.eq(@uint64.toInt(@uint64.fromInt(123456)), 123456)
+
+  @assert.eq(@float.toDouble(@float.fromDouble(1.5)), 1.5)
+}
+
+? "binary int4 and byte operations" {
+  bytes := @binary.new(4)
+  @assert.eq(bytes.length(), 4)
+  @assert.eq(bytes.byteLength(), 4)
+
+  @assert.eq(@int4.toInt(bytes.setInt4(0, @int4.fromInt(0 - 1))), 0 - 1)
+  @assert.eq(@int4.toInt(bytes.setInt4(1, @int4.fromInt(7))), 7)
+  @assert.eq(bytes.toInts()[0], 247)
+  @assert.eq(@int4.toInt(bytes.getInt4(0)), 0 - 1)
+  @assert.eq(@int4.toInt(bytes.getInt4(1)), 7)
+
+  @assert.eq(@uint8.toInt(bytes.setUInt8(1, @uint8.fromInt(255))), 255)
+  @assert.eq(@uint8.toInt(bytes.getUint8(1)), 255)
+  @assert.eq(@int8.toInt(bytes.setInt8(2, @int8.fromInt(0 - 2))), 0 - 2)
+  @assert.eq(@int8.toInt(bytes.getInt8(2)), 0 - 2)
+}
+
+? "binary numeric DataView operations" {
+  bytes := @binary.new(40)
+
+  @assert.eq(@int16.toInt(bytes.setInt16(0, @int16.fromInt(0 - 1234), true)), 0 - 1234)
+  @assert.eq(@int16.toInt(bytes.getInt16(0, true)), 0 - 1234)
+  @assert.eq(@uint16.toInt(bytes.setUint16(2, @uint16.fromInt(50000), false)), 50000)
+  @assert.eq(@uint16.toInt(bytes.getUInt16(2, false)), 50000)
+
+  @assert.eq(bytes.setInt32(4, 0 - 123456, true), 0 - 123456)
+  @assert.eq(bytes.getInt(4, true), 0 - 123456)
+  @assert.eq(@uint.toInt(bytes.setUint32(8, @uint.fromInt(123456), false)), 123456)
+  @assert.eq(@uint.toInt(bytes.getUInt(8, false)), 123456)
+
+  @assert.eq(@int64.toInt(bytes.setBigInt64(12, @int64.fromInt(123456), true)), 123456)
+  @assert.eq(@int64.toInt(bytes.getInt64(12, true)), 123456)
+  @assert.eq(@uint64.toInt(bytes.setBigUint64(20, @uint64.fromInt(123456), false)), 123456)
+  @assert.eq(@uint64.toInt(bytes.getUInt64(20, false)), 123456)
+
+  @assert.eq(@float.toDouble(bytes.setFloat32(28, @float.fromDouble(1.5), true)), 1.5)
+  @assert.eq(@float.toDouble(bytes.getFloat(28, true)), 1.5)
+  @assert.eq(bytes.setFloat64(32, 2.25, false), 2.25)
+  @assert.eq(bytes.getDouble(32, false), 2.25)
+}
+
+? "binary fromInts clone and slice" {
+  bytes := @binary.fromInts([1, 2, 3, 4])
+  cloned := bytes.clone()
+  sliced := bytes.slice(1, 3)
+
+  @assert.eq(bytes.length(), 4)
+  @assert.eq(cloned.toInts()[2], 3)
+  @assert.eq(sliced.length(), 2)
+  @assert.eq(sliced.toInts()[0], 2)
+  @assert.eq(sliced.toInts()[1], 3)
+}

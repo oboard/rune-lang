@@ -1,0 +1,107 @@
+new(length: Int) -> Binary => "%binary.new"
+
+fromInts(values: Array[Int]) -> Binary => "%binary.fromInts"
+
+Binary: {
+  length() -> Int => "%binary.length"
+
+  byteLength() -> Int => "%binary.length"
+
+  clone() -> Binary => "%binary.clone"
+
+  slice(start: Int, end: Int) -> Binary => "%binary.slice"
+
+  toInts() -> Array[Int] => "%binary.toInts"
+
+  getInt4(index: Int) -> Int4 => "%binary.getInt4"
+
+  setInt4(index: Int, value: Int4) -> Int4 => "%binary.setInt4"
+
+  getInt8(offset: Int) -> Int8 => "%binary.getInt8"
+
+  setInt8(offset: Int, value: Int8) -> Int8 => "%binary.setInt8"
+
+  getUInt8(offset: Int) -> UInt8 => "%binary.getUInt8"
+
+  getUint8(offset: Int) -> UInt8 => "%binary.getUInt8"
+
+  setUInt8(offset: Int, value: UInt8) -> UInt8 => "%binary.setUInt8"
+
+  setUint8(offset: Int, value: UInt8) -> UInt8 => "%binary.setUInt8"
+
+  getInt16(offset: Int, littleEndian: Bool) -> Int16 => "%binary.getInt16"
+
+  setInt16(offset: Int, value: Int16, littleEndian: Bool) -> Int16 => "%binary.setInt16"
+
+  getUInt16(offset: Int, littleEndian: Bool) -> UInt16 => "%binary.getUInt16"
+
+  getUint16(offset: Int, littleEndian: Bool) -> UInt16 => "%binary.getUInt16"
+
+  setUInt16(offset: Int, value: UInt16, littleEndian: Bool) -> UInt16 => "%binary.setUInt16"
+
+  setUint16(offset: Int, value: UInt16, littleEndian: Bool) -> UInt16 => "%binary.setUInt16"
+
+  getInt(offset: Int, littleEndian: Bool) -> Int => "%binary.getInt"
+
+  getInt32(offset: Int, littleEndian: Bool) -> Int => "%binary.getInt"
+
+  setInt(offset: Int, value: Int, littleEndian: Bool) -> Int => "%binary.setInt"
+
+  setInt32(offset: Int, value: Int, littleEndian: Bool) -> Int => "%binary.setInt"
+
+  getUInt(offset: Int, littleEndian: Bool) -> UInt => "%binary.getUInt"
+
+  getUint(offset: Int, littleEndian: Bool) -> UInt => "%binary.getUInt"
+
+  getUInt32(offset: Int, littleEndian: Bool) -> UInt => "%binary.getUInt"
+
+  getUint32(offset: Int, littleEndian: Bool) -> UInt => "%binary.getUInt"
+
+  setUInt(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%binary.setUInt"
+
+  setUint(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%binary.setUInt"
+
+  setUInt32(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%binary.setUInt"
+
+  setUint32(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%binary.setUInt"
+
+  getInt64(offset: Int, littleEndian: Bool) -> Int64 => "%binary.getInt64"
+
+  getBigInt64(offset: Int, littleEndian: Bool) -> Int64 => "%binary.getInt64"
+
+  setInt64(offset: Int, value: Int64, littleEndian: Bool) -> Int64 => "%binary.setInt64"
+
+  setBigInt64(offset: Int, value: Int64, littleEndian: Bool) -> Int64 => "%binary.setInt64"
+
+  getUInt64(offset: Int, littleEndian: Bool) -> UInt64 => "%binary.getUInt64"
+
+  getUint64(offset: Int, littleEndian: Bool) -> UInt64 => "%binary.getUInt64"
+
+  getBigUInt64(offset: Int, littleEndian: Bool) -> UInt64 => "%binary.getUInt64"
+
+  getBigUint64(offset: Int, littleEndian: Bool) -> UInt64 => "%binary.getUInt64"
+
+  setUInt64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%binary.setUInt64"
+
+  setUint64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%binary.setUInt64"
+
+  setBigUInt64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%binary.setUInt64"
+
+  setBigUint64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%binary.setUInt64"
+
+  getFloat(offset: Int, littleEndian: Bool) -> Float => "%binary.getFloat"
+
+  getFloat32(offset: Int, littleEndian: Bool) -> Float => "%binary.getFloat"
+
+  setFloat(offset: Int, value: Float, littleEndian: Bool) -> Float => "%binary.setFloat"
+
+  setFloat32(offset: Int, value: Float, littleEndian: Bool) -> Float => "%binary.setFloat"
+
+  getDouble(offset: Int, littleEndian: Bool) -> Double => "%binary.getDouble"
+
+  getFloat64(offset: Int, littleEndian: Bool) -> Double => "%binary.getDouble"
+
+  setDouble(offset: Int, value: Double, littleEndian: Bool) -> Double => "%binary.setDouble"
+
+  setFloat64(offset: Int, value: Double, littleEndian: Bool) -> Double => "%binary.setDouble"
+}

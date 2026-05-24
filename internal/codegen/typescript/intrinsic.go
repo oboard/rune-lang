@@ -32,6 +32,13 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	switch fn.Intrinsic {
 	case "io.print", "io.println", "io.printf":
 		return "console.log(" + strings.Join(args, ", ") + ")", true
+	case "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
+		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
+		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
+		return g.numericIntrinsicCall(fn, args, call.ResultType()), true
+	case "binary.new", "binary.fromInts":
+		return g.binaryModuleCall(fn, args, call.ResultType()), true
 	case "json.stringify":
 		if len(call.Args) != 1 {
 			return "undefined", true
@@ -76,6 +83,8 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return expr, true
 		}
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "binary."):
+		return g.binaryReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."):
 		return g.mapIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
@@ -83,6 +92,135 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	}
+}
+
+func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	if len(args) != 1 {
+		return g.zeroValue(resultType)
+	}
+	value := args[0]
+	switch fn.Intrinsic {
+	case "int4.fromInt":
+		return fmt.Sprintf("((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(%s)", value)
+	case "int8.fromInt":
+		return fmt.Sprintf("((__value: number): number => (__value << 24) >> 24)(%s)", value)
+	case "int16.fromInt":
+		return fmt.Sprintf("((__value: number): number => (__value << 16) >> 16)(%s)", value)
+	case "int64.fromInt":
+		return fmt.Sprintf("BigInt(%s)", value)
+	case "uint.fromInt":
+		return fmt.Sprintf("(%s >>> 0)", value)
+	case "uint8.fromInt":
+		return fmt.Sprintf("(%s & 0xff)", value)
+	case "uint16.fromInt":
+		return fmt.Sprintf("(%s & 0xffff)", value)
+	case "uint64.fromInt":
+		return fmt.Sprintf("BigInt.asUintN(64, BigInt(%s))", value)
+	case "float.fromDouble":
+		return fmt.Sprintf("Math.fround(%s)", value)
+	case "int64.toInt", "uint64.toInt":
+		return fmt.Sprintf("Number(%s)", value)
+	default:
+		return value
+	}
+}
+
+func (g *generator) binaryModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "binary.new":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("new DataView(new ArrayBuffer(%s))", args[0])
+	case "binary.fromInts":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("((__bytes: number[]): DataView => { const __array = new Uint8Array(__bytes.map((__value) => __value & 0xff)); return new DataView(__array.buffer.slice(__array.byteOffset, __array.byteOffset + __array.byteLength)); })(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) binaryReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "binary.length":
+		return receiver + ".byteLength"
+	case "binary.clone":
+		return fmt.Sprintf("((__view: DataView): DataView => new DataView(__view.buffer.slice(__view.byteOffset, __view.byteOffset + __view.byteLength)))(%s)", receiver)
+	case "binary.slice":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("((__view: DataView): DataView => new DataView(__view.buffer.slice(__view.byteOffset + %s, __view.byteOffset + %s)))(%s)", args[0], args[1], receiver)
+	case "binary.toInts":
+		return fmt.Sprintf("Array.from(new Uint8Array(%s.buffer, %s.byteOffset, %s.byteLength))", receiver, receiver, receiver)
+	case "binary.getInt4":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("((__index: number): number => { const __byte = %s.getUint8(Math.trunc(__index / 2)); const __nibble = __index %% 2 === 0 ? (__byte >> 4) : (__byte & 0xf); return __nibble >= 8 ? __nibble - 16 : __nibble; })(%s)", receiver, args[0])
+	case "binary.setInt4":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("((__index: number, __value: number): number => { const __byteIndex = Math.trunc(__index / 2); const __old = %s.getUint8(__byteIndex); const __nibble = __value & 0xf; %s.setUint8(__byteIndex, __index %% 2 === 0 ? ((__old & 0x0f) | (__nibble << 4)) : ((__old & 0xf0) | __nibble)); return __value; })(%s, %s)", receiver, receiver, args[0], args[1])
+	}
+	if expr, ok := g.binaryDataViewCall(fn.Intrinsic, receiver, args, resultType); ok {
+		return expr
+	}
+	return g.unsupportedIntrinsic(fn, resultType)
+}
+
+func (g *generator) binaryDataViewCall(intrinsic string, receiver string, args []string, resultType checker.Type) (string, bool) {
+	methods := map[string]string{
+		"binary.getInt8":   "getInt8",
+		"binary.getUInt8":  "getUint8",
+		"binary.getInt16":  "getInt16",
+		"binary.getUInt16": "getUint16",
+		"binary.getInt":    "getInt32",
+		"binary.getUInt":   "getUint32",
+		"binary.getInt64":  "getBigInt64",
+		"binary.getUInt64": "getBigUint64",
+		"binary.getFloat":  "getFloat32",
+		"binary.getDouble": "getFloat64",
+		"binary.setInt8":   "setInt8",
+		"binary.setUInt8":  "setUint8",
+		"binary.setInt16":  "setInt16",
+		"binary.setUInt16": "setUint16",
+		"binary.setInt":    "setInt32",
+		"binary.setUInt":   "setUint32",
+		"binary.setInt64":  "setBigInt64",
+		"binary.setUInt64": "setBigUint64",
+		"binary.setFloat":  "setFloat32",
+		"binary.setDouble": "setFloat64",
+	}
+	method, ok := methods[intrinsic]
+	if !ok {
+		return "", false
+	}
+	if strings.HasPrefix(method, "get") {
+		if method == "getInt8" || method == "getUint8" {
+			if len(args) != 1 {
+				return g.zeroValue(resultType), true
+			}
+			return fmt.Sprintf("%s.%s(%s)", receiver, method, args[0]), true
+		}
+		if len(args) != 2 {
+			return g.zeroValue(resultType), true
+		}
+		return fmt.Sprintf("%s.%s(%s, %s)", receiver, method, args[0], args[1]), true
+	}
+	if method == "setInt8" || method == "setUint8" {
+		if len(args) != 2 {
+			return g.zeroValue(resultType), true
+		}
+		return fmt.Sprintf("((__value: %s): %s => { %s.%s(%s, __value); return __value; })(%s)", tsType(resultType), tsType(resultType), receiver, method, args[0], args[1]), true
+	}
+	if len(args) != 3 {
+		return g.zeroValue(resultType), true
+	}
+	return fmt.Sprintf("((__value: %s): %s => { %s.%s(%s, __value, %s); return __value; })(%s)", tsType(resultType), tsType(resultType), receiver, method, args[0], args[2], args[1]), true
 }
 
 func (g *generator) stdlibFunctionFromCall(call *ir.CallExpr) (*stdlib.Function, bool) {
@@ -196,6 +334,13 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 
 func (g *generator) boolIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
+	case "bool.not":
+		return "!" + receiver
+	case "bool.xor":
+		if len(args) != 1 {
+			return "undefined"
+		}
+		return fmt.Sprintf("%s !== %s", receiver, args[0])
 	case "bool.toString":
 		return receiver + ".toString()"
 	default:

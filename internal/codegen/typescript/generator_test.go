@@ -222,6 +222,41 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
+	src := `main() => {
+  bytes := @binary.new(16)
+  bytes.setUint8(0, @uint8.fromInt(255))
+  bytes.setInt16(1, @int16.fromInt(0 - 1234), true)
+  bytes.setBigUint64(4, @uint64.fromInt(123456), false)
+  bytes.setFloat32(12, @float.fromDouble(1.5), true)
+
+  @io.println(bytes.getUint8(0))
+  @io.println(bytes.getInt16(1, true))
+  @io.println(bytes.getBigUint64(4, false))
+  @io.println(bytes.getFloat32(12, true))
+  @io.println(@uint.toInt(@uint.fromInt(16) >>> @uint.fromInt(2)))
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __bytes = new DataView(new ArrayBuffer(16));`,
+		`__bytes.setUint8(0, __value); return __value; })((255 & 0xff))`,
+		`__bytes.setInt16(1, __value, true); return __value; })`,
+		`__bytes.setBigUint64(4, __value, false); return __value; })`,
+		`__bytes.setFloat32(12, __value, true); return __value; })(Math.fround(1.5))`,
+		`console.log(__bytes.getUint8(0));`,
+		`console.log(__bytes.getInt16(1, true));`,
+		`console.log(__bytes.getBigUint64(4, false));`,
+		`console.log(__bytes.getFloat32(12, true));`,
+		`console.log((16 >>> 0) >>> (2 >>> 0));`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateJSONStringifyObject(t *testing.T) {
 	src := `User: {
   name: String

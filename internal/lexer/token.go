@@ -45,6 +45,13 @@ const (
 	Slash
 	Percent
 	Bang
+	Tilde
+	BitAnd
+	BitOr
+	BitXor
+	ShiftLeft
+	ShiftRight
+	UnsignedShiftRight
 	AndAnd
 	OrOr
 
@@ -158,6 +165,20 @@ func (k Kind) String() string {
 		return "%"
 	case Bang:
 		return "!"
+	case Tilde:
+		return "~"
+	case BitAnd:
+		return "&"
+	case BitOr:
+		return "|"
+	case BitXor:
+		return "^"
+	case ShiftLeft:
+		return "<<"
+	case ShiftRight:
+		return ">>"
+	case UnsignedShiftRight:
+		return ">>>"
 	case AndAnd:
 		return "&&"
 	case OrOr:

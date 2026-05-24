@@ -1,0 +1,3 @@
+fromInt(value: Int) -> Int64 => "%int64.fromInt"
+
+toInt(value: Int64) -> Int => "%int64.toInt"

@@ -367,6 +367,55 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
+	src := `main() => {
+  bytes := @binary.new(16)
+  bytes.setUint8(0, @uint8.fromInt(255))
+  bytes.setInt16(1, @int16.fromInt(0 - 1234), true)
+  bytes.setBigUint64(4, @uint64.fromInt(123456), false)
+  bytes.setFloat32(12, @float.fromDouble(1.5), true)
+
+  @io.println(bytes.getUint8(0))
+  @io.println(bytes.getInt16(1, true))
+  @io.println(bytes.getBigUint64(4, false))
+  @io.println(bytes.getFloat32(12, true))
+  @io.println(@uint.toInt(@uint.fromInt(16) >>> @uint.fromInt(2)))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`"encoding/binary"`,
+		`"math"`,
+		`type runeBinary struct`,
+		`__bytes := newRuneBinary(16)`,
+		`__bytes.SetUInt8(0, uint8(255))`,
+		`__bytes.SetInt16(1, int16(0-1234), true)`,
+		`__bytes.SetUInt64(4, uint64(123456), false)`,
+		`__bytes.SetFloat(12, float32(1.5), true)`,
+		`fmt.Println(__bytes.GetUInt8(0))`,
+		`fmt.Println(__bytes.GetInt16(1, true))`,
+		`fmt.Println(__bytes.GetUInt64(4, false))`,
+		`fmt.Println(__bytes.GetFloat(12, true))`,
+		`fmt.Println(int(uint(16) >> uint(2)))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	src := `main() => {
   obj := {

@@ -1,0 +1,3 @@
+fromInt(value: Int) -> Int8 => "%int8.fromInt"
+
+toInt(value: Int8) -> Int => "%int8.toInt"

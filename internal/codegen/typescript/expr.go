@@ -644,14 +644,22 @@ func tsPrecedence(op lexer.Kind) int {
 		return 1
 	case lexer.AndAnd:
 		return 2
-	case lexer.EqualEqual, lexer.BangEqual:
+	case lexer.BitOr:
 		return 3
-	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.BitXor:
 		return 4
-	case lexer.Plus, lexer.Minus:
+	case lexer.BitAnd:
 		return 5
-	case lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.EqualEqual, lexer.BangEqual:
 		return 6
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		return 7
+	case lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return 8
+	case lexer.Plus, lexer.Minus:
+		return 9
+	case lexer.Star, lexer.Slash, lexer.Percent:
+		return 10
 	default:
 		return 0
 	}

@@ -1,0 +1,3 @@
+fromDouble(value: Double) -> Float => "%float.fromDouble"
+
+toDouble(value: Float) -> Double => "%float.toDouble"

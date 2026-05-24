@@ -161,12 +161,43 @@ func (i *Interpreter) evalUnary(expr *ir.UnaryExpr, env *Env) (Value, error) {
 		switch n := value.(type) {
 		case int:
 			return -n, nil
+		case int8:
+			return -n, nil
+		case int16:
+			return -n, nil
+		case int64:
+			return -n, nil
 		case float64:
+			return -n, nil
+		case float32:
 			return -n, nil
 		case *big.Int:
 			return new(big.Int).Neg(n), nil
 		default:
-			return nil, fmt.Errorf("operator '-' expects Int, Double, or BigInt")
+			return nil, fmt.Errorf("operator '-' expects a numeric type")
+		}
+	case lexer.Tilde:
+		switch n := value.(type) {
+		case int:
+			return ^n, nil
+		case int8:
+			return ^n, nil
+		case int16:
+			return ^n, nil
+		case int64:
+			return ^n, nil
+		case uint:
+			return ^n, nil
+		case uint8:
+			return ^n, nil
+		case uint16:
+			return ^n, nil
+		case uint64:
+			return ^n, nil
+		case *big.Int:
+			return new(big.Int).Not(n), nil
+		default:
+			return nil, fmt.Errorf("operator '~' expects an integer type")
 		}
 	case lexer.Bang:
 		b, ok := value.(bool)
@@ -239,6 +270,8 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		return evalNumericBinary(expr.Op, left, right)
 	case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
 		return evalNumericBinary(expr.Op, left, right)
+	case lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return evalBitwiseBinary(expr.Op, left, right)
 	case lexer.EqualEqual:
 		return reflect.DeepEqual(left, right), nil
 	case lexer.BangEqual:
@@ -256,35 +289,61 @@ func evalNumericBinary(op lexer.Kind, left Value, right Value) (Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		switch op {
-		case lexer.Plus:
-			return l + r, nil
-		case lexer.Minus:
-			return l - r, nil
-		case lexer.Star:
-			return l * r, nil
-		case lexer.Slash:
-			return l / r, nil
-		case lexer.Percent:
-			return l % r, nil
+		return evalSignedNumericBinary(op, l, r)
+	case int8:
+		r, ok := right.(int8)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
+		return evalSignedNumericBinary(op, l, r)
+	case int16:
+		r, ok := right.(int16)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalSignedNumericBinary(op, l, r)
+	case int64:
+		r, ok := right.(int64)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalSignedNumericBinary(op, l, r)
+	case uint:
+		r, ok := right.(uint)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalUnsignedNumericBinary(op, l, r)
+	case uint8:
+		r, ok := right.(uint8)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalUnsignedNumericBinary(op, l, r)
+	case uint16:
+		r, ok := right.(uint16)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalUnsignedNumericBinary(op, l, r)
+	case uint64:
+		r, ok := right.(uint64)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalUnsignedNumericBinary(op, l, r)
+	case float32:
+		r, ok := right.(float32)
+		if !ok {
+			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
+		}
+		return evalFloatNumericBinary(op, l, r)
 	case float64:
 		r, ok := right.(float64)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		switch op {
-		case lexer.Plus:
-			return l + r, nil
-		case lexer.Minus:
-			return l - r, nil
-		case lexer.Star:
-			return l * r, nil
-		case lexer.Slash:
-			return l / r, nil
-		case lexer.Percent:
-			return nil, fmt.Errorf("operator '%%' expects Int or BigInt")
-		}
+		return evalFloatNumericBinary(op, l, r)
 	case *big.Int:
 		r, ok := right.(*big.Int)
 		if !ok {
@@ -304,7 +363,199 @@ func evalNumericBinary(op lexer.Kind, left Value, right Value) (Value, error) {
 			return out.Rem(l, r), nil
 		}
 	}
-	return nil, fmt.Errorf("arithmetic expects Int, Double, or BigInt")
+	return nil, fmt.Errorf("arithmetic expects numeric operands")
+}
+
+type signedNumber interface {
+	~int | ~int8 | ~int16 | ~int64
+}
+
+type unsignedNumber interface {
+	~uint | ~uint8 | ~uint16 | ~uint64
+}
+
+type floatNumber interface {
+	~float32 | ~float64
+}
+
+func evalSignedNumericBinary[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
+	switch op {
+	case lexer.Plus:
+		return left + right, nil
+	case lexer.Minus:
+		return left - right, nil
+	case lexer.Star:
+		return left * right, nil
+	case lexer.Slash:
+		return left / right, nil
+	case lexer.Percent:
+		return left % right, nil
+	default:
+		return nil, fmt.Errorf("unsupported arithmetic operator %s", op)
+	}
+}
+
+func evalUnsignedNumericBinary[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
+	switch op {
+	case lexer.Plus:
+		return left + right, nil
+	case lexer.Minus:
+		return left - right, nil
+	case lexer.Star:
+		return left * right, nil
+	case lexer.Slash:
+		return left / right, nil
+	case lexer.Percent:
+		return left % right, nil
+	default:
+		return nil, fmt.Errorf("unsupported arithmetic operator %s", op)
+	}
+}
+
+func evalFloatNumericBinary[T floatNumber](op lexer.Kind, left T, right T) (Value, error) {
+	switch op {
+	case lexer.Plus:
+		return left + right, nil
+	case lexer.Minus:
+		return left - right, nil
+	case lexer.Star:
+		return left * right, nil
+	case lexer.Slash:
+		return left / right, nil
+	case lexer.Percent:
+		return nil, fmt.Errorf("operator '%%' expects integer operands")
+	default:
+		return nil, fmt.Errorf("unsupported arithmetic operator %s", op)
+	}
+}
+
+func evalBitwiseBinary(op lexer.Kind, left Value, right Value) (Value, error) {
+	switch l := left.(type) {
+	case int:
+		r, ok := right.(int)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalSignedBitwiseBinary(op, l, r)
+	case int8:
+		r, ok := right.(int8)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalSignedBitwiseBinary(op, l, r)
+	case int16:
+		r, ok := right.(int16)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalSignedBitwiseBinary(op, l, r)
+	case int64:
+		r, ok := right.(int64)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalSignedBitwiseBinary(op, l, r)
+	case uint:
+		r, ok := right.(uint)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalUnsignedBitwiseBinary(op, l, r)
+	case uint8:
+		r, ok := right.(uint8)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalUnsignedBitwiseBinary(op, l, r)
+	case uint16:
+		r, ok := right.(uint16)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalUnsignedBitwiseBinary(op, l, r)
+	case uint64:
+		r, ok := right.(uint64)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalUnsignedBitwiseBinary(op, l, r)
+	case *big.Int:
+		r, ok := right.(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("bitwise operands must have matching integer types")
+		}
+		return evalBigIntBitwiseBinary(op, l, r)
+	default:
+		return nil, fmt.Errorf("bitwise operator expects integer operands")
+	}
+}
+
+func evalSignedBitwiseBinary[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
+	switch op {
+	case lexer.BitAnd:
+		return left & right, nil
+	case lexer.BitOr:
+		return left | right, nil
+	case lexer.BitXor:
+		return left ^ right, nil
+	case lexer.ShiftLeft:
+		if right < 0 {
+			return nil, fmt.Errorf("shift count must be non-negative")
+		}
+		return left << uint(right), nil
+	case lexer.ShiftRight:
+		if right < 0 {
+			return nil, fmt.Errorf("shift count must be non-negative")
+		}
+		return left >> uint(right), nil
+	case lexer.UnsignedShiftRight:
+		return nil, fmt.Errorf("operator '>>>' expects an unsigned integer left operand")
+	default:
+		return nil, fmt.Errorf("unsupported bitwise operator %s", op)
+	}
+}
+
+func evalUnsignedBitwiseBinary[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
+	switch op {
+	case lexer.BitAnd:
+		return left & right, nil
+	case lexer.BitOr:
+		return left | right, nil
+	case lexer.BitXor:
+		return left ^ right, nil
+	case lexer.ShiftLeft:
+		return left << uint(right), nil
+	case lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return left >> uint(right), nil
+	default:
+		return nil, fmt.Errorf("unsupported bitwise operator %s", op)
+	}
+}
+
+func evalBigIntBitwiseBinary(op lexer.Kind, left *big.Int, right *big.Int) (Value, error) {
+	out := new(big.Int)
+	switch op {
+	case lexer.BitAnd:
+		return out.And(left, right), nil
+	case lexer.BitOr:
+		return out.Or(left, right), nil
+	case lexer.BitXor:
+		return out.Xor(left, right), nil
+	case lexer.ShiftLeft:
+		if right.Sign() < 0 {
+			return nil, fmt.Errorf("shift count must be non-negative")
+		}
+		return out.Lsh(left, uint(right.Int64())), nil
+	case lexer.ShiftRight:
+		if right.Sign() < 0 {
+			return nil, fmt.Errorf("shift count must be non-negative")
+		}
+		return out.Rsh(left, uint(right.Int64())), nil
+	case lexer.UnsignedShiftRight:
+		return nil, fmt.Errorf("operator '>>>' expects an unsigned integer left operand")
+	default:
+		return nil, fmt.Errorf("unsupported bitwise operator %s", op)
+	}
 }
 
 func evalOrderedComparison(op lexer.Kind, left Value, right Value) (Value, error) {
@@ -341,6 +592,54 @@ func compareOrdered(left Value, right Value) (int, error) {
 		default:
 			return 0, nil
 		}
+	case int8:
+		r, ok := right.(int8)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case int16:
+		r, ok := right.(int16)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case int64:
+		r, ok := right.(int64)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case uint:
+		r, ok := right.(uint)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case uint8:
+		r, ok := right.(uint8)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case uint16:
+		r, ok := right.(uint16)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case uint64:
+		r, ok := right.(uint64)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
+	case float32:
+		r, ok := right.(float32)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
 	case float64:
 		r, ok := right.(float64)
 		if !ok {
@@ -374,7 +673,22 @@ func compareOrdered(left Value, right Value) (int, error) {
 			return 0, nil
 		}
 	default:
-		return 0, fmt.Errorf("comparison expects Int, Double, BigInt, or String")
+		return 0, fmt.Errorf("comparison expects a numeric type or String")
+	}
+}
+
+type orderedValue interface {
+	~int | ~int8 | ~int16 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint64 | ~float32 | ~float64
+}
+
+func compareOrderedValues[T orderedValue](left T, right T) int {
+	switch {
+	case left < right:
+		return -1
+	case left > right:
+		return 1
+	default:
+		return 0
 	}
 }
 
@@ -441,10 +755,26 @@ func typeName(value Value) string {
 		return "Void"
 	case int:
 		return string(checker.Int)
+	case int8:
+		return string(checker.Int8)
+	case int16:
+		return string(checker.Int16)
+	case int64:
+		return string(checker.Int64)
 	case float64:
 		return string(checker.Double)
+	case float32:
+		return string(checker.Float)
 	case *big.Int:
 		return string(checker.BigInt)
+	case uint:
+		return string(checker.UInt)
+	case uint8:
+		return string(checker.UInt8)
+	case uint16:
+		return string(checker.UInt16)
+	case uint64:
+		return string(checker.UInt64)
 	case nullValue:
 		return string(checker.Null)
 	case string:
@@ -457,6 +787,8 @@ func typeName(value Value) string {
 		return "Map"
 	case *Set:
 		return "Set"
+	case *Binary:
+		return string(checker.Binary)
 	case *Regex:
 		return string(checker.Regex)
 	case EnumValue:

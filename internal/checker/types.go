@@ -16,10 +16,28 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 	switch name {
 	case "Int":
 		return Int
+	case "Int4":
+		return Int4
+	case "Int8":
+		return Int8
+	case "Int16":
+		return Int16
+	case "Int64":
+		return Int64
 	case "Double":
 		return Double
+	case "Float":
+		return Float
 	case "BigInt":
 		return BigInt
+	case "UInt":
+		return UInt
+	case "UInt8":
+		return UInt8
+	case "UInt16":
+		return UInt16
+	case "UInt64":
+		return UInt64
 	case "String":
 		return String
 	case "Bool":
@@ -28,6 +46,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Null
 	case "Object":
 		return Object
+	case "Binary":
+		return Binary
 	case "Never":
 		return Never
 	case "Symbol":
@@ -311,7 +331,10 @@ func isObjectLike(typ Type) bool {
 	switch baseTypeName(typ) {
 	case "Array", "Map", "Set", "WeakMap", "WeakSet", "Record", "Tuple", "ReadonlyArray", "ReadonlyTuple":
 		return true
-	case string(Int), string(Double), string(BigInt), string(String), string(Bool), string(Null), string(Void), string(Symbol), string(Regex):
+	case string(Int), string(Int4), string(Int8), string(Int16), string(Int64),
+		string(Double), string(Float), string(BigInt), string(UInt), string(UInt8),
+		string(UInt16), string(UInt64), string(String), string(Bool), string(Null),
+		string(Void), string(Symbol), string(Regex), string(Binary):
 		return false
 	default:
 		return typ != Unknown && typ != Never

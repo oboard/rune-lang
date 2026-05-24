@@ -45,6 +45,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.Op == lexer.Minus && e.Expr.ResultType() == checker.BigInt {
 			return fmt.Sprintf("new(big.Int).Neg(%s)", g.exprPrec(e.Expr, 5))
 		}
+		if e.Op == lexer.Tilde && e.Expr.ResultType() == checker.BigInt {
+			return fmt.Sprintf("new(big.Int).Not(%s)", g.exprPrec(e.Expr, 5))
+		}
 		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 5))
 		if 5 < parentPrec {
 			return "(" + s + ")"
@@ -57,7 +60,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return expr
 		}
 		prec := goPrecedence(e.Op)
-		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), e.Op, g.exprPrec(e.Right, prec+1))
+		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), goBinaryOp(e.Op), g.exprPrec(e.Right, prec+1))
 		if prec < parentPrec {
 			return "(" + s + ")"
 		}
@@ -218,6 +221,16 @@ func (g *generator) bigIntBinaryExpr(e *ir.BinaryExpr) string {
 		return fmt.Sprintf("new(big.Int).Quo(%s, %s)", left, right)
 	case lexer.Percent:
 		return fmt.Sprintf("new(big.Int).Rem(%s, %s)", left, right)
+	case lexer.BitAnd:
+		return fmt.Sprintf("new(big.Int).And(%s, %s)", left, right)
+	case lexer.BitOr:
+		return fmt.Sprintf("new(big.Int).Or(%s, %s)", left, right)
+	case lexer.BitXor:
+		return fmt.Sprintf("new(big.Int).Xor(%s, %s)", left, right)
+	case lexer.ShiftLeft:
+		return fmt.Sprintf("new(big.Int).Lsh(%s, uint(%s.Int64()))", left, right)
+	case lexer.ShiftRight:
+		return fmt.Sprintf("new(big.Int).Rsh(%s, uint(%s.Int64()))", left, right)
 	case lexer.EqualEqual:
 		return fmt.Sprintf("%s.Cmp(%s) == 0", left, right)
 	case lexer.BangEqual:
@@ -682,15 +695,30 @@ func goPrecedence(op lexer.Kind) int {
 		return 1
 	case lexer.AndAnd:
 		return 2
-	case lexer.EqualEqual, lexer.BangEqual:
+	case lexer.BitOr:
 		return 3
-	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.BitXor:
 		return 4
-	case lexer.Plus, lexer.Minus:
+	case lexer.BitAnd:
 		return 5
-	case lexer.Star, lexer.Slash, lexer.Percent:
+	case lexer.EqualEqual, lexer.BangEqual:
 		return 6
+	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+		return 7
+	case lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return 8
+	case lexer.Plus, lexer.Minus:
+		return 9
+	case lexer.Star, lexer.Slash, lexer.Percent:
+		return 10
 	default:
 		return 0
 	}
+}
+
+func goBinaryOp(op lexer.Kind) string {
+	if op == lexer.UnsignedShiftRight {
+		return ">>"
+	}
+	return op.String()
 }

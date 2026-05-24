@@ -26,6 +26,10 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesType(file, checker.Regex) {
 		g.imports["regexp"] = true
 	}
+	if fileUsesType(file, checker.Binary) {
+		g.imports["encoding/binary"] = true
+		g.imports["math"] = true
+	}
 	for _, fn := range file.Functions {
 		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
 			g.collectExprImports(expr)
@@ -80,6 +84,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	if fileUsesType(file, checker.Regex) {
 		g.regexRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesType(file, checker.Binary) {
+		g.binaryRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
