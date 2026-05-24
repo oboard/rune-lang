@@ -789,6 +789,12 @@ func typeName(value Value) string {
 		return "Set"
 	case *Binary:
 		return string(checker.Binary)
+	case *Buffer:
+		return string(checker.Buffer)
+	case *Reader:
+		return string(checker.Reader)
+	case *Writer:
+		return string(checker.Writer)
 	case *Regex:
 		return string(checker.Regex)
 	case EnumValue:

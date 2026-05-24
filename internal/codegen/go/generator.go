@@ -26,7 +26,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesType(file, checker.Regex) {
 		g.imports["regexp"] = true
 	}
-	if fileUsesType(file, checker.Binary) {
+	if fileUsesBinaryRuntime(file) {
 		g.imports["encoding/binary"] = true
 		g.imports["math"] = true
 	}
@@ -88,7 +88,7 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
-	if fileUsesType(file, checker.Binary) {
+	if fileUsesBinaryRuntime(file) {
 		g.binaryRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
@@ -174,6 +174,13 @@ func typeContains(candidate checker.Type, typ checker.Type) bool {
 		return true
 	}
 	return strings.Contains(string(candidate), string(typ))
+}
+
+func fileUsesBinaryRuntime(file *ir.File) bool {
+	return fileUsesType(file, checker.Binary) ||
+		fileUsesType(file, checker.Buffer) ||
+		fileUsesType(file, checker.Reader) ||
+		fileUsesType(file, checker.Writer)
 }
 
 func (g *generator) bigIntRuntime() {

@@ -1,0 +1,67 @@
+new() -> Writer => "%writer.new"
+
+withCapacity(capacity: Int) -> Writer => "%writer.withCapacity"
+
+Writer: {
+  length() -> Int => "%writer.length"
+
+  byteLength() -> Int => "%writer.length"
+
+  position() -> Int => "%writer.position"
+
+  clear() -> Void => "%writer.clear"
+
+  toBinary() -> Binary => "%writer.toBinary"
+
+  toInts() -> Array[Int] => "%writer.toInts"
+
+  write(value: Binary) -> Writer => "%writer.writeBinary"
+
+  writeBinary(value: Binary) -> Writer => "%writer.writeBinary"
+
+  writeInt4(value: Int4) -> Writer => "%writer.writeInt4"
+
+  writeInt8(value: Int8) -> Writer => "%writer.writeInt8"
+
+  writeUInt8(value: UInt8) -> Writer => "%writer.writeUInt8"
+
+  writeUint8(value: UInt8) -> Writer => "%writer.writeUInt8"
+
+  writeInt16(value: Int16, littleEndian: Bool) -> Writer => "%writer.writeInt16"
+
+  writeUInt16(value: UInt16, littleEndian: Bool) -> Writer => "%writer.writeUInt16"
+
+  writeUint16(value: UInt16, littleEndian: Bool) -> Writer => "%writer.writeUInt16"
+
+  writeInt(value: Int, littleEndian: Bool) -> Writer => "%writer.writeInt"
+
+  writeInt32(value: Int, littleEndian: Bool) -> Writer => "%writer.writeInt"
+
+  writeUInt(value: UInt, littleEndian: Bool) -> Writer => "%writer.writeUInt"
+
+  writeUint(value: UInt, littleEndian: Bool) -> Writer => "%writer.writeUInt"
+
+  writeUInt32(value: UInt, littleEndian: Bool) -> Writer => "%writer.writeUInt"
+
+  writeUint32(value: UInt, littleEndian: Bool) -> Writer => "%writer.writeUInt"
+
+  writeInt64(value: Int64, littleEndian: Bool) -> Writer => "%writer.writeInt64"
+
+  writeBigInt64(value: Int64, littleEndian: Bool) -> Writer => "%writer.writeInt64"
+
+  writeUInt64(value: UInt64, littleEndian: Bool) -> Writer => "%writer.writeUInt64"
+
+  writeUint64(value: UInt64, littleEndian: Bool) -> Writer => "%writer.writeUInt64"
+
+  writeBigUInt64(value: UInt64, littleEndian: Bool) -> Writer => "%writer.writeUInt64"
+
+  writeBigUint64(value: UInt64, littleEndian: Bool) -> Writer => "%writer.writeUInt64"
+
+  writeFloat(value: Float, littleEndian: Bool) -> Writer => "%writer.writeFloat"
+
+  writeFloat32(value: Float, littleEndian: Bool) -> Writer => "%writer.writeFloat"
+
+  writeDouble(value: Double, littleEndian: Bool) -> Writer => "%writer.writeDouble"
+
+  writeFloat64(value: Double, littleEndian: Bool) -> Writer => "%writer.writeDouble"
+}

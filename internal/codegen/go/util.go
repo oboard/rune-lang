@@ -93,6 +93,12 @@ func goType(typ checker.Type) string {
 		return "any"
 	case checker.Binary:
 		return "*runeBinary"
+	case checker.Buffer:
+		return "*runeBuffer"
+	case checker.Reader:
+		return "*runeReader"
+	case checker.Writer:
+		return "*runeWriter"
 	case checker.Never:
 		return "struct{}"
 	case checker.Symbol:
@@ -233,6 +239,12 @@ func zeroValue(typ checker.Type) string {
 		return `newRuneRegex("", "")`
 	case checker.Binary:
 		return "newRuneBinary(0)"
+	case checker.Buffer:
+		return "newRuneBuffer()"
+	case checker.Reader:
+		return "newRuneReader(newRuneBinary(0))"
+	case checker.Writer:
+		return "newRuneWriter()"
 	case checker.Null:
 		return "any(nil)"
 	case checker.HTMLElement:

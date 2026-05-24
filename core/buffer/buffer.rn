@@ -1,0 +1,29 @@
+new() -> Buffer => "%buffer.new"
+
+fromBinary(value: Binary) -> Buffer => "%buffer.fromBinary"
+
+Buffer: {
+  length() -> Int => "%buffer.length"
+
+  byteLength() -> Int => "%buffer.length"
+
+  isEmpty() -> Bool => .length() == 0
+
+  clear() -> Void => "%buffer.clear"
+
+  clone() -> Buffer => "%buffer.clone"
+
+  toBinary() -> Binary => "%buffer.toBinary"
+
+  toInts() -> Array[Int] => "%buffer.toInts"
+
+  append(value: UInt8) -> Buffer => "%buffer.append"
+
+  appendInt(value: Int) -> Buffer => "%buffer.appendInt"
+
+  appendBinary(value: Binary) -> Buffer => "%buffer.appendBinary"
+
+  reader() -> Reader => "%buffer.reader"
+
+  writer() -> Writer => "%buffer.writer"
+}

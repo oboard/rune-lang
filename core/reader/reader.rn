@@ -1,0 +1,67 @@
+new(value: Binary) -> Reader => "%reader.new"
+
+Reader: {
+  length() -> Int => "%reader.length"
+
+  byteLength() -> Int => "%reader.length"
+
+  position() -> Int => "%reader.position"
+
+  remaining() -> Int => "%reader.remaining"
+
+  isEmpty() -> Bool => .remaining() == 0
+
+  seek(position: Int) -> Int => "%reader.seek"
+
+  skip(count: Int) -> Int => "%reader.skip"
+
+  read(length: Int) -> Binary => "%reader.readBinary"
+
+  readBinary(length: Int) -> Binary => "%reader.readBinary"
+
+  readInt4() -> Int4 => "%reader.readInt4"
+
+  readInt8() -> Int8 => "%reader.readInt8"
+
+  readUInt8() -> UInt8 => "%reader.readUInt8"
+
+  readUint8() -> UInt8 => "%reader.readUInt8"
+
+  readInt16(littleEndian: Bool) -> Int16 => "%reader.readInt16"
+
+  readUInt16(littleEndian: Bool) -> UInt16 => "%reader.readUInt16"
+
+  readUint16(littleEndian: Bool) -> UInt16 => "%reader.readUInt16"
+
+  readInt(littleEndian: Bool) -> Int => "%reader.readInt"
+
+  readInt32(littleEndian: Bool) -> Int => "%reader.readInt"
+
+  readUInt(littleEndian: Bool) -> UInt => "%reader.readUInt"
+
+  readUint(littleEndian: Bool) -> UInt => "%reader.readUInt"
+
+  readUInt32(littleEndian: Bool) -> UInt => "%reader.readUInt"
+
+  readUint32(littleEndian: Bool) -> UInt => "%reader.readUInt"
+
+  readInt64(littleEndian: Bool) -> Int64 => "%reader.readInt64"
+
+  readBigInt64(littleEndian: Bool) -> Int64 => "%reader.readInt64"
+
+  readUInt64(littleEndian: Bool) -> UInt64 => "%reader.readUInt64"
+
+  readUint64(littleEndian: Bool) -> UInt64 => "%reader.readUInt64"
+
+  readBigUInt64(littleEndian: Bool) -> UInt64 => "%reader.readUInt64"
+
+  readBigUint64(littleEndian: Bool) -> UInt64 => "%reader.readUInt64"
+
+  readFloat(littleEndian: Bool) -> Float => "%reader.readFloat"
+
+  readFloat32(littleEndian: Bool) -> Float => "%reader.readFloat"
+
+  readDouble(littleEndian: Bool) -> Double => "%reader.readDouble"
+
+  readFloat64(littleEndian: Bool) -> Double => "%reader.readDouble"
+}

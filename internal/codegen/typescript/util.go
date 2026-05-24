@@ -114,6 +114,12 @@ func tsType(typ checker.Type) string {
 		return "object"
 	case checker.Binary:
 		return "DataView"
+	case checker.Buffer:
+		return "RuneBuffer"
+	case checker.Reader:
+		return "RuneReader"
+	case checker.Writer:
+		return "RuneWriter"
 	case checker.Never:
 		return "never"
 	case checker.Symbol:
@@ -264,6 +270,12 @@ func zeroValue(typ checker.Type) string {
 		return `/(?:)/`
 	case checker.Binary:
 		return "new DataView(new ArrayBuffer(0))"
+	case checker.Buffer:
+		return "new RuneBuffer()"
+	case checker.Reader:
+		return "new RuneReader(new DataView(new ArrayBuffer(0)))"
+	case checker.Writer:
+		return "new RuneWriter()"
 	case checker.Null:
 		return "null"
 	case checker.Never:

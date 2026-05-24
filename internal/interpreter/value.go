@@ -37,6 +37,21 @@ type Binary struct {
 	Data []byte
 }
 
+type Buffer struct {
+	Data []byte
+}
+
+type Reader struct {
+	Data   []byte
+	Offset int
+	Nibble int
+}
+
+type Writer struct {
+	Data   []byte
+	Nibble int
+}
+
 type Regex struct {
 	Source    string
 	Flags     string
@@ -96,6 +111,20 @@ func Format(value Value) string {
 			parts = append(parts, strconv.Itoa(int(value)))
 		}
 		return "Binary [" + strings.Join(parts, ", ") + "]"
+	case *Buffer:
+		parts := make([]string, 0, len(v.Data))
+		for _, value := range v.Data {
+			parts = append(parts, strconv.Itoa(int(value)))
+		}
+		return "Buffer [" + strings.Join(parts, ", ") + "]"
+	case *Reader:
+		return fmt.Sprintf("Reader { position: %d, remaining: %d }", v.Offset, len(v.Data)-v.Offset)
+	case *Writer:
+		parts := make([]string, 0, len(v.Data))
+		for _, value := range v.Data {
+			parts = append(parts, strconv.Itoa(int(value)))
+		}
+		return "Writer [" + strings.Join(parts, ", ") + "]"
 	case *Regex:
 		return "/" + v.Source + "/" + v.Flags
 	case EnumValue:
