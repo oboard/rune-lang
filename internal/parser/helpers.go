@@ -171,6 +171,9 @@ func (p *Parser) consume(kind lexer.Kind, message string) lexer.Token {
 	}
 	tok := p.peek()
 	p.errorAt(tok, message)
+	if !p.check(lexer.EOF) {
+		p.advance()
+	}
 	return tok
 }
 

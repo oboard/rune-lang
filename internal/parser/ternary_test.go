@@ -47,3 +47,23 @@ func TestParseTernaryLowerThanOr(t *testing.T) {
 		t.Fatalf("condition = %T, want BinaryExpr", ternary.Condition)
 	}
 }
+
+func TestParseInvalidTernaryCalleeDoesNotHang(t *testing.T) {
+	_, errs := Parse(`Return: {
+  b: Int
+  z: Bool
+  a: Int
+}
+
+fun(flag) => {
+  flag ? (x) => {
+    k: x.a + 1,
+  } : (y) => {
+    k: y.b + 1,
+  }
+  }(Return { b: 2, z: false, a: 1 }).k
+}`)
+	if len(errs) == 0 {
+		t.Fatalf("Parse() errors = 0, want errors for invalid ternary callee")
+	}
+}
