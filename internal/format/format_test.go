@@ -32,6 +32,26 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestAnonymousObjectMethodReturnTypeFormatting(t *testing.T) {
+	src := `main()=>{obj:={nextAge() -> Int => .age + 1 title(prefix: String) -> String => prefix + .name}}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  obj := {
+    nextAge() -> Int => .age + 1
+    title(prefix: String) -> String => prefix + .name
+  }
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestStructLiteralFormatting(t *testing.T) {
 	src := `User:{id:Int name:String age:Int} main()=>{user:=User { id: 1, name: "oboard", age: 22 }}`
 	file, errs := parser.Parse(src)

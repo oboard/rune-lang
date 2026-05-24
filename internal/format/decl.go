@@ -56,13 +56,7 @@ func (f *formatter) function(fn *ast.Function) {
 	case *ast.BlockExpr:
 		f.lineSignature(signature, " => {")
 		f.indent++
-		for i, stmt := range body.Statements {
-			formatted := f.stmt(stmt)
-			f.line(formatted)
-			if i < len(body.Statements)-1 && separatesFollowingStatement(stmt, body.Statements[i+1], formatted) {
-				f.line("")
-			}
-		}
+		f.blockStatements(body)
 		f.indent--
 		f.line("}")
 	default:
@@ -71,6 +65,28 @@ func (f *formatter) function(fn *ast.Function) {
 			bodyText = "(" + bodyText + ")"
 		}
 		f.lineSignature(signature, " => "+bodyText)
+	}
+}
+
+func (f *formatter) test(test *ast.Test) {
+	f.linef("? %q {", test.Name)
+	f.indent++
+	if body, ok := test.Body.(*ast.BlockExpr); ok {
+		f.blockStatements(body)
+	} else if test.Body != nil {
+		f.line(f.expr(test.Body))
+	}
+	f.indent--
+	f.line("}")
+}
+
+func (f *formatter) blockStatements(body *ast.BlockExpr) {
+	for i, stmt := range body.Statements {
+		formatted := f.stmt(stmt)
+		f.line(formatted)
+		if i < len(body.Statements)-1 && separatesFollowingStatement(stmt, body.Statements[i+1], formatted) {
+			f.line("")
+		}
 	}
 }
 

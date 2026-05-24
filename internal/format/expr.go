@@ -442,7 +442,8 @@ func (f *formatter) anonymousObjectMethod(name string, lambda *ast.LambdaExpr) s
 			params = append(params, param)
 		}
 	}
-	return fmt.Sprintf("%s(%s) => %s", name, strings.Join(params, ", "), f.exprWithIndent(lambda.Body, f.indent+1))
+	ret := formatReturnType(lambda.ReturnType, lambda.ReturnDisplay)
+	return fmt.Sprintf("%s(%s)%s => %s", name, strings.Join(params, ", "), ret, f.exprWithIndent(lambda.Body, f.indent+1))
 }
 
 func (f *formatter) exprWithIndent(expr ast.Expr, indent int) string {

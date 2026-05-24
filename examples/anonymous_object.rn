@@ -1,20 +1,20 @@
 main() => {
-    obj := {
-        name: "Alice",
-        age: 30,
+  obj := {
+    name: "Alice",
+    age: 30,
 
-        greet() => @io.println(.greetText())
-        nextAge() => .age + 1
-        greetText() => "Hello, my name is " + .name
-    }
+    greet() => @io.println(.greetText())
+    nextAge() => .age + 1
+    greetText() => "Hello, my name is " + .name
+  }
 
-    obj2 := {
-        parent: obj,
-        name: "Bob"
-    }
+  obj2 := {
+    parent: obj,
+    name: "Bob",
+  }
 
-    @io.println(obj.name) // prints "Alice"
-    @io.println(obj.age) // prints 30
-    @io.println(obj.nextAge()) // prints 31
-    obj.greet() // prints "Hello, my name is Alice"
+  @io.println(obj.name) // prints "Alice"
+  @io.println(obj.age) // prints 30
+  @io.println(obj.nextAge()) // prints 31
+  obj.greet() // prints "Hello, my name is Alice"
 }

@@ -21,7 +21,7 @@ func FileWithOptions(file *ast.File, options Options) string {
 	for _, imp := range file.GoImports {
 		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
 	}
-	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0) {
+	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
 		f.line("")
 	}
 	for i, typ := range file.Types {
@@ -47,6 +47,15 @@ func FileWithOptions(file *ast.File, options Options) string {
 			f.line("")
 		}
 		f.function(fn)
+	}
+	if (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0) && len(file.Tests) > 0 {
+		f.line("")
+	}
+	for i, test := range file.Tests {
+		if i > 0 {
+			f.line("")
+		}
+		f.test(test)
 	}
 	return f.b.String()
 }
