@@ -56,6 +56,19 @@ export default {
   lastUpdated: false,
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/rune-icon.svg' }]],
   markdown: {
+    theme: {
+      light: 'github-light',
+      dark: 'github-dark'
+    },
+    shikiSetup: async (shiki) => {
+      await shiki.loadLanguage({
+        name: 'rune',
+        scopeName: 'source.rune',
+        grammar: runeGrammar,
+        aliases: ['rn']
+      })
+    },
+    // Keep compatibility with VitePress 1.x while moving to 2.x alpha.
     languages: [
       {
         name: 'rune',
