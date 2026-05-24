@@ -77,7 +77,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
-		if call, ok := g.stdlibCall(e); ok {
+		if call, ok := g.moduleIntrinsicCall(e); ok {
+			return call
+		}
+		if call, ok := g.receiverIntrinsicCall(e); ok {
 			return call
 		}
 		if call, ok := g.arrayMethodCall(e); ok {
@@ -196,56 +199,6 @@ func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
 		return fmt.Sprintf("(() => { const old = %s.get(); %s.set(old + 1); return old; })()", name, name)
 	}
 	return fmt.Sprintf("(() => { const old = %s; %s++; return old; })()", name, name)
-}
-
-func (g *generator) stdlibCall(call *ir.CallExpr) (string, bool) {
-	sel, ok := call.Callee.(*ir.SelectorExpr)
-	if !ok {
-		return "", false
-	}
-	at, ok := sel.Receiver.(*ir.AtExpr)
-	if !ok {
-		return "", false
-	}
-	if at.Name == "go" {
-		return "undefined /* TypeScript backend does not support @go */", true
-	}
-	if at.Name == "json" && sel.Name == "stringify" {
-		if len(call.Args) != 1 {
-			return "undefined", true
-		}
-		return "JSON.stringify(" + g.jsonValueExpr(call.Args[0]) + ")", true
-	}
-	if at.Name == "regex" {
-		switch sel.Name {
-		case "new":
-			if len(call.Args) != 2 {
-				return "undefined", true
-			}
-			return fmt.Sprintf("new RegExp(%s, %s)", g.expr(call.Args[0]), g.expr(call.Args[1])), true
-		case "escape":
-			if len(call.Args) != 1 {
-				return "undefined", true
-			}
-			value := g.expr(call.Args[0])
-			return fmt.Sprintf("((__value: string): string => (RegExp as any).escape ? (RegExp as any).escape(__value) : __value.replace(/[\\\\^$.*+?()[\\]{}|]/g, \"\\\\$&\"))(%s)", value), true
-		}
-	}
-	if at.Name != "io" {
-		return "", false
-	}
-	args := make([]string, 0, len(call.Args))
-	for _, arg := range call.Args {
-		args = append(args, g.expr(arg))
-	}
-	switch sel.Name {
-	case "print", "println":
-		return "console.log(" + strings.Join(args, ", ") + ")", true
-	case "printf":
-		return "console.log(" + strings.Join(args, ", ") + ")", true
-	default:
-		return "", false
-	}
 }
 
 func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {

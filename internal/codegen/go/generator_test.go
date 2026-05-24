@@ -327,6 +327,46 @@ func TestGenerateArrayProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateMapIntrinsicProgram(t *testing.T) {
+	src := `main() => {
+  scores := @map.newMap("", 0)
+  scores.set("rune", 10)
+  @io.println(scores.getOr("rune", 0))
+
+  seen := @map.newSet("")
+  seen.add("rune")
+  @io.println(seen.has("rune"))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`__scores := map[string]int{}`,
+		`__scores["rune"] = 10`,
+		`fmt.Println(func() int {`,
+		`value, ok := __scores["rune"]`,
+		`return 0`,
+		`__seen := map[string]struct{}{}`,
+		`__seen["rune"] = struct{}{}`,
+		`fmt.Println(func() bool { _, ok := __seen["rune"]; return ok }())`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	src := `main() => {
   obj := {
@@ -451,6 +491,31 @@ main() => {
 	}
 	if strings.Contains(got, "__rune_json") {
 		t.Fatalf("generated Go should use short json temporaries:\n%s", got)
+	}
+}
+
+func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
+	src := `main() => {
+  @io.println(@symbol.toString(@symbol.create("x")))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err == nil {
+		t.Fatalf("Generate() expected unsupported intrinsic error:\n%s", got)
+	}
+	if !strings.Contains(err.Error(), "Go backend does not support intrinsic symbol.toString") {
+		t.Fatalf("Generate() error = %v, want symbol intrinsic error", err)
+	}
+	if strings.Contains(got, "symbol.__") {
+		t.Fatalf("generated Go leaked symbol fallback call:\n%s", got)
 	}
 }
 

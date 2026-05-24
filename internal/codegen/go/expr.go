@@ -70,17 +70,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
-		if jsonCall, ok := g.jsonStringifyCall(e); ok {
-			return jsonCall
+		if intrinsicCall, ok := g.moduleIntrinsicCall(e); ok {
+			return intrinsicCall
 		}
-		if regexCall, ok := g.regexModuleCall(e); ok {
-			return regexCall
-		}
-		if mapCall, ok := g.mapModuleCall(e); ok {
-			return mapCall
-		}
-		if ffi, ok := g.goFFICall(e); ok {
-			return ffi
+		if intrinsicCall, ok := g.receiverIntrinsicCall(e); ok {
+			return intrinsicCall
 		}
 		if arrayCall, ok := g.arrayMethodCall(e); ok {
 			return arrayCall

@@ -7,7 +7,7 @@ import (
 	runefmt "github.com/oboard/rune-lang/internal/format"
 )
 
-func (s *server) formatting(uri string) any {
+func (s *server) formatting(uri string, options *formattingOptions) any {
 	text, ok := s.docs[uri]
 	if !ok {
 		return nil
@@ -16,7 +16,7 @@ func (s *server) formatting(uri string) any {
 	if prog == nil || len(diags) > 0 {
 		return nil
 	}
-	formatted := runefmt.Source(prog.File, text)
+	formatted := runefmt.SourceWithOptions(prog.File, text, formatOptions(options))
 	if formatted == text {
 		return []map[string]any{}
 	}
@@ -26,6 +26,20 @@ func (s *server) formatting(uri string) any {
 			"newText": formatted,
 		},
 	}
+}
+
+func formatOptions(options *formattingOptions) runefmt.Options {
+	if options == nil {
+		return runefmt.Options{}
+	}
+	if !options.InsertSpaces {
+		return runefmt.Options{Indent: "\t"}
+	}
+	tabSize := options.TabSize
+	if tabSize <= 0 {
+		return runefmt.Options{}
+	}
+	return runefmt.Options{Indent: strings.Repeat(" ", tabSize)}
 }
 
 func fullDocumentRange(text string) map[string]any {

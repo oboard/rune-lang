@@ -52,6 +52,12 @@ type codeLensParams struct {
 
 type formattingParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
+	Options      *formattingOptions     `json:"options,omitempty"`
+}
+
+type formattingOptions struct {
+	TabSize      int  `json:"tabSize"`
+	InsertSpaces bool `json:"insertSpaces"`
 }
 
 type inlayHintParams struct {

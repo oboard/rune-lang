@@ -108,6 +108,9 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.indent--
 		g.line("}")
 	}
+	if err := g.codegenError(); err != nil {
+		return g.buf.String(), err
+	}
 	formatted, err := goformat.Source(g.buf.Bytes())
 	if err != nil {
 		return g.buf.String(), err
@@ -218,6 +221,7 @@ type generator struct {
 	file      *ir.File
 	imports   map[string]bool
 	indent    int
+	errors    []error
 	thisNames []string
 	signals   []map[string]checker.Type
 }

@@ -154,7 +154,7 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 	if fn.Body != nil {
 		return g.stdlibBodyExpr(ir.LowerExpr(fn.Body, nil), receiver)
 	}
-	return "/* unsupported array method */"
+	return g.unsupportedIntrinsic(fn, resultType)
 }
 
 func (g *generator) arrayMapExpr(call *ir.CallExpr, receiver string) string {

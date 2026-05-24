@@ -81,7 +81,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	}
 	ret := formatReturnType(fn.ReturnType, fn.ReturnDisplay)
 	single := fn.Name + formatGenerics(fn.Generics) + "(" + strings.Join(params, ", ") + ")" + ret
-	if len(indentString(f.indent)+single) <= maxLineLength {
+	if len(f.indentString(f.indent)+single) <= maxLineLength {
 		return []string{single}
 	}
 
@@ -92,7 +92,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 			paramLines[len(paramLines)-1] += ","
 		}
 		for _, line := range paramLines {
-			lines = append(lines, "  "+line)
+			lines = append(lines, f.indentString(1)+line)
 		}
 	}
 	lines = append(lines, ")"+ret)
@@ -119,13 +119,13 @@ func (f *formatter) formatParamLines(param ast.Param) []string {
 	}
 	typ := formatType(param.Type, param.TypeDisplay)
 	single := param.Name + ": " + typ
-	if len(indentString(f.indent+1)+single) <= maxLineLength {
+	if len(f.indentString(f.indent+1)+single) <= maxLineLength {
 		return []string{single}
 	}
 	if params, ret, ok := splitFunctionType(typ); ok {
 		lines := []string{param.Name + ": ("}
 		for i, nested := range params {
-			line := "  " + nested
+			line := f.indentString(1) + nested
 			if i < len(params)-1 {
 				line += ","
 			}

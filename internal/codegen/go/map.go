@@ -34,7 +34,7 @@ func (g *generator) mapMethodCall(call *ir.CallExpr) (string, bool) {
 	case "Map", "WeakMap":
 		return g.mapReceiverCall(base, args, sel, call), true
 	case "Set", "WeakSet":
-		return g.setReceiverCall(args, sel, call), true
+		return g.setReceiverCall(base, args, sel, call), true
 	default:
 		return "", false
 	}
@@ -59,22 +59,22 @@ func (g *generator) mapReceiverCall(base string, typeArgs []string, sel *ir.Sele
 	switch fn.Intrinsic {
 	case "map.size":
 		return fmt.Sprintf("len(%s)", receiver)
-	case "map.has":
+	case "map.has", "weakMap.has":
 		if len(args) != 1 {
 			return "/* invalid map.has */"
 		}
 		return fmt.Sprintf("func() bool { _, ok := %s[%s]; return ok }()", receiver, args[0])
-	case "map.getOr":
+	case "map.getOr", "weakMap.getOr":
 		if len(args) != 2 {
 			return "/* invalid map.getOr */"
 		}
 		return fmt.Sprintf("func() %s { value, ok := %s[%s]; if ok { return value }; return %s }()", valueType, receiver, args[0], args[1])
-	case "map.set":
+	case "map.set", "weakMap.set":
 		if len(args) != 2 {
 			return "/* invalid map.set */"
 		}
 		return fmt.Sprintf("func() %s { %s[%s] = %s; return %s }()", mapType, receiver, args[0], args[1], receiver)
-	case "map.delete":
+	case "map.delete", "weakMap.delete":
 		if len(args) != 1 {
 			return "/* invalid map.delete */"
 		}
@@ -88,15 +88,15 @@ func (g *generator) mapReceiverCall(base string, typeArgs []string, sel *ir.Sele
 	case "map.forEach":
 		return g.mapForEachExpr(receiver, call)
 	default:
-		return "/* unsupported map method */"
+		return g.unsupportedIntrinsic(fn, call.ResultType())
 	}
 }
 
-func (g *generator) setReceiverCall(typeArgs []string, sel *ir.SelectorExpr, call *ir.CallExpr) string {
+func (g *generator) setReceiverCall(base string, typeArgs []string, sel *ir.SelectorExpr, call *ir.CallExpr) string {
 	if len(typeArgs) != 1 {
 		return "/* invalid set type */"
 	}
-	fn, ok := g.file.Stdlib.ReceiverFunction("map", "Set", sel.Name)
+	fn, ok := g.file.Stdlib.ReceiverFunction("map", base, sel.Name)
 	if !ok {
 		return "/* unsupported set method */"
 	}
@@ -110,17 +110,17 @@ func (g *generator) setReceiverCall(typeArgs []string, sel *ir.SelectorExpr, cal
 	switch fn.Intrinsic {
 	case "set.size":
 		return fmt.Sprintf("len(%s)", receiver)
-	case "set.has":
+	case "set.has", "weakSet.has":
 		if len(args) != 1 {
 			return "/* invalid set.has */"
 		}
 		return fmt.Sprintf("func() bool { _, ok := %s[%s]; return ok }()", receiver, args[0])
-	case "set.add":
+	case "set.add", "weakSet.add":
 		if len(args) != 1 {
 			return "/* invalid set.add */"
 		}
 		return fmt.Sprintf("func() %s { %s[%s] = struct{}{}; return %s }()", setType, receiver, args[0], receiver)
-	case "set.delete":
+	case "set.delete", "weakSet.delete":
 		if len(args) != 1 {
 			return "/* invalid set.delete */"
 		}
@@ -132,7 +132,7 @@ func (g *generator) setReceiverCall(typeArgs []string, sel *ir.SelectorExpr, cal
 	case "set.forEach":
 		return g.setForEachExpr(receiver, call)
 	default:
-		return "/* unsupported set method */"
+		return g.unsupportedIntrinsic(fn, call.ResultType())
 	}
 }
 

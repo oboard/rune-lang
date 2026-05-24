@@ -7,7 +7,7 @@ func TestFormattingReturnsWholeDocumentEdit(t *testing.T) {
 	src := "main()=>{\nname:=\"oboard\"\n@io.println(name) // print name\n}\n"
 	s := &server{docs: map[string]string{uri: src}}
 
-	edits := s.formatting(uri).([]map[string]any)
+	edits := s.formatting(uri, nil).([]map[string]any)
 	if len(edits) != 1 {
 		t.Fatalf("formatting edits = %d, want 1", len(edits))
 	}
@@ -23,8 +23,34 @@ func TestFormattingReturnsNoEditsWhenUnchanged(t *testing.T) {
 	src := "main() => {\n  @io.println(\"ok\")\n}\n"
 	s := &server{docs: map[string]string{uri: src}}
 
-	edits := s.formatting(uri).([]map[string]any)
+	edits := s.formatting(uri, nil).([]map[string]any)
 	if len(edits) != 0 {
 		t.Fatalf("formatting edits = %d, want 0", len(edits))
+	}
+}
+
+func TestFormattingUsesEditorSpaceIndent(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := "main()=>{\nname:=\"oboard\"\n}\n"
+	s := &server{docs: map[string]string{uri: src}}
+
+	edits := s.formatting(uri, &formattingOptions{TabSize: 4, InsertSpaces: true}).([]map[string]any)
+	got := edits[0]["newText"].(string)
+	want := "main() => {\n    name := \"oboard\"\n}\n"
+	if got != want {
+		t.Fatalf("formatted text = %q, want %q", got, want)
+	}
+}
+
+func TestFormattingUsesEditorTabIndent(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := "main()=>{\nname:=\"oboard\"\n}\n"
+	s := &server{docs: map[string]string{uri: src}}
+
+	edits := s.formatting(uri, &formattingOptions{TabSize: 4, InsertSpaces: false}).([]map[string]any)
+	got := edits[0]["newText"].(string)
+	want := "main() => {\n\tname := \"oboard\"\n}\n"
+	if got != want {
+		t.Fatalf("formatted text = %q, want %q", got, want)
 	}
 }

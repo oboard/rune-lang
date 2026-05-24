@@ -64,6 +64,9 @@ func GenerateIR(file *ir.File) (string, error) {
 		}
 		g.linef("export { %s };", join(exports, ", "))
 	}
+	if err := g.codegenError(); err != nil {
+		return g.buf.String(), err
+	}
 	return g.buf.String(), nil
 }
 

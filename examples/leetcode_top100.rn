@@ -2,20 +2,13 @@
 // Tree and linked-list problems use array-backed adapters so they can run in
 // today's Rune value model while still exercising real core APIs.
 
-maxInt(a: Int, b: Int) -> Int => a {
-  > b => a
-  _ => b
-}
+maxInt(a: Int, b: Int) -> Int => a > b ? a : b
 
-minInt(a: Int, b: Int) -> Int => a {
-  < b => a
-  _ => b
-}
 
-absInt(value: Int) -> Int => value {
-  <0 => 0 - value
-  _ => value
-}
+minInt(a: Int, b: Int) -> Int => a < b ? a : b
+
+absInt(value: Int) -> Int => value < 0 ? 0 - value : value
+
 
 boolToInt(value: Bool) -> Int => value {
   true => 1
@@ -483,13 +476,12 @@ lc055CanJump(nums: Array[Int]) -> Bool => {
 lc056MergeIntervalsCount(flat: Array[Int]) -> Int => {
   count ~= 0
   currentEnd ~= 0 - 1
-  flat.forEach((value, index) => (index % 2 == 0) {
-    true => (value > currentEnd) {
-      true => count = count + 1
-      false => count = count
-    }
-    false => currentEnd = maxInt(currentEnd, value)
-  })
+  flat.forEach((value, index) => 
+      (index % 2 == 0) ?
+       (value > currentEnd) ? count = count + 1
+      :count = count
+    : currentEnd = maxInt(currentEnd, value)
+  )
   count
 }
 

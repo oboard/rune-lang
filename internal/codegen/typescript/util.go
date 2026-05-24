@@ -16,6 +16,7 @@ type generator struct {
 	file      *ir.File
 	indent    int
 	temp      int
+	errors    []error
 	thisNames []string
 	signals   []map[string]checker.Type
 	reactives []map[string]checker.Type

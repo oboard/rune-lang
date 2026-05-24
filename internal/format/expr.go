@@ -100,7 +100,7 @@ func (f *formatter) chainCallExpr(call *ast.CallExpr) (string, bool) {
 	if len(flat) <= maxLineLength || len(parts) < 3 || strings.Contains(flat, "\n") {
 		return flat, true
 	}
-	continuationIndent := indentString(f.indent) + strings.Repeat(" ", len(parts[0])+2)
+	continuationIndent := f.indentString(f.indent) + strings.Repeat(" ", len(parts[0])+2)
 	var b strings.Builder
 	b.WriteString(parts[0])
 	b.WriteString(parts[1])
@@ -149,14 +149,14 @@ func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadi
 	if f.xmlElementCanInline(elem) {
 		prefix := ""
 		if leadingIndent {
-			prefix = indentString(indent)
+			prefix = f.indentString(indent)
 		}
 		return prefix + f.xmlElementInline(elem)
 	}
 
 	var b strings.Builder
 	if leadingIndent {
-		b.WriteString(indentString(indent))
+		b.WriteString(f.indentString(indent))
 	}
 	b.WriteByte('<')
 	b.WriteString(elem.Tag)
@@ -168,7 +168,7 @@ func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadi
 	b.WriteByte('\n')
 	for _, child := range elem.Children {
 		if child.Text != "" {
-			b.WriteString(indentString(indent + 1))
+			b.WriteString(f.indentString(indent + 1))
 			b.WriteString(child.Text)
 			b.WriteByte('\n')
 			continue
@@ -184,7 +184,7 @@ func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadi
 		b.WriteString(f.xmlChildExpr(child.Expr, indent+1))
 		b.WriteByte('\n')
 	}
-	b.WriteString(indentString(indent))
+	b.WriteString(f.indentString(indent))
 	b.WriteString("</")
 	b.WriteString(elem.Tag)
 	b.WriteByte('>')
@@ -265,10 +265,10 @@ func (f *formatter) xmlChildExpr(expr ast.Expr, indent int) string {
 	f.indent = previous
 	lines := strings.Split(formatted, "\n")
 	if len(lines) == 1 {
-		return indentString(indent) + "{" + lines[0] + "}"
+		return f.indentString(indent) + "{" + lines[0] + "}"
 	}
 	var b strings.Builder
-	b.WriteString(indentString(indent))
+	b.WriteString(f.indentString(indent))
 	b.WriteByte('{')
 	b.WriteString(lines[0])
 	b.WriteByte('\n')
@@ -289,7 +289,7 @@ func (f *formatter) lambdaExpr(lambda *ast.LambdaExpr) string {
 	if xml, ok := lambda.Body.(*ast.XMLElement); ok {
 		return "(" + strings.Join(params, ", ") + ") => (\n" +
 			f.xmlElementWithIndent(xml, f.indent+2, true) + "\n" +
-			indentString(f.indent) + ")"
+			f.indentString(f.indent) + ")"
 	}
 	return "(" + strings.Join(params, ", ") + ") => " + f.expr(lambda.Body)
 }
@@ -327,8 +327,8 @@ func (f *formatter) watchExpr(watch *ast.WatchExpr) string {
 
 func (f *formatter) blockExpr(block *ast.BlockExpr) string {
 	var b strings.Builder
-	bodyIndent := indentString(f.indent + 1)
-	closeIndent := indentString(f.indent)
+	bodyIndent := f.indentString(f.indent + 1)
+	closeIndent := f.indentString(f.indent)
 	b.WriteString("{\n")
 	previous := f.indent
 	f.indent++
@@ -338,7 +338,7 @@ func (f *formatter) blockExpr(block *ast.BlockExpr) string {
 			if j == 0 {
 				b.WriteString(bodyIndent)
 			} else if line != "" {
-				b.WriteString(indentString(f.indent))
+				b.WriteString(f.indentString(f.indent))
 			}
 			b.WriteString(line)
 			b.WriteByte('\n')
@@ -358,8 +358,8 @@ func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
 		return lit.TypeName + " {}"
 	}
 	var b strings.Builder
-	fieldIndent := indentString(f.indent + 1)
-	closeIndent := indentString(f.indent)
+	fieldIndent := f.indentString(f.indent + 1)
+	closeIndent := f.indentString(f.indent)
 	b.WriteString(lit.TypeName)
 	b.WriteString(" {\n")
 	for _, field := range lit.Fields {
@@ -378,8 +378,8 @@ func (f *formatter) matchExpr(match *ast.MatchExpr) string {
 	var b strings.Builder
 	b.WriteString(f.expr(match.Subject))
 	b.WriteString(" {\n")
-	branchIndent := indentString(f.indent + 1)
-	closeIndent := indentString(f.indent)
+	branchIndent := f.indentString(f.indent + 1)
+	closeIndent := f.indentString(f.indent)
 	for _, branch := range match.Branches {
 		b.WriteString(branchIndent)
 		b.WriteString(f.pattern(branch.Pattern))
@@ -397,8 +397,8 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 		return "{}"
 	}
 	var b strings.Builder
-	fieldIndent := indentString(f.indent + 1)
-	closeIndent := indentString(f.indent)
+	fieldIndent := f.indentString(f.indent + 1)
+	closeIndent := f.indentString(f.indent)
 	b.WriteString("{\n")
 	seenMethod := false
 	for i, field := range obj.Fields {

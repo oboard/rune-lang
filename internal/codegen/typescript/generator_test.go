@@ -192,6 +192,36 @@ func TestGenerateRegexProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateMapIntrinsicProgram(t *testing.T) {
+	src := `main() => {
+  scores := @map.newMap("", 0)
+  scores.set("rune", 10)
+  @io.println(scores.getOr("rune", 0))
+
+  seen := @map.newSet("")
+  seen.add("rune")
+  @io.println(seen.has("rune"))
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __scores = new Map<string, number>();`,
+		`__scores.set("rune", 10);`,
+		`((__map, __key) => __map.has(__key) ? __map.get(__key)! : 0)(__scores, "rune")`,
+		`const __seen = new Set<string>();`,
+		`__seen.add("rune");`,
+		`console.log(__seen.has("rune"));`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "@map") {
+		t.Fatalf("generated TypeScript leaked @map intrinsic:\n%s", got)
+	}
+}
+
 func TestGenerateJSONStringifyObject(t *testing.T) {
 	src := `User: {
   name: String
@@ -227,6 +257,32 @@ main() => {
 	}
 	if strings.Contains(got, `"greet"`) {
 		t.Fatalf("generated TypeScript should omit function fields:\n%s", got)
+	}
+}
+
+func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
+	src := `main() => {
+  @io.println(@symbol.toString(@symbol.create("x")))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err == nil {
+		t.Fatalf("Generate() expected unsupported intrinsic error:\n%s", got)
+	}
+	if !strings.Contains(err.Error(), "TypeScript backend does not support intrinsic symbol.toString") ||
+		!strings.Contains(err.Error(), "TypeScript backend does not support intrinsic symbol.create") {
+		t.Fatalf("Generate() error = %v, want symbol intrinsic errors", err)
+	}
+	if strings.Contains(got, "@symbol") {
+		t.Fatalf("generated TypeScript leaked @symbol intrinsic:\n%s", got)
 	}
 }
 

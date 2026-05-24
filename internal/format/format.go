@@ -6,8 +6,18 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 )
 
+type Options struct {
+	Indent string
+}
+
+const defaultIndent = "  "
+
 func File(file *ast.File) string {
-	f := formatter{}
+	return FileWithOptions(file, Options{})
+}
+
+func FileWithOptions(file *ast.File, options Options) string {
+	f := newFormatter(options)
 	for _, imp := range file.GoImports {
 		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
 	}
@@ -42,5 +52,17 @@ func File(file *ast.File) string {
 }
 
 func Source(file *ast.File, source string) string {
-	return preserveLineComments(source, File(file))
+	return SourceWithOptions(file, source, Options{})
+}
+
+func SourceWithOptions(file *ast.File, source string, options Options) string {
+	return preserveLineComments(source, FileWithOptions(file, options))
+}
+
+func newFormatter(options Options) formatter {
+	indent := options.Indent
+	if indent == "" {
+		indent = defaultIndent
+	}
+	return formatter{indentUnit: indent}
 }
