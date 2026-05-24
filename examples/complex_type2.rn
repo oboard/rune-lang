@@ -9,10 +9,7 @@ g(y) => ({
 })
 
 r(flag) => {
-  j := flag {
-    true => f
-    false => g
-  }
+  j := (flag ? (x) => f(x) : (y) => g(y))
 
   j({
     b: 2,

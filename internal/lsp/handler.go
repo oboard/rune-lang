@@ -10,7 +10,7 @@ func (s *server) handle(req request) error {
 	case "initialize":
 		return s.respond(req.ID, map[string]any{
 			"capabilities": map[string]any{
-				"textDocumentSync":           1,
+				"textDocumentSync":           map[string]any{"openClose": true, "change": 1},
 				"hoverProvider":              true,
 				"completionProvider":         map[string]any{"triggerCharacters": []string{"@", "."}},
 				"definitionProvider":         true,
@@ -34,6 +34,7 @@ func (s *server) handle(req request) error {
 			},
 		})
 	case "shutdown":
+		s.docs = map[string]string{}
 		return s.respond(req.ID, nil)
 	case "exit":
 		return io.EOF
@@ -53,6 +54,13 @@ func (s *server) handle(req request) error {
 			s.docs[params.TextDocument.URI] = params.ContentChanges[len(params.ContentChanges)-1].Text
 		}
 		return s.publishDiagnostics(params.TextDocument.URI)
+	case "textDocument/didClose":
+		var params didCloseParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		delete(s.docs, params.TextDocument.URI)
+		return s.clearDiagnostics(params.TextDocument.URI)
 	case "textDocument/hover":
 		var params textPositionParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

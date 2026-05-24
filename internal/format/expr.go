@@ -39,7 +39,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.UnaryExpr:
 		return e.Op.String() + f.expr(e.Expr)
 	case *ast.PostfixExpr:
-		return f.expr(e.Expr) + e.Op.String()
+		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
 	case *ast.BinaryExpr:
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
 	case *ast.TernaryExpr:
@@ -50,16 +50,16 @@ func (f *formatter) expr(expr ast.Expr) string {
 		if formatted, ok := f.chainCallExpr(e); ok {
 			return formatted
 		}
-		return f.expr(e.Callee) + f.formatCallArgs(e.Args)
+		return f.postfixReceiverExpr(e.Callee) + f.formatCallArgs(e.Args)
 	case *ast.LambdaExpr:
 		return f.lambdaExpr(e)
 	case *ast.IndexExpr:
-		return fmt.Sprintf("%s[%s]", f.expr(e.Receiver), f.expr(e.Index))
+		return fmt.Sprintf("%s[%s]", f.postfixReceiverExpr(e.Receiver), f.expr(e.Index))
 	case *ast.SelectorExpr:
 		if _, ok := e.Receiver.(*ast.ThisExpr); ok {
 			return "." + e.Name
 		}
-		return f.expr(e.Receiver) + "." + e.Name
+		return f.postfixReceiverExpr(e.Receiver) + "." + e.Name
 	case *ast.ArrayLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {
@@ -138,7 +138,17 @@ func (f *formatter) chainReceiverExpr(expr ast.Expr) string {
 	if _, ok := expr.(*ast.ThisExpr); ok {
 		return ""
 	}
-	return f.expr(expr)
+	return f.postfixReceiverExpr(expr)
+}
+
+func (f *formatter) postfixReceiverExpr(expr ast.Expr) string {
+	formatted := f.expr(expr)
+	switch expr.(type) {
+	case *ast.TernaryExpr:
+		return "(" + formatted + ")"
+	default:
+		return formatted
+	}
 }
 
 func (f *formatter) xmlElement(elem *ast.XMLElement) string {

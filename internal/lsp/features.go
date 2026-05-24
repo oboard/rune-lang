@@ -31,6 +31,13 @@ func (s *server) publishDiagnostics(uri string) error {
 	})
 }
 
+func (s *server) clearDiagnostics(uri string) error {
+	return s.notify("textDocument/publishDiagnostics", map[string]any{
+		"uri":         uri,
+		"diagnostics": []map[string]any{},
+	})
+}
+
 func (s *server) hover(uri string, pos position) any {
 	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
 	word := wordAt(s.docs[uri], pos)
@@ -650,13 +657,23 @@ func exprSignalDeps(expr ast.Expr, signals map[string][]string) []string {
 }
 
 func dependencyChain(name string, signals map[string][]string) string {
+	return dependencyChainPath(name, signals, map[string]bool{})
+}
+
+func dependencyChainPath(name string, signals map[string][]string, path map[string]bool) string {
 	deps, ok := signals[name]
 	if !ok || len(deps) == 0 {
 		return ""
 	}
+	path[name] = true
+	defer delete(path, name)
 	chains := make([]string, 0, len(deps))
 	for _, dep := range deps {
-		if chain := dependencyChain(dep, signals); chain != "" {
+		if path[dep] {
+			chains = append(chains, name+" -> "+dep+" (cycle)")
+			continue
+		}
+		if chain := dependencyChainPath(dep, signals, path); chain != "" {
 			chains = append(chains, name+" -> "+chain)
 		} else {
 			chains = append(chains, name+" -> "+dep)

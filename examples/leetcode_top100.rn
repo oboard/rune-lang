@@ -10,10 +10,7 @@ minInt(a: Int, b: Int) -> Int => a < b ? a : b
 absInt(value: Int) -> Int => value < 0 ? 0 - value : value
 
 
-boolToInt(value: Bool) -> Int => value {
-  true => 1
-  false => 0
-}
+boolToInt(value: Bool) -> Int => (value ? 1 : 0)
 
 arraySum(values: Array[Int]) -> Int => {
   total ~= 0
@@ -35,46 +32,31 @@ arrayProduct(values: Array[Int]) -> Int => {
 
 arrayMax(values: Array[Int]) -> Int => {
   best ~= values[0]
-  values.forEach((value) => (value > best) {
-    true => best = value
-    false => best = best
-  })
+  values.forEach((value) => ((value > best) ? best = value : best = best))
   best
 }
 
 arrayMin(values: Array[Int]) -> Int => {
   best ~= values[0]
-  values.forEach((value) => (value < best) {
-    true => best = value
-    false => best = best
-  })
+  values.forEach((value) => ((value < best) ? best = value : best = best))
   best
 }
 
 arrayContainsInt(values: Array[Int], needle: Int) -> Bool => {
   found ~= false
-  values.forEach((value) => (value == needle) {
-    true => found = true
-    false => found = found
-  })
+  values.forEach((value) => ((value == needle) ? found = true : found = found))
   found
 }
 
 arrayIndexOfInt(values: Array[Int], needle: Int) -> Int => {
   found ~= 0 - 1
-  values.forEach((value, index) => ((found == (0 - 1)) && value == needle) {
-    true => found = index
-    false => found = found
-  })
+  values.forEach((value, index) => (((found == (0 - 1)) && value == needle) ? found = index : found = found))
   found
 }
 
 arrayCountInt(values: Array[Int], needle: Int) -> Int => {
   count ~= 0
-  values.forEach((value) => (value == needle) {
-    true => count = count + 1
-    false => count = count
-  })
+  values.forEach((value) => ((value == needle) ? count = count + 1 : count = count))
   count
 }
 
@@ -111,23 +93,14 @@ pushStringAndTrue(out: Array[String], value: String) -> Bool => {
 }
 
 popMatches(stack: Array[String], value: String) -> Bool =>
-  (stack.length() == 0) {
-    true => false
-    false => stack.pop() == value
-  }
+  ((stack.length() == 0) ? false : stack.pop() == value)
 
 sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
   out := [0]
   out.pop()
   inserted ~= false
-  values.forEach((item) => ((!inserted) && value < item) {
-    true => inserted = pushTwoAndTrue(out, value, item)
-    false => inserted = pushIntAndKeep(out, item, inserted)
-  })
-  inserted {
-    true => out
-    false => pushIntAndReturn(out, value)
-  }
+  values.forEach((item) => (((!inserted) && value < item) ? inserted = pushTwoAndTrue(out, value, item) : inserted = pushIntAndKeep(out, item, inserted)))
+  (inserted ? out : pushIntAndReturn(out, value))
 }
 
 sortInts(values: Array[Int]) -> Array[Int] => {
@@ -140,22 +113,13 @@ sortInts(values: Array[Int]) -> Array[Int] => {
 stringContainsBetween(s: String, start: Int, end: Int, ch: String) -> Bool =>
   start {
     >= end => false
-    _ => (s.at(start) == ch) {
-      true => true
-      false => stringContainsBetween(s, start + 1, end, ch)
-    }
+    _ => ((s.at(start) == ch) ? true : stringContainsBetween(s, start + 1, end, ch))
   }
 
 countChar(s: String, ch: String) -> Int => countCharFrom(s, ch, 0, 0)
 
 countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int =>
-  (index >= s.length()) {
-    true => total
-    false => countCharFrom(s, ch, index + 1, (s.at(index) == ch) {
-      true => total + 1
-      false => total
-    })
-  }
+  ((index >= s.length()) ? total : countCharFrom(s, ch, index + 1, ((s.at(index) == ch) ? total + 1 : total)))
 
 factorial(n: Int) -> Int => n {
   <=1 => 1
@@ -171,10 +135,7 @@ fibLike(n: Int) -> Int => n {
 lc001TwoSum(nums: Array[Int], target: Int) -> Array[Int] => {
   result := [0]
   result.pop()
-  nums.forEach((a, i) => nums.forEach((b, j) => ((result.length() == 0) && i < j && a + b == target) {
-    true => pushTwoInt(result, i, j)
-    false => 0
-  }))
+  nums.forEach((a, i) => nums.forEach((b, j) => (((result.length() == 0) && i < j && a + b == target) ? pushTwoInt(result, i, j) : 0)))
   result
 }
 
@@ -183,13 +144,10 @@ lc002AddTwoNumbersDigits(left: Array[Int], right: Array[Int]) -> Array[Int] =>
   lc002AddDigits(left, right, 0, 0, emptyIntArray())
 
 lc002AddDigits(left: Array[Int], right: Array[Int], index: Int, carry: Int, out: Array[Int]) -> Array[Int] =>
-  (index >= left.length() && index >= right.length() && carry == 0) {
-    true => out
-    false => lc002AddDigits(left, right, index + 1, lc002DigitSum(left, right, index, carry) / 10, lc002PushDigit(out, lc002DigitSum(left, right, index, carry) % 10))
-  }
+  ((index >= left.length() && index >= right.length() && carry == 0) ? out : lc002AddDigits(left, right, index + 1, lc002DigitSum(left, right, index, carry) / 10, lc002PushDigit(out, lc002DigitSum(left, right, index, carry) % 10)))
 
 lc002DigitSum(left: Array[Int], right: Array[Int], index: Int, carry: Int) -> Int =>
-  carry + ((index < left.length()) { true => left[index] false => 0 }) + ((index < right.length()) { true => right[index] false => 0 })
+  carry + (((index < left.length()) ? left[index] : 0)) + (((index < right.length()) ? right[index] : 0))
 
 lc002PushDigit(out: Array[Int], digit: Int) -> Array[Int] => {
   out.push(digit)
@@ -200,13 +158,7 @@ lc002PushDigit(out: Array[Int], digit: Int) -> Array[Int] => {
 lc003LengthOfLongestSubstring(s: String) -> Int => lc003Window(s, 0, 0, 0)
 
 lc003Window(s: String, left: Int, right: Int, best: Int) -> Int =>
-  (right >= s.length()) {
-    true => best
-    false => stringContainsBetween(s, left, right, s.at(right)) {
-      true => lc003Window(s, left + 1, right, best)
-      false => lc003Window(s, left, right + 1, maxInt(best, right - left + 1))
-    }
-  }
+  ((right >= s.length()) ? best : (stringContainsBetween(s, left, right, s.at(right)) ? lc003Window(s, left + 1, right, best) : lc003Window(s, left, right + 1, maxInt(best, right - left + 1))))
 
 // 004. Median of Two Sorted Arrays
 lc004MedianOfSortedArraysInt(left: Array[Int], right: Array[Int]) -> Int => {
@@ -218,58 +170,34 @@ lc004MedianOfSortedArraysInt(left: Array[Int], right: Array[Int]) -> Int => {
 lc005LongestPalindromeLength(s: String) -> Int => lc005AllStarts(s, 0, 0)
 
 lc005AllStarts(s: String, start: Int, best: Int) -> Int =>
-  (start >= s.length()) {
-    true => best
-    false => lc005AllStarts(s, start + 1, lc005AllEnds(s, start, start, best))
-  }
+  ((start >= s.length()) ? best : lc005AllStarts(s, start + 1, lc005AllEnds(s, start, start, best)))
 
 lc005AllEnds(s: String, start: Int, end: Int, best: Int) -> Int =>
-  (end >= s.length()) {
-    true => best
-    false => lc005AllEnds(s, start, end + 1, lc005IsPalindromeRange(s, start, end) {
-      true => maxInt(best, end - start + 1)
-      false => best
-    })
-  }
+  ((end >= s.length()) ? best : lc005AllEnds(s, start, end + 1, (lc005IsPalindromeRange(s, start, end) ? maxInt(best, end - start + 1) : best)))
 
 lc005IsPalindromeRange(s: String, left: Int, right: Int) -> Bool =>
   left {
     >= right => true
-    _ => (s.at(left) == s.at(right)) {
-      true => lc005IsPalindromeRange(s, left + 1, right - 1)
-      false => false
-    }
+    _ => ((s.at(left) == s.at(right)) ? lc005IsPalindromeRange(s, left + 1, right - 1) : false)
   }
 
 // 010. Regular Expression Matching
 lc010RegexMatch(text: String, pattern: String) -> Bool => lc010MatchAt(text, pattern, 0, 0)
 
 lc010MatchAt(text: String, pattern: String, i: Int, j: Int) -> Bool =>
-  (j >= pattern.length()) {
-    true => i >= text.length()
-    false => (j + 1 < pattern.length() && pattern.at(j + 1) == "*") {
-      true => lc010MatchAt(text, pattern, i, j + 2) || ((i < text.length()) && (pattern.at(j) == "." || pattern.at(j) == text.at(i)) && lc010MatchAt(text, pattern, i + 1, j))
-      false => (i < text.length()) && (pattern.at(j) == "." || pattern.at(j) == text.at(i)) && lc010MatchAt(text, pattern, i + 1, j + 1)
-    }
-  }
+  ((j >= pattern.length()) ? i >= text.length() : ((j + 1 < pattern.length() && pattern.at(j + 1) == "*") ? lc010MatchAt(text, pattern, i, j + 2) || ((i < text.length()) && (pattern.at(j) == "." || pattern.at(j) == text.at(i)) && lc010MatchAt(text, pattern, i + 1, j)) : (i < text.length()) && (pattern.at(j) == "." || pattern.at(j) == text.at(i)) && lc010MatchAt(text, pattern, i + 1, j + 1)))
 
 // 011. Container With Most Water
 lc011MaxArea(heights: Array[Int]) -> Int => {
   best ~= 0
-  heights.forEach((leftHeight, left) => heights.forEach((rightHeight, right) => (left < right) {
-    true => best = maxInt(best, minInt(leftHeight, rightHeight) * (right - left))
-    false => best = best
-  }))
+  heights.forEach((leftHeight, left) => heights.forEach((rightHeight, right) => ((left < right) ? best = maxInt(best, minInt(leftHeight, rightHeight) * (right - left)) : best = best)))
   best
 }
 
 // 015. 3Sum
 lc015ThreeSumExists(nums: Array[Int]) -> Bool => {
   found ~= false
-  nums.forEach((a, i) => nums.forEach((b, j) => nums.forEach((c, k) => (i < j && j < k && a + b + c == 0) {
-    true => found = true
-    false => found = found
-  })))
+  nums.forEach((a, i) => nums.forEach((b, j) => nums.forEach((c, k) => ((i < j && j < k && a + b + c == 0) ? found = true : found = found))))
   found
 }
 
@@ -292,10 +220,7 @@ lc019RemoveNthFromEndArray(values: Array[Int], n: Int) -> Array[Int] => {
   out := [0]
   out.pop()
   removeAt := values.length() - n
-  values.forEach((value, index) => (index == removeAt) {
-    true => 0
-    false => out.push(value)
-  })
+  values.forEach((value, index) => ((index == removeAt) ? 0 : out.push(value)))
   out
 }
 
@@ -353,10 +278,7 @@ lc034SearchRange(nums: Array[Int], target: Int) -> Array[Int] => {
 
 lc034LastIndex(nums: Array[Int], target: Int) -> Int => {
   last ~= 0 - 1
-  nums.forEach((value, index) => (value == target) {
-    true => last = index
-    false => last = last
-  })
+  nums.forEach((value, index) => ((value == target) ? last = index : last = last))
   last
 }
 
@@ -368,37 +290,25 @@ lc039Count(candidates: Array[Int], target: Int, start: Int) -> Int =>
   target {
     0 => 1
     <0 => 0
-    _ => (start >= candidates.length()) {
-      true => 0
-      false => lc039Count(candidates, target - candidates[start], start) + lc039Count(candidates, target, start + 1)
-    }
+    _ => ((start >= candidates.length()) ? 0 : lc039Count(candidates, target - candidates[start], start) + lc039Count(candidates, target, start + 1))
   }
 
 // 042. Trapping Rain Water
 lc042TrapRainWater(height: Array[Int]) -> Int => {
   total ~= 0
-  height.forEach((value, index) => (index > 0 && index < height.length() - 1) {
-    true => total = total + maxInt(0, minInt(lc042MaxLeft(height, index), lc042MaxRight(height, index)) - value)
-    false => total = total
-  })
+  height.forEach((value, index) => ((index > 0 && index < height.length() - 1) ? total = total + maxInt(0, minInt(lc042MaxLeft(height, index), lc042MaxRight(height, index)) - value) : total = total))
   total
 }
 
 lc042MaxLeft(height: Array[Int], index: Int) -> Int => {
   best ~= 0
-  height.forEach((value, i) => (i < index) {
-    true => best = maxInt(best, value)
-    false => best = best
-  })
+  height.forEach((value, i) => ((i < index) ? best = maxInt(best, value) : best = best))
   best
 }
 
 lc042MaxRight(height: Array[Int], index: Int) -> Int => {
   best ~= 0
-  height.forEach((value, i) => (i > index) {
-    true => best = maxInt(best, value)
-    false => best = best
-  })
+  height.forEach((value, i) => ((i > index) ? best = maxInt(best, value) : best = best))
   best
 }
 
@@ -406,10 +316,7 @@ lc042MaxRight(height: Array[Int], index: Int) -> Int => {
 lc045JumpGameII(nums: Array[Int]) -> Int => lc045Greedy(nums, 0, 0, 0, 0)
 
 lc045Greedy(nums: Array[Int], index: Int, jumps: Int, end: Int, farthest: Int) -> Int =>
-  (index >= nums.length() - 1) {
-    true => jumps
-    false => lc045Greedy(nums, index + 1, (index == end) { true => jumps + 1 false => jumps }, (index == end) { true => maxInt(farthest, index + nums[index]) false => end }, maxInt(farthest, index + nums[index]))
-  }
+  ((index >= nums.length() - 1) ? jumps : lc045Greedy(nums, index + 1, ((index == end) ? jumps + 1 : jumps), ((index == end) ? maxInt(farthest, index + nums[index]) : end), maxInt(farthest, index + nums[index])))
 
 // 046. Permutations
 lc046PermutationsCount(values: Array[Int]) -> Int => factorial(values.length())
@@ -421,54 +328,33 @@ lc048RotateMatrix2(flat: Array[Int]) -> Array[Int] => [flat[2], flat[0], flat[3]
 lc049GroupAnagramsCount(words: Array[String]) -> Int => {
   groups := [""]
   groups.pop()
-  words.forEach((word) => lc049HasGroup(groups, word) {
-    true => 0
-    false => groups.push(word)
-  })
+  words.forEach((word) => (lc049HasGroup(groups, word) ? 0 : groups.push(word)))
   groups.length()
 }
 
 lc049HasGroup(groups: Array[String], word: String) -> Bool => {
   found ~= false
-  groups.forEach((group) => lc049IsAnagram(group, word) {
-    true => found = true
-    false => found = found
-  })
+  groups.forEach((group) => (lc049IsAnagram(group, word) ? found = true : found = found))
   found
 }
 
 lc049IsAnagram(left: String, right: String) -> Bool =>
-  (left.length() == right.length()) {
-    true => lc049SameCounts(left, right, 0)
-    false => false
-  }
+  left.length() == right.length() && lc049SameCounts(left, right, 0)
 
 lc049SameCounts(left: String, right: String, index: Int) -> Bool =>
-  (index >= left.length()) {
-    true => true
-    false => (countChar(left, left.at(index)) == countChar(right, left.at(index))) {
-      true => lc049SameCounts(left, right, index + 1)
-      false => false
-    }
-  }
+  (index >= left.length()) || ((countChar(left, left.at(index)) == countChar(right, left.at(index))) && lc049SameCounts(left, right, index + 1))
 
 // 053. Maximum Subarray
 lc053MaxSubArray(nums: Array[Int]) -> Int => {
   best ~= nums[0]
-  nums.forEach((left, i) => nums.forEach((right, j) => (i <= j) {
-    true => best = maxInt(best, arraySum(nums.slice(i, j + 1)))
-    false => best = best
-  }))
+  nums.forEach((left, i) => nums.forEach((right, j) => ((i <= j) ? best = maxInt(best, arraySum(nums.slice(i, j + 1))) : best = best)))
   best
 }
 
 // 055. Jump Game
 lc055CanJump(nums: Array[Int]) -> Bool => {
   farthest ~= 0
-  nums.forEach((jump, index) => (index <= farthest) {
-    true => farthest = maxInt(farthest, index + jump)
-    false => farthest = farthest
-  })
+  nums.forEach((jump, index) => ((index <= farthest) ? farthest = maxInt(farthest, index + jump) : farthest = farthest))
   farthest >= nums.length() - 1
 }
 
@@ -486,10 +372,7 @@ lc056MergeIntervalsCount(flat: Array[Int]) -> Int => {
 }
 
 // 062. Unique Paths
-lc062UniquePaths(m: Int, n: Int) -> Int => (m == 1 || n == 1) {
-  true => 1
-  false => lc062UniquePaths(m - 1, n) + lc062UniquePaths(m, n - 1)
-}
+lc062UniquePaths(m: Int, n: Int) -> Int => ((m == 1 || n == 1) ? 1 : lc062UniquePaths(m - 1, n) + lc062UniquePaths(m, n - 1))
 
 // 064. Minimum Path Sum
 lc064MinPathSum2x2(grid: Array[Int]) -> Int => grid[0] + minInt(grid[1], grid[2]) + grid[3]
@@ -505,10 +388,7 @@ lc072Edit(a: String, b: String, i: Int, j: Int) -> Int =>
     0 => j
     _ => j {
       0 => i
-      _ => (a.at(i - 1) == b.at(j - 1)) {
-        true => lc072Edit(a, b, i - 1, j - 1)
-        false => 1 + minInt(lc072Edit(a, b, i - 1, j), minInt(lc072Edit(a, b, i, j - 1), lc072Edit(a, b, i - 1, j - 1)))
-      }
+      _ => ((a.at(i - 1) == b.at(j - 1)) ? lc072Edit(a, b, i - 1, j - 1) : 1 + minInt(lc072Edit(a, b, i - 1, j), minInt(lc072Edit(a, b, i, j - 1), lc072Edit(a, b, i - 1, j - 1))))
     }
   }
 
@@ -519,34 +399,16 @@ lc075SortColors(nums: Array[Int]) -> Array[Int] => sortInts(nums)
 lc076MinWindowLength(s: String, target: String) -> Int => lc076Start(s, target, 0, s.length() + 1)
 
 lc076Start(s: String, target: String, start: Int, best: Int) -> Int =>
-  (start >= s.length()) {
-    true => best
-    false => lc076Start(s, target, start + 1, lc076End(s, target, start, start + target.length(), best))
-  }
+  ((start >= s.length()) ? best : lc076Start(s, target, start + 1, lc076End(s, target, start, start + target.length(), best)))
 
 lc076End(s: String, target: String, start: Int, end: Int, best: Int) -> Int =>
-  (end > s.length()) {
-    true => best
-    false => lc076End(s, target, start, end + 1, lc076ContainsAll(s.slice(start, end), target, 0) {
-      true => minInt(best, end - start)
-      false => best
-    })
-  }
+  ((end > s.length()) ? best : lc076End(s, target, start, end + 1, (lc076ContainsAll(s.slice(start, end), target, 0) ? minInt(best, end - start) : best)))
 
 lc076ContainsAll(window: String, target: String, index: Int) -> Bool =>
-  (index >= target.length()) {
-    true => true
-    false => (countChar(window, target.at(index)) >= countChar(target, target.at(index))) {
-      true => lc076ContainsAll(window, target, index + 1)
-      false => false
-    }
-  }
+  ((index >= target.length()) ? true : ((countChar(window, target.at(index)) >= countChar(target, target.at(index))) ? lc076ContainsAll(window, target, index + 1) : false))
 
 // 078. Subsets
-lc078SubsetsCount(values: Array[Int]) -> Int => (values.length() == 0) {
-  true => 1
-  false => 2 * lc078SubsetsCount(values.slice(1, values.length()))
-}
+lc078SubsetsCount(values: Array[Int]) -> Int => ((values.length() == 0) ? 1 : 2 * lc078SubsetsCount(values.slice(1, values.length())))
 
 // 079. Word Search
 lc079WordSearchLine(board: String, word: String) -> Bool => board.includes(word)
@@ -554,19 +416,13 @@ lc079WordSearchLine(board: String, word: String) -> Bool => board.includes(word)
 // 084. Largest Rectangle in Histogram
 lc084LargestRectangleArea(heights: Array[Int]) -> Int => {
   best ~= 0
-  heights.forEach((height, i) => heights.forEach((other, j) => (i <= j) {
-    true => best = maxInt(best, lc084MinRange(heights, i, j) * (j - i + 1))
-    false => best = best
-  }))
+  heights.forEach((height, i) => heights.forEach((other, j) => ((i <= j) ? best = maxInt(best, lc084MinRange(heights, i, j) * (j - i + 1)) : best = best)))
   best
 }
 
 lc084MinRange(values: Array[Int], start: Int, end: Int) -> Int => {
   best ~= values[start]
-  values.forEach((value, index) => (index >= start && index <= end) {
-    true => best = minInt(best, value)
-    false => best = best
-  })
+  values.forEach((value, index) => ((index >= start && index <= end) ? best = minInt(best, value) : best = best))
   best
 }
 
@@ -592,10 +448,7 @@ lc096Catalan(n: Int, root: Int, total: Int) -> Int =>
 // 098. Validate Binary Search Tree
 lc098IsValidBSTInorder(values: Array[Int]) -> Bool => {
   ok ~= true
-  values.forEach((value, index) => (index > 0 && value <= values[index - 1]) {
-    true => ok = false
-    false => ok = ok
-  })
+  values.forEach((value, index) => ((index > 0 && value <= values[index - 1]) ? ok = false : ok = ok))
   ok
 }
 
@@ -622,10 +475,7 @@ lc114FlattenPreorder(values: Array[Int]) -> Array[Int] => values
 // 121. Best Time to Buy and Sell Stock
 lc121MaxProfit(prices: Array[Int]) -> Int => {
   best ~= 0
-  prices.forEach((buy, i) => prices.forEach((sell, j) => (i < j) {
-    true => best = maxInt(best, sell - buy)
-    false => best = best
-  }))
+  prices.forEach((buy, i) => prices.forEach((sell, j) => ((i < j) ? best = maxInt(best, sell - buy) : best = best)))
   best
 }
 
@@ -634,32 +484,23 @@ lc128LongestConsecutive(nums: Array[Int]) -> Int => {
   set := @map.newSet(0)
   nums.forEach((value) => set.add(value))
   best ~= 0
-  nums.forEach((value) => set.has(value - 1) {
-    true => best = best
-    false => best = maxInt(best, lc128Run(set, value))
-  })
+  nums.forEach((value) => (set.has(value - 1) ? best = best : best = maxInt(best, lc128Run(set, value))))
   best
 }
 
-lc128Run(set: Set[Int], value: Int) -> Int => set.has(value) {
-  true => 1 + lc128Run(set, value + 1)
-  false => 0
-}
+lc128Run(set: Set[Int], value: Int) -> Int => (set.has(value) ? 1 + lc128Run(set, value + 1) : 0)
 
 // 136. Single Number
 lc136SingleNumber(nums: Array[Int]) -> Int => {
   answer ~= 0
-  nums.forEach((value) => answer = answer + ((arrayCountInt(nums, value) == 1) { true => value false => 0 }))
+  nums.forEach((value) => answer = answer + (((arrayCountInt(nums, value) == 1) ? value : 0)))
   answer
 }
 
 // 139. Word Break
 lc139WordBreak(s: String, words: Array[String]) -> Bool => {
   ok ~= false
-  words.forEach((word) => (s == word || s.startsWith(word)) {
-    true => ok = true
-    false => ok = ok
-  })
+  words.forEach((word) => ((s == word || s.startsWith(word)) ? ok = true : ok = ok))
   ok
 }
 
@@ -678,10 +519,7 @@ lc148SortListArray(values: Array[Int]) -> Array[Int] => sortInts(values)
 // 152. Maximum Product Subarray
 lc152MaxProduct(nums: Array[Int]) -> Int => {
   best ~= nums[0]
-  nums.forEach((left, i) => nums.forEach((right, j) => (i <= j) {
-    true => best = maxInt(best, arrayProduct(nums.slice(i, j + 1)))
-    false => best = best
-  }))
+  nums.forEach((left, i) => nums.forEach((right, j) => ((i <= j) ? best = maxInt(best, arrayProduct(nums.slice(i, j + 1))) : best = best)))
   best
 }
 
@@ -689,18 +527,12 @@ lc152MaxProduct(nums: Array[Int]) -> Int => {
 lc155MinStackMin(values: Array[Int]) -> Int => arrayMin(values)
 
 // 160. Intersection of Two Linked Lists
-lc160IntersectionValue(leftTail: Int, rightTail: Int) -> Int => (leftTail == rightTail) {
-  true => leftTail
-  false => 0 - 1
-}
+lc160IntersectionValue(leftTail: Int, rightTail: Int) -> Int => ((leftTail == rightTail) ? leftTail : 0 - 1)
 
 // 169. Majority Element
 lc169MajorityElement(nums: Array[Int]) -> Int => {
   winner ~= nums[0]
-  nums.forEach((value) => (arrayCountInt(nums, value) > nums.length() / 2) {
-    true => winner = value
-    false => winner = winner
-  })
+  nums.forEach((value) => ((arrayCountInt(nums, value) > nums.length() / 2) ? winner = value : winner = winner))
   winner
 }
 
@@ -708,10 +540,7 @@ lc169MajorityElement(nums: Array[Int]) -> Int => {
 lc198Rob(nums: Array[Int]) -> Int => lc198RobAt(nums, 0)
 
 lc198RobAt(nums: Array[Int], index: Int) -> Int =>
-  (index >= nums.length()) {
-    true => 0
-    false => maxInt(nums[index] + lc198RobAt(nums, index + 2), lc198RobAt(nums, index + 1))
-  }
+  ((index >= nums.length()) ? 0 : maxInt(nums[index] + lc198RobAt(nums, index + 2), lc198RobAt(nums, index + 1)))
 
 // 200. Number of Islands
 lc200NumIslandsRows(row1: String, row2: String, row3: String) -> Int =>
@@ -728,10 +557,7 @@ lc208TrieStartsWith(first: String, second: String, prefix: String) -> Bool =>
   first.startsWith(prefix) || second.startsWith(prefix)
 
 // 210. Course Schedule II
-lc210FindOrderCount(numCourses: Int, prerequisites: Array[Int]) -> Int => (lc207CanFinish(numCourses, prerequisites)) {
-  true => numCourses
-  false => 0
-}
+lc210FindOrderCount(numCourses: Int, prerequisites: Array[Int]) -> Int => ((lc207CanFinish(numCourses, prerequisites)) ? numCourses : 0)
 
 // 215. Kth Largest Element in an Array
 lc215KthLargest(nums: Array[Int], k: Int) -> Int => {
@@ -753,10 +579,7 @@ lc234IsPalindromeList(values: Array[Int]) -> Bool => lcArrayEqual(values, values
 
 lcArrayEqual(left: Array[Int], right: Array[Int]) -> Bool => {
   ok ~= left.length() == right.length()
-  left.forEach((value, index) => (index < right.length() && value == right[index]) {
-    true => ok = ok
-    false => ok = false
-  })
+  left.forEach((value, index) => ((index < right.length() && value == right[index]) ? ok = ok : ok = false))
   ok
 }
 
@@ -772,10 +595,7 @@ lc238ProductExceptSelf(nums: Array[Int]) -> Array[Int] => {
 lc239SlidingWindowMaximum(nums: Array[Int], k: Int) -> Array[Int] => {
   out := [0]
   out.pop()
-  nums.forEach((value, index) => (index + k <= nums.length()) {
-    true => out.push(arrayMax(nums.slice(index, index + k)))
-    false => 0
-  })
+  nums.forEach((value, index) => ((index + k <= nums.length()) ? out.push(arrayMax(nums.slice(index, index + k))) : 0))
   out
 }
 
@@ -786,23 +606,14 @@ lc240SearchMatrixFlat(values: Array[Int], target: Int) -> Bool => arrayContainsI
 lc279NumSquares(n: Int) -> Int => lc279Squares(n, 1, n)
 
 lc279Squares(n: Int, square: Int, best: Int) -> Int =>
-  (square * square > n) {
-    true => best
-    false => lc279Squares(n, square + 1, (square * square == n) {
-      true => 1
-      false => minInt(best, 1 + lc279NumSquares(n - square * square))
-    })
-  }
+  ((square * square > n) ? best : lc279Squares(n, square + 1, ((square * square == n) ? 1 : minInt(best, 1 + lc279NumSquares(n - square * square)))))
 
 // 283. Move Zeroes
 lc283MoveZeroes(nums: Array[Int]) -> Array[Int] => {
   out := [0]
   out.pop()
   zeros ~= 0
-  nums.forEach((value) => (value == 0) {
-    true => zeros = zeros + 1
-    false => zeros = pushIntAndReturnInt(out, value, zeros)
-  })
+  nums.forEach((value) => ((value == 0) ? zeros = zeros + 1 : zeros = pushIntAndReturnInt(out, value, zeros)))
   lc283AppendZeroes(out, zeros)
 }
 
@@ -815,10 +626,7 @@ lc283AppendZeroes(values: Array[Int], count: Int) -> Array[Int] =>
 // 287. Find the Duplicate Number
 lc287FindDuplicate(nums: Array[Int]) -> Int => {
   duplicate ~= 0
-  nums.forEach((value) => (arrayCountInt(nums, value) > 1) {
-    true => duplicate = value
-    false => duplicate = duplicate
-  })
+  nums.forEach((value) => ((arrayCountInt(nums, value) > 1) ? duplicate = value : duplicate = duplicate))
   duplicate
 }
 
@@ -834,10 +642,7 @@ lc300LengthOfLIS(nums: Array[Int]) -> Int => {
 
 lc300LisEndingAt(nums: Array[Int], end: Int) -> Int => {
   best ~= 1
-  nums.forEach((value, index) => (index < end && value < nums[end]) {
-    true => best = maxInt(best, 1 + lc300LisEndingAt(nums, index))
-    false => best = best
-  })
+  nums.forEach((value, index) => ((index < end && value < nums[end]) ? best = maxInt(best, 1 + lc300LisEndingAt(nums, index)) : best = best))
   best
 }
 
@@ -845,21 +650,12 @@ lc300LisEndingAt(nums: Array[Int], end: Int) -> Int => {
 lc309MaxProfitCooldown(prices: Array[Int]) -> Int => lc309Profit(prices, 0, true)
 
 lc309Profit(prices: Array[Int], day: Int, canBuy: Bool) -> Int =>
-  (day >= prices.length()) {
-    true => 0
-    false => canBuy {
-      true => maxInt(0 - prices[day] + lc309Profit(prices, day + 1, false), lc309Profit(prices, day + 1, true))
-      false => maxInt(prices[day] + lc309Profit(prices, day + 2, true), lc309Profit(prices, day + 1, false))
-    }
-  }
+  ((day >= prices.length()) ? 0 : (canBuy ? maxInt(0 - prices[day] + lc309Profit(prices, day + 1, false), lc309Profit(prices, day + 1, true)) : maxInt(prices[day] + lc309Profit(prices, day + 2, true), lc309Profit(prices, day + 1, false))))
 
 // 322. Coin Change
 lc322CoinChange(coins: Array[Int], amount: Int) -> Int => {
   result := lc322Coin(coins, amount)
-  (result > 9999) {
-    true => 0 - 1
-    false => result
-  }
+  (result > 9999) ? 0 - 1 : result
 }
 
 lc322Coin(coins: Array[Int], amount: Int) -> Int => {
@@ -871,23 +667,14 @@ lc322Coin(coins: Array[Int], amount: Int) -> Int => {
 }
 
 lc322Try(coins: Array[Int], amount: Int, index: Int, best: Int) -> Int =>
-  (index >= coins.length()) {
-    true => best
-    false => lc322Try(coins, amount, index + 1, minInt(best, 1 + lc322Coin(coins, amount - coins[index])))
-  }
+  ((index >= coins.length()) ? best : lc322Try(coins, amount, index + 1, minInt(best, 1 + lc322Coin(coins, amount - coins[index]))))
 
 // 328. Odd Even Linked List
 lc328OddEvenList(values: Array[Int]) -> Array[Int] => {
   out := [0]
   out.pop()
-  values.forEach((value, index) => (index % 2 == 0) {
-    true => out.push(value)
-    false => 0
-  })
-  values.forEach((value, index) => (index % 2 == 1) {
-    true => out.push(value)
-    false => 0
-  })
+  values.forEach((value, index) => ((index % 2 == 0) ? out.push(value) : 0))
+  values.forEach((value, index) => ((index % 2 == 1) ? out.push(value) : 0))
   out
 }
 
@@ -906,10 +693,7 @@ lc338BitsLoop(value: Int, limit: Int, total: Int) -> Int =>
 // 347. Top K Frequent Elements
 lc347TopFrequentFirst(nums: Array[Int]) -> Int => {
   best ~= nums[0]
-  nums.forEach((value) => (arrayCountInt(nums, value) > arrayCountInt(nums, best)) {
-    true => best = value
-    false => best = best
-  })
+  nums.forEach((value) => ((arrayCountInt(nums, value) > arrayCountInt(nums, best)) ? best = value : best = best))
   best
 }
 
@@ -923,19 +707,13 @@ lc399EvaluateDivision(numerator: Int, denominator: Int) -> Int => numerator / de
 lc406ReconstructQueueCount(flatPeople: Array[Int]) -> Int => flatPeople.length() / 2
 
 // 416. Partition Equal Subset Sum
-lc416CanPartition(nums: Array[Int]) -> Bool => (arraySum(nums) % 2 == 0) {
-  true => lc416Subset(nums, 0, arraySum(nums) / 2)
-  false => false
-}
+lc416CanPartition(nums: Array[Int]) -> Bool => ((arraySum(nums) % 2 == 0) ? lc416Subset(nums, 0, arraySum(nums) / 2) : false)
 
 lc416Subset(nums: Array[Int], index: Int, target: Int) -> Bool =>
   target {
     0 => true
     <0 => false
-    _ => (index >= nums.length()) {
-      true => false
-      false => lc416Subset(nums, index + 1, target - nums[index]) || lc416Subset(nums, index + 1, target)
-    }
+    _ => ((index >= nums.length()) ? false : lc416Subset(nums, index + 1, target - nums[index]) || lc416Subset(nums, index + 1, target))
   }
 
 // 437. Path Sum III
@@ -945,25 +723,13 @@ lc437PathSumLinear(values: Array[Int], target: Int) -> Int => lc560SubarraySum(v
 lc438FindAnagramsCount(s: String, p: String) -> Int => lc438Start(s, p, 0, 0)
 
 lc438Start(s: String, p: String, index: Int, count: Int) -> Int =>
-  (index + p.length() > s.length()) {
-    true => count
-    false => lc438Start(s, p, index + 1, lc049IsAnagram(s.slice(index, index + p.length()), p) {
-      true => count + 1
-      false => count
-    })
-  }
+  ((index + p.length() > s.length()) ? count : lc438Start(s, p, index + 1, (lc049IsAnagram(s.slice(index, index + p.length()), p) ? count + 1 : count)))
 
 // 448. Find All Numbers Disappeared in an Array
 lc448FindDisappearedCount(nums: Array[Int]) -> Int => lc448Missing(nums, 1, 0)
 
 lc448Missing(nums: Array[Int], value: Int, count: Int) -> Int =>
-  (value > nums.length()) {
-    true => count
-    false => lc448Missing(nums, value + 1, arrayContainsInt(nums, value) {
-      true => count
-      false => count + 1
-    })
-  }
+  ((value > nums.length()) ? count : lc448Missing(nums, value + 1, (arrayContainsInt(nums, value) ? count : count + 1)))
 
 // 461. Hamming Distance
 lc461HammingDistance(left: Int, right: Int) -> Int => lc461Bits(absInt(left - right), 0)
@@ -978,13 +744,10 @@ lc461Bits(value: Int, count: Int) -> Int =>
 lc494TargetSumWays(nums: Array[Int], target: Int) -> Int => lc494Ways(nums, 0, target)
 
 lc494Ways(nums: Array[Int], index: Int, target: Int) -> Int =>
-  (index >= nums.length()) {
-    true => target {
+  ((index >= nums.length()) ? target {
       0 => 1
       _ => 0
-    }
-    false => lc494Ways(nums, index + 1, target - nums[index]) + lc494Ways(nums, index + 1, target + nums[index])
-  }
+    } : lc494Ways(nums, index + 1, target - nums[index]) + lc494Ways(nums, index + 1, target + nums[index]))
 
 // 538. Convert BST to Greater Tree
 lc538GreaterTreeRoot(values: Array[Int]) -> Int => arraySum(values)
@@ -995,10 +758,7 @@ lc543DiameterLinearTree(values: Array[Int]) -> Int => maxInt(0, values.length() 
 // 560. Subarray Sum Equals K
 lc560SubarraySum(nums: Array[Int], k: Int) -> Int => {
   count ~= 0
-  nums.forEach((left, i) => nums.forEach((right, j) => (i <= j && arraySum(nums.slice(i, j + 1)) == k) {
-    true => count = count + 1
-    false => count = count
-  }))
+  nums.forEach((left, i) => nums.forEach((right, j) => ((i <= j && arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1 : count = count)))
   count
 }
 
@@ -1007,24 +767,12 @@ lc581FindUnsortedSubarray(nums: Array[Int]) -> Int => {
   sorted := sortInts(nums)
   first ~= 0 - 1
   last ~= 0 - 1
-  nums.forEach((value, index) => (value != sorted[index]) {
-    true => first = lc581First(first, index)
-    false => first = first
-  })
-  nums.forEach((value, index) => (value != sorted[index]) {
-    true => last = index
-    false => last = last
-  })
-  (first == (0 - 1)) {
-    true => 0
-    false => last - first + 1
-  }
+  nums.forEach((value, index) => ((value != sorted[index]) ? first = lc581First(first, index) : first = first))
+  nums.forEach((value, index) => ((value != sorted[index]) ? last = index : last = last))
+  (first == (0 - 1)) ? 0 : last - first + 1
 }
 
-lc581First(first: Int, index: Int) -> Int => (first == (0 - 1)) {
-  true => index
-  false => first
-}
+lc581First(first: Int, index: Int) -> Int => ((first == (0 - 1)) ? index : first)
 
 // 617. Merge Two Binary Trees
 lc617MergeTreesRoot(left: Array[Int], right: Array[Int]) -> Int => left[0] + right[0]
@@ -1039,10 +787,7 @@ lc621LeastInterval(tasks: String, cooldown: Int) -> Int => {
 // 647. Palindromic Substrings
 lc647CountSubstrings(s: String) -> Int => {
   count ~= 0
-  s.split("").forEach((ch, start) => s.split("").forEach((other, end) => (start <= end && lc005IsPalindromeRange(s, start, end)) {
-    true => count = count + 1
-    false => count = count
-  }))
+  s.split("").forEach((ch, start) => s.split("").forEach((other, end) => ((start <= end && lc005IsPalindromeRange(s, start, end)) ? count = count + 1 : count = count)))
   count
 }
 
@@ -1055,13 +800,7 @@ lc739DailyTemperatures(temps: Array[Int]) -> Array[Int] => {
 }
 
 lc739WarmerAfter(temps: Array[Int], start: Int, index: Int) -> Int =>
-  (index >= temps.length()) {
-    true => 0
-    false => (temps[index] > temps[start]) {
-      true => index - start
-      false => lc739WarmerAfter(temps, start, index + 1)
-    }
-  }
+  ((index >= temps.length()) ? 0 : ((temps[index] > temps[start]) ? index - start : lc739WarmerAfter(temps, start, index + 1)))
 
 // 763. Partition Labels
 lc763PartitionLabelsCount(s: String) -> Int => {
@@ -1069,23 +808,14 @@ lc763PartitionLabelsCount(s: String) -> Int => {
 }
 
 lc763PartitionAt(s: String, index: Int, currentEnd: Int, count: Int) -> Int =>
-  (index >= s.length()) {
-    true => count
-    false => lc763PartitionNext(s, index, maxInt(currentEnd, lc763LastIndex(s, s.at(index))), count)
-  }
+  ((index >= s.length()) ? count : lc763PartitionNext(s, index, maxInt(currentEnd, lc763LastIndex(s, s.at(index))), count))
 
 lc763PartitionNext(s: String, index: Int, currentEnd: Int, count: Int) -> Int =>
-  lc763PartitionAt(s, index + 1, currentEnd, (index == currentEnd) {
-    true => count + 1
-    false => count
-  })
+  lc763PartitionAt(s, index + 1, currentEnd, ((index == currentEnd) ? count + 1 : count))
 
 lc763LastIndex(s: String, ch: String) -> Int => {
   last ~= 0
-  s.split("").forEach((item, index) => (item == ch) {
-    true => last = index
-    false => last = last
-  })
+  s.split("").forEach((item, index) => ((item == ch) ? last = index : last = last))
   last
 }
 

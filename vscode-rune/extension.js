@@ -5,12 +5,15 @@ const path = require("path");
 const { LanguageClient } = require("vscode-languageclient/node");
 
 let client;
+let clientStartPromise;
+let lspFileWatcher;
 let outputChannel;
 let testOutputChannel;
 let runTerminal;
 let testController;
 const testItemData = new Map();
 const revealOutputChannelOnError = 3;
+const maxProcessOutputBytes = 4 * 1024 * 1024;
 
 function activate(context) {
   outputChannel = vscode.window.createOutputChannel("Rune Language Server");
@@ -29,9 +32,11 @@ function activate(context) {
     runTestRequest,
     true
   );
+  const testFileWatcher = vscode.workspace.createFileSystemWatcher("**/*.rn");
   context.subscriptions.push(outputChannel);
   context.subscriptions.push(testOutputChannel);
   context.subscriptions.push(testController);
+  context.subscriptions.push(testFileWatcher);
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
       { scheme: "file", language: "rune" },
@@ -50,20 +55,33 @@ function activate(context) {
     vscode.commands.registerCommand("rune.debugFile", debugFile),
     vscode.commands.registerCommand("rune.restartLanguageServer", async () => {
       await stopClient();
-      startClient(context);
+      await startClient().catch(reportClientStartError);
     }),
     vscode.commands.registerCommand("rune.showLanguageServerOutput", () => {
       outputChannel.show(true);
     }),
+    testFileWatcher.onDidCreate(updateFileTests),
+    testFileWatcher.onDidChange(updateFileTests),
+    testFileWatcher.onDidDelete(removeFileTests),
     vscode.workspace.onDidOpenTextDocument(updateDocumentTests),
-    vscode.workspace.onDidChangeTextDocument((event) => updateDocumentTests(event.document))
+    vscode.workspace.onDidChangeTextDocument((event) => updateDocumentTests(event.document)),
+    vscode.window.onDidCloseTerminal((terminal) => {
+      if (terminal === runTerminal) {
+        runTerminal = undefined;
+      }
+    })
   );
-  discoverOpenDocumentTests();
-  startClient(context);
+  void discoverOpenDocumentTests();
+  void startClient().catch(reportClientStartError);
 }
 
-function deactivate() {
-  return stopClient();
+async function deactivate() {
+  await stopClient();
+  testItemData.clear();
+  if (runTerminal) {
+    runTerminal.dispose();
+    runTerminal = undefined;
+  }
 }
 
 module.exports = { activate, deactivate };
@@ -212,40 +230,53 @@ async function discoverOpenDocumentTests() {
 async function discoverWorkspaceTests() {
   await discoverOpenDocumentTests();
   const uris = await vscode.workspace.findFiles("**/*.rn", "**/{.git,node_modules}/**");
-  await Promise.all(uris.map(async (uri) => updateDocumentTests(await vscode.workspace.openTextDocument(uri))));
+  await Promise.all(uris.map(updateFileTests));
 }
 
 async function updateDocumentTests(document) {
   if (document.languageId !== "rune" || document.uri.scheme !== "file") {
     return;
   }
-  const fileId = document.uri.toString();
+  updateTestsForText(document.uri, document.getText());
+}
+
+async function updateFileTests(uri) {
+  if (uri.scheme !== "file") {
+    return;
+  }
+  try {
+    const content = await vscode.workspace.fs.readFile(uri);
+    updateTestsForText(uri, Buffer.from(content).toString("utf8"));
+  } catch {
+    removeFileTests(uri);
+  }
+}
+
+function updateTestsForText(uri, text) {
+  const lines = text.split(/\r\n|\r|\n/);
+  const fileId = uri.toString();
   let fileItem = testController.items.get(fileId);
   if (!fileItem) {
-    fileItem = testController.createTestItem(fileId, path.basename(document.uri.fsPath), document.uri);
+    fileItem = testController.createTestItem(fileId, path.basename(uri.fsPath), uri);
     testController.items.add(fileItem);
   }
 
-  for (const id of [...testItemData.keys()]) {
-    if (id.startsWith(`${fileId}#`)) {
-      testItemData.delete(id);
-    }
-  }
+  clearTestDataForFile(fileId);
 
   const tests = [];
-  for (let line = 0; line < document.lineCount; line++) {
-    const text = document.lineAt(line).text;
-    const match = /^\s*\?\s*"((?:\\.|[^"\\])*)"/.exec(text);
+  for (let line = 0; line < lines.length; line++) {
+    const lineText = lines[line];
+    const match = /^\s*\?\s*"((?:\\.|[^"\\])*)"/.exec(lineText);
     if (!match) {
       continue;
     }
     const name = unquoteTestName(match[1]);
-    const character = text.indexOf("?");
+    const character = lineText.indexOf("?");
     const itemId = `${fileId}#${line}:${name}`;
-    const item = testController.createTestItem(itemId, name, document.uri);
-    item.range = new vscode.Range(line, character, line, text.length);
+    const item = testController.createTestItem(itemId, name, uri);
+    item.range = new vscode.Range(line, character, line, lineText.length);
     testItemData.set(itemId, {
-      uri: document.uri,
+      uri,
       name,
       line,
       character
@@ -253,6 +284,20 @@ async function updateDocumentTests(document) {
     tests.push(item);
   }
   fileItem.children.replace(tests);
+}
+
+function removeFileTests(uri) {
+  const fileId = uri.toString();
+  clearTestDataForFile(fileId);
+  testController.items.delete(fileId);
+}
+
+function clearTestDataForFile(fileId) {
+  for (const id of [...testItemData.keys()]) {
+    if (id.startsWith(`${fileId}#`)) {
+      testItemData.delete(id);
+    }
+  }
 }
 
 function unquoteTestName(raw) {
@@ -375,32 +420,40 @@ class RuneDebugAdapter {
       this.sendResponse(request, undefined, false, "Missing Rune program.");
       return;
     }
+    this.killChild();
     const command = args.runeCommand || "rune";
     const runeArgs = ["run", program, ...normalizeArgs(args.args)];
     this.sendOutput(`$ ${[command, ...runeArgs].map(shellQuote).join(" ")}\n`, "console");
-    this.child = cp.spawn(command, runeArgs, {
+    const child = cp.spawn(command, runeArgs, {
       cwd: args.cwd || path.dirname(program),
       env: {
         ...process.env,
         ...(args.runeRoot ? { RUNE_ROOT: args.runeRoot } : {})
       }
     });
+    this.child = child;
     this.sendResponse(request);
-    if (this.child.pid) {
+    if (child.pid) {
       this.sendEvent("process", {
         name: path.basename(program),
-        systemProcessId: this.child.pid,
+        systemProcessId: child.pid,
         isLocalProcess: true,
         startMethod: "launch"
       });
     }
-    this.child.stdout.on("data", (data) => this.sendOutput(data.toString(), "stdout"));
-    this.child.stderr.on("data", (data) => this.sendOutput(data.toString(), "stderr"));
-    this.child.on("error", (error) => {
+    child.stdout.on("data", (data) => this.sendOutput(data.toString(), "stdout"));
+    child.stderr.on("data", (data) => this.sendOutput(data.toString(), "stderr"));
+    child.on("error", (error) => {
+      if (this.child === child) {
+        this.child = undefined;
+      }
       this.sendOutput(`${error.message}\n`, "stderr");
       this.sendEvent("terminated");
     });
-    this.child.on("exit", (code, signal) => {
+    child.on("exit", (code, signal) => {
+      if (this.child === child) {
+        this.child = undefined;
+      }
       this.sendEvent("exited", { exitCode: code ?? 0 });
       if (signal) {
         this.sendOutput(`terminated by ${signal}\n`, "console");
@@ -415,10 +468,17 @@ class RuneDebugAdapter {
   }
 
   killChild() {
-    if (this.child && !this.child.killed) {
-      this.child.kill();
+    const child = this.child;
+    if (!child) {
+      return;
     }
     this.child = undefined;
+    child.stdout?.removeAllListeners();
+    child.stderr?.removeAllListeners();
+    child.removeAllListeners();
+    if (!child.killed) {
+      child.kill();
+    }
   }
 
   sendResponse(request, body, success = true, message = undefined) {
@@ -455,9 +515,13 @@ class RuneDebugAdapter {
   }
 }
 
-function startClient(context) {
+async function startClient() {
+  if (client) {
+    return;
+  }
   const runeRoot = resolveRuneRoot();
   const command = resolveRuneCommand(runeRoot);
+  const fileWatcher = vscode.workspace.createFileSystemWatcher("**/*.rn");
   const serverOptions = {
     command,
     args: ["lsp"],
@@ -472,7 +536,7 @@ function startClient(context) {
   const clientOptions = {
     documentSelector: [{ scheme: "file", language: "rune" }],
     synchronize: {
-      fileEvents: vscode.workspace.createFileSystemWatcher("**/*.rn")
+      fileEvents: fileWatcher
     },
     outputChannel,
     revealOutputChannelOn: revealOutputChannelOnError
@@ -481,9 +545,25 @@ function startClient(context) {
   if (runeRoot) {
     outputChannel.appendLine(`Rune root: ${runeRoot}`);
   }
-  client = new LanguageClient("rune", "Rune Language Server", serverOptions, clientOptions);
-  const disposable = client.start();
-  context.subscriptions.push(disposable);
+  const running = new LanguageClient("rune", "Rune Language Server", serverOptions, clientOptions);
+  client = running;
+  lspFileWatcher = fileWatcher;
+  clientStartPromise = running.start();
+  try {
+    await clientStartPromise;
+    if (client === running) {
+      clientStartPromise = undefined;
+    }
+  } catch (error) {
+    if (client === running) {
+      client = undefined;
+      clientStartPromise = undefined;
+      lspFileWatcher = undefined;
+    }
+    fileWatcher.dispose();
+    outputChannel.appendLine(`Failed to start Rune LSP: ${error?.message || error}`);
+    throw error;
+  }
 }
 
 async function stopClient() {
@@ -491,8 +571,23 @@ async function stopClient() {
     return undefined;
   }
   const running = client;
+  const startPromise = clientStartPromise;
+  const fileWatcher = lspFileWatcher;
   client = undefined;
-  return running.stop();
+  clientStartPromise = undefined;
+  lspFileWatcher = undefined;
+  if (startPromise) {
+    await startPromise.catch(() => undefined);
+  }
+  try {
+    await running.stop();
+  } finally {
+    fileWatcher?.dispose();
+  }
+}
+
+function reportClientStartError(error) {
+  vscode.window.showErrorMessage(`Rune language server failed to start: ${error?.message || error}`);
 }
 
 function resolveRuneCommand(runeRoot) {
@@ -577,22 +672,64 @@ function normalizeArgs(args) {
   return Array.isArray(args) ? args.map(String) : [String(args)];
 }
 
-function runProcess(command, args, options) {
+function runProcess(command, args, options, token) {
   return new Promise((resolve) => {
-    const child = cp.spawn(command, args, options);
+    let child;
     let stdout = "";
     let stderr = "";
+    let outputBytes = 0;
+    let outputTruncated = false;
+    let settled = false;
+    let cancelSubscription;
+    const appendOutput = (current, data) => {
+      const text = data.toString();
+      if (outputTruncated) {
+        return current;
+      }
+      const remaining = maxProcessOutputBytes - outputBytes;
+      if (text.length > remaining) {
+        outputBytes = maxProcessOutputBytes;
+        outputTruncated = true;
+        return current + text.slice(0, Math.max(remaining, 0)) + "\n[process output truncated]\n";
+      }
+      outputBytes += text.length;
+      return current + text;
+    };
+    const finish = (result) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cancelSubscription?.dispose();
+      child?.stdout?.removeAllListeners();
+      child?.stderr?.removeAllListeners();
+      child?.removeAllListeners("error");
+      child?.removeAllListeners("close");
+      resolve(result);
+    };
+    try {
+      child = cp.spawn(command, args, options);
+    } catch (error) {
+      finish({ code: 1, stdout, stderr: stderr + `${error.message}\n` });
+      return;
+    }
+    cancelSubscription = token?.onCancellationRequested(() => {
+      if (!child.killed) {
+        child.kill();
+      }
+      finish({ code: 1, stdout, stderr: stderr + "cancelled\n", cancelled: true });
+    });
     child.stdout?.on("data", (data) => {
-      stdout += data.toString();
+      stdout = appendOutput(stdout, data);
     });
     child.stderr?.on("data", (data) => {
-      stderr += data.toString();
+      stderr = appendOutput(stderr, data);
     });
     child.on("error", (error) => {
-      resolve({ code: 1, stdout, stderr: stderr + `${error.message}\n` });
+      finish({ code: 1, stdout, stderr: stderr + `${error.message}\n` });
     });
     child.on("close", (code) => {
-      resolve({ code: code ?? 0, stdout, stderr });
+      finish({ code: code ?? 0, stdout, stderr });
     });
   });
 }
@@ -606,7 +743,7 @@ async function runTestRequest(request, token) {
       run.skipped(item);
       continue;
     }
-    await runTestItem(item, run);
+    await runTestItem(item, run, token);
   }
   run.end();
 }
@@ -638,7 +775,7 @@ function collectRequestedTests(request) {
   return tests;
 }
 
-async function runTestItem(item, run) {
+async function runTestItem(item, run, token) {
   const data = testItemData.get(item.id);
   if (!data) {
     run.skipped(item);
@@ -664,7 +801,11 @@ async function runTestItem(item, run) {
       ...process.env,
       ...(target.runeRoot ? { RUNE_ROOT: target.runeRoot } : {})
     }
-  });
+  }, token);
+  if (result.cancelled) {
+    run.skipped(item);
+    return;
+  }
   const output = result.stdout + result.stderr;
   if (output) {
     appendRunOutput(run, output);

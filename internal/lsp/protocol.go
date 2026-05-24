@@ -29,6 +29,10 @@ type didChangeParams struct {
 	} `json:"contentChanges"`
 }
 
+type didCloseParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type textPositionParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 	Position     position               `json:"position"`
