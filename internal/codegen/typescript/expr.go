@@ -39,6 +39,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return e.Value + "n"
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.RegexLiteral:
+		return e.Raw
 	case *ir.BoolLiteral:
 		if e.Value {
 			return "true"
@@ -95,6 +97,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.SelectorExpr:
+		if member, ok := g.enumMemberSelector(e); ok {
+			return member
+		}
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
 		}
@@ -132,6 +137,25 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "undefined"
 	}
+}
+
+func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
+	ident, ok := sel.Receiver.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	for _, enum := range g.file.Enums {
+		enumType := checker.Type(enum.Name)
+		if enum.Name != ident.Name || sel.ResultType() != enumType || ident.ResultType() != enumType {
+			continue
+		}
+		for _, member := range enum.Members {
+			if member.Name == sel.Name {
+				return tsPropertyAccess(mangleIdent(enum.Name), member.Name), true
+			}
+		}
+	}
+	return "", false
 }
 
 func (g *generator) stmtExpr(expr ir.Expr) string {
@@ -191,6 +215,21 @@ func (g *generator) stdlibCall(call *ir.CallExpr) (string, bool) {
 			return "undefined", true
 		}
 		return "JSON.stringify(" + g.jsonValueExpr(call.Args[0]) + ")", true
+	}
+	if at.Name == "regex" {
+		switch sel.Name {
+		case "new":
+			if len(call.Args) != 2 {
+				return "undefined", true
+			}
+			return fmt.Sprintf("new RegExp(%s, %s)", g.expr(call.Args[0]), g.expr(call.Args[1])), true
+		case "escape":
+			if len(call.Args) != 1 {
+				return "undefined", true
+			}
+			value := g.expr(call.Args[0])
+			return fmt.Sprintf("((__value: string): string => (RegExp as any).escape ? (RegExp as any).escape(__value) : __value.replace(/[\\\\^$.*+?()[\\]{}|]/g, \"\\\\$&\"))(%s)", value), true
+		}
 	}
 	if at.Name != "io" {
 		return "", false
@@ -283,8 +322,81 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 		case "toString":
 			return receiver + ".toString()", true
 		}
+	case checker.Regex:
+		return g.regexMethodCall(receiver, sel.Name, args)
 	}
 	return "", false
+}
+
+func (g *generator) regexMethodCall(receiver string, name string, args []string) (string, bool) {
+	switch name {
+	case "exec":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("((__match) => __match ? Array.from(__match, (__value) => __value ?? \"\") : [])(%s.exec(%s))", receiver, args[0]), true
+	case "match":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("((__match) => __match ? Array.from(__match, (__value) => __value ?? \"\") : [])(%s.match(%s))", args[0], receiver), true
+	case "matchAll":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("((__regex) => Array.from(%s.matchAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + \"g\")), (__match) => Array.from(__match, (__value) => __value ?? \"\")))(%s)", args[0], receiver), true
+	case "test":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("%s.test(%s)", receiver, args[0]), true
+	case "replace":
+		if len(args) != 2 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("%s.replace(%s, %s)", args[0], receiver, args[1]), true
+	case "replaceAll":
+		if len(args) != 2 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("((__regex) => %s.replaceAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + \"g\"), %s))(%s)", args[0], args[1], receiver), true
+	case "search":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("%s.search(%s)", args[0], receiver), true
+	case "split":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("%s.split(%s)", args[0], receiver), true
+	case "source", "flags", "global", "ignoreCase", "multiline", "dotAll", "unicode", "sticky", "hasIndices", "lastIndex":
+		if len(args) != 0 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("%s.%s", receiver, regexPropertyName(name)), true
+	case "unicodeSets":
+		if len(args) != 0 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("(%s as RegExp & { unicodeSets?: boolean }).unicodeSets ?? false", receiver), true
+	case "setLastIndex":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("(%s.lastIndex = %s)", receiver, args[0]), true
+	default:
+		return "", false
+	}
+}
+
+func regexPropertyName(name string) string {
+	switch name {
+	case "hasIndices":
+		return "hasIndices"
+	default:
+		return name
+	}
 }
 
 func (g *generator) methodCall(call *ir.CallExpr) (string, bool) {
@@ -355,7 +467,7 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	}
 	if !hasDefault && match.ResultType() != checker.Void {
 		b.WriteString("return ")
-		b.WriteString(zeroValue(match.ResultType()))
+		b.WriteString(g.zeroValue(match.ResultType()))
 		b.WriteString("; ")
 	}
 	b.WriteString("})()")

@@ -32,6 +32,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.RegexLiteral:
+		return fmt.Sprintf("newRuneRegex(%q, %q)", e.Pattern, e.Flags)
 	case *ir.BoolLiteral:
 		if e.Value {
 			return "true"
@@ -71,6 +73,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if jsonCall, ok := g.jsonStringifyCall(e); ok {
 			return jsonCall
 		}
+		if regexCall, ok := g.regexModuleCall(e); ok {
+			return regexCall
+		}
 		if mapCall, ok := g.mapModuleCall(e); ok {
 			return mapCall
 		}
@@ -101,6 +106,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.IndexExpr:
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.SelectorExpr:
+		if member, ok := g.enumMemberSelector(e); ok {
+			return member
+		}
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			if fn, ok := g.file.Stdlib.Function(at.Name, e.Name); ok && fn.Go != nil && fn.Go.Symbol != "" {
 				return fn.Go.Symbol
@@ -160,6 +168,34 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
+	ident, ok := sel.Receiver.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	for _, enum := range g.file.Enums {
+		enumType := checker.Type(enum.Name)
+		if enum.Name != ident.Name || sel.ResultType() != enumType || ident.ResultType() != enumType {
+			continue
+		}
+		for _, member := range enum.Members {
+			if member.Name == sel.Name {
+				return mangleEnumMember(enum.Name, member.Name), true
+			}
+		}
+	}
+	return "", false
+}
+
+func (g *generator) hasEnumType(typ checker.Type) bool {
+	for _, enum := range g.file.Enums {
+		if checker.Type(enum.Name) == typ {
+			return true
+		}
+	}
+	return false
 }
 
 func arrayLiteralHasSpread(lit *ir.ArrayLiteral) bool {
@@ -280,8 +316,67 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 		case "toString":
 			return fmt.Sprintf("strconv.FormatBool(%s)", receiver), true
 		}
+	case checker.Regex:
+		return g.regexMethodCall(receiver, sel.Name, args)
 	}
 	return "", false
+}
+
+func (g *generator) regexModuleCall(call *ir.CallExpr) (string, bool) {
+	fn, ok := g.stdlibFunctionFromCall(call)
+	if !ok {
+		return "", false
+	}
+	switch fn.Intrinsic {
+	case "regex.new":
+		if len(call.Args) != 2 {
+			return "/* invalid @regex.new */", true
+		}
+		return fmt.Sprintf("newRuneRegex(%s, %s)", g.expr(call.Args[0]), g.expr(call.Args[1])), true
+	case "regex.escape":
+		if len(call.Args) != 1 {
+			return "/* invalid @regex.escape */", true
+		}
+		return fmt.Sprintf("regexp.QuoteMeta(%s)", g.expr(call.Args[0])), true
+	default:
+		return "", false
+	}
+}
+
+func (g *generator) regexMethodCall(receiver string, name string, args []string) (string, bool) {
+	switch name {
+	case "exec", "match", "matchAll", "test", "replace", "replaceAll", "search", "split":
+		return fmt.Sprintf("%s.%s(%s)", receiver, name, strings.Join(args, ", ")), true
+	case "source":
+		return receiver + ".source", true
+	case "flags":
+		return receiver + ".flags", true
+	case "global":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'g')", receiver), true
+	case "ignoreCase":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'i')", receiver), true
+	case "multiline":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'm')", receiver), true
+	case "dotAll":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 's')", receiver), true
+	case "unicode":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'u')", receiver), true
+	case "unicodeSets":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'v')", receiver), true
+	case "sticky":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'y')", receiver), true
+	case "hasIndices":
+		return fmt.Sprintf("regexHasFlag(%s.flags, 'd')", receiver), true
+	case "lastIndex":
+		return receiver + ".lastIndex", true
+	case "setLastIndex":
+		if len(args) != 1 {
+			return "/* invalid regex.setLastIndex */", true
+		}
+		return fmt.Sprintf("func() int { %s.lastIndex = %s; return %s.lastIndex }()", receiver, args[0], receiver), true
+	default:
+		return "", false
+	}
 }
 
 func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
@@ -391,7 +486,7 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	b.WriteString("}; ")
 	if !hasDefault && !isVoid {
 		b.WriteString("return ")
-		b.WriteString(zeroValue(match.ResultType()))
+		b.WriteString(g.zeroValue(match.ResultType()))
 		b.WriteString("; ")
 	}
 	b.WriteString("}()")

@@ -14,6 +14,10 @@ func (p *Parser) parsePattern() ast.Pattern {
 	case lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 	case lexer.Ident:
+		if p.checkNext(lexer.Dot) {
+			value := p.parseExpression(1)
+			return &ast.LiteralPattern{Value: value, Pos: tok.Pos}
+		}
 		if isLiteralIdentifier(tok.Lexeme) {
 			return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 		}

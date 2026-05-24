@@ -3,16 +3,29 @@ package lexer
 import "unicode"
 
 func (l *Lexer) Next() Token {
+	var tok Token
 	switch l.mode {
 	case modeXMLTag:
-		return l.nextXMLTag()
+		tok = l.nextXMLTag()
 	case modeXMLText:
-		return l.nextXMLText()
+		tok = l.nextXMLText()
 	case modeXMLExpr:
-		return l.nextXMLExpr()
+		tok = l.nextXMLExpr()
 	default:
-		return l.nextCode()
+		tok = l.nextCode()
 	}
+	return l.finishToken(tok)
+}
+
+func (l *Lexer) finishToken(tok Token) Token {
+	switch tok.Kind {
+	case Ident, Int, Double, BigInt, String, Regex, XMLText, Less, RParen, RBracket, RBrace:
+		l.canStartRegex = false
+	case EOF:
+	default:
+		l.canStartRegex = true
+	}
+	return tok
 }
 
 func (l *Lexer) nextCode() Token {
@@ -75,6 +88,9 @@ func (l *Lexer) nextCode() Token {
 	case '*':
 		return l.token(Star)
 	case '/':
+		if l.canStartRegex {
+			return l.regex()
+		}
 		return l.token(Slash)
 	case '%':
 		return l.token(Percent)
@@ -288,6 +304,9 @@ func (l *Lexer) nextXMLExpr() Token {
 	case '*':
 		return l.token(Star)
 	case '/':
+		if l.canStartRegex {
+			return l.regex()
+		}
 		return l.token(Slash)
 	case '%':
 		return l.token(Percent)

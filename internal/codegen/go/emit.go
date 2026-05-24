@@ -18,6 +18,21 @@ func (g *generator) structType(typ *ir.StructType) {
 	g.line("}")
 }
 
+func (g *generator) enumType(enum *ir.EnumType) {
+	g.linef("type %s int", mangleIdent(enum.Name))
+	if len(enum.Members) == 0 {
+		return
+	}
+	g.line("")
+	g.line("const (")
+	g.indent++
+	for _, member := range enum.Members {
+		g.linef("%s %s = %d", mangleEnumMember(enum.Name, member.Name), mangleIdent(enum.Name), member.Value)
+	}
+	g.indent--
+	g.line(")")
+}
+
 func (g *generator) function(fn *ir.Function) error {
 	params := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
@@ -132,7 +147,7 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		}
 	}
 	if ret != checker.Void && len(block.Statements) == 0 {
-		g.linef("return %s", zeroValue(ret))
+		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
 }
@@ -165,7 +180,7 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 	g.indent--
 	g.line("}")
 	if ret != checker.Void && !hasDefault {
-		g.linef("return %s", zeroValue(ret))
+		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
 }

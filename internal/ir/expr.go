@@ -73,6 +73,15 @@ type StringLiteral struct {
 
 func (*StringLiteral) exprNode() {}
 
+type RegexLiteral struct {
+	ExprBase
+	Pattern string
+	Flags   string
+	Raw     string
+}
+
+func (*RegexLiteral) exprNode() {}
+
 type BoolLiteral struct {
 	ExprBase
 	Value bool

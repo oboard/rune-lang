@@ -8,7 +8,34 @@ module.exports = grammar({
   ],
 
   rules: {
-    source_file: ($) => repeat($.function_definition),
+    source_file: ($) => repeat(choice($.type_definition, $.function_definition)),
+
+    type_definition: ($) => seq(
+      field("name", $.identifier),
+      optional(field("type_parameters", $.type_parameter_list)),
+      ":",
+      "{",
+      repeat(choice($.enum_member, $.type_field, $.function_definition)),
+      "}"
+    ),
+
+    type_parameter_list: ($) => seq(
+      "[",
+      optional(seq($.identifier, repeat(seq(",", $.identifier)), optional(","))),
+      "]"
+    ),
+
+    type_field: ($) => seq(
+      field("name", $.identifier),
+      ":",
+      field("type", $.type_name)
+    ),
+
+    enum_member: ($) => seq(
+      field("name", $.identifier),
+      "=",
+      field("value", choice($.number, seq("-", $.number)))
+    ),
 
     function_definition: ($) => seq(
       field("name", $.identifier),
@@ -27,10 +54,21 @@ module.exports = grammar({
     parameter: ($) => seq(
       field("name", $.identifier),
       ":",
-      field("type", $.identifier)
+      field("type", $.type_name)
     ),
 
-    return_type: ($) => seq("->", $.identifier),
+    return_type: ($) => seq("->", $.type_name),
+
+    type_name: ($) => seq(
+      $.identifier,
+      optional($.type_argument_list)
+    ),
+
+    type_argument_list: ($) => seq(
+      "[",
+      optional(seq($.type_name, repeat(seq(",", $.type_name)), optional(","))),
+      "]"
+    ),
 
     block: ($) => seq(
       "{",
@@ -42,6 +80,7 @@ module.exports = grammar({
 
     pattern: ($) => choice(
       "_",
+      $.selector_expression,
       $.number,
       $.string,
       seq(choice("<", "<=", ">", ">="), $.number)
@@ -54,6 +93,7 @@ module.exports = grammar({
       $.module_identifier,
       $.number,
       $.string,
+      $.regex,
       $.binary_expression
     ),
 
@@ -65,9 +105,9 @@ module.exports = grammar({
     )),
 
     selector_expression: ($) => prec(4, seq(
-      choice($.identifier, $.module_identifier),
+      field("receiver", choice($.identifier, $.module_identifier)),
       ".",
-      $.identifier
+      field("name", $.identifier)
     )),
 
     binary_expression: ($) => choice(
@@ -81,6 +121,16 @@ module.exports = grammar({
     identifier: () => /[A-Za-z_][A-Za-z0-9_]*/,
     number: () => /\d+/,
     string: () => /"([^"\\]|\\.)*"/,
+    regex: ($) => seq(
+      field("open", "/"),
+      repeat1(choice($.regex_text, $.regex_escape, $.regex_char_class)),
+      field("close", "/"),
+      optional(field("flags", $.regex_flags))
+    ),
+    regex_text: () => token.immediate(/[^\/\\\n\[]+/),
+    regex_escape: () => token.immediate(/\\./),
+    regex_char_class: () => token.immediate(/\[([^\]\\\n]|\\.)*\]/),
+    regex_flags: () => token.immediate(/[A-Za-z]+/),
     line_comment: () => token(seq("//", /.*/)),
     block_comment: () => token(seq("/*", /[^*]*\*+([^/*][^*]*\*+)*/, "/"))
   }

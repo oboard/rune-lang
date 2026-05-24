@@ -88,8 +88,8 @@ func (s *server) methodHover(uri string, prog *compiler.Program, pos position) a
 		return stdlibHover(prog.Info.Stdlib, at.Name, sel.Name, sel.NamePos)
 	}
 	receiver := prog.Info.ExprTypes[sel.Receiver]
-	if _, ok := checker.ArrayElement(receiver); ok {
-		return stdlibHover(prog.Info.Stdlib, "array", sel.Name, sel.NamePos)
+	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+		return stdlibReceiverHover(prog.Info.Stdlib, moduleName, receiverName, sel.Name, sel.NamePos)
 	}
 	structInfo := prog.Info.Types[baseType(receiver)]
 	if structInfo == nil {
@@ -765,8 +765,8 @@ func (s *server) methodTarget(uri string, prog *compiler.Program, pos position) 
 		return stdlibTarget(prog.Info.Stdlib, at.Name, sel.Name)
 	}
 	receiver := prog.Info.ExprTypes[sel.Receiver]
-	if _, ok := checker.ArrayElement(receiver); ok {
-		return stdlibTarget(prog.Info.Stdlib, "array", sel.Name)
+	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+		return stdlibReceiverTarget(prog.Info.Stdlib, moduleName, receiverName, sel.Name)
 	}
 	structInfo := prog.Info.Types[baseType(receiver)]
 	if structInfo == nil {
@@ -815,6 +815,21 @@ func stdlibTarget(reg *stdlib.Registry, moduleName string, functionName string) 
 	}
 }
 
+func stdlibReceiverTarget(reg *stdlib.Registry, moduleName string, receiverName string, functionName string) *methodTarget {
+	if reg == nil {
+		return nil
+	}
+	fn, ok := reg.ReceiverFunction(moduleName, receiverName, functionName)
+	if !ok || fn.SourcePath == "" {
+		return nil
+	}
+	return &methodTarget{
+		uri:  fileURI(fn.SourcePath),
+		name: fn.Name,
+		pos:  fn.Pos,
+	}
+}
+
 func methodDeclHover(uri string, prog *compiler.Program, pos position) any {
 	for _, typ := range prog.File.Types {
 		structInfo := prog.Info.Types[typ.Name]
@@ -843,6 +858,21 @@ func stdlibHover(reg *stdlib.Registry, moduleName string, functionName string, p
 	if !ok {
 		return nil
 	}
+	return stdlibFunctionHover(moduleName, fn, pos)
+}
+
+func stdlibReceiverHover(reg *stdlib.Registry, moduleName string, receiverName string, functionName string, pos lexer.Position) any {
+	if reg == nil {
+		return nil
+	}
+	fn, ok := reg.ReceiverFunction(moduleName, receiverName, functionName)
+	if !ok {
+		return nil
+	}
+	return stdlibFunctionHover(moduleName, fn, pos)
+}
+
+func stdlibFunctionHover(moduleName string, fn *stdlib.Function, pos lexer.Position) any {
 	value := fmt.Sprintf("```rune\n%s\n```", stdlibSignature(moduleName, fn))
 	if fn.SourcePath != "" {
 		value += "\n" + fn.SourcePath
@@ -1128,6 +1158,13 @@ func baseType(typ checker.Type) string {
 		return name[:i]
 	}
 	return name
+}
+
+func stdlibReceiverModule(receiver checker.Type) (string, string, bool) {
+	if _, ok := checker.ArrayElement(receiver); ok {
+		return "array", "Array", true
+	}
+	return checker.StdlibReceiverModule(receiver)
 }
 
 func fileURI(path string) string {

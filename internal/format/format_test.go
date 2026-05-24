@@ -59,6 +59,29 @@ main() => {
 	}
 }
 
+func TestEnumFormatting(t *testing.T) {
+	src := `Status:{Completed=0 Fail=1} main()=>Status.Completed`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `Status: {
+  Completed = 0
+  Fail = 1
+}
+
+main() => Status.Completed
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestSignalWatchFormatting(t *testing.T) {
 	src := `main()=>{count $= 0 double:=count*2 double->{@io.println(double)} count->(old,new)=>{@io.println(old) @io.println(new)} count=count+1}`
 	file, errs := parser.Parse(src)
@@ -85,6 +108,24 @@ func TestSignalWatchFormatting(t *testing.T) {
 	}
 	if _, errs := parser.Parse(got); len(errs) > 0 {
 		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestRegexLiteralFormatting(t *testing.T) {
+	src := `main()=>{re:=/rune\s+(\d+)/ig @io.println(re.match("Rune 123"))}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  re := /rune\s+(\d+)/ig
+  @io.println(re.match("Rune 123"))
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
 	}
 }
 

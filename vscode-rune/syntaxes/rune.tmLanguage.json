@@ -5,8 +5,10 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#regex" },
     { "include": "#numbers" },
     { "include": "#modules" },
+    { "include": "#typeDefinition" },
     { "include": "#functionDefinition" },
     { "include": "#operators" },
     { "include": "#bindings" }
@@ -40,6 +42,45 @@
         }
       ]
     },
+    "regex": {
+      "patterns": [
+        {
+          "name": "string.regexp.rune",
+          "begin": "(/)(?=([^/\\\\\\n\\[]|\\\\.|\\[([^\\]\\\\\\n]|\\\\.)*\\])+/[A-Za-z]*)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.string.begin.rune" }
+          },
+          "end": "(/)([A-Za-z]*)",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.string.end.rune" },
+            "2": { "name": "keyword.other.regex-options.rune" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.rune",
+              "match": "\\\\."
+            },
+            {
+              "name": "constant.other.character-class.regexp.rune",
+              "begin": "\\[",
+              "beginCaptures": {
+                "0": { "name": "punctuation.definition.character-class.begin.rune" }
+              },
+              "end": "\\]",
+              "endCaptures": {
+                "0": { "name": "punctuation.definition.character-class.end.rune" }
+              },
+              "patterns": [
+                {
+                  "name": "constant.character.escape.rune",
+                  "match": "\\\\."
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
     "numbers": {
       "patterns": [
         {
@@ -64,6 +105,29 @@
           "match": "(@[A-Za-z_][A-Za-z0-9_]*)\\b",
           "captures": {
             "1": { "name": "entity.name.namespace.rune" }
+          }
+        }
+      ]
+    },
+    "typeDefinition": {
+      "patterns": [
+        {
+          "name": "meta.type.rune",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]\\r\\n]*\\])?\\s*(:)\\s*(\\{)",
+          "captures": {
+            "1": { "name": "entity.name.type.rune" },
+            "2": { "name": "entity.name.type.parameter.rune" },
+            "3": { "name": "punctuation.separator.type.rune" },
+            "4": { "name": "punctuation.definition.block.begin.rune" }
+          }
+        },
+        {
+          "name": "meta.enum-member.rune",
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(=)\\s*(-?\\d+)\\b",
+          "captures": {
+            "1": { "name": "constant.other.enum.rune" },
+            "2": { "name": "keyword.operator.assignment.rune" },
+            "3": { "name": "constant.numeric.integer.rune" }
           }
         }
       ]
@@ -103,7 +167,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|String|Bool|Void|HTMLElement|Any|Dynamic|Array|Map)\\b"
+          "match": "\\b(Int|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
         }
       ]
     },

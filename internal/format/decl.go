@@ -25,6 +25,16 @@ func (f *formatter) structType(typ *ast.StructType) {
 	f.line("}")
 }
 
+func (f *formatter) enumType(enum *ast.EnumType) {
+	f.linef("%s: {", enum.Name)
+	f.indent++
+	for _, member := range enum.Members {
+		f.linef("%s = %d", member.Name, member.Value)
+	}
+	f.indent--
+	f.line("}")
+}
+
 func (f *formatter) function(fn *ast.Function) {
 	for _, ann := range fn.Annotations {
 		if ann.Value == "" {

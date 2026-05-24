@@ -70,6 +70,22 @@ func TestLoadCoreStubs(t *testing.T) {
 	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,Int,Array[T],U]" {
 		t.Fatalf("unexpected array map declaration: %#v", mapFn)
 	}
+
+	regexNew, ok := reg.Function("regex", "new")
+	if !ok {
+		t.Fatal("missing core/regex new declaration")
+	}
+	if regexNew.Intrinsic != "regex.new" || regexNew.Return != "Regex" || len(regexNew.Params) != 2 || regexNew.Params[0] != "String" || regexNew.Params[1] != "String" {
+		t.Fatalf("unexpected regex.new declaration: %#v", regexNew)
+	}
+
+	matchAll, ok := reg.ReceiverFunction("regex", "Regex", "matchAll")
+	if !ok {
+		t.Fatal("missing core/regex matchAll declaration")
+	}
+	if matchAll.Intrinsic != "regex.matchAll" || matchAll.Return != "Array[Array[String]]" {
+		t.Fatalf("unexpected regex.matchAll declaration: %#v", matchAll)
+	}
 }
 
 func TestParseMultilineFunctionTypeStub(t *testing.T) {

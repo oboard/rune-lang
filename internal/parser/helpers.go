@@ -107,6 +107,10 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		i++
 	case lexer.Ident:
+		if i+2 < len(p.tokens) && p.tokens[i+1].Kind == lexer.Dot && p.tokens[i+2].Kind == lexer.Ident {
+			i += 3
+			break
+		}
 		if !isLiteralIdentifier(p.tokens[i].Lexeme) {
 			return false
 		}

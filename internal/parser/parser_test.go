@@ -35,6 +35,30 @@ func TestGenericTypeDeclWithColon(t *testing.T) {
 	}
 }
 
+func TestEnumDeclWithIntegerMembers(t *testing.T) {
+	file, errs := Parse(`Status: {
+  Completed = 0
+  Fail = 1
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Enums) != 1 {
+		t.Fatalf("Parse() produced %d enums, want 1", len(file.Enums))
+	}
+	enum := file.Enums[0]
+	if enum.Name != "Status" || len(enum.Members) != 2 {
+		t.Fatalf("enum = %#v, want Status with two members", enum)
+	}
+	if enum.Members[0].Name != "Completed" || enum.Members[0].Value != 0 {
+		t.Fatalf("first enum member = %#v, want Completed = 0", enum.Members[0])
+	}
+	if enum.Members[1].Name != "Fail" || enum.Members[1].Value != 1 {
+		t.Fatalf("second enum member = %#v, want Fail = 1", enum.Members[1])
+	}
+}
+
 func TestFunctionDeclRequiresFatArrow(t *testing.T) {
 	file, errs := Parse(`main() {
 }
@@ -93,6 +117,46 @@ main() => {
 	}
 	if len(lambda.ParamTypes) != 1 || lambda.ParamTypes[0] != "Input" {
 		t.Fatalf("lambda param types = %v, want [Input]", lambda.ParamTypes)
+	}
+}
+
+func TestRegexLiteral(t *testing.T) {
+	file, errs := Parse(`main() => {
+    re := /rune\s+(\d+)/ig
+    value := 10 / 2
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("main body = %#v, want two statements", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
+	}
+	regex, ok := let.Value.(*ast.RegexLiteral)
+	if !ok {
+		t.Fatalf("let value = %T, want RegexLiteral", let.Value)
+	}
+	if regex.Pattern != `rune\s+(\d+)` || regex.Flags != "ig" {
+		t.Fatalf("regex = /%s/%s, want pattern and flags", regex.Pattern, regex.Flags)
+	}
+}
+
+func TestRegexLiteralWithSlashInClassAndEscape(t *testing.T) {
+	file, errs := Parse(`main() => /[\/a-z]+/g`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	regex, ok := file.Functions[0].Body.(*ast.RegexLiteral)
+	if !ok {
+		t.Fatalf("body = %T, want RegexLiteral", file.Functions[0].Body)
+	}
+	if regex.Pattern != `[\/a-z]+` || regex.Flags != "g" {
+		t.Fatalf("regex = /%s/%s, want escaped slash pattern", regex.Pattern, regex.Flags)
 	}
 }
 

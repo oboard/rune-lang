@@ -1,0 +1,15 @@
+Status: {
+  Completed = 0
+  Fail = 1
+}
+
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+
+main() => {
+  status := Status.Completed
+  @io.println(statusText(status))
+}

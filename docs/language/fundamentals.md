@@ -405,6 +405,36 @@ Box[T]: {
 The most complete generic behavior today is in built-in generic containers such
 as `Array[T]`, `Map[K, V]`, and `Set[T]`.
 
+## Enum Types
+
+Enums use the same top-level `Name: { ... }` declaration shape with integer
+members:
+
+```rune
+Status: {
+  Completed = 0
+  Fail = 1
+}
+```
+
+Enum members are read with selectors. A member has the enum type, so
+`Status.Completed` is typed as `Status`:
+
+```rune
+status := Status.Completed
+```
+
+Enum values compare with other values of the same enum type and can be used in
+match patterns:
+
+```rune
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+```
+
 ## Anonymous Objects
 
 Anonymous objects are expressions:
@@ -542,6 +572,6 @@ Tests are ordinary Rune blocks. The standard assertion helper is
 ## Current Syntax Boundaries
 
 Rune intentionally has a small surface today. There is no `if`, `for`, `while`,
-`enum`, `trait`, `impl`, `class`, package import, exception, or macro syntax in
-the current parser. Use match expressions, ternary expressions, recursion,
-array callbacks, and core modules for the supported equivalents.
+`trait`, `impl`, `class`, package import, exception, or macro syntax in the
+current parser. Use match expressions, ternary expressions, recursion, array
+callbacks, and core modules for the supported equivalents.

@@ -23,6 +23,7 @@ type Lexer struct {
 	xmlSelfClosed bool
 	xmlExprMode   mode
 	xmlExprDepth  int
+	canStartRegex bool
 }
 
 func Lex(src string) []Token {
@@ -39,8 +40,9 @@ func Lex(src string) []Token {
 
 func New(src string) *Lexer {
 	return &Lexer{
-		input:  []rune(src),
-		line:   1,
-		column: 1,
+		input:         []rune(src),
+		line:          1,
+		column:        1,
+		canStartRegex: true,
 	}
 }

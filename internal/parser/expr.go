@@ -267,6 +267,13 @@ func (p *Parser) parsePrimary() ast.Expr {
 			value = tok.Lexeme
 		}
 		return &ast.StringLiteral{Value: value, Pos: tok.Pos}
+	case lexer.Regex:
+		p.advance()
+		pattern, flags, ok := splitRegexLiteral(tok.Lexeme)
+		if !ok {
+			p.errorAt(tok, "invalid regex literal")
+		}
+		return &ast.RegexLiteral{Pattern: pattern, Flags: flags, Raw: tok.Lexeme, Pos: tok.Pos}
 	case lexer.Ident:
 		p.advance()
 		if tok.Lexeme == "true" {
@@ -312,6 +319,36 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.advance()
 		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
 	}
+}
+
+func splitRegexLiteral(raw string) (string, string, bool) {
+	if len(raw) < 2 || raw[0] != '/' {
+		return "", "", false
+	}
+	escaped := false
+	inClass := false
+	for idx := 1; idx < len(raw); idx++ {
+		ch := raw[idx]
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			escaped = true
+			continue
+		}
+		switch ch {
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '/':
+			if !inClass {
+				return raw[1:idx], raw[idx+1:], true
+			}
+		}
+	}
+	return "", "", false
 }
 
 func (p *Parser) parseReactiveLiteral() ast.Expr {

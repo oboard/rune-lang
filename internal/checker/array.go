@@ -72,7 +72,7 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 }
 
 func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
-	moduleName, receiverName, ok := stdlibReceiverModule(receiver)
+	moduleName, receiverName, ok := StdlibReceiverModule(receiver)
 	if !ok {
 		return Unknown, false
 	}
@@ -86,13 +86,15 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 	return c.resolveDeclaredType(fn.Return, bindings), true
 }
 
-func stdlibReceiverModule(receiver Type) (string, string, bool) {
+func StdlibReceiverModule(receiver Type) (string, string, bool) {
 	base := baseTypeName(receiver)
 	switch base {
 	case "String":
 		return "string", "String", true
 	case "Bool":
 		return "bool", "Bool", true
+	case "Regex":
+		return "regex", "Regex", true
 	case "Map", "Set", "WeakMap", "WeakSet":
 		return "map", base, true
 	default:

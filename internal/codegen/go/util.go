@@ -79,6 +79,8 @@ func goType(typ checker.Type) string {
 		return "struct{}"
 	case checker.Symbol:
 		return "runeSymbol"
+	case checker.Regex:
+		return "*runeRegex"
 	case checker.HTMLElement:
 		return "any"
 	case checker.Unknown:
@@ -209,6 +211,8 @@ func zeroValue(typ checker.Type) string {
 		return `""`
 	case checker.Bool:
 		return "false"
+	case checker.Regex:
+		return `newRuneRegex("", "")`
 	case checker.Null:
 		return "any(nil)"
 	case checker.HTMLElement:
@@ -216,6 +220,13 @@ func zeroValue(typ checker.Type) string {
 	default:
 		return fmt.Sprintf("%s{}", goType(typ))
 	}
+}
+
+func (g *generator) zeroValue(typ checker.Type) string {
+	if g.hasEnumType(typ) {
+		return fmt.Sprintf("%s(0)", goType(typ))
+	}
+	return zeroValue(typ)
 }
 
 func hasMain(file *ir.File) bool {
@@ -229,4 +240,8 @@ func hasMain(file *ir.File) bool {
 
 func mangleIdent(name string) string {
 	return "__" + name
+}
+
+func mangleEnumMember(enumName string, memberName string) string {
+	return mangleIdent(enumName + "_" + memberName)
 }

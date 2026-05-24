@@ -26,6 +26,9 @@ func jsonValue(value Value, inArray bool) (string, error) {
 	case int, float64, bool:
 		data, err := json.Marshal(v)
 		return string(data), err
+	case EnumValue:
+		data, err := json.Marshal(v.Value)
+		return string(data), err
 	case *big.Int:
 		return v.String(), nil
 	case *Array:

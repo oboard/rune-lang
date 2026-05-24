@@ -22,6 +22,9 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 	for _, typ := range file.Types {
 		out.Types = append(out.Types, l.structType(typ))
 	}
+	for _, enum := range file.Enums {
+		out.Enums = append(out.Enums, l.enumType(enum))
+	}
 	for _, fn := range file.Functions {
 		out.Functions = append(out.Functions, l.function(fn, ""))
 	}
@@ -79,6 +82,14 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 	}
 	for _, method := range typ.Methods {
 		out.Methods = append(out.Methods, l.function(method, typ.Name))
+	}
+	return out
+}
+
+func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
+	out := &EnumType{Name: enum.Name, Pos: enum.Pos, NamePos: enum.NamePos}
+	for _, member := range enum.Members {
+		out.Members = append(out.Members, EnumMember{Name: member.Name, Value: member.Value, Pos: member.Pos})
 	}
 	return out
 }
@@ -147,6 +158,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &BigIntLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.StringLiteral:
 		return &StringLiteral{ExprBase: l.base(e), Value: e.Value}
+	case *ast.RegexLiteral:
+		return &RegexLiteral{ExprBase: l.base(e), Pattern: e.Pattern, Flags: e.Flags, Raw: e.Raw}
 	case *ast.BoolLiteral:
 		return &BoolLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.NullLiteral:

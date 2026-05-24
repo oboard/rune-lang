@@ -12,6 +12,7 @@ type Interpreter struct {
 	file      *ir.File
 	functions map[string]*ir.Function
 	types     map[string]*ir.StructType
+	enums     map[string]*ir.EnumType
 	globals   *Env
 	out       io.Writer
 }
@@ -20,6 +21,7 @@ func New(file *ir.File, opts ...Option) *Interpreter {
 	i := &Interpreter{
 		functions: map[string]*ir.Function{},
 		types:     map[string]*ir.StructType{},
+		enums:     map[string]*ir.EnumType{},
 		globals:   NewEnv(nil),
 		out:       os.Stdout,
 	}
@@ -42,6 +44,9 @@ func (i *Interpreter) Load(file *ir.File) {
 	i.file = file
 	for _, typ := range file.Types {
 		i.types[typ.Name] = typ
+	}
+	for _, enum := range file.Enums {
+		i.enums[enum.Name] = enum
 	}
 	for _, fn := range file.Functions {
 		i.functions[fn.Name] = fn

@@ -397,6 +397,34 @@ Box[T]: {
 当前最完整的泛型行为集中在内置泛型容器中，例如 `Array[T]`、`Map[K, V]` 和
 `Set[T]`。
 
+## 枚举类型
+
+枚举沿用顶层 `Name: { ... }` 的声明形式，成员值必须是整数：
+
+```rune
+Status: {
+  Completed = 0
+  Fail = 1
+}
+```
+
+枚举成员通过 selector 读取。成员本身带有枚举类型，因此 `Status.Completed`
+的类型是 `Status`：
+
+```rune
+status := Status.Completed
+```
+
+枚举值可以和同一枚举类型的值比较，也可以用于 match pattern：
+
+```rune
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+```
+
 ## 匿名对象
 
 匿名对象是表达式：
@@ -529,5 +557,5 @@ Go 字符串里的 `$name` 会被重写为 Rune 绑定对应的生成后 Go 标�
 ## 当前语法边界
 
 Rune 目前刻意保持较小的语法面。当前 parser 中没有 `if`、`for`、`while`、
-`enum`、`trait`、`impl`、`class`、包导入、异常或宏语法。对应能力请使用已
-支持的 match 表达式、三元表达式、递归、数组回调和核心模块。
+`trait`、`impl`、`class`、包导入、异常或宏语法。对应能力请使用已支持的
+match 表达式、三元表达式、递归、数组回调和核心模块。

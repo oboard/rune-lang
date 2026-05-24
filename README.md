@@ -162,6 +162,20 @@ User: {
 }
 ```
 
+Enum types use the same declaration shape with integer members:
+
+```rune
+Status: {
+  Completed = 0
+  Fail = 1
+}
+
+main() => {
+  status := Status.Completed
+  @io.println(status == Status.Fail)
+}
+```
+
 Anonymous records are expressions:
 
 ```rune
@@ -409,5 +423,5 @@ Rune currently prioritizes:
 * closed record types without row polymorphism
 
 Rune intentionally does not yet implement LLVM, a custom VM, GC, JIT, package
-manager, or Tree-sitter parser. Those can come after the language core and LSP
-are stable.
+manager, package imports, traits, or classes. Those can come after the language
+core and LSP are stable.

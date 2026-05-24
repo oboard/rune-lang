@@ -76,6 +76,37 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	}
 }
 
+func TestRegexMethodDefinitionUsesCoreStub(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+    word := /rune\s+(\d+)/ig
+    word.match("Rune 123")
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "word.match", "match")).(map[string]any)
+	defURI := def["uri"].(string)
+	if !strings.HasSuffix(defURI, "/core/regex/regex.rn") {
+		t.Fatalf("definition uri = %s, want core/regex/regex.rn", defURI)
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 7 || start.Character != 2 {
+		t.Fatalf("definition start = %+v, want line 7 char 2", start)
+	}
+	if got := s.rename(uri, positionOf(src, "word.match", "match"), "matches"); got != nil {
+		t.Fatalf("regex method rename = %#v, want nil", got)
+	}
+	hover := s.hover(uri, positionOf(src, "word.match", "match")).(map[string]any)
+	value := hoverValue(hover)
+	if !strings.Contains(value, "Regex.match(string: String) -> Array[String]") {
+		t.Fatalf("hover = %q, want regex match signature", value)
+	}
+	if !strings.Contains(value, "core/regex/regex.rn") {
+		t.Fatalf("hover = %q, want core source path", value)
+	}
+}
+
 func TestCodeLensIncludesSingletonTests(t *testing.T) {
 	uri := "file:///tmp/data.rn"
 	src := `? "int" {

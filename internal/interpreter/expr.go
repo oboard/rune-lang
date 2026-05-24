@@ -39,6 +39,8 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return value, nil
 	case *ir.StringLiteral:
 		return e.Value, nil
+	case *ir.RegexLiteral:
+		return newRegex(e.Pattern, e.Flags)
 	case *ir.BoolLiteral:
 		return e.Value, nil
 	case *ir.NullLiteral:
@@ -390,6 +392,18 @@ func (i *Interpreter) evalBlock(block *ir.BlockExpr, env *Env) (Value, error) {
 }
 
 func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, error) {
+	if ident, ok := expr.Receiver.(*ir.Identifier); ok {
+		if _, exists := env.Get(ident.Name); !exists {
+			if enum := i.enums[ident.Name]; enum != nil {
+				for _, member := range enum.Members {
+					if member.Name == expr.Name {
+						return EnumValue{TypeName: enum.Name, Name: member.Name, Value: member.Value}, nil
+					}
+				}
+				return nil, fmt.Errorf("enum %s has no member %q", enum.Name, expr.Name)
+			}
+		}
+	}
 	receiver, err := i.eval(expr.Receiver, env)
 	if err != nil {
 		return nil, err
@@ -443,6 +457,10 @@ func typeName(value Value) string {
 		return "Map"
 	case *Set:
 		return "Set"
+	case *Regex:
+		return string(checker.Regex)
+	case EnumValue:
+		return v.TypeName
 	case *Struct:
 		return v.TypeName
 	default:

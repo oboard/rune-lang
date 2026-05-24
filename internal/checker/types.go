@@ -32,6 +32,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Never
 	case "Symbol":
 		return Symbol
+	case "Regex":
+		return Regex
 	case "Void":
 		return Void
 	case "HTMLElement":
@@ -84,6 +86,9 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 			return funcTypeOf(types, retType)
 		}
 		if _, ok := c.info.Types[name]; ok {
+			return Type(name)
+		}
+		if _, ok := c.info.Enums[name]; ok {
 			return Type(name)
 		}
 		return Unknown
@@ -306,7 +311,7 @@ func isObjectLike(typ Type) bool {
 	switch baseTypeName(typ) {
 	case "Array", "Map", "Set", "WeakMap", "WeakSet", "Record", "Tuple", "ReadonlyArray", "ReadonlyTuple":
 		return true
-	case string(Int), string(Double), string(BigInt), string(String), string(Bool), string(Null), string(Void), string(Symbol):
+	case string(Int), string(Double), string(BigInt), string(String), string(Bool), string(Null), string(Void), string(Symbol), string(Regex):
 		return false
 	default:
 		return typ != Unknown && typ != Never

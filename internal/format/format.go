@@ -11,7 +11,7 @@ func File(file *ast.File) string {
 	for _, imp := range file.GoImports {
 		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
 	}
-	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Functions) > 0) {
+	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0) {
 		f.line("")
 	}
 	for i, typ := range file.Types {
@@ -20,7 +20,16 @@ func File(file *ast.File) string {
 		}
 		f.structType(typ)
 	}
-	if len(file.Types) > 0 && len(file.Functions) > 0 {
+	if len(file.Types) > 0 && len(file.Enums) > 0 {
+		f.line("")
+	}
+	for i, enum := range file.Enums {
+		if i > 0 {
+			f.line("")
+		}
+		f.enumType(enum)
+	}
+	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
 		f.line("")
 	}
 	for i, fn := range file.Functions {

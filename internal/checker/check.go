@@ -12,6 +12,7 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 		info: &Info{
 			Functions: map[string]*FuncInfo{},
 			Types:     map[string]*StructInfo{},
+			Enums:     map[string]*EnumInfo{},
 			Stdlib:    reg,
 			ExprTypes: map[ast.Expr]Type{},
 		},

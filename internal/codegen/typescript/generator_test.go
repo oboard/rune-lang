@@ -118,6 +118,80 @@ func TestGenerateArraySpread(t *testing.T) {
 	}
 }
 
+func TestGenerateEnumProgram(t *testing.T) {
+	src := `Status: {
+  Completed = 0
+  Fail = 1
+}
+
+Container: {
+  Completed: Int
+}
+
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+
+fallback(flag: Bool) -> Status => flag {
+  true => Status.Fail
+}
+
+main() => {
+  status := Status.Completed
+  @io.println(statusText(status))
+  @io.println(fallback(false))
+  Status := Container { Completed: 42 }
+  @io.println(Status.Completed)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`type __Status = number;`,
+		`const __Status = {`,
+		`Completed: 0,`,
+		`Fail: 1,`,
+		`function __statusText(__status: __Status): string`,
+		`__status === __Status.Completed`,
+		`__status === __Status.Fail`,
+		`function __fallback(__flag: boolean): __Status`,
+		`return 0 as __Status;`,
+		`const __status = __Status.Completed;`,
+		`console.log(__statusText(__status));`,
+		`console.log(__fallback(false));`,
+		`const __Status = {Completed: 42};`,
+		`console.log(__Status.Completed);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateRegexProgram(t *testing.T) {
+	src := `main() => {
+  re := /rune\s+(\d+)/ig
+  built := @regex.new("\\d+", "g")
+  @io.println(re.match("Rune 123 rune 456"))
+  @io.println(built.replaceAll("a1 b22", "[$1]"))
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __re = /rune\s+(\d+)/ig;`,
+		`const __built = new RegExp("\\d+", "g");`,
+		`"Rune 123 rune 456".match(__re)`,
+		`"a1 b22".replaceAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + "g"), "[$1]"))(__built)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateJSONStringifyObject(t *testing.T) {
 	src := `User: {
   name: String

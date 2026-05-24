@@ -19,6 +19,7 @@ type Module struct {
 type File struct {
 	GoImports []GoImport
 	Types     []*StructType
+	Enums     []*EnumType
 	Functions []*Function
 	Tests     []*Test
 	Stdlib    *stdlib.Registry
@@ -42,6 +43,19 @@ type Field struct {
 	Name string
 	Type checker.Type
 	Pos  lexer.Position
+}
+
+type EnumType struct {
+	Name    string
+	Members []EnumMember
+	Pos     lexer.Position
+	NamePos lexer.Position
+}
+
+type EnumMember struct {
+	Name  string
+	Value int
+	Pos   lexer.Position
 }
 
 type Function struct {

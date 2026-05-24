@@ -19,6 +19,10 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(typ.NamePos, "duplicate type %q", typ.Name)
 			continue
 		}
+		if _, exists := c.info.Enums[typ.Name]; exists {
+			c.errorf(typ.NamePos, "duplicate type %q", typ.Name)
+			continue
+		}
 		c.info.Types[typ.Name] = &StructInfo{
 			Name:     typ.Name,
 			Generics: append([]string(nil), typ.Generics...),
@@ -26,6 +30,27 @@ func (c *checker) collect(file *ast.File) {
 			Methods:  map[string]*FuncInfo{},
 			Node:     typ,
 		}
+	}
+	for _, enum := range file.Enums {
+		if _, exists := c.info.Types[enum.Name]; exists {
+			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
+			continue
+		}
+		if _, exists := c.info.Enums[enum.Name]; exists {
+			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
+			continue
+		}
+		info := &EnumInfo{Name: enum.Name, ByName: map[string]EnumMemberInfo{}, Node: enum}
+		for _, member := range enum.Members {
+			if _, exists := info.ByName[member.Name]; exists {
+				c.errorf(member.Pos, "duplicate enum member %s.%s", enum.Name, member.Name)
+				continue
+			}
+			memberInfo := EnumMemberInfo{Name: member.Name, Value: member.Value}
+			info.Members = append(info.Members, memberInfo)
+			info.ByName[member.Name] = memberInfo
+		}
+		c.info.Enums[enum.Name] = info
 	}
 	for _, typ := range file.Types {
 		info := c.info.Types[typ.Name]

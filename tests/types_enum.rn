@@ -1,0 +1,43 @@
+Status: {
+  Completed = 0
+  Fail = 1
+}
+
+Job: {
+  status: Status
+  name: String
+}
+
+Container: {
+  Completed: Int
+}
+
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+
+? "enum members and comparison" {
+  @assert.eq(Status.Completed == Status.Completed, true)
+  @assert.eq(Status.Completed == Status.Fail, false)
+  @assert.eq(Status.Completed != Status.Fail, true)
+}
+
+? "enum typed parameter and match" {
+  @assert.eq(statusText(Status.Completed), "completed")
+  @assert.eq(statusText(Status.Fail), "fail")
+}
+
+? "enum in struct fields" {
+  job := Job { status: Status.Completed, name: "build" }
+
+  @assert.eq(job.status, Status.Completed)
+  @assert.eq(job.name, "build")
+}
+
+? "enum type name can be shadowed by local binding" {
+  Status := Container { Completed: 42 }
+
+  @assert.eq(Status.Completed, 42)
+}

@@ -1,0 +1,45 @@
+new(pattern: String, flags: String) -> Regex => "%regex.new"
+
+escape(value: String) -> String => "%regex.escape"
+
+Regex: {
+  exec(string: String) -> Array[String] => "%regex.exec"
+
+  match(string: String) -> Array[String] => "%regex.match"
+
+  matchAll(string: String) -> Array[Array[String]] => "%regex.matchAll"
+
+  test(string: String) -> Bool => "%regex.test"
+
+  replace(string: String, replaceValue: String) -> String => "%regex.replace"
+
+  replaceAll(string: String, replaceValue: String) -> String => "%regex.replaceAll"
+
+  search(string: String) -> Int => "%regex.search"
+
+  split(string: String) -> Array[String] => "%regex.split"
+
+  source() -> String => "%regex.source"
+
+  flags() -> String => "%regex.flags"
+
+  global() -> Bool => "%regex.global"
+
+  ignoreCase() -> Bool => "%regex.ignoreCase"
+
+  multiline() -> Bool => "%regex.multiline"
+
+  dotAll() -> Bool => "%regex.dotAll"
+
+  unicode() -> Bool => "%regex.unicode"
+
+  unicodeSets() -> Bool => "%regex.unicodeSets"
+
+  sticky() -> Bool => "%regex.sticky"
+
+  hasIndices() -> Bool => "%regex.hasIndices"
+
+  lastIndex() -> Int => "%regex.lastIndex"
+
+  setLastIndex(index: Int) -> Int => "%regex.setLastIndex"
+}

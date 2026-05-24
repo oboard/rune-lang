@@ -14,6 +14,7 @@ const (
 	Double
 	BigInt
 	String
+	Regex
 	XMLText
 
 	At
@@ -101,6 +102,8 @@ func (k Kind) String() string {
 		return "BigInt"
 	case String:
 		return "String"
+	case Regex:
+		return "Regex"
 	case XMLText:
 		return "XMLText"
 	case At:

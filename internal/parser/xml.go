@@ -65,6 +65,10 @@ func (p *Parser) parseXMLAttributes(elem *ast.XMLElement) bool {
 
 		event := p.match(lexer.At)
 		name := p.consume(lexer.Ident, "expected XML attribute name")
+		if name.Kind != lexer.Ident {
+			p.advance()
+			continue
+		}
 		attr := ast.XMLAttr{Name: name.Lexeme, Event: event, Pos: name.Pos}
 		if p.match(lexer.Assign) {
 			attr.Value = p.parseXMLAttributeValue()

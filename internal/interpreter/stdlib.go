@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ir"
@@ -48,6 +49,28 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 			return nil, fmt.Errorf("@json.stringify expects 1 arg, got %d", len(values))
 		}
 		return jsonStringify(values[0])
+	case "regex.new":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@regex.new expects 2 args, got %d", len(values))
+		}
+		pattern, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@regex.new pattern expects String")
+		}
+		flags, ok := values[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("@regex.new flags expects String")
+		}
+		return newRegex(pattern, flags)
+	case "regex.escape":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@regex.escape expects 1 arg, got %d", len(values))
+		}
+		value, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@regex.escape expects String")
+		}
+		return regexp.QuoteMeta(value), nil
 	case "go.stmt", "go.expr", "go.import":
 		return nil, fmt.Errorf("@%s.%s is only supported by the Go backend", module, name)
 	default:

@@ -2,6 +2,7 @@ package checker
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -128,6 +129,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return BigInt
 	case *ast.StringLiteral:
 		return String
+	case *ast.RegexLiteral:
+		if err := validateRegexFlags(e.Flags); err != "" {
+			c.errorf(e.Pos, err)
+		}
+		return Regex
 	case *ast.BoolLiteral:
 		return Bool
 	case *ast.NullLiteral:
@@ -155,6 +161,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 		return typ
 	case *ast.SelectorExpr:
+		if typ, ok := c.inferEnumMemberSelector(e, env); ok {
+			return typ
+		}
 		receiver := c.inferExpr(e.Receiver, env)
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
@@ -301,6 +310,45 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 	default:
 		return Unknown
 	}
+}
+
+func (c *checker) inferEnumMemberSelector(sel *ast.SelectorExpr, env map[string]Type) (Type, bool) {
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok {
+		return Unknown, false
+	}
+	if _, exists := env[ident.Name]; exists {
+		return Unknown, false
+	}
+	enum := c.info.Enums[ident.Name]
+	if enum == nil {
+		return Unknown, false
+	}
+	if _, ok := enum.ByName[sel.Name]; !ok {
+		c.errorf(sel.NamePos, "enum %s has no member %q", enum.Name, sel.Name)
+		return Unknown, true
+	}
+	c.info.ExprTypes[ident] = Type(enum.Name)
+	return Type(enum.Name), true
+}
+
+func validateRegexFlags(flags string) string {
+	seen := map[rune]bool{}
+	for _, flag := range flags {
+		switch flag {
+		case 'd', 'g', 'i', 'm', 's', 'u', 'v', 'y':
+		default:
+			return "invalid regex flag " + strconv.QuoteRune(flag)
+		}
+		if seen[flag] {
+			return "duplicate regex flag " + strconv.QuoteRune(flag)
+		}
+		seen[flag] = true
+	}
+	if seen['u'] && seen['v'] {
+		return "regex flags 'u' and 'v' cannot be used together"
+	}
+	return ""
 }
 
 func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {

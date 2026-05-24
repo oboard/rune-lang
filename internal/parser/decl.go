@@ -47,16 +47,24 @@ func (p *Parser) parseTest() *ast.Test {
 	return &ast.Test{Name: value, Body: body, Pos: start.Pos, NamePos: name.Pos}
 }
 
-func (p *Parser) parseStructType() *ast.StructType {
+func (p *Parser) parseTypeDecl() (*ast.StructType, *ast.EnumType) {
 	name := p.consume(lexer.Ident, "expected type name")
 	if name.Kind == lexer.EOF {
-		return nil
+		return nil, nil
 	}
-	typ := &ast.StructType{Name: name.Lexeme, Generics: p.parseGenericNames(), Pos: name.Pos, NamePos: name.Pos}
+	generics := p.parseGenericNames()
 	p.consume(lexer.Colon, "expected ':' after type name")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after type declaration")
 	p.skipNewlines()
+	if p.looksLikeEnumMember() {
+		if len(generics) > 0 {
+			p.errorAt(name, "enum declarations cannot have generic parameters")
+		}
+		enum := p.parseEnumBody(name)
+		return nil, enum
+	}
+	typ := &ast.StructType{Name: name.Lexeme, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
 		if p.looksLikeFunctionDecl() {
@@ -83,7 +91,62 @@ func (p *Parser) parseStructType() *ast.StructType {
 		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after type declaration")
+	return typ, nil
+}
+
+func (p *Parser) parseStructType() *ast.StructType {
+	typ, _ := p.parseTypeDecl()
 	return typ
+}
+
+func (p *Parser) looksLikeEnumMember() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.skipNewlines()
+	return p.check(lexer.Assign)
+}
+
+func (p *Parser) parseEnumBody(name lexer.Token) *ast.EnumType {
+	enum := &ast.EnumType{Name: name.Lexeme, Pos: name.Pos, NamePos: name.Pos}
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		memberName := p.consume(lexer.Ident, "expected enum member name")
+		p.skipNewlines()
+		p.consume(lexer.Assign, "expected '=' after enum member name")
+		p.skipNewlines()
+		value, valuePos := p.parseEnumValue()
+		enum.Members = append(enum.Members, ast.EnumMember{
+			Name:  memberName.Lexeme,
+			Value: value,
+			Pos:   valuePos,
+		})
+		p.consumeStatementEnd()
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after enum declaration")
+	return enum
+}
+
+func (p *Parser) parseEnumValue() (int, lexer.Position) {
+	sign := 1
+	pos := p.peek().Pos
+	if p.match(lexer.Minus) {
+		sign = -1
+		pos = p.previous().Pos
+	}
+	tok := p.consume(lexer.Int, "expected integer enum value")
+	if tok.Kind != lexer.Int {
+		return 0, pos
+	}
+	value, err := strconv.Atoi(tok.Lexeme)
+	if err != nil {
+		p.errorAt(tok, "invalid enum value")
+		return 0, pos
+	}
+	return sign * value, pos
 }
 
 func (p *Parser) parseFunction() *ast.Function {

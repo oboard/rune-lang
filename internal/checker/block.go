@@ -250,9 +250,32 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 			return String
 		case *ast.NullLiteral:
 			return Null
+		case *ast.SelectorExpr:
+			if typ, ok := c.enumMemberType(p.Value); ok {
+				return typ
+			}
 		}
 	}
 	return Unknown
+}
+
+func (c *checker) enumMemberType(expr ast.Expr) (Type, bool) {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return Unknown, false
+	}
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok {
+		return Unknown, false
+	}
+	enum := c.info.Enums[ident.Name]
+	if enum == nil {
+		return Unknown, false
+	}
+	if _, ok := enum.ByName[sel.Name]; !ok {
+		return Unknown, false
+	}
+	return Type(enum.Name), true
 }
 
 func (c *checker) mergeBranchTypes(left Type, right Type, pos lexer.Position) Type {

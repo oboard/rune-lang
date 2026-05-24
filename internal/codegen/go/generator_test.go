@@ -99,6 +99,70 @@ main() => {
 	}
 }
 
+func TestGenerateEnumProgram(t *testing.T) {
+	src := `Status: {
+  Completed = 0
+  Fail = 1
+}
+
+Container: {
+  Completed: Int
+}
+
+statusText(status: Status) -> String => status {
+  Status.Completed => "completed"
+  Status.Fail => "fail"
+  _ => "unknown"
+}
+
+fallback(flag: Bool) -> Status => flag {
+  true => Status.Fail
+}
+
+main() => {
+  status := Status.Completed
+  @io.println(statusText(status))
+  @io.println(fallback(false))
+  Status := Container { Completed: 42 }
+  @io.println(Status.Completed)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`type __Status int`,
+		`__Status_Completed __Status = 0`,
+		`__Status_Fail`,
+		`= 1`,
+		`func __statusText(__status __Status) string`,
+		`case __status == __Status_Completed:`,
+		`case __status == __Status_Fail:`,
+		`func __fallback(__flag bool) __Status`,
+		`return __Status(0)`,
+		`__status := __Status_Completed`,
+		`fmt.Println(__statusText(__status))`,
+		`fmt.Println(__fallback(false))`,
+		`__Status := __Container{__Completed: 42}`,
+		`fmt.Println(__Status.__Completed)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateInlineGoFFI(t *testing.T) {
 	src := `@go.import("fmt")
 
@@ -505,5 +569,40 @@ func TestGenerateNestedVoidMatch(t *testing.T) {
 	}
 	if !strings.Contains(got, `fmt.Println("x is 1 and y is 2")`) {
 		t.Fatalf("generated Go missing nested println:\n%s", got)
+	}
+}
+
+func TestGenerateRegexProgram(t *testing.T) {
+	src := `main() => {
+  re := /rune\s+(\d+)/ig
+  built := @regex.new("\\d+", "g")
+  @io.println(re.match("Rune 123 rune 456"))
+  @io.println(built.replaceAll("a1 b22", "[$1]"))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`"regexp"`,
+		`type runeRegex struct`,
+		`__re := newRuneRegex("rune\\s+(\\d+)", "ig")`,
+		`__built := newRuneRegex("\\d+", "g")`,
+		`fmt.Println(__re.match("Rune 123 rune 456"))`,
+		`fmt.Println(__built.replaceAll("a1 b22", "[$1]"))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
 	}
 }

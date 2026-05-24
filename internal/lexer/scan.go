@@ -70,6 +70,43 @@ func (l *Lexer) string() Token {
 	return l.token(Illegal)
 }
 
+func (l *Lexer) regex() Token {
+	escaped := false
+	inClass := false
+	for !l.isAtEnd() {
+		ch := l.advance()
+		if ch == '\n' {
+			return l.token(Illegal)
+		}
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			escaped = true
+			continue
+		}
+		switch ch {
+		case '[':
+			inClass = true
+		case ']':
+			inClass = false
+		case '/':
+			if !inClass {
+				for isRegexFlag(l.peek()) {
+					l.advance()
+				}
+				return l.token(Regex)
+			}
+		}
+	}
+	return l.token(Illegal)
+}
+
+func isRegexFlag(ch rune) bool {
+	return (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z')
+}
+
 func (l *Lexer) number() Token {
 	for unicode.IsDigit(l.peek()) {
 		l.advance()

@@ -1,0 +1,67 @@
+? "regex literal metadata and test" {
+  re := /rune\s+\d+/ig
+
+  @assert.eq(re.source(), "rune\\s+\\d+")
+  @assert.eq(re.flags(), "gi")
+  @assert.eq(re.global(), true)
+  @assert.eq(re.ignoreCase(), true)
+  @assert.eq(re.multiline(), false)
+  @assert.eq(re.test("Rune 123"), true)
+}
+
+? "regex exec captures and miss" {
+  re := /(\w+)-(\d+)/
+  hit := re.exec("id-42")
+
+  @assert.eq(hit.length(), 3)
+  @assert.eq(hit[0], "id-42")
+  @assert.eq(hit[1], "id")
+  @assert.eq(hit[2], "42")
+  @assert.eq(re.exec("none").length(), 0)
+}
+
+? "regex global match and matchAll" {
+  re := /([a-z]+)(\d+)/g
+  matches := re.match("a1 b22 c333")
+  groups := re.matchAll("a1 b22")
+
+  @assert.eq(matches.length(), 3)
+  @assert.eq(matches[0], "a1")
+  @assert.eq(matches[2], "c333")
+  @assert.eq(groups.length(), 2)
+  @assert.eq(groups[0][0], "a1")
+  @assert.eq(groups[0][1], "a")
+  @assert.eq(groups[0][2], "1")
+  @assert.eq(groups[1][0], "b22")
+  @assert.eq(groups[1][1], "b")
+  @assert.eq(groups[1][2], "22")
+}
+
+? "regex replace search split and constructor" {
+  re := @regex.new("(\\d+)", "g")
+  replaced := re.replaceAll("a1 b22", "[$1]")
+  parts := /,\s*/.split("a, b,c")
+
+  @assert.eq(replaced, "a[1] b[22]")
+  @assert.eq(/(\d+)/.replace("a1 b22", "[$1]"), "a[1] b22")
+  @assert.eq(/[A-Z]+/.search("abcDEF"), 3)
+  @assert.eq(parts.length(), 3)
+  @assert.eq(parts[0], "a")
+  @assert.eq(parts[1], "b")
+  @assert.eq(parts[2], "c")
+}
+
+? "regex stateful lastIndex and escape" {
+  re := /\d+/g
+
+  @assert.eq(re.lastIndex(), 0)
+  @assert.eq(re.exec("a1 b22")[0], "1")
+  @assert.eq(re.lastIndex(), 2)
+  @assert.eq(re.exec("a1 b22")[0], "22")
+  @assert.eq(re.lastIndex(), 6)
+  @assert.eq(re.exec("a1 b22").length(), 0)
+  @assert.eq(re.lastIndex(), 0)
+  @assert.eq(re.setLastIndex(3), 3)
+  @assert.eq(re.exec("a1 b22")[0], "22")
+  @assert.eq(@regex.escape("a+b?"), "a\\+b\\?")
+}

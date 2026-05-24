@@ -19,6 +19,7 @@ const (
 	Object      Type = "Object"
 	Never       Type = "Never"
 	Symbol      Type = "Symbol"
+	Regex       Type = "Regex"
 	Void        Type = "Void"
 	HTMLElement Type = "HTMLElement"
 )
@@ -57,9 +58,22 @@ type StructInfo struct {
 	Node     *ast.StructType
 }
 
+type EnumMemberInfo struct {
+	Name  string
+	Value int
+}
+
+type EnumInfo struct {
+	Name    string
+	Members []EnumMemberInfo
+	ByName  map[string]EnumMemberInfo
+	Node    *ast.EnumType
+}
+
 type Info struct {
 	Functions map[string]*FuncInfo
 	Types     map[string]*StructInfo
+	Enums     map[string]*EnumInfo
 	Stdlib    *stdlib.Registry
 	ExprTypes map[ast.Expr]Type
 }

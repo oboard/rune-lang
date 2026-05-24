@@ -115,6 +115,8 @@ func tsType(typ checker.Type) string {
 		return "never"
 	case checker.Symbol:
 		return "symbol"
+	case checker.Regex:
+		return "RegExp"
 	case checker.Void:
 		return "void"
 	case checker.HTMLElement:
@@ -255,6 +257,8 @@ func zeroValue(typ checker.Type) string {
 		return `""`
 	case checker.Bool:
 		return "false"
+	case checker.Regex:
+		return `/(?:)/`
 	case checker.Null:
 		return "null"
 	case checker.Never:
@@ -266,6 +270,22 @@ func zeroValue(typ checker.Type) string {
 	default:
 		return "{} as " + tsType(typ)
 	}
+}
+
+func (g *generator) zeroValue(typ checker.Type) string {
+	if g.hasEnumType(typ) {
+		return "0 as " + tsType(typ)
+	}
+	return zeroValue(typ)
+}
+
+func (g *generator) hasEnumType(typ checker.Type) bool {
+	for _, enum := range g.file.Enums {
+		if checker.Type(enum.Name) == typ {
+			return true
+		}
+	}
+	return false
 }
 
 func hasMain(file *ir.File) bool {

@@ -1,0 +1,8 @@
+main() => {
+  text := "Rune 123 rune 456"
+  word := /rune\s+(\d+)/ig
+  @io.println(word.match(text))
+  @io.println(word.matchAll(text))
+  @io.println(word.replaceAll(text, "[$1]"))
+  @io.println(word.flags())
+}

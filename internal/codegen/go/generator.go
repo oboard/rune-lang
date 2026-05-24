@@ -23,6 +23,9 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesType(file, checker.BigInt) {
 		g.imports["math/big"] = true
 	}
+	if fileUsesType(file, checker.Regex) {
+		g.imports["regexp"] = true
+	}
 	for _, fn := range file.Functions {
 		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
 			g.collectExprImports(expr)
@@ -45,6 +48,15 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.line(")")
 		g.line("")
 	}
+	for i, enum := range file.Enums {
+		if i > 0 {
+			g.line("")
+		}
+		g.enumType(enum)
+	}
+	if len(file.Enums) > 0 && len(file.Types) > 0 {
+		g.line("")
+	}
 	for i, typ := range file.Types {
 		if i > 0 {
 			g.line("")
@@ -57,11 +69,17 @@ func GenerateIR(file *ir.File) (string, error) {
 			}
 		}
 	}
-	if len(file.Types) > 0 && len(file.Functions) > 0 {
+	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
 		g.line("")
 	}
 	if fileUsesType(file, checker.BigInt) {
 		g.bigIntRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesType(file, checker.Regex) {
+		g.regexRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -131,6 +149,9 @@ func fileUsesType(file *ir.File, typ checker.Type) bool {
 				check(expr.ResultType())
 			})
 		}
+	}
+	for _, enum := range file.Enums {
+		check(checker.Type(enum.Name))
 	}
 	return found
 }

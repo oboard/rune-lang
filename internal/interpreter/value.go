@@ -3,6 +3,7 @@ package interpreter
 import (
 	"fmt"
 	"math/big"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,19 @@ type mapEntry struct {
 
 type Set struct {
 	Entries map[string]Value
+}
+
+type Regex struct {
+	Source    string
+	Flags     string
+	LastIndex int
+	expr      *regexp.Regexp
+}
+
+type EnumValue struct {
+	TypeName string
+	Name     string
+	Value    int
 }
 
 type Struct struct {
@@ -72,6 +86,10 @@ func Format(value Value) string {
 			parts = append(parts, Format(value))
 		}
 		return "Set { " + strings.Join(parts, ", ") + " }"
+	case *Regex:
+		return "/" + v.Source + "/" + v.Flags
+	case EnumValue:
+		return v.TypeName + "." + v.Name
 	case *Struct:
 		parts := make([]string, 0, len(v.Fields))
 		for name, value := range v.Fields {
@@ -89,6 +107,8 @@ func printValue(value Value) string {
 		return ""
 	case string:
 		return v
+	case EnumValue:
+		return Format(v)
 	default:
 		return Format(v)
 	}

@@ -44,9 +44,12 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 				file.Tests = append(file.Tests, test)
 			}
 		} else if p.looksLikeTypeDecl() {
-			typ := p.parseStructType()
+			typ, enum := p.parseTypeDecl()
 			if typ != nil {
 				file.Types = append(file.Types, typ)
+			}
+			if enum != nil {
+				file.Enums = append(file.Enums, enum)
 			}
 		} else if p.looksLikeFunctionDecl() {
 			fn := p.parseFunction()
