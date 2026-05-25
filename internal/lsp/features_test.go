@@ -378,6 +378,29 @@ main() => {
 	}
 }
 
+func TestRoutineFunctionHoverUsesRuneSignature(t *testing.T) {
+	uri := "file:///tmp/routine_hover.rn"
+	src := `~ test(count: Int) => {
+  @io.println(count.toString())
+}
+
+main() => {
+  test(1)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	for _, pos := range []position{
+		positionOf(src, "~ test", "test"),
+		positionOf(src, "test(1)", "test"),
+	} {
+		hover := s.hover(uri, pos).(map[string]any)
+		if got := hoverValue(hover); !strings.Contains(got, "test: ~ (count: Int) -> Void") {
+			t.Fatalf("hover = %q, want routine function signature", got)
+		}
+	}
+}
+
 func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {

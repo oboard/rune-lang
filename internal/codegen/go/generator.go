@@ -34,7 +34,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesFSRuntime(file) {
 		g.imports["os"] = true
 	}
-	if fileUsesAsyncRuntime(file) {
+	if fileUsesTaskRuntime(file) {
 		g.imports["sync"] = true
 	}
 	for _, fn := range file.Functions {
@@ -101,8 +101,26 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
-	if fileUsesAsyncRuntime(file) {
-		g.asyncRuntime()
+	if fileUsesTaskRuntime(file) {
+		g.taskRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesResultRuntime(file) {
+		g.resultRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesErrorRuntime(file) {
+		g.errorRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesFSRuntime(file) {
+		g.fsRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -132,7 +150,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		} else {
 			g.linef("%s()", mangleIdent("main"))
 		}
-		if fileUsesAsyncRuntime(file) {
+		if fileUsesTaskRuntime(file) {
 			g.line("runeWaitAll()")
 		}
 		g.indent--
@@ -203,8 +221,8 @@ func fileUsesBinaryRuntime(file *ir.File) bool {
 		fileUsesType(file, checker.Writer)
 }
 
-func fileUsesAsyncRuntime(file *ir.File) bool {
-	if fileUsesType(file, checker.Data) || fileUsesType(file, checker.Error) || fileUsesGenericType(file, "Result") || fileUsesGenericType(file, "Task") {
+func fileUsesTaskRuntime(file *ir.File) bool {
+	if fileUsesGenericType(file, "Task") || fileUsesFSRuntime(file) {
 		return true
 	}
 	for _, fn := range file.Functions {
@@ -219,7 +237,15 @@ func fileUsesAsyncRuntime(file *ir.File) bool {
 			}
 		}
 	}
-	return fileUsesFSRuntime(file)
+	return false
+}
+
+func fileUsesResultRuntime(file *ir.File) bool {
+	return fileUsesGenericType(file, "Result") || fileUsesFSRuntime(file)
+}
+
+func fileUsesErrorRuntime(file *ir.File) bool {
+	return fileUsesType(file, checker.Error) || fileUsesFSRuntime(file)
 }
 
 func fileUsesGenericType(file *ir.File, base string) bool {
@@ -319,7 +345,7 @@ func (g *generator) bigIntRuntime() {
 	g.line("}")
 }
 
-func (g *generator) asyncRuntime() {
+func (g *generator) taskRuntime() {
 	g.line("type runeUnit struct{}")
 	g.line("")
 	g.line("type runeTask[T any] <-chan T")
@@ -351,7 +377,9 @@ func (g *generator) asyncRuntime() {
 	g.line("return <-task")
 	g.indent--
 	g.line("}")
-	g.line("")
+}
+
+func (g *generator) resultRuntime() {
 	g.line("type runeResult[T any, E any] struct {")
 	g.indent++
 	g.line("ok bool")
@@ -371,7 +399,9 @@ func (g *generator) asyncRuntime() {
 	g.line("return runeResult[T, E]{err: err}")
 	g.indent--
 	g.line("}")
-	g.line("")
+}
+
+func (g *generator) errorRuntime() {
 	g.line("type runeError struct {")
 	g.indent++
 	g.line("__code int")
@@ -390,24 +420,24 @@ func (g *generator) asyncRuntime() {
 	g.line("return &runeError{__code: 1, __message: err.Error()}")
 	g.indent--
 	g.line("}")
-	if fileUsesFSRuntime(g.file) {
-		g.line("")
-		g.line("func runeReadFile(path string) runeTask[runeResult[[]byte, *runeError]] {")
-		g.indent++
-		g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
-		g.indent++
-		g.line("data, err := os.ReadFile(path)")
-		g.line("if err != nil {")
-		g.indent++
-		g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
-		g.indent--
-		g.line("}")
-		g.line("return runeOk[[]byte, *runeError](data)")
-		g.indent--
-		g.line("})")
-		g.indent--
-		g.line("}")
-	}
+}
+
+func (g *generator) fsRuntime() {
+	g.line("func runeReadFile(path string) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("data, err := os.ReadFile(path)")
+	g.line("if err != nil {")
+	g.indent++
+	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
+	g.indent--
+	g.line("}")
+	g.line("return runeOk[[]byte, *runeError](data)")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
 }
 
 func fileUsesSignals(file *ir.File) bool {

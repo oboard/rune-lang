@@ -55,10 +55,16 @@ func (s *server) hover(uri string, pos position) any {
 	}
 	for _, fn := range prog.File.Functions {
 		if fn.Name == word {
+			signature := functionSignature(prog.Info, fn)
+			if fn.Routine {
+				if fnInfo := prog.Info.Functions[fn.Name]; fnInfo != nil {
+					signature = functionValueSignature(prog.Info, fnInfo)
+				}
+			}
 			return map[string]any{
 				"contents": map[string]any{
 					"kind":  "markdown",
-					"value": fmt.Sprintf("```rune\n%s\n```", functionSignature(prog.Info, fn)),
+					"value": fmt.Sprintf("```rune\n%s\n```", signature),
 				},
 				"range": symbolRange(fn.NamePos, len(fn.Name)),
 			}
@@ -140,6 +146,10 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 			if !containsSymbol(pos, e.Pos, e.Name) {
 				return
 			}
+			if fn := prog.Info.Functions[e.Name]; fn != nil && identifierHasFunctionType(prog.Info, e, fn) {
+				found = hoverResult(functionValueSignature(prog.Info, fn), e.Pos, e.Name)
+				return
+			}
 			if typ := prog.Info.ExprTypes[e]; typ != "" && typ != checker.Unknown {
 				found = hoverResult(localHoverText(prog.Info, e.Name, typ, signals), e.Pos, e.Name)
 			}
@@ -170,6 +180,22 @@ func localHoverText(info *checker.Info, name string, typ checker.Type, signals m
 		text += "\ndeps: " + chain
 	}
 	return text
+}
+
+func identifierHasFunctionType(info *checker.Info, ident *ast.Identifier, fn *checker.FuncInfo) bool {
+	typ := info.ExprTypes[ident]
+	return typ != "" && typ != checker.Unknown && typ == funcInfoType(fn)
+}
+
+func funcInfoType(fn *checker.FuncInfo) checker.Type {
+	params := make([]checker.Type, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		params = append(params, param.Type)
+	}
+	if fn.Routine {
+		return checker.AsyncFuncOfTypes(params, fn.Return)
+	}
+	return checker.FuncOfTypes(params, fn.Return)
 }
 
 func typeHover(prog *compiler.Program, pos position) any {
@@ -1168,6 +1194,26 @@ func functionSignature(info *checker.Info, fn *ast.Function) string {
 	return fmt.Sprintf("%s%s(%s) -> %s", fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
 }
 
+func functionValueSignature(info *checker.Info, fn *checker.FuncInfo) string {
+	params := make([]string, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		typ := param.Type
+		if typ == "" || typ == checker.Unknown {
+			typ = checker.Unknown
+		}
+		params = append(params, fmt.Sprintf("%s: %s", param.Name, displayCheckerType(info, typ)))
+	}
+	ret := fn.Return
+	if ret == "" || ret == checker.Unknown {
+		ret = checker.Void
+	}
+	prefix := ""
+	if fn.Routine {
+		prefix = "~ "
+	}
+	return fmt.Sprintf("%s: %s%s(%s) -> %s", fn.Name, prefix, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), displayCheckerType(info, ret))
+}
+
 func formatSignatureGenerics(names []string) string {
 	if len(names) == 0 {
 		return ""
@@ -1201,10 +1247,14 @@ func stdlibSignature(moduleName string, fn *stdlib.Function) string {
 
 func displayType(name string) string {
 	params, ret, ok := parseDisplayFuncType(name)
-	if !ok {
-		return name
+	if ok {
+		return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), ret)
 	}
-	return fmt.Sprintf("(%s) -> %s", strings.Join(params, ", "), ret)
+	params, ret, ok = parseDisplayAsyncFuncType(name)
+	if ok {
+		return "~ " + displayFuncType(params, ret)
+	}
+	return name
 }
 
 func displayCheckerType(info *checker.Info, typ checker.Type) string {
@@ -1240,6 +1290,12 @@ func displayCheckerTypeIndent(info *checker.Info, typ checker.Type, indent int) 
 		}
 		return displayFuncType(params, displayCheckerTypeIndent(info, checker.Type(ret), indent))
 	}
+	if params, ret, ok := parseRawDisplayAsyncFuncType(name); ok {
+		for i, param := range params {
+			params[i] = displayCheckerTypeIndent(info, checker.Type(param), indent)
+		}
+		return "~ " + displayFuncType(params, displayCheckerTypeIndent(info, checker.Type(ret), indent))
+	}
 	return name
 }
 
@@ -1265,11 +1321,33 @@ func parseDisplayFuncType(name string) ([]string, string, bool) {
 	return params, displayType(ret), true
 }
 
+func parseDisplayAsyncFuncType(name string) ([]string, string, bool) {
+	params, ret, ok := parseRawDisplayAsyncFuncType(name)
+	if !ok {
+		return nil, "", false
+	}
+	for i, param := range params {
+		params[i] = displayType(param)
+	}
+	return params, displayType(ret), true
+}
+
 func parseRawDisplayFuncType(name string) ([]string, string, bool) {
 	if !strings.HasPrefix(name, "Func[") || !strings.HasSuffix(name, "]") {
 		return nil, "", false
 	}
 	parts := splitDisplayTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "Func["), "]"))
+	if len(parts) == 0 {
+		return nil, "", false
+	}
+	return parts[:len(parts)-1], parts[len(parts)-1], true
+}
+
+func parseRawDisplayAsyncFuncType(name string) ([]string, string, bool) {
+	if !strings.HasPrefix(name, "AsyncFunc[") || !strings.HasSuffix(name, "]") {
+		return nil, "", false
+	}
+	parts := splitDisplayTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "AsyncFunc["), "]"))
 	if len(parts) == 0 {
 		return nil, "", false
 	}

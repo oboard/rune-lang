@@ -47,6 +47,9 @@ main() => {
 			t.Fatalf("generated Go missing %q:\n%s", want, got)
 		}
 	}
+	if strings.Contains(got, "runeResult") || strings.Contains(got, "runeError") {
+		t.Fatalf("generated Go should not include Result/Error runtime:\n%s", got)
+	}
 }
 
 func TestGenerateStructProgram(t *testing.T) {

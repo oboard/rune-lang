@@ -21,8 +21,20 @@ func GenerateIR(file *ir.File) (string, error) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")
 	}
 	g := &generator{file: file}
-	if fileUsesAsyncRuntime(file) {
-		g.asyncRuntime()
+	if fileUsesTaskRuntime(file) {
+		g.taskRuntime()
+		g.line("")
+	}
+	if fileUsesResultRuntime(file) {
+		g.resultRuntime()
+		g.line("")
+	}
+	if fileUsesErrorRuntime(file) {
+		g.errorRuntime()
+		g.line("")
+	}
+	if fileUsesFSRuntime(file) {
+		g.fsRuntime()
 		g.line("")
 	}
 	if fileUsesBinaryRuntime(file) {
@@ -109,10 +121,7 @@ func selectorUsesGo(expr ir.Expr) bool {
 	return ok && at.Name == "go"
 }
 
-func (g *generator) asyncRuntime() {
-	g.line("type RuneResult<T, E> = { ok: true; value: T } | { ok: false; error: E };")
-	g.line("type RuneError = { code: number; message: string; cause: RuneError | null };")
-	g.line("")
+func (g *generator) taskRuntime() {
 	g.line("const runeTasks: Promise<unknown>[] = [];")
 	g.line("")
 	g.line("function runeGo<T>(work: () => T | Promise<T>): Promise<T> {")
@@ -142,6 +151,10 @@ func (g *generator) asyncRuntime() {
 	g.line("}")
 	g.indent--
 	g.line("}")
+}
+
+func (g *generator) resultRuntime() {
+	g.line("type RuneResult<T, E> = { ok: true; value: T } | { ok: false; error: E };")
 	g.line("")
 	g.line("function runeOk<T, E>(value: T): RuneResult<T, E> {")
 	g.indent++
@@ -154,29 +167,33 @@ func (g *generator) asyncRuntime() {
 	g.line("return { ok: false, error };")
 	g.indent--
 	g.line("}")
+}
+
+func (g *generator) errorRuntime() {
+	g.line("type RuneError = { code: number; message: string; cause: RuneError | null };")
 	g.line("")
 	g.line("function runeErrorFrom(error: unknown): RuneError {")
 	g.indent++
 	g.line("return { code: 1, message: error instanceof Error ? error.message : String(error), cause: null };")
 	g.indent--
 	g.line("}")
-	if fileUsesFSRuntime(g.file) {
-		g.line("")
-		g.line("async function runeReadFile(path: string): Promise<RuneResult<Uint8Array, RuneError>> {")
-		g.indent++
-		g.line("try {")
-		g.indent++
-		g.line("const fs = await import(\"node:fs/promises\");")
-		g.line("return runeOk<Uint8Array, RuneError>(await fs.readFile(path));")
-		g.indent--
-		g.line("} catch (error) {")
-		g.indent++
-		g.line("return runeErr<Uint8Array, RuneError>(runeErrorFrom(error));")
-		g.indent--
-		g.line("}")
-		g.indent--
-		g.line("}")
-	}
+}
+
+func (g *generator) fsRuntime() {
+	g.line("async function runeReadFile(path: string): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("try {")
+	g.indent++
+	g.line("const fs = await import(\"node:fs/promises\");")
+	g.line("return runeOk<Uint8Array, RuneError>(await fs.readFile(path));")
+	g.indent--
+	g.line("} catch (error) {")
+	g.indent++
+	g.line("return runeErr<Uint8Array, RuneError>(runeErrorFrom(error));")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
 }
 
 func join(parts []string, sep string) string {
@@ -257,8 +274,8 @@ func fileUsesSignals(file *ir.File) bool {
 	return false
 }
 
-func fileUsesAsyncRuntime(file *ir.File) bool {
-	if fileUsesType(file, checker.Data) || fileUsesType(file, checker.Error) || fileUsesGenericType(file, "Result") || fileUsesGenericType(file, "Task") {
+func fileUsesTaskRuntime(file *ir.File) bool {
+	if fileUsesGenericType(file, "Task") || fileUsesFSRuntime(file) {
 		return true
 	}
 	for _, fn := range file.Functions {
@@ -273,7 +290,15 @@ func fileUsesAsyncRuntime(file *ir.File) bool {
 			}
 		}
 	}
-	return fileUsesFSRuntime(file)
+	return false
+}
+
+func fileUsesResultRuntime(file *ir.File) bool {
+	return fileUsesGenericType(file, "Result") || fileUsesFSRuntime(file)
+}
+
+func fileUsesErrorRuntime(file *ir.File) bool {
+	return fileUsesType(file, checker.Error) || fileUsesFSRuntime(file)
 }
 
 func fileUsesGenericType(file *ir.File, base string) bool {

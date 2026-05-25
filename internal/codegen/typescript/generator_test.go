@@ -37,6 +37,9 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
 	}
+	if strings.Contains(got, "RuneResult") || strings.Contains(got, "RuneError") || strings.Contains(got, "runeOk") || strings.Contains(got, "runeErr") {
+		t.Fatalf("generated TypeScript should not include Result/Error runtime:\n%s", got)
+	}
 }
 
 func TestGenerateElementArrayChild(t *testing.T) {
