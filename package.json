@@ -2,6 +2,9 @@
   "name": "rune-docs",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "playground"
+  ],
   "scripts": {
     "dev": "vitepress dev docs --host 0.0.0.0",
     "build": "vitepress build docs",

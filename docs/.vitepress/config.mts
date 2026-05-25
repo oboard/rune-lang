@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
@@ -10,6 +10,11 @@ const docsDir = join(vitepressDir, '..')
 const repoDir = join(docsDir, '..')
 const playgroundDir = join(repoDir, 'playground')
 const embeddedPlaygroundDir = join(docsDir, 'public', 'playground-app')
+const binaryPath = [
+  join(playgroundDir, 'node_modules', '.bin'),
+  join(repoDir, 'node_modules', '.bin'),
+  process.env.PATH ?? ''
+].join(delimiter)
 let embeddedPlaygroundBuilt = false
 
 const runeGrammar = JSON.parse(
@@ -30,6 +35,7 @@ function buildEmbeddedPlayground() {
     cwd: playgroundDir,
     env: {
       ...process.env,
+      PATH: binaryPath,
       PLAYGROUND_BASE: '/playground-app/'
     },
     stdio: 'inherit'
