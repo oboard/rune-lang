@@ -1,5 +1,55 @@
+import { execFileSync } from "node:child_process";
+import { copyFileSync, existsSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import type { Plugin } from "vite";
 import { defineConfig } from "vite-plus";
 import react from "@vitejs/plugin-react";
+
+const playgroundDir = dirname(fileURLToPath(import.meta.url));
+const repoDir = join(playgroundDir, "..");
+const publicDir = join(playgroundDir, "public");
+
+function buildRuneWasm() {
+  mkdirSync(publicDir, { recursive: true });
+  const goroot = execFileSync("go", ["env", "GOROOT"], { encoding: "utf8" }).trim();
+  const wasmExec = [join(goroot, "misc", "wasm", "wasm_exec.js"), join(goroot, "lib", "wasm", "wasm_exec.js")].find(
+    (candidate) => existsSync(candidate),
+  );
+  if (!wasmExec) {
+    throw new Error(`wasm_exec.js was not found under ${goroot}`);
+  }
+  copyFileSync(wasmExec, join(publicDir, "wasm_exec.js"));
+  execFileSync("go", ["build", "-o", join(publicDir, "rune.wasm"), "./cmd/rune-wasm"], {
+    cwd: repoDir,
+    env: {
+      ...process.env,
+      GOARCH: "wasm",
+      GOOS: "js",
+    },
+    stdio: "inherit",
+  });
+}
+
+function runeWasmPlugin(): Plugin {
+  return {
+    name: "rune-wasm",
+    buildStart() {
+      buildRuneWasm();
+    },
+    configureServer(server) {
+      buildRuneWasm();
+      const watched = [join(repoDir, "cmd", "rune-wasm"), join(repoDir, "core"), join(repoDir, "internal")];
+      server.watcher.add(watched);
+      server.watcher.on("change", (file) => {
+        if (watched.some((path) => file.startsWith(path))) {
+          buildRuneWasm();
+        }
+      });
+    },
+  };
+}
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -12,7 +62,7 @@ export default defineConfig({
     env: {
       builtin: true,
     },
-    ignorePatterns: ["dist"],
+    ignorePatterns: ["dist", "public/wasm_exec.js"],
     overrides: [
       {
         files: ["**/*.{ts,tsx}"],
@@ -117,5 +167,5 @@ export default defineConfig({
       typeCheck: true,
     },
   },
-  plugins: [react()],
+  plugins: [runeWasmPlugin(), react()],
 });

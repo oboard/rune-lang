@@ -10,6 +10,8 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+public/rune.wasm
+public/wasm_exec.js
 *.local
 
 # Editor directories and files
