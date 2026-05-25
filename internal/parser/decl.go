@@ -362,6 +362,9 @@ func (p *Parser) parseBody() ast.Expr {
 		if !p.looksLikePatternBranch() && p.looksLikeObjectLiteralBody() {
 			return p.parseAnonymousObjectLiteral()
 		}
+		if !p.looksLikePatternBranch() && p.looksLikeMapLiteralBody() {
+			return p.parseMapLiteral()
+		}
 		return p.parseBlock()
 	}
 	return p.parseExpression(1)

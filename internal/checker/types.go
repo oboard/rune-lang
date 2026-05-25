@@ -136,6 +136,10 @@ func ArrayOf(elem Type) Type {
 	return Type("Array[" + string(elem) + "]")
 }
 
+func MapOf(key Type, value Type) Type {
+	return genericTypeOf("Map", []Type{key, value})
+}
+
 func genericTypeOf(base string, args []Type) Type {
 	parts := make([]string, 0, len(args))
 	for _, arg := range args {
@@ -253,6 +257,14 @@ func ArrayElement(typ Type) (Type, bool) {
 		return Unknown, false
 	}
 	return Type(elem), true
+}
+
+func MapKeyValue(typ Type) (Type, Type, bool) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || base != "Map" || len(args) != 2 {
+		return Unknown, Unknown, false
+	}
+	return Type(args[0]), Type(args[1]), true
 }
 
 func receiverType(typ *ast.StructType) Type {

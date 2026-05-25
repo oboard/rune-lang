@@ -176,7 +176,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.TernaryExpr:
 		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.expr(e.Consequence), Alternative: l.expr(e.Alternative)}
 	case *ast.AssignExpr:
-		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Value: l.expr(e.Value)}
+		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Target: l.expr(e.Target), Value: l.expr(e.Value)}
 	case *ast.CallExpr:
 		out := &CallExpr{ExprBase: l.base(e), Callee: l.expr(e.Callee)}
 		if l.info != nil {
@@ -197,6 +197,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		out := &ArrayLiteral{ExprBase: l.base(e)}
 		for _, elem := range e.Elements {
 			out.Elements = append(out.Elements, l.expr(elem))
+		}
+		return out
+	case *ast.MapLiteral:
+		out := &MapLiteral{ExprBase: l.base(e)}
+		for _, entry := range e.Entries {
+			out.Entries = append(out.Entries, MapEntry{Key: l.expr(entry.Key), Value: l.expr(entry.Value), Pos: entry.Pos})
 		}
 		return out
 	case *ast.SpreadExpr:

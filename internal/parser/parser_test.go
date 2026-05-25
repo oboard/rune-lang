@@ -326,6 +326,85 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
 	}
 }
 
+func TestParseMapLiteral(t *testing.T) {
+	file, errs := Parse(`main() => {
+    values := {
+        "a": 1,
+        "b": 2
+    }
+    values["b"] = 3
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("main body = %#v, want two statements", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
+	}
+	lit, ok := let.Value.(*ast.MapLiteral)
+	if !ok || len(lit.Entries) != 2 {
+		t.Fatalf("let value = %#v, want map with two entries", let.Value)
+	}
+	if _, ok := lit.Entries[0].Key.(*ast.StringLiteral); !ok {
+		t.Fatalf("first key = %T, want StringLiteral", lit.Entries[0].Key)
+	}
+	stmt, ok := block.Statements[1].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("second statement = %T, want ExprStmt", block.Statements[1])
+	}
+	assign, ok := stmt.Expr.(*ast.AssignExpr)
+	if !ok {
+		t.Fatalf("second expr = %T, want AssignExpr", stmt.Expr)
+	}
+	if _, ok := assign.Target.(*ast.IndexExpr); !ok {
+		t.Fatalf("assign target = %T, want IndexExpr", assign.Target)
+	}
+}
+
+func TestMapLiteralWithNonStringKeys(t *testing.T) {
+	file, errs := Parse(`main() => {
+    values := {
+        1: 2,
+        2: 4
+    }
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block := file.Functions[0].Body.(*ast.BlockExpr)
+	let := block.Statements[0].(*ast.LetStmt)
+	lit, ok := let.Value.(*ast.MapLiteral)
+	if !ok || len(lit.Entries) != 2 {
+		t.Fatalf("let value = %#v, want map with two entries", let.Value)
+	}
+	if _, ok := lit.Entries[0].Key.(*ast.IntegerLiteral); !ok {
+		t.Fatalf("first key = %T, want IntegerLiteral", lit.Entries[0].Key)
+	}
+}
+
+func TestAnonymousObjectLiteralStillUsesIdentifierKeys(t *testing.T) {
+	file, errs := Parse(`main() => {
+    obj := {
+        name: "Alice"
+    }
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block := file.Functions[0].Body.(*ast.BlockExpr)
+	let := block.Statements[0].(*ast.LetStmt)
+	if _, ok := let.Value.(*ast.AnonymousObjectLiteral); !ok {
+		t.Fatalf("let value = %T, want AnonymousObjectLiteral", let.Value)
+	}
+}
+
 func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 	file, errs := Parse(`render() -> HTMLElement => {
     count $= 0

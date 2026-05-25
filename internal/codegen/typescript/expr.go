@@ -74,8 +74,16 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return s
 	case *ir.AssignExpr:
+		if target, ok := e.Target.(*ir.IndexExpr); ok {
+			if expr, ok := g.indexAssignExpr(target, e.Value); ok {
+				return expr
+			}
+		}
 		if g.isSignal(e.Name) {
 			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+		}
+		if e.Target != nil && e.Name == "" {
+			return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
@@ -91,6 +99,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return tsPropertyAccess(g.expr(e.Receiver), e.Name)
 	case *ir.IndexExpr:
+		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
+			return fmt.Sprintf("%s.get(%s)!", g.expr(e.Receiver), g.expr(e.Index))
+		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
 		elems := make([]string, 0, len(e.Elements))
@@ -98,6 +109,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elems = append(elems, g.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ir.MapLiteral:
+		return g.mapLiteral(e)
 	case *ir.SpreadExpr:
 		return "..." + g.expr(e.Expr)
 	case *ir.ReactiveLiteral:
@@ -123,6 +136,26 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "undefined"
 	}
+}
+
+func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string, bool) {
+	if _, _, ok := checker.MapKeyValue(target.Receiver.ResultType()); !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%s.set(%s, %s)", g.expr(target.Receiver), g.expr(target.Index), g.expr(value)), true
+}
+
+func (g *generator) mapLiteral(lit *ir.MapLiteral) string {
+	keyType, valueType, ok := checker.MapKeyValue(lit.ResultType())
+	if !ok {
+		keyType = checker.Unknown
+		valueType = checker.Unknown
+	}
+	entries := make([]string, 0, len(lit.Entries))
+	for _, entry := range lit.Entries {
+		entries = append(entries, fmt.Sprintf("[%s, %s]", g.expr(entry.Key), g.expr(entry.Value)))
+	}
+	return fmt.Sprintf("new Map<%s, %s>([%s])", tsType(keyType), tsType(valueType), strings.Join(entries, ", "))
 }
 
 func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {

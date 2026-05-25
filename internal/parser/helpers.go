@@ -96,7 +96,7 @@ func (p *Parser) looksLikeObjectLiteralBody() bool {
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
 		i++
 	}
-	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Ident {
+	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Ident || isLiteralIdentifier(p.tokens[i].Lexeme) {
 		return false
 	}
 	if i+1 >= len(p.tokens) {
@@ -108,6 +108,47 @@ func (p *Parser) looksLikeObjectLiteralBody() bool {
 	default:
 		return false
 	}
+}
+
+func (p *Parser) looksLikeMapLiteralBody() bool {
+	if !p.check(lexer.LBrace) {
+		return false
+	}
+	i := p.curr + 1
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
+		i++
+	}
+	if i >= len(p.tokens) || p.tokens[i].Kind == lexer.RBrace {
+		return false
+	}
+	if p.tokens[i].Kind == lexer.Ident && !isLiteralIdentifier(p.tokens[i].Lexeme) {
+		return false
+	}
+	depth := 0
+	for ; i < len(p.tokens); i++ {
+		switch p.tokens[i].Kind {
+		case lexer.LParen, lexer.LBracket, lexer.LBrace:
+			depth++
+		case lexer.RParen, lexer.RBracket:
+			if depth > 0 {
+				depth--
+			}
+		case lexer.RBrace:
+			if depth == 0 {
+				return false
+			}
+			depth--
+		case lexer.Newline, lexer.Question, lexer.FatArrow:
+			if depth == 0 {
+				return false
+			}
+		case lexer.Colon:
+			if depth == 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (p *Parser) tokensLookLikePatternBranch(i int) bool {

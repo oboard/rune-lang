@@ -70,8 +70,16 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.TernaryExpr:
 		return g.ternaryExpr(e)
 	case *ir.AssignExpr:
+		if target, ok := e.Target.(*ir.IndexExpr); ok {
+			if expr, ok := g.indexAssignExpr(target, e.Value); ok {
+				return expr
+			}
+		}
 		if g.isSignal(e.Name) {
 			return fmt.Sprintf("%s.Set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+		}
+		if e.Target != nil && e.Name == "" {
+			return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
@@ -115,6 +123,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elems = append(elems, g.expr(elem))
 		}
 		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+	case *ir.MapLiteral:
+		return g.mapLiteral(e)
 	case *ir.SpreadExpr:
 		return "/* spread is only supported inside array literals */"
 	case *ir.ReactiveLiteral:
@@ -150,6 +160,22 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string, bool) {
+	if _, _, ok := checker.MapKeyValue(target.Receiver.ResultType()); !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%s[%s] = %s", g.expr(target.Receiver), g.expr(target.Index), g.expr(value)), true
+}
+
+func (g *generator) mapLiteral(lit *ir.MapLiteral) string {
+	mapType := goType(lit.ResultType())
+	entries := make([]string, 0, len(lit.Entries))
+	for _, entry := range lit.Entries {
+		entries = append(entries, fmt.Sprintf("%s: %s", g.expr(entry.Key), g.expr(entry.Value)))
+	}
+	return fmt.Sprintf("%s{%s}", mapType, strings.Join(entries, ", "))
 }
 
 func (g *generator) callExpr(e *ir.CallExpr) string {

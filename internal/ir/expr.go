@@ -138,8 +138,9 @@ func (*TernaryExpr) exprNode() {}
 
 type AssignExpr struct {
 	ExprBase
-	Name  string
-	Value Expr
+	Name   string
+	Target Expr
+	Value  Expr
 }
 
 func (*AssignExpr) exprNode() {}
@@ -184,6 +185,19 @@ type ArrayLiteral struct {
 }
 
 func (*ArrayLiteral) exprNode() {}
+
+type MapLiteral struct {
+	ExprBase
+	Entries []MapEntry
+}
+
+func (*MapLiteral) exprNode() {}
+
+type MapEntry struct {
+	Key   Expr
+	Value Expr
+	Pos   lexer.Position
+}
 
 type SpreadExpr struct {
 	ExprBase

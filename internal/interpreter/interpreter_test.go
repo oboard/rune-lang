@@ -39,3 +39,29 @@ main() => {
 		t.Fatalf("output = %q, want nested match output", got)
 	}
 }
+
+func TestInterpreterRunsMapLiteral(t *testing.T) {
+	src := `main() => {
+  values := {
+    "a": 1,
+    "b": 2
+  }
+  @io.println(values["a"])
+  values["b"] = 3
+  @io.println(values["b"])
+}
+`
+	prog, diags := compiler.AnalyzeSource("map_literal.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := New(prog.IR, WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "1\n3" {
+		t.Fatalf("output = %q, want map literal output", got)
+	}
+}

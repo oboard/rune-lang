@@ -63,6 +63,9 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		}
 		return i.eval(e.Alternative, env)
 	case *ir.AssignExpr:
+		if target, ok := e.Target.(*ir.IndexExpr); ok {
+			return i.assignIndex(target, e.Value, env)
+		}
 		value, err := i.eval(e.Value, env)
 		if err != nil {
 			return nil, err
@@ -109,6 +112,20 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			array.Elements = append(array.Elements, value)
 		}
 		return array, nil
+	case *ir.MapLiteral:
+		out := &Map{Entries: make(map[string]mapEntry, len(e.Entries))}
+		for _, entry := range e.Entries {
+			key, err := i.eval(entry.Key, env)
+			if err != nil {
+				return nil, err
+			}
+			value, err := i.eval(entry.Value, env)
+			if err != nil {
+				return nil, err
+			}
+			out.Entries[valueKey(key)] = mapEntry{Key: key, Value: value}
+		}
+		return out, nil
 	case *ir.StructLiteral:
 		fields := map[string]Value{}
 		order := make([]string, 0, len(e.Fields))
@@ -148,6 +165,28 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return i.evalPatternBlock(&ir.PatternBlock{ExprBase: e.ExprBase, Branches: e.Branches}, subject, env)
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", expr)
+	}
+}
+
+func (i *Interpreter) assignIndex(target *ir.IndexExpr, valueExpr ir.Expr, env *Env) (Value, error) {
+	receiver, err := i.eval(target.Receiver, env)
+	if err != nil {
+		return nil, err
+	}
+	index, err := i.eval(target.Index, env)
+	if err != nil {
+		return nil, err
+	}
+	value, err := i.eval(valueExpr, env)
+	if err != nil {
+		return nil, err
+	}
+	switch target := receiver.(type) {
+	case *Map:
+		target.Entries[valueKey(index)] = mapEntry{Key: index, Value: value}
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("%s is not assignable by index", typeName(receiver))
 	}
 }
 
@@ -735,18 +774,25 @@ func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, erro
 }
 
 func indexValue(receiver Value, index Value) (Value, error) {
-	array, ok := receiver.(*Array)
-	if !ok {
+	switch value := receiver.(type) {
+	case *Array:
+		i, ok := index.(int)
+		if !ok {
+			return nil, fmt.Errorf("array index expects Int")
+		}
+		if i < 0 || i >= len(value.Elements) {
+			return nil, fmt.Errorf("array index %d out of range", i)
+		}
+		return value.Elements[i], nil
+	case *Map:
+		entry, ok := value.Entries[valueKey(index)]
+		if !ok {
+			return nil, nil
+		}
+		return entry.Value, nil
+	default:
 		return nil, fmt.Errorf("%s is not indexable", typeName(receiver))
 	}
-	i, ok := index.(int)
-	if !ok {
-		return nil, fmt.Errorf("array index expects Int")
-	}
-	if i < 0 || i >= len(array.Elements) {
-		return nil, fmt.Errorf("array index %d out of range", i)
-	}
-	return array.Elements[i], nil
 }
 
 func typeName(value Value) string {

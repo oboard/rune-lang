@@ -370,6 +370,42 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateMapLiteralProgram(t *testing.T) {
+	src := `main() => {
+  scores := {
+    "a": 1,
+    "b": 2
+  }
+  @io.println(scores["a"])
+  scores["b"] = 3
+  @io.println(scores["b"])
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`__scores := map[string]int{"a": 1, "b": 2}`,
+		`fmt.Println(__scores["a"])`,
+		`__scores["b"] = 3`,
+		`fmt.Println(__scores["b"])`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
 	src := `main() => {
   bytes := @binary.new(16)

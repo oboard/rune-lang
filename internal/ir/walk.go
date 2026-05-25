@@ -20,6 +20,7 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		WalkExpr(e.Consequence, visit)
 		WalkExpr(e.Alternative, visit)
 	case *AssignExpr:
+		WalkExpr(e.Target, visit)
 		WalkExpr(e.Value, visit)
 	case *CallExpr:
 		WalkExpr(e.Callee, visit)
@@ -36,6 +37,11 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	case *ArrayLiteral:
 		for _, elem := range e.Elements {
 			WalkExpr(elem, visit)
+		}
+	case *MapLiteral:
+		for _, entry := range e.Entries {
+			WalkExpr(entry.Key, visit)
+			WalkExpr(entry.Value, visit)
 		}
 	case *SpreadExpr:
 		WalkExpr(e.Expr, visit)

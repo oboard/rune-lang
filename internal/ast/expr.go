@@ -165,9 +165,10 @@ func (e *TernaryExpr) Position() lexer.Position {
 }
 
 type AssignExpr struct {
-	Name  string
-	Value Expr
-	Pos   lexer.Position
+	Name   string
+	Target Expr
+	Value  Expr
+	Pos    lexer.Position
 }
 
 func (*AssignExpr) exprNode() {}
@@ -253,6 +254,22 @@ type ReactiveLiteral struct {
 
 func (*ReactiveLiteral) exprNode() {}
 func (e *ReactiveLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type MapEntry struct {
+	Key   Expr
+	Value Expr
+	Pos   lexer.Position
+}
+
+type MapLiteral struct {
+	Entries []MapEntry
+	Pos     lexer.Position
+}
+
+func (*MapLiteral) exprNode() {}
+func (e *MapLiteral) Position() lexer.Position {
 	return e.Pos
 }
 

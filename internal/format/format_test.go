@@ -33,6 +33,30 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestMapLiteralFormatting(t *testing.T) {
+	src := `main()=>{values:={"a":1,"b":2}values["b"]=3}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  values := {
+    "a": 1,
+    "b": 2,
+  }
+  values["b"] = 3
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestAnonymousObjectMethodReturnTypeFormatting(t *testing.T) {
 	src := `main()=>{obj:={nextAge() -> Int => .age + 1 title(prefix: String) -> String => prefix + .name}}`
 	file, errs := parser.Parse(src)

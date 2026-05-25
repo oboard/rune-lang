@@ -225,6 +225,31 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateMapLiteralProgram(t *testing.T) {
+	src := `main() => {
+  scores := {
+    "a": 1,
+    "b": 2
+  }
+  @io.println(scores["a"])
+  scores["b"] = 3
+  @io.println(scores["b"])
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
+		`console.log(__scores.get("a")!);`,
+		`__scores.set("b", 3);`,
+		`console.log(__scores.get("b")!);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
 	src := `main() => {
   bytes := @binary.new(16)

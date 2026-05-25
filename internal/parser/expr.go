@@ -65,14 +65,12 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			continue
 		}
 		if minPrec <= 1 && p.match(lexer.Assign) {
-			ident, ok := left.(*ast.Identifier)
-			if !ok {
-				p.errorAt(lexer.Token{Pos: left.Position()}, "assignment target must be an identifier")
-				left = p.parseExpression(1)
-				continue
+			name := ""
+			if ident, ok := left.(*ast.Identifier); ok {
+				name = ident.Name
 			}
 			p.skipNewlines()
-			left = &ast.AssignExpr{Name: ident.Name, Value: p.parseExpression(1), Pos: ident.Pos}
+			left = &ast.AssignExpr{Name: name, Target: left, Value: p.parseExpression(1), Pos: left.Position()}
 			continue
 		}
 		if minPrec <= 1 && p.check(lexer.Question) && p.questionIsPostfixUnwrap() {
@@ -158,7 +156,7 @@ func (p *Parser) parseLambda() ast.Expr {
 	p.skipNewlines()
 	var body ast.Expr
 	if p.check(lexer.LBrace) && !p.looksLikePatternBranch() {
-		body = p.parseAnonymousObjectLiteral()
+		body = p.parseBraceLiteral()
 	} else {
 		body = p.parseBody()
 	}
@@ -309,7 +307,7 @@ func (p *Parser) parsePrimary() ast.Expr {
 	case lexer.Dollar:
 		return p.parseReactiveLiteral()
 	case lexer.LBrace:
-		return p.parseAnonymousObjectLiteral()
+		return p.parseBraceLiteral()
 	case lexer.LParen:
 		p.advance()
 		p.skipNewlines()
@@ -362,11 +360,36 @@ func (p *Parser) parseReactiveLiteral() ast.Expr {
 	case lexer.LBracket:
 		return &ast.ReactiveLiteral{Value: p.parseArrayLiteral(), Pos: start.Pos}
 	case lexer.LBrace:
-		return &ast.ReactiveLiteral{Value: p.parseAnonymousObjectLiteral(), Pos: start.Pos}
+		return &ast.ReactiveLiteral{Value: p.parseBraceLiteral(), Pos: start.Pos}
 	default:
 		p.errorAt(p.peek(), "expected '[' or '{' after '$'")
 		return &ast.Identifier{Name: "<error>", Pos: start.Pos}
 	}
+}
+
+func (p *Parser) parseBraceLiteral() ast.Expr {
+	if p.looksLikeMapLiteralBody() {
+		return p.parseMapLiteral()
+	}
+	return p.parseAnonymousObjectLiteral()
+}
+
+func (p *Parser) parseMapLiteral() ast.Expr {
+	start := p.consume(lexer.LBrace, "expected '{'")
+	lit := &ast.MapLiteral{Pos: start.Pos}
+	p.skipNewlines()
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		key := p.parseExpression(1)
+		p.consume(lexer.Colon, "expected ':' after map key")
+		p.skipNewlines()
+		value := p.parseExpression(1)
+		lit.Entries = append(lit.Entries, ast.MapEntry{Key: key, Value: value, Pos: key.Position()})
+		p.consumeStatementEnd()
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after map literal")
+	return lit
 }
 
 func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {

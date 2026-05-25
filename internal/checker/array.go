@@ -41,23 +41,89 @@ func (c *checker) inferArrayLiteral(lit *ast.ArrayLiteral, env map[string]Type) 
 	return ArrayOf(elemType)
 }
 
-func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type {
-	if _, ok := c.info.Stdlib.FunctionByAlias("array", "_[_]"); !ok {
-		c.errorf(expr.Pos, "array index operator is not declared in core/array")
+func (c *checker) inferMapLiteral(lit *ast.MapLiteral, env map[string]Type) Type {
+	keyType := Unknown
+	valueType := Unknown
+	for _, entry := range lit.Entries {
+		key := c.inferExpr(entry.Key, env)
+		value := c.inferExpr(entry.Value, env)
+		if keyType == Unknown {
+			keyType = key
+		} else if key != Unknown {
+			unified, ok := c.unifyTypes(keyType, key)
+			if !ok {
+				c.errorf(entry.Key.Position(), "map key has type %s, expected %s", key, keyType)
+			} else {
+				keyType = unified
+			}
+		}
+		if valueType == Unknown {
+			valueType = value
+		} else if value != Unknown {
+			unified, ok := c.unifyTypes(valueType, value)
+			if !ok {
+				c.errorf(entry.Value.Position(), "map value has type %s, expected %s", value, valueType)
+			} else {
+				valueType = unified
+			}
+		}
 	}
+	if !mapKeyType(keyType) && keyType != Unknown {
+		c.errorf(lit.Pos, "map key type %s is not supported", keyType)
+	}
+	return MapOf(keyType, valueType)
+}
+
+func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type {
 	receiver := c.inferExpr(expr.Receiver, env)
 	index := c.inferExpr(expr.Index, env)
-	if index != Int && index != Unknown {
-		c.errorf(expr.Index.Position(), "array index expects Int, got %s", index)
-	}
-	elem, ok := ArrayElement(receiver)
-	if !ok {
-		if receiver != Unknown {
-			c.errorf(expr.Pos, "type %s is not indexable", receiver)
+	if elem, ok := ArrayElement(receiver); ok {
+		if _, ok := c.info.Stdlib.FunctionByAlias("array", "_[_]"); !ok {
+			c.errorf(expr.Pos, "array index operator is not declared in core/array")
 		}
-		return Unknown
+		if index != Int && index != Unknown {
+			c.errorf(expr.Index.Position(), "array index expects Int, got %s", index)
+		}
+		return elem
 	}
-	return elem
+	if key, value, ok := MapKeyValue(receiver); ok {
+		if !typesCompatible(key, index, nil) {
+			c.errorf(expr.Index.Position(), "map index has type %s, expected %s", index, key)
+		}
+		return value
+	}
+	if receiver != Unknown {
+		c.errorf(expr.Pos, "type %s is not indexable", receiver)
+	}
+	return Unknown
+}
+
+func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env map[string]Type) Type {
+	receiver := c.inferExpr(target.Receiver, env)
+	index := c.inferExpr(target.Index, env)
+	actual := c.inferExpr(value, env)
+	if key, expected, ok := MapKeyValue(receiver); ok {
+		if !typesCompatible(key, index, nil) {
+			c.errorf(target.Index.Position(), "map index has type %s, expected %s", index, key)
+		}
+		if !typesCompatible(expected, actual, nil) {
+			c.errorf(value.Position(), "map assignment has type %s, expected %s", actual, expected)
+		}
+		return Void
+	}
+	if receiver != Unknown {
+		c.errorf(target.Pos, "type %s is not assignable by index", receiver)
+	}
+	return Void
+}
+
+func mapKeyType(typ Type) bool {
+	switch typ {
+	case String, Bool, Int, Int4, Int8, Int16, Int64, UInt, UInt8, UInt16, UInt64, Double, Float:
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) Type {

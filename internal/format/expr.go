@@ -47,7 +47,11 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.TernaryExpr:
 		return f.ternaryExpr(e)
 	case *ast.AssignExpr:
-		return fmt.Sprintf("%s = %s", e.Name, f.expr(e.Value))
+		target := e.Name
+		if e.Target != nil {
+			target = f.expr(e.Target)
+		}
+		return fmt.Sprintf("%s = %s", target, f.expr(e.Value))
 	case *ast.CallExpr:
 		if formatted, ok := f.chainCallExpr(e); ok {
 			return formatted
@@ -72,6 +76,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return "..." + f.expr(e.Expr)
 	case *ast.ReactiveLiteral:
 		return "$" + f.expr(e.Value)
+	case *ast.MapLiteral:
+		return f.mapLiteral(e)
 	case *ast.StructLiteral:
 		return f.structLiteral(e)
 	case *ast.AnonymousObjectLiteral:
@@ -377,6 +383,26 @@ func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
 		b.WriteString(": ")
 		b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
 		b.WriteByte('\n')
+	}
+	b.WriteString(closeIndent)
+	b.WriteString("}")
+	return b.String()
+}
+
+func (f *formatter) mapLiteral(lit *ast.MapLiteral) string {
+	if len(lit.Entries) == 0 {
+		return "{}"
+	}
+	var b strings.Builder
+	entryIndent := f.indentString(f.indent + 1)
+	closeIndent := f.indentString(f.indent)
+	b.WriteString("{\n")
+	for _, entry := range lit.Entries {
+		b.WriteString(entryIndent)
+		b.WriteString(f.expr(entry.Key))
+		b.WriteString(": ")
+		b.WriteString(f.exprWithIndent(entry.Value, f.indent+1))
+		b.WriteString(",\n")
 	}
 	b.WriteString(closeIndent)
 	b.WriteString("}")

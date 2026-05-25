@@ -9,7 +9,16 @@ import (
 	"strings"
 )
 
+var defaultRegistry *Registry
+
+func SetDefault(reg *Registry) {
+	defaultRegistry = reg
+}
+
 func LoadDefault() (*Registry, error) {
+	if defaultRegistry != nil {
+		return defaultRegistry, nil
+	}
 	root, err := findCoreRoot()
 	if err != nil {
 		return nil, err
