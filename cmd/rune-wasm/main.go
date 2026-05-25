@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/compiler"
 	runefmt "github.com/oboard/rune-lang/internal/format"
+	"github.com/oboard/rune-lang/internal/interpreter"
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/stdlib"
@@ -27,6 +29,7 @@ type response struct {
 	Diagnostics []diagnostic `json:"diagnostics,omitempty"`
 	TypeScript  string       `json:"typescript,omitempty"`
 	Formatted   string       `json:"formatted,omitempty"`
+	Tests       []testResult `json:"tests,omitempty"`
 	LSP         any          `json:"lsp,omitempty"`
 	ElapsedMS   float64      `json:"elapsedMs,omitempty"`
 }
@@ -49,12 +52,27 @@ type lspRequest struct {
 	InsertSpaces       bool   `json:"insertSpaces"`
 }
 
+type testRequest struct {
+	URI    string `json:"uri"`
+	Source string `json:"source"`
+	Name   string `json:"name"`
+}
+
+type testResult struct {
+	Name      string  `json:"name"`
+	Passed    bool    `json:"passed"`
+	Error     string  `json:"error,omitempty"`
+	Output    string  `json:"output,omitempty"`
+	ElapsedMS float64 `json:"elapsedMs,omitempty"`
+}
+
 func main() {
 	b := &bridge{}
 	js.Global().Set("runeInitCompiler", js.FuncOf(b.initCompiler))
 	js.Global().Set("runeCompile", js.FuncOf(b.compile))
 	js.Global().Set("runeFormat", js.FuncOf(b.format))
 	js.Global().Set("runeLSP", js.FuncOf(b.handleLSP))
+	js.Global().Set("runeTest", js.FuncOf(b.runTest))
 	select {}
 }
 
@@ -127,6 +145,65 @@ func (b *bridge) format(_ js.Value, args []js.Value) any {
 			Formatted: runefmt.Source(file, src),
 			ElapsedMS: float64(time.Since(start).Microseconds()) / 1000,
 		}
+	})
+}
+
+func (b *bridge) runTest(_ js.Value, args []js.Value) any {
+	return safeJSON(func() response {
+		start := time.Now()
+		if b.registry == nil {
+			return response{OK: false, Error: "Rune compiler has not been initialized"}
+		}
+		if len(args) != 1 || args[0].Type() != js.TypeString {
+			return response{OK: false, Error: "runeTest expects a JSON request"}
+		}
+		var req testRequest
+		if err := json.Unmarshal([]byte(args[0].String()), &req); err != nil {
+			return response{OK: false, Error: err.Error()}
+		}
+		uri := req.URI
+		if uri == "" {
+			uri = "playground.rn"
+		}
+		prog, diags := compiler.AnalyzeSourceWithStdlib(uri, req.Source, b.registry)
+		out := response{
+			OK:          len(diags) == 0,
+			Diagnostics: convertDiagnostics(diags),
+			ElapsedMS:   float64(time.Since(start).Microseconds()) / 1000,
+		}
+		if len(diags) > 0 {
+			out.Error = "compile failed"
+			return out
+		}
+		for _, test := range prog.IR.Tests {
+			if req.Name != "" && test.Name != req.Name {
+				continue
+			}
+			var testOutput bytes.Buffer
+			testStart := time.Now()
+			err := interpreter.New(prog.IR, interpreter.WithOutput(&testOutput)).RunTest(test)
+			result := testResult{
+				Name:      test.Name,
+				Passed:    err == nil,
+				Output:    testOutput.String(),
+				ElapsedMS: float64(time.Since(testStart).Microseconds()) / 1000,
+			}
+			if err != nil {
+				result.Error = err.Error()
+				out.OK = false
+			}
+			out.Tests = append(out.Tests, result)
+		}
+		if len(out.Tests) == 0 {
+			out.OK = false
+			if req.Name == "" {
+				out.Error = "no tests found"
+			} else {
+				out.Error = "test not found: " + req.Name
+			}
+		}
+		out.ElapsedMS = float64(time.Since(start).Microseconds()) / 1000
+		return out
 	})
 }
 

@@ -22,7 +22,6 @@ import "monaco-editor/esm/vs/editor/contrib/semanticTokens/browser/documentSeman
 import "monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController.js";
 import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import runeIcon from "../../rune-icon.svg";
 import "./App.css";
 
 type MonacoModule = typeof monaco;
@@ -44,6 +43,7 @@ declare global {
     runeFormat?: (source: string) => string;
     runeInitCompiler?: (coreSources: string) => string;
     runeLSP?: (request: string) => string;
+    runeTest?: (request: string) => string;
     __runeLanguageDisposables?: Disposable[];
   }
 }
@@ -53,6 +53,7 @@ type Example = {
   label: string;
   source: string;
   runnable: boolean;
+  testable: boolean;
 };
 
 type RuneDiagnostic = {
@@ -66,8 +67,17 @@ type BridgeResponse = {
   error?: string;
   diagnostics?: RuneDiagnostic[];
   lsp?: unknown;
+  tests?: RuneTestResult[];
   typescript?: string;
   formatted?: string;
+  elapsedMs?: number;
+};
+
+type RuneTestResult = {
+  name: string;
+  passed: boolean;
+  error?: string;
+  output?: string;
   elapsedMs?: number;
 };
 
@@ -126,6 +136,13 @@ type LSPCommand = {
 type LSPCodeLens = {
   range: LSPRange;
   command?: LSPCommand;
+};
+
+type RuneTestSpec = {
+  uri?: string;
+  name: string;
+  line?: number;
+  character?: number;
 };
 
 type LSPTextEdit = {
@@ -239,6 +256,7 @@ const examples = Object.entries(exampleModules)
       label: toTitle(name),
       source,
       runnable: runnableExampleNames.has(name),
+      testable: sourceHasTests(source),
     };
   })
   .filter((example) => !hiddenExampleNames.has(example.name))
@@ -273,7 +291,7 @@ let runMainCommandHandler: (() => void) | undefined;
 let previewRenderCommandRegistered = false;
 let previewRenderCommandHandler: (() => void) | undefined;
 let runTestCommandRegistered = false;
-let runTestCommandHandler: (() => void) | undefined;
+let runTestCommandHandler: ((spec?: unknown) => void) | undefined;
 let entryCounter = 0;
 
 function App() {
@@ -300,6 +318,7 @@ function App() {
   const compileSequence = useRef(0);
   const runCurrentRef = useRef<() => void>(() => {});
   const previewCurrentRef = useRef<() => void>(() => {});
+  const runTestCurrentRef = useRef<(spec?: unknown) => void>(() => {});
   const previewSourceRef = useRef("");
 
   const currentExample = useMemo(
@@ -466,21 +485,13 @@ function App() {
           previewRenderCommandHandler?.();
         });
       }
-      runTestCommandHandler = () => {
-        setActivePanel("console");
-        setConsoleEntries((entries) => [
-          ...entries,
-          {
-            id: nextEntryId(),
-            level: "warn",
-            text: "Test CodeLens comes from the language server; browser test execution is not available yet.",
-          },
-        ]);
+      runTestCommandHandler = (spec?: unknown) => {
+        runTestCurrentRef.current(spec);
       };
       if (!runTestCommandRegistered) {
         runTestCommandRegistered = true;
-        monacoModule.editor.registerCommand("rune.runTest", () => {
-          runTestCommandHandler?.();
+        monacoModule.editor.registerCommand("rune.runTest", (_accessor, spec?: unknown) => {
+          runTestCommandHandler?.(spec);
         });
       }
       editor.addAction({
@@ -619,6 +630,55 @@ function App() {
     await executeCurrent("render", "preview");
   }, [executeCurrent]);
 
+  const runTestCurrent = useCallback(
+    async (spec?: unknown) => {
+      if (isRunning) {
+        return;
+      }
+      const testSpec = isRuneTestSpec(spec) ? spec : undefined;
+      setIsRunning(true);
+      setActivePanel("console");
+      setConsoleEntries([
+        {
+          id: nextEntryId(),
+          level: "system",
+          text: testSpec?.name ? `Running test "${testSpec.name}".` : "Running tests.",
+        },
+      ]);
+      try {
+        const result = await runRuneTest(source, testSpec?.name, testSpec?.uri);
+        applyDiagnostics(result.diagnostics ?? []);
+        const tests = result.tests ?? [];
+        const entries = testResultsToConsoleEntries(tests);
+        if (!result.ok && tests.length === 0) {
+          entries.push({
+            id: nextEntryId(),
+            level: "error",
+            text: result.error ?? "Test failed.",
+          });
+        }
+        entries.push({
+          id: nextEntryId(),
+          level: result.ok ? "system" : "error",
+          text: testSummaryText(tests, result.elapsedMs),
+        });
+        setConsoleEntries((current) => [...current, ...entries]);
+      } catch (error) {
+        setConsoleEntries((current) => [
+          ...current,
+          {
+            id: nextEntryId(),
+            level: "error",
+            text: errorMessage(error),
+          },
+        ]);
+      } finally {
+        setIsRunning(false);
+      }
+    },
+    [applyDiagnostics, isRunning, source],
+  );
+
   useEffect(() => {
     runCurrentRef.current = () => {
       void runCurrent();
@@ -630,6 +690,12 @@ function App() {
       void previewCurrent();
     };
   }, [previewCurrent]);
+
+  useEffect(() => {
+    runTestCurrentRef.current = (spec?: unknown) => {
+      void runTestCurrent(spec);
+    };
+  }, [runTestCurrent]);
 
   const handleSourceChange = useCallback((value?: string) => {
     setSource(value ?? "");
@@ -650,26 +716,6 @@ function App() {
 
   return (
     <main className="playground-shell">
-      <header className="topbar">
-        <div className="brand">
-          <img src={runeIcon} alt="" />
-          <div>
-            <h1>Rune Playground</h1>
-            <p>Monaco editor, wasm compiler, TypeScript runtime</p>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <button type="button" className="ghost-button" onClick={() => void compileSource(source)}>
-            <Braces size={16} />
-            Compile
-          </button>
-          <button type="button" className="ghost-button" onClick={() => void formatCurrent()}>
-            <Sparkles size={16} />
-            Format
-          </button>
-        </div>
-      </header>
-
       <section className="workspace">
         <aside className="examples-pane" aria-label="Examples">
           <div className="pane-heading">
@@ -691,7 +737,7 @@ function App() {
               {examples.map((example) => (
                 <option key={example.name} value={example.name}>
                   {example.label}
-                  {example.runnable ? "" : " (check)"}
+                  {example.runnable ? "" : example.testable ? " (test)" : " (check)"}
                 </option>
               ))}
             </select>
@@ -705,7 +751,7 @@ function App() {
                 onClick={() => selectExample(example)}
               >
                 <span>{example.label}</span>
-                <small>{example.runnable ? "TS" : "check"}</small>
+                <small>{example.runnable ? "TS" : example.testable ? "test" : "check"}</small>
               </button>
             ))}
           </div>
@@ -720,10 +766,16 @@ function App() {
                 {compileState.message}
               </span>
             </div>
-            <span className="diagnostic-count">
-              {diagnosticsCount === 0 ? "0 diagnostics" : `${diagnosticsCount} diagnostics`}
-              {compileState.elapsedMs !== undefined ? ` · ${formatDuration(compileState.elapsedMs)}` : ""}
-            </span>
+            <div className="editor-toolbar-actions">
+              <span className="diagnostic-count">
+                {diagnosticsCount === 0 ? "0 diagnostics" : `${diagnosticsCount} diagnostics`}
+                {compileState.elapsedMs !== undefined ? ` · ${formatDuration(compileState.elapsedMs)}` : ""}
+              </span>
+              <button type="button" className="ghost-button compact-button" onClick={() => void formatCurrent()}>
+                <Sparkles size={15} />
+                Format
+              </button>
+            </div>
           </div>
           <div className="editor-frame">
             <Editor
@@ -837,12 +889,12 @@ async function ensureRuneWasm() {
 }
 
 async function loadRuneWasm() {
-  await loadScript("/wasm_exec.js");
+  await loadScript(playgroundAssetPath("wasm_exec.js"));
   if (!window.Go) {
     throw new Error("Go wasm runtime did not register window.Go");
   }
   const go = new window.Go();
-  const wasmResponse = await fetch("/rune.wasm");
+  const wasmResponse = await fetch(playgroundAssetPath("rune.wasm"));
   if (!wasmResponse.ok) {
     throw new Error(`Failed to load rune.wasm: ${wasmResponse.status}`);
   }
@@ -856,6 +908,11 @@ async function loadRuneWasm() {
   if (!init.ok) {
     throw new Error(init.error ?? "Rune compiler initialization failed");
   }
+}
+
+function playgroundAssetPath(name: string) {
+  const base = import.meta.env.BASE_URL || "/";
+  return `${base.endsWith("/") ? base : `${base}/`}${name}`;
 }
 
 async function compileRune(source: string) {
@@ -872,6 +929,22 @@ async function formatRune(source: string) {
     throw new Error("Rune formatter bridge is unavailable");
   }
   return parseBridgeResponse(window.runeFormat(source));
+}
+
+async function runRuneTest(source: string, name?: string, uri = "file:///playground.rn") {
+  await ensureRuneWasm();
+  if (!window.runeTest) {
+    throw new Error("Rune test bridge is unavailable");
+  }
+  return parseBridgeResponse(
+    window.runeTest(
+      JSON.stringify({
+        uri,
+        source,
+        name: name ?? "",
+      }),
+    ),
+  );
 }
 
 async function requestRuneLSP<T>(
@@ -1429,6 +1502,54 @@ function renderPreviewCodeLenses(monacoModule: MonacoModule, model: monaco.edito
 
 function sourceHasRender(value: string) {
   return /^\s*render\s*\(/m.test(value);
+}
+
+function sourceHasTests(value: string) {
+  return /^\s*\?\s*"/m.test(value);
+}
+
+function isRuneTestSpec(value: unknown): value is RuneTestSpec {
+  if (!isRecord(value) || typeof value.name !== "string") {
+    return false;
+  }
+  return value.name.length > 0;
+}
+
+function testResultsToConsoleEntries(results: RuneTestResult[]) {
+  return results.flatMap((result) => {
+    const entries: ConsoleEntry[] = [
+      {
+        id: nextEntryId(),
+        level: result.passed ? "system" : "error",
+        text: `${result.passed ? "PASS" : "FAIL"} ${result.name} (${formatDuration(result.elapsedMs)})`,
+      },
+    ];
+    if (result.output) {
+      entries.push({
+        id: nextEntryId(),
+        level: "log",
+        text: result.output.trimEnd(),
+      });
+    }
+    if (result.error) {
+      entries.push({
+        id: nextEntryId(),
+        level: "error",
+        text: result.error,
+      });
+    }
+    return entries;
+  });
+}
+
+function testSummaryText(results: RuneTestResult[], elapsedMs?: number) {
+  if (results.length === 0) {
+    return "No tests ran.";
+  }
+  const passed = results.filter((result) => result.passed).length;
+  const failed = results.length - passed;
+  const status = failed === 0 ? "PASS" : "FAIL";
+  return `${status} ${results.length} test${results.length === 1 ? "" : "s"}, ${passed} passed, ${failed} failed in ${formatDuration(elapsedMs)}.`;
 }
 
 function toLSPPosition(position: monaco.Position): LSPPosition {

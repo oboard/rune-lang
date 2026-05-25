@@ -2,6 +2,50 @@
   white-space: normal;
 }
 
+.rune-playground-page .VPDoc {
+  padding: 0;
+}
+
+.rune-playground-page .VPSidebar,
+.rune-playground-page .VPDoc h1,
+.rune-playground-page .VPDocFooter {
+  display: none;
+}
+
+.rune-playground-page .VPContent,
+.rune-playground-page .VPContent.has-sidebar {
+  padding-left: 0;
+}
+
+.rune-playground-page .VPDoc .container,
+.rune-playground-page .VPDoc .content,
+.rune-playground-page .VPDoc .content-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.rune-playground-page .VPDoc .content {
+  padding: 0;
+}
+
+.rune-playground-page .rune-playground-embed {
+  height: calc(100vh - var(--vp-nav-height));
+  min-height: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: #111216;
+}
+
+.rune-playground-page .rune-playground-embed iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #111216;
+}
+
 @media (max-width: 640px) {
   .VPHomeHero .image {
     margin: 0 auto 24px;
@@ -26,5 +70,9 @@
   .VPHomeHero .actions {
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .rune-playground-page .rune-playground-embed {
+    height: calc(100dvh - var(--vp-nav-height));
   }
 }

@@ -1,4 +1,16 @@
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { cpSync, mkdirSync, readFileSync, rmSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import process from 'node:process'
+import { fileURLToPath } from 'node:url'
+import type { Plugin } from 'vite'
+
+const vitepressDir = dirname(fileURLToPath(import.meta.url))
+const docsDir = join(vitepressDir, '..')
+const repoDir = join(docsDir, '..')
+const playgroundDir = join(repoDir, 'playground')
+const embeddedPlaygroundDir = join(docsDir, 'public', 'playground-app')
+let embeddedPlaygroundBuilt = false
 
 const runeGrammar = JSON.parse(
   readFileSync(
@@ -11,6 +23,63 @@ const runeLanguage = {
   ...runeGrammar,
   name: 'rune',
   aliases: ['rn']
+}
+
+function buildEmbeddedPlayground() {
+  execFileSync('bun', ['run', 'build'], {
+    cwd: playgroundDir,
+    env: {
+      ...process.env,
+      PLAYGROUND_BASE: '/playground-app/'
+    },
+    stdio: 'inherit'
+  })
+  rmSync(embeddedPlaygroundDir, { recursive: true, force: true })
+  mkdirSync(dirname(embeddedPlaygroundDir), { recursive: true })
+  cpSync(join(playgroundDir, 'dist'), embeddedPlaygroundDir, { recursive: true })
+  embeddedPlaygroundBuilt = true
+}
+
+function ensureEmbeddedPlaygroundBuilt(force = false) {
+  if (embeddedPlaygroundBuilt && !force) {
+    return
+  }
+  buildEmbeddedPlayground()
+}
+
+function embeddedPlaygroundPlugin(): Plugin {
+  let command: 'build' | 'serve' = 'build'
+  const watched = [
+    join(playgroundDir, 'src'),
+    join(playgroundDir, 'index.html'),
+    join(playgroundDir, 'vite.config.ts'),
+    join(playgroundDir, 'package.json'),
+    join(repoDir, 'cmd', 'rune-wasm'),
+    join(repoDir, 'core'),
+    join(repoDir, 'examples'),
+    join(repoDir, 'internal')
+  ]
+  return {
+    name: 'rune-docs-playground',
+    configResolved(config) {
+      command = config.command
+    },
+    buildStart() {
+      if (command === 'build') {
+        ensureEmbeddedPlaygroundBuilt()
+      }
+    },
+    configureServer(server) {
+      ensureEmbeddedPlaygroundBuilt()
+      server.watcher.add(watched)
+      server.watcher.on('change', (file) => {
+        if (watched.some((path) => file.startsWith(path))) {
+          ensureEmbeddedPlaygroundBuilt(true)
+          server.ws.send({ type: 'full-reload' })
+        }
+      })
+    }
+  }
 }
 
 const englishSidebar = [
@@ -30,7 +99,10 @@ const englishSidebar = [
   },
   {
     text: 'Tools',
-    items: [{ text: 'CLI and Editor', link: '/tools/cli-and-editor' }]
+    items: [
+      { text: 'CLI and Editor', link: '/tools/cli-and-editor' },
+      { text: 'Playground', link: '/playground' }
+    ]
   }
 ]
 
@@ -51,7 +123,10 @@ const chineseSidebar = [
   },
   {
     text: '工具',
-    items: [{ text: 'CLI 与编辑器', link: '/zh/tools/cli-and-editor' }]
+    items: [
+      { text: 'CLI 与编辑器', link: '/zh/tools/cli-and-editor' },
+      { text: 'Playground', link: '/zh/playground' }
+    ]
   }
 ]
 
@@ -72,13 +147,17 @@ export default {
     // Keep compatibility with VitePress 1.x while moving to 2.x alpha.
     languages: [runeLanguage]
   },
+  vite: {
+    plugins: [embeddedPlaygroundPlugin()]
+  },
   themeConfig: {
     logo: '/rune-icon.svg',
     search: { provider: 'local' },
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Language', link: '/language/fundamentals' },
-      { text: 'Core Library', link: '/language/core-library' }
+      { text: 'Core Library', link: '/language/core-library' },
+      { text: 'Playground', link: '/playground' }
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/oboard/rune-lang' }],
     sidebar: englishSidebar
@@ -94,7 +173,8 @@ export default {
         nav: [
           { text: 'Guide', link: '/guide/getting-started' },
           { text: 'Language', link: '/language/fundamentals' },
-          { text: 'Core Library', link: '/language/core-library' }
+          { text: 'Core Library', link: '/language/core-library' },
+          { text: 'Playground', link: '/playground' }
         ],
         socialLinks: [{ icon: 'github', link: 'https://github.com/oboard/rune-lang' }],
         sidebar: englishSidebar
@@ -110,7 +190,8 @@ export default {
         nav: [
           { text: '指南', link: '/zh/guide/getting-started' },
           { text: '语言', link: '/zh/language/fundamentals' },
-          { text: '核心库', link: '/zh/language/core-library' }
+          { text: '核心库', link: '/zh/language/core-library' },
+          { text: 'Playground', link: '/zh/playground' }
         ],
         socialLinks: [{ icon: 'github', link: 'https://github.com/oboard/rune-lang' }],
         sidebar: chineseSidebar,

@@ -10,6 +10,7 @@ import react from "@vitejs/plugin-react";
 const playgroundDir = dirname(fileURLToPath(import.meta.url));
 const repoDir = join(playgroundDir, "..");
 const publicDir = join(playgroundDir, "public");
+const playgroundBase = process.env.PLAYGROUND_BASE ?? "/";
 
 function buildRuneWasm() {
   mkdirSync(publicDir, { recursive: true });
@@ -53,6 +54,7 @@ function runeWasmPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: playgroundBase,
   fmt: {},
   lint: {
     plugins: ["oxc", "typescript", "unicorn", "react"],
