@@ -1,6 +1,4 @@
-newMap[K, V](keyType: K, valueType: V) -> Map[K, V] => "%map.new"
-
-newSet[T](valueType: T) -> Set[T] => "%set.new"
+new[K, V](keyType: K, valueType: V) -> Map[K, V] => "%map.new"
 
 Map[K, V]: {
     size() -> Int => "%map.size"
@@ -46,12 +44,4 @@ WeakMap[K, V]: {
     set(key: K, value: V) -> WeakMap[K, V] => "%weakMap.set"
 
     delete(key: K) -> Bool => "%weakMap.delete"
-}
-
-WeakSet[T]: {
-    has(value: T) -> Bool => "%weakSet.has"
-
-    add(value: T) -> WeakSet[T] => "%weakSet.add"
-
-    delete(value: T) -> Bool => "%weakSet.delete"
 }

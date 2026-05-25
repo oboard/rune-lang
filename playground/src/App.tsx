@@ -114,6 +114,17 @@ type LSPRange = {
   end: LSPPosition;
 };
 
+type LSPCommand = {
+  title: string;
+  command: string;
+  arguments?: unknown[];
+};
+
+type LSPCodeLens = {
+  range: LSPRange;
+  command?: LSPCommand;
+};
+
 type LSPTextEdit = {
   range: LSPRange;
   newText: string;
@@ -256,6 +267,8 @@ let esbuildPromise: Promise<void> | undefined;
 let runeLanguageConfigured = false;
 let runMainCommandRegistered = false;
 let runMainCommandHandler: (() => void) | undefined;
+let runTestCommandRegistered = false;
+let runTestCommandHandler: (() => void) | undefined;
 let entryCounter = 0;
 
 function App() {
@@ -434,6 +447,23 @@ function App() {
         runMainCommandRegistered = true;
         monacoModule.editor.registerCommand("rune.runMain", () => {
           runMainCommandHandler?.();
+        });
+      }
+      runTestCommandHandler = () => {
+        setActivePanel("console");
+        setConsoleEntries((entries) => [
+          ...entries,
+          {
+            id: nextEntryId(),
+            level: "warn",
+            text: "Test CodeLens comes from the language server; browser test execution is not available yet.",
+          },
+        ]);
+      };
+      if (!runTestCommandRegistered) {
+        runTestCommandRegistered = true;
+        monacoModule.editor.registerCommand("rune.runTest", () => {
+          runTestCommandHandler?.();
         });
       }
       editor.addAction({
@@ -1227,20 +1257,60 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
     },
   });
   monacoModule.languages.registerCodeLensProvider("rune", {
-    provideCodeLenses(model) {
-      const lenses = mainRunCodeLenses(monacoModule, model).map((range) => ({
-        range,
-        command: {
-          id: "rune.runMain",
-          title: "▶ Run",
-        },
-      }));
+    async provideCodeLenses(model) {
+      const lspLenses =
+        (await requestRuneLSP<LSPCodeLens[]>(model.getValue(), model.uri.toString(), "codeLens").catch(
+          () => [],
+        )) ?? [];
+      const lenses: monaco.languages.CodeLens[] = [];
+      for (const lspLens of lspLenses) {
+        const lens = toMonacoCodeLens(monacoModule, lspLens);
+        if (lens) {
+          lenses.push(lens);
+        }
+      }
+      lenses.push(
+        ...mainRunCodeLenses(monacoModule, model).map((range) => ({
+          range,
+          command: {
+            id: "rune.runMain",
+            title: "$(play) Run",
+            arguments: [],
+          },
+        })),
+      );
       return {
         lenses,
         dispose() {},
       };
     },
   });
+}
+
+function toMonacoCodeLens(monacoModule: MonacoModule, lens: LSPCodeLens): monaco.languages.CodeLens | undefined {
+  if (!lens.command) {
+    return undefined;
+  }
+  return {
+    range: toMonacoRange(monacoModule, lens.range),
+    command: {
+      id: lens.command.command,
+      title: lens.command.title,
+      arguments: lens.command.arguments,
+    },
+  };
+}
+
+function mainRunCodeLenses(monacoModule: MonacoModule, model: monaco.editor.ITextModel) {
+  const ranges: monaco.Range[] = [];
+  for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber += 1) {
+    const line = model.getLineContent(lineNumber);
+    if (!/^\s*main\s*\(/.test(line)) {
+      continue;
+    }
+    ranges.push(new monacoModule.Range(lineNumber, 1, lineNumber, line.length + 1));
+  }
+  return ranges;
 }
 
 function toLSPPosition(position: monaco.Position): LSPPosition {
@@ -1312,18 +1382,6 @@ function symbolKind(monacoModule: MonacoModule, kind: number) {
     default:
       return monacoModule.languages.SymbolKind.Function;
   }
-}
-
-function mainRunCodeLenses(monacoModule: MonacoModule, model: monaco.editor.ITextModel) {
-  const ranges: monaco.Range[] = [];
-  for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber += 1) {
-    const line = model.getLineContent(lineNumber);
-    if (!/^\s*main\s*\(/.test(line)) {
-      continue;
-    }
-    ranges.push(new monacoModule.Range(lineNumber, 1, lineNumber, line.length + 1));
-  }
-  return ranges;
 }
 
 function isRuntimeMessage(value: unknown, token: string): value is RuntimeMessage {

@@ -1,2 +1,29 @@
 main() => {
+  scores := {
+    "rune": 10,
+    "core": 20
+  }
+  @io.println(scores["rune"])
+  scores["core"] = 25
+  @io.println(scores["core"])
+  @io.println(scores.getOr("missing", 0))
+
+  doubled := {
+    1: 2,
+    2: 4,
+    3: 6
+  }
+  @io.println(doubled[2])
+
+  flags := {
+    true: "enabled",
+    false: "disabled"
+  }
+  @io.println(flags[true])
+
+  weights := {
+    1.5: "light",
+    2.5: "heavy"
+  }
+  @io.println(weights[2.5])
 }
