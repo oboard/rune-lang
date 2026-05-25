@@ -1,5 +1,5 @@
 ? "map core methods" {
-  scores := @map.newMap("", 0)
+  scores := @map.new("", 0)
   @assert.eq(scores.size(), 0)
   @assert.eq(scores.has("rune"), false)
   scores.set("rune", 10)
@@ -84,7 +84,7 @@
 }
 
 ? "set core methods" {
-  seen := @map.newSet("")
+  seen := @set.new("")
   @assert.eq(seen.size(), 0)
   @assert.eq(seen.has("a"), false)
   seen.add("a")

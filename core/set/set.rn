@@ -1,0 +1,25 @@
+new[T](valueType: T) -> Set[T] => "%set.new"
+
+Set[T]: {
+    size() -> Int => "%set.size"
+
+    has(value: T) -> Bool => "%set.has"
+
+    add(value: T) -> Set[T] => "%set.add"
+
+    delete(value: T) -> Bool => "%set.delete"
+
+    clear() -> Void => "%set.clear"
+
+    values() -> Array[T] => "%set.values"
+
+    forEach(callbackfn: (value: T, value2?: T, set?: Set[T]) -> Any) => "%set.forEach"
+}
+
+WeakSet[T]: {
+    has(value: T) -> Bool => "%weakSet.has"
+
+    add(value: T) -> WeakSet[T] => "%weakSet.add"
+
+    delete(value: T) -> Bool => "%weakSet.delete"
+}

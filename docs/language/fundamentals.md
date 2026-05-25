@@ -541,7 +541,7 @@ Module functions use `@module.name(...)`:
 ```rune
 @io.println("hello")
 json := @json.stringify({ name: "Rune" })
-scores := @map.newMap("", 0)
+scores := @map.new("", 0)
 ```
 
 The compiler does not invent module functions. Calls are accepted only when a

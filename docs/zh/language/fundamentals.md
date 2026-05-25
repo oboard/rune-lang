@@ -528,7 +528,7 @@ account := {
 ```rune
 @io.println("hello")
 json := @json.stringify({ name: "Rune" })
-scores := @map.newMap("", 0)
+scores := @map.new("", 0)
 ```
 
 编译器不会凭空创造模块函数。只有 `core/<module>/<module>.rn` 中存在匹配声明

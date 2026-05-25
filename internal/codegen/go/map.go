@@ -96,7 +96,7 @@ func (g *generator) setReceiverCall(base string, typeArgs []string, sel *ir.Sele
 	if len(typeArgs) != 1 {
 		return "/* invalid set type */"
 	}
-	fn, ok := g.file.Stdlib.ReceiverFunction("map", base, sel.Name)
+	fn, ok := g.file.Stdlib.ReceiverFunction("set", base, sel.Name)
 	if !ok {
 		return "/* unsupported set method */"
 	}

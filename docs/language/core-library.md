@@ -238,7 +238,7 @@ Maps and sets are created through module functions and then used through
 receiver methods:
 
 ```rune
-scores := @map.newMap("", 0)
+scores := @map.new("", 0)
 scores.size()
 scores.has("rune")
 scores.getOr("rune", 0)
@@ -249,7 +249,7 @@ scores.values()
 scores.forEach((value, key, map) => @io.println(value))
 scores.clear()
 
-seen := @map.newSet("")
+seen := @set.new("")
 seen.size()
 seen.has("rune")
 seen.add("rune")

@@ -27,6 +27,7 @@ import "./App.css";
 
 type MonacoModule = typeof monaco;
 type MonacoEditor = monaco.editor.IStandaloneCodeEditor;
+type Disposable = { dispose(): void };
 type MonacoEnvironmentConfig = {
   getWorker(moduleId: string, label: string): Worker;
 };
@@ -43,6 +44,7 @@ declare global {
     runeFormat?: (source: string) => string;
     runeInitCompiler?: (coreSources: string) => string;
     runeLSP?: (request: string) => string;
+    __runeLanguageDisposables?: Disposable[];
   }
 }
 
@@ -83,6 +85,7 @@ type ConsoleEntry = {
 };
 
 type OutputPanel = "typescript" | "console" | "preview";
+type RuntimeEntryMode = "main" | "render" | "auto";
 
 type RuntimeMessage = {
   token: string;
@@ -267,6 +270,8 @@ let esbuildPromise: Promise<void> | undefined;
 let runeLanguageConfigured = false;
 let runMainCommandRegistered = false;
 let runMainCommandHandler: (() => void) | undefined;
+let previewRenderCommandRegistered = false;
+let previewRenderCommandHandler: (() => void) | undefined;
 let runTestCommandRegistered = false;
 let runTestCommandHandler: (() => void) | undefined;
 let entryCounter = 0;
@@ -294,6 +299,8 @@ function App() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const compileSequence = useRef(0);
   const runCurrentRef = useRef<() => void>(() => {});
+  const previewCurrentRef = useRef<() => void>(() => {});
+  const previewSourceRef = useRef("");
 
   const currentExample = useMemo(
     () => examples.find((example) => example.name === selectedExample),
@@ -418,6 +425,7 @@ function App() {
       setSelectedExample(nextExample.name);
       setSource(nextExample.source);
       setActivePanel("console");
+      previewSourceRef.current = "";
       setConsoleEntries([
         {
           id: nextEntryId(),
@@ -449,6 +457,15 @@ function App() {
           runMainCommandHandler?.();
         });
       }
+      previewRenderCommandHandler = () => {
+        previewCurrentRef.current();
+      };
+      if (!previewRenderCommandRegistered) {
+        previewRenderCommandRegistered = true;
+        monacoModule.editor.registerCommand("rune.previewRender", () => {
+          previewRenderCommandHandler?.();
+        });
+      }
       runTestCommandHandler = () => {
         setActivePanel("console");
         setConsoleEntries((entries) => [
@@ -473,6 +490,13 @@ function App() {
           runCurrentRef.current();
         },
       });
+      editor.addAction({
+        id: "rune.previewRender",
+        label: "Rune: Preview Render",
+        run: () => {
+          previewCurrentRef.current();
+        },
+      });
       applyDiagnostics(compileState.diagnostics);
     },
     [applyDiagnostics, compileState.diagnostics],
@@ -483,6 +507,7 @@ function App() {
     setSelectedExample(example.name);
     setSource(example.source);
     setActivePanel("console");
+    previewSourceRef.current = "";
     setConsoleEntries([
       {
         id: nextEntryId(),
@@ -497,6 +522,8 @@ function App() {
     const result = await formatRune(source);
     if (result.ok && result.formatted !== undefined) {
       setSource(result.formatted);
+      previewSourceRef.current = "";
+      clearPreview(iframeRef.current);
       setConsoleEntries((entries) => [
         ...entries,
         {
@@ -526,63 +553,96 @@ function App() {
     ]);
   }, [applyDiagnostics, source]);
 
-  const runCurrent = useCallback(async () => {
-    if (isRunning) {
-      return;
-    }
-    setIsRunning(true);
-    setActivePanel("console");
-    setConsoleEntries([
-      {
-        id: nextEntryId(),
-        level: "system",
-        text: "Compiling Rune source.",
-      },
-    ]);
-    try {
-      const result = await compileSource(source);
-      if (!result.ok || !result.typescript) {
+  const executeCurrent = useCallback(
+    async (entryMode: RuntimeEntryMode, panel: "console" | "preview") => {
+      if (isRunning) {
+        return;
+      }
+      setIsRunning(true);
+      setActivePanel(panel);
+      setConsoleEntries([
+        {
+          id: nextEntryId(),
+          level: "system",
+          text: "Compiling Rune source.",
+        },
+      ]);
+      try {
+        const result = await compileSource(source);
+        if (!result.ok || !result.typescript) {
+          setConsoleEntries((entries) => [
+            ...entries,
+            {
+              id: nextEntryId(),
+              level: "error",
+              text: result.error ?? "Compile failed",
+            },
+          ]);
+          return;
+        }
+        setConsoleEntries((entries) => [
+          ...entries,
+          {
+            id: nextEntryId(),
+            level: "system",
+            text: entryMode === "render" ? "Rendering preview." : "Running generated JavaScript.",
+          },
+        ]);
+        await executeTypeScript(result.typescript, iframeRef.current, entryMode, (entry) => {
+          setConsoleEntries((entries) => [...entries, entry]);
+        });
+        if (entryMode === "render") {
+          previewSourceRef.current = source;
+        }
+      } catch (error) {
+        setActivePanel("console");
         setConsoleEntries((entries) => [
           ...entries,
           {
             id: nextEntryId(),
             level: "error",
-            text: result.error ?? "Compile failed",
+            text: errorMessage(error),
           },
         ]);
-        return;
+      } finally {
+        setIsRunning(false);
       }
-      setConsoleEntries((entries) => [
-        ...entries,
-        {
-          id: nextEntryId(),
-          level: "system",
-          text: "Running generated JavaScript.",
-        },
-      ]);
-      await executeTypeScript(result.typescript, iframeRef.current, (entry) => {
-        setConsoleEntries((entries) => [...entries, entry]);
-      });
-    } catch (error) {
-      setActivePanel("console");
-      setConsoleEntries((entries) => [
-        ...entries,
-        {
-          id: nextEntryId(),
-          level: "error",
-          text: errorMessage(error),
-        },
-      ]);
-    } finally {
-      setIsRunning(false);
-    }
-  }, [compileSource, isRunning, source]);
+    },
+    [compileSource, isRunning, source],
+  );
+
+  const runCurrent = useCallback(async () => {
+    await executeCurrent("main", "console");
+  }, [executeCurrent]);
+
+  const previewCurrent = useCallback(async () => {
+    await executeCurrent("render", "preview");
+  }, [executeCurrent]);
 
   useEffect(() => {
     runCurrentRef.current = () => {
       void runCurrent();
     };
   }, [runCurrent]);
+
+  useEffect(() => {
+    previewCurrentRef.current = () => {
+      void previewCurrent();
+    };
+  }, [previewCurrent]);
+
+  const handleSourceChange = useCallback((value?: string) => {
+    setSource(value ?? "");
+    previewSourceRef.current = "";
+    clearPreview(iframeRef.current);
+  }, []);
+
+  const openPreview = useCallback(() => {
+    setActivePanel("preview");
+    if (sourceHasRender(source) && previewSourceRef.current !== source) {
+      previewCurrentRef.current();
+    }
+  }, [source]);
 
   const clearConsole = useCallback(() => {
     setConsoleEntries([]);
@@ -670,7 +730,7 @@ function App() {
               beforeMount={handleBeforeMount}
               defaultLanguage="rune"
               language="rune"
-              onChange={(value) => setSource(value ?? "")}
+              onChange={handleSourceChange}
               onMount={handleMount}
               options={{
                 automaticLayout: true,
@@ -716,7 +776,7 @@ function App() {
             <button
               type="button"
               className={activePanel === "preview" ? "active" : ""}
-              onClick={() => setActivePanel("preview")}
+              onClick={openPreview}
             >
               <FileCode2 size={15} />
               Preview
@@ -864,6 +924,7 @@ async function ensureEsbuild() {
 async function executeTypeScript(
   typescript: string,
   frame: HTMLIFrameElement | null,
+  entryMode: RuntimeEntryMode,
   appendConsoleEntry: (entry: ConsoleEntry) => void,
 ) {
   if (!frame) {
@@ -871,7 +932,7 @@ async function executeTypeScript(
   }
   await ensureEsbuild();
   const previewMountId = "rune-preview-root";
-  const transformed = await esbuild.transform(`${typescript}\n\n${runtimeFooter(previewMountId)}`, {
+  const transformed = await esbuild.transform(`${typescript}\n\n${runtimeFooter(previewMountId, entryMode)}`, {
     format: "esm",
     loader: "ts",
     sourcemap: "inline",
@@ -902,21 +963,46 @@ async function executeTypeScript(
   frame.srcdoc = runtimeDocument(transformed.code, token, previewMountId);
 }
 
-function runtimeFooter(previewMountId: string) {
+function runtimeFooter(previewMountId: string, entryMode: RuntimeEntryMode) {
   return `
+async function __runeRunMain() {
+  if (typeof __main !== "function") {
+    return false;
+  }
+  const __runeMainResult = __main();
+  if (__runeMainResult && typeof __runeMainResult.then === "function") {
+    await __runeMainResult;
+  }
+  return true;
+}
+
+async function __runeRunRender(__runePreview) {
+  if (typeof __render !== "function" || !__runePreview) {
+    return false;
+  }
+  const __runeRenderResult = __render();
+  const __runeRendered =
+    __runeRenderResult && typeof __runeRenderResult.then === "function"
+      ? await __runeRenderResult
+      : __runeRenderResult;
+  __runePreview.replaceChildren(
+    __runeRendered instanceof Node ? __runeRendered : document.createTextNode(String(__runeRendered)),
+  );
+  return true;
+}
+
 async function __runeStart() {
   const __runePreview = document.getElementById(${JSON.stringify(previewMountId)});
-  if (typeof __main === "function") {
-    const __runeMainResult = __main();
-    if (__runeMainResult && typeof __runeMainResult.then === "function") {
-      await __runeMainResult;
+  const __runeEntryMode = ${JSON.stringify(entryMode)};
+  if (__runeEntryMode === "main") {
+    if (!(await __runeRunMain())) {
+      console.log("No main() function found.");
     }
-  } else if (typeof __render === "function" && __runePreview) {
-    const __runeRendered = __render();
-    __runePreview.replaceChildren(
-      __runeRendered instanceof Node ? __runeRendered : document.createTextNode(String(__runeRendered)),
-    );
-  } else {
+  } else if (__runeEntryMode === "render") {
+    if (!(await __runeRunRender(__runePreview))) {
+      console.log("No render() function found.");
+    }
+  } else if (!(await __runeRunMain()) && !(await __runeRunRender(__runePreview))) {
     console.log("No main() or render() function found.");
   }
   if (typeof runeWaitAll === "function") {
@@ -1044,8 +1130,16 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
     return;
   }
   runeLanguageConfigured = true;
-  monacoModule.languages.register({ id: "rune" });
-  monacoModule.languages.setLanguageConfiguration("rune", {
+  window.__runeLanguageDisposables?.forEach((disposable) => disposable.dispose());
+  const disposables: Disposable[] = [];
+  window.__runeLanguageDisposables = disposables;
+  const track = (disposable: Disposable | undefined | void) => {
+    if (disposable) {
+      disposables.push(disposable);
+    }
+  };
+  track(monacoModule.languages.register({ id: "rune" }));
+  track(monacoModule.languages.setLanguageConfiguration("rune", {
     brackets: [
       ["{", "}"],
       ["[", "]"],
@@ -1060,8 +1154,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
       { open: "(", close: ")" },
       { open: '"', close: '"' },
     ],
-  });
-  monacoModule.languages.setMonarchTokensProvider("rune", {
+  }));
+  track(monacoModule.languages.setMonarchTokensProvider("rune", {
     keywords: [
       "async",
       "def",
@@ -1096,7 +1190,7 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         [/"/, "string", "@pop"],
       ],
     },
-  });
+  }));
   monacoModule.editor.defineTheme("rune-dark", {
     base: "vs-dark",
     inherit: true,
@@ -1119,7 +1213,7 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
       "editor.inactiveSelectionBackground": "#1e3933",
     },
   });
-  monacoModule.languages.registerCompletionItemProvider("rune", {
+  track(monacoModule.languages.registerCompletionItemProvider("rune", {
     triggerCharacters: ["@", "."],
     async provideCompletionItems(model, position) {
       const word = model.getWordUntilPosition(position);
@@ -1145,8 +1239,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         })),
       };
     },
-  });
-  monacoModule.languages.registerHoverProvider("rune", {
+  }));
+  track(monacoModule.languages.registerHoverProvider("rune", {
     async provideHover(model, position) {
       const hover = await requestRuneLSP<LSPHover>(model.getValue(), model.uri.toString(), "hover", {
         position: toLSPPosition(position),
@@ -1159,16 +1253,16 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         range: hover.range ? toMonacoRange(monacoModule, hover.range) : undefined,
       };
     },
-  });
-  monacoModule.languages.registerDefinitionProvider("rune", {
+  }));
+  track(monacoModule.languages.registerDefinitionProvider("rune", {
     async provideDefinition(model, position) {
       const location = await requestRuneLSP<LSPLocation>(model.getValue(), model.uri.toString(), "definition", {
         position: toLSPPosition(position),
       }).catch(() => undefined);
       return location ? toMonacoLocation(monacoModule, location) : null;
     },
-  });
-  monacoModule.languages.registerReferenceProvider("rune", {
+  }));
+  track(monacoModule.languages.registerReferenceProvider("rune", {
     async provideReferences(model, position) {
       const locations =
         (await requestRuneLSP<LSPLocation[]>(model.getValue(), model.uri.toString(), "references", {
@@ -1177,8 +1271,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         }).catch(() => [])) ?? [];
       return locations.map((location) => toMonacoLocation(monacoModule, location));
     },
-  });
-  monacoModule.languages.registerDocumentSymbolProvider("rune", {
+  }));
+  track(monacoModule.languages.registerDocumentSymbolProvider("rune", {
     async provideDocumentSymbols(model) {
       const symbols =
         (await requestRuneLSP<LSPDocumentSymbol[]>(
@@ -1195,8 +1289,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         selectionRange: toMonacoRange(monacoModule, symbol.selectionRange),
       }));
     },
-  });
-  monacoModule.languages.registerDocumentFormattingEditProvider("rune", {
+  }));
+  track(monacoModule.languages.registerDocumentFormattingEditProvider("rune", {
     async provideDocumentFormattingEdits(model) {
       const edits =
         (await requestRuneLSP<LSPTextEdit[]>(model.getValue(), model.uri.toString(), "formatting", {
@@ -1208,8 +1302,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         text: edit.newText,
       }));
     },
-  });
-  monacoModule.languages.registerInlayHintsProvider("rune", {
+  }));
+  track(monacoModule.languages.registerInlayHintsProvider("rune", {
     async provideInlayHints(model) {
       const hints =
         (await requestRuneLSP<LSPInlayHint[]>(model.getValue(), model.uri.toString(), "inlayHint").catch(
@@ -1226,8 +1320,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         dispose() {},
       };
     },
-  });
-  monacoModule.languages.registerDocumentSemanticTokensProvider("rune", {
+  }));
+  track(monacoModule.languages.registerDocumentSemanticTokensProvider("rune", {
     getLegend() {
       return {
         tokenTypes: ["variable", "type", "function"],
@@ -1246,8 +1340,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
       };
     },
     releaseDocumentSemanticTokens() {},
-  });
-  monacoModule.languages.registerRenameProvider("rune", {
+  }));
+  track(monacoModule.languages.registerRenameProvider("rune", {
     async provideRenameEdits(model, position, newName) {
       const edit = await requestRuneLSP<LSPWorkspaceEdit>(model.getValue(), model.uri.toString(), "rename", {
         position: toLSPPosition(position),
@@ -1255,8 +1349,8 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
       }).catch(() => undefined);
       return toMonacoWorkspaceEdit(monacoModule, edit);
     },
-  });
-  monacoModule.languages.registerCodeLensProvider("rune", {
+  }));
+  track(monacoModule.languages.registerCodeLensProvider("rune", {
     async provideCodeLenses(model) {
       const lspLenses =
         (await requestRuneLSP<LSPCodeLens[]>(model.getValue(), model.uri.toString(), "codeLens").catch(
@@ -1278,13 +1372,21 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
             arguments: [],
           },
         })),
+        ...renderPreviewCodeLenses(monacoModule, model).map((range) => ({
+          range,
+          command: {
+            id: "rune.previewRender",
+            title: "$(preview) Preview",
+            arguments: [],
+          },
+        })),
       );
       return {
         lenses,
         dispose() {},
       };
     },
-  });
+  }));
 }
 
 function toMonacoCodeLens(monacoModule: MonacoModule, lens: LSPCodeLens): monaco.languages.CodeLens | undefined {
@@ -1311,6 +1413,22 @@ function mainRunCodeLenses(monacoModule: MonacoModule, model: monaco.editor.ITex
     ranges.push(new monacoModule.Range(lineNumber, 1, lineNumber, line.length + 1));
   }
   return ranges;
+}
+
+function renderPreviewCodeLenses(monacoModule: MonacoModule, model: monaco.editor.ITextModel) {
+  const ranges: monaco.Range[] = [];
+  for (let lineNumber = 1; lineNumber <= model.getLineCount(); lineNumber += 1) {
+    const line = model.getLineContent(lineNumber);
+    if (!/^\s*render\s*\(/.test(line)) {
+      continue;
+    }
+    ranges.push(new monacoModule.Range(lineNumber, 1, lineNumber, line.length + 1));
+  }
+  return ranges;
+}
+
+function sourceHasRender(value: string) {
+  return /^\s*render\s*\(/m.test(value);
 }
 
 function toLSPPosition(position: monaco.Position): LSPPosition {

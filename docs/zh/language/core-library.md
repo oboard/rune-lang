@@ -232,7 +232,7 @@ out := writer.toBinary()
 Map 和 Set 通过模块函数创建，再通过 receiver 方法使用：
 
 ```rune
-scores := @map.newMap("", 0)
+scores := @map.new("", 0)
 scores.size()
 scores.has("rune")
 scores.getOr("rune", 0)
@@ -243,7 +243,7 @@ scores.values()
 scores.forEach((value, key, map) => @io.println(value))
 scores.clear()
 
-seen := @map.newSet("")
+seen := @set.new("")
 seen.size()
 seen.has("rune")
 seen.add("rune")

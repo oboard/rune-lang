@@ -171,8 +171,10 @@ func StdlibReceiverModule(receiver Type) (string, string, bool) {
 		return "reader", "Reader", true
 	case "Writer":
 		return "writer", "Writer", true
-	case "Map", "Set", "WeakMap", "WeakSet":
+	case "Map", "WeakMap":
 		return "map", base, true
+	case "Set", "WeakSet":
+		return "set", base, true
 	default:
 		return "", "", false
 	}

@@ -197,11 +197,11 @@ func TestGenerateRegexProgram(t *testing.T) {
 
 func TestGenerateMapIntrinsicProgram(t *testing.T) {
 	src := `main() => {
-  scores := @map.newMap("", 0)
+  scores := @map.new("", 0)
   scores.set("rune", 10)
   @io.println(scores.getOr("rune", 0))
 
-  seen := @map.newSet("")
+  seen := @set.new("")
   seen.add("rune")
   @io.println(seen.has("rune"))
 }

@@ -1,6 +1,6 @@
 # core/map
 
-Declared placeholder for Rune maps.
+Map construction and receiver APIs.
 
-The module exists so map APIs are declared in `/core`, but these functions will
-become usable after Rune has map type and literal syntax.
+Use `@map.new(keyType, valueType)` when a map literal cannot infer the desired
+key or value type. Map literals such as `{ "a": 1 }` infer `Map[String, Int]`.

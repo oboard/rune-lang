@@ -104,12 +104,12 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		return &Writer{Data: make([]byte, 0, capacity)}, nil
 	case "map.new":
 		if len(values) != 2 {
-			return nil, fmt.Errorf("@map.newMap expects 2 args, got %d", len(values))
+			return nil, fmt.Errorf("@map.new expects 2 args, got %d", len(values))
 		}
 		return &Map{Entries: map[string]mapEntry{}}, nil
 	case "set.new":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@map.newSet expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@set.new expects 1 arg, got %d", len(values))
 		}
 		return &Set{Entries: map[string]Value{}}, nil
 	case "assert.eq":
@@ -1716,7 +1716,7 @@ func (i *Interpreter) callSetMethod(value *Set, name string, args []ir.Expr, env
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
-	fn, ok := i.file.Stdlib.ReceiverFunction("map", "Set", name)
+	fn, ok := i.file.Stdlib.ReceiverFunction("set", "Set", name)
 	if !ok {
 		return nil, fmt.Errorf("type Set has no method %q", name)
 	}

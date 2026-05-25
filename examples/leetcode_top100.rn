@@ -481,7 +481,7 @@ lc121MaxProfit(prices: Array[Int]) -> Int => {
 
 // 128. Longest Consecutive Sequence
 lc128LongestConsecutive(nums: Array[Int]) -> Int => {
-  set := @map.newSet(0)
+  set := @set.new(0)
   nums.forEach((value) => set.add(value))
   best ~= 0
   nums.forEach((value) => (set.has(value - 1) ? best = best : best = maxInt(best, lc128Run(set, value))))
