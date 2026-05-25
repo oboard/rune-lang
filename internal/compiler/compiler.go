@@ -12,6 +12,7 @@ import (
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/parser"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 type Diagnostic struct {
@@ -37,11 +38,21 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 
 func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
 	file, parseErrs := parser.Parse(src)
+	info, checkDiags := checker.Check(file)
+	return analyzedProgram(path, src, file, info, parseErrs, checkDiags)
+}
+
+func AnalyzeSourceWithStdlib(path string, src string, reg *stdlib.Registry) (*Program, []Diagnostic) {
+	file, parseErrs := parser.Parse(src)
+	info, checkDiags := checker.CheckWithStdlib(file, reg)
+	return analyzedProgram(path, src, file, info, parseErrs, checkDiags)
+}
+
+func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, parseErrs []parser.Error, checkDiags []checker.Diagnostic) (*Program, []Diagnostic) {
 	var diags []Diagnostic
 	for _, err := range parseErrs {
 		diags = append(diags, Diagnostic{Message: err.Message, Pos: err.Pos})
 	}
-	info, checkDiags := checker.Check(file)
 	for _, diag := range checkDiags {
 		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos})
 	}
@@ -70,6 +81,18 @@ func GenerateTypeScriptFile(path string) (string, []Diagnostic) {
 		return "", []Diagnostic{{Message: err.Error()}}
 	}
 	return src, nil
+}
+
+func GenerateTypeScriptSource(path string, src string, reg *stdlib.Registry) (string, []Diagnostic) {
+	prog, diags := AnalyzeSourceWithStdlib(path, src, reg)
+	if len(diags) > 0 {
+		return "", diags
+	}
+	out, err := tscodegen.GenerateIR(prog.IR)
+	if err != nil {
+		return "", []Diagnostic{{Message: err.Error()}}
+	}
+	return out, nil
 }
 
 func GeneratedPath(inputPath string) string {

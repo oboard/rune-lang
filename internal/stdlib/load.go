@@ -3,8 +3,10 @@ package stdlib
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 func LoadDefault() (*Registry, error) {
@@ -21,6 +23,7 @@ func Load(root string) (*Registry, error) {
 		return nil, fmt.Errorf("load core: %w", err)
 	}
 
+	sources := map[string]string{}
 	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}}
 	for _, entry := range entries {
 		if !entry.IsDir() {
@@ -35,7 +38,27 @@ func Load(root string) (*Registry, error) {
 			}
 			return nil, err
 		}
-		mod, err := parseModule(name, path, string(data))
+		sources[path] = string(data)
+	}
+	return loadSources(reg, sources)
+}
+
+func LoadSources(sources map[string]string) (*Registry, error) {
+	return loadSources(&Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}}, sources)
+}
+
+func loadSources(reg *Registry, sources map[string]string) (*Registry, error) {
+	paths := make([]string, 0, len(sources))
+	for sourcePath := range sources {
+		paths = append(paths, sourcePath)
+	}
+	sort.Strings(paths)
+	for _, sourcePath := range paths {
+		moduleName, ok := moduleNameFromSourcePath(sourcePath)
+		if !ok {
+			continue
+		}
+		mod, err := parseModule(moduleName, sourcePath, sources[sourcePath])
 		if err != nil {
 			return nil, err
 		}
@@ -46,6 +69,19 @@ func Load(root string) (*Registry, error) {
 		}
 	}
 	return reg, nil
+}
+
+func moduleNameFromSourcePath(sourcePath string) (string, bool) {
+	clean := path.Clean(strings.ReplaceAll(sourcePath, "\\", "/"))
+	base := path.Base(clean)
+	if path.Ext(base) != ".rn" {
+		return "", false
+	}
+	name := strings.TrimSuffix(base, ".rn")
+	if name == "" || path.Base(path.Dir(clean)) != name {
+		return "", false
+	}
+	return name, true
 }
 
 func parseModule(name string, path string, src string) (*Module, error) {

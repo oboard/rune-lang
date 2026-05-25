@@ -2,12 +2,19 @@ package checker
 
 import (
 	"github.com/oboard/rune-lang/internal/ast"
-	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func Check(file *ast.File) (*Info, []Diagnostic) {
 	reg, err := stdlib.LoadDefault()
+	info, diags := CheckWithStdlib(file, reg)
+	if err != nil {
+		diags = append([]Diagnostic{{Message: err.Error()}}, diags...)
+	}
+	return info, diags
+}
+
+func CheckWithStdlib(file *ast.File, reg *stdlib.Registry) (*Info, []Diagnostic) {
 	c := &checker{
 		info: &Info{
 			Functions:  map[string]*FuncInfo{},
@@ -19,9 +26,6 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 			AwaitCalls: map[*ast.CallExpr]bool{},
 		},
 		bindings: map[string]ast.Expr{},
-	}
-	if err != nil {
-		c.errorf(lexer.Position{}, "%s", err.Error())
 	}
 	c.collectCoreTypes()
 	c.checkGoImports(file)
