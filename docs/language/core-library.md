@@ -28,6 +28,30 @@ present there.
 The Go backend lowers these helpers to `fmt` calls. The TypeScript backend
 lowers printing to console output.
 
+`@io.Data` is the byte-data type returned by async file APIs. It maps to
+`[]byte` on the Go backend and `Uint8Array` on the TypeScript backend.
+
+## fs
+
+File APIs are declared as routines and use `Result` instead of callbacks:
+
+```rune
+~ read() => {
+  file := @fs.readFile("1.txt")?
+  file
+}
+```
+
+`@fs.readFile(path: String)` has the same shape as Node.js `readFile` with the
+callback converted to an async result:
+
+```rune
+@fs.readFile(path) -> Result[@io.Data, Error]
+```
+
+Inside a routine, the call is awaited automatically. Outside a routine, the
+call starts a task.
+
 ## array
 
 Array methods are called on array values:

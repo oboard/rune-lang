@@ -27,6 +27,29 @@ Rune 的内置能力由声明驱动。类型检查器和后端会从
 Go 后端会把这些 helper 降低为 `fmt` 调用。TypeScript 后端会降低为 console
 输出。
 
+`@io.Data` 是异步文件 API 返回的字节数据类型。Go 后端映射为 `[]byte`，
+TypeScript 后端映射为 `Uint8Array`。
+
+## fs
+
+文件 API 声明为 routine，并使用 `Result` 代替回调：
+
+```rune
+~ read() => {
+  file := @fs.readFile("1.txt")?
+  file
+}
+```
+
+`@fs.readFile(path: String)` 的形状与 Node.js `readFile` 对齐，但回调被转换
+成异步结果：
+
+```rune
+@fs.readFile(path) -> Result[@io.Data, Error]
+```
+
+在 routine 内调用会自动等待。在普通函数中调用会启动一个 task。
+
 ## array
 
 数组方法在数组值上调用：

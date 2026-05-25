@@ -145,10 +145,11 @@
       "patterns": [
         {
           "name": "meta.function.generic.rune",
-          "begin": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[)(?=[^\\]\\r\\n]*\\]\\s*\\()",
+          "begin": "(~)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[)(?=[^\\]\\r\\n]*\\]\\s*\\()",
           "beginCaptures": {
-            "1": { "name": "entity.name.function.rune" },
-            "2": { "name": "punctuation.definition.typeparameters.begin.rune" }
+            "1": { "name": "keyword.control.routine.rune" },
+            "2": { "name": "entity.name.function.rune" },
+            "3": { "name": "punctuation.definition.typeparameters.begin.rune" }
           },
           "end": "(\\])\\s*(\\()",
           "endCaptures": {
@@ -167,6 +168,15 @@
           ]
         },
         {
+          "name": "meta.function.routine.rune",
+          "match": "(~)\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "captures": {
+            "1": { "name": "keyword.control.routine.rune" },
+            "2": { "name": "entity.name.function.rune" },
+            "3": { "name": "punctuation.definition.parameters.begin.rune" }
+          }
+        },
+        {
           "name": "meta.function.rune",
           "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
           "captures": {
@@ -176,7 +186,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
+          "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Data|Error|Result|Task|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
         }
       ]
     },
@@ -212,6 +222,10 @@
         {
           "name": "keyword.operator.bitwise.rune",
           "match": "(>>>|>>|<<|[~&|^])"
+        },
+        {
+          "name": "keyword.operator.question.rune",
+          "match": "\\?"
         }
       ]
     },

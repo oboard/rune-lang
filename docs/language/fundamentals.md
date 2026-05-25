@@ -92,6 +92,10 @@ Symbol
 HTMLElement
 Any
 Dynamic
+Data
+Error
+Result[T, E]
+Task[T]
 ```
 
 `Any` and `Dynamic` are accepted in declarations and are treated as dynamic
@@ -232,6 +236,55 @@ identity[T](value: T) -> T => value
 
 `main` is special: it is always checked as returning `Void`.
 
+## Routines and Result
+
+Prefix a function with `~` to mark it as a routine:
+
+```rune
+~ test(count: Int) => {
+  @io.println("Hello World" + count.toString())
+}
+
+main() => {
+  test(1)
+  test(2)
+  test(3)
+  @io.println("Hello World")
+}
+```
+
+Calling a routine from an ordinary function starts it and returns a `Task[T]`.
+The generated program waits for outstanding tasks before exit. Calling a
+routine from inside another routine waits automatically, so source code does
+not use an `await` keyword.
+
+Errors use the built-in `Result[T, E]` enum shape:
+
+```rune
+Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+Error: {
+  code: Int
+  message: String
+  cause: Error?
+}
+```
+
+Inside a routine, postfix `?` unwraps `Result[T, E]`. On `Err`, it returns early
+and lifts the error into the routine return type:
+
+```rune
+~ read() => {
+  file := @fs.readFile("1.txt")?
+  file
+}
+```
+
+The inferred type is `~ read() -> Result[@io.Data, Error]`.
+
 ## Lambdas
 
 Lambda parameters must be parenthesized:
@@ -299,6 +352,8 @@ null
 > 10
 >= 10
 (1, _)     // tuple pattern syntax, reserved for tuple-like subjects
+Ok(value)  // Result constructor pattern
+Err(error)
 ```
 
 All non-void branches should return compatible types. Nested matches are just
@@ -311,6 +366,15 @@ x {
     _ => "only x"
   }
   _ => "none"
+}
+```
+
+`Result` values can also be matched manually:
+
+```rune
+readUser("user.json") {
+  Ok(user) => @io.println(user.name)
+  Err(e) => @io.println(e.message)
 }
 ```
 

@@ -88,6 +88,10 @@ Symbol
 HTMLElement
 Any
 Dynamic
+Data
+Error
+Result[T, E]
+Task[T]
 ```
 
 `Any` 和 `Dynamic` 可以出现在声明里，类型检查器会把它们当作动态类型处理。
@@ -227,6 +231,54 @@ identity[T](value: T) -> T => value
 
 `main` 是特殊函数：它总是按返回 `Void` 进行检查。
 
+## Routine 与 Result
+
+在函数前加 `~` 可以把它标记为 routine：
+
+```rune
+~ test(count: Int) => {
+  @io.println("Hello World" + count.toString())
+}
+
+main() => {
+  test(1)
+  test(2)
+  test(3)
+  @io.println("Hello World")
+}
+```
+
+在普通函数中调用 routine 会启动它，并返回 `Task[T]`。生成后的程序会在退出前
+等待未完成的 task。在 routine 中调用另一个 routine 会自动等待，源码里不需要
+写 `await`。
+
+错误处理使用内置的 `Result[T, E]` enum 形状：
+
+```rune
+Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+Error: {
+  code: Int
+  message: String
+  cause: Error?
+}
+```
+
+在 routine 内部，后缀 `?` 会解包 `Result[T, E]`。遇到 `Err` 时会提前返回，
+并把错误提升到 routine 的返回类型中：
+
+```rune
+~ read() => {
+  file := @fs.readFile("1.txt")?
+  file
+}
+```
+
+推导出的类型是 `~ read() -> Result[@io.Data, Error]`。
+
 ## Lambda
 
 Lambda 参数必须写在括号中：
@@ -293,6 +345,8 @@ null
 > 10
 >= 10
 (1, _)     // 元组模式语法，预留给 tuple-like subject
+Ok(value)  // Result 构造器模式
+Err(error)
 ```
 
 所有非 `Void` 分支应该返回兼容类型。嵌套 match 只是普通表达式：
@@ -304,6 +358,15 @@ x {
     _ => "only x"
   }
   _ => "none"
+}
+```
+
+`Result` 值也可以手动 match：
+
+```rune
+readUser("user.json") {
+  Ok(user) => @io.println(user.name)
+  Err(e) => @io.println(e.message)
 }
 ```
 
