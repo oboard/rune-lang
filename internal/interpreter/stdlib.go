@@ -809,7 +809,17 @@ func (i *Interpreter) callBufferMethod(value *Buffer, name string, args []ir.Exp
 		}
 		return &Writer{Data: append([]byte(nil), value.Data...)}, nil
 	default:
-		return nil, fmt.Errorf("buffer.%s is not supported by the interpreter", name)
+		if fn.Body == nil {
+			return nil, fmt.Errorf("buffer.%s is not supported by the interpreter", name)
+		}
+		local := NewEnv(env)
+		local.Define("this", value)
+		for idx, param := range fn.ParamNames {
+			if idx < len(values) {
+				local.Define(param, values[idx])
+			}
+		}
+		return i.eval(ir.LowerExpr(fn.Body, nil), local)
 	}
 }
 
@@ -886,7 +896,17 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 	if result, ok, err := callReaderNumericMethod(value, name, fn.Intrinsic, values); ok || err != nil {
 		return result, err
 	}
-	return nil, fmt.Errorf("reader.%s is not supported by the interpreter", name)
+	if fn.Body == nil {
+		return nil, fmt.Errorf("reader.%s is not supported by the interpreter", name)
+	}
+	local := NewEnv(env)
+	local.Define("this", value)
+	for idx, param := range fn.ParamNames {
+		if idx < len(values) {
+			local.Define(param, values[idx])
+		}
+	}
+	return i.eval(ir.LowerExpr(fn.Body, nil), local)
 }
 
 func (i *Interpreter) callWriterMethod(value *Writer, name string, args []ir.Expr, env *Env) (Value, error) {
@@ -946,7 +966,17 @@ func (i *Interpreter) callWriterMethod(value *Writer, name string, args []ir.Exp
 	if ok, err := callWriterNumericMethod(value, name, fn.Intrinsic, values); ok || err != nil {
 		return value, err
 	}
-	return nil, fmt.Errorf("writer.%s is not supported by the interpreter", name)
+	if fn.Body == nil {
+		return nil, fmt.Errorf("writer.%s is not supported by the interpreter", name)
+	}
+	local := NewEnv(env)
+	local.Define("this", value)
+	for idx, param := range fn.ParamNames {
+		if idx < len(values) {
+			local.Define(param, values[idx])
+		}
+	}
+	return i.eval(ir.LowerExpr(fn.Body, nil), local)
 }
 
 func intsFromBytes(bytes []byte) *Array {

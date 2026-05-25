@@ -2,6 +2,7 @@ package tscodegen
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
@@ -20,6 +21,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")
 	}
 	g := &generator{file: file}
+	if fileUsesBinaryRuntime(file) {
+		g.binaryRuntime()
+		g.line("")
+	}
 	if fileUsesSignals(file) {
 		g.signalRuntime()
 		g.line("")
@@ -109,6 +114,57 @@ func join(parts []string, sep string) string {
 		out += part
 	}
 	return out
+}
+
+func fileUsesBinaryRuntime(file *ir.File) bool {
+	return fileUsesType(file, checker.Buffer) ||
+		fileUsesType(file, checker.Reader) ||
+		fileUsesType(file, checker.Writer)
+}
+
+func fileUsesType(file *ir.File, typ checker.Type) bool {
+	found := false
+	check := func(candidate checker.Type) {
+		if found || typeContains(candidate, typ) {
+			found = true
+		}
+	}
+	for _, fn := range file.Functions {
+		check(fn.Return)
+		for _, param := range fn.Params {
+			check(param.Type)
+		}
+		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
+			check(expr.ResultType())
+		})
+	}
+	for _, test := range file.Tests {
+		ir.WalkExpr(test.Body, func(expr ir.Expr) {
+			check(expr.ResultType())
+		})
+	}
+	for _, typDecl := range file.Types {
+		for _, field := range typDecl.Fields {
+			check(field.Type)
+		}
+		for _, method := range typDecl.Methods {
+			check(method.Return)
+			for _, param := range method.Params {
+				check(param.Type)
+			}
+			ir.WalkExpr(method.Body, func(expr ir.Expr) {
+				check(expr.ResultType())
+			})
+		}
+	}
+	return found
+}
+
+func typeContains(candidate checker.Type, typ checker.Type) bool {
+	if candidate == typ {
+		return true
+	}
+	return strings.Contains(string(candidate), string(typ))
 }
 
 func fileUsesSignals(file *ir.File) bool {

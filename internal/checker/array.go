@@ -95,8 +95,14 @@ func StdlibReceiverModule(receiver Type) (string, string, bool) {
 		return "bool", "Bool", true
 	case "Regex":
 		return "regex", "Regex", true
-	case "Binary", "Buffer", "Reader", "Writer":
-		return "binary", base, true
+	case "Binary":
+		return "binary", "Binary", true
+	case "Buffer":
+		return "buffer", "Buffer", true
+	case "Reader":
+		return "reader", "Reader", true
+	case "Writer":
+		return "writer", "Writer", true
 	case "Map", "Set", "WeakMap", "WeakSet":
 		return "map", base, true
 	default:

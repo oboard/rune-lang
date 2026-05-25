@@ -39,6 +39,8 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.numericIntrinsicCall(fn, args, call.ResultType()), true
 	case "binary.new", "binary.fromInts":
 		return g.binaryModuleCall(fn, args, call.ResultType()), true
+	case "buffer.new", "buffer.fromBinary", "reader.new", "writer.new", "writer.withCapacity":
+		return g.streamModuleCall(fn, args, call.ResultType()), true
 	case "json.stringify":
 		if len(call.Args) != 1 {
 			return "undefined", true
@@ -85,12 +87,50 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "binary."):
 		return g.binaryReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "buffer."):
+		return g.bufferReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "reader."):
+		return g.readerReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "writer."):
+		return g.writerReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."):
 		return g.mapIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.setIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
+	}
+}
+
+func (g *generator) streamModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "buffer.new":
+		if len(args) != 0 {
+			return g.zeroValue(resultType)
+		}
+		return "new RuneBuffer()"
+	case "buffer.fromBinary":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("RuneBuffer.fromBinary(%s)", args[0])
+	case "reader.new":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("new RuneReader(%s)", args[0])
+	case "writer.new":
+		if len(args) != 0 {
+			return g.zeroValue(resultType)
+		}
+		return "new RuneWriter()"
+	case "writer.withCapacity":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("new RuneWriter(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
 	}
 }
 
@@ -221,6 +261,159 @@ func (g *generator) binaryDataViewCall(intrinsic string, receiver string, args [
 		return g.zeroValue(resultType), true
 	}
 	return fmt.Sprintf("((__value: %s): %s => { %s.%s(%s, __value, %s); return __value; })(%s)", tsType(resultType), tsType(resultType), receiver, method, args[0], args[2], args[1]), true
+}
+
+func (g *generator) bufferReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "buffer.length":
+		return receiver + ".byteLength"
+	case "buffer.clear":
+		return receiver + ".clear()"
+	case "buffer.clone":
+		return receiver + ".clone()"
+	case "buffer.toBinary":
+		return receiver + ".toBinary()"
+	case "buffer.toInts":
+		return receiver + ".toInts()"
+	case "buffer.append":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.append(%s)", receiver, args[0])
+	case "buffer.appendInt":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.appendInt(%s)", receiver, args[0])
+	case "buffer.appendBinary":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.appendBinary(%s)", receiver, args[0])
+	case "buffer.reader":
+		return receiver + ".reader()"
+	case "buffer.writer":
+		return receiver + ".writer()"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) readerReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "reader.length":
+		return receiver + ".byteLength"
+	case "reader.position":
+		return receiver + ".position()"
+	case "reader.remaining":
+		return receiver + ".remaining()"
+	case "reader.seek":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.seek(%s)", receiver, args[0])
+	case "reader.skip":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.skip(%s)", receiver, args[0])
+	case "reader.readBinary":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.readBinary(%s)", receiver, args[0])
+	case "reader.readInt4":
+		return receiver + ".readInt4()"
+	}
+	if expr, ok := g.readerNumericCall(fn.Intrinsic, receiver, args, resultType); ok {
+		return expr
+	}
+	return g.unsupportedIntrinsic(fn, resultType)
+}
+
+func (g *generator) readerNumericCall(intrinsic string, receiver string, args []string, resultType checker.Type) (string, bool) {
+	methods := map[string]string{
+		"reader.readInt8":   "readInt8",
+		"reader.readUInt8":  "readUInt8",
+		"reader.readInt16":  "readInt16",
+		"reader.readUInt16": "readUInt16",
+		"reader.readInt":    "readInt",
+		"reader.readUInt":   "readUInt",
+		"reader.readInt64":  "readInt64",
+		"reader.readUInt64": "readUInt64",
+		"reader.readFloat":  "readFloat",
+		"reader.readDouble": "readDouble",
+	}
+	method, ok := methods[intrinsic]
+	if !ok {
+		return "", false
+	}
+	if method == "readInt8" || method == "readUInt8" {
+		if len(args) != 0 {
+			return g.zeroValue(resultType), true
+		}
+		return fmt.Sprintf("%s.%s()", receiver, method), true
+	}
+	if len(args) != 1 {
+		return g.zeroValue(resultType), true
+	}
+	return fmt.Sprintf("%s.%s(%s)", receiver, method, args[0]), true
+}
+
+func (g *generator) writerReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "writer.length", "writer.position":
+		return receiver + ".position()"
+	case "writer.clear":
+		return receiver + ".clear()"
+	case "writer.toBinary":
+		return receiver + ".toBinary()"
+	case "writer.toInts":
+		return receiver + ".toInts()"
+	case "writer.writeBinary":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.writeBinary(%s)", receiver, args[0])
+	case "writer.writeInt4":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("%s.writeInt4(%s)", receiver, args[0])
+	}
+	if expr, ok := g.writerNumericCall(fn.Intrinsic, receiver, args, resultType); ok {
+		return expr
+	}
+	return g.unsupportedIntrinsic(fn, resultType)
+}
+
+func (g *generator) writerNumericCall(intrinsic string, receiver string, args []string, resultType checker.Type) (string, bool) {
+	methods := map[string]string{
+		"writer.writeInt8":   "writeInt8",
+		"writer.writeUInt8":  "writeUInt8",
+		"writer.writeInt16":  "writeInt16",
+		"writer.writeUInt16": "writeUInt16",
+		"writer.writeInt":    "writeInt",
+		"writer.writeUInt":   "writeUInt",
+		"writer.writeInt64":  "writeInt64",
+		"writer.writeUInt64": "writeUInt64",
+		"writer.writeFloat":  "writeFloat",
+		"writer.writeDouble": "writeDouble",
+	}
+	method, ok := methods[intrinsic]
+	if !ok {
+		return "", false
+	}
+	if method == "writeInt8" || method == "writeUInt8" {
+		if len(args) != 1 {
+			return g.zeroValue(resultType), true
+		}
+		return fmt.Sprintf("%s.%s(%s)", receiver, method, args[0]), true
+	}
+	if len(args) != 2 {
+		return g.zeroValue(resultType), true
+	}
+	return fmt.Sprintf("%s.%s(%s, %s)", receiver, method, args[0], args[1]), true
 }
 
 func (g *generator) stdlibFunctionFromCall(call *ir.CallExpr) (*stdlib.Function, bool) {
