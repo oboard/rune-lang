@@ -113,6 +113,101 @@ Numeric conversion helpers:
 
 Arithmetic itself is handled by language operators.
 
+## fixed-width numeric types
+
+Rune also exposes conversion helpers for the binary-oriented numeric types used
+by `Binary`, `Reader`, and `Writer`:
+
+```rune
+@int4.fromInt(15)
+@int4.toInt(@int4.fromInt(15))
+@int8.fromInt(130)
+@int16.fromInt(65535)
+@int64.fromInt(123456)
+@uint.fromInt(123456)
+@uint8.fromInt(255)
+@uint16.fromInt(65535)
+@uint64.fromInt(123456)
+@float.fromDouble(1.5)
+@float.toDouble(@float.fromDouble(1.5))
+```
+
+Signed conversions wrap to their target width. Unsigned conversions mask to the
+target width. `Float` is a 32-bit floating-point value.
+
+## binary, buffer, reader, and writer
+
+`Binary` is a fixed byte view. Multi-byte reads and writes take an explicit
+`littleEndian` flag, while byte reads do not:
+
+```rune
+bytes := @binary.new(16)
+bytes.setInt4(0, @int4.fromInt(0 - 1))
+bytes.setUInt8(1, @uint8.fromInt(255))
+bytes.setInt16(2, @int16.fromInt(0 - 1234), true)
+bytes.setUInt(4, @uint.fromInt(123456), false)
+bytes.setFloat(8, @float.fromDouble(1.5), true)
+
+@assert.eq(@int4.toInt(bytes.getInt4(0)), 0 - 1)
+@assert.eq(@uint8.toInt(bytes.getUint8(1)), 255)
+@assert.eq(@int16.toInt(bytes.getInt16(2, true)), 0 - 1234)
+@assert.eq(@uint.toInt(bytes.getUInt(4, false)), 123456)
+@assert.eq(@float.toDouble(bytes.getFloat32(8, true)), 1.5)
+```
+
+`@binary.fromInts(values)` builds a `Binary` from byte values. `Binary`
+supports `length`, `byteLength`, `clone`, `slice`, `toInts`, `get*`, and
+`set*` methods for `Int4`, `Int8`, `UInt8`, `Int16`, `UInt16`, `Int`/`UInt`,
+`Int64`/`UInt64`, `Float`, and `Double`. `Uint*`, `Int32`, `Float32`,
+`Float64`, and `BigInt64`/`BigUInt64` aliases are also declared.
+
+Use `Buffer` when bytes need to grow:
+
+```rune
+buffer := @buffer.new()
+buffer.append(@uint8.fromInt(1))
+buffer.appendInt(2)
+buffer.appendBinary(@binary.fromInts([3, 4]))
+
+copy := buffer.clone()
+binary := copy.toBinary()
+ints := copy.toInts()
+```
+
+`@buffer.fromBinary(binary)` creates a mutable buffer copy. `Buffer` supports
+`length`, `byteLength`, `isEmpty`, `clear`, `clone`, `toBinary`, `toInts`,
+`append`, `appendInt`, `appendBinary`, `reader`, and `writer`.
+
+`Reader` consumes bytes sequentially from a `Binary`:
+
+```rune
+reader := @reader.new(binary)
+first := reader.readUInt8()
+next := reader.readInt16(true)
+chunk := reader.readBinary(4)
+reader.seek(0)
+reader.skip(1)
+```
+
+`Reader` supports `length`, `byteLength`, `position`, `remaining`, `isEmpty`,
+`seek`, `skip`, `read`/`readBinary`, and `read*` methods matching the `Binary`
+numeric read surface.
+
+`Writer` builds bytes sequentially:
+
+```rune
+writer := @writer.new()
+writer.writeUInt8(@uint8.fromInt(255))
+writer.writeInt16(@int16.fromInt(0 - 1234), true)
+writer.writeFloat(@float.fromDouble(1.5), true)
+out := writer.toBinary()
+```
+
+`@writer.withCapacity(capacity)` preallocates space. `Writer` supports
+`length`, `byteLength`, `position`, `clear`, `toBinary`, `toInts`,
+`write`/`writeBinary`, and `write*` methods matching the `Binary` numeric write
+surface.
+
 ## map and set
 
 Maps and sets are created through module functions and then used through
