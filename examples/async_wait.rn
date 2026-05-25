@@ -1,0 +1,11 @@
+~ test() => {
+  @io.println("Hello World")
+}
+
+main() => {
+  test()
+  test()
+  test()
+  @io.println("Hello World")
+  // 要等待所有异步函数结束才会结束程序
+}

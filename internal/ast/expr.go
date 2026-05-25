@@ -130,6 +130,16 @@ func (e *PostfixExpr) Position() lexer.Position {
 	return e.Pos
 }
 
+type ResultUnwrapExpr struct {
+	Expr Expr
+	Pos  lexer.Position
+}
+
+func (*ResultUnwrapExpr) exprNode() {}
+func (e *ResultUnwrapExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 type BinaryExpr struct {
 	Left  Expr
 	Op    lexer.Kind

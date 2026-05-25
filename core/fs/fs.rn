@@ -1,0 +1,1 @@
+~ readFile(path: String) -> Result[@io.Data, Error] => "%fs.readFile"

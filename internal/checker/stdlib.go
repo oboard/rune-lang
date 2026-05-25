@@ -34,7 +34,7 @@ func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call
 
 	bindings := c.stdlibTypeBindings(fn)
 	c.checkStdlibGenericArgs(moduleName, sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
-	return c.resolveDeclaredType(fn.Return, bindings)
+	return c.finishRoutineCall(call, fn.Routine, c.resolveDeclaredType(fn.Return, bindings))
 }
 
 func (c *checker) stdlibTypeBindings(fn *stdlib.Function) map[string]Type {

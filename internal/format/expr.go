@@ -40,6 +40,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return e.Op.String() + f.unaryOperandExpr(e.Expr)
 	case *ast.PostfixExpr:
 		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
+	case *ast.ResultUnwrapExpr:
+		return f.postfixReceiverExpr(e.Expr) + "?"
 	case *ast.BinaryExpr:
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
 	case *ast.TernaryExpr:

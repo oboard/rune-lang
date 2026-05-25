@@ -38,6 +38,9 @@ func (g *generator) function(fn *ir.Function) error {
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s %s", mangleIdent(param.Name), goType(param.Type)))
 	}
+	if fn.Routine {
+		return g.routineFunction(fn, params)
+	}
 	ret := ""
 	if fn.Return != checker.Void {
 		ret = " " + goType(fn.Return)
@@ -54,6 +57,30 @@ func (g *generator) function(fn *ir.Function) error {
 	return nil
 }
 
+func (g *generator) routineFunction(fn *ir.Function, params []string) error {
+	ret := goType(fn.Return)
+	if fn.Return == checker.Void {
+		ret = "runeUnit"
+	}
+	g.linef("func %s(%s) runeTask[%s] {", mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	g.indent++
+	g.linef("return runeGo(func() %s {", ret)
+	g.indent++
+	g.pushSignalScope()
+	if err := g.body(fn, fn.Body, fn.Return); err != nil {
+		return err
+	}
+	if fn.Return == checker.Void {
+		g.line("return runeUnit{}")
+	}
+	g.popSignalScope()
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	return nil
+}
+
 func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	params := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
@@ -63,11 +90,35 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	if fn.Return != checker.Void {
 		ret = " " + goType(fn.Return)
 	}
+	if fn.Routine {
+		if fn.Return == checker.Void {
+			ret = " runeTask[runeUnit]"
+		} else {
+			ret = " runeTask[" + goType(fn.Return) + "]"
+		}
+	}
 	g.linef("func (%s %s) %s(%s)%s {", mangleIdent("this"), mangleIdent(typ.Name), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
-	if err := g.body(fn, fn.Body, fn.Return); err != nil {
-		return err
+	if fn.Routine {
+		routineRet := goType(fn.Return)
+		if fn.Return == checker.Void {
+			routineRet = "runeUnit"
+		}
+		g.linef("return runeGo(func() %s {", routineRet)
+		g.indent++
+		if err := g.body(fn, fn.Body, fn.Return); err != nil {
+			return err
+		}
+		if fn.Return == checker.Void {
+			g.line("return runeUnit{}")
+		}
+		g.indent--
+		g.line("})")
+	} else {
+		if err := g.body(fn, fn.Body, fn.Return); err != nil {
+			return err
+		}
 	}
 	g.popSignalScope()
 	g.indent--
@@ -82,12 +133,16 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error 
 	case *ir.BlockExpr:
 		return g.block(e, ret)
 	default:
+		if unwrap, ok := expr.(*ir.ResultUnwrapExpr); ok {
+			g.resultUnwrapExprStmt(unwrap, ret, true)
+			return nil
+		}
 		if ret == checker.Void {
 			if expr := g.expr(expr); expr != "" {
 				g.line(expr)
 			}
 		} else {
-			g.linef("return %s", g.expr(expr))
+			g.linef("return %s", g.returnExpr(expr, ret))
 		}
 	}
 	return nil
@@ -98,6 +153,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapLet(s.Name, unwrap, ret)
+				continue
+			}
 			if s.Signal || g.exprUsesSignal(s.Value) {
 				g.linef("%s := newRuneSignal(%s)", mangleIdent(s.Name), g.expr(s.Value))
 				g.linef("_ = %s", mangleIdent(s.Name))
@@ -127,6 +186,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			}
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
+			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapExprStmt(unwrap, ret, last)
+				continue
+			}
 			if stmt, ok := g.arrayEachStmt(s.Expr); ok {
 				g.line(stmt)
 				continue
@@ -140,7 +203,7 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				continue
 			}
 			if last && ret != checker.Void {
-				g.linef("return %s", expr)
+				g.linef("return %s", g.returnExpr(s.Expr, ret))
 			} else {
 				g.line(expr)
 			}
@@ -150,6 +213,54 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
+}
+
+func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("result")
+	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("if !%s.ok {", tmp)
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))
+	g.indent--
+	g.line("}")
+	g.linef("%s := %s.value", mangleIdent(name), tmp)
+	g.linef("_ = %s", mangleIdent(name))
+}
+
+func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {
+	tmp := g.nextTemp("result")
+	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("if !%s.ok {", tmp)
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))
+	g.indent--
+	g.line("}")
+	if last && ret != checker.Void {
+		g.linef("return %s", g.returnRawExpr(unwrap, ret, tmp+".value"))
+	}
+}
+
+func (g *generator) resultErrReturn(ret checker.Type, errExpr string) string {
+	okType, errType := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return g.zeroValue(ret)
+	}
+	return fmt.Sprintf("runeErr[%s, %s](%s)", goType(okType), goType(errType), errExpr)
+}
+
+func (g *generator) returnExpr(expr ir.Expr, ret checker.Type) string {
+	return g.returnRawExpr(expr, ret, g.expr(expr))
+}
+
+func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) string {
+	okType, errType := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return raw
+	}
+	if expr != nil && expr.ResultType() == okType {
+		return fmt.Sprintf("runeOk[%s, %s](%s)", goType(okType), goType(errType), raw)
+	}
+	return raw
 }
 
 func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret checker.Type) error {
@@ -173,7 +284,7 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 				g.line(expr)
 			}
 		} else {
-			g.linef("return %s", g.expr(branch.Expr))
+			g.linef("return %s", g.returnExpr(branch.Expr, ret))
 		}
 		g.indent--
 	}
@@ -197,6 +308,15 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 			parts = append(parts, g.patternCondition(fmt.Sprintf("%s[%d]", subject, i), elem))
 		}
 		return strings.Join(parts, " && ")
+	case *ir.ConstructorPattern:
+		switch p.Name {
+		case "Ok":
+			return subject + ".ok"
+		case "Err":
+			return "!" + subject + ".ok"
+		default:
+			return "false"
+		}
 	default:
 		return "true"
 	}

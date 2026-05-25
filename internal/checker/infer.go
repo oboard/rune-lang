@@ -29,8 +29,8 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 		for _, param := range info.Params {
 			env[param.Name] = param.Type
 		}
-		ret := c.inferExpr(method.Body, env)
-		c.finishFunctionReturn(info, ret, method)
+		ret := c.inferFunctionBody(method, info, env)
+		c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
 	}
 }
 
@@ -56,7 +56,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 		}
 		env[param.Name] = paramType
 	}
-	ret := c.inferExpr(fn.Body, env)
+	ret := c.inferFunctionBody(fn, info, env)
 	for idx, param := range info.Params {
 		if param.Type == Unknown {
 			if inferred := env[param.Name]; inferred != "" && inferred != Unknown {
@@ -66,6 +66,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 			}
 		}
 	}
+	unwrapErr := c.popRoutineErrors()
 	if fn.Name == "main" {
 		if info.ReturnDeclared && info.Return != Void {
 			c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
@@ -73,7 +74,31 @@ func (c *checker) inferFunction(fn *ast.Function) {
 		info.Return = Void
 		return
 	}
-	c.finishFunctionReturn(info, ret, fn)
+	c.finishFunctionReturn(info, ret, unwrapErr, fn)
+}
+
+func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[string]Type) Type {
+	if info != nil && info.Routine {
+		c.routineDepth++
+		c.unwrapErrors = append(c.unwrapErrors, Unknown)
+	}
+	ret := c.inferExpr(fn.Body, env)
+	if info == nil || !info.Routine {
+		c.unwrapErrors = append(c.unwrapErrors, Unknown)
+	}
+	return ret
+}
+
+func (c *checker) popRoutineErrors() Type {
+	if len(c.unwrapErrors) == 0 {
+		return Unknown
+	}
+	errType := c.unwrapErrors[len(c.unwrapErrors)-1]
+	c.unwrapErrors = c.unwrapErrors[:len(c.unwrapErrors)-1]
+	if c.routineDepth > 0 {
+		c.routineDepth--
+	}
+	return errType
 }
 
 func (c *checker) inferTest(test *ast.Test) {
@@ -98,7 +123,12 @@ func (c *checker) inferredParamUseType(body ast.Expr, name string) Type {
 	return result
 }
 
-func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, fn *ast.Function) {
+func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, unwrapErr Type, fn *ast.Function) {
+	if info.Routine && unwrapErr != Unknown {
+		if _, _, ok := parseResultType(ret); !ok {
+			ret = ResultOf(ret, unwrapErr)
+		}
+	}
 	if info.ReturnDeclared {
 		if !typesCompatible(info.Return, ret, info.Generics) {
 			c.errorf(fn.Body.Position(), "function %q returns %s, expected %s", fn.Name, ret, info.Return)
@@ -143,7 +173,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return typ
 		}
 		if fn, ok := c.info.Functions[e.Name]; ok {
-			typ := FuncOfTypes(paramTypes(fn.Params), fn.Return)
+			typ := functionType(fn)
 			c.info.ExprTypes[e] = typ
 			return typ
 		}
@@ -222,6 +252,28 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		default:
 			return Unknown
 		}
+	case *ast.ResultUnwrapExpr:
+		result := c.inferExpr(e.Expr, env)
+		value, errType, ok := parseResultType(result)
+		if !ok {
+			if result != Unknown {
+				c.errorf(e.Pos, "operator '?' expects Result, got %s", result)
+			}
+			return Unknown
+		}
+		if c.routineDepth == 0 {
+			c.errorf(e.Pos, "operator '?' can only be used inside a routine")
+		} else if len(c.unwrapErrors) > 0 {
+			current := c.unwrapErrors[len(c.unwrapErrors)-1]
+			if current == Unknown {
+				c.unwrapErrors[len(c.unwrapErrors)-1] = errType
+			} else if unified, ok := c.unifyTypes(current, errType); ok {
+				c.unwrapErrors[len(c.unwrapErrors)-1] = unified
+			} else {
+				c.errorf(e.Pos, "operator '?' lifts %s, expected %s", errType, current)
+			}
+		}
+		return value
 	case *ast.BinaryExpr:
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)
@@ -398,9 +450,12 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			return Unknown
 		}
 		c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
-		return method.Return
+		return c.finishRoutineCall(call, method.Routine, method.Return)
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
+		if ident.Name == "Ok" || ident.Name == "Err" {
+			return c.inferResultConstructor(ident.Name, call, argTypes)
+		}
 		if localType, ok := env[ident.Name]; ok {
 			ret, refined := c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, ident.Pos)
 			if refined != Unknown && refined != localType {
@@ -424,9 +479,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 				fn.Params[i].Type = argType
 			}
 		}
-		c.info.ExprTypes[ident] = FuncOfTypes(paramTypes(fn.Params), fn.Return)
+		c.info.ExprTypes[ident] = functionType(fn)
 		c.checkArgs(ident.Name, fn.Params, call.Args, argTypes, ident.Pos)
-		return fn.Return
+		return c.finishRoutineCall(call, fn.Routine, fn.Return)
 	}
 	calleeType := c.inferExpr(call.Callee, env)
 	ret, refined := c.inferFunctionValueCall("<expr>", calleeType, call.Args, argTypes, call.Callee.Position())
@@ -435,6 +490,44 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		c.applyExpectedType(call.Callee, refined)
 	}
 	return ret
+}
+
+func functionType(fn *FuncInfo) Type {
+	if fn.Routine {
+		return AsyncFuncOfTypes(paramTypes(fn.Params), fn.Return)
+	}
+	return FuncOfTypes(paramTypes(fn.Params), fn.Return)
+}
+
+func (c *checker) inferResultConstructor(name string, call *ast.CallExpr, argTypes []Type) Type {
+	if len(call.Args) != 1 {
+		c.errorf(call.Pos, "%s expects 1 arg, got %d", name, len(call.Args))
+		return Unknown
+	}
+	switch name {
+	case "Ok":
+		return ResultOf(argTypes[0], Unknown)
+	case "Err":
+		return ResultOf(Unknown, argTypes[0])
+	default:
+		return Unknown
+	}
+}
+
+func (c *checker) finishRoutineCall(call *ast.CallExpr, routine bool, ret Type) Type {
+	if !routine {
+		return ret
+	}
+	if call != nil {
+		c.info.AsyncCalls[call] = true
+	}
+	if c.routineDepth > 0 {
+		if call != nil {
+			c.info.AwaitCalls[call] = true
+		}
+		return ret
+	}
+	return TaskOf(ret)
 }
 
 func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
@@ -701,7 +794,7 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 }
 
 func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, pos lexer.Position) (Type, Type) {
-	params, ret, ok := parseFuncType(string(typ))
+	params, ret, ok := parseCallableType(string(typ))
 	if !ok {
 		if typ != Unknown {
 			c.errorf(pos, "type %s is not callable", typ)
@@ -725,6 +818,9 @@ func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr,
 		if !typesCompatible(expected, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], expected)
 		}
+	}
+	if _, _, async := parseAsyncFuncType(string(typ)); async {
+		return c.finishRoutineCall(nil, true, Type(ret)), AsyncFuncOfTypes(refinedParams, Type(ret))
 	}
 	return Type(ret), FuncOfTypes(refinedParams, Type(ret))
 }

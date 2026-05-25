@@ -21,6 +21,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")
 	}
 	g := &generator{file: file}
+	if fileUsesAsyncRuntime(file) {
+		g.asyncRuntime()
+		g.line("")
+	}
 	if fileUsesBinaryRuntime(file) {
 		g.binaryRuntime()
 		g.line("")
@@ -105,6 +109,76 @@ func selectorUsesGo(expr ir.Expr) bool {
 	return ok && at.Name == "go"
 }
 
+func (g *generator) asyncRuntime() {
+	g.line("type RuneResult<T, E> = { ok: true; value: T } | { ok: false; error: E };")
+	g.line("type RuneError = { code: number; message: string; cause: RuneError | null };")
+	g.line("")
+	g.line("const runeTasks: Promise<unknown>[] = [];")
+	g.line("")
+	g.line("function runeGo<T>(work: () => T | Promise<T>): Promise<T> {")
+	g.indent++
+	g.line("const task = Promise.resolve().then(work);")
+	g.line("runeTasks.push(task);")
+	g.line("task.finally(() => {")
+	g.indent++
+	g.line("const index = runeTasks.indexOf(task);")
+	g.line("if (index >= 0) {")
+	g.indent++
+	g.line("runeTasks.splice(index, 1);")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("});")
+	g.line("return task;")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("async function runeWaitAll(): Promise<void> {")
+	g.indent++
+	g.line("while (runeTasks.length > 0) {")
+	g.indent++
+	g.line("await Promise.allSettled([...runeTasks]);")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeOk<T, E>(value: T): RuneResult<T, E> {")
+	g.indent++
+	g.line("return { ok: true, value };")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeErr<T, E>(error: E): RuneResult<T, E> {")
+	g.indent++
+	g.line("return { ok: false, error };")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeErrorFrom(error: unknown): RuneError {")
+	g.indent++
+	g.line("return { code: 1, message: error instanceof Error ? error.message : String(error), cause: null };")
+	g.indent--
+	g.line("}")
+	if fileUsesFSRuntime(g.file) {
+		g.line("")
+		g.line("async function runeReadFile(path: string): Promise<RuneResult<Uint8Array, RuneError>> {")
+		g.indent++
+		g.line("try {")
+		g.indent++
+		g.line("const fs = await import(\"node:fs/promises\");")
+		g.line("return runeOk<Uint8Array, RuneError>(await fs.readFile(path));")
+		g.indent--
+		g.line("} catch (error) {")
+		g.indent++
+		g.line("return runeErr<Uint8Array, RuneError>(runeErrorFrom(error));")
+		g.indent--
+		g.line("}")
+		g.indent--
+		g.line("}")
+	}
+}
+
 func join(parts []string, sep string) string {
 	out := ""
 	for i, part := range parts {
@@ -181,6 +255,108 @@ func fileUsesSignals(file *ir.File) bool {
 		}
 	}
 	return false
+}
+
+func fileUsesAsyncRuntime(file *ir.File) bool {
+	if fileUsesType(file, checker.Data) || fileUsesType(file, checker.Error) || fileUsesGenericType(file, "Result") || fileUsesGenericType(file, "Task") {
+		return true
+	}
+	for _, fn := range file.Functions {
+		if fn.Routine || exprUsesAsync(fn.Body) {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if method.Routine || exprUsesAsync(method.Body) {
+				return true
+			}
+		}
+	}
+	return fileUsesFSRuntime(file)
+}
+
+func fileUsesGenericType(file *ir.File, base string) bool {
+	found := false
+	check := func(candidate checker.Type) {
+		if found {
+			return
+		}
+		found = typeUsesGeneric(candidate, base)
+	}
+	for _, fn := range file.Functions {
+		check(fn.Return)
+		for _, param := range fn.Params {
+			check(param.Type)
+		}
+		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
+			check(expr.ResultType())
+		})
+	}
+	for _, typ := range file.Types {
+		for _, field := range typ.Fields {
+			check(field.Type)
+		}
+		for _, method := range typ.Methods {
+			check(method.Return)
+			for _, param := range method.Params {
+				check(param.Type)
+			}
+			ir.WalkExpr(method.Body, func(expr ir.Expr) {
+				check(expr.ResultType())
+			})
+		}
+	}
+	return found
+}
+
+func typeUsesGeneric(candidate checker.Type, base string) bool {
+	name := string(candidate)
+	return strings.HasPrefix(name, base+"[") || strings.Contains(name, ","+base+"[") || strings.Contains(name, "["+base+"[")
+}
+
+func exprUsesAsync(expr ir.Expr) bool {
+	found := false
+	ir.WalkExpr(expr, func(expr ir.Expr) {
+		if call, ok := expr.(*ir.CallExpr); ok && call.Async {
+			found = true
+		}
+		if _, ok := expr.(*ir.ResultUnwrapExpr); ok {
+			found = true
+		}
+	})
+	return found
+}
+
+func fileUsesFSRuntime(file *ir.File) bool {
+	found := false
+	check := func(expr ir.Expr) {
+		call, ok := expr.(*ir.CallExpr)
+		if !ok || file.Stdlib == nil {
+			return
+		}
+		sel, ok := call.Callee.(*ir.SelectorExpr)
+		if !ok {
+			return
+		}
+		at, ok := sel.Receiver.(*ir.AtExpr)
+		if !ok {
+			return
+		}
+		fn, ok := file.Stdlib.Function(at.Name, sel.Name)
+		if ok && fn.Intrinsic == "fs.readFile" {
+			found = true
+		}
+	}
+	for _, fn := range file.Functions {
+		ir.WalkExpr(fn.Body, check)
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			ir.WalkExpr(method.Body, check)
+		}
+	}
+	return found
 }
 
 func blockUsesSignals(expr ir.Expr) bool {

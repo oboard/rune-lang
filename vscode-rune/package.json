@@ -45,6 +45,9 @@
         "rules": {
           "variable.modification:rune": {
             "fontStyle": "bold"
+          },
+          "function.async:rune": {
+            "fontStyle": "italic"
           }
         }
       }

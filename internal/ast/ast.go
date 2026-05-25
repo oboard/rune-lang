@@ -56,6 +56,7 @@ type EnumMember struct {
 
 type Function struct {
 	Name          string
+	Routine       bool
 	Generics      []string
 	Annotations   []Annotation
 	ReceiverType  string
@@ -69,6 +70,9 @@ type Function struct {
 
 func (f *Function) Signature() string {
 	var b strings.Builder
+	if f.Routine {
+		b.WriteString("~ ")
+	}
 	b.WriteString(f.Name)
 	if len(f.Generics) > 0 {
 		b.WriteByte('[')

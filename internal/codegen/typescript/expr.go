@@ -56,6 +56,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return s
 	case *ir.PostfixExpr:
 		return g.postfixExpr(e)
+	case *ir.ResultUnwrapExpr:
+		return "undefined /* result unwrap is only supported in statement position */"
 	case *ir.BinaryExpr:
 		prec := tsPrecedence(e.Op)
 		op := tsBinaryOp(e.Op)
@@ -77,26 +79,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
 	case *ir.CallExpr:
-		if call, ok := g.moduleIntrinsicCall(e); ok {
-			return call
-		}
-		if call, ok := g.receiverIntrinsicCall(e); ok {
-			return call
-		}
-		if call, ok := g.arrayMethodCall(e); ok {
-			return call
-		}
-		if call, ok := g.primitiveMethodCall(e); ok {
-			return call
-		}
-		if call, ok := g.methodCall(e); ok {
-			return call
-		}
-		args := make([]string, 0, len(e.Args))
-		for _, arg := range e.Args {
-			args = append(args, g.expr(arg))
-		}
-		return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+		return g.callExpr(e)
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.SelectorExpr:
@@ -159,6 +142,61 @@ func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (g *generator) callExpr(e *ir.CallExpr) string {
+	raw := g.callExprRaw(e)
+	if e.Await {
+		return "await " + raw
+	}
+	return raw
+}
+
+func (g *generator) callExprRaw(e *ir.CallExpr) string {
+	if ident, ok := e.Callee.(*ir.Identifier); ok {
+		switch ident.Name {
+		case "Ok":
+			if len(e.Args) != 1 {
+				return g.zeroValue(e.ResultType())
+			}
+			okType, errType := resultTypeArgs(e.ResultType())
+			return fmt.Sprintf("runeOk<%s, %s>(%s)", tsType(okType), tsType(errType), g.expr(e.Args[0]))
+		case "Err":
+			if len(e.Args) != 1 {
+				return g.zeroValue(e.ResultType())
+			}
+			okType, errType := resultTypeArgs(e.ResultType())
+			return fmt.Sprintf("runeErr<%s, %s>(%s)", tsType(okType), tsType(errType), g.expr(e.Args[0]))
+		}
+	}
+	if call, ok := g.moduleIntrinsicCall(e); ok {
+		return call
+	}
+	if call, ok := g.receiverIntrinsicCall(e); ok {
+		return call
+	}
+	if call, ok := g.arrayMethodCall(e); ok {
+		return call
+	}
+	if call, ok := g.primitiveMethodCall(e); ok {
+		return call
+	}
+	if call, ok := g.methodCall(e); ok {
+		return call
+	}
+	args := make([]string, 0, len(e.Args))
+	for _, arg := range e.Args {
+		args = append(args, g.expr(arg))
+	}
+	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func resultTypeArgs(typ checker.Type) (checker.Type, checker.Type) {
+	base, args, ok := parseTSGenericType(string(typ))
+	if !ok || base != "Result" || len(args) != 2 {
+		return checker.Unknown, checker.Unknown
+	}
+	return checker.Type(args[0]), checker.Type(args[1])
 }
 
 func (g *generator) stmtExpr(expr ir.Expr) string {
@@ -391,6 +429,14 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	b.WriteString("((): ")
 	b.WriteString(ret)
 	b.WriteString(" => { ")
+	if matchNeedsSubjectTemp(match) {
+		subject = g.nextTemp("__match")
+		b.WriteString("const ")
+		b.WriteString(subject)
+		b.WriteString(" = ")
+		b.WriteString(g.expr(match.Subject))
+		b.WriteString("; ")
+	}
 	hasDefault := false
 	for i, branch := range match.Branches {
 		if _, ok := branch.Pattern.(*ir.WildcardPattern); ok {
@@ -409,6 +455,7 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 			b.WriteString(g.patternCondition(subject, branch.Pattern))
 			b.WriteString(") { ")
 		}
+		b.WriteString(g.patternBinding(subject, branch.Pattern))
 		if match.ResultType() == checker.Void {
 			b.WriteString(g.stmtExpr(branch.Expr))
 			b.WriteString("; return; } ")
@@ -425,6 +472,44 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	}
 	b.WriteString("})()")
 	return b.String()
+}
+
+func matchNeedsSubjectTemp(match *ir.MatchExpr) bool {
+	for _, branch := range match.Branches {
+		if patternNeedsSubjectTemp(branch.Pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
+	switch p := pattern.(type) {
+	case *ir.ConstructorPattern:
+		return true
+	case *ir.TuplePattern:
+		for _, elem := range p.Elements {
+			if patternNeedsSubjectTemp(elem) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (g *generator) patternBinding(subject string, pattern ir.Pattern) string {
+	constructor, ok := pattern.(*ir.ConstructorPattern)
+	if !ok || constructor.Binding == "" {
+		return ""
+	}
+	switch constructor.Name {
+	case "Ok":
+		return fmt.Sprintf("const %s = %s.value; ", mangleIdent(constructor.Binding), subject)
+	case "Err":
+		return fmt.Sprintf("const %s = %s.error; ", mangleIdent(constructor.Binding), subject)
+	default:
+		return ""
+	}
 }
 
 func (g *generator) watchExpr(watch *ir.WatchExpr) string {

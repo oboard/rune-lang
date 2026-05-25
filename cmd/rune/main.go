@@ -303,7 +303,7 @@ func compileTypeScriptToTemp(path string) (string, func(), error) {
 		_ = os.RemoveAll(dir)
 	}
 	tsFile := filepath.Join(dir, "main.ts")
-	src += "\nif (typeof __main === \"function\") {\n  __main();\n}\n"
+	src += "\nif (typeof __main === \"function\") {\n  const __runeMainResult = __main();\n  if (__runeMainResult && typeof __runeMainResult.then === \"function\") {\n    await __runeMainResult;\n  }\n}\nif (typeof runeWaitAll === \"function\") {\n  await runeWaitAll();\n}\n"
 	if err := os.WriteFile(tsFile, []byte(src), 0o644); err != nil {
 		cleanup()
 		return "", func() {}, err

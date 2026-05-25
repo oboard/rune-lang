@@ -20,6 +20,12 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 			parts = append(parts, f.pattern(elem))
 		}
 		return "(" + strings.Join(parts, ", ") + ")"
+	case *ast.ConstructorPattern:
+		binding := p.Binding
+		if binding == "" {
+			binding = "_"
+		}
+		return p.Name + "(" + binding + ")"
 	default:
 		return "_"
 	}

@@ -52,3 +52,15 @@ func (*TuplePattern) patternNode() {}
 func (p *TuplePattern) Position() lexer.Position {
 	return p.Pos
 }
+
+type ConstructorPattern struct {
+	Name       string
+	Binding    string
+	BindingPos lexer.Position
+	Pos        lexer.Position
+}
+
+func (*ConstructorPattern) patternNode() {}
+func (p *ConstructorPattern) Position() lexer.Position {
+	return p.Pos
+}

@@ -62,6 +62,10 @@ func tsType(typ checker.Type) string {
 	}
 	if base, args, ok := parseTSGenericType(string(typ)); ok {
 		switch base {
+		case "Result":
+			return "RuneResult<" + tsType(checker.Type(args[0])) + ", " + tsType(checker.Type(args[1])) + ">"
+		case "Task":
+			return "Promise<" + tsType(checker.Type(args[0])) + ">"
 		case "ReadonlyArray":
 			return "ReadonlyArray<" + tsType(checker.Type(args[0])) + ">"
 		case "Tuple":
@@ -120,6 +124,10 @@ func tsType(typ checker.Type) string {
 		return "RuneReader"
 	case checker.Writer:
 		return "RuneWriter"
+	case checker.Data:
+		return "Uint8Array"
+	case checker.Error:
+		return "RuneError"
 	case checker.Never:
 		return "never"
 	case checker.Symbol:
@@ -153,11 +161,11 @@ func parseTSGenericType(name string) (string, []string, bool) {
 	base := name[:idx]
 	args := splitTSTypeList(strings.TrimSuffix(name[idx+1:], "]"))
 	switch base {
-	case "ReadonlyArray", "Set", "WeakSet":
+	case "ReadonlyArray", "Set", "WeakSet", "Task":
 		return base, args, len(args) == 1
 	case "Tuple", "ReadonlyTuple":
 		return base, args, len(args) > 0
-	case "Map", "WeakMap", "Record":
+	case "Map", "WeakMap", "Record", "Result":
 		return base, args, len(args) == 2
 	default:
 		return "", nil, false
@@ -255,6 +263,14 @@ func zeroValue(typ checker.Type) string {
 	if _, _, ok := parseTSFuncType(string(typ)); ok {
 		return "undefined as any"
 	}
+	if base, _, ok := parseTSGenericType(string(typ)); ok {
+		switch base {
+		case "Result":
+			return "{ ok: false, error: undefined as any }"
+		case "Task":
+			return "Promise.resolve(undefined as any)"
+		}
+	}
 	switch typ {
 	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "0"
@@ -276,6 +292,10 @@ func zeroValue(typ checker.Type) string {
 		return "new RuneReader(new DataView(new ArrayBuffer(0)))"
 	case checker.Writer:
 		return "new RuneWriter()"
+	case checker.Data:
+		return "new Uint8Array()"
+	case checker.Error:
+		return "{ code: 0, message: \"\", cause: null }"
 	case checker.Null:
 		return "null"
 	case checker.Never:

@@ -637,6 +637,29 @@ func (s *server) semanticTokens(uri string) any {
 			length:    len(typ.Name),
 			tokenType: semanticTokenTypeType,
 		})
+		for _, method := range typ.Methods {
+			if method.Routine {
+				tokens = append(tokens, semanticToken{
+					line:      max(method.NamePos.Line-1, 0),
+					character: max(method.NamePos.Column-1, 0),
+					length:    len(method.Name),
+					tokenType: semanticTokenTypeFunction,
+					modifiers: semanticTokenModifierAsync,
+				})
+			}
+		}
+	}
+	for _, fn := range prog.File.Functions {
+		if !fn.Routine {
+			continue
+		}
+		tokens = append(tokens, semanticToken{
+			line:      max(fn.NamePos.Line-1, 0),
+			character: max(fn.NamePos.Column-1, 0),
+			length:    len(fn.Name),
+			tokenType: semanticTokenTypeFunction,
+			modifiers: semanticTokenModifierAsync,
+		})
 	}
 	walkFileStatements(prog.File, func(stmt ast.Stmt) {
 		switch stmt := stmt.(type) {
@@ -666,6 +689,10 @@ func (s *server) semanticTokens(uri string) any {
 	})
 	walkFileExprs(prog.File, func(expr ast.Expr) {
 		switch expr := expr.(type) {
+		case *ast.CallExpr:
+			if token, ok := asyncCallSemanticToken(prog, expr); ok {
+				tokens = append(tokens, token)
+			}
 		case *ast.Identifier:
 			if _, signal := signals[expr.Name]; !signal {
 				return
@@ -711,6 +738,52 @@ func signalGraph(file *ast.File) map[string][]string {
 		}
 	})
 	return signals
+}
+
+func asyncCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {
+	switch callee := call.Callee.(type) {
+	case *ast.Identifier:
+		fn := prog.Info.Functions[callee.Name]
+		if fn == nil || !fn.Routine {
+			return semanticToken{}, false
+		}
+		return semanticToken{
+			line:      max(callee.Pos.Line-1, 0),
+			character: max(callee.Pos.Column-1, 0),
+			length:    len(callee.Name),
+			tokenType: semanticTokenTypeFunction,
+			modifiers: semanticTokenModifierAsync,
+		}, true
+	case *ast.SelectorExpr:
+		if asyncSelectorCall(prog, callee) {
+			return semanticToken{
+				line:      max(callee.NamePos.Line-1, 0),
+				character: max(callee.NamePos.Column-1, 0),
+				length:    len(callee.Name),
+				tokenType: semanticTokenTypeFunction,
+				modifiers: semanticTokenModifierAsync,
+			}, true
+		}
+	}
+	return semanticToken{}, false
+}
+
+func asyncSelectorCall(prog *compiler.Program, sel *ast.SelectorExpr) bool {
+	if at, ok := sel.Receiver.(*ast.AtExpr); ok {
+		fn, ok := prog.Info.Stdlib.Function(at.Name, sel.Name)
+		return ok && fn.Routine
+	}
+	receiver := prog.Info.ExprTypes[sel.Receiver]
+	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+		fn, ok := prog.Info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
+		return ok && fn.Routine
+	}
+	structInfo := prog.Info.Types[baseType(receiver)]
+	if structInfo == nil {
+		return false
+	}
+	method := structInfo.Methods[sel.Name]
+	return method != nil && method.Routine
 }
 
 func exprSignalDeps(expr ast.Expr, signals map[string][]string) []string {
@@ -764,8 +837,10 @@ type semanticToken struct {
 const (
 	semanticTokenTypeVariable = 0
 	semanticTokenTypeType     = 1
+	semanticTokenTypeFunction = 2
 
 	semanticTokenModifierModification = 1 << 0
+	semanticTokenModifierAsync        = 1 << 1
 )
 
 func encodeSemanticTokens(tokens []semanticToken) []int {

@@ -2,6 +2,7 @@ package gocodegen
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	goformat "go/format"
@@ -29,6 +30,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesBinaryRuntime(file) {
 		g.imports["encoding/binary"] = true
 		g.imports["math"] = true
+	}
+	if fileUsesFSRuntime(file) {
+		g.imports["os"] = true
+	}
+	if fileUsesAsyncRuntime(file) {
+		g.imports["sync"] = true
 	}
 	for _, fn := range file.Functions {
 		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
@@ -94,6 +101,12 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
+	if fileUsesAsyncRuntime(file) {
+		g.asyncRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
 	if fileUsesSignals(file) {
 		g.signalRuntime()
 		if len(file.Functions) > 0 {
@@ -114,7 +127,14 @@ func GenerateIR(file *ir.File) (string, error) {
 		}
 		g.line("func main() {")
 		g.indent++
-		g.linef("%s()", mangleIdent("main"))
+		if mainFn := mainFunction(file); mainFn != nil && mainFn.Routine {
+			g.linef("runeAwait(%s())", mangleIdent("main"))
+		} else {
+			g.linef("%s()", mangleIdent("main"))
+		}
+		if fileUsesAsyncRuntime(file) {
+			g.line("runeWaitAll()")
+		}
 		g.indent--
 		g.line("}")
 	}
@@ -183,6 +203,108 @@ func fileUsesBinaryRuntime(file *ir.File) bool {
 		fileUsesType(file, checker.Writer)
 }
 
+func fileUsesAsyncRuntime(file *ir.File) bool {
+	if fileUsesType(file, checker.Data) || fileUsesType(file, checker.Error) || fileUsesGenericType(file, "Result") || fileUsesGenericType(file, "Task") {
+		return true
+	}
+	for _, fn := range file.Functions {
+		if fn.Routine || exprUsesAsync(fn.Body) {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if method.Routine || exprUsesAsync(method.Body) {
+				return true
+			}
+		}
+	}
+	return fileUsesFSRuntime(file)
+}
+
+func fileUsesGenericType(file *ir.File, base string) bool {
+	found := false
+	check := func(candidate checker.Type) {
+		if found {
+			return
+		}
+		found = typeUsesGeneric(candidate, base)
+	}
+	for _, fn := range file.Functions {
+		check(fn.Return)
+		for _, param := range fn.Params {
+			check(param.Type)
+		}
+		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
+			check(expr.ResultType())
+		})
+	}
+	for _, typ := range file.Types {
+		for _, field := range typ.Fields {
+			check(field.Type)
+		}
+		for _, method := range typ.Methods {
+			check(method.Return)
+			for _, param := range method.Params {
+				check(param.Type)
+			}
+			ir.WalkExpr(method.Body, func(expr ir.Expr) {
+				check(expr.ResultType())
+			})
+		}
+	}
+	return found
+}
+
+func typeUsesGeneric(candidate checker.Type, base string) bool {
+	name := string(candidate)
+	return strings.HasPrefix(name, base+"[") || strings.Contains(name, ","+base+"[") || strings.Contains(name, "["+base+"[")
+}
+
+func exprUsesAsync(expr ir.Expr) bool {
+	found := false
+	ir.WalkExpr(expr, func(expr ir.Expr) {
+		if call, ok := expr.(*ir.CallExpr); ok && call.Async {
+			found = true
+		}
+		if _, ok := expr.(*ir.ResultUnwrapExpr); ok {
+			found = true
+		}
+	})
+	return found
+}
+
+func fileUsesFSRuntime(file *ir.File) bool {
+	found := false
+	check := func(expr ir.Expr) {
+		call, ok := expr.(*ir.CallExpr)
+		if !ok || file.Stdlib == nil {
+			return
+		}
+		sel, ok := call.Callee.(*ir.SelectorExpr)
+		if !ok {
+			return
+		}
+		at, ok := sel.Receiver.(*ir.AtExpr)
+		if !ok {
+			return
+		}
+		fn, ok := file.Stdlib.Function(at.Name, sel.Name)
+		if ok && fn.Intrinsic == "fs.readFile" {
+			found = true
+		}
+	}
+	for _, fn := range file.Functions {
+		ir.WalkExpr(fn.Body, check)
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			ir.WalkExpr(method.Body, check)
+		}
+	}
+	return found
+}
+
 func (g *generator) bigIntRuntime() {
 	g.line("func runeBigInt(src string) *big.Int {")
 	g.indent++
@@ -195,6 +317,97 @@ func (g *generator) bigIntRuntime() {
 	g.line("return value")
 	g.indent--
 	g.line("}")
+}
+
+func (g *generator) asyncRuntime() {
+	g.line("type runeUnit struct{}")
+	g.line("")
+	g.line("type runeTask[T any] <-chan T")
+	g.line("")
+	g.line("var runeTasks sync.WaitGroup")
+	g.line("")
+	g.line("func runeGo[T any](work func() T) runeTask[T] {")
+	g.indent++
+	g.line("runeTasks.Add(1)")
+	g.line("ch := make(chan T, 1)")
+	g.line("go func() {")
+	g.indent++
+	g.line("defer runeTasks.Done()")
+	g.line("ch <- work()")
+	g.indent--
+	g.line("}()")
+	g.line("return ch")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeWaitAll() {")
+	g.indent++
+	g.line("runeTasks.Wait()")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeAwait[T any](task runeTask[T]) T {")
+	g.indent++
+	g.line("return <-task")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("type runeResult[T any, E any] struct {")
+	g.indent++
+	g.line("ok bool")
+	g.line("value T")
+	g.line("err E")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeOk[T any, E any](value T) runeResult[T, E] {")
+	g.indent++
+	g.line("return runeResult[T, E]{ok: true, value: value}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeErr[T any, E any](err E) runeResult[T, E] {")
+	g.indent++
+	g.line("return runeResult[T, E]{err: err}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("type runeError struct {")
+	g.indent++
+	g.line("__code int")
+	g.line("__message string")
+	g.line("__cause *runeError")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeErrorFrom(err error) *runeError {")
+	g.indent++
+	g.line("if err == nil {")
+	g.indent++
+	g.line("return nil")
+	g.indent--
+	g.line("}")
+	g.line("return &runeError{__code: 1, __message: err.Error()}")
+	g.indent--
+	g.line("}")
+	if fileUsesFSRuntime(g.file) {
+		g.line("")
+		g.line("func runeReadFile(path string) runeTask[runeResult[[]byte, *runeError]] {")
+		g.indent++
+		g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+		g.indent++
+		g.line("data, err := os.ReadFile(path)")
+		g.line("if err != nil {")
+		g.indent++
+		g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
+		g.indent--
+		g.line("}")
+		g.line("return runeOk[[]byte, *runeError](data)")
+		g.indent--
+		g.line("})")
+		g.indent--
+		g.line("}")
+	}
 }
 
 func fileUsesSignals(file *ir.File) bool {
@@ -238,7 +451,13 @@ type generator struct {
 	file      *ir.File
 	imports   map[string]bool
 	indent    int
+	temp      int
 	errors    []error
 	thisNames []string
 	signals   []map[string]checker.Type
+}
+
+func (g *generator) nextTemp(prefix string) string {
+	g.temp++
+	return fmt.Sprintf("%s%d", mangleIdent(prefix), g.temp)
 }

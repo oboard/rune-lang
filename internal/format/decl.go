@@ -97,11 +97,18 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	}
 	ret := formatReturnType(fn.ReturnType, fn.ReturnDisplay)
 	single := fn.Name + formatGenerics(fn.Generics) + "(" + strings.Join(params, ", ") + ")" + ret
+	if fn.Routine {
+		single = "~ " + single
+	}
 	if len(f.indentString(f.indent)+single) <= maxLineLength {
 		return []string{single}
 	}
 
-	lines := []string{fn.Name + formatGenerics(fn.Generics) + "("}
+	prefix := fn.Name
+	if fn.Routine {
+		prefix = "~ " + prefix
+	}
+	lines := []string{prefix + formatGenerics(fn.Generics) + "("}
 	for i, param := range fn.Params {
 		paramLines := f.formatParamLines(param)
 		if i < len(fn.Params)-1 {

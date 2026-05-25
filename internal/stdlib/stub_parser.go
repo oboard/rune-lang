@@ -43,14 +43,17 @@ func (p *stubParser) parse() (*Module, error) {
 		if p.check(lexer.EOF) {
 			break
 		}
-		if !p.check(lexer.Ident) {
+		if !p.check(lexer.Ident) && !p.check(lexer.Tilde) {
 			return nil, p.errorf(p.peek(), "expected core declaration")
 		}
 
-		if p.looksLikeReceiverBlock() {
-			functions, err := p.parseReceiverBlock()
+		if p.check(lexer.Ident) && p.looksLikeReceiverBlock() {
+			typ, functions, err := p.parseReceiverBlock()
 			if err != nil {
 				return nil, err
+			}
+			if typ != nil {
+				mod.Types = append(mod.Types, *typ)
 			}
 			for _, fn := range functions {
 				if err := addFunction(mod, seen, fn); err != nil {

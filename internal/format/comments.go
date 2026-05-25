@@ -8,12 +8,13 @@ func preserveLineComments(source string, formatted string) string {
 	var leadingKeys []string
 	var inlineKeys []string
 	var pendingLeading []string
+	var sourceStack []string
 
 	for _, line := range strings.Split(source, "\n") {
 		commentStart := findLineComment(line)
 		if commentStart < 0 {
 			if strings.TrimSpace(line) != "" {
-				key := canonicalLineKey(line)
+				key := commentLineKey(line, sourceStack)
 				if len(pendingLeading) > 0 {
 					leadingComments[key] = append(leadingComments[key], pendingLeading)
 					if !containsKey(leadingKeys, key) {
@@ -21,6 +22,7 @@ func preserveLineComments(source string, formatted string) string {
 					}
 					pendingLeading = nil
 				}
+				sourceStack = updateCommentStack(line, sourceStack)
 			}
 			continue
 		}
@@ -32,7 +34,7 @@ func preserveLineComments(source string, formatted string) string {
 			continue
 		}
 
-		key := canonicalLineKey(code)
+		key := commentLineKey(code, sourceStack)
 		if len(pendingLeading) > 0 {
 			leadingComments[key] = append(leadingComments[key], pendingLeading)
 			if !containsKey(leadingKeys, key) {
@@ -44,15 +46,17 @@ func preserveLineComments(source string, formatted string) string {
 		if !containsKey(inlineKeys, key) {
 			inlineKeys = append(inlineKeys, key)
 		}
+		sourceStack = updateCommentStack(code, sourceStack)
 	}
 
 	hadTrailingNewline := strings.HasSuffix(formatted, "\n")
 	formatted = strings.TrimSuffix(formatted, "\n")
 	var out []string
 	var closeComments []pendingCloseComment
+	var formattedStack []string
 	if formatted != "" {
 		for _, line := range strings.Split(formatted, "\n") {
-			key := canonicalLineKey(line)
+			key := commentLineKey(line, formattedStack)
 			if groups, matchedKey := takeLeadingComments(leadingComments, leadingKeys, key); len(groups) > 0 {
 				for _, comment := range groups[0] {
 					out = append(out, formatLeadingComment(line, comment))
@@ -76,6 +80,7 @@ func preserveLineComments(source string, formatted string) string {
 				})
 			}
 			out = append(out, line)
+			formattedStack = updateCommentStack(line, formattedStack)
 		}
 	}
 
@@ -94,6 +99,53 @@ func preserveLineComments(source string, formatted string) string {
 		result += "\n"
 	}
 	return result
+}
+
+func commentLineKey(line string, stack []string) string {
+	key := canonicalLineKey(line)
+	if key == "}" && len(stack) > 0 {
+		return closeBlockKey(stack[len(stack)-1])
+	}
+	return key
+}
+
+func closeBlockKey(openKey string) string {
+	return openKey + "}"
+}
+
+func updateCommentStack(line string, stack []string) []string {
+	inString := false
+	escaped := false
+	for i := 0; i < len(line); i++ {
+		ch := line[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		if ch == '"' {
+			inString = true
+			continue
+		}
+		switch ch {
+		case '{':
+			stack = append(stack, canonicalLineKey(line[:i+1]))
+		case '}':
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+	return stack
 }
 
 type pendingCloseComment struct {

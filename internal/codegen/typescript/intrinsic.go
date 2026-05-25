@@ -41,6 +41,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.binaryModuleCall(fn, args, call.ResultType()), true
 	case "buffer.new", "buffer.fromBinary", "reader.new", "writer.new", "writer.withCapacity":
 		return g.streamModuleCall(fn, args, call.ResultType()), true
+	case "fs.readFile":
+		if len(args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		return fmt.Sprintf("runeReadFile(%s)", args[0]), true
 	case "json.stringify":
 		if len(call.Args) != 1 {
 			return "undefined", true

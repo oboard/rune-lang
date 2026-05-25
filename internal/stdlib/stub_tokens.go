@@ -56,6 +56,27 @@ func (p *stubParser) hasErrorToken(tok lexer.Token) bool {
 	return tok.Kind == lexer.Illegal || tok.Kind == lexer.EOF
 }
 
+func (p *stubParser) skipTypeNameTokens() {
+	depth := 0
+	for !p.check(lexer.EOF) {
+		switch p.peek().Kind {
+		case lexer.Ident, lexer.Comma, lexer.Colon, lexer.Question, lexer.Arrow, lexer.At, lexer.Dot:
+			p.advance()
+		case lexer.LBracket, lexer.LParen:
+			depth++
+			p.advance()
+		case lexer.RBracket, lexer.RParen:
+			if depth == 0 {
+				return
+			}
+			depth--
+			p.advance()
+		default:
+			return
+		}
+	}
+}
+
 func (p *stubParser) errorf(tok lexer.Token, format string, args ...any) error {
 	return fmt.Errorf("%s:%s: %s", p.path, tok.Pos, fmt.Sprintf(format, args...))
 }

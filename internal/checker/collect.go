@@ -94,7 +94,7 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 	generics := append([]string(nil), inheritedGenerics...)
 	generics = append(generics, fn.Generics...)
 	genericTypes := genericSet(generics...)
-	info := &FuncInfo{Name: fn.Name, Generics: generics, Node: fn, Return: Unknown}
+	info := &FuncInfo{Name: fn.Name, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown}
 	seenParams := map[string]bool{}
 	for _, param := range fn.Params {
 		if seenParams[param.Name] {

@@ -10,6 +10,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		WalkExpr(e.Expr, visit)
 	case *PostfixExpr:
 		WalkExpr(e.Expr, visit)
+	case *ResultUnwrapExpr:
+		WalkExpr(e.Expr, visit)
 	case *BinaryExpr:
 		WalkExpr(e.Left, visit)
 		WalkExpr(e.Right, visit)
@@ -96,5 +98,6 @@ func WalkPattern(pattern Pattern, visit func(Expr)) {
 		for _, elem := range p.Elements {
 			WalkPattern(elem, visit)
 		}
+	case *ConstructorPattern:
 	}
 }

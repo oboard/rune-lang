@@ -21,7 +21,7 @@ func Load(root string) (*Registry, error) {
 		return nil, fmt.Errorf("load core: %w", err)
 	}
 
-	reg := &Registry{Modules: map[string]*Module{}}
+	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -40,6 +40,10 @@ func Load(root string) (*Registry, error) {
 			return nil, err
 		}
 		reg.Modules[mod.Name] = mod
+		for i := range mod.Types {
+			typ := &mod.Types[i]
+			reg.Types[typ.Name] = typ
+		}
 	}
 	return reg, nil
 }
@@ -63,6 +67,14 @@ func (r *Registry) Function(moduleName string, functionName string) (*Function, 
 	}
 	fn := mod.byName[functionName]
 	return fn, fn != nil
+}
+
+func (r *Registry) Type(name string) (*Type, bool) {
+	if r == nil {
+		return nil, false
+	}
+	typ := r.Types[name]
+	return typ, typ != nil
 }
 
 func (r *Registry) ReceiverFunction(moduleName string, receiver string, functionName string) (*Function, bool) {

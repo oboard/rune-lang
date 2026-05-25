@@ -26,6 +26,10 @@ func goType(typ checker.Type) string {
 	}
 	if base, args, ok := parseGoGenericType(string(typ)); ok {
 		switch base {
+		case "Result":
+			return "runeResult[" + goType(checker.Type(args[0])) + ", " + goType(checker.Type(args[1])) + "]"
+		case "Task":
+			return "runeTask[" + goType(checker.Type(args[0])) + "]"
 		case "ReadonlyArray":
 			return "[]" + goType(checker.Type(args[0]))
 		case "Tuple", "ReadonlyTuple":
@@ -99,6 +103,10 @@ func goType(typ checker.Type) string {
 		return "*runeReader"
 	case checker.Writer:
 		return "*runeWriter"
+	case checker.Data:
+		return "[]byte"
+	case checker.Error:
+		return "*runeError"
 	case checker.Never:
 		return "struct{}"
 	case checker.Symbol:
@@ -122,11 +130,11 @@ func parseGoGenericType(name string) (string, []string, bool) {
 	base := name[:idx]
 	args := splitGoTypeList(strings.TrimSuffix(name[idx+1:], "]"))
 	switch base {
-	case "ReadonlyArray", "Set", "WeakSet":
+	case "ReadonlyArray", "Set", "WeakSet", "Task":
 		return base, args, len(args) == 1
 	case "Tuple", "ReadonlyTuple":
 		return base, args, len(args) > 0
-	case "Map", "WeakMap", "Record":
+	case "Map", "WeakMap", "Record", "Result":
 		return base, args, len(args) == 2
 	default:
 		return "", nil, false
@@ -224,6 +232,16 @@ func zeroValue(typ checker.Type) string {
 	if _, _, ok := parseGoFuncType(string(typ)); ok {
 		return "nil"
 	}
+	if base, args, ok := parseGoGenericType(string(typ)); ok {
+		switch base {
+		case "Result":
+			return fmt.Sprintf("%s{}", goType(typ))
+		case "Task":
+			return "nil"
+		default:
+			_ = args
+		}
+	}
 	switch typ {
 	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.Int64, checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
 		return "0"
@@ -245,6 +263,10 @@ func zeroValue(typ checker.Type) string {
 		return "newRuneReader(newRuneBinary(0))"
 	case checker.Writer:
 		return "newRuneWriter()"
+	case checker.Data:
+		return "nil"
+	case checker.Error:
+		return "nil"
 	case checker.Null:
 		return "any(nil)"
 	case checker.HTMLElement:
@@ -262,12 +284,16 @@ func (g *generator) zeroValue(typ checker.Type) string {
 }
 
 func hasMain(file *ir.File) bool {
+	return mainFunction(file) != nil
+}
+
+func mainFunction(file *ir.File) *ir.Function {
 	for _, fn := range file.Functions {
 		if fn.Name == "main" {
-			return true
+			return fn
 		}
 	}
-	return false
+	return nil
 }
 
 func mangleIdent(name string) string {

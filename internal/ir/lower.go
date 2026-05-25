@@ -97,6 +97,7 @@ func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
 func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 	out := &Function{
 		Name:         fn.Name,
+		Routine:      fn.Routine,
 		Generics:     append([]string(nil), fn.Generics...),
 		ReceiverType: checker.Type(receiver),
 		Return:       checker.Unknown,
@@ -168,6 +169,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &UnaryExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.PostfixExpr:
 		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
+	case *ast.ResultUnwrapExpr:
+		return &ResultUnwrapExpr{ExprBase: l.base(e), Expr: l.expr(e.Expr)}
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
 	case *ast.TernaryExpr:
@@ -176,6 +179,10 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Value: l.expr(e.Value)}
 	case *ast.CallExpr:
 		out := &CallExpr{ExprBase: l.base(e), Callee: l.expr(e.Callee)}
+		if l.info != nil {
+			out.Async = l.info.AsyncCalls[e]
+			out.Await = l.info.AwaitCalls[e]
+		}
 		for _, arg := range e.Args {
 			out.Args = append(out.Args, l.expr(arg))
 		}
@@ -277,6 +284,8 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 			out.Elements = append(out.Elements, l.pattern(elem))
 		}
 		return out
+	case *ast.ConstructorPattern:
+		return &ConstructorPattern{Name: p.Name, Binding: p.Binding, BindingPos: p.BindingPos, Pos: p.Pos}
 	default:
 		return nil
 	}

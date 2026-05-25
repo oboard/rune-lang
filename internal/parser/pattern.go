@@ -14,6 +14,25 @@ func (p *Parser) parsePattern() ast.Pattern {
 	case lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 	case lexer.Ident:
+		if p.checkNext(lexer.LParen) {
+			name := p.advance()
+			p.consume(lexer.LParen, "expected '(' after pattern constructor")
+			p.skipNewlines()
+			binding := ""
+			bindingPos := name.Pos
+			if p.match(lexer.Ident) {
+				binding = p.previous().Lexeme
+				bindingPos = p.previous().Pos
+			} else if p.match(lexer.Underscore) {
+				bindingPos = p.previous().Pos
+			} else {
+				p.errorAt(p.peek(), "expected binding name or '_' in constructor pattern")
+				p.advance()
+			}
+			p.skipNewlines()
+			p.consume(lexer.RParen, "expected ')' after constructor pattern")
+			return &ast.ConstructorPattern{Name: name.Lexeme, Binding: binding, BindingPos: bindingPos, Pos: name.Pos}
+		}
 		if p.checkNext(lexer.Dot) {
 			value := p.parseExpression(1)
 			return &ast.LiteralPattern{Value: value, Pos: tok.Pos}

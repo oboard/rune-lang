@@ -154,12 +154,17 @@ func (p *Parser) parseFunction() *ast.Function {
 }
 
 func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
+	routine := false
+	if p.match(lexer.Tilde) {
+		routine = true
+		p.skipNewlines()
+	}
 	name := p.consume(lexer.Ident, "expected function name")
 	if name.Kind == lexer.EOF {
 		return nil
 	}
 
-	fn := &ast.Function{Name: name.Lexeme, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
+	fn := &ast.Function{Name: name.Lexeme, Routine: routine, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
 	fn.Generics = p.parseGenericNames()
 	p.consume(lexer.LParen, "expected '(' after function name")
 	p.skipNewlines()
@@ -246,9 +251,7 @@ func (p *Parser) parseTypeName() parsedType {
 			display:   "(" + strings.Join(displayArgs, ", ") + ") -> " + ret.display,
 		}
 	}
-	name := p.consume(lexer.Ident, "expected type name")
-	typ := name.Lexeme
-	display := name.Lexeme
+	typ, display := p.parseSimpleTypeName()
 	if p.match(lexer.LBracket) {
 		var canonicalArgs []string
 		var displayArgs []string
@@ -271,6 +274,18 @@ func (p *Parser) parseTypeName() parsedType {
 		display += "?"
 	}
 	return parsedType{canonical: typ, display: display}
+}
+
+func (p *Parser) parseSimpleTypeName() (string, string) {
+	if p.match(lexer.At) {
+		module := p.consume(lexer.Ident, "expected module name after '@'")
+		p.consume(lexer.Dot, "expected '.' after module name")
+		name := p.consume(lexer.Ident, "expected type name after module qualifier")
+		display := "@" + module.Lexeme + "." + name.Lexeme
+		return name.Lexeme, display
+	}
+	name := p.consume(lexer.Ident, "expected type name")
+	return name.Lexeme, name.Lexeme
 }
 
 func (p *Parser) parseFunctionTypeParam() parsedType {

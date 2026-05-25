@@ -68,7 +68,7 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 	}
 	bindings := c.arrayTypeBindings(fn, elem)
 	c.checkDeclaredReceiverArgs("array", sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
-	return c.resolveDeclaredType(fn.Return, bindings)
+	return c.finishRoutineCall(call, fn.Routine, c.resolveDeclaredType(fn.Return, bindings))
 }
 
 func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
@@ -83,7 +83,7 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 	}
 	bindings := c.receiverTypeBindings(fn, receiver)
 	c.checkDeclaredReceiverArgs(moduleName, sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
-	return c.resolveDeclaredType(fn.Return, bindings), true
+	return c.finishRoutineCall(call, fn.Routine, c.resolveDeclaredType(fn.Return, bindings)), true
 }
 
 func StdlibReceiverModule(receiver Type) (string, string, bool) {
@@ -239,7 +239,7 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 		}
 		return ArrayOf(elemType)
 	}
-	if base, args, ok := parseGenericType(name); ok && isBuiltinGenericType(base) {
+	if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base)) {
 		resolved := make([]Type, 0, len(args))
 		for _, arg := range args {
 			resolved = append(resolved, c.resolveDeclaredType(arg, bindings))
@@ -286,7 +286,7 @@ func parseGenericType(name string) (string, []string, bool) {
 
 func isBuiltinGenericType(base string) bool {
 	switch base {
-	case "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "WeakMap", "WeakSet", "Record":
+	case "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "WeakMap", "WeakSet", "Record", "Result", "Task":
 		return true
 	default:
 		return false
@@ -302,6 +302,40 @@ func parseFuncType(name string) ([]string, string, bool) {
 		return nil, "", false
 	}
 	return parts[:len(parts)-1], parts[len(parts)-1], true
+}
+
+func parseAsyncFuncType(name string) ([]string, string, bool) {
+	if !strings.HasPrefix(name, "AsyncFunc[") || !strings.HasSuffix(name, "]") {
+		return nil, "", false
+	}
+	parts := splitTypeList(strings.TrimSuffix(strings.TrimPrefix(name, "AsyncFunc["), "]"))
+	if len(parts) == 0 {
+		return nil, "", false
+	}
+	return parts[:len(parts)-1], parts[len(parts)-1], true
+}
+
+func parseCallableType(name string) ([]string, string, bool) {
+	if params, ret, ok := parseFuncType(name); ok {
+		return params, ret, true
+	}
+	return parseAsyncFuncType(name)
+}
+
+func parseResultType(typ Type) (Type, Type, bool) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || base != "Result" || len(args) != 2 {
+		return Unknown, Unknown, false
+	}
+	return Type(args[0]), Type(args[1]), true
+}
+
+func parseTaskType(typ Type) (Type, bool) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || base != "Task" || len(args) != 1 {
+		return Unknown, false
+	}
+	return Type(args[0]), true
 }
 
 func splitTypeList(src string) []string {

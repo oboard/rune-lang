@@ -1,3 +1,5 @@
+Data: {}
+
 print(value: Any) => "%io.print"
 println(value: Any) => "%io.println"
 printf(format: String, value: Any) => "%io.printf"

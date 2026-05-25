@@ -30,6 +30,8 @@ const (
 	Buffer      Type = "Buffer"
 	Reader      Type = "Reader"
 	Writer      Type = "Writer"
+	Data        Type = "Data"
+	Error       Type = "Error"
 	Never       Type = "Never"
 	Symbol      Type = "Symbol"
 	Regex       Type = "Regex"
@@ -49,6 +51,7 @@ type ParamInfo struct {
 
 type FuncInfo struct {
 	Name           string
+	Routine        bool
 	Generics       []string
 	ReceiverType   Type
 	Params         []ParamInfo
@@ -84,9 +87,11 @@ type EnumInfo struct {
 }
 
 type Info struct {
-	Functions map[string]*FuncInfo
-	Types     map[string]*StructInfo
-	Enums     map[string]*EnumInfo
-	Stdlib    *stdlib.Registry
-	ExprTypes map[ast.Expr]Type
+	Functions  map[string]*FuncInfo
+	Types      map[string]*StructInfo
+	Enums      map[string]*EnumInfo
+	Stdlib     *stdlib.Registry
+	ExprTypes  map[ast.Expr]Type
+	AsyncCalls map[*ast.CallExpr]bool
+	AwaitCalls map[*ast.CallExpr]bool
 }

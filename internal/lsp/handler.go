@@ -21,8 +21,8 @@ func (s *server) handle(req request) error {
 				"inlayHintProvider":          true,
 				"semanticTokensProvider": map[string]any{
 					"legend": map[string]any{
-						"tokenTypes":     []string{"variable", "type"},
-						"tokenModifiers": []string{"modification"},
+						"tokenTypes":     []string{"variable", "type", "function"},
+						"tokenModifiers": []string{"modification", "async"},
 					},
 					"full": true,
 				},

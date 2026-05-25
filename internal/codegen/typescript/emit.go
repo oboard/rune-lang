@@ -34,7 +34,12 @@ func (g *generator) function(fn *ir.Function) error {
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
-	g.linef("function %s(%s): %s {", mangleIdent(fn.Name), strings.Join(params, ", "), tsType(fn.Return))
+	if fn.Routine {
+		return g.routineFunction(fn, params)
+	}
+	prefix := "function"
+	ret := tsType(fn.Return)
+	g.linef("%s %s(%s): %s {", prefix, mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
@@ -48,12 +53,37 @@ func (g *generator) function(fn *ir.Function) error {
 	return nil
 }
 
+func (g *generator) routineFunction(fn *ir.Function, params []string) error {
+	ret := tsType(fn.Return)
+	g.linef("function %s(%s): Promise<%s> {", mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	g.indent++
+	g.linef("return runeGo(async (): Promise<%s> => {", ret)
+	g.indent++
+	g.pushSignalScope()
+	g.pushReactiveScope()
+	if err := g.body(fn, fn.Body, fn.Return); err != nil {
+		return err
+	}
+	g.popReactiveScope()
+	g.popSignalScope()
+	g.indent--
+	g.line("});")
+	g.indent--
+	g.line("}")
+	return nil
+}
+
 func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	params := []string{fmt.Sprintf("%s: %s", mangleIdent("this"), mangleIdent(typ.Name))}
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
-	g.linef("function %s(%s): %s {", mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), tsType(fn.Return))
+	if fn.Routine {
+		return g.routineMethod(typ, fn, params)
+	}
+	prefix := "function"
+	ret := tsType(fn.Return)
+	g.linef("%s %s(%s): %s {", prefix, mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
@@ -69,6 +99,29 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	return nil
 }
 
+func (g *generator) routineMethod(typ *ir.StructType, fn *ir.Function, params []string) error {
+	ret := tsType(fn.Return)
+	g.linef("function %s(%s): Promise<%s> {", mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
+	g.indent++
+	g.linef("return runeGo(async (): Promise<%s> => {", ret)
+	g.indent++
+	g.pushSignalScope()
+	g.pushReactiveScope()
+	g.thisNames = append(g.thisNames, mangleIdent("this"))
+	if err := g.body(fn, fn.Body, fn.Return); err != nil {
+		return err
+	}
+	g.thisNames = g.thisNames[:len(g.thisNames)-1]
+	g.popReactiveScope()
+	g.popSignalScope()
+	g.indent--
+	g.line("});")
+	g.indent--
+	g.line("}")
+	_ = typ
+	return nil
+}
+
 func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error {
 	switch e := expr.(type) {
 	case *ir.PatternBlock:
@@ -76,12 +129,16 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error 
 	case *ir.BlockExpr:
 		return g.block(e, ret)
 	default:
+		if unwrap, ok := expr.(*ir.ResultUnwrapExpr); ok {
+			g.resultUnwrapExprStmt(unwrap, ret, true)
+			return nil
+		}
 		if ret == checker.Void {
 			if expr := g.expr(expr); expr != "" {
 				g.line(expr + ";")
 			}
 		} else {
-			g.lineExpr("return ", g.expr(expr), ";")
+			g.lineExpr("return ", g.returnExpr(expr, ret), ";")
 		}
 	}
 	return nil
@@ -92,6 +149,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapLet(s.Name, unwrap, ret)
+				continue
+			}
 			if reactive, ok := s.Value.(*ir.ReactiveLiteral); ok {
 				kind := "const"
 				if s.Mutable {
@@ -127,12 +188,16 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			}
 			g.linef("%s = %s;", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
+			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapExprStmt(unwrap, ret, last)
+				continue
+			}
 			expr := g.expr(s.Expr)
 			if expr == "" {
 				continue
 			}
 			if last && ret != checker.Void {
-				g.lineExpr("return ", expr, ";")
+				g.lineExpr("return ", g.returnExpr(s.Expr, ret), ";")
 			} else {
 				g.line(g.stmtExpr(s.Expr) + ";")
 			}
@@ -142,6 +207,53 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		g.linef("return %s;", g.zeroValue(ret))
 	}
 	return nil
+}
+
+func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("__result")
+	g.linef("const %s = %s;", tmp, g.expr(unwrap.Expr))
+	g.linef("if (!%s.ok) {", tmp)
+	g.indent++
+	g.linef("return %s;", g.resultErrReturn(ret, tmp+".error"))
+	g.indent--
+	g.line("}")
+	g.linef("const %s = %s.value;", mangleIdent(name), tmp)
+}
+
+func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {
+	tmp := g.nextTemp("__result")
+	g.linef("const %s = %s;", tmp, g.expr(unwrap.Expr))
+	g.linef("if (!%s.ok) {", tmp)
+	g.indent++
+	g.linef("return %s;", g.resultErrReturn(ret, tmp+".error"))
+	g.indent--
+	g.line("}")
+	if last && ret != checker.Void {
+		g.linef("return %s;", g.returnRawExpr(unwrap, ret, tmp+".value"))
+	}
+}
+
+func (g *generator) resultErrReturn(ret checker.Type, errExpr string) string {
+	okType, errType := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return g.zeroValue(ret)
+	}
+	return fmt.Sprintf("runeErr<%s, %s>(%s)", tsType(okType), tsType(errType), errExpr)
+}
+
+func (g *generator) returnExpr(expr ir.Expr, ret checker.Type) string {
+	return g.returnRawExpr(expr, ret, g.expr(expr))
+}
+
+func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) string {
+	okType, errType := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return raw
+	}
+	if expr != nil && expr.ResultType() == okType {
+		return fmt.Sprintf("runeOk<%s, %s>(%s)", tsType(okType), tsType(errType), raw)
+	}
+	return raw
 }
 
 func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret checker.Type) error {
@@ -171,7 +283,7 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 				g.line(g.stmtExpr(branch.Expr) + ";")
 			}
 		} else {
-			g.linef("return %s;", g.expr(branch.Expr))
+			g.linef("return %s;", g.returnExpr(branch.Expr, ret))
 		}
 		g.indent--
 		g.line("}")
@@ -194,6 +306,15 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 			parts = append(parts, g.patternCondition(fmt.Sprintf("%s[%d]", subject, i), elem))
 		}
 		return strings.Join(parts, " && ")
+	case *ir.ConstructorPattern:
+		switch p.Name {
+		case "Ok":
+			return subject + ".ok"
+		case "Err":
+			return "!" + subject + ".ok"
+		default:
+			return "false"
+		}
 	default:
 		return "true"
 	}

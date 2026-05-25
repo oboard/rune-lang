@@ -35,33 +35,118 @@ func (p *stubParser) looksLikeReceiverBlock() bool {
 	return p.check(lexer.Colon)
 }
 
-func (p *stubParser) parseReceiverBlock() ([]Function, error) {
-	receiver := p.consume(lexer.Ident, "expected receiver name").Lexeme
-	p.parseGenericNames()
+func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
+	name := p.consume(lexer.Ident, "expected receiver name")
+	receiver := name.Lexeme
+	generics := p.parseGenericNames()
 	p.skipNewlines()
 	p.consume(lexer.Colon, "expected ':' after receiver declaration")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after receiver declaration")
 	p.skipNewlines()
 
+	typ := &Type{Name: receiver, SourcePath: p.path, Pos: name.Pos, Generics: generics}
 	var functions []Function
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations, err := p.parseAnnotations()
 		if err != nil {
-			return nil, err
+			return nil, nil, err
+		}
+		if p.looksLikeFieldDecl() {
+			field, err := p.parseField()
+			if err != nil {
+				return nil, nil, err
+			}
+			typ.Fields = append(typ.Fields, field)
+			p.skipNewlines()
+			continue
+		}
+		if !p.looksLikeFunctionDecl() {
+			constructor, err := p.parseConstructor()
+			if err != nil {
+				return nil, nil, err
+			}
+			typ.Constructors = append(typ.Constructors, constructor)
+			p.skipNewlines()
+			continue
 		}
 		fn, err := p.parseFunction(receiver, annotations)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		functions = append(functions, fn)
 		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after receiver block")
-	return functions, nil
+	return typ, functions, nil
+}
+
+func (p *stubParser) looksLikeFieldDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	return p.check(lexer.Colon)
+}
+
+func (p *stubParser) looksLikeFunctionDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	p.match(lexer.Tilde)
+	p.skipNewlines()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.parseGenericNames()
+	if !p.match(lexer.LParen) {
+		return false
+	}
+	depth := 1
+	for !p.check(lexer.EOF) && depth > 0 {
+		tok := p.advance()
+		switch tok.Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		}
+	}
+	p.skipNewlines()
+	if p.match(lexer.Arrow) {
+		p.skipTypeNameTokens()
+	}
+	p.skipNewlines()
+	return p.check(lexer.FatArrow)
+}
+
+func (p *stubParser) parseField() (Field, error) {
+	name := p.consume(lexer.Ident, "expected field name")
+	p.consume(lexer.Colon, "expected ':' after field name")
+	typ, err := p.parseTypeName()
+	if err != nil {
+		return Field{}, err
+	}
+	return Field{Name: name.Lexeme, Type: typ, Pos: name.Pos}, nil
+}
+
+func (p *stubParser) parseConstructor() (Constructor, error) {
+	name := p.consume(lexer.Ident, "expected constructor name")
+	p.consume(lexer.LParen, "expected '(' after constructor name")
+	paramNames, params, err := p.parseParams()
+	if err != nil {
+		return Constructor{}, err
+	}
+	p.consume(lexer.RParen, "expected ')' after constructor parameters")
+	return Constructor{Name: name.Lexeme, ParamNames: paramNames, Params: params, Pos: name.Pos}, nil
 }
 
 func (p *stubParser) parseFunction(receiver string, annotations []annotation) (Function, error) {
+	routine := false
+	if p.match(lexer.Tilde) {
+		routine = true
+		p.skipNewlines()
+	}
 	name := p.consume(lexer.Ident, "expected function name")
 	generics := p.parseGenericNames()
 	p.consume(lexer.LParen, "expected '(' after function name")
@@ -88,6 +173,7 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 
 	fn := Function{
 		Name:       name.Lexeme,
+		Routine:    routine,
 		SourcePath: p.path,
 		Pos:        name.Pos,
 		Receiver:   receiver,
@@ -188,11 +274,10 @@ func (p *stubParser) parseTypeName() (string, error) {
 		}
 		return "Func[" + strings.Join(append(args, ret), ",") + "]", nil
 	}
-	name := p.consume(lexer.Ident, "expected type name")
-	if p.hasErrorToken(name) {
-		return "", p.errorf(name, "expected type name")
+	typ, err := p.parseSimpleTypeName()
+	if err != nil {
+		return "", err
 	}
-	typ := name.Lexeme
 	if p.match(lexer.LBracket) {
 		var args []string
 		p.skipNewlines()
@@ -216,6 +301,23 @@ func (p *stubParser) parseTypeName() (string, error) {
 		typ += "?"
 	}
 	return typ, nil
+}
+
+func (p *stubParser) parseSimpleTypeName() (string, error) {
+	if p.match(lexer.At) {
+		module := p.consume(lexer.Ident, "expected module name after '@'")
+		p.consume(lexer.Dot, "expected '.' after module name")
+		name := p.consume(lexer.Ident, "expected type name after module qualifier")
+		if p.hasErrorToken(module) || p.hasErrorToken(name) {
+			return "", p.errorf(module, "expected qualified type name")
+		}
+		return name.Lexeme, nil
+	}
+	name := p.consume(lexer.Ident, "expected type name")
+	if p.hasErrorToken(name) {
+		return "", p.errorf(name, "expected type name")
+	}
+	return name.Lexeme, nil
 }
 
 func (p *stubParser) parseFunctionTypeParam() (string, error) {

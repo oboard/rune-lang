@@ -120,6 +120,57 @@ main() => {
 	}
 }
 
+func TestRoutineDeclAndResultUnwrap(t *testing.T) {
+	file, errs := Parse(`~ read() => {
+    file := @fs.readFile("1.txt")?
+    file
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Functions) != 1 || !file.Functions[0].Routine {
+		t.Fatalf("function = %#v, want one routine function", file.Functions)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 2 {
+		t.Fatalf("routine body = %#v, want two statements", file.Functions[0].Body)
+	}
+	let, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok {
+		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
+	}
+	if _, ok := let.Value.(*ast.ResultUnwrapExpr); !ok {
+		t.Fatalf("let value = %T, want ResultUnwrapExpr", let.Value)
+	}
+}
+
+func TestConstructorPatternMatch(t *testing.T) {
+	file, errs := Parse(`main() => readUser() {
+    Ok(user) => user.name
+    Err(e) => e.message
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Functions) != 1 {
+		t.Fatalf("functions = %d, want 1", len(file.Functions))
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("body = %#v, want constructor pattern match", file.Functions[0].Body)
+	}
+	first, ok := match.Branches[0].Pattern.(*ast.ConstructorPattern)
+	if !ok || first.Name != "Ok" || first.Binding != "user" {
+		t.Fatalf("first pattern = %#v, want Ok(user)", match.Branches[0].Pattern)
+	}
+	second, ok := match.Branches[1].Pattern.(*ast.ConstructorPattern)
+	if !ok || second.Name != "Err" || second.Binding != "e" {
+		t.Fatalf("second pattern = %#v, want Err(e)", match.Branches[1].Pattern)
+	}
+}
+
 func TestRegexLiteral(t *testing.T) {
 	file, errs := Parse(`main() => {
     re := /rune\s+(\d+)/ig

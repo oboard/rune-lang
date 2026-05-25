@@ -19,6 +19,9 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && (fn.Intrinsic == "regex.new" || fn.Intrinsic == "regex.escape") {
 		g.imports["regexp"] = true
 	}
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "fs.readFile" {
+		g.imports["os"] = true
+	}
 	if call, ok := expr.(*ir.CallExpr); ok {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			switch sel.Receiver.ResultType() {

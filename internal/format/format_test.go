@@ -326,6 +326,35 @@ func TestSourcePreservesIndentedCommentBeforeClose(t *testing.T) {
 	}
 }
 
+func TestSourcePreservesCloseCommentInMatchingBlock(t *testing.T) {
+	src := `~ test() => {
+@io.println("Hello World")
+}
+
+main() => {
+@io.println("Hello World")
+// wait for routines before exit
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := Source(file, src)
+	want := `~ test() => {
+  @io.println("Hello World")
+}
+
+main() => {
+  @io.println("Hello World")
+  // wait for routines before exit
+}
+`
+	if got != want {
+		t.Fatalf("Source() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestSourceKeepsLongChainParseableAndKeepsInlineComment(t *testing.T) {
 	src := `main()=>{
 arr:=[1,2,3]

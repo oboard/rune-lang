@@ -16,6 +16,8 @@ func (p *Parser) looksLikeTypeDecl() bool {
 func (p *Parser) looksLikeFunctionDecl() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
+	p.match(lexer.Tilde)
+	p.skipNewlines()
 	if !p.match(lexer.Ident) {
 		return false
 	}
@@ -59,6 +61,18 @@ func (p *Parser) looksLikeLambda() bool {
 	}
 	p.skipNewlines()
 	return p.check(lexer.FatArrow)
+}
+
+func (p *Parser) questionIsPostfixUnwrap() bool {
+	if p.curr+1 >= len(p.tokens) {
+		return true
+	}
+	switch p.tokens[p.curr+1].Kind {
+	case lexer.EOF, lexer.Newline, lexer.RParen, lexer.RBracket, lexer.RBrace, lexer.Comma:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *Parser) looksLikePatternBranch() bool {
@@ -107,6 +121,20 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
 		i++
 	case lexer.Ident:
+		if i+1 < len(p.tokens) && p.tokens[i+1].Kind == lexer.LParen {
+			i += 2
+			depth := 1
+			for i < len(p.tokens) && depth > 0 {
+				switch p.tokens[i].Kind {
+				case lexer.LParen:
+					depth++
+				case lexer.RParen:
+					depth--
+				}
+				i++
+			}
+			break
+		}
 		if i+2 < len(p.tokens) && p.tokens[i+1].Kind == lexer.Dot && p.tokens[i+2].Kind == lexer.Ident {
 			i += 3
 			break

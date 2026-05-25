@@ -75,6 +75,11 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.AssignExpr{Name: ident.Name, Value: p.parseExpression(1), Pos: ident.Pos}
 			continue
 		}
+		if minPrec <= 1 && p.check(lexer.Question) && p.questionIsPostfixUnwrap() {
+			question := p.advance()
+			left = &ast.ResultUnwrapExpr{Expr: left, Pos: question.Pos}
+			continue
+		}
 		if minPrec <= 1 && p.match(lexer.Question) {
 			p.skipNewlines()
 			consequence := p.parseExpression(1)

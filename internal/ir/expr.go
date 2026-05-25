@@ -111,6 +111,13 @@ type PostfixExpr struct {
 
 func (*PostfixExpr) exprNode() {}
 
+type ResultUnwrapExpr struct {
+	ExprBase
+	Expr Expr
+}
+
+func (*ResultUnwrapExpr) exprNode() {}
+
 type BinaryExpr struct {
 	ExprBase
 	Left  Expr
@@ -141,6 +148,8 @@ type CallExpr struct {
 	ExprBase
 	Callee Expr
 	Args   []Expr
+	Async  bool
+	Await  bool
 }
 
 func (*CallExpr) exprNode() {}

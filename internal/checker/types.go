@@ -85,7 +85,7 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 			}
 			return ArrayOf(elem)
 		}
-		if base, args, ok := parseGenericType(name); ok && isBuiltinGenericType(base) {
+		if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base)) {
 			resolved := make([]Type, 0, len(args))
 			for _, arg := range args {
 				typ := c.resolveTypeWithGenerics(arg, generics)
@@ -119,6 +119,10 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		}
 		return Unknown
 	}
+}
+
+func (c *checker) coreTypeExists(name string) bool {
+	return c != nil && c.info != nil && c.info.Types[name] != nil
 }
 
 func (c *checker) resolveDeclaredReturn(name string) Type {
@@ -160,6 +164,23 @@ func FuncOfTypes(params []Type, ret Type) Type {
 	return Type("Func[" + strings.Join(parts, ",") + "]")
 }
 
+func AsyncFuncOfTypes(params []Type, ret Type) Type {
+	parts := make([]string, 0, len(params)+1)
+	for _, param := range params {
+		parts = append(parts, string(param))
+	}
+	parts = append(parts, string(ret))
+	return Type("AsyncFunc[" + strings.Join(parts, ",") + "]")
+}
+
+func ResultOf(ok Type, err Type) Type {
+	return genericTypeOf("Result", []Type{ok, err})
+}
+
+func TaskOf(result Type) Type {
+	return genericTypeOf("Task", []Type{result})
+}
+
 func DisplayType(typ Type) string {
 	return displayTypeName(string(typ))
 }
@@ -170,6 +191,21 @@ func displayTypeName(name string) string {
 			params[i] = displayTypeName(param)
 		}
 		return displayFuncType(params, displayTypeName(ret))
+	}
+	if params, ret, ok := parseAsyncFuncType(name); ok {
+		for i, param := range params {
+			params[i] = displayTypeName(param)
+		}
+		return "async " + displayFuncType(params, displayTypeName(ret))
+	}
+	if base, args, ok := parseGenericType(name); ok {
+		for i, arg := range args {
+			args[i] = displayTypeName(arg)
+		}
+		return base + "[" + strings.Join(args, ", ") + "]"
+	}
+	if name == string(Data) {
+		return "@io.Data"
 	}
 	if strings.HasPrefix(name, "{") && strings.HasSuffix(name, "}") {
 		return displayObjectTypeName(name)
@@ -312,8 +348,8 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 		}
 		return true
 	}
-	if expectedParams, expectedRet, ok := parseFuncType(string(expected)); ok {
-		actualParams, actualRet, actualFunc := parseFuncType(string(actual))
+	if expectedParams, expectedRet, ok := parseCallableType(string(expected)); ok {
+		actualParams, actualRet, actualFunc := parseCallableType(string(actual))
 		if !actualFunc || len(expectedParams) != len(actualParams) {
 			return false
 		}
@@ -341,7 +377,7 @@ func isObjectLike(typ Type) bool {
 		string(Double), string(Float), string(BigInt), string(UInt), string(UInt8),
 		string(UInt16), string(UInt64), string(String), string(Bool), string(Null),
 		string(Void), string(Symbol), string(Regex), string(Binary), string(Buffer),
-		string(Reader), string(Writer):
+		string(Reader), string(Writer), string(Data):
 		return false
 	default:
 		return typ != Unknown && typ != Never
@@ -441,8 +477,8 @@ func (c *checker) unifyTypes(left Type, right Type) (Type, bool) {
 		}
 		return genericTypeOf(leftBase, args), true
 	}
-	if leftParams, leftRet, ok := parseFuncType(string(left)); ok {
-		rightParams, rightRet, rightFunc := parseFuncType(string(right))
+	if leftParams, leftRet, ok := parseCallableType(string(left)); ok {
+		rightParams, rightRet, rightFunc := parseCallableType(string(right))
 		if !rightFunc || len(leftParams) != len(rightParams) {
 			return Unknown, false
 		}

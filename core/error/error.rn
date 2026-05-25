@@ -1,0 +1,5 @@
+Error: {
+  code: Int
+  message: String
+  cause: Error?
+}

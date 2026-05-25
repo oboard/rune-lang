@@ -28,7 +28,7 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		}
 		seen[field.Name] = true
 		valueType := c.inferExpr(field.Value, env)
-		if valueType != Unknown && fieldInfo.Type != Unknown && valueType != fieldInfo.Type {
+		if valueType != Unknown && fieldInfo.Type != Unknown && !typesCompatible(fieldInfo.Type, valueType, nil) {
 			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", lit.TypeName, field.Name, valueType, fieldInfo.Type)
 		}
 	}
@@ -153,8 +153,9 @@ func (c *checker) inferMatchExpr(match *ast.MatchExpr, env map[string]Type) Type
 	result := Unknown
 	var branchExprs []ast.Expr
 	for _, branch := range match.Branches {
-		c.checkPattern(branch.Pattern, env)
-		typ := c.inferExpr(branch.Expr, env)
+		branchEnv := cloneEnv(env)
+		c.checkPatternForSubject(branch.Pattern, subject, branchEnv)
+		typ := c.inferExpr(branch.Expr, branchEnv)
 		branchExprs = append(branchExprs, branch.Expr)
 		if result == Unknown {
 			result = typ
@@ -262,6 +263,33 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 	return Unknown
 }
 
+func (c *checker) checkPatternForSubject(pattern ast.Pattern, subject Type, env map[string]Type) {
+	if constructor, ok := pattern.(*ast.ConstructorPattern); ok {
+		okType, errType, result := parseResultType(subject)
+		if !result {
+			if subject != Unknown {
+				c.errorf(constructor.Pos, "constructor pattern %s expects Result, got %s", constructor.Name, subject)
+			}
+			return
+		}
+		var bindingType Type
+		switch constructor.Name {
+		case "Ok":
+			bindingType = okType
+		case "Err":
+			bindingType = errType
+		default:
+			c.errorf(constructor.Pos, "unknown result constructor %q", constructor.Name)
+			return
+		}
+		if constructor.Binding != "" {
+			env[constructor.Binding] = bindingType
+		}
+		return
+	}
+	c.checkPattern(pattern, env)
+}
+
 func (c *checker) enumMemberType(expr ast.Expr) (Type, bool) {
 	sel, ok := expr.(*ast.SelectorExpr)
 	if !ok {
@@ -294,8 +322,8 @@ func (c *checker) mergeBranchTypes(left Type, right Type, pos lexer.Position) Ty
 }
 
 func (c *checker) mergeFunctionValueTypes(left Type, right Type) (Type, bool) {
-	leftParams, leftRet, leftOK := parseFuncType(string(left))
-	rightParams, rightRet, rightOK := parseFuncType(string(right))
+	leftParams, leftRet, leftOK := parseCallableType(string(left))
+	rightParams, rightRet, rightOK := parseCallableType(string(right))
 	if !leftOK || !rightOK || len(leftParams) != len(rightParams) {
 		return Unknown, false
 	}
@@ -310,6 +338,9 @@ func (c *checker) mergeFunctionValueTypes(left Type, right Type) (Type, bool) {
 	ret, ok := c.unifyTypes(Type(leftRet), Type(rightRet))
 	if !ok {
 		return Unknown, false
+	}
+	if _, _, leftAsync := parseAsyncFuncType(string(left)); leftAsync {
+		return AsyncFuncOfTypes(params, ret), true
 	}
 	return FuncOfTypes(params, ret), true
 }
@@ -366,5 +397,7 @@ func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
 		for _, elem := range p.Elements {
 			c.checkPattern(elem, env)
 		}
+	case *ast.ConstructorPattern:
+		c.errorf(p.Pos, "constructor pattern requires a Result subject")
 	}
 }

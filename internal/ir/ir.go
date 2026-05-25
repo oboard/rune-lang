@@ -60,6 +60,7 @@ type EnumMember struct {
 
 type Function struct {
 	Name         string
+	Routine      bool
 	Generics     []string
 	ReceiverType checker.Type
 	Params       []Param
