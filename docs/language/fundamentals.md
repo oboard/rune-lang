@@ -130,6 +130,7 @@ Unary operators:
 ```rune
 -value
 !flag
+~value
 ```
 
 Postfix increment:
@@ -143,8 +144,12 @@ Binary operators, from low to high precedence:
 ```text
 ||
 &&
+|
+^
+&
 == !=
 < <= > >=
+<< >> >>>
 + -
 * / %
 ```
@@ -162,6 +167,9 @@ but both sides must be `String` when either side is a string.
 
 `&&` and `||` short-circuit and require boolean operands. Ordered comparison
 works on matching `Int`, `Double`, `BigInt`, or `String` values.
+
+Bitwise operators `~`, `&`, `|`, `^`, `<<`, `>>`, and `>>>` require matching
+integer operands. `>>>` requires an unsigned integer left operand.
 
 ## Bindings and Blocks
 

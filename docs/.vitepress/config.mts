@@ -7,6 +7,12 @@ const runeGrammar = JSON.parse(
   )
 )
 
+const runeLanguage = {
+  ...runeGrammar,
+  name: 'rune',
+  aliases: ['rn']
+}
+
 const englishSidebar = [
   {
     text: 'Guide',
@@ -61,22 +67,10 @@ export default {
       dark: 'github-dark'
     },
     shikiSetup: async (shiki) => {
-      await shiki.loadLanguage({
-        name: 'rune',
-        scopeName: 'source.rune',
-        grammar: runeGrammar,
-        aliases: ['rn']
-      })
+      await shiki.loadLanguage(runeLanguage)
     },
     // Keep compatibility with VitePress 1.x while moving to 2.x alpha.
-    languages: [
-      {
-        name: 'rune',
-        scopeName: 'source.rune',
-        grammar: runeGrammar,
-        aliases: ['rn']
-      }
-    ]
+    languages: [runeLanguage]
   },
   themeConfig: {
     logo: '/rune-icon.svg',

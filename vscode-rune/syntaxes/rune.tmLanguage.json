@@ -84,6 +84,14 @@
     "numbers": {
       "patterns": [
         {
+          "name": "constant.numeric.bigint.rune",
+          "match": "\\b\\d+n\\b"
+        },
+        {
+          "name": "constant.numeric.double.rune",
+          "match": "\\b\\d+\\.\\d+\\b"
+        },
+        {
           "name": "constant.numeric.integer.rune",
           "match": "\\b\\d+\\b"
         }
@@ -167,7 +175,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
+          "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
         }
       ]
     },
@@ -188,6 +196,10 @@
         {
           "name": "keyword.operator.arithmetic.rune",
           "match": "(\\+\\+|[+\\-*/%])"
+        },
+        {
+          "name": "keyword.operator.bitwise.rune",
+          "match": "(>>>|>>|<<|[~&|^])"
         }
       ]
     },

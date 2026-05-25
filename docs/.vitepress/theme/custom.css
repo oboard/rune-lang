@@ -1,0 +1,30 @@
+.VPHomeHero .tagline {
+  white-space: normal;
+}
+
+@media (max-width: 640px) {
+  .VPHomeHero .image {
+    margin: 0 auto 24px;
+  }
+
+  .VPHomeHero .container {
+    max-width: 100%;
+  }
+
+  .VPHomeHero .main {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .VPHomeHero .tagline {
+    margin-right: auto;
+    margin-left: auto;
+    max-width: calc(100vw - 48px);
+    overflow-wrap: break-word;
+  }
+
+  .VPHomeHero .actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
