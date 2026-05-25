@@ -399,7 +399,7 @@ func (f *formatter) mapLiteral(lit *ast.MapLiteral) string {
 	b.WriteString("{\n")
 	for _, entry := range lit.Entries {
 		b.WriteString(entryIndent)
-		b.WriteString(f.expr(entry.Key))
+		b.WriteString(f.mapKeyExpr(entry.Key))
 		b.WriteString(": ")
 		b.WriteString(f.exprWithIndent(entry.Value, f.indent+1))
 		b.WriteString(",\n")
@@ -407,6 +407,27 @@ func (f *formatter) mapLiteral(lit *ast.MapLiteral) string {
 	b.WriteString(closeIndent)
 	b.WriteString("}")
 	return b.String()
+}
+
+func (f *formatter) mapKeyExpr(expr ast.Expr) string {
+	formatted := f.expr(expr)
+	if mapKeyNeedsParens(expr) {
+		return "(" + formatted + ")"
+	}
+	return formatted
+}
+
+func mapKeyNeedsParens(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.Identifier, *ast.SelectorExpr, *ast.CallExpr, *ast.IndexExpr, *ast.PostfixExpr:
+		return true
+	case *ast.BinaryExpr:
+		return mapKeyNeedsParens(e.Left)
+	case *ast.TernaryExpr:
+		return mapKeyNeedsParens(e.Condition)
+	default:
+		return false
+	}
 }
 
 func (f *formatter) matchExpr(match *ast.MatchExpr) string {
