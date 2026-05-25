@@ -2,7 +2,7 @@ package format
 
 import "strings"
 
-func preserveLineComments(source string, formatted string) string {
+func preserveLineComments(source string, formatted string, indentUnit string) string {
 	inlineComments := map[string][]string{}
 	leadingComments := map[string][][]string{}
 	var leadingKeys []string
@@ -59,7 +59,7 @@ func preserveLineComments(source string, formatted string) string {
 			key := commentLineKey(line, formattedStack)
 			if groups, matchedKey := takeLeadingComments(leadingComments, leadingKeys, key); len(groups) > 0 {
 				for _, comment := range groups[0] {
-					out = append(out, formatLeadingComment(line, comment))
+					out = append(out, formatLeadingComment(line, comment, indentUnit))
 				}
 				leadingComments[matchedKey] = groups[1:]
 			}
@@ -110,7 +110,7 @@ func commentLineKey(line string, stack []string) string {
 }
 
 func closeBlockKey(openKey string) string {
-	return openKey + "}"
+	return "}@" + openKey
 }
 
 func updateCommentStack(line string, stack []string) []string {
@@ -153,10 +153,13 @@ type pendingCloseComment struct {
 	comment string
 }
 
-func formatLeadingComment(line string, comment string) string {
+func formatLeadingComment(line string, comment string, indentUnit string) string {
 	originalIndent := leadingWhitespace(comment)
-	if strings.TrimSpace(line) == "}" && originalIndent != "" {
-		return comment
+	if strings.TrimSpace(line) == "}" {
+		if originalIndent != "" {
+			return comment
+		}
+		return leadingWhitespace(line) + indentUnit + strings.TrimLeft(comment, " \t")
 	}
 	return leadingWhitespace(line) + strings.TrimLeft(comment, " \t")
 }

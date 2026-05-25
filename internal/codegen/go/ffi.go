@@ -22,9 +22,16 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "fs.readFile" {
 		g.imports["os"] = true
 	}
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "int.toString" {
+		g.imports["strconv"] = true
+	}
 	if call, ok := expr.(*ir.CallExpr); ok {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			switch sel.Receiver.ResultType() {
+			case checker.Int:
+				if sel.Name == "toString" {
+					g.imports["strconv"] = true
+				}
 			case checker.String:
 				switch sel.Name {
 				case "includes", "startsWith", "endsWith", "indexOf", "lastIndexOf", "toLowerCase", "toUpperCase", "trim", "trimStart", "trimEnd", "repeat", "replace", "replaceAll", "split":

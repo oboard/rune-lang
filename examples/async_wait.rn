@@ -1,11 +1,11 @@
-~ test() => {
-  @io.println("Hello World")
+~ test(count: Int) => {
+  @io.println("Hello World" + count.toString())
 }
 
 main() => {
-  test()
-  test()
-  test()
+  test(1)
+  test(2)
+  test(3)
   @io.println("Hello World")
   // 要等待所有异步函数结束才会结束程序
 }

@@ -89,6 +89,8 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 func StdlibReceiverModule(receiver Type) (string, string, bool) {
 	base := baseTypeName(receiver)
 	switch base {
+	case "Int":
+		return "int", "Int", true
 	case "String":
 		return "string", "String", true
 	case "Bool":

@@ -32,7 +32,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	switch fn.Intrinsic {
 	case "io.print", "io.println", "io.printf":
 		return "console.log(" + strings.Join(args, ", ") + ")", true
-	case "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+	case "int.toString", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
@@ -78,6 +78,11 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	receiver := g.expr(sel.Receiver)
 	args := g.intrinsicArgs(call.Args)
 	switch {
+	case strings.HasPrefix(fn.Intrinsic, "int."):
+		if fn.Intrinsic == "int.toString" {
+			return receiver + ".toString()", true
+		}
+		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "array."):
 		return g.arrayIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
@@ -145,6 +150,8 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	}
 	value := args[0]
 	switch fn.Intrinsic {
+	case "int.toString":
+		return fmt.Sprintf("(%s).toString()", value)
 	case "int4.fromInt":
 		return fmt.Sprintf("((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(%s)", value)
 	case "int8.fromInt":

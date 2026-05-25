@@ -33,7 +33,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	}
 	args := g.intrinsicArgs(call.Args)
 	switch fn.Intrinsic {
-	case "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+	case "int.toString", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
@@ -70,7 +70,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayMethodCall(call)
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."), strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.mapMethodCall(call)
-	case strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."):
+	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."):
 		return g.primitiveIntrinsicCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "binary."):
 		return g.binaryReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
@@ -123,6 +123,8 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	}
 	value := args[0]
 	switch fn.Intrinsic {
+	case "int.toString":
+		return fmt.Sprintf("strconv.Itoa(%s)", value)
 	case "int4.fromInt":
 		return fmt.Sprintf("func() int8 { n := (%s) & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()", value)
 	case "int8.fromInt":
@@ -368,6 +370,8 @@ func (g *generator) intrinsicArgs(args []ir.Expr) []string {
 
 func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
+	case "int.toString":
+		return fmt.Sprintf("strconv.Itoa(%s)", receiver)
 	case "string.length":
 		return fmt.Sprintf("len([]rune(%s))", receiver)
 	case "string.toString":

@@ -65,7 +65,11 @@ func Source(file *ast.File, source string) string {
 }
 
 func SourceWithOptions(file *ast.File, source string, options Options) string {
-	return preserveLineComments(source, FileWithOptions(file, options))
+	indent := options.Indent
+	if indent == "" {
+		indent = defaultIndent
+	}
+	return preserveLineComments(source, FileWithOptions(file, options), indent)
 }
 
 func newFormatter(options Options) formatter {
