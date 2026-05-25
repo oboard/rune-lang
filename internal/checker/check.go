@@ -1,13 +1,17 @@
 package checker
 
 import (
+	"net/url"
+	"path/filepath"
+	"strings"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func Check(file *ast.File) (*Info, []Diagnostic) {
 	reg, err := stdlib.LoadDefault()
-	info, diags := CheckWithStdlib(file, reg)
+	info, diags := CheckWithStdlibForPath(file, reg, "")
 	if err != nil {
 		diags = append([]Diagnostic{{Message: err.Error()}}, diags...)
 	}
@@ -15,6 +19,10 @@ func Check(file *ast.File) (*Info, []Diagnostic) {
 }
 
 func CheckWithStdlib(file *ast.File, reg *stdlib.Registry) (*Info, []Diagnostic) {
+	return CheckWithStdlibForPath(file, reg, "")
+}
+
+func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath string) (*Info, []Diagnostic) {
 	c := &checker{
 		info: &Info{
 			Functions:  map[string]*FuncInfo{},
@@ -25,7 +33,8 @@ func CheckWithStdlib(file *ast.File, reg *stdlib.Registry) (*Info, []Diagnostic)
 			AsyncCalls: map[*ast.CallExpr]bool{},
 			AwaitCalls: map[*ast.CallExpr]bool{},
 		},
-		bindings: map[string]ast.Expr{},
+		bindings:   map[string]ast.Expr{},
+		sourcePath: normalizeSourcePath(sourcePath),
 	}
 	c.collectCoreTypes()
 	c.checkGoImports(file)
@@ -46,6 +55,7 @@ type checker struct {
 	info         *Info
 	diags        []Diagnostic
 	bindings     map[string]ast.Expr
+	sourcePath   string
 	routineDepth int
 	unwrapErrors []Type
 }
@@ -55,20 +65,28 @@ func (c *checker) collectCoreTypes() {
 		return
 	}
 	for _, typ := range c.info.Stdlib.Types {
+		if c.isSourceType(typ.SourcePath) {
+			continue
+		}
 		c.info.Types[typ.Name] = &StructInfo{
-			Name:     typ.Name,
-			Generics: append([]string(nil), typ.Generics...),
-			ByName:   map[string]FieldInfo{},
-			Methods:  map[string]*FuncInfo{},
+			Name:       typ.Name,
+			SourcePath: typ.SourcePath,
+			Generics:   append([]string(nil), typ.Generics...),
+			ByName:     map[string]FieldInfo{},
+			Methods:    map[string]*FuncInfo{},
 		}
 	}
 	for _, typ := range c.info.Stdlib.Types {
+		if c.isSourceType(typ.SourcePath) {
+			continue
+		}
 		typeGenerics := genericSet(typ.Generics...)
 		info := &StructInfo{
-			Name:     typ.Name,
-			Generics: append([]string(nil), typ.Generics...),
-			ByName:   map[string]FieldInfo{},
-			Methods:  map[string]*FuncInfo{},
+			Name:       typ.Name,
+			SourcePath: typ.SourcePath,
+			Generics:   append([]string(nil), typ.Generics...),
+			ByName:     map[string]FieldInfo{},
+			Methods:    map[string]*FuncInfo{},
 		}
 		for _, field := range typ.Fields {
 			fieldType := c.resolveTypeWithGenerics(field.Type, typeGenerics)
@@ -78,4 +96,24 @@ func (c *checker) collectCoreTypes() {
 		}
 		c.info.Types[typ.Name] = info
 	}
+}
+
+func (c *checker) isSourceType(sourcePath string) bool {
+	return c.sourcePath != "" && c.sourcePath == normalizeSourcePath(sourcePath)
+}
+
+func normalizeSourcePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "file://") {
+		if uri, err := url.Parse(path); err == nil {
+			path = uri.Path
+		}
+	}
+	clean := filepath.Clean(path)
+	if abs, err := filepath.Abs(clean); err == nil {
+		clean = abs
+	}
+	return clean
 }

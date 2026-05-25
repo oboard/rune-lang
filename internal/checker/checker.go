@@ -66,12 +66,13 @@ type FieldInfo struct {
 }
 
 type StructInfo struct {
-	Name     string
-	Generics []string
-	Fields   []FieldInfo
-	ByName   map[string]FieldInfo
-	Methods  map[string]*FuncInfo
-	Node     *ast.StructType
+	Name       string
+	SourcePath string
+	Generics   []string
+	Fields     []FieldInfo
+	ByName     map[string]FieldInfo
+	Methods    map[string]*FuncInfo
+	Node       *ast.StructType
 }
 
 type EnumMemberInfo struct {

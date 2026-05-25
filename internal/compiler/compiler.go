@@ -38,13 +38,17 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 
 func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
 	file, parseErrs := parser.Parse(src)
-	info, checkDiags := checker.Check(file)
+	reg, err := stdlib.LoadDefault()
+	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
+	if err != nil {
+		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
+	}
 	return analyzedProgram(path, src, file, info, parseErrs, checkDiags)
 }
 
 func AnalyzeSourceWithStdlib(path string, src string, reg *stdlib.Registry) (*Program, []Diagnostic) {
 	file, parseErrs := parser.Parse(src)
-	info, checkDiags := checker.CheckWithStdlib(file, reg)
+	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
 	return analyzedProgram(path, src, file, info, parseErrs, checkDiags)
 }
 
