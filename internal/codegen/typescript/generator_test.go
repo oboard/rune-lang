@@ -321,6 +321,35 @@ func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
 	}
 }
 
+func TestGenerateRoutineCallsUseTrackedPromises(t *testing.T) {
+	src := `~ test(count: Int) => {
+  @io.println("Hello World" + count.toString())
+}
+
+main() => {
+  test(1)
+  test(2)
+  test(3)
+  @io.println("Hello World")
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const runeTasks: Promise<unknown>[] = [];`,
+		`function runeGo<T>(work: () => T | Promise<T>): Promise<T>`,
+		`async function runeWaitAll(): Promise<void>`,
+		`function __test(__count: number): Promise<void>`,
+		`return runeGo(async (): Promise<void> => {`,
+		`__count.toString()`,
+		`__test(1);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateKeywordObjectFields(t *testing.T) {
 	src := `Println: {
   return: Int

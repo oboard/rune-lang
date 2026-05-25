@@ -47,7 +47,7 @@
             "fontStyle": "bold"
           },
           "function.async:rune": {
-            "fontStyle": "italic"
+            "fontStyle": "italic underline"
           }
         }
       }

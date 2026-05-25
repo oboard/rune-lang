@@ -115,3 +115,19 @@ message(flag: Bool) => read(flag) {
 		t.Fatalf("Err binding type = %s, want %s", got, want)
 	}
 }
+
+func TestIntToStringReceiverUsesCoreDecl(t *testing.T) {
+	src := `label(count: Int) => count.toString()
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got, want := info.Functions["label"].Return, String; got != want {
+		t.Fatalf("label return = %s, want %s", got, want)
+	}
+}

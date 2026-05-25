@@ -568,6 +568,46 @@ func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
 	}
 }
 
+func TestGenerateRoutineCallsWaitAtProgramExit(t *testing.T) {
+	src := `~ test(count: Int) => {
+  @io.println("Hello World" + count.toString())
+}
+
+main() => {
+  test(1)
+  test(2)
+  test(3)
+  @io.println("Hello World")
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`"sync"`,
+		`"strconv"`,
+		`var runeTasks sync.WaitGroup`,
+		`func __test(__count int) runeTask[runeUnit]`,
+		`strconv.Itoa(__count)`,
+		`__test(1)`,
+		`runeWaitAll()`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateInlineFunctionValueCall(t *testing.T) {
 	src := `fun(flag) => {
   (flag {
