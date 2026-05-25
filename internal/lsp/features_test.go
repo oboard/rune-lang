@@ -45,6 +45,42 @@ main() => {
 	}
 }
 
+func TestStructLiteralTypeHoverAndSemanticToken(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `User: {
+    id: Int
+    name: String
+    age: Int
+
+    isAdult() -> Bool => .age >= 18
+}
+
+main() => {
+    user := User {
+        id: 1
+        name: "oboard"
+        age: 22
+    }
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	hover := s.hover(uri, positionOf(src, "User {\n        id", "User")).(map[string]any)
+	value := hoverValue(hover)
+	for _, want := range []string{"User: {", "id: Int", "name: String", "age: Int", "isAdult() -> Bool"} {
+		if !strings.Contains(value, want) {
+			t.Fatalf("hover = %q, want %q", value, want)
+		}
+	}
+
+	resp := s.semanticTokens(uri).(map[string]any)
+	got := decodeSemanticTokenTypes(resp["data"].([]int))
+	pos := positionOf(src, "User {\n        id", "User")
+	if got[pos] != semanticTokenTypeType {
+		t.Fatalf("semantic token at %+v = %d, want type; all tokens %#v", pos, got[pos], got)
+	}
+}
+
 func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
@@ -455,6 +491,22 @@ func decodeSemanticTokenRanges(data []int) map[position]int {
 			character = data[i+1]
 		}
 		out[position{Line: line, Character: character}] = data[i+2]
+	}
+	return out
+}
+
+func decodeSemanticTokenTypes(data []int) map[position]int {
+	out := map[position]int{}
+	line := 0
+	character := 0
+	for i := 0; i+4 < len(data); i += 5 {
+		line += data[i]
+		if data[i] == 0 {
+			character += data[i+1]
+		} else {
+			character = data[i+1]
+		}
+		out[position{Line: line, Character: character}] = data[i+3]
 	}
 	return out
 }

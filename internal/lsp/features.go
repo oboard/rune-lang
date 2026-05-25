@@ -50,6 +50,9 @@ func (s *server) hover(uri string, pos position) any {
 	if h := s.exprHover(prog, pos); h != nil {
 		return h
 	}
+	if h := typeHover(prog, pos); h != nil {
+		return h
+	}
 	for _, fn := range prog.File.Functions {
 		if fn.Name == word {
 			return map[string]any{
@@ -167,6 +170,51 @@ func localHoverText(info *checker.Info, name string, typ checker.Type, signals m
 		text += "\ndeps: " + chain
 	}
 	return text
+}
+
+func typeHover(prog *compiler.Program, pos position) any {
+	if name, tokPos, ok := structLiteralTypeAt(prog.File, pos); ok {
+		if typ := structTypeByName(prog.File, name); typ != nil {
+			return hoverResult(structTypeSignature(prog.Info, typ), tokPos, name)
+		}
+	}
+	for _, typ := range prog.File.Types {
+		if containsSymbol(pos, typ.NamePos, typ.Name) {
+			return hoverResult(structTypeSignature(prog.Info, typ), typ.NamePos, typ.Name)
+		}
+	}
+	for _, enum := range prog.File.Enums {
+		if containsSymbol(pos, enum.NamePos, enum.Name) {
+			return hoverResult(enumTypeSignature(enum), enum.NamePos, enum.Name)
+		}
+	}
+	return nil
+}
+
+func structLiteralTypeAt(file *ast.File, pos position) (string, lexer.Position, bool) {
+	var name string
+	var tokPos lexer.Position
+	walkFileExprs(file, func(expr ast.Expr) {
+		if name != "" {
+			return
+		}
+		lit, ok := expr.(*ast.StructLiteral)
+		if !ok || !containsSymbol(pos, lit.Pos, lit.TypeName) {
+			return
+		}
+		name = lit.TypeName
+		tokPos = lit.Pos
+	})
+	return name, tokPos, name != ""
+}
+
+func structTypeByName(file *ast.File, name string) *ast.StructType {
+	for _, typ := range file.Types {
+		if typ.Name == name {
+			return typ
+		}
+	}
+	return nil
 }
 
 func (s *server) completion(uri string) any {
@@ -582,6 +630,14 @@ func (s *server) semanticTokens(uri string) any {
 	}
 	signals := signalGraph(prog.File)
 	var tokens []semanticToken
+	for _, typ := range prog.File.Types {
+		tokens = append(tokens, semanticToken{
+			line:      max(typ.NamePos.Line-1, 0),
+			character: max(typ.NamePos.Column-1, 0),
+			length:    len(typ.Name),
+			tokenType: semanticTokenTypeType,
+		})
+	}
 	walkFileStatements(prog.File, func(stmt ast.Stmt) {
 		switch stmt := stmt.(type) {
 		case *ast.LetStmt:
@@ -592,6 +648,8 @@ func (s *server) semanticTokens(uri string) any {
 				line:      max(stmt.Pos.Line-1, 0),
 				character: max(stmt.Pos.Column-1, 0),
 				length:    len(stmt.Name),
+				tokenType: semanticTokenTypeVariable,
+				modifiers: semanticTokenModifierModification,
 			})
 		case *ast.AssignStmt:
 			if _, ok := signals[stmt.Name]; !ok {
@@ -601,22 +659,35 @@ func (s *server) semanticTokens(uri string) any {
 				line:      max(stmt.Pos.Line-1, 0),
 				character: max(stmt.Pos.Column-1, 0),
 				length:    len(stmt.Name),
+				tokenType: semanticTokenTypeVariable,
+				modifiers: semanticTokenModifierModification,
 			})
 		}
 	})
 	walkFileExprs(prog.File, func(expr ast.Expr) {
-		ident, ok := expr.(*ast.Identifier)
-		if !ok {
-			return
+		switch expr := expr.(type) {
+		case *ast.Identifier:
+			if _, signal := signals[expr.Name]; !signal {
+				return
+			}
+			tokens = append(tokens, semanticToken{
+				line:      max(expr.Pos.Line-1, 0),
+				character: max(expr.Pos.Column-1, 0),
+				length:    len(expr.Name),
+				tokenType: semanticTokenTypeVariable,
+				modifiers: semanticTokenModifierModification,
+			})
+		case *ast.StructLiteral:
+			if structTypeByName(prog.File, expr.TypeName) == nil {
+				return
+			}
+			tokens = append(tokens, semanticToken{
+				line:      max(expr.Pos.Line-1, 0),
+				character: max(expr.Pos.Column-1, 0),
+				length:    len(expr.TypeName),
+				tokenType: semanticTokenTypeType,
+			})
 		}
-		if _, signal := signals[ident.Name]; !signal {
-			return
-		}
-		tokens = append(tokens, semanticToken{
-			line:      max(ident.Pos.Line-1, 0),
-			character: max(ident.Pos.Column-1, 0),
-			length:    len(ident.Name),
-		})
 	})
 	sort.Slice(tokens, func(i, j int) bool {
 		if tokens[i].line != tokens[j].line {
@@ -686,7 +757,16 @@ type semanticToken struct {
 	line      int
 	character int
 	length    int
+	tokenType int
+	modifiers int
 }
+
+const (
+	semanticTokenTypeVariable = 0
+	semanticTokenTypeType     = 1
+
+	semanticTokenModifierModification = 1 << 0
+)
 
 func encodeSemanticTokens(tokens []semanticToken) []int {
 	data := make([]int, 0, len(tokens)*5)
@@ -702,8 +782,8 @@ func encodeSemanticTokens(tokens []semanticToken) []int {
 			deltaLine,
 			deltaChar,
 			token.length,
-			0,
-			1,
+			token.tokenType,
+			token.modifiers,
 		)
 		prevLine = token.line
 		prevChar = token.character
@@ -920,6 +1000,71 @@ func classMethodSignature(typeName string, fn *checker.FuncInfo) string {
 	}
 	sig := fn.Node.Signature()
 	return fmt.Sprintf("%s.%s -> %s", typeName, sig, ret)
+}
+
+func structTypeSignature(info *checker.Info, typ *ast.StructType) string {
+	lines := []string{fmt.Sprintf("%s%s: {", typ.Name, formatSignatureGenerics(typ.Generics))}
+	var structInfo *checker.StructInfo
+	if info != nil {
+		structInfo = info.Types[typ.Name]
+	}
+	for _, field := range typ.Fields {
+		fieldType := field.Type
+		if structInfo != nil {
+			if inferred, ok := structInfo.ByName[field.Name]; ok && inferred.Type != "" && inferred.Type != checker.Unknown {
+				fieldType = displayCheckerType(info, inferred.Type)
+			}
+		}
+		if fieldType == "" {
+			fieldType = string(checker.Unknown)
+		}
+		lines = append(lines, fmt.Sprintf("  %s: %s", field.Name, fieldType))
+	}
+	for _, method := range typ.Methods {
+		lines = append(lines, "  "+methodSignature(info, typ.Name, method))
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n")
+}
+
+func methodSignature(info *checker.Info, typeName string, fn *ast.Function) string {
+	params := make([]string, 0, len(fn.Params))
+	var methodInfo *checker.FuncInfo
+	if info != nil {
+		if structInfo := info.Types[typeName]; structInfo != nil {
+			methodInfo = structInfo.Methods[fn.Name]
+		}
+	}
+	for i, param := range fn.Params {
+		typ := param.Type
+		if methodInfo != nil && i < len(methodInfo.Params) && methodInfo.Params[i].Type != "" && methodInfo.Params[i].Type != checker.Unknown {
+			typ = displayCheckerType(info, methodInfo.Params[i].Type)
+		}
+		if typ == "" {
+			typ = string(checker.Unknown)
+		}
+		params = append(params, fmt.Sprintf("%s: %s", param.Name, typ))
+	}
+	ret := fn.ReturnType
+	if methodInfo != nil && methodInfo.Return != "" && methodInfo.Return != checker.Unknown {
+		ret = displayCheckerType(info, methodInfo.Return)
+	}
+	if ret == "" {
+		ret = string(checker.Void)
+	}
+	return fmt.Sprintf("%s%s(%s) -> %s", fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+}
+
+func enumTypeSignature(enum *ast.EnumType) string {
+	if len(enum.Members) == 0 {
+		return fmt.Sprintf("%s: {}", enum.Name)
+	}
+	lines := []string{fmt.Sprintf("%s: {", enum.Name)}
+	for _, member := range enum.Members {
+		lines = append(lines, fmt.Sprintf("  %s = %d", member.Name, member.Value))
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n")
 }
 
 func functionSignature(info *checker.Info, fn *ast.Function) string {

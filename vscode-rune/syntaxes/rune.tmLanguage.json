@@ -9,6 +9,7 @@
     { "include": "#numbers" },
     { "include": "#modules" },
     { "include": "#typeDefinition" },
+    { "include": "#structLiteral" },
     { "include": "#functionDefinition" },
     { "include": "#operators" },
     { "include": "#bindings" }
@@ -176,6 +177,17 @@
         {
           "name": "storage.type.rune",
           "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
+        }
+      ]
+    },
+    "structLiteral": {
+      "patterns": [
+        {
+          "name": "meta.struct-literal.rune",
+          "match": "\\b([A-Z][A-Za-z0-9_]*)\\s*(?=\\{)",
+          "captures": {
+            "1": { "name": "entity.name.type.rune" }
+          }
         }
       ]
     },
