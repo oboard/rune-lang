@@ -1367,7 +1367,7 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			}
 		}
 		return false, nil
-	case fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach":
+	case fn.Intrinsic == "array.each":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("array.each expects 1 args, got %d", len(args))
 		}
@@ -1686,7 +1686,7 @@ func (i *Interpreter) callMapMethod(value *Map, name string, args []ir.Expr, env
 			out.Elements = append(out.Elements, entry.Value)
 		}
 		return out, nil
-	case "map.forEach":
+	case "map.each":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("map.forEach expects 1 arg, got %d", len(args))
 		}
@@ -1758,7 +1758,7 @@ func (i *Interpreter) callSetMethod(value *Set, name string, args []ir.Expr, env
 			out.Elements = append(out.Elements, entry)
 		}
 		return out, nil
-	case "set.forEach":
+	case "set.each":
 		if len(args) != 1 {
 			return nil, fmt.Errorf("set.forEach expects 1 arg, got %d", len(args))
 		}

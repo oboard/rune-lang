@@ -17,7 +17,7 @@ Map[K, V]: {
 
     values() -> Array[V] => "%map.values"
 
-    forEach(callbackfn: (value: V, key?: K, map?: Map[K, V]) -> Any) => "%map.forEach"
+    each(callbackfn: (value: V, key?: K, map?: Map[K, V]) -> Any) => "%map.each"
 }
 
 WeakMap[K, V]: {

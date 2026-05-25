@@ -493,7 +493,7 @@ func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, arg
 			return "undefined"
 		}
 		return fmt.Sprintf("%s.includes(%s)", receiver, args[0])
-	case "array.each", "array.forEach":
+	case "array.each":
 		if len(args) != 1 {
 			return "undefined"
 		}
@@ -583,7 +583,7 @@ func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		return fmt.Sprintf("Array.from(%s.keys())", receiver)
 	case "map.values":
 		return fmt.Sprintf("Array.from(%s.values())", receiver)
-	case "map.forEach":
+	case "map.each":
 		if len(args) != 1 {
 			return "undefined"
 		}
@@ -616,7 +616,7 @@ func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		return fmt.Sprintf("%s.clear()", receiver)
 	case "set.values":
 		return fmt.Sprintf("Array.from(%s.values())", receiver)
-	case "set.forEach":
+	case "set.each":
 		if len(args) != 1 {
 			return "undefined"
 		}

@@ -405,7 +405,7 @@ arr.map((value)=>value*2).each((value,index)=>@io.println(value)) // prints 2, 4
 
 func TestSourceWrapsFunctionTypeSignature(t *testing.T) {
 	src := `Array[T]: {
-forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
+forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
 }`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
@@ -420,7 +420,7 @@ forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%arra
       index?: Int,
       array?: Array[T]
     ) -> Void
-  ) => "%array.forEach"
+  ) => "%array.each"
 }
 `
 	if got != want {

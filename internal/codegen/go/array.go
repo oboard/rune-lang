@@ -49,7 +49,7 @@ func (g *generator) arrayEachStmt(expr ir.Expr) (string, bool) {
 	if sel.Name == "each" && fn.Body == nil && fn.Intrinsic != "array.each" {
 		return "", false
 	}
-	if sel.Name == "forEach" && fn.Intrinsic != "array.forEach" {
+	if sel.Name == "forEach" && fn.Intrinsic != "array.each" {
 		return "", false
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
@@ -95,7 +95,7 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	if fn.Body != nil {
 		return g.arrayBodyExpr(fn, g.expr(sel.Receiver), call), true
 	}
-	if fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach" {
+	if fn.Intrinsic == "array.each" {
 		return g.arrayForEachExpr(call, g.expr(sel.Receiver)), true
 	}
 	if fn.Intrinsic == "array.map" {
@@ -148,7 +148,7 @@ func (g *generator) arrayFunctionExpr(fn *stdlib.Function, receiver string, args
 			return "/* invalid array.at */"
 		}
 		return fmt.Sprintf("%s[%s]", receiver, args[0])
-	case "array.each", "array.forEach":
+	case "array.each":
 		return "/* array.forEach is only valid as a statement */"
 	}
 	if fn.Body != nil {
@@ -447,7 +447,7 @@ func (c *stdlibContext) callStmt(expr ir.Expr) ([]string, bool) {
 		}
 	}
 	if (sel.Name == "each" || sel.Name == "forEach") && len(call.Args) == 1 {
-		if fn, ok := c.g.file.Stdlib.Function("array", sel.Name); ok && (fn.Intrinsic == "array.each" || fn.Intrinsic == "array.forEach") {
+		if fn, ok := c.g.file.Stdlib.Function("array", sel.Name); ok && (fn.Intrinsic == "array.each") {
 			lambda, ok := call.Args[0].(*ir.LambdaExpr)
 			if !ok || len(lambda.Params) != 1 {
 				return []string{"/* invalid array.each */"}, true

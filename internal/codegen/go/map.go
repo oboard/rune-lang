@@ -85,7 +85,7 @@ func (g *generator) mapReceiverCall(base string, typeArgs []string, sel *ir.Sele
 		return fmt.Sprintf("func() []%s { out := make([]%s, 0, len(%s)); for key := range %s { out = append(out, key) }; return out }()", keyType, keyType, receiver, receiver)
 	case "map.values":
 		return fmt.Sprintf("func() []%s { out := make([]%s, 0, len(%s)); for _, value := range %s { out = append(out, value) }; return out }()", valueType, valueType, receiver, receiver)
-	case "map.forEach":
+	case "map.each":
 		return g.mapForEachExpr(receiver, call)
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType())
@@ -129,7 +129,7 @@ func (g *generator) setReceiverCall(base string, typeArgs []string, sel *ir.Sele
 		return fmt.Sprintf("func() { clear(%s) }()", receiver)
 	case "set.values":
 		return fmt.Sprintf("func() []%s { out := make([]%s, 0, len(%s)); for value := range %s { out = append(out, value) }; return out }()", elemType, elemType, receiver, receiver)
-	case "set.forEach":
+	case "set.each":
 		return g.setForEachExpr(receiver, call)
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType())

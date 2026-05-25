@@ -120,7 +120,7 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
       index?: Int,
       array?: Array[T]
     ) -> Any
-  ) => "%array.forEach"
+  ) => "%array.each"
 }
 `)
 	if err != nil {

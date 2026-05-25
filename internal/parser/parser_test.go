@@ -213,7 +213,7 @@ func TestRegexLiteralWithSlashInClassAndEscape(t *testing.T) {
 
 func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
 	file, errs := Parse(`Array[T]: {
-    forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.forEach"
+    forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
 }
 `)
 	if len(errs) > 0 {

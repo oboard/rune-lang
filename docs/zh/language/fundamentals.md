@@ -418,7 +418,7 @@ values.slice(1, 3)
 values.clone()
 values.reverse()
 values.contains(20)
-values.forEach((value, index) => @io.println(value))
+values.each((value, index) => @io.println(value))
 doubled := values.map((value) => value * 2)
 ```
 
