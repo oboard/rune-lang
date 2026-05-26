@@ -41,6 +41,14 @@ func (p *Parser) parseImportDecl() *ast.Import {
 	return &ast.Import{Path: value, Pos: at.Pos}
 }
 
+func (p *Parser) parsePrivateModifier() bool {
+	if !p.match(lexer.Minus) {
+		return false
+	}
+	p.skipNewlines()
+	return true
+}
+
 func (p *Parser) parseTest() *ast.Test {
 	start := p.consume(lexer.Question, "expected '?'")
 	name := p.consume(lexer.String, "expected test name string after '?'")
@@ -57,7 +65,7 @@ func (p *Parser) parseTest() *ast.Test {
 	return &ast.Test{Name: value, Body: body, Pos: start.Pos, NamePos: name.Pos}
 }
 
-func (p *Parser) parseTypeDecl() (*ast.StructType, *ast.EnumType) {
+func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	name := p.consume(lexer.Ident, "expected type name")
 	if name.Kind == lexer.EOF {
 		return nil, nil
@@ -71,14 +79,15 @@ func (p *Parser) parseTypeDecl() (*ast.StructType, *ast.EnumType) {
 		if len(generics) > 0 {
 			p.errorAt(name, "enum declarations cannot have generic parameters")
 		}
-		enum := p.parseEnumBody(name)
+		enum := p.parseEnumBody(name, private)
 		return nil, enum
 	}
-	typ := &ast.StructType{Name: name.Lexeme, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
+	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
+		private := p.parsePrivateModifier()
 		if p.looksLikeFunctionDecl() {
-			method := p.parseFunctionWithReceiver(typ.Name)
+			method := p.parseFunctionWithReceiver(typ.Name, private)
 			if method != nil {
 				method.Annotations = annotations
 				typ.Methods = append(typ.Methods, method)
@@ -92,6 +101,7 @@ func (p *Parser) parseTypeDecl() (*ast.StructType, *ast.EnumType) {
 		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
 			Name:        fieldName.Lexeme,
+			Private:     private,
 			Type:        fieldType.canonical,
 			TypeDisplay: fieldType.display,
 			Pos:         fieldName.Pos,
@@ -105,13 +115,15 @@ func (p *Parser) parseTypeDecl() (*ast.StructType, *ast.EnumType) {
 }
 
 func (p *Parser) parseStructType() *ast.StructType {
-	typ, _ := p.parseTypeDecl()
+	typ, _ := p.parseTypeDecl(false)
 	return typ
 }
 
 func (p *Parser) looksLikeEnumMember() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
+	p.match(lexer.Minus)
+	p.skipNewlines()
 	if !p.match(lexer.Ident) {
 		return false
 	}
@@ -119,18 +131,20 @@ func (p *Parser) looksLikeEnumMember() bool {
 	return p.check(lexer.Assign)
 }
 
-func (p *Parser) parseEnumBody(name lexer.Token) *ast.EnumType {
-	enum := &ast.EnumType{Name: name.Lexeme, Pos: name.Pos, NamePos: name.Pos}
+func (p *Parser) parseEnumBody(name lexer.Token, private bool) *ast.EnumType {
+	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		memberPrivate := p.parsePrivateModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
 		p.skipNewlines()
 		p.consume(lexer.Assign, "expected '=' after enum member name")
 		p.skipNewlines()
 		value, valuePos := p.parseEnumValue()
 		enum.Members = append(enum.Members, ast.EnumMember{
-			Name:  memberName.Lexeme,
-			Value: value,
-			Pos:   valuePos,
+			Name:    memberName.Lexeme,
+			Private: memberPrivate,
+			Value:   value,
+			Pos:     valuePos,
 		})
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
@@ -159,11 +173,11 @@ func (p *Parser) parseEnumValue() (int, lexer.Position) {
 	return sign * value, pos
 }
 
-func (p *Parser) parseFunction() *ast.Function {
-	return p.parseFunctionWithReceiver("")
+func (p *Parser) parseFunction(private bool) *ast.Function {
+	return p.parseFunctionWithReceiver("", private)
 }
 
-func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
+func (p *Parser) parseFunctionWithReceiver(receiverType string, private bool) *ast.Function {
 	routine := false
 	if p.match(lexer.Tilde) {
 		routine = true
@@ -174,7 +188,7 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string) *ast.Function {
 		return nil
 	}
 
-	fn := &ast.Function{Name: name.Lexeme, Routine: routine, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
+	fn := &ast.Function{Name: name.Lexeme, Private: private, Routine: routine, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
 	fn.Generics = p.parseGenericNames()
 	p.consume(lexer.LParen, "expected '(' after function name")
 	p.skipNewlines()

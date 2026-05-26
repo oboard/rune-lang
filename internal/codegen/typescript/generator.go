@@ -105,9 +105,14 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.line("")
 		exports := make([]string, 0, len(file.Functions))
 		for _, fn := range file.Functions {
+			if fn.Private {
+				continue
+			}
 			exports = append(exports, fmt.Sprintf("%s as %s", mangleIdent(fn.Name), fn.Name))
 		}
-		g.linef("export { %s };", join(exports, ", "))
+		if len(exports) > 0 {
+			g.linef("export { %s };", join(exports, ", "))
+		}
 	}
 	if err := g.codegenError(); err != nil {
 		return g.buf.String(), err

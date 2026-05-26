@@ -7,10 +7,10 @@ import (
 )
 
 func (f *formatter) structType(typ *ast.StructType) {
-	f.linef("%s%s: {", typ.Name, formatGenerics(typ.Generics))
+	f.linef("%s%s%s: {", privatePrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
-		f.linef("%s: %s", field.Name, formatType(field.Type, field.TypeDisplay))
+		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type, field.TypeDisplay))
 	}
 	if len(typ.Fields) > 0 && len(typ.Methods) > 0 {
 		f.line("")
@@ -26,10 +26,10 @@ func (f *formatter) structType(typ *ast.StructType) {
 }
 
 func (f *formatter) enumType(enum *ast.EnumType) {
-	f.linef("%s: {", enum.Name)
+	f.linef("%s%s: {", privatePrefix(enum.Private), enum.Name)
 	f.indent++
 	for _, member := range enum.Members {
-		f.linef("%s = %d", member.Name, member.Value)
+		f.linef("%s%s = %d", privatePrefix(member.Private), member.Name, member.Value)
 	}
 	f.indent--
 	f.line("}")
@@ -100,6 +100,9 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	if fn.Routine {
 		single = "~ " + single
 	}
+	if fn.Private {
+		single = "- " + single
+	}
 	if len(f.indentString(f.indent)+single) <= maxLineLength {
 		return []string{single}
 	}
@@ -107,6 +110,9 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	prefix := fn.Name
 	if fn.Routine {
 		prefix = "~ " + prefix
+	}
+	if fn.Private {
+		prefix = "- " + prefix
 	}
 	lines := []string{prefix + formatGenerics(fn.Generics) + "("}
 	for i, param := range fn.Params {
@@ -134,6 +140,13 @@ func formatParam(param ast.Param) string {
 		return param.Name
 	}
 	return param.Name + ": " + formatType(param.Type, param.TypeDisplay)
+}
+
+func privatePrefix(private bool) string {
+	if private {
+		return "- "
+	}
+	return ""
 }
 
 func (f *formatter) formatParamLines(param ast.Param) []string {

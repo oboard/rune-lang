@@ -14,6 +14,12 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		}
 		return Unknown
 	}
+	if !c.checkPrivateAccess("type", lit.TypeName, structInfo.Private, structInfo.SourcePath, lit.Pos) {
+		for _, field := range lit.Fields {
+			c.inferExpr(field.Value, env)
+		}
+		return Unknown
+	}
 
 	seen := map[string]bool{}
 	for _, field := range lit.Fields {
@@ -21,6 +27,11 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		if !ok {
 			c.errorf(field.Pos, "type %s has no field %q", lit.TypeName, field.Name)
 			c.inferExpr(field.Value, env)
+			continue
+		}
+		if !c.checkPrivateAccess("field", lit.TypeName+"."+field.Name, fieldInfo.Private, fieldInfo.SourcePath, field.Pos) {
+			c.inferExpr(field.Value, env)
+			seen[field.Name] = true
 			continue
 		}
 		if seen[field.Name] {
@@ -303,7 +314,14 @@ func (c *checker) enumMemberType(expr ast.Expr) (Type, bool) {
 	if enum == nil {
 		return Unknown, false
 	}
-	if _, ok := enum.ByName[sel.Name]; !ok {
+	if !c.checkPrivateAccess("enum", enum.Name, enum.Private, enum.SourcePath, ident.Pos) {
+		return Unknown, false
+	}
+	member, ok := enum.ByName[sel.Name]
+	if !ok {
+		return Unknown, false
+	}
+	if !c.checkPrivateAccess("enum member", enum.Name+"."+sel.Name, member.Private, member.SourcePath, sel.NamePos) {
 		return Unknown, false
 	}
 	return Type(enum.Name), true

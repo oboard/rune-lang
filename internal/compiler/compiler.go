@@ -171,6 +171,9 @@ func annotateSourcePath(file *ast.File, sourcePath string) {
 	for _, fn := range file.Functions {
 		fn.SourcePath = sourcePath
 	}
+	for _, test := range file.Tests {
+		test.SourcePath = sourcePath
+	}
 }
 
 func ResolveRuneImport(fromPath string, spec string) (string, error) {

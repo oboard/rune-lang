@@ -51,6 +51,40 @@ main() => helper()
 	}
 }
 
+func TestPrivateDeclarationFormatting(t *testing.T) {
+	src := `- Secret:{
+- value:Int
+- reveal()->Int=>.value
+}
+- Status:{
+Ready=0
+- Hidden=1
+}
+- add(a:Int,b:Int)->Int=>a+b`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `- Secret: {
+  - value: Int
+
+  - reveal() -> Int => .value
+}
+
+- Status: {
+  Ready = 0
+  - Hidden = 1
+}
+
+- add(a: Int, b: Int) -> Int => a + b
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestMapLiteralFormatting(t *testing.T) {
 	src := `main()=>{values:={"a":1,"b":2}values["b"]=3}`
 	file, errs := parser.Parse(src)

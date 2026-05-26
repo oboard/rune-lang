@@ -34,7 +34,11 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 	file := &ast.File{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
-		if p.check(lexer.At) {
+		private := p.parsePrivateModifier()
+		if private && (p.check(lexer.At) || p.check(lexer.Question)) {
+			p.errorAt(p.peek(), "expected private declaration after '-'")
+		}
+		if !private && p.check(lexer.At) {
 			if p.checkNext(lexer.String) {
 				if imp := p.parseImportDecl(); imp != nil {
 					file.Imports = append(file.Imports, *imp)
@@ -42,13 +46,13 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			} else if imp := p.parseGoImportDecl(); imp != nil {
 				file.GoImports = append(file.GoImports, *imp)
 			}
-		} else if p.check(lexer.Question) {
+		} else if !private && p.check(lexer.Question) {
 			test := p.parseTest()
 			if test != nil {
 				file.Tests = append(file.Tests, test)
 			}
 		} else if p.looksLikeTypeDecl() {
-			typ, enum := p.parseTypeDecl()
+			typ, enum := p.parseTypeDecl(private)
 			if typ != nil {
 				file.Types = append(file.Types, typ)
 			}
@@ -56,7 +60,7 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 				file.Enums = append(file.Enums, enum)
 			}
 		} else if p.looksLikeFunctionDecl() {
-			fn := p.parseFunction()
+			fn := p.parseFunction(private)
 			if fn != nil {
 				file.Functions = append(file.Functions, fn)
 			}

@@ -14,67 +14,92 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 	if structInfo == nil {
 		return
 	}
-	for _, method := range typ.Methods {
-		info := structInfo.Methods[method.Name]
-		if info == nil {
-			continue
-		}
-		if isIntrinsicStub(method) {
-			if !info.ReturnDeclared {
-				info.Return = Void
+	c.withSourcePath(typ.SourcePath, func() {
+		for _, method := range typ.Methods {
+			info := structInfo.Methods[method.Name]
+			if info == nil {
+				continue
 			}
-			continue
+			c.withSourcePath(method.SourcePath, func() {
+				if isIntrinsicStub(method) {
+					if !info.ReturnDeclared {
+						info.Return = Void
+					}
+					return
+				}
+				env := map[string]Type{"this": info.ReceiverType}
+				for _, param := range info.Params {
+					env[param.Name] = param.Type
+				}
+				ret := c.inferFunctionBody(method, info, env)
+				c.finishInferredParams(info, method.Body, env)
+				c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
+			})
 		}
-		env := map[string]Type{"this": info.ReceiverType}
-		for _, param := range info.Params {
-			env[param.Name] = param.Type
-		}
-		ret := c.inferFunctionBody(method, info, env)
-		c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
-	}
+	})
 }
 
 func (c *checker) inferFunction(fn *ast.Function) {
-	info := c.info.Functions[fn.Name]
+	if c.inferredFunctions[fn] {
+		return
+	}
+	if c.inferringFunctions[fn] {
+		return
+	}
+	info := c.info.FunctionDecls[fn]
 	if info == nil {
 		return
 	}
-	if isIntrinsicStub(fn) {
-		if !info.ReturnDeclared {
+	c.inferringFunctions[fn] = true
+	defer delete(c.inferringFunctions, fn)
+	c.withSourcePath(fn.SourcePath, func() {
+		if isIntrinsicStub(fn) {
+			if !info.ReturnDeclared {
+				info.Return = Void
+			}
+			c.inferredFunctions[fn] = true
+			return
+		}
+		env := map[string]Type{}
+		inferredFields := inferParamFields(fn.Body, paramNames(info.Params))
+		for _, param := range info.Params {
+			paramType := param.Type
+			if paramType == Unknown {
+				if inferred := c.objectTypeFromFields(inferredFields[param.Name]); inferred != Unknown {
+					paramType = inferred
+				}
+			}
+			env[param.Name] = paramType
+		}
+		ret := c.inferFunctionBody(fn, info, env)
+		c.finishInferredParams(info, fn.Body, env)
+		unwrapErr := c.popRoutineErrors()
+		if fn.Name == "main" {
+			if info.ReturnDeclared && info.Return != Void {
+				c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
+			}
 			info.Return = Void
+			c.inferredFunctions[fn] = true
+			return
 		}
-		return
-	}
-	env := map[string]Type{}
-	inferredFields := inferParamFields(fn.Body, paramNames(info.Params))
-	for _, param := range info.Params {
-		paramType := param.Type
-		if paramType == Unknown {
-			if inferred := c.objectTypeFromFields(inferredFields[param.Name]); inferred != Unknown {
-				paramType = inferred
-			}
-		}
-		env[param.Name] = paramType
-	}
-	ret := c.inferFunctionBody(fn, info, env)
+		c.finishFunctionReturn(info, ret, unwrapErr, fn)
+		c.inferredFunctions[fn] = true
+	})
+}
+
+func (c *checker) finishInferredParams(info *FuncInfo, body ast.Expr, env map[string]Type) {
 	for idx, param := range info.Params {
-		if param.Type == Unknown {
-			if inferred := env[param.Name]; inferred != "" && inferred != Unknown {
-				info.Params[idx].Type = inferred
-			} else if inferred := c.inferredParamUseType(fn.Body, param.Name); inferred != Unknown {
-				info.Params[idx].Type = inferred
-			}
+		if param.Type != Unknown {
+			continue
+		}
+		if inferred := env[param.Name]; inferred != "" && inferred != Unknown {
+			info.Params[idx].Type = inferred
+			continue
+		}
+		if inferred := c.inferredParamUseType(body, param.Name); inferred != Unknown {
+			info.Params[idx].Type = inferred
 		}
 	}
-	unwrapErr := c.popRoutineErrors()
-	if fn.Name == "main" {
-		if info.ReturnDeclared && info.Return != Void {
-			c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
-		}
-		info.Return = Void
-		return
-	}
-	c.finishFunctionReturn(info, ret, unwrapErr, fn)
 }
 
 func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[string]Type) Type {
@@ -105,7 +130,9 @@ func (c *checker) inferTest(test *ast.Test) {
 	if test.Body == nil {
 		return
 	}
-	c.inferExpr(test.Body, map[string]Type{})
+	c.withSourcePath(test.SourcePath, func() {
+		c.inferExpr(test.Body, map[string]Type{})
+	})
 }
 
 func (c *checker) inferredParamUseType(body ast.Expr, name string) Type {
@@ -172,8 +199,12 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		if typ, ok := env[e.Name]; ok {
 			return typ
 		}
-		if fn, ok := c.info.Functions[e.Name]; ok {
+		if fn, ok := c.resolveFunction(e.Name, e.Pos); ok {
+			if fn == nil {
+				return Unknown
+			}
 			typ := functionType(fn)
+			c.info.ResolvedFunctions[e] = fn
 			c.info.ExprTypes[e] = typ
 			return typ
 		}
@@ -202,9 +233,15 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			}
 			return Unknown
 		}
+		if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, e.Pos) {
+			return Unknown
+		}
 		field, ok := structInfo.ByName[e.Name]
 		if !ok {
 			c.errorf(e.Pos, "type %s has no field %q", receiver, e.Name)
+			return Unknown
+		}
+		if !c.checkPrivateAccess("field", structInfo.Name+"."+e.Name, field.Private, field.SourcePath, e.Pos) {
 			return Unknown
 		}
 		return structFieldType(structInfo, receiver, field)
@@ -396,8 +433,15 @@ func (c *checker) inferEnumMemberSelector(sel *ast.SelectorExpr, env map[string]
 	if enum == nil {
 		return Unknown, false
 	}
-	if _, ok := enum.ByName[sel.Name]; !ok {
+	if !c.checkPrivateAccess("enum", enum.Name, enum.Private, enum.SourcePath, ident.Pos) {
+		return Unknown, true
+	}
+	member, ok := enum.ByName[sel.Name]
+	if !ok {
 		c.errorf(sel.NamePos, "enum %s has no member %q", enum.Name, sel.Name)
+		return Unknown, true
+	}
+	if !c.checkPrivateAccess("enum member", enum.Name+"."+sel.Name, member.Private, member.SourcePath, sel.NamePos) {
 		return Unknown, true
 	}
 	c.info.ExprTypes[ident] = Type(enum.Name)
@@ -441,7 +485,13 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
 		}
 		if structInfo := c.info.Types[baseTypeName(receiver)]; structInfo != nil {
+			if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, sel.Pos) {
+				return Unknown
+			}
 			if field, ok := structInfo.ByName[sel.Name]; ok {
+				if !c.checkPrivateAccess("field", structInfo.Name+"."+sel.Name, field.Private, field.SourcePath, sel.Pos) {
+					return Unknown
+				}
 				fieldType := structFieldType(structInfo, receiver, field)
 				if _, _, ok := parseCallableType(string(fieldType)); ok {
 					c.info.ExprTypes[sel] = fieldType
@@ -460,13 +510,22 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			}
 			return Unknown
 		}
+		if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, sel.Pos) {
+			return Unknown
+		}
 		method := structInfo.Methods[sel.Name]
 		if field, ok := structInfo.ByName[sel.Name]; ok {
+			if !c.checkPrivateAccess("field", structInfo.Name+"."+sel.Name, field.Private, field.SourcePath, sel.Pos) {
+				return Unknown
+			}
 			ret, _ := c.inferFunctionValueCall(sel.Name, structFieldType(structInfo, receiver, field), call.Args, argTypes, sel.Pos)
 			return ret
 		}
 		if method == nil {
 			c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
+			return Unknown
+		}
+		if !c.checkPrivateAccess("method", structInfo.Name+"."+sel.Name, method.Private, method.SourcePath, sel.Pos) {
 			return Unknown
 		}
 		c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
@@ -489,16 +548,24 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			c.info.ExprTypes[ident] = localType
 			return ret
 		}
-		fn := c.info.Functions[ident.Name]
-		if fn == nil {
+		fn, ok := c.resolveFunction(ident.Name, ident.Pos)
+		if !ok {
 			c.errorf(ident.Pos, "undefined function %q", ident.Name)
 			return Unknown
+		}
+		if fn == nil {
+			return Unknown
+		}
+		if fn.Node != nil {
+			c.inferFunction(fn.Node)
 		}
 		for i, argType := range argTypes {
 			if i < len(fn.Params) && fn.Params[i].Type == Unknown && argType != Unknown {
 				fn.Params[i].Type = argType
 			}
 		}
+		c.refineCallArgsFromParams(fn.Params, call.Args, argTypes, env)
+		c.info.ResolvedFunctions[ident] = fn
 		c.info.ExprTypes[ident] = functionType(fn)
 		c.checkArgs(ident.Name, fn.Params, call.Args, argTypes, ident.Pos)
 		return c.finishRoutineCall(call, fn.Routine, fn.Return)
@@ -548,6 +615,44 @@ func (c *checker) finishRoutineCall(call *ast.CallExpr, routine bool, ret Type) 
 		return ret
 	}
 	return TaskOf(ret)
+}
+
+func (c *checker) refineCallArgsFromParams(params []ParamInfo, args []ast.Expr, argTypes []Type, env map[string]Type) {
+	limit := min(len(params), len(argTypes))
+	for i := 0; i < limit; i++ {
+		expected := params[i].Type
+		if expected == "" || expected == Unknown {
+			continue
+		}
+		argTypes[i] = c.refineUnknownIdentifierType(args[i], argTypes[i], expected, env)
+	}
+}
+
+func (c *checker) refineNumericBinaryOperands(expr *ast.BinaryExpr, left Type, right Type, env map[string]Type) (Type, Type) {
+	if left == Unknown && isNumericType(right) {
+		left = c.refineUnknownIdentifierType(expr.Left, left, right, env)
+	}
+	if right == Unknown && isNumericType(left) {
+		right = c.refineUnknownIdentifierType(expr.Right, right, left, env)
+	}
+	return left, right
+}
+
+func (c *checker) refineUnknownIdentifierType(expr ast.Expr, actual Type, expected Type, env map[string]Type) Type {
+	if actual != Unknown || expected == Unknown {
+		return actual
+	}
+	ident, ok := expr.(*ast.Identifier)
+	if !ok {
+		return actual
+	}
+	current, ok := env[ident.Name]
+	if !ok || current != Unknown {
+		return actual
+	}
+	env[ident.Name] = expected
+	c.info.ExprTypes[ident] = expected
+	return expected
 }
 
 func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
@@ -672,7 +777,7 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
 			paramType = c.resolveType(lambda.ParamTypes[i])
 			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
-				c.errorf(lambda.Pos, "unknown type %q", lambda.ParamTypes[i])
+				c.reportUnknownOrPrivateType(lambda.Pos, lambda.ParamTypes[i])
 			}
 		} else if i < len(expectedParams) {
 			paramType = Type(expectedParams[i])
@@ -683,10 +788,15 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 		local[name] = paramType
 	}
 	ret := c.inferExpr(lambda.Body, local)
+	c.finishInferredLambdaParams(params, lambda.Params, lambda.Body, local)
 	if lambda.ReturnType != "" {
 		declared := c.resolveDeclaredReturn(lambda.ReturnType)
 		if declared == Unknown && !isDynamicTypeName(lambda.ReturnType) {
-			c.errorf(lambda.Pos, "unknown return type %q", lambda.ReturnType)
+			if privateName, ok := c.inaccessibleTypeName(lambda.ReturnType); ok {
+				c.errorf(lambda.Pos, "return type %q is private", privateName)
+			} else {
+				c.errorf(lambda.Pos, "unknown return type %q", lambda.ReturnType)
+			}
 		}
 		if !typesCompatible(declared, ret, nil) {
 			c.errorf(lambda.Body.Position(), "lambda returns %s, expected %s", ret, declared)
@@ -697,6 +807,21 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 		ret = Void
 	}
 	return FuncOfTypes(params, ret)
+}
+
+func (c *checker) finishInferredLambdaParams(params []Type, names []string, body ast.Expr, env map[string]Type) {
+	for idx, name := range names {
+		if idx >= len(params) || params[idx] != Unknown {
+			continue
+		}
+		if inferred := env[name]; inferred != "" && inferred != Unknown {
+			params[idx] = inferred
+			continue
+		}
+		if inferred := c.inferredParamUseType(body, name); inferred != Unknown {
+			params[idx] = inferred
+		}
+	}
 }
 
 func paramNames(params []ParamInfo) []string {

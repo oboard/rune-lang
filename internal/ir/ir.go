@@ -32,6 +32,7 @@ type GoImport struct {
 
 type StructType struct {
 	Name     string
+	Private  bool
 	Generics []string
 	Fields   []Field
 	Methods  []*Function
@@ -40,26 +41,30 @@ type StructType struct {
 }
 
 type Field struct {
-	Name string
-	Type checker.Type
-	Pos  lexer.Position
+	Name    string
+	Private bool
+	Type    checker.Type
+	Pos     lexer.Position
 }
 
 type EnumType struct {
 	Name    string
+	Private bool
 	Members []EnumMember
 	Pos     lexer.Position
 	NamePos lexer.Position
 }
 
 type EnumMember struct {
-	Name  string
-	Value int
-	Pos   lexer.Position
+	Name    string
+	Private bool
+	Value   int
+	Pos     lexer.Position
 }
 
 type Function struct {
 	Name         string
+	Private      bool
 	Routine      bool
 	Generics     []string
 	ReceiverType checker.Type

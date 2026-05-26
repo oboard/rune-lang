@@ -61,7 +61,7 @@ func (l lowerer) base(expr ast.Expr) ExprBase {
 }
 
 func (l lowerer) structType(typ *ast.StructType) *StructType {
-	out := &StructType{Name: typ.Name, Generics: append([]string(nil), typ.Generics...), Pos: typ.Pos, NamePos: typ.NamePos}
+	out := &StructType{Name: typ.Name, Private: typ.Private, Generics: append([]string(nil), typ.Generics...), Pos: typ.Pos, NamePos: typ.NamePos}
 	if l.info != nil {
 		if info := l.info.Types[typ.Name]; info != nil {
 			for _, field := range typ.Fields {
@@ -69,7 +69,7 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 				if fieldInfo, ok := info.ByName[field.Name]; ok {
 					fieldType = fieldInfo.Type
 				}
-				out.Fields = append(out.Fields, Field{Name: field.Name, Type: fieldType, Pos: field.Pos})
+				out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: fieldType, Pos: field.Pos})
 			}
 			for _, method := range typ.Methods {
 				out.Methods = append(out.Methods, l.function(method, typ.Name))
@@ -78,7 +78,7 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 		}
 	}
 	for _, field := range typ.Fields {
-		out.Fields = append(out.Fields, Field{Name: field.Name, Type: checker.Type(field.Type), Pos: field.Pos})
+		out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: checker.Type(field.Type), Pos: field.Pos})
 	}
 	for _, method := range typ.Methods {
 		out.Methods = append(out.Methods, l.function(method, typ.Name))
@@ -87,9 +87,9 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 }
 
 func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
-	out := &EnumType{Name: enum.Name, Pos: enum.Pos, NamePos: enum.NamePos}
+	out := &EnumType{Name: enum.Name, Private: enum.Private, Pos: enum.Pos, NamePos: enum.NamePos}
 	for _, member := range enum.Members {
-		out.Members = append(out.Members, EnumMember{Name: member.Name, Value: member.Value, Pos: member.Pos})
+		out.Members = append(out.Members, EnumMember{Name: member.Name, Private: member.Private, Value: member.Value, Pos: member.Pos})
 	}
 	return out
 }
@@ -97,6 +97,7 @@ func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
 func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 	out := &Function{
 		Name:         fn.Name,
+		Private:      fn.Private,
 		Routine:      fn.Routine,
 		Generics:     append([]string(nil), fn.Generics...),
 		ReceiverType: checker.Type(receiver),
@@ -113,7 +114,7 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 					return out
 				}
 			}
-		} else if info := l.info.Functions[fn.Name]; info != nil {
+		} else if info := l.info.FunctionDecls[fn]; info != nil {
 			l.fillFunctionInfo(out, info)
 			return out
 		}
@@ -136,6 +137,9 @@ func (l lowerer) test(test *ast.Test) *Test {
 }
 
 func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {
+	if info.LinkName != "" {
+		fn.Name = info.LinkName
+	}
 	fn.ReceiverType = info.ReceiverType
 	fn.Return = info.Return
 	for _, param := range info.Params {
@@ -146,7 +150,13 @@ func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {
 func (l lowerer) expr(expr ast.Expr) Expr {
 	switch e := expr.(type) {
 	case *ast.Identifier:
-		return &Identifier{ExprBase: l.base(e), Name: e.Name}
+		name := e.Name
+		if l.info != nil {
+			if fn := l.info.ResolvedFunctions[e]; fn != nil && fn.LinkName != "" {
+				name = fn.LinkName
+			}
+		}
+		return &Identifier{ExprBase: l.base(e), Name: name}
 	case *ast.AtExpr:
 		return &AtExpr{ExprBase: l.base(e), Name: e.Name}
 	case *ast.ThisExpr:

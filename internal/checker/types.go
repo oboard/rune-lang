@@ -119,10 +119,16 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 			}
 			return funcTypeOf(types, retType)
 		}
-		if _, ok := c.info.Types[name]; ok {
+		if info, ok := c.info.Types[name]; ok {
+			if !c.canAccessPrivate(info.Private, info.SourcePath) {
+				return Unknown
+			}
 			return Type(name)
 		}
-		if _, ok := c.info.Enums[name]; ok {
+		if info, ok := c.info.Enums[name]; ok {
+			if !c.canAccessPrivate(info.Private, info.SourcePath) {
+				return Unknown
+			}
 			return Type(name)
 		}
 		return Unknown

@@ -54,6 +54,43 @@ main() => helper()
 	}
 }
 
+func TestPrivateDeclarations(t *testing.T) {
+	file, errs := Parse(`- Secret: {
+  - value: Int
+
+  - reveal() -> Int => .value
+}
+
+- Status: {
+  Ready = 0
+  - Hidden = 1
+}
+
+- add(a: Int, b: Int) -> Int => a + b
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Types) != 1 || !file.Types[0].Private {
+		t.Fatalf("types = %#v, want one private type", file.Types)
+	}
+	if len(file.Types[0].Fields) != 1 || !file.Types[0].Fields[0].Private {
+		t.Fatalf("fields = %#v, want private value", file.Types[0].Fields)
+	}
+	if len(file.Types[0].Methods) != 1 || !file.Types[0].Methods[0].Private {
+		t.Fatalf("methods = %#v, want private reveal", file.Types[0].Methods)
+	}
+	if len(file.Enums) != 1 || !file.Enums[0].Private {
+		t.Fatalf("enums = %#v, want one private enum", file.Enums)
+	}
+	if len(file.Enums[0].Members) != 2 || !file.Enums[0].Members[1].Private {
+		t.Fatalf("members = %#v, want private Hidden", file.Enums[0].Members)
+	}
+	if len(file.Functions) != 1 || !file.Functions[0].Private {
+		t.Fatalf("functions = %#v, want private add", file.Functions)
+	}
+}
+
 func TestEnumDeclWithIntegerMembers(t *testing.T) {
 	file, errs := Parse(`Status: {
   Completed = 0

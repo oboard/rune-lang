@@ -25,6 +25,7 @@ func (c *checker) collect(file *ast.File) {
 		}
 		c.info.Types[typ.Name] = &StructInfo{
 			Name:       typ.Name,
+			Private:    typ.Private,
 			SourcePath: typ.SourcePath,
 			Generics:   append([]string(nil), typ.Generics...),
 			ByName:     map[string]FieldInfo{},
@@ -41,13 +42,13 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
 			continue
 		}
-		info := &EnumInfo{Name: enum.Name, ByName: map[string]EnumMemberInfo{}, Node: enum}
+		info := &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, ByName: map[string]EnumMemberInfo{}, Node: enum}
 		for _, member := range enum.Members {
 			if _, exists := info.ByName[member.Name]; exists {
 				c.errorf(member.Pos, "duplicate enum member %s.%s", enum.Name, member.Name)
 				continue
 			}
-			memberInfo := EnumMemberInfo{Name: member.Name, Value: member.Value}
+			memberInfo := EnumMemberInfo{Name: member.Name, Private: member.Private, SourcePath: enum.SourcePath, Value: member.Value}
 			info.Members = append(info.Members, memberInfo)
 			info.ByName[member.Name] = memberInfo
 		}
@@ -64,11 +65,14 @@ func (c *checker) collect(file *ast.File) {
 				c.errorf(field.Pos, "duplicate field %q", field.Name)
 				continue
 			}
-			fieldType := c.resolveTypeWithGenerics(field.Type, typeGenerics)
+			var fieldType Type
+			c.withSourcePath(typ.SourcePath, func() {
+				fieldType = c.resolveTypeWithGenerics(field.Type, typeGenerics)
+			})
 			if fieldType == Unknown && !isDynamicTypeName(field.Type) {
-				c.errorf(field.Pos, "unknown type %q", field.Type)
+				c.reportUnknownOrPrivateType(field.Pos, field.Type)
 			}
-			fieldInfo := FieldInfo{Name: field.Name, Type: fieldType}
+			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, SourcePath: typ.SourcePath, Type: fieldType}
 			info.Fields = append(info.Fields, fieldInfo)
 			info.ByName[field.Name] = fieldInfo
 		}
@@ -83,42 +87,65 @@ func (c *checker) collect(file *ast.File) {
 		}
 	}
 	for _, fn := range file.Functions {
-		if _, exists := c.info.Functions[fn.Name]; exists {
-			c.errorf(fn.NamePos, "duplicate function %q", fn.Name)
+		info := c.collectFunction(fn, nil)
+		if !c.addFunction(fn, info) {
 			continue
 		}
-		c.info.Functions[fn.Name] = c.collectFunction(fn, nil)
 	}
+}
+
+func (c *checker) addFunction(fn *ast.Function, info *FuncInfo) bool {
+	for _, existing := range c.info.functionsByName[fn.Name] {
+		if sameSourcePath(existing.SourcePath, info.SourcePath) || (!existing.Private && !info.Private) {
+			c.errorf(fn.NamePos, "duplicate function %q", fn.Name)
+			return false
+		}
+	}
+	c.info.functionsByName[fn.Name] = append(c.info.functionsByName[fn.Name], info)
+	c.info.FunctionDecls[fn] = info
+	if existing := c.info.Functions[fn.Name]; existing == nil || (existing.Private && !info.Private) {
+		c.info.Functions[fn.Name] = info
+	}
+	return true
 }
 
 func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) *FuncInfo {
 	generics := append([]string(nil), inheritedGenerics...)
 	generics = append(generics, fn.Generics...)
 	genericTypes := genericSet(generics...)
-	info := &FuncInfo{Name: fn.Name, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown}
+	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown}
+	if fn.Private {
+		info.LinkName = privateLinkName(fn.SourcePath, fn.Name)
+	}
 	seenParams := map[string]bool{}
-	for _, param := range fn.Params {
-		if seenParams[param.Name] {
-			c.errorf(param.Pos, "duplicate parameter %q", param.Name)
+	c.withSourcePath(fn.SourcePath, func() {
+		for _, param := range fn.Params {
+			if seenParams[param.Name] {
+				c.errorf(param.Pos, "duplicate parameter %q", param.Name)
+			}
+			seenParams[param.Name] = true
+			if param.Type == "" {
+				info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: Unknown})
+				continue
+			}
+			typ := c.resolveTypeWithGenerics(param.Type, genericTypes)
+			if typ == Unknown && !isDynamicTypeName(param.Type) {
+				c.reportUnknownOrPrivateType(param.Pos, param.Type)
+			}
+			info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: typ})
 		}
-		seenParams[param.Name] = true
-		if param.Type == "" {
-			info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: Unknown})
-			continue
+		if fn.ReturnType != "" {
+			typ := c.resolveTypeWithGenerics(fn.ReturnType, genericTypes)
+			if typ == Unknown && !isDynamicTypeName(fn.ReturnType) {
+				if privateName, ok := c.inaccessibleTypeName(fn.ReturnType); ok {
+					c.errorf(fn.NamePos, "return type %q is private", privateName)
+				} else {
+					c.errorf(fn.NamePos, "unknown return type %q", fn.ReturnType)
+				}
+			}
+			info.Return = typ
+			info.ReturnDeclared = true
 		}
-		typ := c.resolveTypeWithGenerics(param.Type, genericTypes)
-		if typ == Unknown && !isDynamicTypeName(param.Type) {
-			c.errorf(param.Pos, "unknown type %q", param.Type)
-		}
-		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: typ})
-	}
-	if fn.ReturnType != "" {
-		typ := c.resolveTypeWithGenerics(fn.ReturnType, genericTypes)
-		if typ == Unknown && !isDynamicTypeName(fn.ReturnType) {
-			c.errorf(fn.NamePos, "unknown return type %q", fn.ReturnType)
-		}
-		info.Return = typ
-		info.ReturnDeclared = true
-	}
+	})
 	return info
 }

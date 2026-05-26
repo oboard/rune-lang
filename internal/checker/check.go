@@ -25,16 +25,22 @@ func CheckWithStdlib(file *ast.File, reg *stdlib.Registry) (*Info, []Diagnostic)
 func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath string) (*Info, []Diagnostic) {
 	c := &checker{
 		info: &Info{
-			Functions:  map[string]*FuncInfo{},
-			Types:      map[string]*StructInfo{},
-			Enums:      map[string]*EnumInfo{},
-			Stdlib:     reg,
-			ExprTypes:  map[ast.Expr]Type{},
-			AsyncCalls: map[*ast.CallExpr]bool{},
-			AwaitCalls: map[*ast.CallExpr]bool{},
+			Functions:         map[string]*FuncInfo{},
+			FunctionDecls:     map[*ast.Function]*FuncInfo{},
+			ResolvedFunctions: map[*ast.Identifier]*FuncInfo{},
+			Types:             map[string]*StructInfo{},
+			Enums:             map[string]*EnumInfo{},
+			Stdlib:            reg,
+			ExprTypes:         map[ast.Expr]Type{},
+			AsyncCalls:        map[*ast.CallExpr]bool{},
+			AwaitCalls:        map[*ast.CallExpr]bool{},
+			functionsByName:   map[string][]*FuncInfo{},
 		},
-		bindings:   map[string]ast.Expr{},
-		sourcePath: normalizeSourcePath(sourcePath),
+		bindings:           map[string]ast.Expr{},
+		inferredFunctions:  map[*ast.Function]bool{},
+		inferringFunctions: map[*ast.Function]bool{},
+		sourcePath:         normalizeSourcePath(sourcePath),
+		currentSourcePath:  normalizeSourcePath(sourcePath),
 	}
 	c.collectCoreTypes()
 	c.checkGoImports(file)
@@ -52,12 +58,15 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 }
 
 type checker struct {
-	info         *Info
-	diags        []Diagnostic
-	bindings     map[string]ast.Expr
-	sourcePath   string
-	routineDepth int
-	unwrapErrors []Type
+	info               *Info
+	diags              []Diagnostic
+	bindings           map[string]ast.Expr
+	inferredFunctions  map[*ast.Function]bool
+	inferringFunctions map[*ast.Function]bool
+	sourcePath         string
+	currentSourcePath  string
+	routineDepth       int
+	unwrapErrors       []Type
 }
 
 func (c *checker) collectCoreTypes() {
@@ -70,6 +79,7 @@ func (c *checker) collectCoreTypes() {
 		}
 		c.info.Types[typ.Name] = &StructInfo{
 			Name:       typ.Name,
+			Private:    false,
 			SourcePath: typ.SourcePath,
 			Generics:   append([]string(nil), typ.Generics...),
 			ByName:     map[string]FieldInfo{},
@@ -83,6 +93,7 @@ func (c *checker) collectCoreTypes() {
 		typeGenerics := genericSet(typ.Generics...)
 		info := &StructInfo{
 			Name:       typ.Name,
+			Private:    false,
 			SourcePath: typ.SourcePath,
 			Generics:   append([]string(nil), typ.Generics...),
 			ByName:     map[string]FieldInfo{},
@@ -90,7 +101,7 @@ func (c *checker) collectCoreTypes() {
 		}
 		for _, field := range typ.Fields {
 			fieldType := c.resolveTypeWithGenerics(field.Type, typeGenerics)
-			fieldInfo := FieldInfo{Name: field.Name, Type: fieldType}
+			fieldInfo := FieldInfo{Name: field.Name, SourcePath: typ.SourcePath, Type: fieldType}
 			info.Fields = append(info.Fields, fieldInfo)
 			info.ByName[field.Name] = fieldInfo
 		}

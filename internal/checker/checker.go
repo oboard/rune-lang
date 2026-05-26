@@ -1,6 +1,9 @@
 package checker
 
 import (
+	"fmt"
+	"hash/fnv"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/stdlib"
@@ -55,6 +58,9 @@ type ParamInfo struct {
 
 type FuncInfo struct {
 	Name           string
+	LinkName       string
+	Private        bool
+	SourcePath     string
 	Routine        bool
 	Generics       []string
 	ReceiverType   Type
@@ -65,12 +71,15 @@ type FuncInfo struct {
 }
 
 type FieldInfo struct {
-	Name string
-	Type Type
+	Name       string
+	Private    bool
+	SourcePath string
+	Type       Type
 }
 
 type StructInfo struct {
 	Name       string
+	Private    bool
 	SourcePath string
 	Generics   []string
 	Fields     []FieldInfo
@@ -80,23 +89,37 @@ type StructInfo struct {
 }
 
 type EnumMemberInfo struct {
-	Name  string
-	Value int
+	Name       string
+	Private    bool
+	SourcePath string
+	Value      int
 }
 
 type EnumInfo struct {
-	Name    string
-	Members []EnumMemberInfo
-	ByName  map[string]EnumMemberInfo
-	Node    *ast.EnumType
+	Name       string
+	Private    bool
+	SourcePath string
+	Members    []EnumMemberInfo
+	ByName     map[string]EnumMemberInfo
+	Node       *ast.EnumType
 }
 
 type Info struct {
-	Functions  map[string]*FuncInfo
-	Types      map[string]*StructInfo
-	Enums      map[string]*EnumInfo
-	Stdlib     *stdlib.Registry
-	ExprTypes  map[ast.Expr]Type
-	AsyncCalls map[*ast.CallExpr]bool
-	AwaitCalls map[*ast.CallExpr]bool
+	Functions         map[string]*FuncInfo
+	FunctionDecls     map[*ast.Function]*FuncInfo
+	ResolvedFunctions map[*ast.Identifier]*FuncInfo
+	Types             map[string]*StructInfo
+	Enums             map[string]*EnumInfo
+	Stdlib            *stdlib.Registry
+	ExprTypes         map[ast.Expr]Type
+	AsyncCalls        map[*ast.CallExpr]bool
+	AwaitCalls        map[*ast.CallExpr]bool
+
+	functionsByName map[string][]*FuncInfo
+}
+
+func privateLinkName(sourcePath string, name string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(normalizeSourcePath(sourcePath)))
+	return fmt.Sprintf("__rune_private_%08x_%s", h.Sum32(), name)
 }

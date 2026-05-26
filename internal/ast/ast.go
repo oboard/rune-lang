@@ -33,6 +33,7 @@ type Annotation struct {
 
 type StructType struct {
 	Name       string
+	Private    bool
 	Generics   []string
 	Fields     []Field
 	Methods    []*Function
@@ -43,6 +44,7 @@ type StructType struct {
 
 type Field struct {
 	Name        string
+	Private     bool
 	Type        string
 	TypeDisplay string
 	Pos         lexer.Position
@@ -50,6 +52,7 @@ type Field struct {
 
 type EnumType struct {
 	Name       string
+	Private    bool
 	Members    []EnumMember
 	Pos        lexer.Position
 	NamePos    lexer.Position
@@ -57,13 +60,15 @@ type EnumType struct {
 }
 
 type EnumMember struct {
-	Name  string
-	Value int
-	Pos   lexer.Position
+	Name    string
+	Private bool
+	Value   int
+	Pos     lexer.Position
 }
 
 type Function struct {
 	Name          string
+	Private       bool
 	Routine       bool
 	Generics      []string
 	Annotations   []Annotation
@@ -79,6 +84,9 @@ type Function struct {
 
 func (f *Function) Signature() string {
 	var b strings.Builder
+	if f.Private {
+		b.WriteString("- ")
+	}
 	if f.Routine {
 		b.WriteString("~ ")
 	}
@@ -109,8 +117,9 @@ type Param struct {
 }
 
 type Test struct {
-	Name    string
-	Body    Expr
-	Pos     lexer.Position
-	NamePos lexer.Position
+	Name       string
+	Body       Expr
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }

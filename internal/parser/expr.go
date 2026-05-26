@@ -448,7 +448,7 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 }
 
 func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
-	fn := p.parseFunctionWithReceiver("")
+	fn := p.parseFunctionWithReceiver("", false)
 	params := make([]string, 0, len(fn.Params))
 	paramPos := make([]lexer.Position, 0, len(fn.Params))
 	paramTypes := make([]string, 0, len(fn.Params))
