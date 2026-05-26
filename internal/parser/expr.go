@@ -423,8 +423,9 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 	lit := &ast.AnonymousObjectLiteral{Pos: start.Pos}
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		private := p.parsePrivateModifier()
 		if p.looksLikeFunctionDecl() {
-			lit.Fields = append(lit.Fields, p.parseAnonymousObjectMethod())
+			lit.Fields = append(lit.Fields, p.parseAnonymousObjectMethod(private))
 			p.consumeStatementEnd()
 			p.match(lexer.Comma)
 			p.skipNewlines()
@@ -435,9 +436,10 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 		p.skipNewlines()
 		value := p.parseExpression(1)
 		lit.Fields = append(lit.Fields, ast.FieldValue{
-			Name:  fieldName.Lexeme,
-			Value: value,
-			Pos:   fieldName.Pos,
+			Name:    fieldName.Lexeme,
+			Private: private,
+			Value:   value,
+			Pos:     fieldName.Pos,
 		})
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
@@ -447,8 +449,8 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 	return lit
 }
 
-func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
-	fn := p.parseFunctionWithReceiver("", false)
+func (p *Parser) parseAnonymousObjectMethod(private bool) ast.FieldValue {
+	fn := p.parseFunctionWithReceiver("", private)
 	params := make([]string, 0, len(fn.Params))
 	paramPos := make([]lexer.Position, 0, len(fn.Params))
 	paramTypes := make([]string, 0, len(fn.Params))
@@ -460,7 +462,8 @@ func (p *Parser) parseAnonymousObjectMethod() ast.FieldValue {
 		paramTypeDisplays = append(paramTypeDisplays, param.TypeDisplay)
 	}
 	return ast.FieldValue{
-		Name: fn.Name,
+		Name:    fn.Name,
+		Private: private,
 		Value: &ast.LambdaExpr{
 			Params:            params,
 			ParamPos:          paramPos,

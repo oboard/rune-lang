@@ -471,8 +471,10 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 		seenMethod = seenMethod || isMethod
 		b.WriteString(fieldIndent)
 		if isMethod {
+			b.WriteString(privatePrefix(field.Private))
 			b.WriteString(f.anonymousObjectMethod(field.Name, lambda))
 		} else {
+			b.WriteString(privatePrefix(field.Private))
 			b.WriteString(field.Name)
 			b.WriteString(": ")
 			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))

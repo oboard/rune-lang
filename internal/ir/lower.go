@@ -228,13 +228,13 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.StructLiteral:
 		out := &StructLiteral{ExprBase: l.base(e), TypeName: e.TypeName}
 		for _, field := range e.Fields {
-			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Value: l.expr(field.Value), Pos: field.Pos})
+			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
 		}
 		return out
 	case *ast.AnonymousObjectLiteral:
 		out := &AnonymousObjectLiteral{ExprBase: l.base(e)}
 		for _, field := range e.Fields {
-			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Value: l.expr(field.Value), Pos: field.Pos})
+			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
 		}
 		return out
 	case *ast.XMLElement:

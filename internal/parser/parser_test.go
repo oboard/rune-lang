@@ -348,6 +348,7 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
     obj := {
         name: "Alice"
         nextAge() => .age + 1
+        - greetText() => "Hello, " + .name
     }
 }
 
@@ -370,8 +371,8 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
 	if !ok {
 		t.Fatalf("let value = %T, want AnonymousObjectLiteral", let.Value)
 	}
-	if len(obj.Fields) != 2 {
-		t.Fatalf("object fields = %d, want 2", len(obj.Fields))
+	if len(obj.Fields) != 3 {
+		t.Fatalf("object fields = %d, want 3", len(obj.Fields))
 	}
 	method, ok := obj.Fields[1].Value.(*ast.LambdaExpr)
 	if !ok {
@@ -379,6 +380,13 @@ func TestAnonymousObjectMethodMembers(t *testing.T) {
 	}
 	if obj.Fields[1].Name != "nextAge" || len(method.Params) != 0 {
 		t.Fatalf("method field = %s params=%v, want nextAge()", obj.Fields[1].Name, method.Params)
+	}
+	privateMethod, ok := obj.Fields[2].Value.(*ast.LambdaExpr)
+	if !ok {
+		t.Fatalf("private method field = %T, want LambdaExpr", obj.Fields[2].Value)
+	}
+	if obj.Fields[2].Name != "greetText" || !obj.Fields[2].Private || len(privateMethod.Params) != 0 {
+		t.Fatalf("private method field = %s private=%v params=%v, want private greetText()", obj.Fields[2].Name, obj.Fields[2].Private, privateMethod.Params)
 	}
 }
 

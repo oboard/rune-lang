@@ -305,9 +305,10 @@ func (e *AnonymousObjectLiteral) Position() lexer.Position {
 }
 
 type FieldValue struct {
-	Name  string
-	Value Expr
-	Pos   lexer.Position
+	Name    string
+	Private bool
+	Value   Expr
+	Pos     lexer.Position
 }
 
 type XMLElement struct {

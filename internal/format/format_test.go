@@ -8,7 +8,7 @@ import (
 )
 
 func TestAnonymousObjectLiteralFormatting(t *testing.T) {
-	src := `main()=>{obj:={name:"Alice",age:30,greet()=>@io.println(.greetText()),nextAge()=>.age+1,greetText()=> "Hello, my name is "+.name}@io.println(obj.name)}`
+	src := `main()=>{obj:={name:"Alice",age:30,greet()=>@io.println(.greetText()),nextAge()=>.age+1,- greetText()=> "Hello, my name is "+.name}@io.println(obj.name)}`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -22,7 +22,7 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 
     greet() => @io.println(.greetText())
     nextAge() => .age + 1
-    greetText() => "Hello, my name is " + .name
+    - greetText() => "Hello, my name is " + .name
   }
 
   @io.println(obj.name)

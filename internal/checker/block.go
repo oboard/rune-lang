@@ -63,13 +63,13 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 			c.errorf(field.Pos, "duplicate field value %q", field.Name)
 		}
 		if _, isLambda := field.Value.(*ast.LambdaExpr); isLambda && selfName != "" {
-			fieldInfo := FieldInfo{Name: field.Name, Type: Unknown}
+			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, Type: Unknown}
 			fields = append(fields, fieldInfo)
 			byName[field.Name] = fieldInfo
 			continue
 		}
 		valueType := c.inferExpr(field.Value, env)
-		fieldInfo := FieldInfo{Name: field.Name, Type: valueType}
+		fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, Type: valueType}
 		fields = append(fields, fieldInfo)
 		byName[field.Name] = fieldInfo
 	}
@@ -83,7 +83,7 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 		byName = map[string]FieldInfo{}
 		for _, field := range lit.Fields {
 			valueType := c.inferExpr(field.Value, selfEnv)
-			fieldInfo := FieldInfo{Name: field.Name, Type: valueType}
+			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, Type: valueType}
 			fields = append(fields, fieldInfo)
 			byName[field.Name] = fieldInfo
 		}

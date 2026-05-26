@@ -5,7 +5,7 @@ main() => {
 
     greet() => @io.println(.greetText())
     nextAge() => .age + 1
-    greetText() => "Hello, my name is " + .name
+    - greetText() => "Hello, my name is " + .name
   }
 
   obj2 := {

@@ -236,9 +236,10 @@ type AnonymousObjectLiteral struct {
 func (*AnonymousObjectLiteral) exprNode() {}
 
 type FieldValue struct {
-	Name  string
-	Value Expr
-	Pos   lexer.Position
+	Name    string
+	Private bool
+	Value   Expr
+	Pos     lexer.Position
 }
 
 type XMLElement struct {
