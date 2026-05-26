@@ -401,7 +401,7 @@ func genericSet(names ...string) map[string]bool {
 }
 
 func isDynamicTypeName(name string) bool {
-	return name == "Dynamic" || name == "Any"
+	return name == "Dynamic"
 }
 
 func typesCompatible(expected Type, actual Type, generics []string) bool {

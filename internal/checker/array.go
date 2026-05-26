@@ -263,7 +263,7 @@ func (c *checker) checkDeclaredReceiverArgs(moduleName string, functionName stri
 }
 
 func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string, index int, expected string, arg ast.Expr, actual Type, bindings map[string]Type, env map[string]Type) {
-	if expected == "Any" || expected == "Dynamic" {
+	if expected == "Dynamic" {
 		return
 	}
 	if params, ret, ok := parseFuncType(expected); ok {
@@ -292,7 +292,7 @@ func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string
 }
 
 func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[string]Type, pos lexer.Position, moduleName string, functionName string, index int) {
-	if expected == "" || expected == "Any" || expected == "Dynamic" || actual == Unknown {
+	if expected == "" || expected == "Dynamic" || actual == Unknown {
 		return
 	}
 	if _, ok := bindings[expected]; ok {
@@ -351,7 +351,7 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 	if name == "" {
 		return Void
 	}
-	if name == "Dynamic" || name == "Any" {
+	if name == "Dynamic" {
 		return Unknown
 	}
 	if typ, ok := bindings[name]; ok {

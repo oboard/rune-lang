@@ -31,7 +31,7 @@ names the backend intrinsic or binding.
 Example:
 
 ```rune
-println(value: Any) => "%go:fmt.Println"
+println[T](value: T) => "%go:fmt.Println"
 ```
 
 Backends use those declarations to type-check calls and lower them to

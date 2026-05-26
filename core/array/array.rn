@@ -21,13 +21,13 @@ Array[T]: {
 
   contains(value: T) -> Bool => "%array.contains"
 
-  each(
+  each[R](
     callbackfn: (
       value: T,
       index?: Int,
       array?: Array[T]
-    ) -> Any
-  ) => "%array.each"
+    ) -> R
+  ) -> Void => "%array.each"
 
   map[U](
     callbackfn: (

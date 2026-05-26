@@ -114,13 +114,13 @@ func TestLoadCoreStubs(t *testing.T) {
 
 func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	mod, err := parseModule("array", "array.rn", `Array[T]: {
-  each(
+  each[R](
     callbackfn: (
       value: T,
       index?: Int,
       array?: Array[T]
-    ) -> Any
-  ) => "%array.each"
+    ) -> R
+  ) -> Void => "%array.each"
 }
 `)
 	if err != nil {
@@ -130,7 +130,10 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	if fn == nil {
 		t.Fatal("missing each declaration")
 	}
-	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],Any]" {
+	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],R]" {
 		t.Fatalf("each params = %v, want callback Func", fn.Params)
+	}
+	if fn.Return != "Void" {
+		t.Fatalf("each return = %s, want Void", fn.Return)
 	}
 }

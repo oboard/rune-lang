@@ -86,7 +86,6 @@ Void
 Object
 Symbol
 HTMLElement
-Any
 Dynamic
 Data
 Error
@@ -94,8 +93,8 @@ Result[T, E]
 Task[T]
 ```
 
-`Any` 和 `Dynamic` 可以出现在声明里，类型检查器会把它们当作动态类型处理。
-能写出具体类型时，优先使用具体类型。
+`Dynamic` 可以出现在确实需要动态检查的声明里。能写出具体类型或泛型类型参数
+时，优先使用具体类型或泛型。
 
 可空类型使用后缀 `?`：
 
@@ -120,7 +119,7 @@ seen: Set[String]
 回调检查：
 
 ```rune
-callback: (value: Int, index?: Int, array?: Array[Int]) -> Any
+each[R](callback: (value: Int, index?: Int, array?: Array[Int]) -> R) -> Void
 ```
 
 ## 运算符

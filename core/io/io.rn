@@ -1,5 +1,5 @@
 Data: {}
 
-print(value: Any) => "%io.print"
-println(value: Any) => "%io.println"
-printf(format: String, value: Any) => "%io.printf"
+print[T](value: T) => "%io.print"
+println[T](value: T) => "%io.println"
+printf[T](format: String, value: T) => "%io.printf"

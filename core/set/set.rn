@@ -13,7 +13,7 @@ Set[T]: {
 
     values() -> Array[T] => "%set.values"
 
-    each(callbackfn: (value: T, value2?: T, set?: Set[T]) -> Any) => "%set.each"
+    each[R](callbackfn: (value: T, value2?: T, set?: Set[T]) -> R) -> Void => "%set.each"
 }
 
 WeakSet[T]: {

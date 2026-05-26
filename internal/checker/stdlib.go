@@ -94,7 +94,7 @@ func (c *checker) checkStdlibArgs(moduleName string, functionName string, fn *st
 }
 
 func (c *checker) checkDeclaredArg(moduleName string, functionName string, index int, expected string, arg ast.Expr, actual Type) {
-	if expected == "Any" || expected == "Dynamic" {
+	if expected == "Dynamic" {
 		return
 	}
 	expectedType := c.resolveType(expected)

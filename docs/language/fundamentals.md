@@ -90,7 +90,6 @@ Void
 Object
 Symbol
 HTMLElement
-Any
 Dynamic
 Data
 Error
@@ -98,8 +97,8 @@ Result[T, E]
 Task[T]
 ```
 
-`Any` and `Dynamic` are accepted in declarations and are treated as dynamic
-types by the checker. Prefer concrete types when possible.
+`Dynamic` is accepted in declarations when a value truly needs dynamic
+checking. Prefer concrete types or generic type parameters when possible.
 
 Nullable types use a suffix `?`:
 
@@ -124,7 +123,7 @@ Function types use `(params) -> Return`. Parameter names inside function types
 are optional documentation for call sites and callback checking:
 
 ```rune
-callback: (value: Int, index?: Int, array?: Array[Int]) -> Any
+each[R](callback: (value: Int, index?: Int, array?: Array[Int]) -> R) -> Void
 ```
 
 ## Operators
@@ -326,7 +325,7 @@ fib(n: Int) -> Int => {
 }
 ```
 
-Any expression can be matched with `subject { pattern => expression }`:
+Every expression can be matched with `subject { pattern => expression }`:
 
 ```rune
 label(value: Int) -> String => value {
