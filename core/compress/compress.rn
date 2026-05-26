@@ -6,6 +6,22 @@
 
 ~ inflate(data: @io.Data) -> Result[@io.Data, Error] => "%compress.inflate"
 
+~ brotli(data: @io.Data) -> Result[@io.Data, Error] => "%compress.brotli"
+
+~ unbrotli(data: @io.Data) -> Result[@io.Data, Error] => "%compress.unbrotli"
+
+~ zstd(data: @io.Data) -> Result[@io.Data, Error] => "%compress.zstd"
+
+~ unzstd(data: @io.Data) -> Result[@io.Data, Error] => "%compress.unzstd"
+
 ~ gzipText(value: String) -> Result[@io.Data, Error] => "%compress.gzipText"
 
 ~ gunzipText(data: @io.Data) -> Result[String, Error] => "%compress.gunzipText"
+
+~ brotliText(value: String) -> Result[@io.Data, Error] => "%compress.brotliText"
+
+~ unbrotliText(data: @io.Data) -> Result[String, Error] => "%compress.unbrotliText"
+
+~ zstdText(value: String) -> Result[@io.Data, Error] => "%compress.zstdText"
+
+~ unzstdText(data: @io.Data) -> Result[String, Error] => "%compress.unzstdText"

@@ -48,6 +48,8 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.imports["bytes"] = true
 		g.imports["compress/gzip"] = true
 		g.imports["compress/zlib"] = true
+		g.imports["github.com/andybalholm/brotli"] = true
+		g.imports["github.com/klauspost/compress/zstd"] = true
 		g.imports["io"] = true
 	}
 	if fileUsesNetRuntime(file) {
@@ -793,15 +795,11 @@ func (g *generator) fsRuntime() {
 }
 
 func (g *generator) compressRuntime() {
-	g.line("func runeCompressGzip(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.line("func runeCompressWrite(data []byte, writer io.WriteCloser, out *bytes.Buffer) runeResult[[]byte, *runeError] {")
 	g.indent++
-	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
-	g.indent++
-	g.line("var out bytes.Buffer")
-	g.line("writer := gzip.NewWriter(&out)")
 	g.line("if _, err := writer.Write(data); err != nil {")
 	g.indent++
-	g.line("writer.Close()")
+	g.line("_ = writer.Close()")
 	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
 	g.indent--
 	g.line("}")
@@ -811,6 +809,28 @@ func (g *generator) compressRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("return runeOk[[]byte, *runeError](out.Bytes())")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressRead(reader io.Reader) runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("out, err := io.ReadAll(reader)")
+	g.line("if err != nil {")
+	g.indent++
+	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
+	g.indent--
+	g.line("}")
+	g.line("return runeOk[[]byte, *runeError](out)")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressGzip(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("var out bytes.Buffer")
+	g.line("writer := gzip.NewWriter(&out)")
+	g.line("return runeCompressWrite(data, writer, &out)")
 	g.indent--
 	g.line("})")
 	g.indent--
@@ -827,13 +847,7 @@ func (g *generator) compressRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("defer reader.Close()")
-	g.line("out, err := io.ReadAll(reader)")
-	g.line("if err != nil {")
-	g.indent++
-	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
-	g.indent--
-	g.line("}")
-	g.line("return runeOk[[]byte, *runeError](out)")
+	g.line("return runeCompressRead(reader)")
 	g.indent--
 	g.line("})")
 	g.indent--
@@ -845,18 +859,7 @@ func (g *generator) compressRuntime() {
 	g.indent++
 	g.line("var out bytes.Buffer")
 	g.line("writer := zlib.NewWriter(&out)")
-	g.line("if _, err := writer.Write(data); err != nil {")
-	g.indent++
-	g.line("writer.Close()")
-	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
-	g.indent--
-	g.line("}")
-	g.line("if err := writer.Close(); err != nil {")
-	g.indent++
-	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
-	g.indent--
-	g.line("}")
-	g.line("return runeOk[[]byte, *runeError](out.Bytes())")
+	g.line("return runeCompressWrite(data, writer, &out)")
 	g.indent--
 	g.line("})")
 	g.indent--
@@ -873,13 +876,64 @@ func (g *generator) compressRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("defer reader.Close()")
-	g.line("out, err := io.ReadAll(reader)")
+	g.line("return runeCompressRead(reader)")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressBrotli(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("var out bytes.Buffer")
+	g.line("writer := brotli.NewWriter(&out)")
+	g.line("return runeCompressWrite(data, writer, &out)")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressUnbrotli(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("reader := brotli.NewReader(bytes.NewReader(data))")
+	g.line("return runeCompressRead(reader)")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressZstd(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("var out bytes.Buffer")
+	g.line("writer, err := zstd.NewWriter(&out)")
 	g.line("if err != nil {")
 	g.indent++
 	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
 	g.indent--
 	g.line("}")
-	g.line("return runeOk[[]byte, *runeError](out)")
+	g.line("return runeCompressWrite(data, writer, &out)")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeCompressUnzstd(data []byte) runeTask[runeResult[[]byte, *runeError]] {")
+	g.indent++
+	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.indent++
+	g.line("reader, err := zstd.NewReader(bytes.NewReader(data))")
+	g.line("if err != nil {")
+	g.indent++
+	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
+	g.indent--
+	g.line("}")
+	g.line("defer reader.Close()")
+	g.line("return runeCompressRead(reader)")
 	g.indent--
 	g.line("})")
 	g.indent--
@@ -888,9 +942,26 @@ func (g *generator) compressRuntime() {
 	g.line("func runeCompressGzipText(value string) runeTask[runeResult[[]byte, *runeError]] { return runeCompressGzip([]byte(value)) }")
 	g.line("func runeCompressGunzipText(data []byte) runeTask[runeResult[string, *runeError]] {")
 	g.indent++
+	g.line("return runeCompressDecodeText(data, runeCompressGunzip)")
+	g.indent--
+	g.line("}")
+	g.line("func runeCompressBrotliText(value string) runeTask[runeResult[[]byte, *runeError]] { return runeCompressBrotli([]byte(value)) }")
+	g.line("func runeCompressUnbrotliText(data []byte) runeTask[runeResult[string, *runeError]] {")
+	g.indent++
+	g.line("return runeCompressDecodeText(data, runeCompressUnbrotli)")
+	g.indent--
+	g.line("}")
+	g.line("func runeCompressZstdText(value string) runeTask[runeResult[[]byte, *runeError]] { return runeCompressZstd([]byte(value)) }")
+	g.line("func runeCompressUnzstdText(data []byte) runeTask[runeResult[string, *runeError]] {")
+	g.indent++
+	g.line("return runeCompressDecodeText(data, runeCompressUnzstd)")
+	g.indent--
+	g.line("}")
+	g.line("func runeCompressDecodeText(data []byte, decode func([]byte) runeTask[runeResult[[]byte, *runeError]]) runeTask[runeResult[string, *runeError]] {")
+	g.indent++
 	g.line("return runeGo(func() runeResult[string, *runeError] {")
 	g.indent++
-	g.line("result := runeAwait(runeCompressGunzip(data))")
+	g.line("result := runeAwait(decode(data))")
 	g.line("if !result.ok {")
 	g.indent++
 	g.line("return runeErr[string, *runeError](result.err)")

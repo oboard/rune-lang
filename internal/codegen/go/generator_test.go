@@ -455,6 +455,47 @@ func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateCompressIntrinsicProgram(t *testing.T) {
+	src := `~ main() => {
+  brotli := @compress.brotliText("hello")?
+  brotliText := @compress.unbrotliText(brotli)?
+  zstd := @compress.zstdText(brotliText)?
+  text := @compress.unzstdText(zstd)?
+  @io.println(text)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`"github.com/andybalholm/brotli"`,
+		`"github.com/klauspost/compress/zstd"`,
+		`func runeCompressBrotli(data []byte)`,
+		`func runeCompressUnbrotli(data []byte)`,
+		`func runeCompressZstd(data []byte)`,
+		`func runeCompressUnzstd(data []byte)`,
+		`runeCompressBrotliText("hello")`,
+		`runeCompressUnbrotliText(__brotli)`,
+		`runeCompressZstdText(__brotliText)`,
+		`runeCompressUnzstdText(__zstd)`,
+		`fmt.Println(__text)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	src := `main() => {
   obj := {

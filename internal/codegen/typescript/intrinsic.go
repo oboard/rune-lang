@@ -56,7 +56,10 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
 	case "iter.range", "iter.rangeStep", "iter.repeat", "iter.empty":
 		return g.iterModuleCall(fn, args, call.ResultType()), true
-	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate", "compress.gzipText", "compress.gunzipText":
+	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate",
+		"compress.brotli", "compress.unbrotli", "compress.zstd", "compress.unzstd",
+		"compress.gzipText", "compress.gunzipText", "compress.brotliText", "compress.unbrotliText",
+		"compress.zstdText", "compress.unzstdText":
 		return g.compressModuleCall(fn, args, call.ResultType()), true
 	case "net.connect", "net.listen":
 		return g.netModuleCall(fn, args, call.ResultType()), true
@@ -231,10 +234,26 @@ func (g *generator) compressModuleCall(fn *stdlib.Function, args []string, resul
 		return fmt.Sprintf("runeCompressDeflate(%s)", args[0])
 	case "compress.inflate":
 		return fmt.Sprintf("runeCompressInflate(%s)", args[0])
+	case "compress.brotli":
+		return fmt.Sprintf("runeCompressBrotli(%s)", args[0])
+	case "compress.unbrotli":
+		return fmt.Sprintf("runeCompressUnbrotli(%s)", args[0])
+	case "compress.zstd":
+		return fmt.Sprintf("runeCompressZstd(%s)", args[0])
+	case "compress.unzstd":
+		return fmt.Sprintf("runeCompressUnzstd(%s)", args[0])
 	case "compress.gzipText":
 		return fmt.Sprintf("runeCompressGzipText(%s)", args[0])
 	case "compress.gunzipText":
 		return fmt.Sprintf("runeCompressGunzipText(%s)", args[0])
+	case "compress.brotliText":
+		return fmt.Sprintf("runeCompressBrotliText(%s)", args[0])
+	case "compress.unbrotliText":
+		return fmt.Sprintf("runeCompressUnbrotliText(%s)", args[0])
+	case "compress.zstdText":
+		return fmt.Sprintf("runeCompressZstdText(%s)", args[0])
+	case "compress.unzstdText":
+		return fmt.Sprintf("runeCompressUnzstdText(%s)", args[0])
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

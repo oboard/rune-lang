@@ -412,28 +412,61 @@ func (g *generator) fsRuntime() {
 }
 
 func (g *generator) compressRuntime() {
+	g.line("type RuneZlibFunction = (data: Uint8Array, callback: (error: unknown, result: Uint8Array) => void) => void;")
+	g.line("async function runeCompressCall(method: string, data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("try {")
+	g.indent++
+	g.line("const zlib = (await import(\"node:zlib\")) as Record<string, unknown>;")
+	g.line("const fn = zlib[method] as RuneZlibFunction | undefined;")
+	g.line("if (typeof fn !== \"function\") { return runeErr<Uint8Array, RuneError>(runeErrorFrom(new Error(\"node:zlib \" + method + \" is not available\"))); }")
+	g.line("return await new Promise<RuneResult<Uint8Array, RuneError>>((resolve) => fn(data, (error, result) => error ? resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))) : resolve(runeOk<Uint8Array, RuneError>(result))));")
+	g.indent--
+	g.line("} catch (error) {")
+	g.indent++
+	g.line("return runeErr<Uint8Array, RuneError>(runeErrorFrom(error));")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
 	g.line("async function runeCompressGzip(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
 	g.indent++
-	g.line("try { const zlib = await import(\"node:zlib\"); return await new Promise((resolve) => zlib.gzip(data, (error, result) => error ? resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))) : resolve(runeOk<Uint8Array, RuneError>(result)))); }")
-	g.line("catch (error) { return runeErr<Uint8Array, RuneError>(runeErrorFrom(error)); }")
+	g.line("return runeCompressCall(\"gzip\", data);")
 	g.indent--
 	g.line("}")
 	g.line("async function runeCompressGunzip(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
 	g.indent++
-	g.line("try { const zlib = await import(\"node:zlib\"); return await new Promise((resolve) => zlib.gunzip(data, (error, result) => error ? resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))) : resolve(runeOk<Uint8Array, RuneError>(result)))); }")
-	g.line("catch (error) { return runeErr<Uint8Array, RuneError>(runeErrorFrom(error)); }")
+	g.line("return runeCompressCall(\"gunzip\", data);")
 	g.indent--
 	g.line("}")
 	g.line("async function runeCompressDeflate(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
 	g.indent++
-	g.line("try { const zlib = await import(\"node:zlib\"); return await new Promise((resolve) => zlib.deflate(data, (error, result) => error ? resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))) : resolve(runeOk<Uint8Array, RuneError>(result)))); }")
-	g.line("catch (error) { return runeErr<Uint8Array, RuneError>(runeErrorFrom(error)); }")
+	g.line("return runeCompressCall(\"deflate\", data);")
 	g.indent--
 	g.line("}")
 	g.line("async function runeCompressInflate(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
 	g.indent++
-	g.line("try { const zlib = await import(\"node:zlib\"); return await new Promise((resolve) => zlib.inflate(data, (error, result) => error ? resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))) : resolve(runeOk<Uint8Array, RuneError>(result)))); }")
-	g.line("catch (error) { return runeErr<Uint8Array, RuneError>(runeErrorFrom(error)); }")
+	g.line("return runeCompressCall(\"inflate\", data);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressBrotli(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressCall(\"brotliCompress\", data);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressUnbrotli(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressCall(\"brotliDecompress\", data);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressZstd(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressCall(\"zstdCompress\", data);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressUnzstd(data: Uint8Array): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressCall(\"zstdDecompress\", data);")
 	g.indent--
 	g.line("}")
 	g.line("function runeTextEncoder(): TextEncoder { return new TextEncoder(); }")
@@ -441,7 +474,24 @@ func (g *generator) compressRuntime() {
 	g.line("async function runeCompressGzipText(value: string): Promise<RuneResult<Uint8Array, RuneError>> { return runeCompressGzip(runeTextEncoder().encode(value)); }")
 	g.line("async function runeCompressGunzipText(data: Uint8Array): Promise<RuneResult<string, RuneError>> {")
 	g.indent++
-	g.line("const result = await runeCompressGunzip(data);")
+	g.line("return runeCompressDecodeText(data, runeCompressGunzip);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressBrotliText(value: string): Promise<RuneResult<Uint8Array, RuneError>> { return runeCompressBrotli(runeTextEncoder().encode(value)); }")
+	g.line("async function runeCompressUnbrotliText(data: Uint8Array): Promise<RuneResult<string, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressDecodeText(data, runeCompressUnbrotli);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressZstdText(value: string): Promise<RuneResult<Uint8Array, RuneError>> { return runeCompressZstd(runeTextEncoder().encode(value)); }")
+	g.line("async function runeCompressUnzstdText(data: Uint8Array): Promise<RuneResult<string, RuneError>> {")
+	g.indent++
+	g.line("return runeCompressDecodeText(data, runeCompressUnzstd);")
+	g.indent--
+	g.line("}")
+	g.line("async function runeCompressDecodeText(data: Uint8Array, decode: (data: Uint8Array) => Promise<RuneResult<Uint8Array, RuneError>>): Promise<RuneResult<string, RuneError>> {")
+	g.indent++
+	g.line("const result = await decode(data);")
 	g.line("return result.ok ? runeOk<string, RuneError>(runeTextDecoder().decode(result.value)) : runeErr<string, RuneError>(result.error);")
 	g.indent--
 	g.line("}")

@@ -4,7 +4,11 @@
   text := @fs.readFileText(path)?
   compressed := @compress.gzipText(text)?
   restored := @compress.gunzipText(compressed)?
-  @io.println(restored)
+  brotli := @compress.brotliText(text)?
+  brotliRestored := @compress.unbrotliText(brotli)?
+  zstd := @compress.zstdText(text)?
+  zstdRestored := @compress.unzstdText(zstd)?
+  @io.println(restored + " / " + brotliRestored + " / " + zstdRestored)
   @fs.remove(path)?
 }
 

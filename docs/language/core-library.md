@@ -64,11 +64,15 @@ Compression helpers are routines and return `Result`:
 ~ roundtrip() => {
   data := @compress.gzipText("hello")?
   @compress.gunzipText(data)?
+
+  packed := @compress.zstdText("hello")?
+  @compress.unzstdText(packed)?
 }
 ```
 
-The module declares `gzip`, `gunzip`, `deflate`, `inflate`, `gzipText`, and
-`gunzipText`.
+The module declares `gzip`, `gunzip`, `deflate`, `inflate`, `brotli`,
+`unbrotli`, `zstd`, `unzstd`, plus `gzipText`, `gunzipText`, `brotliText`,
+`unbrotliText`, `zstdText`, and `unzstdText`.
 
 ## path
 

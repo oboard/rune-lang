@@ -62,11 +62,15 @@ TypeScript 后端映射为 `Uint8Array`。
 ~ roundtrip() => {
   data := @compress.gzipText("hello")?
   @compress.gunzipText(data)?
+
+  packed := @compress.zstdText("hello")?
+  @compress.unzstdText(packed)?
 }
 ```
 
-模块声明了 `gzip`、`gunzip`、`deflate`、`inflate`、`gzipText` 和
-`gunzipText`。
+模块声明了 `gzip`、`gunzip`、`deflate`、`inflate`、`brotli`、
+`unbrotli`、`zstd`、`unzstd`，以及 `gzipText`、`gunzipText`、
+`brotliText`、`unbrotliText`、`zstdText` 和 `unzstdText`。
 
 ## path
 

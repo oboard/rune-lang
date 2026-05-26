@@ -9,7 +9,7 @@ Current modules:
 * `array` - declared placeholder for array APIs
 * `binary` - fixed byte views and numeric reads/writes
 * `buffer` - mutable byte buffers
-* `compress` - async gzip/zlib helpers
+* `compress` - async gzip/zlib/brotli/zstd helpers
 * `fs` - async filesystem helpers returning `Result`
 * `map` - map construction and receiver APIs
 * `net` - async TCP connection/listener declarations

@@ -285,6 +285,34 @@ func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateCompressIntrinsicProgram(t *testing.T) {
+	src := `~ main() => {
+  brotli := @compress.brotliText("hello")?
+  brotliText := @compress.unbrotliText(brotli)?
+  zstd := @compress.zstdText(brotliText)?
+  text := @compress.unzstdText(zstd)?
+  @io.println(text)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`return runeCompressCall("brotliCompress", data);`,
+		`return runeCompressCall("brotliDecompress", data);`,
+		`return runeCompressCall("zstdCompress", data);`,
+		`return runeCompressCall("zstdDecompress", data);`,
+		`runeCompressBrotliText("hello")`,
+		`runeCompressUnbrotliText(__brotli)`,
+		`runeCompressZstdText(__brotliText)`,
+		`runeCompressUnzstdText(__zstd)`,
+		`console.log(__text);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateJSONStringifyObject(t *testing.T) {
 	src := `User: {
   name: String
