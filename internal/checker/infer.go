@@ -329,6 +329,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return Bool
 		case lexer.Plus:
 			if left == String || right == String {
+				left = c.refineUnknownIdentifierType(e.Left, left, String, env)
+				right = c.refineUnknownIdentifierType(e.Right, right, String, env)
 				if left != String && left != Unknown {
 					c.errorf(e.Left.Position(), "string concatenation expects String, got %s", left)
 				}
@@ -337,8 +339,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 				}
 				return String
 			}
+			left, right = c.refineNumericBinaryOperands(e, left, right, env)
 			return c.numericBinaryType(e, left, right)
 		case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+			left, right = c.refineNumericBinaryOperands(e, left, right, env)
 			return c.numericBinaryType(e, left, right)
 		case lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
 			return c.bitwiseBinaryType(e, left, right)

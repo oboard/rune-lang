@@ -557,6 +557,38 @@ main() => {
 	}
 }
 
+func TestInlayHintsInferParamFromBinaryOperands(t *testing.T) {
+	uri := "file:///tmp/binary_param.rn"
+	src := `message(name) => "hello, " + name
+forward(name) => helper(name)
+- helper(name) => "hello, " + name
+increment(value) => value + 1
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	hints := s.inlayHints(uri).([]map[string]any)
+	namePos := positionOf(src, "message(name)", "name")
+	namePos.Character += len("name")
+	valuePos := positionOf(src, "increment(value)", "value")
+	valuePos.Character += len("value")
+	forwardPos := positionOf(src, "forward(name)", "name")
+	forwardPos.Character += len("name")
+	forwardArrow := positionOf(src, "forward(name) =>", "=>")
+
+	if got := countHintAt(hints, namePos, ": String"); got != 1 {
+		t.Fatalf("name hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, forwardPos, ": String"); got != 1 {
+		t.Fatalf("forward name hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, forwardArrow, "-> String "); got != 1 {
+		t.Fatalf("forward return hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, valuePos, ": Int"); got != 1 {
+		t.Fatalf("value hints = %d, want 1; all hints %#v", got, hints)
+	}
+}
+
 func TestSignalHoverShowsDependencyChain(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
