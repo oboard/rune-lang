@@ -522,6 +522,41 @@ func TestSignalWatchInlayHintsReturnOnce(t *testing.T) {
 	}
 }
 
+func TestInlayHintsIgnoreImportedDeclarations(t *testing.T) {
+	dir := t.TempDir()
+	helperPath := filepath.Join(dir, "import_helper.rn")
+	writeLSPFile(t, helperPath, `greeting(name) => private(name)
+
+- private(name) => "hello, " + name
+`)
+	mainPath := filepath.Join(dir, "import_main.rn")
+	src := `@"import_helper.rn"
+
+private() => "this is real function"
+
+main() => {
+  @io.println(greeting("Rune"))
+  @io.println(private())
+}
+`
+	uri := fileURI(mainPath)
+	s := &server{docs: map[string]string{uri: src}}
+
+	hints := s.inlayHints(uri).([]map[string]any)
+	privateArrow := positionOf(src, "private() =>", "=>")
+	mainArrow := positionOf(src, "main() =>", "=>")
+
+	if got := countHintAt(hints, privateArrow, "-> String "); got != 1 {
+		t.Fatalf("private return hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, mainArrow, "-> Void "); got != 1 {
+		t.Fatalf("main return hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, mainArrow, "-> String "); got != 0 {
+		t.Fatalf("main String return hints = %d, want 0; all hints %#v", got, hints)
+	}
+}
+
 func TestSignalHoverShowsDependencyChain(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
@@ -789,6 +824,16 @@ func inlayLabelsContain(hints []map[string]any, want string) bool {
 		}
 	}
 	return false
+}
+
+func countHintAt(hints []map[string]any, pos position, label string) int {
+	count := 0
+	for _, hint := range hints {
+		if hint["position"] == pos && hint["label"] == label {
+			count++
+		}
+	}
+	return count
 }
 
 func diagnosticsContain(diags []compiler.Diagnostic, want string) bool {

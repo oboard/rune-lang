@@ -3,6 +3,7 @@ package lsp
 import (
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -58,7 +59,7 @@ func (s *server) hover(uri string, pos position) any {
 		if fn.Name == word {
 			signature := functionSignature(prog.Info, fn)
 			if fn.Routine {
-				if fnInfo := prog.Info.Functions[fn.Name]; fnInfo != nil {
+				if fnInfo := prog.Info.FunctionDecls[fn]; fnInfo != nil {
 					signature = functionValueSignature(prog.Info, fnInfo)
 				}
 			}
@@ -70,7 +71,7 @@ func (s *server) hover(uri string, pos position) any {
 				"range": symbolRange(fn.NamePos, len(fn.Name)),
 			}
 		}
-		fnInfo := prog.Info.Functions[fn.Name]
+		fnInfo := prog.Info.FunctionDecls[fn]
 		for i, param := range fn.Params {
 			if param.Name == word {
 				typ := param.Type
@@ -147,7 +148,7 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 			if !containsSymbol(pos, e.Pos, e.Name) {
 				return
 			}
-			if fn := prog.Info.Functions[e.Name]; fn != nil && identifierHasFunctionType(prog.Info, e, fn) {
+			if fn := prog.Info.ResolvedFunctions[e]; fn != nil && identifierHasFunctionType(prog.Info, e, fn) {
 				found = hoverResult(functionValueSignature(prog.Info, fn), e.Pos, e.Name)
 				return
 			}
@@ -593,6 +594,9 @@ func (s *server) documentSymbols(uri string) any {
 	}
 	items := make([]map[string]any, 0, len(prog.File.Functions))
 	for _, fn := range prog.File.Functions {
+		if !sourceMatchesDocument(uri, fn.SourcePath) {
+			continue
+		}
 		rng := functionRange(fn)
 		items = append(items, map[string]any{
 			"name":           fn.Name,
@@ -613,7 +617,10 @@ func (s *server) inlayHints(uri string) any {
 	}
 	var hints []map[string]any
 	for _, fn := range prog.File.Functions {
-		fnInfo := prog.Info.Functions[fn.Name]
+		if !sourceMatchesDocument(uri, fn.SourcePath) {
+			continue
+		}
+		fnInfo := prog.Info.FunctionDecls[fn]
 		if fnInfo == nil {
 			continue
 		}
@@ -648,7 +655,7 @@ func (s *server) inlayHints(uri string) any {
 			})
 		}
 	}
-	walkFileExprs(prog.File, func(expr ast.Expr) {
+	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
 		lambda, ok := expr.(*ast.LambdaExpr)
 		if !ok {
 			return
@@ -814,7 +821,7 @@ func signalGraph(file *ast.File) map[string][]string {
 func asyncCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {
 	switch callee := call.Callee.(type) {
 	case *ast.Identifier:
-		fn := prog.Info.Functions[callee.Name]
+		fn := prog.Info.ResolvedFunctions[callee]
 		if fn == nil || !fn.Routine {
 			return semanticToken{}, false
 		}
@@ -1214,7 +1221,7 @@ func enumTypeSignature(enum *ast.EnumType) string {
 }
 
 func functionSignature(info *checker.Info, fn *ast.Function) string {
-	fnInfo := info.Functions[fn.Name]
+	fnInfo := info.FunctionDecls[fn]
 	if fnInfo == nil {
 		return fn.Signature()
 	}
@@ -1484,6 +1491,29 @@ func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
 	}
 }
 
+func walkDocumentExprs(uri string, file *ast.File, visit func(ast.Expr)) {
+	for _, typ := range file.Types {
+		if !sourceMatchesDocument(uri, typ.SourcePath) {
+			continue
+		}
+		for _, method := range typ.Methods {
+			ast.WalkExpr(method.Body, visit)
+		}
+	}
+	for _, fn := range file.Functions {
+		if !sourceMatchesDocument(uri, fn.SourcePath) {
+			continue
+		}
+		ast.WalkExpr(fn.Body, visit)
+	}
+	for _, test := range file.Tests {
+		if !sourceMatchesDocument(uri, test.SourcePath) {
+			continue
+		}
+		ast.WalkExpr(test.Body, visit)
+	}
+}
+
 func walkFileStatements(file *ast.File, visit func(ast.Stmt)) {
 	walkFileExprs(file, func(expr ast.Expr) {
 		block, ok := expr.(*ast.BlockExpr)
@@ -1550,4 +1580,23 @@ func sourceURI(defaultURI string, sourcePath string) string {
 		return defaultURI
 	}
 	return fileURI(sourcePath)
+}
+
+func sourceMatchesDocument(uri string, sourcePath string) bool {
+	if sourcePath == "" {
+		return true
+	}
+	docPath := filePathFromURI(uri)
+	if docPath == "" {
+		return false
+	}
+	docPath = filepath.Clean(docPath)
+	sourcePath = filepath.Clean(sourcePath)
+	if abs, err := filepath.Abs(docPath); err == nil {
+		docPath = abs
+	}
+	if abs, err := filepath.Abs(sourcePath); err == nil {
+		sourcePath = abs
+	}
+	return docPath == sourcePath
 }
