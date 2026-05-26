@@ -47,10 +47,14 @@ func Run(path string, pattern string, out io.Writer) (Summary, error) {
 			fmt.Fprintf(out, "=== RUN %s\n", file)
 			fmt.Fprintf(out, "--- FAIL %s (compile)\n", file)
 			for _, diag := range diags {
+				diagPath := file
+				if diag.Path != "" {
+					diagPath = diag.Path
+				}
 				if diag.Pos.Line > 0 {
-					fmt.Fprintf(out, "    %s:%d:%d: %s\n", file, diag.Pos.Line, diag.Pos.Column, diag.Message)
+					fmt.Fprintf(out, "    %s:%d:%d: %s\n", diagPath, diag.Pos.Line, diag.Pos.Column, diag.Message)
 				} else {
-					fmt.Fprintf(out, "    %s: %s\n", file, diag.Message)
+					fmt.Fprintf(out, "    %s: %s\n", diagPath, diag.Message)
 				}
 			}
 			continue

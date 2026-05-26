@@ -1,0 +1,47 @@
+@"../selfhost/lexer/lexer.rn"
+
+? "selfhost lexer tokenizes declarations" {
+  tokens := lex("main() => 1\n")
+
+  @assert.eq(tokens[0].kind, "Ident")
+  @assert.eq(tokens[0].lexeme, "main")
+  @assert.eq(tokens[0].line, 1)
+  @assert.eq(tokens[0].column, 1)
+  @assert.eq(tokens[1].kind, "LParen")
+  @assert.eq(tokens[2].kind, "RParen")
+  @assert.eq(tokens[3].kind, "FatArrow")
+  @assert.eq(tokens[4].kind, "Int")
+  @assert.eq(tokens[5].kind, "Newline")
+  @assert.eq(tokens[6].kind, "EOF")
+}
+
+? "selfhost lexer skips comments and reads strings" {
+  tokens := lex("// comment\nname := \"Rune\\nLang\"")
+
+  @assert.eq(tokens[0].kind, "Newline")
+  @assert.eq(tokens[1].kind, "Ident")
+  @assert.eq(tokens[1].lexeme, "name")
+  @assert.eq(tokens[2].kind, "Declare")
+  @assert.eq(tokens[3].kind, "String")
+  @assert.eq(tokens[3].lexeme, "\"Rune\\nLang\"")
+}
+
+? "selfhost lexer separates regex from slash" {
+  regexTokens := lex("value := /a[bc]+/gi")
+  @assert.eq(regexTokens[2].kind, "Regex")
+  @assert.eq(regexTokens[2].lexeme, "/a[bc]+/gi")
+
+  slashTokens := lex("value / count")
+  @assert.eq(slashTokens[0].kind, "Ident")
+  @assert.eq(slashTokens[1].kind, "Slash")
+  @assert.eq(slashTokens[2].kind, "Ident")
+}
+
+? "selfhost lexer reads numeric variants" {
+  tokens := lex("1 2.5 3e4 5n")
+
+  @assert.eq(tokens[0].kind, "Int")
+  @assert.eq(tokens[1].kind, "Double")
+  @assert.eq(tokens[2].kind, "Double")
+  @assert.eq(tokens[3].kind, "BigInt")
+}

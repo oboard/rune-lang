@@ -547,6 +547,17 @@ scores := @map.new("", 0)
 The compiler does not invent module functions. Calls are accepted only when a
 matching declaration exists in `core/<module>/<module>.rn`.
 
+Rune source files can import sibling files with `@"path"`:
+
+```rune
+@"./helper.rn"
+
+main() => @io.println(helper())
+```
+
+Relative paths are resolved from the importing file. Import paths must include
+the file extension.
+
 ## Reactivity and Watch
 
 Signal bindings use `$=`:

@@ -534,6 +534,16 @@ scores := @map.new("", 0)
 编译器不会凭空创造模块函数。只有 `core/<module>/<module>.rn` 中存在匹配声明
 时，模块调用才是合法的。
 
+Rune 源文件可以用 `@"path"` 导入同项目里的其他文件：
+
+```rune
+@"./helper.rn"
+
+main() => @io.println(helper())
+```
+
+相对路径基于当前导入文件解析。导入路径必须显式包含文件后缀。
+
 ## 响应式与 Watch
 
 Signal 绑定使用 `$=`：

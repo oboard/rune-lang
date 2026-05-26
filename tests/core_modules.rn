@@ -1,0 +1,46 @@
+? "iter module helpers" {
+  values := @iter.range(2, 5)
+  @assert.eq(values.length(), 3)
+  @assert.eq(values[0], 2)
+  @assert.eq(values[1], 3)
+  @assert.eq(values[2], 4)
+
+  stepped := @iter.rangeStep(6, 0, 0 - 2)
+  @assert.eq(stepped.length(), 3)
+  @assert.eq(stepped[0], 6)
+  @assert.eq(stepped[1], 4)
+  @assert.eq(stepped[2], 2)
+
+  repeated := @iter.repeat("x", 3)
+  @assert.eq(repeated.length(), 3)
+  @assert.eq(repeated[0], "x")
+  @assert.eq(@iter.empty(0).length(), 0)
+}
+
+? "stringbuffer module helpers" {
+  buffer := @stringbuffer.new()
+  @assert.eq(buffer.isEmpty(), true)
+  buffer.append("Rune")
+  buffer.append("Lang")
+  @assert.eq(buffer.toString(), "RuneLang")
+  @assert.eq(buffer.length(), 8)
+  buffer.clear()
+  @assert.eq(buffer.length(), 0)
+
+  from := @stringbuffer.from("core")
+  from.appendLine(" module")
+  @assert.eq(from.toString(), "core module\n")
+}
+
+? "path module helpers" {
+  @assert.eq(@path.basename("src/lexer.rn"), "lexer.rn")
+  @assert.eq(@path.extname("src/lexer.rn"), ".rn")
+  @assert.eq(@path.dirname("src/lexer.rn"), "src")
+  @assert.eq(@path.isAbsolute("src/lexer.rn"), false)
+}
+
+? "process module helpers" {
+  @assert.eq(@process.platform().isEmpty(), false)
+  @assert.eq(@process.cwd().isEmpty(), false)
+  @assert.eq(@process.env("__RUNE_TEST_MISSING_ENV__"), null)
+}

@@ -61,15 +61,15 @@
   @assert.eq(values.length(), 4)
 }
 
-? "array forEach and each" {
+? "array each" {
   values := [1, 2, 3, 4]
 
   sum ~= 0
-  values.forEach((value) => sum = sum + value)
+  values.each((value) => sum = sum + value)
   @assert.eq(sum, 10)
 
   indexed ~= 0
-  values.forEach((value, index) => indexed = indexed + value * index)
+  values.each((value, index) => indexed = indexed + value * index)
   @assert.eq(indexed, 20)
 
   product ~= 1

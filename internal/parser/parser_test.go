@@ -35,6 +35,25 @@ func TestGenericTypeDeclWithColon(t *testing.T) {
 	}
 }
 
+func TestRuneImportDecl(t *testing.T) {
+	file, errs := Parse(`@"./helper.rn"
+
+main() => helper()
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Imports) != 1 {
+		t.Fatalf("imports = %d, want 1", len(file.Imports))
+	}
+	if file.Imports[0].Path != "./helper.rn" {
+		t.Fatalf("import path = %q, want ./helper.rn", file.Imports[0].Path)
+	}
+	if len(file.Functions) != 1 || file.Functions[0].Name != "main" {
+		t.Fatalf("functions = %#v, want main", file.Functions)
+	}
+}
+
 func TestEnumDeclWithIntegerMembers(t *testing.T) {
 	file, errs := Parse(`Status: {
   Completed = 0
@@ -213,7 +232,7 @@ func TestRegexLiteralWithSlashInClassAndEscape(t *testing.T) {
 
 func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
 	file, errs := Parse(`Array[T]: {
-    forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
+    each(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
 }
 `)
 	if len(errs) > 0 {

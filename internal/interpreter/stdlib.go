@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ir"
@@ -102,6 +105,162 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 			return nil, fmt.Errorf("@binary.writerWithCapacity capacity out of range")
 		}
 		return &Writer{Data: make([]byte, 0, capacity)}, nil
+	case "stringbuffer.new":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@stringbuffer.new expects 0 args, got %d", len(values))
+		}
+		return &StringBuffer{}, nil
+	case "stringbuffer.from":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@stringbuffer.from expects 1 arg, got %d", len(values))
+		}
+		value, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@stringbuffer.from expects String")
+		}
+		return &StringBuffer{Parts: []string{value}}, nil
+	case "iter.range":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@iter.range expects 2 args, got %d", len(values))
+		}
+		start, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.range start expects Int")
+		}
+		end, ok := values[1].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.range end expects Int")
+		}
+		return iterRangeStep(start, end, 1)
+	case "iter.rangeStep":
+		if len(values) != 3 {
+			return nil, fmt.Errorf("@iter.rangeStep expects 3 args, got %d", len(values))
+		}
+		start, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.rangeStep start expects Int")
+		}
+		end, ok := values[1].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.rangeStep end expects Int")
+		}
+		step, ok := values[2].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.rangeStep step expects Int")
+		}
+		return iterRangeStep(start, end, step)
+	case "iter.repeat":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@iter.repeat expects 2 args, got %d", len(values))
+		}
+		count, ok := values[1].(int)
+		if !ok {
+			return nil, fmt.Errorf("@iter.repeat count expects Int")
+		}
+		if count < 0 {
+			return nil, fmt.Errorf("@iter.repeat count out of range")
+		}
+		out := &Array{Elements: make([]Value, 0, count)}
+		for idx := 0; idx < count; idx++ {
+			out.Elements = append(out.Elements, values[0])
+		}
+		return out, nil
+	case "iter.empty":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@iter.empty expects 1 arg, got %d", len(values))
+		}
+		return &Array{}, nil
+	case "path.basename":
+		return pathStringUnary(values, "@path.basename", filepath.Base)
+	case "path.dirname":
+		return pathStringUnary(values, "@path.dirname", filepath.Dir)
+	case "path.extname":
+		return pathStringUnary(values, "@path.extname", filepath.Ext)
+	case "path.join":
+		parts, err := stringArrayArg(values, "@path.join")
+		if err != nil {
+			return nil, err
+		}
+		return filepath.Join(parts...), nil
+	case "path.normalize":
+		return pathStringUnary(values, "@path.normalize", filepath.Clean)
+	case "path.resolve":
+		parts, err := stringArrayArg(values, "@path.resolve")
+		if err != nil {
+			return nil, err
+		}
+		joined := filepath.Join(parts...)
+		if abs, err := filepath.Abs(joined); err == nil {
+			return abs, nil
+		}
+		return joined, nil
+	case "path.relative":
+		if len(values) != 2 {
+			return nil, fmt.Errorf("@path.relative expects 2 args, got %d", len(values))
+		}
+		from, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@path.relative from expects String")
+		}
+		to, ok := values[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("@path.relative to expects String")
+		}
+		rel, err := filepath.Rel(from, to)
+		if err != nil {
+			return nil, err
+		}
+		return rel, nil
+	case "path.isAbsolute":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@path.isAbsolute expects 1 arg, got %d", len(values))
+		}
+		path, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@path.isAbsolute expects String")
+		}
+		return filepath.IsAbs(path), nil
+	case "process.argv":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@process.argv expects 0 args, got %d", len(values))
+		}
+		out := &Array{Elements: make([]Value, 0, len(os.Args))}
+		for _, arg := range os.Args {
+			out.Elements = append(out.Elements, arg)
+		}
+		return out, nil
+	case "process.cwd":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@process.cwd expects 0 args, got %d", len(values))
+		}
+		return os.Getwd()
+	case "process.env":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@process.env expects 1 arg, got %d", len(values))
+		}
+		name, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@process.env expects String")
+		}
+		if value, ok := os.LookupEnv(name); ok {
+			return value, nil
+		}
+		return NullValue, nil
+	case "process.exit":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@process.exit expects 1 arg, got %d", len(values))
+		}
+		code, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("@process.exit expects Int")
+		}
+		os.Exit(code)
+		return nil, nil
+	case "process.platform":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@process.platform expects 0 args, got %d", len(values))
+		}
+		return runtime.GOOS, nil
 	case "map.new":
 		if len(values) != 2 {
 			return nil, fmt.Errorf("@map.new expects 2 args, got %d", len(values))
@@ -273,6 +432,108 @@ func int4(value int) int8 {
 		return int8(n - 16)
 	}
 	return int8(n)
+}
+
+func iterRangeStep(start int, end int, step int) (*Array, error) {
+	if step == 0 {
+		return nil, fmt.Errorf("@iter.rangeStep step cannot be zero")
+	}
+	out := &Array{}
+	if step > 0 {
+		for value := start; value < end; value += step {
+			out.Elements = append(out.Elements, value)
+		}
+	} else {
+		for value := start; value > end; value += step {
+			out.Elements = append(out.Elements, value)
+		}
+	}
+	return out, nil
+}
+
+func pathStringUnary(values []Value, name string, fn func(string) string) (Value, error) {
+	if len(values) != 1 {
+		return nil, fmt.Errorf("%s expects 1 arg, got %d", name, len(values))
+	}
+	value, ok := values[0].(string)
+	if !ok {
+		return nil, fmt.Errorf("%s expects String", name)
+	}
+	return fn(value), nil
+}
+
+func stringArrayArg(values []Value, name string) ([]string, error) {
+	if len(values) != 1 {
+		return nil, fmt.Errorf("%s expects 1 arg, got %d", name, len(values))
+	}
+	array, ok := values[0].(*Array)
+	if !ok {
+		return nil, fmt.Errorf("%s expects Array[String]", name)
+	}
+	out := make([]string, 0, len(array.Elements))
+	for idx, elem := range array.Elements {
+		value, ok := elem.(string)
+		if !ok {
+			return nil, fmt.Errorf("%s element %d expects String", name, idx)
+		}
+		out = append(out, value)
+	}
+	return out, nil
+}
+
+func (i *Interpreter) callStringBufferMethod(value *StringBuffer, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("stringbuffer", "StringBuffer", name)
+	if !ok {
+		return nil, fmt.Errorf("type StringBuffer has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "stringbuffer.length":
+		return len([]rune(strings.Join(value.Parts, ""))), nil
+	case "stringbuffer.clear":
+		value.Parts = nil
+		return nil, nil
+	case "stringbuffer.append":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("stringbuffer.append expects 1 arg, got %d", len(values))
+		}
+		text, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("stringbuffer.append expects String")
+		}
+		value.Parts = append(value.Parts, text)
+		return value, nil
+	case "stringbuffer.appendLine":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("stringbuffer.appendLine expects 1 arg, got %d", len(values))
+		}
+		text, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("stringbuffer.appendLine expects String")
+		}
+		value.Parts = append(value.Parts, text, "\n")
+		return value, nil
+	case "stringbuffer.toString":
+		return strings.Join(value.Parts, ""), nil
+	default:
+		if fn.Body == nil {
+			return nil, fmt.Errorf("stringbuffer.%s is not supported by the interpreter", name)
+		}
+		local := NewEnv(env)
+		local.Define("this", value)
+		for idx, param := range fn.ParamNames {
+			if idx < len(values) {
+				local.Define(param, values[idx])
+			}
+		}
+		return i.eval(ir.LowerExpr(fn.Body, nil), local)
+	}
 }
 
 func (i *Interpreter) callBinaryMethod(value *Binary, name string, args []ir.Expr, env *Env) (Value, error) {
@@ -1688,7 +1949,7 @@ func (i *Interpreter) callMapMethod(value *Map, name string, args []ir.Expr, env
 		return out, nil
 	case "map.each":
 		if len(args) != 1 {
-			return nil, fmt.Errorf("map.forEach expects 1 arg, got %d", len(args))
+			return nil, fmt.Errorf("map.each expects 1 arg, got %d", len(args))
 		}
 		closure, err := i.evalLambdaArg(args[0], env)
 		if err != nil {
@@ -1760,7 +2021,7 @@ func (i *Interpreter) callSetMethod(value *Set, name string, args []ir.Expr, env
 		return out, nil
 	case "set.each":
 		if len(args) != 1 {
-			return nil, fmt.Errorf("set.forEach expects 1 arg, got %d", len(args))
+			return nil, fmt.Errorf("set.each expects 1 arg, got %d", len(args))
 		}
 		closure, err := i.evalLambdaArg(args[0], env)
 		if err != nil {

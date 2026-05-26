@@ -24,11 +24,12 @@ func (c *checker) collect(file *ast.File) {
 			continue
 		}
 		c.info.Types[typ.Name] = &StructInfo{
-			Name:     typ.Name,
-			Generics: append([]string(nil), typ.Generics...),
-			ByName:   map[string]FieldInfo{},
-			Methods:  map[string]*FuncInfo{},
-			Node:     typ,
+			Name:       typ.Name,
+			SourcePath: typ.SourcePath,
+			Generics:   append([]string(nil), typ.Generics...),
+			ByName:     map[string]FieldInfo{},
+			Methods:    map[string]*FuncInfo{},
+			Node:       typ,
 		}
 	}
 	for _, enum := range file.Enums {

@@ -1,0 +1,9 @@
+argv() -> Array[String] => "%process.argv"
+
+cwd() -> String => "%process.cwd"
+
+env(name: String) -> String? => "%process.env"
+
+exit(code: Int) -> Never => "%process.exit"
+
+platform() -> String => "%process.platform"

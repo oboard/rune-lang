@@ -1,0 +1,17 @@
+new() -> StringBuffer => "%stringbuffer.new"
+
+from(value: String) -> StringBuffer => "%stringbuffer.from"
+
+StringBuffer: {
+  length() -> Int => "%stringbuffer.length"
+
+  isEmpty() -> Bool => .length() == 0
+
+  clear() -> Void => "%stringbuffer.clear"
+
+  append(value: String) -> StringBuffer => "%stringbuffer.append"
+
+  appendLine(value: String) -> StringBuffer => "%stringbuffer.appendLine"
+
+  toString() -> String => "%stringbuffer.toString"
+}

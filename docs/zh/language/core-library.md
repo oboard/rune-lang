@@ -50,6 +50,87 @@ TypeScript 后端映射为 `Uint8Array`。
 
 在 routine 内调用会自动等待。在普通函数中调用会启动一个 task。
 
+`fs` 模块还声明了 `readFileText`、`writeFile`、`writeFileText`、`exists`、
+`readdir`、`mkdir`、`remove` 和 `stat`。`stat` 返回 `FileStat`，包含
+`size`、`isFile` 和 `isDirectory` 字段。
+
+## compress
+
+压缩 helper 都是 routine，并返回 `Result`：
+
+```rune
+~ roundtrip() => {
+  data := @compress.gzipText("hello")?
+  @compress.gunzipText(data)?
+}
+```
+
+模块声明了 `gzip`、`gunzip`、`deflate`、`inflate`、`gzipText` 和
+`gunzipText`。
+
+## path
+
+```rune
+@path.basename("src/main.rn")
+@path.dirname("src/main.rn")
+@path.extname("src/main.rn")
+@path.join(["src", "main.rn"])
+@path.normalize("src/../main.rn")
+@path.resolve(["."])
+@path.relative("src", "src/main.rn")
+@path.isAbsolute("src/main.rn")
+```
+
+## process
+
+```rune
+@process.argv()
+@process.cwd()
+@process.env("HOME")
+@process.platform()
+```
+
+`@process.exit(code)` 返回 `Never`。
+
+## iter
+
+```rune
+@iter.range(0, 3)
+@iter.rangeStep(6, 0, 0 - 2)
+@iter.repeat("x", 3)
+@iter.empty(0)
+```
+
+## stringbuffer
+
+```rune
+buffer := @stringbuffer.new()
+buffer.append("Rune")
+buffer.appendLine(" core")
+buffer.length()
+buffer.isEmpty()
+buffer.toString()
+buffer.clear()
+```
+
+`@stringbuffer.from(value)` 会创建一个带初始字符串的 buffer。
+
+## net
+
+TCP helper 基于 routine：
+
+```rune
+~ open() => {
+  conn := @net.connect("127.0.0.1:8080")?
+  data := @fs.readFile("payload.bin")?
+  conn.write(data)?
+  conn.close()?
+}
+```
+
+`@net.listen(address)` 返回 `TCPListener`；listener 提供 `address`、`accept`
+和 `close`。connection 提供 `read`、`write` 和 `close`。
+
 ## array
 
 数组方法在数组值上调用：

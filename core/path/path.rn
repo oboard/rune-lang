@@ -1,0 +1,15 @@
+basename(path: String) -> String => "%path.basename"
+
+dirname(path: String) -> String => "%path.dirname"
+
+extname(path: String) -> String => "%path.extname"
+
+join(parts: Array[String]) -> String => "%path.join"
+
+normalize(path: String) -> String => "%path.normalize"
+
+resolve(parts: Array[String]) -> String => "%path.resolve"
+
+relative(from: String, to: String) -> String => "%path.relative"
+
+isAbsolute(path: String) -> Bool => "%path.isAbsolute"

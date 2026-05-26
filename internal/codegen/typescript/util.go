@@ -124,6 +124,14 @@ func tsType(typ checker.Type) string {
 		return "RuneReader"
 	case checker.Writer:
 		return "RuneWriter"
+	case checker.StringBuffer:
+		return "RuneStringBuffer"
+	case checker.FileStat:
+		return "RuneFileStat"
+	case checker.TCPConnection:
+		return "RuneTCPConnection"
+	case checker.TCPListener:
+		return "RuneTCPListener"
 	case checker.Data:
 		return "Uint8Array"
 	case checker.Error:
@@ -292,6 +300,12 @@ func zeroValue(typ checker.Type) string {
 		return "new RuneReader(new DataView(new ArrayBuffer(0)))"
 	case checker.Writer:
 		return "new RuneWriter()"
+	case checker.StringBuffer:
+		return "new RuneStringBuffer()"
+	case checker.FileStat:
+		return "{ size: 0, isFile: false, isDirectory: false }"
+	case checker.TCPConnection, checker.TCPListener:
+		return "undefined as any"
 	case checker.Data:
 		return "new Uint8Array()"
 	case checker.Error:

@@ -1,0 +1,6 @@
+@"../selfhost/lexer/lexer.rn"
+
+main() => {
+  tokens := lex("main() => @io.println(\"hello\")")
+  tokens.each((token) => @io.println(token.kind, token.lexeme))
+}

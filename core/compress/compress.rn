@@ -1,0 +1,11 @@
+~ gzip(data: @io.Data) -> Result[@io.Data, Error] => "%compress.gzip"
+
+~ gunzip(data: @io.Data) -> Result[@io.Data, Error] => "%compress.gunzip"
+
+~ deflate(data: @io.Data) -> Result[@io.Data, Error] => "%compress.deflate"
+
+~ inflate(data: @io.Data) -> Result[@io.Data, Error] => "%compress.inflate"
+
+~ gzipText(value: String) -> Result[@io.Data, Error] => "%compress.gzipText"
+
+~ gunzipText(data: @io.Data) -> Result[String, Error] => "%compress.gunzipText"

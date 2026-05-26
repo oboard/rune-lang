@@ -103,6 +103,14 @@ func goType(typ checker.Type) string {
 		return "*runeReader"
 	case checker.Writer:
 		return "*runeWriter"
+	case checker.StringBuffer:
+		return "*runeStringBuffer"
+	case checker.FileStat:
+		return "*runeFileStat"
+	case checker.TCPConnection:
+		return "*runeTCPConnection"
+	case checker.TCPListener:
+		return "*runeTCPListener"
 	case checker.Data:
 		return "[]byte"
 	case checker.Error:
@@ -113,6 +121,8 @@ func goType(typ checker.Type) string {
 		return "runeSymbol"
 	case checker.Regex:
 		return "*runeRegex"
+	case checker.Void:
+		return "struct{}"
 	case checker.HTMLElement:
 		return "any"
 	case checker.Unknown:
@@ -263,12 +273,22 @@ func zeroValue(typ checker.Type) string {
 		return "newRuneReader(newRuneBinary(0))"
 	case checker.Writer:
 		return "newRuneWriter()"
+	case checker.StringBuffer:
+		return "newRuneStringBuffer()"
+	case checker.FileStat:
+		return "&runeFileStat{}"
+	case checker.TCPConnection:
+		return "nil"
+	case checker.TCPListener:
+		return "nil"
 	case checker.Data:
 		return "nil"
 	case checker.Error:
 		return "nil"
 	case checker.Null:
 		return "any(nil)"
+	case checker.Void:
+		return "struct{}{}"
 	case checker.HTMLElement:
 		return "nil"
 	default:

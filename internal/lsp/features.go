@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -272,6 +273,9 @@ func (s *server) completion(uri string) any {
 }
 
 func (s *server) definition(uri string, pos position) any {
+	if target := s.importDefinition(uri, pos); target != nil {
+		return target
+	}
 	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
 	word := wordAt(s.docs[uri], pos)
 	if word == "" || prog == nil {
@@ -292,9 +296,45 @@ func (s *server) definition(uri string, pos position) any {
 	for _, fn := range prog.File.Functions {
 		if fn.Name == word {
 			return map[string]any{
-				"uri":   uri,
+				"uri":   sourceURI(uri, fn.SourcePath),
 				"range": symbolRange(fn.NamePos, len(fn.Name)),
 			}
+		}
+	}
+	return nil
+}
+
+func (s *server) importDefinition(uri string, pos position) any {
+	text := s.docs[uri]
+	fromPath := filePathFromURI(uri)
+	if fromPath == "" {
+		return nil
+	}
+	tokens := lexer.Lex(text)
+	for i := 0; i+1 < len(tokens); i++ {
+		at := tokens[i]
+		path := tokens[i+1]
+		if at.Kind != lexer.At || path.Kind != lexer.String {
+			continue
+		}
+		if !containsToken(pos, at) && !containsToken(pos, path) {
+			continue
+		}
+		spec, err := strconv.Unquote(path.Lexeme)
+		if err != nil {
+			return nil
+		}
+		targetPath, err := compiler.ResolveRuneImport(fromPath, spec)
+		if err != nil {
+			return nil
+		}
+		zero := position{Line: 0, Character: 0}
+		return map[string]any{
+			"uri": fileURI(targetPath),
+			"range": map[string]any{
+				"start": zero,
+				"end":   zero,
+			},
 		}
 	}
 	return nil
@@ -317,7 +357,7 @@ func (s *server) references(uri string, pos position, includeDeclaration bool) a
 func functionTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
 	for _, fn := range prog.File.Functions {
 		if containsSymbol(pos, fn.NamePos, fn.Name) {
-			return &methodTarget{uri: uri, name: fn.Name, pos: fn.NamePos}
+			return &methodTarget{uri: sourceURI(uri, fn.SourcePath), name: fn.Name, pos: fn.NamePos}
 		}
 	}
 	call := functionCallAt(prog.File, pos)
@@ -326,7 +366,7 @@ func functionTarget(uri string, prog *compiler.Program, pos position) *methodTar
 	}
 	for _, fn := range prog.File.Functions {
 		if fn.Name == call.Name {
-			return &methodTarget{uri: uri, name: fn.Name, pos: fn.NamePos}
+			return &methodTarget{uri: sourceURI(uri, fn.SourcePath), name: fn.Name, pos: fn.NamePos}
 		}
 	}
 	return nil
@@ -410,7 +450,12 @@ func typeTarget(uri string, prog *compiler.Program, pos position) *methodTarget 
 	}
 	for _, typ := range prog.File.Types {
 		if typ.Name == name {
-			return &methodTarget{uri: uri, name: typ.Name, pos: typ.NamePos}
+			return &methodTarget{uri: sourceURI(uri, typ.SourcePath), name: typ.Name, pos: typ.NamePos}
+		}
+	}
+	for _, enum := range prog.File.Enums {
+		if enum.Name == name {
+			return &methodTarget{uri: sourceURI(uri, enum.SourcePath), name: enum.Name, pos: enum.NamePos}
 		}
 	}
 	return nil
@@ -488,7 +533,7 @@ func fieldTarget(uri string, prog *compiler.Program, pos position) *methodTarget
 	if structInfo.Node != nil {
 		for _, field := range structInfo.Node.Fields {
 			if field.Name == sel.Name {
-				return &methodTarget{uri: uri, name: field.Name, pos: field.Pos, structName: structInfo.Name}
+				return &methodTarget{uri: sourceURI(uri, structInfo.Node.SourcePath), name: field.Name, pos: field.Pos, structName: structInfo.Name}
 			}
 		}
 	}
@@ -975,7 +1020,7 @@ func (s *server) methodTarget(uri string, prog *compiler.Program, pos position) 
 		return nil
 	}
 	return &methodTarget{
-		uri:        uri,
+		uri:        sourceURI(uri, method.Node.SourcePath),
 		name:       method.Node.Name,
 		pos:        method.Node.NamePos,
 		structName: structInfo.Name,
@@ -987,7 +1032,7 @@ func methodDeclTarget(uri string, file *ast.File, pos position) *methodTarget {
 		for _, method := range typ.Methods {
 			if containsSymbol(pos, method.NamePos, method.Name) {
 				return &methodTarget{
-					uri:        uri,
+					uri:        sourceURI(uri, method.SourcePath),
 					name:       method.Name,
 					pos:        method.NamePos,
 					structName: typ.Name,
@@ -1457,6 +1502,12 @@ func containsSymbol(pos position, start lexer.Position, name string) bool {
 	return pos.Line == line && pos.Character >= char && pos.Character <= char+len(name)
 }
 
+func containsToken(pos position, tok lexer.Token) bool {
+	line := tok.Pos.Line - 1
+	char := tok.Pos.Column - 1
+	return pos.Line == line && pos.Character >= char && pos.Character <= char+len([]rune(tok.Lexeme))
+}
+
 func textEdit(pos lexer.Position, oldName string, newName string) map[string]any {
 	return map[string]any{
 		"range":   symbolRange(pos, len(oldName)),
@@ -1484,4 +1535,19 @@ func stdlibReceiverModule(receiver checker.Type) (string, string, bool) {
 
 func fileURI(path string) string {
 	return (&url.URL{Scheme: "file", Path: path}).String()
+}
+
+func filePathFromURI(uri string) string {
+	parsed, err := url.Parse(uri)
+	if err != nil || parsed.Scheme != "file" {
+		return ""
+	}
+	return parsed.Path
+}
+
+func sourceURI(defaultURI string, sourcePath string) string {
+	if sourcePath == "" {
+		return defaultURI
+	}
+	return fileURI(sourcePath)
 }

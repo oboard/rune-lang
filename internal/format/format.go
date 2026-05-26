@@ -18,10 +18,16 @@ func File(file *ast.File) string {
 
 func FileWithOptions(file *ast.File, options Options) string {
 	f := newFormatter(options)
+	for _, imp := range file.Imports {
+		f.linef("@%s", strconv.Quote(imp.Path))
+	}
+	if len(file.Imports) > 0 && len(file.GoImports) > 0 {
+		f.line("")
+	}
 	for _, imp := range file.GoImports {
 		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
 	}
-	if len(file.GoImports) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
+	if (len(file.Imports) > 0 || len(file.GoImports) > 0) && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
 		f.line("")
 	}
 	for i, typ := range file.Types {

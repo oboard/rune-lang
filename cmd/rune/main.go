@@ -355,10 +355,14 @@ func validateBackend(value string) error {
 
 func printDiagnostics(path string, diags []compiler.Diagnostic) {
 	for _, diag := range diags {
+		diagPath := path
+		if diag.Path != "" {
+			diagPath = diag.Path
+		}
 		if diag.Pos.Line > 0 {
-			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n", path, diag.Pos.Line, diag.Pos.Column, diag.Message)
+			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n", diagPath, diag.Pos.Line, diag.Pos.Column, diag.Message)
 		} else {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", path, diag.Message)
+			fmt.Fprintf(os.Stderr, "%s: %s\n", diagPath, diag.Message)
 		}
 	}
 }

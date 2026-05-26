@@ -114,7 +114,7 @@ func TestLoadCoreStubs(t *testing.T) {
 
 func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	mod, err := parseModule("array", "array.rn", `Array[T]: {
-  forEach(
+  each(
     callbackfn: (
       value: T,
       index?: Int,
@@ -126,11 +126,11 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseModule() error = %v", err)
 	}
-	fn := mod.byName["forEach"]
+	fn := mod.byName["each"]
 	if fn == nil {
-		t.Fatal("missing forEach declaration")
+		t.Fatal("missing each declaration")
 	}
 	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],Any]" {
-		t.Fatalf("forEach params = %v, want callback Func", fn.Params)
+		t.Fatalf("each params = %v, want callback Func", fn.Params)
 	}
 }

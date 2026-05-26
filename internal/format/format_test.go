@@ -33,6 +33,24 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestImportFormatting(t *testing.T) {
+	src := `@"helper.rn"
+main()=>helper()`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `@"helper.rn"
+
+main() => helper()
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestMapLiteralFormatting(t *testing.T) {
 	src := `main()=>{values:={"a":1,"b":2}values["b"]=3}`
 	file, errs := parser.Parse(src)
@@ -405,7 +423,7 @@ arr.map((value)=>value*2).each((value,index)=>@io.println(value)) // prints 2, 4
 
 func TestSourceWrapsFunctionTypeSignature(t *testing.T) {
 	src := `Array[T]: {
-forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
+each(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
 }`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
@@ -414,7 +432,7 @@ forEach(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%arra
 
 	got := Source(file, src)
 	want := `Array[T]: {
-  forEach(
+  each(
     callbackfn: (
       value: T,
       index?: Int,

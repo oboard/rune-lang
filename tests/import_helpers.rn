@@ -1,0 +1,7 @@
+ImportedUser: {
+  name: String
+}
+
+importedAnswer() -> Int => 42
+
+importedLabel(user: ImportedUser) -> String => "user:" + user.name

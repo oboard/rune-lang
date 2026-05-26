@@ -1,0 +1,7 @@
+range(start: Int, end: Int) -> Array[Int] => "%iter.range"
+
+rangeStep(start: Int, end: Int, step: Int) -> Array[Int] => "%iter.rangeStep"
+
+repeat[T](value: T, count: Int) -> Array[T] => "%iter.repeat"
+
+empty[T](valueType: T) -> Array[T] => "%iter.empty"

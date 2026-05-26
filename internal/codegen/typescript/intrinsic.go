@@ -46,6 +46,20 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return g.zeroValue(call.ResultType()), true
 		}
 		return fmt.Sprintf("runeReadFile(%s)", args[0]), true
+	case "fs.readFileText", "fs.writeFile", "fs.writeFileText", "fs.exists", "fs.readdir", "fs.mkdir", "fs.remove", "fs.stat":
+		return g.fsModuleCall(fn, args, call.ResultType()), true
+	case "path.basename", "path.dirname", "path.extname", "path.join", "path.normalize", "path.resolve", "path.relative", "path.isAbsolute":
+		return g.pathModuleCall(fn, args, call.ResultType()), true
+	case "process.argv", "process.cwd", "process.env", "process.exit", "process.platform":
+		return g.processModuleCall(fn, args, call.ResultType()), true
+	case "stringbuffer.new", "stringbuffer.from":
+		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
+	case "iter.range", "iter.rangeStep", "iter.repeat", "iter.empty":
+		return g.iterModuleCall(fn, args, call.ResultType()), true
+	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate", "compress.gzipText", "compress.gunzipText":
+		return g.compressModuleCall(fn, args, call.ResultType()), true
+	case "net.connect", "net.listen":
+		return g.netModuleCall(fn, args, call.ResultType()), true
 	case "json.stringify":
 		if len(call.Args) != 1 {
 			return "undefined", true
@@ -103,12 +117,137 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.readerReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "writer."):
 		return g.writerReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "stringbuffer."):
+		return g.stringBufferReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "netConnection."):
+		return g.netConnectionReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "netListener."):
+		return g.netListenerReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."):
 		return g.mapIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.setIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
+	}
+}
+
+func (g *generator) fsModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "fs.readFileText":
+		return fmt.Sprintf("runeFsReadFileText(%s)", args[0])
+	case "fs.writeFile":
+		return fmt.Sprintf("runeFsWriteFile(%s, %s)", args[0], args[1])
+	case "fs.writeFileText":
+		return fmt.Sprintf("runeFsWriteFileText(%s, %s)", args[0], args[1])
+	case "fs.exists":
+		return fmt.Sprintf("runeFsExists(%s)", args[0])
+	case "fs.readdir":
+		return fmt.Sprintf("runeFsReaddir(%s)", args[0])
+	case "fs.mkdir":
+		return fmt.Sprintf("runeFsMkdir(%s)", args[0])
+	case "fs.remove":
+		return fmt.Sprintf("runeFsRemove(%s)", args[0])
+	case "fs.stat":
+		return fmt.Sprintf("runeFsStat(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) pathModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "path.basename":
+		return fmt.Sprintf("runePathBasename(%s)", args[0])
+	case "path.dirname":
+		return fmt.Sprintf("runePathDirname(%s)", args[0])
+	case "path.extname":
+		return fmt.Sprintf("runePathExtname(%s)", args[0])
+	case "path.join":
+		return fmt.Sprintf("runePathJoin(%s)", args[0])
+	case "path.normalize":
+		return fmt.Sprintf("runePathNormalize(%s)", args[0])
+	case "path.resolve":
+		return fmt.Sprintf("runePathResolve(%s)", args[0])
+	case "path.relative":
+		return fmt.Sprintf("runePathRelative(%s, %s)", args[0], args[1])
+	case "path.isAbsolute":
+		return fmt.Sprintf("runePathIsAbsolute(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) processModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "process.argv":
+		return "runeProcessArgv()"
+	case "process.cwd":
+		return "runeProcessCwd()"
+	case "process.env":
+		return fmt.Sprintf("runeProcessEnv(%s)", args[0])
+	case "process.exit":
+		return fmt.Sprintf("runeProcessExit(%s)", args[0])
+	case "process.platform":
+		return "runeProcessPlatform()"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) stringBufferModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "stringbuffer.new":
+		return "new RuneStringBuffer()"
+	case "stringbuffer.from":
+		return fmt.Sprintf("new RuneStringBuffer(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) iterModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "iter.range":
+		return fmt.Sprintf("runeIterRange(%s, %s)", args[0], args[1])
+	case "iter.rangeStep":
+		return fmt.Sprintf("runeIterRangeStep(%s, %s, %s)", args[0], args[1], args[2])
+	case "iter.repeat":
+		return fmt.Sprintf("Array.from({ length: %s }, () => %s)", args[1], args[0])
+	case "iter.empty":
+		return "[]"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) compressModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "compress.gzip":
+		return fmt.Sprintf("runeCompressGzip(%s)", args[0])
+	case "compress.gunzip":
+		return fmt.Sprintf("runeCompressGunzip(%s)", args[0])
+	case "compress.deflate":
+		return fmt.Sprintf("runeCompressDeflate(%s)", args[0])
+	case "compress.inflate":
+		return fmt.Sprintf("runeCompressInflate(%s)", args[0])
+	case "compress.gzipText":
+		return fmt.Sprintf("runeCompressGzipText(%s)", args[0])
+	case "compress.gunzipText":
+		return fmt.Sprintf("runeCompressGunzipText(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) netModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "net.connect":
+		return fmt.Sprintf("runeNetConnect(%s)", args[0])
+	case "net.listen":
+		return fmt.Sprintf("runeNetListen(%s)", args[0])
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
 	}
 }
 
@@ -428,6 +567,49 @@ func (g *generator) writerNumericCall(intrinsic string, receiver string, args []
 	return fmt.Sprintf("%s.%s(%s, %s)", receiver, method, args[0], args[1]), true
 }
 
+func (g *generator) stringBufferReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "stringbuffer.length":
+		return receiver + ".length()"
+	case "stringbuffer.clear":
+		return receiver + ".clear()"
+	case "stringbuffer.append":
+		return fmt.Sprintf("%s.append(%s)", receiver, args[0])
+	case "stringbuffer.appendLine":
+		return fmt.Sprintf("%s.appendLine(%s)", receiver, args[0])
+	case "stringbuffer.toString":
+		return receiver + ".toString()"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) netConnectionReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "netConnection.read":
+		return fmt.Sprintf("runeNetConnectionRead(%s, %s)", receiver, args[0])
+	case "netConnection.write":
+		return fmt.Sprintf("runeNetConnectionWrite(%s, %s)", receiver, args[0])
+	case "netConnection.close":
+		return fmt.Sprintf("runeNetConnectionClose(%s)", receiver)
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) netListenerReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "netListener.address":
+		return fmt.Sprintf("runeNetListenerAddress(%s)", receiver)
+	case "netListener.accept":
+		return fmt.Sprintf("runeNetListenerAccept(%s)", receiver)
+	case "netListener.close":
+		return fmt.Sprintf("runeNetListenerClose(%s)", receiver)
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
 func (g *generator) stdlibFunctionFromCall(call *ir.CallExpr) (*stdlib.Function, bool) {
 	sel, ok := call.Callee.(*ir.SelectorExpr)
 	if !ok {
@@ -497,7 +679,7 @@ func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, arg
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("%s.forEach(%s)", receiver, args[0])
+		return fmt.Sprintf("(() => { for (const [__index, __value] of %s.entries()) { (%s)(__value, __index, %s); } })()", receiver, args[0], receiver)
 	case "array.map":
 		if len(args) != 1 {
 			return "undefined"
@@ -587,7 +769,7 @@ func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("%s.forEach(%s)", receiver, args[0])
+		return fmt.Sprintf("(() => { for (const [__key, __value] of %s.entries()) { (%s)(__value, __key, %s); } })()", receiver, args[0], receiver)
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}
@@ -620,7 +802,7 @@ func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("%s.forEach(%s)", receiver, args[0])
+		return fmt.Sprintf("(() => { for (const __value of %s.values()) { (%s)(__value, __value, %s); } })()", receiver, args[0], receiver)
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

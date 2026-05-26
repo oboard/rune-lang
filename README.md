@@ -75,9 +75,22 @@ internal/lsp/          Language server
 internal/repl/         REPL
 core/                  Rune core library stubs
 examples/              Runnable and type-checking examples
+selfhost/              Rune implementations of bootstrap components
 vscode-rune/           VSCode extension
 tree-sitter-rune/      Future Tree-sitter grammar scaffold
 ```
+
+Rune files can import other Rune files with Dart-like file imports:
+
+```rune
+@"./helper.rn"
+
+main() => @io.println(helper())
+```
+
+The self-hosted lexer lives at `selfhost/lexer/lexer.rn`; see
+`examples/lexer_bootstrap.rn` and `tests/lexer_bootstrap.rn` for the current
+bootstrap entry points.
 
 ## Language Snapshot
 
@@ -257,10 +270,22 @@ Currently included modules:
 
 ```text
 core/array
+core/binary
+core/buffer
+core/compress
+core/fs
 core/go
 core/io
+core/iter
 core/json
 core/map
+core/net
+core/path
+core/process
+core/reader
+core/set
+core/stringbuffer
+core/writer
 ```
 
 I/O:

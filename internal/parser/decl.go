@@ -31,6 +31,16 @@ func (p *Parser) parseGoImportDecl() *ast.GoImport {
 	return &ast.GoImport{Path: value, Pos: at.Pos}
 }
 
+func (p *Parser) parseImportDecl() *ast.Import {
+	at := p.consume(lexer.At, "expected '@'")
+	path := p.consume(lexer.String, "expected import path string after '@'")
+	value, err := strconv.Unquote(path.Lexeme)
+	if err != nil {
+		p.errorAt(path, "invalid import path string")
+	}
+	return &ast.Import{Path: value, Pos: at.Pos}
+}
+
 func (p *Parser) parseTest() *ast.Test {
 	start := p.consume(lexer.Question, "expected '?'")
 	name := p.consume(lexer.String, "expected test name string after '?'")

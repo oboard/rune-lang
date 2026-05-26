@@ -7,8 +7,19 @@ these module files.
 Current modules:
 
 * `array` - declared placeholder for array APIs
+* `binary` - fixed byte views and numeric reads/writes
+* `buffer` - mutable byte buffers
+* `compress` - async gzip/zlib helpers
+* `fs` - async filesystem helpers returning `Result`
 * `map` - map construction and receiver APIs
+* `net` - async TCP connection/listener declarations
+* `path` - path manipulation helpers
+* `process` - argv/cwd/env/platform helpers
+* `reader` - sequential binary readers
 * `set` - set construction and receiver APIs
+* `stringbuffer` - mutable string builder
+* `iter` - range/repeat helpers
+* `writer` - sequential binary writers
 * `io` - I/O declarations backed by Go `fmt`
 * `json` - JSON serialization helpers
 * `go` - inline Go FFI declarations

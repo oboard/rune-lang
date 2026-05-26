@@ -35,7 +35,11 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
 		if p.check(lexer.At) {
-			if imp := p.parseGoImportDecl(); imp != nil {
+			if p.checkNext(lexer.String) {
+				if imp := p.parseImportDecl(); imp != nil {
+					file.Imports = append(file.Imports, *imp)
+				}
+			} else if imp := p.parseGoImportDecl(); imp != nil {
 				file.GoImports = append(file.GoImports, *imp)
 			}
 		} else if p.check(lexer.Question) {

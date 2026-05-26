@@ -86,7 +86,7 @@ func (g *generator) mapReceiverCall(base string, typeArgs []string, sel *ir.Sele
 	case "map.values":
 		return fmt.Sprintf("func() []%s { out := make([]%s, 0, len(%s)); for _, value := range %s { out = append(out, value) }; return out }()", valueType, valueType, receiver, receiver)
 	case "map.each":
-		return g.mapForEachExpr(receiver, call)
+		return g.mapEachExpr(receiver, call)
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType())
 	}
@@ -130,19 +130,19 @@ func (g *generator) setReceiverCall(base string, typeArgs []string, sel *ir.Sele
 	case "set.values":
 		return fmt.Sprintf("func() []%s { out := make([]%s, 0, len(%s)); for value := range %s { out = append(out, value) }; return out }()", elemType, elemType, receiver, receiver)
 	case "set.each":
-		return g.setForEachExpr(receiver, call)
+		return g.setEachExpr(receiver, call)
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType())
 	}
 }
 
-func (g *generator) mapForEachExpr(receiver string, call *ir.CallExpr) string {
+func (g *generator) mapEachExpr(receiver string, call *ir.CallExpr) string {
 	if len(call.Args) != 1 {
-		return "/* invalid map.forEach */"
+		return "/* invalid map.each */"
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
 	if !ok || len(lambda.Params) == 0 || len(lambda.Params) > 3 {
-		return "/* invalid map.forEach */"
+		return "/* invalid map.each */"
 	}
 	callArgs := []string{"value"}
 	if len(lambda.Params) >= 2 {
@@ -154,13 +154,13 @@ func (g *generator) mapForEachExpr(receiver string, call *ir.CallExpr) string {
 	return fmt.Sprintf("func() { for key, value := range %s { %s(%s) } }()", receiver, g.expr(lambda), strings.Join(callArgs, ", "))
 }
 
-func (g *generator) setForEachExpr(receiver string, call *ir.CallExpr) string {
+func (g *generator) setEachExpr(receiver string, call *ir.CallExpr) string {
 	if len(call.Args) != 1 {
-		return "/* invalid set.forEach */"
+		return "/* invalid set.each */"
 	}
 	lambda, ok := call.Args[0].(*ir.LambdaExpr)
 	if !ok || len(lambda.Params) == 0 || len(lambda.Params) > 3 {
-		return "/* invalid set.forEach */"
+		return "/* invalid set.each */"
 	}
 	callArgs := []string{"value"}
 	if len(lambda.Params) >= 2 {

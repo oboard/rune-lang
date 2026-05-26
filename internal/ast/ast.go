@@ -7,11 +7,17 @@ import (
 )
 
 type File struct {
+	Imports   []Import
 	GoImports []GoImport
 	Types     []*StructType
 	Enums     []*EnumType
 	Functions []*Function
 	Tests     []*Test
+}
+
+type Import struct {
+	Path string
+	Pos  lexer.Position
 }
 
 type GoImport struct {
@@ -26,12 +32,13 @@ type Annotation struct {
 }
 
 type StructType struct {
-	Name     string
-	Generics []string
-	Fields   []Field
-	Methods  []*Function
-	Pos      lexer.Position
-	NamePos  lexer.Position
+	Name       string
+	Generics   []string
+	Fields     []Field
+	Methods    []*Function
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }
 
 type Field struct {
@@ -42,10 +49,11 @@ type Field struct {
 }
 
 type EnumType struct {
-	Name    string
-	Members []EnumMember
-	Pos     lexer.Position
-	NamePos lexer.Position
+	Name       string
+	Members    []EnumMember
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }
 
 type EnumMember struct {
@@ -66,6 +74,7 @@ type Function struct {
 	Body          Expr
 	Pos           lexer.Position
 	NamePos       lexer.Position
+	SourcePath    string
 }
 
 func (f *Function) Signature() string {

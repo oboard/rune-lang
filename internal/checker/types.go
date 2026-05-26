@@ -54,6 +54,14 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Reader
 	case "Writer":
 		return Writer
+	case "StringBuffer":
+		return StringBuffer
+	case "FileStat":
+		return FileStat
+	case "TCPConnection":
+		return TCPConnection
+	case "TCPListener":
+		return TCPListener
 	case "Never":
 		return Never
 	case "Symbol":

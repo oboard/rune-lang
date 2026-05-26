@@ -1,0 +1,264 @@
+Token: {
+  kind: String
+  lexeme: String
+  offset: Int
+  line: Int
+  column: Int
+}
+
+LexState: {
+  source: String
+  start: Int
+  current: Int
+  line: Int
+  column: Int
+  startLine: Int
+  startColumn: Int
+  canStartRegex: Bool
+}
+
+Advanced: {
+  state: LexState
+  ch: String
+}
+
+Lexed: {
+  state: LexState
+  kind: String
+}
+
+ScannedString: {
+  state: LexState
+  ok: Bool
+}
+
+lex(source: String) -> Array[Token] => scan(
+  LexState {
+    source: source
+    start: 0
+    current: 0
+    line: 1
+    column: 1
+    startLine: 1
+    startColumn: 1
+    canStartRegex: true
+  },
+  emptyTokens()
+)
+
+emptyTokens() -> Array[Token] => @iter.empty(Token {
+  kind: ""
+  lexeme: ""
+  offset: 0
+  line: 0
+  column: 0
+})
+
+scan(state: LexState, tokens: Array[Token]) -> Array[Token] => {
+  skipped := skipIgnored(state)
+  started := markStart(skipped)
+  atEnd(started) ? appendToken(tokens, makeToken(started, "EOF")) : scanLexed(scanToken(advance(started)), tokens)
+}
+
+scanLexed(lexed: Lexed, tokens: Array[Token]) -> Array[Token] => {
+  nextTokens := appendToken(tokens, makeToken(lexed.state, lexed.kind))
+  scan(finishToken(lexed.state, lexed.kind), nextTokens)
+}
+
+appendToken(tokens: Array[Token], token: Token) -> Array[Token] => {
+  tokens.push(token)
+  tokens
+}
+
+makeToken(state: LexState, kind: String) -> Token => Token {
+  kind: kind
+  lexeme: state.source.slice(state.start, state.current)
+  offset: state.start
+  line: state.startLine
+  column: state.startColumn
+}
+
+finishToken(state: LexState, kind: String) -> LexState => LexState {
+  source: state.source
+  start: state.start
+  current: state.current
+  line: state.line
+  column: state.column
+  startLine: state.startLine
+  startColumn: state.startColumn
+  canStartRegex: !(canEndExpression(kind))
+}
+
+canEndExpression(kind: String) -> Bool => (kind == "Ident") || (kind == "Int") || (kind == "Double") || (kind == "BigInt") || (kind == "String") || (kind == "Regex") || (kind == "XMLText") || (kind == "Less") || (kind == "RParen") || (kind == "RBracket") || (kind == "RBrace")
+
+markStart(state: LexState) -> LexState => LexState {
+  source: state.source
+  start: state.current
+  current: state.current
+  line: state.line
+  column: state.column
+  startLine: state.line
+  startColumn: state.column
+  canStartRegex: state.canStartRegex
+}
+
+atEnd(state: LexState) -> Bool => state.current >= state.source.length()
+
+charAt(source: String, index: Int) -> String => (index < 0) || (index >= source.length()) ? "" : source.at(index)
+
+peek(state: LexState) -> String => charAt(state.source, state.current)
+
+peekNext(state: LexState) -> String => charAt(state.source, state.current + 1)
+
+advanceState(state: LexState) -> LexState => advance(state).state
+
+advance(state: LexState) -> Advanced => atEnd(state) ? advanced(state, "") : advanceChar(state, state.source.at(state.current))
+
+advanced(state: LexState, ch: String) -> Advanced => Advanced {
+  state: state
+  ch: ch
+}
+
+advanceChar(state: LexState, ch: String) -> Advanced => Advanced {
+  state: LexState {
+    source: state.source
+    start: state.start
+    current: state.current + 1
+    line: ch == "\n" ? state.line + 1 : state.line
+    column: ch == "\n" ? 1 : state.column + 1
+    startLine: state.startLine
+    startColumn: state.startColumn
+    canStartRegex: state.canStartRegex
+  }
+  ch: ch
+}
+
+skipIgnored(state: LexState) -> LexState => atEnd(state) ? state : isSpace(peek(state)) ? skipIgnored(advanceState(state)) : startsWith(state, "/", "/") ? skipIgnored(skipLineComment(advanceState(advanceState(state)))) : startsWith(state, "/", "*") ? skipIgnored(skipBlockComment(advanceState(advanceState(state)))) : state
+
+startsWith(state: LexState, first: String, second: String) -> Bool =>
+  (peek(state) == first) && (peekNext(state) == second)
+
+skipLineComment(state: LexState) -> LexState =>
+  atEnd(state) || (peek(state) == "\n") ? state : skipLineComment(advanceState(state))
+
+skipBlockComment(state: LexState) -> LexState => atEnd(state) ? state : startsWith(state, "*", "/") ? advanceState(advanceState(state)) : skipBlockComment(advanceState(state))
+
+isSpace(ch: String) -> Bool => (ch == " ") || (ch == "\t") || (ch == "\r")
+
+scanToken(step: Advanced) -> Lexed => {
+  state := step.state
+  ch := step.ch
+  ch {
+    "\n" => lexed(state, "Newline")
+    "@" => lexed(state, "At")
+    "$" => lexDollar(state)
+    "." => lexDot(state)
+    "," => lexed(state, "Comma")
+    ":" => lexColon(state)
+    "(" => lexed(state, "LParen")
+    ")" => lexed(state, "RParen")
+    "[" => lexed(state, "LBracket")
+    "]" => lexed(state, "RBracket")
+    "{" => lexed(state, "LBrace")
+    "}" => lexed(state, "RBrace")
+    "?" => lexed(state, "Question")
+    "+" => lexPlus(state)
+    "-" => lexMinus(state)
+    "*" => lexed(state, "Star")
+    "/" => state.canStartRegex ? lexRegexToken(state) : lexed(state, "Slash")
+    "%" => lexed(state, "Percent")
+    "!" => lexBang(state)
+    "~" => lexTilde(state)
+    "&" => lexAmp(state)
+    "|" => lexPipe(state)
+    "^" => lexed(state, "BitXor")
+    "=" => lexEqual(state)
+    "<" => lexLess(state)
+    ">" => lexGreater(state)
+    "\"" => lexStringToken(state)
+    "_" => isIdentContinue(peek(state)) ? lexIdentifierToken(state) : lexed(state, "Underscore")
+    _ => isDigit(ch) ? lexNumberToken(state) : isIdentStart(ch) ? lexIdentifierToken(state) : lexed(state, "Illegal")
+  }
+}
+
+lexed(state: LexState, kind: String) -> Lexed => Lexed { state: state, kind: kind }
+
+lexDot(state: LexState) -> Lexed =>
+  (peek(state) == ".") && (peekNext(state) == ".") ? lexed(advanceState(advanceState(state)), "DotDotDot") : lexed(state, "Dot")
+
+lexColon(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "Declare") : lexed(state, "Colon")
+
+lexPlus(state: LexState) -> Lexed => peek(state) == "+" ? lexed(advanceState(state), "PlusPlus") : lexed(state, "Plus")
+
+lexMinus(state: LexState) -> Lexed => peek(state) == ">" ? lexed(advanceState(state), "Arrow") : lexed(state, "Minus")
+
+lexBang(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "BangEqual") : lexed(state, "Bang")
+
+lexTilde(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "MutDeclare") : lexed(state, "Tilde")
+
+lexDollar(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "SignalDeclare") : lexed(state, "Dollar")
+
+lexAmp(state: LexState) -> Lexed => peek(state) == "&" ? lexed(advanceState(state), "AndAnd") : lexed(state, "BitAnd")
+
+lexPipe(state: LexState) -> Lexed => peek(state) == "|" ? lexed(advanceState(state), "OrOr") : lexed(state, "BitOr")
+
+lexEqual(state: LexState) -> Lexed => peek(state) == ">" ? lexed(advanceState(state), "FatArrow") : peek(state) == "=" ? lexed(advanceState(state), "EqualEqual") : lexed(state, "Assign")
+
+lexLess(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "LessEqual") : peek(state) == "<" ? lexed(advanceState(state), "ShiftLeft") : lexed(state, "Less")
+
+lexGreater(state: LexState) -> Lexed => peek(state) == "=" ? lexed(advanceState(state), "GreaterEqual") : startsWith(state, ">", ">") ? lexed(advanceState(advanceState(state)), "UnsignedShiftRight") : peek(state) == ">" ? lexed(advanceState(state), "ShiftRight") : lexed(state, "Greater")
+
+lexStringToken(state: LexState) -> Lexed => {
+  scanned := scanString(state, false)
+  lexed(scanned.state, scanned.ok ? "String" : "Illegal")
+}
+
+scanString(state: LexState, escaped: Bool) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanStringStep(advance(state), escaped)
+
+scannedString(state: LexState, ok: Bool) -> ScannedString => ScannedString {
+  state: state
+  ok: ok
+}
+
+scanStringStep(step: Advanced, escaped: Bool) -> ScannedString => escaped ? scanString(step.state, false) : step.ch == "\\" ? scanString(step.state, true) : step.ch == "\"" ? scannedString(step.state, true) : scanString(step.state, false)
+
+lexRegexToken(state: LexState) -> Lexed => {
+  scanned := scanRegex(state, false, false)
+  lexed(scanned.state, scanned.ok ? "Regex" : "Illegal")
+}
+
+scanRegex(state: LexState, escaped: Bool, inClass: Bool) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanRegexStep(advance(state), escaped, inClass)
+
+scanRegexStep(step: Advanced, escaped: Bool, inClass: Bool) -> ScannedString => step.ch == "\n" ? scannedString(step.state, false) : escaped ? scanRegex(step.state, false, inClass) : step.ch == "\\" ? scanRegex(step.state, true, inClass) : step.ch == "[" ? scanRegex(step.state, false, true) : step.ch == "]" ? scanRegex(step.state, false, false) : (step.ch == "/") && !inClass ? scannedString(scanRegexFlags(step.state), true) : scanRegex(step.state, false, inClass)
+
+scanRegexFlags(state: LexState) -> LexState =>
+  isRegexFlag(peek(state)) ? scanRegexFlags(advanceState(state)) : state
+
+lexNumberToken(state: LexState) -> Lexed => lexNumberAfterDigits(scanDigits(state), false)
+
+scanDigits(state: LexState) -> LexState =>
+  isDigit(peek(state)) ? scanDigits(advanceState(state)) : state
+
+lexNumberAfterDigits(state: LexState, isDouble: Bool) -> Lexed => peek(state) == "n" ? lexed(advanceState(state), "BigInt") : (peek(state) == ".") && isDigit(peekNext(state)) ? lexNumberAfterDot(advanceState(state)) : (peek(state) == "e") || (peek(state) == "E") ? lexNumberAfterExponent(advanceState(state)) : lexed(state, isDouble ? "Double" : "Int")
+
+lexNumberAfterDot(state: LexState) -> Lexed => lexNumberAfterDigits(scanDigits(state), true)
+
+lexNumberAfterExponent(state: LexState) -> Lexed =>
+  (peek(state) == "+") || (peek(state) == "-") ? lexNumberExponentDigits(advanceState(state)) : lexNumberExponentDigits(state)
+
+lexNumberExponentDigits(state: LexState) -> Lexed => lexed(scanDigits(state), "Double")
+
+lexIdentifierToken(state: LexState) -> Lexed => lexed(scanIdentifier(state), "Ident")
+
+scanIdentifier(state: LexState) -> LexState =>
+  isIdentContinue(peek(state)) ? scanIdentifier(advanceState(state)) : state
+
+isDigit(ch: String) -> Bool => (ch >= "0") && (ch <= "9")
+
+isAlpha(ch: String) -> Bool => ((ch >= "a") && (ch <= "z")) || ((ch >= "A") && (ch <= "Z"))
+
+isIdentStart(ch: String) -> Bool => isAlpha(ch) || (ch == "_")
+
+isIdentContinue(ch: String) -> Bool => isIdentStart(ch) || isDigit(ch)
+
+isRegexFlag(ch: String) -> Bool => isAlpha(ch)

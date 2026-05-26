@@ -1,0 +1,8 @@
+@"import_helpers.rn"
+
+? "rune file imports" {
+  user := ImportedUser { name: "Rune" }
+
+  @assert.eq(importedAnswer(), 42)
+  @assert.eq(importedLabel(user), "user:Rune")
+}

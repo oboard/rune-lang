@@ -52,6 +52,87 @@ callback converted to an async result:
 Inside a routine, the call is awaited automatically. Outside a routine, the
 call starts a task.
 
+The `fs` module also declares `readFileText`, `writeFile`, `writeFileText`,
+`exists`, `readdir`, `mkdir`, `remove`, and `stat`. `stat` returns `FileStat`
+with `size`, `isFile`, and `isDirectory` fields.
+
+## compress
+
+Compression helpers are routines and return `Result`:
+
+```rune
+~ roundtrip() => {
+  data := @compress.gzipText("hello")?
+  @compress.gunzipText(data)?
+}
+```
+
+The module declares `gzip`, `gunzip`, `deflate`, `inflate`, `gzipText`, and
+`gunzipText`.
+
+## path
+
+```rune
+@path.basename("src/main.rn")
+@path.dirname("src/main.rn")
+@path.extname("src/main.rn")
+@path.join(["src", "main.rn"])
+@path.normalize("src/../main.rn")
+@path.resolve(["."])
+@path.relative("src", "src/main.rn")
+@path.isAbsolute("src/main.rn")
+```
+
+## process
+
+```rune
+@process.argv()
+@process.cwd()
+@process.env("HOME")
+@process.platform()
+```
+
+`@process.exit(code)` returns `Never`.
+
+## iter
+
+```rune
+@iter.range(0, 3)
+@iter.rangeStep(6, 0, 0 - 2)
+@iter.repeat("x", 3)
+@iter.empty(0)
+```
+
+## stringbuffer
+
+```rune
+buffer := @stringbuffer.new()
+buffer.append("Rune")
+buffer.appendLine(" core")
+buffer.length()
+buffer.isEmpty()
+buffer.toString()
+buffer.clear()
+```
+
+`@stringbuffer.from(value)` creates a buffer initialized with a string.
+
+## net
+
+TCP helpers are routine-based:
+
+```rune
+~ open() => {
+  conn := @net.connect("127.0.0.1:8080")?
+  data := @fs.readFile("payload.bin")?
+  conn.write(data)?
+  conn.close()?
+}
+```
+
+`@net.listen(address)` returns a `TCPListener`; listeners expose `address`,
+`accept`, and `close`. Connections expose `read`, `write`, and `close`.
+
 ## array
 
 Array methods are called on array values:

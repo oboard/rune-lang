@@ -292,11 +292,11 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 		return receiver + ".length === 0", true
 	case "push":
 		return fmt.Sprintf("%s.push(%s)", receiver, strings.Join(args, ", ")), true
-	case "each", "forEach":
+	case "each":
 		if len(args) != 1 {
 			return "undefined", true
 		}
-		return fmt.Sprintf("%s.forEach(%s)", receiver, args[0]), true
+		return fmt.Sprintf("(() => { for (const [__index, __value] of %s.entries()) { (%s)(__value, __index, %s); } })()", receiver, args[0], receiver), true
 	case "map":
 		if len(args) != 1 {
 			return "undefined", true

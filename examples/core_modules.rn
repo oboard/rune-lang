@@ -1,0 +1,11 @@
+main() => {
+  values := @iter.range(1, 4)
+  values.each((value) => @io.println(value))
+
+  buffer := @stringbuffer.from("Rune")
+  buffer.append(" core")
+  @io.println(buffer.toString())
+
+  @io.println(@path.basename("examples/core_modules.rn"))
+  @io.println(@process.platform())
+}

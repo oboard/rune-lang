@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,6 +44,52 @@ main() => {
 	hover := s.hover(uri, positionOf(src, "user.isAdult", "isAdult")).(map[string]any)
 	if got := hoverValue(hover); !strings.Contains(got, "User.isAdult() -> Bool") {
 		t.Fatalf("hover = %q, want User.isAdult signature", got)
+	}
+}
+
+func TestImportDefinitionJumpsToFile(t *testing.T) {
+	dir := t.TempDir()
+	helperPath := filepath.Join(dir, "helper.rn")
+	writeLSPFile(t, helperPath, `helper() -> Int => 1
+`)
+	mainPath := filepath.Join(dir, "main.rn")
+	uri := fileURI(mainPath)
+	src := `@"helper.rn"
+
+main() => helper()
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, `@"helper.rn"`, "helper.rn")).(map[string]any)
+	if got := def["uri"].(string); got != fileURI(helperPath) {
+		t.Fatalf("definition uri = %s, want %s", got, fileURI(helperPath))
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("definition start = %+v, want file start", start)
+	}
+}
+
+func TestImportedFunctionDefinitionJumpsToSourceFile(t *testing.T) {
+	dir := t.TempDir()
+	helperPath := filepath.Join(dir, "helper.rn")
+	writeLSPFile(t, helperPath, `helper() -> Int => 1
+`)
+	mainPath := filepath.Join(dir, "main.rn")
+	uri := fileURI(mainPath)
+	src := `@"helper.rn"
+
+main() => helper()
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "helper()", "helper")).(map[string]any)
+	if got := def["uri"].(string); got != fileURI(helperPath) {
+		t.Fatalf("definition uri = %s, want %s", got, fileURI(helperPath))
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("definition start = %+v, want helper declaration", start)
 	}
 }
 
@@ -758,6 +806,13 @@ func hoverValue(hover map[string]any) string {
 
 func refStart(ref map[string]any) position {
 	return ref["range"].(map[string]any)["start"].(position)
+}
+
+func writeLSPFile(t *testing.T, path string, src string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", path, err)
+	}
 }
 
 func positionOf(src string, context string, needle string) position {

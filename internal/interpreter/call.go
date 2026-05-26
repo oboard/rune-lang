@@ -36,6 +36,8 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 			return i.callReaderMethod(value, sel.Name, call.Args, env)
 		case *Writer:
 			return i.callWriterMethod(value, sel.Name, call.Args, env)
+		case *StringBuffer:
+			return i.callStringBufferMethod(value, sel.Name, call.Args, env)
 		case *Regex:
 			return i.callRegexMethod(value, sel.Name, call.Args, env)
 		case string:

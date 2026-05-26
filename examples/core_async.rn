@@ -1,0 +1,13 @@
+~ demo() => {
+  path := ".rune-core-example.txt"
+  @fs.writeFileText(path, "hello from fs")?
+  text := @fs.readFileText(path)?
+  compressed := @compress.gzipText(text)?
+  restored := @compress.gunzipText(compressed)?
+  @io.println(restored)
+  @fs.remove(path)?
+}
+
+main() => {
+  demo()
+}
