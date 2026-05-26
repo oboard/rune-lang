@@ -163,13 +163,25 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 		return Unknown, false
 	}
 	fn, ok := c.info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
-	if !ok {
+	if !ok || !isPublicStdlibReceiverMethod(receiverName, sel.Name) {
 		c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
 		return Unknown, true
 	}
 	bindings := c.receiverTypeBindings(fn, receiver)
 	c.checkDeclaredReceiverArgs(moduleName, sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
 	return c.finishRoutineCall(call, fn.Routine, c.resolveDeclaredType(fn.Return, bindings)), true
+}
+
+func isPublicStdlibReceiverMethod(receiverName string, methodName string) bool {
+	if receiverName != "Iter" {
+		return true
+	}
+	switch methodName {
+	case "toArray", "each", "map":
+		return true
+	default:
+		return false
+	}
 }
 
 func StdlibReceiverModule(receiver Type) (string, string, bool) {

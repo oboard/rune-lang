@@ -7,6 +7,10 @@ import (
 )
 
 func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, fn *stdlib.Function, env map[string]Type) Type {
+	if fn.Receiver != "" {
+		c.errorf(sel.Pos, "unknown module function @%s.%s", moduleName, sel.Name)
+		return Unknown
+	}
 	if fn.TopLevelOnly {
 		c.errorf(sel.Pos, "@%s.%s must be a top-level declaration", moduleName, sel.Name)
 		return Void
