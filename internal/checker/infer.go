@@ -21,19 +21,21 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 				continue
 			}
 			c.withSourcePath(method.SourcePath, func() {
-				if isIntrinsicStub(method) {
-					if !info.ReturnDeclared {
-						info.Return = Void
+				c.withGenericTypes(info.Generics, func() {
+					if isIntrinsicStub(method) {
+						if !info.ReturnDeclared {
+							info.Return = Void
+						}
+						return
 					}
-					return
-				}
-				env := map[string]Type{"this": info.ReceiverType}
-				for _, param := range info.Params {
-					env[param.Name] = param.Type
-				}
-				ret := c.inferFunctionBody(method, info, env)
-				c.finishInferredParams(info, method.Body, env)
-				c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
+					env := map[string]Type{"this": info.ReceiverType}
+					for _, param := range info.Params {
+						env[param.Name] = param.Type
+					}
+					ret := c.inferFunctionBody(method, info, env)
+					c.finishInferredParams(info, method.Body, env)
+					c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
+				})
 			})
 		}
 	})
@@ -53,38 +55,51 @@ func (c *checker) inferFunction(fn *ast.Function) {
 	c.inferringFunctions[fn] = true
 	defer delete(c.inferringFunctions, fn)
 	c.withSourcePath(fn.SourcePath, func() {
-		if isIntrinsicStub(fn) {
-			if !info.ReturnDeclared {
-				info.Return = Void
-			}
-			c.inferredFunctions[fn] = true
-			return
-		}
-		env := map[string]Type{}
-		inferredFields := inferParamFields(fn.Body, paramNames(info.Params))
-		for _, param := range info.Params {
-			paramType := param.Type
-			if paramType == Unknown {
-				if inferred := c.objectTypeFromFields(inferredFields[param.Name]); inferred != Unknown {
-					paramType = inferred
+		c.withGenericTypes(info.Generics, func() {
+			if isIntrinsicStub(fn) {
+				if !info.ReturnDeclared {
+					info.Return = Void
 				}
+				c.inferredFunctions[fn] = true
+				return
 			}
-			env[param.Name] = paramType
-		}
-		ret := c.inferFunctionBody(fn, info, env)
-		c.finishInferredParams(info, fn.Body, env)
-		unwrapErr := c.popRoutineErrors()
-		if fn.Name == "main" {
-			if info.ReturnDeclared && info.Return != Void {
-				c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
+			env := map[string]Type{}
+			inferredFields := inferParamFields(fn.Body, paramNames(info.Params))
+			for _, param := range info.Params {
+				paramType := param.Type
+				if paramType == Unknown {
+					if inferred := c.objectTypeFromFields(inferredFields[param.Name]); inferred != Unknown {
+						paramType = inferred
+					}
+				}
+				env[param.Name] = paramType
 			}
-			info.Return = Void
+			ret := c.inferFunctionBody(fn, info, env)
+			c.finishInferredParams(info, fn.Body, env)
+			unwrapErr := c.popRoutineErrors()
+			if fn.Name == "main" {
+				if info.ReturnDeclared && info.Return != Void {
+					c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
+				}
+				info.Return = Void
+				c.inferredFunctions[fn] = true
+				return
+			}
+			c.finishFunctionReturn(info, ret, unwrapErr, fn)
 			c.inferredFunctions[fn] = true
-			return
-		}
-		c.finishFunctionReturn(info, ret, unwrapErr, fn)
-		c.inferredFunctions[fn] = true
+		})
 	})
+}
+
+func (c *checker) withGenericTypes(names []string, fn func()) {
+	prev := c.genericTypes
+	if len(names) > 0 {
+		c.genericTypes = genericSet(names...)
+	} else {
+		c.genericTypes = nil
+	}
+	fn()
+	c.genericTypes = prev
 }
 
 func (c *checker) finishInferredParams(info *FuncInfo, body ast.Expr, env map[string]Type) {
@@ -779,7 +794,7 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	for i, name := range lambda.Params {
 		paramType := Unknown
 		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
-			paramType = c.resolveType(lambda.ParamTypes[i])
+			paramType = c.resolveTypeWithGenerics(lambda.ParamTypes[i], c.genericTypes)
 			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
 				c.reportUnknownOrPrivateType(lambda.Pos, lambda.ParamTypes[i])
 			}
@@ -794,7 +809,7 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	ret := c.inferExpr(lambda.Body, local)
 	c.finishInferredLambdaParams(params, lambda.Params, lambda.Body, local)
 	if lambda.ReturnType != "" {
-		declared := c.resolveDeclaredReturn(lambda.ReturnType)
+		declared := c.resolveTypeWithGenerics(lambda.ReturnType, c.genericTypes)
 		if declared == Unknown && !isDynamicTypeName(lambda.ReturnType) {
 			if privateName, ok := c.inaccessibleTypeName(lambda.ReturnType); ok {
 				c.errorf(lambda.Pos, "return type %q is private", privateName)

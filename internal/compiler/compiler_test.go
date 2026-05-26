@@ -23,6 +23,13 @@ func TestAnalyzeCoreSourceDoesNotDuplicateOwnTypes(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCoreIterSource(t *testing.T) {
+	_, diags := AnalyzeFile(filepath.Join("..", "..", "core", "iter", "iter.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+}
+
 func TestAnalyzeFileLoadsRuneImports(t *testing.T) {
 	dir := t.TempDir()
 	writeRuneFile(t, filepath.Join(dir, "math.rn"), `inc(value: Int) -> Int => value + 1

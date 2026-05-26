@@ -163,7 +163,7 @@ func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.Selector
 		return Unknown, false
 	}
 	fn, ok := c.info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
-	if !ok || !isPublicStdlibReceiverMethod(receiverName, sel.Name) {
+	if !ok || (!isPublicStdlibReceiverMethod(receiverName, sel.Name) && !c.isSourceType(fn.SourcePath)) {
 		c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
 		return Unknown, true
 	}

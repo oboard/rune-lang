@@ -63,6 +63,7 @@ type checker struct {
 	bindings           map[string]ast.Expr
 	inferredFunctions  map[*ast.Function]bool
 	inferringFunctions map[*ast.Function]bool
+	genericTypes       map[string]bool
 	sourcePath         string
 	currentSourcePath  string
 	routineDepth       int

@@ -22,6 +22,7 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 	}
 
 	seen := map[string]bool{}
+	typeBindings := c.structLiteralTypeBindings(structInfo)
 	for _, field := range lit.Fields {
 		fieldInfo, ok := structInfo.ByName[field.Name]
 		if !ok {
@@ -39,8 +40,13 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		}
 		seen[field.Name] = true
 		valueType := c.inferExpr(field.Value, env)
-		if valueType != Unknown && fieldInfo.Type != Unknown && !typesCompatible(fieldInfo.Type, valueType, nil) {
-			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", lit.TypeName, field.Name, valueType, fieldInfo.Type)
+		expectedType := fieldInfo.Type
+		if len(typeBindings) > 0 {
+			c.bindTypeParams(expectedType, valueType, typeBindings)
+			expectedType = substituteTypeParams(expectedType, typeBindings)
+		}
+		if valueType != Unknown && expectedType != Unknown && !typesCompatible(expectedType, valueType, nil) {
+			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", lit.TypeName, field.Name, valueType, expectedType)
 		}
 	}
 	for _, field := range structInfo.Fields {
@@ -48,7 +54,83 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 			c.errorf(lit.Pos, "missing field %s.%s", lit.TypeName, field.Name)
 		}
 	}
-	return Type(lit.TypeName)
+	return c.structLiteralResultType(lit.TypeName, structInfo, typeBindings)
+}
+
+func (c *checker) structLiteralTypeBindings(info *StructInfo) map[string]Type {
+	if info == nil || len(info.Generics) == 0 {
+		return nil
+	}
+	bindings := make(map[string]Type, len(info.Generics))
+	for _, name := range info.Generics {
+		bindings[name] = Unknown
+	}
+	return bindings
+}
+
+func (c *checker) structLiteralResultType(name string, info *StructInfo, bindings map[string]Type) Type {
+	if info == nil || len(info.Generics) == 0 {
+		return Type(name)
+	}
+	args := make([]Type, 0, len(info.Generics))
+	for _, param := range info.Generics {
+		typ := bindings[param]
+		if typ == "" || typ == Unknown {
+			return Type(name)
+		}
+		args = append(args, typ)
+	}
+	return genericTypeOf(name, args)
+}
+
+func (c *checker) bindTypeParams(expected Type, actual Type, bindings map[string]Type) {
+	if len(bindings) == 0 || expected == "" || actual == Unknown {
+		return
+	}
+	if _, ok := bindings[string(expected)]; ok {
+		if bindings[string(expected)] == Unknown {
+			bindings[string(expected)] = actual
+			return
+		}
+		if unified, ok := c.unifyTypes(bindings[string(expected)], actual); ok {
+			bindings[string(expected)] = unified
+		}
+		return
+	}
+	if elem, ok := parseArrayType(string(expected)); ok {
+		if actualElem, ok := ArrayElement(actual); ok {
+			c.bindTypeParams(Type(elem), actualElem, bindings)
+		}
+		return
+	}
+	if params, ret, ok := parseFuncType(string(expected)); ok {
+		actualParams, actualRet, actualFunc := parseFuncType(string(actual))
+		if !actualFunc || len(actualParams) != len(params) {
+			return
+		}
+		for i, param := range params {
+			c.bindTypeParams(Type(param), Type(actualParams[i]), bindings)
+		}
+		c.bindTypeParams(Type(ret), Type(actualRet), bindings)
+		return
+	}
+	if base, args, ok := parseGenericType(string(expected)); ok {
+		actualBase, actualArgs, actualGeneric := parseGenericType(string(actual))
+		if !actualGeneric || actualBase != base || len(actualArgs) != len(args) {
+			return
+		}
+		for i, arg := range args {
+			c.bindTypeParams(Type(arg), Type(actualArgs[i]), bindings)
+		}
+		return
+	}
+	if inner, ok := parseNullableType(string(expected)); ok {
+		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
+			c.bindTypeParams(Type(inner), Type(actualInner), bindings)
+		} else {
+			c.bindTypeParams(Type(inner), actual, bindings)
+		}
+	}
 }
 
 func (c *checker) inferAnonymousObjectLiteral(lit *ast.AnonymousObjectLiteral, env map[string]Type) Type {

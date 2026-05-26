@@ -5,13 +5,13 @@ Iter[T]: {
 
   toArrayFrom(out: Array[T]) -> Array[T] => .toArrayNext(out, .next())
 
-  toArrayNext(out: Array[T], item: (T, Bool)) -> Array[T] =>
-    item[1] ? .toArrayPush(out, item[0]) : out
-
   toArrayPush(out: Array[T], value: T) -> Array[T] => {
     out.push(value)
     .toArrayFrom(out)
   }
+
+  toArrayNext(out: Array[T], item: (T, Bool)) -> Array[T] =>
+    item[1] ? .toArrayPush(out, item[0]) : out
 
   each[R](
     callbackfn: (
