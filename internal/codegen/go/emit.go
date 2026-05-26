@@ -305,7 +305,7 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	case *ir.TuplePattern:
 		parts := make([]string, 0, len(p.Elements))
 		for i, elem := range p.Elements {
-			parts = append(parts, g.patternCondition(fmt.Sprintf("%s[%d]", subject, i), elem))
+			parts = append(parts, g.patternCondition(fmt.Sprintf("%s.F%d", subject, i), elem))
 		}
 		return strings.Join(parts, " && ")
 	case *ir.ConstructorPattern:

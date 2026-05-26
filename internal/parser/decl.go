@@ -253,12 +253,20 @@ func (p *Parser) parseTypeName() parsedType {
 		}
 		p.consume(lexer.RParen, "expected ')' after function parameter types")
 		p.skipNewlines()
-		p.consume(lexer.Arrow, "expected '->' after function parameter types")
-		p.skipNewlines()
-		ret := p.parseTypeName()
+		if p.match(lexer.Arrow) {
+			p.skipNewlines()
+			ret := p.parseTypeName()
+			return parsedType{
+				canonical: "Func[" + strings.Join(append(canonicalArgs, ret.canonical), ",") + "]",
+				display:   "(" + strings.Join(displayArgs, ", ") + ") -> " + ret.display,
+			}
+		}
+		if len(canonicalArgs) == 1 {
+			return parsedType{canonical: canonicalArgs[0], display: "(" + displayArgs[0] + ")"}
+		}
 		return parsedType{
-			canonical: "Func[" + strings.Join(append(canonicalArgs, ret.canonical), ",") + "]",
-			display:   "(" + strings.Join(displayArgs, ", ") + ") -> " + ret.display,
+			canonical: "Tuple[" + strings.Join(canonicalArgs, ",") + "]",
+			display:   "(" + strings.Join(displayArgs, ", ") + ")",
 		}
 	}
 	typ, display := p.parseSimpleTypeName()

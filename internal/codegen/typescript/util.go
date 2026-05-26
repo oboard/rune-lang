@@ -66,6 +66,8 @@ func tsType(typ checker.Type) string {
 			return "RuneResult<" + tsType(checker.Type(args[0])) + ", " + tsType(checker.Type(args[1])) + ">"
 		case "Task":
 			return "Promise<" + tsType(checker.Type(args[0])) + ">"
+		case "Iter":
+			return "RuneIter<" + tsType(checker.Type(args[0])) + ">"
 		case "ReadonlyArray":
 			return "ReadonlyArray<" + tsType(checker.Type(args[0])) + ">"
 		case "Tuple":
@@ -169,7 +171,7 @@ func parseTSGenericType(name string) (string, []string, bool) {
 	base := name[:idx]
 	args := splitTSTypeList(strings.TrimSuffix(name[idx+1:], "]"))
 	switch base {
-	case "ReadonlyArray", "Set", "WeakSet", "Task":
+	case "ReadonlyArray", "Set", "WeakSet", "Task", "Iter":
 		return base, args, len(args) == 1
 	case "Tuple", "ReadonlyTuple":
 		return base, args, len(args) > 0

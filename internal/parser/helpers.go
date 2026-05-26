@@ -60,6 +60,10 @@ func (p *Parser) looksLikeLambda() bool {
 		}
 	}
 	p.skipNewlines()
+	if p.match(lexer.Arrow) {
+		p.skipTypeNameTokens()
+		p.skipNewlines()
+	}
 	return p.check(lexer.FatArrow)
 }
 

@@ -112,6 +112,9 @@ func (i *Interpreter) callFunctionValue(fn *ir.Function, args []Value) (Value, e
 func (i *Interpreter) callMethod(receiver *Struct, name string, args []ir.Expr, env *Env) (Value, error) {
 	typ := i.types[receiver.TypeName]
 	if typ == nil {
+		if value, ok, err := i.callStdlibStructMethod(receiver, name, args, env); ok || err != nil {
+			return value, err
+		}
 		return nil, fmt.Errorf("unknown type %q", receiver.TypeName)
 	}
 	var method *ir.Function
@@ -139,9 +142,36 @@ func (i *Interpreter) callMethod(receiver *Struct, name string, args []ir.Expr, 
 	return i.evalFunctionBody(method.Body, method.Return, local)
 }
 
+func (i *Interpreter) callStdlibStructMethod(receiver *Struct, name string, args []ir.Expr, env *Env) (Value, bool, error) {
+	if i.file.Stdlib == nil {
+		return nil, false, nil
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("iter", receiver.TypeName, name)
+	if !ok || fn.Body == nil {
+		return nil, false, nil
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, true, err
+	}
+	if len(values) != len(fn.ParamNames) {
+		return nil, true, fmt.Errorf("%s.%s expects %d args, got %d", receiver.TypeName, name, len(fn.ParamNames), len(values))
+	}
+	local := NewEnv(i.globals)
+	local.Define("this", receiver)
+	for idx, param := range fn.ParamNames {
+		local.Define(param, values[idx])
+	}
+	value, err := i.eval(ir.LowerExpr(fn.Body, nil), local)
+	return value, true, err
+}
+
 func (i *Interpreter) callClosure(fn *Closure, args []Value) (Value, error) {
-	if len(args) != len(fn.Params) {
+	if len(args) < len(fn.Params) {
 		return nil, fmt.Errorf("lambda expects %d args, got %d", len(fn.Params), len(args))
+	}
+	if len(args) > len(fn.Params) {
+		args = args[:len(fn.Params)]
 	}
 	env := NewEnv(fn.Env)
 	for idx, param := range fn.Params {

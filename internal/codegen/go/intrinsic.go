@@ -25,7 +25,15 @@ func (g *generator) unsupportedIntrinsic(fn *stdlib.Function, typ checker.Type) 
 
 func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	fn, ok := g.stdlibFunctionFromCall(call)
-	if !ok || (fn.Intrinsic == "" && fn.Go == nil) {
+	if !ok {
+		return "", false
+	}
+	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "iter" && fn.Intrinsic == "" {
+			return g.iterModuleCall(fn, g.intrinsicArgs(call.Args), call.ResultType()), true
+		}
+	}
+	if fn.Intrinsic == "" && fn.Go == nil {
 		return "", false
 	}
 	if fn.Go != nil && fn.Go.Symbol != "" {
@@ -55,8 +63,6 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.processModuleCall(fn, args, call.ResultType()), true
 	case "stringbuffer.new", "stringbuffer.from":
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
-	case "iter.range", "iter.rangeStep", "iter.repeat", "iter.empty":
-		return g.iterModuleCall(fn, args, call.ResultType()), true
 	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate",
 		"compress.brotli", "compress.unbrotli", "compress.zstd", "compress.unzstd",
 		"compress.gzipText", "compress.gunzipText", "compress.brotliText", "compress.unbrotliText",
@@ -192,23 +198,44 @@ func (g *generator) stringBufferModuleCall(fn *stdlib.Function, args []string, r
 }
 
 func (g *generator) iterModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
-	switch fn.Intrinsic {
-	case "iter.range":
-		return fmt.Sprintf("runeIterRange(%s, %s)", args[0], args[1])
-	case "iter.rangeStep":
-		return fmt.Sprintf("runeIterRangeStep(%s, %s, %s)", args[0], args[1], args[2])
-	case "iter.repeat":
-		elem, ok := checker.ArrayElement(resultType)
-		if !ok {
-			elem = checker.Unknown
+	elem, ok := checker.IterValue(resultType)
+	if !ok {
+		elem = checker.Unknown
+	}
+	elemType := goType(elem)
+	nextType := fmt.Sprintf("struct{ F0 %s; F1 bool }", elemType)
+	iterType := goType(resultType)
+	switch fn.Name {
+	case "new":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("func() []%s { out := make([]%s, 0, %s); for i := 0; i < %s; i++ { out = append(out, %s) }; return out }()", goType(elem), goType(elem), args[1], args[1], args[0])
-	case "iter.empty":
-		elem, ok := checker.ArrayElement(resultType)
-		if !ok {
-			elem = checker.Unknown
+		return fmt.Sprintf("%s{__next: %s}", iterType, args[0])
+	case "fromArray":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("[]%s{}", goType(elem))
+		return fmt.Sprintf("func() %s { values := %s; index := -1; return %s{__next: func() %s { index++; if index >= len(values) { var zero %s; return %s{F0: zero, F1: false} }; return %s{F0: values[index], F1: true} }} }()", iterType, args[0], iterType, nextType, elemType, nextType, nextType)
+	case "range":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("func() %s { start := %s; end := %s; step := 1; value := start - step; return %s{__next: func() %s { value += step; return %s{F0: value, F1: value < end} }} }()", iterType, args[0], args[1], iterType, nextType, nextType)
+	case "rangeStep":
+		if len(args) != 3 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("func() %s { start := %s; end := %s; step := %s; value := start - step; return %s{__next: func() %s { value += step; if step == 0 { return %s{F0: 0, F1: false} }; if step > 0 { return %s{F0: value, F1: value < end} }; return %s{F0: value, F1: value > end} }} }()", iterType, args[0], args[1], args[2], iterType, nextType, nextType, nextType, nextType)
+	case "repeat":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("func() %s { value := %s; count := %s; index := -1; return %s{__next: func() %s { index++; return %s{F0: value, F1: index < count} }} }()", iterType, args[0], args[1], iterType, nextType, nextType)
+	case "empty":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("func() %s { value := %s; return %s{__next: func() %s { return %s{F0: value, F1: false} }} }()", iterType, args[0], iterType, nextType, nextType)
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

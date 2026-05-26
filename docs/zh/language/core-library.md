@@ -98,12 +98,27 @@ TypeScript 后端映射为 `Uint8Array`。
 
 ## iter
 
+`Iter[T]` 是普通 core 类型，包含 `next: () -> (T, Bool)` 字段。每次
+`next()` 调用都会返回一个 tuple，其中 `[0]` 是值，`[1]` 是 ok 标志。
+
 ```rune
-@iter.range(0, 3)
-@iter.rangeStep(6, 0, 0 - 2)
-@iter.repeat("x", 3)
-@iter.empty(0)
+iter := @iter.range(0, 3)
+item := iter.next()
+@io.println(item[0])
+@io.println(item[1])
+
+letters := @iter.fromArray(["a", "b"])
+wrapped := @iter.new(letters.next)
+@io.println(wrapped.next()[0])
+
+values := @iter.range(1, 4).toArray()
+@iter.range(1, 4).each((value) => @io.println(value))
+mapped := @iter.range(1, 4).map((value) => value * 2)
 ```
+
+`@iter.rangeStep(start, end, step)`、`@iter.repeat(value, count)` 和
+`@iter.empty(valueType)` 都返回 `Iter[T]`。迭代器提供 `toArray`、`each`
+和 `map` receiver 方法。
 
 ## stringbuffer
 

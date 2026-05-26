@@ -18,7 +18,7 @@ Current modules:
 * `reader` - sequential binary readers
 * `set` - set construction and receiver APIs
 * `stringbuffer` - mutable string builder
-* `iter` - range/repeat helpers
+* `iter` - tuple-returning iterator helpers
 * `writer` - sequential binary writers
 * `io` - I/O declarations backed by Go `fmt`
 * `json` - JSON serialization helpers

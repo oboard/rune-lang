@@ -107,6 +107,7 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 func (p *Parser) parseWatchHandler() ast.Expr {
 	if p.check(lexer.LParen) && p.looksLikeLambda() {
 		params := p.parseLambdaParams()
+		ret := p.parseLambdaReturnType()
 		p.consume(lexer.FatArrow, "expected '=>' after watch handler parameter")
 		p.skipNewlines()
 		return &ast.LambdaExpr{
@@ -114,6 +115,8 @@ func (p *Parser) parseWatchHandler() ast.Expr {
 			ParamPos:          params.positions,
 			ParamTypes:        params.types,
 			ParamTypeDisplays: params.typeDisplays,
+			ReturnType:        ret.canonical,
+			ReturnDisplay:     ret.display,
 			Body:              p.parseBody(),
 			Pos:               params.pos,
 		}
@@ -152,19 +155,17 @@ func (p *Parser) parseMatchExpr(subject ast.Expr) ast.Expr {
 
 func (p *Parser) parseLambda() ast.Expr {
 	params := p.parseLambdaParams()
+	ret := p.parseLambdaReturnType()
 	p.consume(lexer.FatArrow, "expected '=>' after lambda parameter")
 	p.skipNewlines()
-	var body ast.Expr
-	if p.check(lexer.LBrace) && !p.looksLikePatternBranch() {
-		body = p.parseBraceLiteral()
-	} else {
-		body = p.parseBody()
-	}
+	body := p.parseBody()
 	return &ast.LambdaExpr{
 		Params:            params.names,
 		ParamPos:          params.positions,
 		ParamTypes:        params.types,
 		ParamTypeDisplays: params.typeDisplays,
+		ReturnType:        ret.canonical,
+		ReturnDisplay:     ret.display,
 		Body:              body,
 		Pos:               params.pos,
 	}
@@ -210,6 +211,17 @@ func (p *Parser) parseLambdaParams() lambdaParams {
 	tok := p.peek()
 	p.errorAt(tok, "lambda parameters must be parenthesized")
 	return lambdaParams{pos: tok.Pos}
+}
+
+func (p *Parser) parseLambdaReturnType() parsedType {
+	p.skipNewlines()
+	if !p.match(lexer.Arrow) {
+		return parsedType{}
+	}
+	p.skipNewlines()
+	ret := p.parseTypeName()
+	p.skipNewlines()
+	return ret
 }
 
 func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
@@ -309,10 +321,24 @@ func (p *Parser) parsePrimary() ast.Expr {
 	case lexer.LBrace:
 		return p.parseBraceLiteral()
 	case lexer.LParen:
-		p.advance()
+		start := p.advance()
 		p.skipNewlines()
 		expr := p.parseExpression(1)
 		p.skipNewlines()
+		if p.match(lexer.Comma) {
+			elems := []ast.Expr{expr}
+			p.skipNewlines()
+			for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
+				elems = append(elems, p.parseExpression(1))
+				p.skipNewlines()
+				if !p.match(lexer.Comma) {
+					break
+				}
+				p.skipNewlines()
+			}
+			p.consume(lexer.RParen, "expected ')' after tuple literal")
+			return &ast.TupleLiteral{Elements: elems, Pos: start.Pos}
+		}
 		p.consume(lexer.RParen, "expected ')' after expression")
 		return expr
 	case lexer.Less:

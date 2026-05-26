@@ -257,16 +257,7 @@ func (g *generator) stringBufferRuntime() {
 }
 
 func (g *generator) iterRuntime() {
-	g.line("function runeIterRange(start: number, end: number): number[] { return runeIterRangeStep(start, end, 1); }")
-	g.line("function runeIterRangeStep(start: number, end: number, step: number): number[] {")
-	g.indent++
-	g.line("if (step === 0) throw new RangeError(\"iter step cannot be zero\");")
-	g.line("const out: number[] = [];")
-	g.line("if (step > 0) { for (let value = start; value < end; value += step) out.push(value); }")
-	g.line("else { for (let value = start; value > end; value += step) out.push(value); }")
-	g.line("return out;")
-	g.indent--
-	g.line("}")
+	g.line("type RuneIter<T> = { next: () => [T, boolean] };")
 }
 
 func (g *generator) fsRuntime() {
@@ -605,7 +596,7 @@ func fileUsesStringBufferRuntime(file *ir.File) bool {
 }
 
 func fileUsesIterRuntime(file *ir.File) bool {
-	return fileUsesIntrinsicPrefix(file, "iter.")
+	return fileUsesGenericType(file, "Iter") || fileUsesIntrinsicPrefix(file, "iter.")
 }
 
 func fileUsesCompressRuntime(file *ir.File) bool {

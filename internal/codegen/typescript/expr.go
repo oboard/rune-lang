@@ -99,11 +99,20 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return tsPropertyAccess(g.expr(e.Receiver), e.Name)
 	case *ir.IndexExpr:
+		if _, ok := checker.TupleElements(e.Receiver.ResultType()); ok {
+			return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
+		}
 		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
 			return fmt.Sprintf("%s.get(%s)!", g.expr(e.Receiver), g.expr(e.Index))
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
+		elems := make([]string, 0, len(e.Elements))
+		for _, elem := range e.Elements {
+			elems = append(elems, g.expr(elem))
+		}
+		return "[" + strings.Join(elems, ", ") + "]"
+	case *ir.TupleLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {
 			elems = append(elems, g.expr(elem))
@@ -211,6 +220,9 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 	if call, ok := g.arrayMethodCall(e); ok {
 		return call
 	}
+	if call, ok := g.iterMethodCall(e); ok {
+		return call
+	}
 	if call, ok := g.primitiveMethodCall(e); ok {
 		return call
 	}
@@ -222,6 +234,54 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 		args = append(args, g.expr(arg))
 	}
 	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if _, ok := checker.IterValue(sel.Receiver.ResultType()); !ok {
+		return "", false
+	}
+	receiver := g.expr(sel.Receiver)
+	switch sel.Name {
+	case "toArray":
+		return fmt.Sprintf("(() => { const iter = %s; const out = []; for (;;) { const item = iter.next(); if (!item[1]) return out; out.push(item[0]); } })()", receiver), true
+	case "each":
+		if len(call.Args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		callback, arity := g.iterCallback(call.Args[0])
+		return fmt.Sprintf("(() => { const iter = %s; let index = 0; for (;;) { const item = iter.next(); if (!item[1]) return null; %s; index += 1; } })()", receiver, iterCallbackCall(callback, arity, "item[0]", "index", "iter")), true
+	case "map":
+		if len(call.Args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		callback, arity := g.iterCallback(call.Args[0])
+		return fmt.Sprintf("(() => { const iter = %s; const out = []; let index = 0; for (;;) { const item = iter.next(); if (!item[1]) return out; out.push(%s); index += 1; } })()", receiver, iterCallbackCall(callback, arity, "item[0]", "index", "iter")), true
+	default:
+		return "", false
+	}
+}
+
+func (g *generator) iterCallback(expr ir.Expr) (string, int) {
+	if lambda, ok := expr.(*ir.LambdaExpr); ok {
+		return g.expr(lambda), len(lambda.Params)
+	}
+	params, _, ok := parseTSFuncType(string(expr.ResultType()))
+	if !ok {
+		return g.expr(expr), 3
+	}
+	return g.expr(expr), len(params)
+}
+
+func iterCallbackCall(callback string, arity int, value string, index string, iter string) string {
+	args := []string{value, index, iter}
+	if arity < len(args) {
+		args = args[:arity]
+	}
+	return fmt.Sprintf("(%s)(%s)", callback, strings.Join(args, ", "))
 }
 
 func resultTypeArgs(typ checker.Type) (checker.Type, checker.Type) {

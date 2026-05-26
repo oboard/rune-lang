@@ -1,7 +1,112 @@
-range(start: Int, end: Int) -> Array[Int] => "%iter.range"
+Iter[T]: {
+  next: () -> (T, Bool)
 
-rangeStep(start: Int, end: Int, step: Int) -> Array[Int] => "%iter.rangeStep"
+  toArray() -> Array[T] => @iter.toArray(this, [])
 
-repeat[T](value: T, count: Int) -> Array[T] => "%iter.repeat"
+  each(
+    callbackfn: (
+      value: T,
+      index?: Int,
+      iter?: Iter[T]
+    ) -> Any
+  ) -> Null => @iter.eachFrom(this, callbackfn, 0)
 
-empty[T](valueType: T) -> Array[T] => "%iter.empty"
+  map[U](
+    callbackfn: (
+      value: T,
+      index?: Int,
+      iter?: Iter[T]
+    ) -> U
+  ) -> Array[U] => @iter.mapFrom(this, callbackfn, 0, [])
+}
+
+new[T](next: () -> (T, Bool)) -> Iter[T] => Iter {
+  next: next
+}
+
+fromArray[T](values: Array[T]) -> Iter[T] => {
+  index ~= -1
+  @iter.new(() -> (T, Bool) => {
+    index = index + 1
+    index >= values.length() ? (values[0], false) : (values[index], true)
+  })
+}
+
+range(start: Int, end: Int) -> Iter[Int] => @iter.rangeStep(start, end, 1)
+
+rangeStep(start: Int, end: Int, step: Int) -> Iter[Int] => {
+  value ~= start - step
+  @iter.new(() -> (Int, Bool) => {
+    value = value + step
+    step == 0 ? (0, false) : step > 0 ? (value, value < end) : (value, value > end)
+  })
+}
+
+repeat[T](value: T, count: Int) -> Iter[T] => {
+  index ~= -1
+  @iter.new(() -> (T, Bool) => {
+    index = index + 1
+    (value, index < count)
+  })
+}
+
+empty[T](valueType: T) -> Iter[T] => @iter.new(() -> (T, Bool) => (valueType, false))
+
+toArray[T](iter: Iter[T], out: Array[T]) -> Array[T] => @iter.toArrayNext(iter, out, iter.next())
+
+toArrayNext[T](iter: Iter[T], out: Array[T], item: (T, Bool)) -> Array[T] =>
+  item[1] ? @iter.toArrayPush(iter, out, item[0]) : out
+
+toArrayPush[T](iter: Iter[T], out: Array[T], value: T) -> Array[T] => {
+  out.push(value)
+  @iter.toArray(iter, out)
+}
+
+eachFrom[T](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> Any,
+  index: Int
+) -> Null => @iter.eachNext(iter, callbackfn, index, iter.next())
+
+eachNext[T](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> Any,
+  index: Int,
+  item: (T, Bool)
+) -> Null => item[1] ? @iter.eachValue(iter, callbackfn, index, item[0]) : null
+
+eachValue[T](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> Any,
+  index: Int,
+  value: T
+) -> Null => {
+  callbackfn(value, index, iter)
+  @iter.eachFrom(iter, callbackfn, index + 1)
+}
+
+mapFrom[T, U](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> U,
+  index: Int,
+  out: Array[U]
+) -> Array[U] => @iter.mapNext(iter, callbackfn, index, out, iter.next())
+
+mapNext[T, U](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> U,
+  index: Int,
+  out: Array[U],
+  item: (T, Bool)
+) -> Array[U] => item[1] ? @iter.mapValue(iter, callbackfn, index, out, item[0]) : out
+
+mapValue[T, U](
+  iter: Iter[T],
+  callbackfn: (value: T, index?: Int, iter?: Iter[T]) -> U,
+  index: Int,
+  out: Array[U],
+  value: T
+) -> Array[U] => {
+  out.push(callbackfn(value, index, iter))
+  @iter.mapFrom(iter, callbackfn, index + 1, out)
+}

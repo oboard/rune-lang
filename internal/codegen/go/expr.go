@@ -87,6 +87,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.IndexExpr:
+		if _, ok := checker.TupleElements(e.Receiver.ResultType()); ok {
+			if index, ok := e.Index.(*ir.IntegerLiteral); ok {
+				return fmt.Sprintf("%s.F%d", g.expr(e.Receiver), index.Value)
+			}
+		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.SelectorExpr:
 		if member, ok := g.enumMemberSelector(e); ok {
@@ -123,6 +128,12 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elems = append(elems, g.expr(elem))
 		}
 		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+	case *ir.TupleLiteral:
+		elems := make([]string, 0, len(e.Elements))
+		for idx, elem := range e.Elements {
+			elems = append(elems, fmt.Sprintf("F%d: %s", idx, g.expr(elem)))
+		}
+		return fmt.Sprintf("%s{%s}", goType(e.ResultType()), strings.Join(elems, ", "))
 	case *ir.MapLiteral:
 		return g.mapLiteral(e)
 	case *ir.SpreadExpr:
@@ -215,6 +226,9 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 	if mapCall, ok := g.mapMethodCall(e); ok {
 		return mapCall
 	}
+	if iterCall, ok := g.iterMethodCall(e); ok {
+		return iterCall
+	}
 	if primitiveCall, ok := g.primitiveMethodCall(e); ok {
 		return primitiveCall
 	}
@@ -228,6 +242,60 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 		}
 	}
 	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	elem, ok := checker.IterValue(sel.Receiver.ResultType())
+	if !ok {
+		return "", false
+	}
+	receiver := g.expr(sel.Receiver)
+	elemType := goType(elem)
+	switch sel.Name {
+	case "toArray":
+		return fmt.Sprintf("func() []%s { iter := %s; out := []%s{}; for { item := iter.__next(); if !item.F1 { return out }; out = append(out, item.F0) } }()", elemType, receiver, elemType), true
+	case "each":
+		if len(call.Args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		callback, arity := g.iterCallback(call.Args[0], receiver)
+		return fmt.Sprintf("func() any { iter := %s; index := 0; for { item := iter.__next(); if !item.F1 { return any(nil) }; %s; index++ } }()", receiver, g.iterCallbackCall(callback, arity, "item.F0", "index", "iter")), true
+	case "map":
+		if len(call.Args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		outElem := checker.Unknown
+		if arrayElem, ok := checker.ArrayElement(call.ResultType()); ok {
+			outElem = arrayElem
+		}
+		callback, arity := g.iterCallback(call.Args[0], receiver)
+		return fmt.Sprintf("func() []%s { iter := %s; out := []%s{}; index := 0; for { item := iter.__next(); if !item.F1 { return out }; out = append(out, %s); index++ } }()", goType(outElem), receiver, goType(outElem), g.iterCallbackCall(callback, arity, "item.F0", "index", "iter")), true
+	default:
+		return "", false
+	}
+}
+
+func (g *generator) iterCallback(expr ir.Expr, receiver string) (string, int) {
+	if lambda, ok := expr.(*ir.LambdaExpr); ok {
+		return g.expr(lambda), len(lambda.Params)
+	}
+	params, _, ok := parseGoFuncType(string(expr.ResultType()))
+	if !ok {
+		return g.expr(expr), 3
+	}
+	return g.expr(expr), len(params)
+}
+
+func (g *generator) iterCallbackCall(callback string, arity int, value string, index string, iter string) string {
+	args := []string{value, index, iter}
+	if arity < len(args) {
+		args = args[:arity]
+	}
+	return fmt.Sprintf("%s(%s)", callback, strings.Join(args, ", "))
 }
 
 func resultTypeArgs(typ checker.Type) (checker.Type, checker.Type) {

@@ -275,11 +275,89 @@ func MapKeyValue(typ Type) (Type, Type, bool) {
 	return Type(args[0]), Type(args[1]), true
 }
 
+func TupleElements(typ Type) ([]Type, bool) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || (base != "Tuple" && base != "ReadonlyTuple") || len(args) == 0 {
+		return nil, false
+	}
+	out := make([]Type, 0, len(args))
+	for _, arg := range args {
+		out = append(out, Type(arg))
+	}
+	return out, true
+}
+
+func IterValue(typ Type) (Type, bool) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || base != "Iter" || len(args) != 1 {
+		return Unknown, false
+	}
+	return Type(args[0]), true
+}
+
 func receiverType(typ *ast.StructType) Type {
 	if len(typ.Generics) == 0 {
 		return Type(typ.Name)
 	}
 	return Type(typ.Name + "[" + strings.Join(typ.Generics, ",") + "]")
+}
+
+func structFieldType(info *StructInfo, receiver Type, field FieldInfo) Type {
+	return substituteTypeParams(field.Type, typeParamBindingsForStruct(info, receiver))
+}
+
+func typeParamBindingsForStruct(info *StructInfo, receiver Type) map[string]Type {
+	if info == nil || len(info.Generics) == 0 {
+		return nil
+	}
+	base, args, ok := parseGenericType(string(receiver))
+	if !ok || base != info.Name {
+		return nil
+	}
+	bindings := make(map[string]Type, len(info.Generics))
+	for idx, name := range info.Generics {
+		if idx < len(args) {
+			bindings[name] = Type(args[idx])
+		}
+	}
+	return bindings
+}
+
+func substituteTypeParams(typ Type, bindings map[string]Type) Type {
+	if len(bindings) == 0 {
+		return typ
+	}
+	if bound, ok := bindings[string(typ)]; ok {
+		return bound
+	}
+	if inner, ok := parseNullableType(string(typ)); ok {
+		return NullableOf(substituteTypeParams(Type(inner), bindings))
+	}
+	if elem, ok := parseArrayType(string(typ)); ok {
+		return ArrayOf(substituteTypeParams(Type(elem), bindings))
+	}
+	if base, args, ok := parseGenericType(string(typ)); ok {
+		resolved := make([]Type, 0, len(args))
+		for _, arg := range args {
+			resolved = append(resolved, substituteTypeParams(Type(arg), bindings))
+		}
+		return genericTypeOf(base, resolved)
+	}
+	if params, ret, ok := parseFuncType(string(typ)); ok {
+		resolved := make([]Type, 0, len(params))
+		for _, param := range params {
+			resolved = append(resolved, substituteTypeParams(Type(param), bindings))
+		}
+		return FuncOfTypes(resolved, substituteTypeParams(Type(ret), bindings))
+	}
+	if params, ret, ok := parseAsyncFuncType(string(typ)); ok {
+		resolved := make([]Type, 0, len(params))
+		for _, param := range params {
+			resolved = append(resolved, substituteTypeParams(Type(param), bindings))
+		}
+		return AsyncFuncOfTypes(resolved, substituteTypeParams(Type(ret), bindings))
+	}
+	return typ
 }
 
 func ObjectOf(fields []FieldInfo) Type {

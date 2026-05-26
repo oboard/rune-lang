@@ -38,6 +38,10 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		for _, elem := range e.Elements {
 			WalkExpr(elem, visit)
 		}
+	case *TupleLiteral:
+		for _, elem := range e.Elements {
+			WalkExpr(elem, visit)
+		}
 	case *MapLiteral:
 		for _, entry := range e.Entries {
 			WalkExpr(entry.Key, visit)

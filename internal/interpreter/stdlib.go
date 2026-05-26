@@ -27,6 +27,15 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 	if err != nil {
 		return nil, err
 	}
+	if fn.Body != nil {
+		local := NewEnv(i.globals)
+		for idx, param := range fn.ParamNames {
+			if idx < len(values) {
+				local.Define(param, values[idx])
+			}
+		}
+		return i.eval(ir.LowerExpr(fn.Body, nil), local)
+	}
 	if fn.Go != nil {
 		return i.callGoBackedFunction(fn.Go.Symbol, values)
 	}
@@ -119,57 +128,6 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 			return nil, fmt.Errorf("@stringbuffer.from expects String")
 		}
 		return &StringBuffer{Parts: []string{value}}, nil
-	case "iter.range":
-		if len(values) != 2 {
-			return nil, fmt.Errorf("@iter.range expects 2 args, got %d", len(values))
-		}
-		start, ok := values[0].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.range start expects Int")
-		}
-		end, ok := values[1].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.range end expects Int")
-		}
-		return iterRangeStep(start, end, 1)
-	case "iter.rangeStep":
-		if len(values) != 3 {
-			return nil, fmt.Errorf("@iter.rangeStep expects 3 args, got %d", len(values))
-		}
-		start, ok := values[0].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.rangeStep start expects Int")
-		}
-		end, ok := values[1].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.rangeStep end expects Int")
-		}
-		step, ok := values[2].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.rangeStep step expects Int")
-		}
-		return iterRangeStep(start, end, step)
-	case "iter.repeat":
-		if len(values) != 2 {
-			return nil, fmt.Errorf("@iter.repeat expects 2 args, got %d", len(values))
-		}
-		count, ok := values[1].(int)
-		if !ok {
-			return nil, fmt.Errorf("@iter.repeat count expects Int")
-		}
-		if count < 0 {
-			return nil, fmt.Errorf("@iter.repeat count out of range")
-		}
-		out := &Array{Elements: make([]Value, 0, count)}
-		for idx := 0; idx < count; idx++ {
-			out.Elements = append(out.Elements, values[0])
-		}
-		return out, nil
-	case "iter.empty":
-		if len(values) != 1 {
-			return nil, fmt.Errorf("@iter.empty expects 1 arg, got %d", len(values))
-		}
-		return &Array{}, nil
 	case "path.basename":
 		return pathStringUnary(values, "@path.basename", filepath.Base)
 	case "path.dirname":
@@ -432,23 +390,6 @@ func int4(value int) int8 {
 		return int8(n - 16)
 	}
 	return int8(n)
-}
-
-func iterRangeStep(start int, end int, step int) (*Array, error) {
-	if step == 0 {
-		return nil, fmt.Errorf("@iter.rangeStep step cannot be zero")
-	}
-	out := &Array{}
-	if step > 0 {
-		for value := start; value < end; value += step {
-			out.Elements = append(out.Elements, value)
-		}
-	} else {
-		for value := start; value > end; value += step {
-			out.Elements = append(out.Elements, value)
-		}
-	}
-	return out, nil
 }
 
 func pathStringUnary(values []Value, name string, fn func(string) string) (Value, error) {

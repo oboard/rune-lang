@@ -186,6 +186,13 @@ type ArrayLiteral struct {
 
 func (*ArrayLiteral) exprNode() {}
 
+type TupleLiteral struct {
+	ExprBase
+	Elements []Expr
+}
+
+func (*TupleLiteral) exprNode() {}
+
 type MapLiteral struct {
 	ExprBase
 	Entries []MapEntry

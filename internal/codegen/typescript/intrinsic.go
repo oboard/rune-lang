@@ -25,7 +25,15 @@ func (g *generator) unsupportedIntrinsic(fn *stdlib.Function, typ checker.Type) 
 
 func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	fn, ok := g.stdlibFunctionFromCall(call)
-	if !ok || fn.Intrinsic == "" {
+	if !ok {
+		return "", false
+	}
+	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "iter" && fn.Intrinsic == "" {
+			return g.iterModuleCall(fn, g.intrinsicArgs(call.Args), call.ResultType()), true
+		}
+	}
+	if fn.Intrinsic == "" {
 		return "", false
 	}
 	args := g.intrinsicArgs(call.Args)
@@ -54,8 +62,6 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.processModuleCall(fn, args, call.ResultType()), true
 	case "stringbuffer.new", "stringbuffer.from":
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
-	case "iter.range", "iter.rangeStep", "iter.repeat", "iter.empty":
-		return g.iterModuleCall(fn, args, call.ResultType()), true
 	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate",
 		"compress.brotli", "compress.unbrotli", "compress.zstd", "compress.unzstd",
 		"compress.gzipText", "compress.gunzipText", "compress.brotliText", "compress.unbrotliText",
@@ -210,15 +216,37 @@ func (g *generator) stringBufferModuleCall(fn *stdlib.Function, args []string, r
 }
 
 func (g *generator) iterModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
-	switch fn.Intrinsic {
-	case "iter.range":
-		return fmt.Sprintf("runeIterRange(%s, %s)", args[0], args[1])
-	case "iter.rangeStep":
-		return fmt.Sprintf("runeIterRangeStep(%s, %s, %s)", args[0], args[1], args[2])
-	case "iter.repeat":
-		return fmt.Sprintf("Array.from({ length: %s }, () => %s)", args[1], args[0])
-	case "iter.empty":
-		return "[]"
+	switch fn.Name {
+	case "new":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("({ next: %s })", args[0])
+	case "fromArray":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("(() => { const values = %s; let index = -1; return { next: () => { index += 1; return index >= values.length ? [undefined, false] : [values[index], true]; } }; })()", args[0])
+	case "range":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("(() => { const start = %s; const end = %s; const step = 1; let value = start - step; return { next: () => { value += step; return [value, value < end]; } }; })()", args[0], args[1])
+	case "rangeStep":
+		if len(args) != 3 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("(() => { const start = %s; const end = %s; const step = %s; let value = start - step; return { next: () => { value += step; if (step === 0) return [0, false]; return step > 0 ? [value, value < end] : [value, value > end]; } }; })()", args[0], args[1], args[2])
+	case "repeat":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("(() => { const value = %s; const count = %s; let index = -1; return { next: () => { index += 1; return [value, index < count]; } }; })()", args[0], args[1])
+	case "empty":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("(() => { const value = %s; return { next: () => [value, false] }; })()", args[0])
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

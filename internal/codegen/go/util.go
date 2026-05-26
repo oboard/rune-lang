@@ -30,6 +30,8 @@ func goType(typ checker.Type) string {
 			return "runeResult[" + goType(checker.Type(args[0])) + ", " + goType(checker.Type(args[1])) + "]"
 		case "Task":
 			return "runeTask[" + goType(checker.Type(args[0])) + "]"
+		case "Iter":
+			return "runeIter[" + goType(checker.Type(args[0])) + "]"
 		case "ReadonlyArray":
 			return "[]" + goType(checker.Type(args[0]))
 		case "Tuple", "ReadonlyTuple":
@@ -140,7 +142,7 @@ func parseGoGenericType(name string) (string, []string, bool) {
 	base := name[:idx]
 	args := splitGoTypeList(strings.TrimSuffix(name[idx+1:], "]"))
 	switch base {
-	case "ReadonlyArray", "Set", "WeakSet", "Task":
+	case "ReadonlyArray", "Set", "WeakSet", "Task", "Iter":
 		return base, args, len(args) == 1
 	case "Tuple", "ReadonlyTuple":
 		return base, args, len(args) > 0

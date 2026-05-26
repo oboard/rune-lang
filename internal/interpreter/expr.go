@@ -112,6 +112,16 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			array.Elements = append(array.Elements, value)
 		}
 		return array, nil
+	case *ir.TupleLiteral:
+		tuple := &Tuple{Elements: make([]Value, 0, len(e.Elements))}
+		for _, elem := range e.Elements {
+			value, err := i.eval(elem, env)
+			if err != nil {
+				return nil, err
+			}
+			tuple.Elements = append(tuple.Elements, value)
+		}
+		return tuple, nil
 	case *ir.MapLiteral:
 		out := &Map{Entries: make(map[string]mapEntry, len(e.Entries))}
 		for _, entry := range e.Entries {
@@ -784,6 +794,15 @@ func indexValue(receiver Value, index Value) (Value, error) {
 			return nil, fmt.Errorf("array index %d out of range", i)
 		}
 		return value.Elements[i], nil
+	case *Tuple:
+		i, ok := index.(int)
+		if !ok {
+			return nil, fmt.Errorf("tuple index expects Int")
+		}
+		if i < 0 || i >= len(value.Elements) {
+			return nil, fmt.Errorf("tuple index %d out of range", i)
+		}
+		return value.Elements[i], nil
 	case *Map:
 		entry, ok := value.Entries[valueKey(index)]
 		if !ok {
@@ -829,6 +848,8 @@ func typeName(value Value) string {
 		return string(checker.Bool)
 	case *Array:
 		return "Array"
+	case *Tuple:
+		return "Tuple"
 	case *Map:
 		return "Map"
 	case *Set:

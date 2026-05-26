@@ -291,7 +291,7 @@ func fileUsesStringBufferRuntime(file *ir.File) bool {
 }
 
 func fileUsesIterRuntime(file *ir.File) bool {
-	return fileUsesIntrinsicPrefix(file, "iter.")
+	return fileUsesGenericType(file, "Iter") || fileUsesIntrinsicPrefix(file, "iter.")
 }
 
 func fileUsesCompressRuntime(file *ir.File) bool {
@@ -603,38 +603,9 @@ func (g *generator) stringBufferRuntime() {
 }
 
 func (g *generator) iterRuntime() {
-	g.line("func runeIterRange(start int, end int) []int {")
+	g.line("type runeIter[T any] struct {")
 	g.indent++
-	g.line("return runeIterRangeStep(start, end, 1)")
-	g.indent--
-	g.line("}")
-	g.line("")
-	g.line("func runeIterRangeStep(start int, end int, step int) []int {")
-	g.indent++
-	g.line("if step == 0 {")
-	g.indent++
-	g.line("panic(\"iter step cannot be zero\")")
-	g.indent--
-	g.line("}")
-	g.line("out := []int{}")
-	g.line("if step > 0 {")
-	g.indent++
-	g.line("for value := start; value < end; value += step {")
-	g.indent++
-	g.line("out = append(out, value)")
-	g.indent--
-	g.line("}")
-	g.indent--
-	g.line("} else {")
-	g.indent++
-	g.line("for value := start; value > end; value += step {")
-	g.indent++
-	g.line("out = append(out, value)")
-	g.indent--
-	g.line("}")
-	g.indent--
-	g.line("}")
-	g.line("return out")
+	g.line("__next func() struct{ F0 T; F1 bool }")
 	g.indent--
 	g.line("}")
 }

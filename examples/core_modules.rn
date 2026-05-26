@@ -1,6 +1,13 @@
 main() => {
   values := @iter.range(1, 4)
-  values.each((value) => @io.println(value))
+  first := values.next()
+  second := values.next()
+  third := values.next()
+  @io.println(first[0])
+  @io.println(second[0])
+  @io.println(third[0])
+
+  @iter.range(4, 7).map((value) => value * 2).each((value) => @io.println(value))
 
   buffer := @stringbuffer.from("Rune")
   buffer.append(" core")

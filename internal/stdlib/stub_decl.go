@@ -166,6 +166,7 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 	}
 	p.skipNewlines()
 	p.consume(lexer.FatArrow, "expected '=>' after function signature")
+	p.skipNewlines()
 	body, err := p.parseBodyExpr()
 	if err != nil {
 		return Function{}, err
@@ -266,13 +267,18 @@ func (p *stubParser) parseTypeName() (string, error) {
 		p.skipNewlines()
 		p.consume(lexer.RParen, "expected ')' after function parameter types")
 		p.skipNewlines()
-		p.consume(lexer.Arrow, "expected '->' after function parameter types")
-		p.skipNewlines()
-		ret, err := p.parseTypeName()
-		if err != nil {
-			return "", err
+		if p.match(lexer.Arrow) {
+			p.skipNewlines()
+			ret, err := p.parseTypeName()
+			if err != nil {
+				return "", err
+			}
+			return "Func[" + strings.Join(append(args, ret), ",") + "]", nil
 		}
-		return "Func[" + strings.Join(append(args, ret), ",") + "]", nil
+		if len(args) == 1 {
+			return args[0], nil
+		}
+		return "Tuple[" + strings.Join(args, ",") + "]", nil
 	}
 	typ, err := p.parseSimpleTypeName()
 	if err != nil {

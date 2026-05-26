@@ -207,13 +207,15 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			c.errorf(e.Pos, "type %s has no field %q", receiver, e.Name)
 			return Unknown
 		}
-		return field.Type
+		return structFieldType(structInfo, receiver, field)
 	case *ast.StructLiteral:
 		return c.inferStructLiteral(e, env)
 	case *ast.AnonymousObjectLiteral:
 		return c.inferAnonymousObjectLiteral(e, env)
 	case *ast.ArrayLiteral:
 		return c.inferArrayLiteral(e, env)
+	case *ast.TupleLiteral:
+		return c.inferTupleLiteral(e, env)
 	case *ast.SpreadExpr:
 		return c.inferExpr(e.Expr, env)
 	case *ast.ReactiveLiteral:
@@ -438,6 +440,16 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
 		}
+		if structInfo := c.info.Types[baseTypeName(receiver)]; structInfo != nil {
+			if field, ok := structInfo.ByName[sel.Name]; ok {
+				fieldType := structFieldType(structInfo, receiver, field)
+				if _, _, ok := parseCallableType(string(fieldType)); ok {
+					c.info.ExprTypes[sel] = fieldType
+					ret, _ := c.inferFunctionValueCall(sel.Name, fieldType, call.Args, argTypes, sel.Pos)
+					return ret
+				}
+			}
+		}
 		if ret, ok := c.inferStdlibReceiverMethodCall(receiver, sel, call, argTypes, env); ok {
 			return ret
 		}
@@ -450,7 +462,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		method := structInfo.Methods[sel.Name]
 		if field, ok := structInfo.ByName[sel.Name]; ok {
-			ret, _ := c.inferFunctionValueCall(sel.Name, field.Type, call.Args, argTypes, sel.Pos)
+			ret, _ := c.inferFunctionValueCall(sel.Name, structFieldType(structInfo, receiver, field), call.Args, argTypes, sel.Pos)
 			return ret
 		}
 		if method == nil {

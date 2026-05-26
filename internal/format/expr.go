@@ -72,6 +72,12 @@ func (f *formatter) expr(expr ast.Expr) string {
 			elems = append(elems, f.expr(elem))
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ast.TupleLiteral:
+		elems := make([]string, 0, len(e.Elements))
+		for _, elem := range e.Elements {
+			elems = append(elems, f.expr(elem))
+		}
+		return "(" + strings.Join(elems, ", ") + ")"
 	case *ast.SpreadExpr:
 		return "..." + f.expr(e.Expr)
 	case *ast.ReactiveLiteral:

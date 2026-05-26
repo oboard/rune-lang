@@ -237,6 +237,16 @@ func (e *ArrayLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+type TupleLiteral struct {
+	Elements []Expr
+	Pos      lexer.Position
+}
+
+func (*TupleLiteral) exprNode() {}
+func (e *TupleLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
 type SpreadExpr struct {
 	Expr Expr
 	Pos  lexer.Position

@@ -41,6 +41,14 @@ func (c *checker) inferArrayLiteral(lit *ast.ArrayLiteral, env map[string]Type) 
 	return ArrayOf(elemType)
 }
 
+func (c *checker) inferTupleLiteral(lit *ast.TupleLiteral, env map[string]Type) Type {
+	elems := make([]Type, 0, len(lit.Elements))
+	for _, elem := range lit.Elements {
+		elems = append(elems, c.inferExpr(elem, env))
+	}
+	return genericTypeOf("Tuple", elems)
+}
+
 func (c *checker) inferMapLiteral(lit *ast.MapLiteral, env map[string]Type) Type {
 	keyType := Unknown
 	valueType := Unknown
@@ -77,6 +85,18 @@ func (c *checker) inferMapLiteral(lit *ast.MapLiteral, env map[string]Type) Type
 func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type {
 	receiver := c.inferExpr(expr.Receiver, env)
 	index := c.inferExpr(expr.Index, env)
+	if elems, ok := TupleElements(receiver); ok {
+		lit, ok := expr.Index.(*ast.IntegerLiteral)
+		if !ok {
+			c.errorf(expr.Index.Position(), "tuple index expects an integer literal")
+			return Unknown
+		}
+		if lit.Value < 0 || lit.Value >= len(elems) {
+			c.errorf(expr.Index.Position(), "tuple index %d out of range", lit.Value)
+			return Unknown
+		}
+		return elems[lit.Value]
+	}
 	if elem, ok := ArrayElement(receiver); ok {
 		if _, ok := c.info.Stdlib.FunctionByAlias("array", "_[_]"); !ok {
 			c.errorf(expr.Pos, "array index operator is not declared in core/array")
@@ -175,6 +195,8 @@ func StdlibReceiverModule(receiver Type) (string, string, bool) {
 		return "stringbuffer", "StringBuffer", true
 	case "TCPConnection", "TCPListener":
 		return "net", base, true
+	case "Iter":
+		return "iter", "Iter", true
 	case "Map", "WeakMap":
 		return "map", base, true
 	case "Set", "WeakSet":
@@ -197,6 +219,10 @@ func (c *checker) receiverTypeBindings(fn *stdlib.Function, receiver Type) map[s
 				bindings["V"] = Type(args[1])
 			}
 		case "Set", "WeakSet":
+			if len(args) >= 1 {
+				bindings["T"] = Type(args[0])
+			}
+		case "Iter":
 			if len(args) >= 1 {
 				bindings["T"] = Type(args[0])
 			}
@@ -231,10 +257,7 @@ func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string
 	if params, ret, ok := parseFuncType(expected); ok {
 		lambda, ok := arg.(*ast.LambdaExpr)
 		if !ok {
-			expectedType := c.resolveDeclaredType(expected, bindings)
-			if actual != Unknown && expectedType != Unknown && actual != expectedType {
-				c.errorf(arg.Position(), "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
-			}
+			c.bindDeclaredType(expected, actual, bindings, arg.Position(), moduleName, functionName, index)
 			return
 		}
 		if len(lambda.Params) > len(params) {
@@ -281,6 +304,29 @@ func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[st
 			return
 		}
 		c.bindDeclaredType(elem, actualElem, bindings, pos, moduleName, functionName, index)
+		return
+	}
+	if params, ret, ok := parseFuncType(expected); ok {
+		actualParams, actualRet, actualFunc := parseFuncType(string(actual))
+		if !actualFunc || len(actualParams) != len(params) {
+			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, c.resolveDeclaredType(expected, bindings))
+			return
+		}
+		for i, param := range params {
+			c.bindDeclaredType(param, Type(actualParams[i]), bindings, pos, moduleName, functionName, index)
+		}
+		c.bindDeclaredType(ret, Type(actualRet), bindings, pos, moduleName, functionName, index)
+		return
+	}
+	if base, args, ok := parseGenericType(expected); ok {
+		actualBase, actualArgs, actualGeneric := parseGenericType(string(actual))
+		if !actualGeneric || actualBase != base || len(actualArgs) != len(args) {
+			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, c.resolveDeclaredType(expected, bindings))
+			return
+		}
+		for i, arg := range args {
+			c.bindDeclaredType(arg, Type(actualArgs[i]), bindings, pos, moduleName, functionName, index)
+		}
 		return
 	}
 	expectedType := c.resolveDeclaredType(expected, bindings)
@@ -360,7 +406,7 @@ func parseGenericType(name string) (string, []string, bool) {
 
 func isBuiltinGenericType(base string) bool {
 	switch base {
-	case "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "WeakMap", "WeakSet", "Record", "Result", "Task":
+	case "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "WeakMap", "WeakSet", "Record", "Result", "Task", "Iter":
 		return true
 	default:
 		return false

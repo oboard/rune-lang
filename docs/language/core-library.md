@@ -100,12 +100,27 @@ The module declares `gzip`, `gunzip`, `deflate`, `inflate`, `brotli`,
 
 ## iter
 
+`Iter[T]` is a normal core type with a `next: () -> (T, Bool)` field. Each
+`next()` call returns a tuple where `[0]` is the value and `[1]` is the ok flag.
+
 ```rune
-@iter.range(0, 3)
-@iter.rangeStep(6, 0, 0 - 2)
-@iter.repeat("x", 3)
-@iter.empty(0)
+iter := @iter.range(0, 3)
+item := iter.next()
+@io.println(item[0])
+@io.println(item[1])
+
+letters := @iter.fromArray(["a", "b"])
+wrapped := @iter.new(letters.next)
+@io.println(wrapped.next()[0])
+
+values := @iter.range(1, 4).toArray()
+@iter.range(1, 4).each((value) => @io.println(value))
+mapped := @iter.range(1, 4).map((value) => value * 2)
 ```
+
+`@iter.rangeStep(start, end, step)`, `@iter.repeat(value, count)`, and
+`@iter.empty(valueType)` return `Iter[T]`. Iterators expose `toArray`, `each`,
+and `map` receiver methods.
 
 ## stringbuffer
 

@@ -20,6 +20,10 @@ type Array struct {
 	Elements []Value
 }
 
+type Tuple struct {
+	Elements []Value
+}
+
 type Map struct {
 	Entries map[string]mapEntry
 }
@@ -97,6 +101,12 @@ func Format(value Value) string {
 			parts = append(parts, Format(elem))
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
+	case *Tuple:
+		parts := make([]string, 0, len(v.Elements))
+		for _, elem := range v.Elements {
+			parts = append(parts, Format(elem))
+		}
+		return "(" + strings.Join(parts, ", ") + ")"
 	case *Map:
 		parts := make([]string, 0, len(v.Entries))
 		for _, entry := range v.Entries {

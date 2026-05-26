@@ -46,13 +46,13 @@ lex(source: String) -> Array[Token] => scan(
   emptyTokens()
 )
 
-emptyTokens() -> Array[Token] => @iter.empty(Token {
+emptyTokens() -> Array[Token] => [Token {
   kind: ""
   lexeme: ""
   offset: 0
   line: 0
   column: 0
-})
+}].slice(0, 0)
 
 scan(state: LexState, tokens: Array[Token]) -> Array[Token] => {
   skipped := skipIgnored(state)

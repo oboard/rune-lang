@@ -199,6 +199,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			out.Elements = append(out.Elements, l.expr(elem))
 		}
 		return out
+	case *ast.TupleLiteral:
+		out := &TupleLiteral{ExprBase: l.base(e)}
+		for _, elem := range e.Elements {
+			out.Elements = append(out.Elements, l.expr(elem))
+		}
+		return out
 	case *ast.MapLiteral:
 		out := &MapLiteral{ExprBase: l.base(e)}
 		for _, entry := range e.Entries {
