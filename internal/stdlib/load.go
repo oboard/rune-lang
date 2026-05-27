@@ -7,23 +7,45 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
-var defaultRegistry *Registry
+var (
+	defaultRegistryMu sync.Mutex
+	defaultRegistry   *Registry
+)
 
 func SetDefault(reg *Registry) {
+	defaultRegistryMu.Lock()
+	defer defaultRegistryMu.Unlock()
 	defaultRegistry = reg
 }
 
 func LoadDefault() (*Registry, error) {
+	defaultRegistryMu.Lock()
 	if defaultRegistry != nil {
-		return defaultRegistry, nil
+		reg := defaultRegistry
+		defaultRegistryMu.Unlock()
+		return reg, nil
 	}
+	defaultRegistryMu.Unlock()
+
 	root, err := findCoreRoot()
 	if err != nil {
 		return nil, err
 	}
-	return Load(root)
+	reg, err := Load(root)
+	if err != nil {
+		return nil, err
+	}
+
+	defaultRegistryMu.Lock()
+	defer defaultRegistryMu.Unlock()
+	if defaultRegistry != nil {
+		return defaultRegistry, nil
+	}
+	defaultRegistry = reg
+	return defaultRegistry, nil
 }
 
 func Load(root string) (*Registry, error) {

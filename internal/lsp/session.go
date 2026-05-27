@@ -1,10 +1,6 @@
 package lsp
 
-import (
-	"io"
-
-	"github.com/oboard/rune-lang/internal/compiler"
-)
+import "io"
 
 type Session struct {
 	server *server
@@ -13,18 +9,19 @@ type Session struct {
 func NewSession() *Session {
 	return &Session{
 		server: &server{
-			out:  io.Discard,
-			docs: map[string]string{},
+			out:   io.Discard,
+			docs:  map[string]string{},
+			cache: map[string]programCacheEntry{},
 		},
 	}
 }
 
 func (s *Session) SetDocument(uri string, text string) {
-	s.server.docs[uri] = text
+	s.server.setDocument(uri, text)
 }
 
 func (s *Session) Diagnostics(uri string) []map[string]any {
-	_, diags := compiler.AnalyzeSource(uri, s.server.docs[uri])
+	_, diags := s.server.analyze(uri)
 	items := make([]map[string]any, 0, len(diags))
 	for _, diag := range diags {
 		items = append(items, map[string]any{

@@ -2,10 +2,10 @@ package tscodegen
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
+	codeusage "github.com/oboard/rune-lang/internal/codegen/usage"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
@@ -14,58 +14,59 @@ func Generate(file *ast.File, info *checker.Info) (string, error) {
 }
 
 func GenerateIR(file *ir.File) (string, error) {
+	usage := codeusage.Collect(file)
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("TypeScript backend does not support @go.import")
 	}
-	if usesGoFFI(file) {
+	if usesGoFFI(usage) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")
 	}
 	g := &generator{file: file}
-	if fileUsesTaskRuntime(file) {
+	if fileUsesTaskRuntime(usage) {
 		g.taskRuntime()
 		g.line("")
 	}
-	if fileUsesResultRuntime(file) {
+	if fileUsesResultRuntime(usage) {
 		g.resultRuntime()
 		g.line("")
 	}
-	if fileUsesErrorRuntime(file) {
+	if fileUsesErrorRuntime(usage) {
 		g.errorRuntime()
 		g.line("")
 	}
-	if fileUsesPathRuntime(file) {
+	if fileUsesPathRuntime(usage) {
 		g.pathRuntime()
 		g.line("")
 	}
-	if fileUsesProcessRuntime(file) {
+	if fileUsesProcessRuntime(usage) {
 		g.processRuntime()
 		g.line("")
 	}
-	if fileUsesStringBufferRuntime(file) {
+	if fileUsesStringBufferRuntime(usage) {
 		g.stringBufferRuntime()
 		g.line("")
 	}
-	if fileUsesIterRuntime(file) {
+	if fileUsesIterRuntime(usage) {
 		g.iterRuntime()
 		g.line("")
 	}
-	if fileUsesFSRuntime(file) {
+	if fileUsesFSRuntime(usage) {
 		g.fsRuntime()
 		g.line("")
 	}
-	if fileUsesCompressRuntime(file) {
+	if fileUsesCompressRuntime(usage) {
 		g.compressRuntime()
 		g.line("")
 	}
-	if fileUsesNetRuntime(file) {
+	if fileUsesNetRuntime(usage) {
 		g.netRuntime()
 		g.line("")
 	}
-	if fileUsesBinaryRuntime(file) {
+	if fileUsesBinaryRuntime(usage) {
 		g.binaryRuntime()
 		g.line("")
 	}
-	if fileUsesSignals(file) {
+	if fileUsesSignals(usage) {
 		g.signalRuntime()
 		g.line("")
 	}
@@ -120,34 +121,8 @@ func GenerateIR(file *ir.File) (string, error) {
 	return g.buf.String(), nil
 }
 
-func usesGoFFI(file *ir.File) bool {
-	found := false
-	for _, fn := range file.Functions {
-		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
-			if selectorUsesGo(expr) {
-				found = true
-			}
-		})
-	}
-	for _, typ := range file.Types {
-		for _, method := range typ.Methods {
-			ir.WalkExpr(method.Body, func(expr ir.Expr) {
-				if selectorUsesGo(expr) {
-					found = true
-				}
-			})
-		}
-	}
-	return found
-}
-
-func selectorUsesGo(expr ir.Expr) bool {
-	sel, ok := expr.(*ir.SelectorExpr)
-	if !ok {
-		return false
-	}
-	at, ok := sel.Receiver.(*ir.AtExpr)
-	return ok && at.Name == "go"
+func usesGoFFI(usage codeusage.Usage) bool {
+	return usage.GoFFI
 }
 
 func (g *generator) taskRuntime() {
@@ -582,243 +557,62 @@ func join(parts []string, sep string) string {
 	return out
 }
 
-func fileUsesBinaryRuntime(file *ir.File) bool {
-	return fileUsesType(file, checker.Buffer) ||
-		fileUsesType(file, checker.Reader) ||
-		fileUsesType(file, checker.Writer)
+func fileUsesBinaryRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.Buffer) ||
+		fileUsesType(usage, checker.Reader) ||
+		fileUsesType(usage, checker.Writer)
 }
 
-func fileUsesPathRuntime(file *ir.File) bool {
-	return fileUsesIntrinsicPrefix(file, "path.")
+func fileUsesPathRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("path.")
 }
 
-func fileUsesProcessRuntime(file *ir.File) bool {
-	return fileUsesIntrinsicPrefix(file, "process.")
+func fileUsesProcessRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("process.")
 }
 
-func fileUsesStringBufferRuntime(file *ir.File) bool {
-	return fileUsesType(file, checker.StringBuffer) || fileUsesIntrinsicPrefix(file, "stringbuffer.")
+func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.StringBuffer) || usage.HasIntrinsicPrefix("stringbuffer.")
 }
 
-func fileUsesIterRuntime(file *ir.File) bool {
-	return fileUsesGenericType(file, "Iter") || fileUsesIntrinsicPrefix(file, "iter.")
+func fileUsesIterRuntime(usage codeusage.Usage) bool {
+	return usage.HasGeneric("Iter") || usage.HasIntrinsicPrefix("iter.")
 }
 
-func fileUsesCompressRuntime(file *ir.File) bool {
-	return fileUsesIntrinsicPrefix(file, "compress.")
+func fileUsesCompressRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("compress.")
 }
 
-func fileUsesNetRuntime(file *ir.File) bool {
-	return fileUsesType(file, checker.TCPConnection) ||
-		fileUsesType(file, checker.TCPListener) ||
-		fileUsesIntrinsicPrefix(file, "net.")
+func fileUsesNetRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.TCPConnection) ||
+		fileUsesType(usage, checker.TCPListener) ||
+		usage.HasIntrinsicPrefix("net.")
 }
 
-func fileUsesType(file *ir.File, typ checker.Type) bool {
-	found := false
-	check := func(candidate checker.Type) {
-		if found || typeContains(candidate, typ) {
-			found = true
-		}
-	}
-	for _, fn := range file.Functions {
-		check(fn.Return)
-		for _, param := range fn.Params {
-			check(param.Type)
-		}
-		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
-			check(expr.ResultType())
-		})
-	}
-	for _, test := range file.Tests {
-		ir.WalkExpr(test.Body, func(expr ir.Expr) {
-			check(expr.ResultType())
-		})
-	}
-	for _, typDecl := range file.Types {
-		for _, field := range typDecl.Fields {
-			check(field.Type)
-		}
-		for _, method := range typDecl.Methods {
-			check(method.Return)
-			for _, param := range method.Params {
-				check(param.Type)
-			}
-			ir.WalkExpr(method.Body, func(expr ir.Expr) {
-				check(expr.ResultType())
-			})
-		}
-	}
-	return found
+func fileUsesType(usage codeusage.Usage, typ checker.Type) bool {
+	return usage.HasType(typ)
 }
 
-func typeContains(candidate checker.Type, typ checker.Type) bool {
-	if candidate == typ {
-		return true
-	}
-	return strings.Contains(string(candidate), string(typ))
+func fileUsesSignals(usage codeusage.Usage) bool {
+	return usage.Signal
 }
 
-func fileUsesSignals(file *ir.File) bool {
-	for _, fn := range file.Functions {
-		if blockUsesSignals(fn.Body) {
-			return true
-		}
-	}
-	for _, typ := range file.Types {
-		for _, method := range typ.Methods {
-			if blockUsesSignals(method.Body) {
-				return true
-			}
-		}
-	}
-	return false
+func fileUsesTaskRuntime(usage codeusage.Usage) bool {
+	return usage.HasGeneric("Task") ||
+		fileUsesFSRuntime(usage) ||
+		fileUsesCompressRuntime(usage) ||
+		fileUsesNetRuntime(usage) ||
+		usage.UsesAsyncRuntime()
 }
 
-func fileUsesTaskRuntime(file *ir.File) bool {
-	if fileUsesGenericType(file, "Task") || fileUsesFSRuntime(file) || fileUsesCompressRuntime(file) || fileUsesNetRuntime(file) {
-		return true
-	}
-	for _, fn := range file.Functions {
-		if fn.Routine || exprUsesAsync(fn.Body) {
-			return true
-		}
-	}
-	for _, typ := range file.Types {
-		for _, method := range typ.Methods {
-			if method.Routine || exprUsesAsync(method.Body) {
-				return true
-			}
-		}
-	}
-	return false
+func fileUsesResultRuntime(usage codeusage.Usage) bool {
+	return usage.HasGeneric("Result") || fileUsesFSRuntime(usage) || fileUsesCompressRuntime(usage) || fileUsesNetRuntime(usage)
 }
 
-func fileUsesResultRuntime(file *ir.File) bool {
-	return fileUsesGenericType(file, "Result") || fileUsesFSRuntime(file) || fileUsesCompressRuntime(file) || fileUsesNetRuntime(file)
+func fileUsesErrorRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.Error) || fileUsesFSRuntime(usage) || fileUsesCompressRuntime(usage) || fileUsesNetRuntime(usage)
 }
 
-func fileUsesErrorRuntime(file *ir.File) bool {
-	return fileUsesType(file, checker.Error) || fileUsesFSRuntime(file) || fileUsesCompressRuntime(file) || fileUsesNetRuntime(file)
-}
-
-func fileUsesGenericType(file *ir.File, base string) bool {
-	found := false
-	check := func(candidate checker.Type) {
-		if found {
-			return
-		}
-		found = typeUsesGeneric(candidate, base)
-	}
-	for _, fn := range file.Functions {
-		check(fn.Return)
-		for _, param := range fn.Params {
-			check(param.Type)
-		}
-		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
-			check(expr.ResultType())
-		})
-	}
-	for _, typ := range file.Types {
-		for _, field := range typ.Fields {
-			check(field.Type)
-		}
-		for _, method := range typ.Methods {
-			check(method.Return)
-			for _, param := range method.Params {
-				check(param.Type)
-			}
-			ir.WalkExpr(method.Body, func(expr ir.Expr) {
-				check(expr.ResultType())
-			})
-		}
-	}
-	return found
-}
-
-func typeUsesGeneric(candidate checker.Type, base string) bool {
-	name := string(candidate)
-	return strings.HasPrefix(name, base+"[") || strings.Contains(name, ","+base+"[") || strings.Contains(name, "["+base+"[")
-}
-
-func exprUsesAsync(expr ir.Expr) bool {
-	found := false
-	ir.WalkExpr(expr, func(expr ir.Expr) {
-		if call, ok := expr.(*ir.CallExpr); ok && call.Async {
-			found = true
-		}
-		if _, ok := expr.(*ir.ResultUnwrapExpr); ok {
-			found = true
-		}
-	})
-	return found
-}
-
-func fileUsesFSRuntime(file *ir.File) bool {
-	return fileUsesType(file, checker.FileStat) || fileUsesIntrinsicPrefix(file, "fs.")
-}
-
-func fileUsesIntrinsicPrefix(file *ir.File, prefix string) bool {
-	found := false
-	check := func(expr ir.Expr) {
-		if found {
-			return
-		}
-		call, ok := expr.(*ir.CallExpr)
-		if !ok || file.Stdlib == nil {
-			return
-		}
-		sel, ok := call.Callee.(*ir.SelectorExpr)
-		if !ok {
-			return
-		}
-		at, ok := sel.Receiver.(*ir.AtExpr)
-		if ok {
-			fn, ok := file.Stdlib.Function(at.Name, sel.Name)
-			if ok && strings.HasPrefix(fn.Intrinsic, prefix) {
-				found = true
-			}
-			return
-		}
-		moduleName, receiverName, ok := checker.StdlibReceiverModule(sel.Receiver.ResultType())
-		if !ok {
-			return
-		}
-		fn, ok := file.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
-		if ok && strings.HasPrefix(fn.Intrinsic, prefix) {
-			found = true
-		}
-	}
-	for _, fn := range file.Functions {
-		ir.WalkExpr(fn.Body, check)
-	}
-	for _, typ := range file.Types {
-		for _, method := range typ.Methods {
-			ir.WalkExpr(method.Body, check)
-		}
-	}
-	return found
-}
-
-func blockUsesSignals(expr ir.Expr) bool {
-	found := false
-	ir.WalkExpr(expr, func(expr ir.Expr) {
-		if _, ok := expr.(*ir.WatchExpr); ok {
-			found = true
-		}
-		if _, ok := expr.(*ir.ReactiveLiteral); ok {
-			found = true
-		}
-	})
-	if found {
-		return true
-	}
-	if block, ok := expr.(*ir.BlockExpr); ok {
-		for _, stmt := range block.Statements {
-			if let, ok := stmt.(*ir.LetStmt); ok && let.Signal {
-				return true
-			}
-		}
-	}
-	return false
+func fileUsesFSRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.FileStat) || usage.HasIntrinsicPrefix("fs.")
 }

@@ -17,7 +17,7 @@ import (
 )
 
 func (s *server) publishDiagnostics(uri string) error {
-	_, diags := compiler.AnalyzeSource(uri, s.docs[uri])
+	_, diags := s.analyze(uri)
 	items := make([]map[string]any, 0, len(diags))
 	for _, diag := range diags {
 		items = append(items, map[string]any{
@@ -41,7 +41,7 @@ func (s *server) clearDiagnostics(uri string) error {
 }
 
 func (s *server) hover(uri string, pos position) any {
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	word := wordAt(s.docs[uri], pos)
 	if word == "" || prog == nil {
 		return nil
@@ -258,7 +258,7 @@ func structTypeByName(file *ast.File, name string) *ast.StructType {
 }
 
 func (s *server) completion(uri string) any {
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	var items []map[string]any
 	if prog == nil {
 		return items
@@ -289,7 +289,7 @@ func (s *server) definition(uri string, pos position) any {
 	if target := s.importDefinition(uri, pos); target != nil {
 		return target
 	}
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	word := wordAt(s.docs[uri], pos)
 	if word == "" || prog == nil {
 		return nil
@@ -354,7 +354,7 @@ func (s *server) importDefinition(uri string, pos position) any {
 }
 
 func (s *server) references(uri string, pos position, includeDeclaration bool) any {
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	if prog == nil {
 		return []map[string]any{}
 	}
@@ -616,7 +616,7 @@ func anonymousObjectTypeCanSatisfyField(info *checker.Info, objectType string, t
 }
 
 func (s *server) documentSymbols(uri string) any {
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	if prog == nil {
 		return []any{}
 	}
@@ -639,7 +639,7 @@ func (s *server) documentSymbols(uri string) any {
 
 func (s *server) inlayHints(uri string) any {
 	text := s.docs[uri]
-	prog, _ := compiler.AnalyzeSource(uri, text)
+	prog, _ := s.analyze(uri)
 	if prog == nil {
 		return []any{}
 	}
@@ -730,7 +730,7 @@ func (s *server) inlayHints(uri string) any {
 }
 
 func (s *server) semanticTokens(uri string) any {
-	prog, _ := compiler.AnalyzeSource(uri, s.docs[uri])
+	prog, _ := s.analyze(uri)
 	if prog == nil {
 		return map[string]any{"data": []int{}}
 	}
@@ -997,7 +997,7 @@ func (s *server) rename(uri string, pos position, newName string) any {
 	if word == "" {
 		return nil
 	}
-	prog, _ := compiler.AnalyzeSource(uri, text)
+	prog, _ := s.analyze(uri)
 	if prog != nil {
 		if target := typeTarget(uri, prog, pos); target != nil {
 			return map[string]any{

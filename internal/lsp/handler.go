@@ -34,7 +34,7 @@ func (s *server) handle(req request) error {
 			},
 		})
 	case "shutdown":
-		s.docs = map[string]string{}
+		s.clearDocuments()
 		return s.respond(req.ID, nil)
 	case "exit":
 		return io.EOF
@@ -43,7 +43,7 @@ func (s *server) handle(req request) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
-		s.docs[params.TextDocument.URI] = params.TextDocument.Text
+		s.setDocument(params.TextDocument.URI, params.TextDocument.Text)
 		return s.publishDiagnostics(params.TextDocument.URI)
 	case "textDocument/didChange":
 		var params didChangeParams
@@ -51,7 +51,7 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		if len(params.ContentChanges) > 0 {
-			s.docs[params.TextDocument.URI] = params.ContentChanges[len(params.ContentChanges)-1].Text
+			s.setDocument(params.TextDocument.URI, params.ContentChanges[len(params.ContentChanges)-1].Text)
 		}
 		return s.publishDiagnostics(params.TextDocument.URI)
 	case "textDocument/didClose":
@@ -59,7 +59,7 @@ func (s *server) handle(req request) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
-		delete(s.docs, params.TextDocument.URI)
+		s.closeDocument(params.TextDocument.URI)
 		return s.clearDiagnostics(params.TextDocument.URI)
 	case "textDocument/hover":
 		var params textPositionParams

@@ -112,6 +112,30 @@ func TestLoadCoreStubs(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultCachesSuccessfulLoad(t *testing.T) {
+	defaultRegistryMu.Lock()
+	previous := defaultRegistry
+	defaultRegistry = nil
+	defaultRegistryMu.Unlock()
+	defer func() {
+		defaultRegistryMu.Lock()
+		defaultRegistry = previous
+		defaultRegistryMu.Unlock()
+	}()
+
+	first, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() first error = %v", err)
+	}
+	second, err := LoadDefault()
+	if err != nil {
+		t.Fatalf("LoadDefault() second error = %v", err)
+	}
+	if first != second {
+		t.Fatal("LoadDefault() did not return the cached registry")
+	}
+}
+
 func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	mod, err := parseModule("array", "array.rn", `Array[T]: {
   each[R](
