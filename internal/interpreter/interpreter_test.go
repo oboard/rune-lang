@@ -49,6 +49,8 @@ func TestInterpreterRunsMapLiteral(t *testing.T) {
   @io.println(values["a"])
   values["b"] = 3
   @io.println(values["b"])
+  @io.println(values["missing"] ?? 7)
+  @io.println(values["missing"])
 }
 `
 	prog, diags := compiler.AnalyzeSource("map_literal.rn", src)
@@ -61,7 +63,7 @@ func TestInterpreterRunsMapLiteral(t *testing.T) {
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
-	if got := strings.TrimSpace(out.String()); got != "1\n3" {
+	if got := strings.TrimSpace(out.String()); got != "1\n3\n7\nnull" {
 		t.Fatalf("output = %q, want map literal output", got)
 	}
 }

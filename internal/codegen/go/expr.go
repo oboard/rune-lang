@@ -60,6 +60,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.ResultUnwrapExpr:
 		return "/* result unwrap is only supported in statement position */"
 	case *ir.BinaryExpr:
+		if e.Op == lexer.QuestionQuestion {
+			return g.nullCoalesceExpr(e)
+		}
 		if expr := g.bigIntBinaryExpr(e); expr != "" {
 			return expr
 		}
@@ -71,6 +74,14 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return s
 	case *ir.TernaryExpr:
 		return g.ternaryExpr(e)
+	case *ir.BlockExpr:
+		ret := e.ResultType()
+		if ret == checker.Void {
+			return fmt.Sprintf("func() { %s }()", g.blockInline(e, ret))
+		}
+		return fmt.Sprintf("func() %s { %s }()", goType(ret), g.blockInline(e, ret))
+	case *ir.PatternBlock:
+		return "/* pattern block is only supported in function body */"
 	case *ir.AssignExpr:
 		if target, ok := e.Target.(*ir.IndexExpr); ok {
 			if expr, ok := g.indexAssignExpr(target, e.Value); ok {
@@ -93,6 +104,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			if index, ok := e.Index.(*ir.IntegerLiteral); ok {
 				return fmt.Sprintf("%s.F%d", g.expr(e.Receiver), index.Value)
 			}
+		}
+		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
+			value := g.nextTemp("value")
+			okName := g.nextTemp("ok")
+			return fmt.Sprintf("func() any { %s, %s := %s[%s]; if !%s { return nil }; return %s }()", value, okName, g.expr(e.Receiver), g.expr(e.Index), okName, value)
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.SelectorExpr:
@@ -180,6 +196,22 @@ func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string
 		return "", false
 	}
 	return fmt.Sprintf("%s[%s] = %s", g.expr(target.Receiver), g.expr(target.Index), g.expr(value)), true
+}
+
+func (g *generator) nullCoalesceExpr(expr *ir.BinaryExpr) string {
+	if expr.Left.ResultType() == checker.Null {
+		return g.expr(expr.Right)
+	}
+	inner, ok := parseGoNullableType(string(expr.Left.ResultType()))
+	if !ok {
+		return g.expr(expr.Left)
+	}
+	value := g.nextTemp("coalesce")
+	resultType := expr.ResultType()
+	if _, nullable := parseGoNullableType(string(resultType)); nullable || resultType == checker.Null || resultType == checker.Unknown {
+		return fmt.Sprintf("func() %s { %s := %s; if %s != nil { return %s }; return %s }()", goType(resultType), value, g.expr(expr.Left), value, value, g.expr(expr.Right))
+	}
+	return fmt.Sprintf("func() %s { %s := %s; if %s != nil { return %s.(%s) }; return %s }()", goType(resultType), value, g.expr(expr.Left), value, value, goType(checker.Type(inner)), g.expr(expr.Right))
 }
 
 func (g *generator) mapLiteral(lit *ir.MapLiteral) string {

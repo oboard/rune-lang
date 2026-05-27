@@ -110,7 +110,7 @@ func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type 
 		if !typesCompatible(key, index, nil) {
 			c.errorf(expr.Index.Position(), "map index has type %s, expected %s", index, key)
 		}
-		return value
+		return NullableOf(value)
 	}
 	if receiver != Unknown {
 		c.errorf(expr.Pos, "type %s is not indexable", receiver)

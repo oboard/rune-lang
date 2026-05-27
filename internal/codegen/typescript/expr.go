@@ -105,7 +105,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 		}
 		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
-			return fmt.Sprintf("%s.get(%s)!", g.expr(e.Receiver), g.expr(e.Index))
+			mapName := g.nextTemp("map")
+			keyName := g.nextTemp("key")
+			return fmt.Sprintf("((%s, %s) => %s.has(%s) ? %s.get(%s)! : null)(%s, %s)", mapName, keyName, mapName, keyName, mapName, keyName, g.expr(e.Receiver), g.expr(e.Index))
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
@@ -138,6 +140,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			fields = append(fields, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.expr(field.Value)))
 		}
 		return "{" + strings.Join(fields, ", ") + "}"
+	case *ir.BlockExpr:
+		return fmt.Sprintf("(() => { %s })()", g.blockInline(e, e.ResultType()))
+	case *ir.PatternBlock:
+		return "undefined /* pattern blocks are only supported as function bodies */"
 	case *ir.MatchExpr:
 		return g.matchExpr(e)
 	case *ir.WatchExpr:
@@ -851,7 +857,7 @@ func tsBinaryOp(op lexer.Kind) string {
 
 func tsPrecedence(op lexer.Kind) int {
 	switch op {
-	case lexer.OrOr:
+	case lexer.QuestionQuestion, lexer.OrOr:
 		return 1
 	case lexer.AndAnd:
 		return 2

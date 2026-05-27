@@ -273,17 +273,19 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
     "a": 1,
     "b": 2
   }
-  @io.println(scores["a"])
+  @io.println(scores["a"] ?? 0)
   scores["b"] = 3
-  @io.println(scores["b"])
+  @io.println(scores["b"] ?? 0)
+  @io.println(scores["missing"] ?? 7)
 }
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`const __scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
-		`console.log(__scores.get("a")!);`,
+		`.has(`,
+		` ?? 0`,
 		`__scores.set("b", 3);`,
-		`console.log(__scores.get("b")!);`,
+		` ?? 7`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

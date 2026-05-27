@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 func TestGenericTypeDeclRequiresColon(t *testing.T) {
@@ -311,6 +312,24 @@ mapScore(values) => values {
 	}
 	if binding, ok := mapPattern.Entries[0].Pattern.(*ast.BindingPattern); !ok || binding.Name != "value" {
 		t.Fatalf("map value pattern = %#v, want value binding", mapPattern.Entries[0].Pattern)
+	}
+}
+
+func TestNullCoalesceExpression(t *testing.T) {
+	file, errs := Parse(`fallback(value: String?) -> String => value ?? "missing"
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	expr, ok := file.Functions[0].Body.(*ast.BinaryExpr)
+	if !ok || expr.Op != lexer.QuestionQuestion {
+		t.Fatalf("body = %#v, want ?? binary expression", file.Functions[0].Body)
+	}
+	if _, ok := expr.Left.(*ast.Identifier); !ok {
+		t.Fatalf("left = %#v, want identifier", expr.Left)
+	}
+	if _, ok := expr.Right.(*ast.StringLiteral); !ok {
+		t.Fatalf("right = %#v, want string literal", expr.Right)
 	}
 }
 

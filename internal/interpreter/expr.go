@@ -49,6 +49,10 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return NullValue, nil
 	case *ir.UnaryExpr:
 		return i.evalUnary(e, env)
+	case *ir.PostfixExpr:
+		return i.evalPostfix(e, env)
+	case *ir.ResultUnwrapExpr:
+		return nil, fmt.Errorf("result unwrap is only supported by generated backends")
 	case *ir.BinaryExpr:
 		return i.evalBinary(e, env)
 	case *ir.TernaryExpr:
@@ -124,6 +128,8 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			tuple.Elements = append(tuple.Elements, value)
 		}
 		return tuple, nil
+	case *ir.SpreadExpr:
+		return nil, fmt.Errorf("spread is only supported inside array literals")
 	case *ir.MapLiteral:
 		out := &Map{Entries: make(map[string]mapEntry, len(e.Entries))}
 		for _, entry := range e.Entries {
@@ -138,6 +144,8 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			out.Entries[valueKey(key)] = mapEntry{Key: key, Value: value}
 		}
 		return out, nil
+	case *ir.ReactiveLiteral:
+		return i.eval(e.Value, env)
 	case *ir.StructLiteral:
 		fields := map[string]Value{}
 		order := make([]string, 0, len(e.Fields))
@@ -175,6 +183,10 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			return nil, err
 		}
 		return i.evalPatternBlock(&ir.PatternBlock{ExprBase: e.ExprBase, Branches: e.Branches}, subject, env)
+	case *ir.XMLElement:
+		return nil, fmt.Errorf("XML is only supported by the TypeScript backend")
+	case *ir.WatchExpr:
+		return nil, fmt.Errorf("watch expressions are only supported by generated backends")
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", expr)
 	}
@@ -199,6 +211,57 @@ func (i *Interpreter) assignIndex(target *ir.IndexExpr, valueExpr ir.Expr, env *
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("%s is not assignable by index", typeName(receiver))
+	}
+}
+
+func (i *Interpreter) evalPostfix(expr *ir.PostfixExpr, env *Env) (Value, error) {
+	if expr.Op != lexer.PlusPlus {
+		return nil, fmt.Errorf("unsupported postfix operator %s", expr.Op)
+	}
+	target, ok := expr.Expr.(*ir.Identifier)
+	if !ok {
+		return nil, fmt.Errorf("operator '++' expects an assignable name")
+	}
+	value, ok := env.Get(target.Name)
+	if !ok {
+		return nil, fmt.Errorf("undefined name %q", target.Name)
+	}
+	next, err := incrementValue(value)
+	if err != nil {
+		return nil, err
+	}
+	if err := env.Assign(target.Name, next); err != nil {
+		return nil, err
+	}
+	return value, nil
+}
+
+func incrementValue(value Value) (Value, error) {
+	switch n := value.(type) {
+	case int:
+		return n + 1, nil
+	case int8:
+		return n + 1, nil
+	case int16:
+		return n + 1, nil
+	case int64:
+		return n + 1, nil
+	case uint:
+		return n + 1, nil
+	case uint8:
+		return n + 1, nil
+	case uint16:
+		return n + 1, nil
+	case uint64:
+		return n + 1, nil
+	case float32:
+		return n + 1, nil
+	case float64:
+		return n + 1, nil
+	case *big.Int:
+		return new(big.Int).Add(n, big.NewInt(1)), nil
+	default:
+		return nil, fmt.Errorf("operator '++' expects a numeric type")
 	}
 }
 
@@ -267,6 +330,11 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		return nil, err
 	}
 	switch expr.Op {
+	case lexer.QuestionQuestion:
+		if !isNullValue(left) {
+			return left, nil
+		}
+		return i.eval(expr.Right, env)
 	case lexer.AndAnd:
 		l, ok := left.(bool)
 		if !ok {
@@ -814,12 +882,17 @@ func indexValue(receiver Value, index Value) (Value, error) {
 	case *Map:
 		entry, ok := value.Entries[valueKey(index)]
 		if !ok {
-			return nil, nil
+			return NullValue, nil
 		}
 		return entry.Value, nil
 	default:
 		return nil, fmt.Errorf("%s is not indexable", typeName(receiver))
 	}
+}
+
+func isNullValue(value Value) bool {
+	_, ok := value.(nullValue)
+	return ok
 }
 
 func typeName(value Value) string {

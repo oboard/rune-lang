@@ -83,6 +83,17 @@
   @assert.eq(body.children[1].kind, "char")
 }
 
+? "selfhost parser reads null coalesce expression" {
+  source := "fallback(value: String?) -> String => value ?? \"missing\"\n"
+  file := parse(source)
+  body := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(body.kind, "binary")
+  @assert.eq(body.op, "??")
+  @assert.eq(body.children[0].kind, "identifier")
+  @assert.eq(body.children[1].kind, "string")
+}
+
 ? "selfhost parser detects object pattern branches" {
   source := "score(point) => point {\n  { x, .. } => x\n  _ => 0\n}\n"
   file := parse(source)

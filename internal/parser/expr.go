@@ -511,7 +511,7 @@ func (p *Parser) parseArrayLiteral() ast.Expr {
 
 func precedence(kind lexer.Kind) int {
 	switch kind {
-	case lexer.OrOr:
+	case lexer.QuestionQuestion, lexer.OrOr:
 		return 1
 	case lexer.AndAnd:
 		return 2

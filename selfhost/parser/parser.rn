@@ -1653,7 +1653,7 @@ functionToExpr(
 
 calleeText(expr: ParsedExpr) -> String => expr.name != "" ? expr.name : expr.value != "" ? expr.value : expr.text
 
-precedence(kind: String) -> Int => kind == "OrOr" ? 1 : kind == "AndAnd" ? 2 : kind == "BitOr" ? 3 : kind == "BitXor" ? 4 : kind == "BitAnd" ? 5 : (kind == "EqualEqual") || (kind == "BangEqual") ? 6 : ((((kind == "DotDotEqual") || (kind == "Less")) || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? 7 : ((kind == "ShiftLeft") || (kind == "ShiftRight")) || (kind == "UnsignedShiftRight") ? 8 : (kind == "Plus") || (kind == "Minus") ? 9 : ((kind == "Star") || (kind == "Slash")) || (kind == "Percent") ? 10 : 0
+precedence(kind: String) -> Int => (kind == "QuestionQuestion") || (kind == "OrOr") ? 1 : kind == "AndAnd" ? 2 : kind == "BitOr" ? 3 : kind == "BitXor" ? 4 : kind == "BitAnd" ? 5 : (kind == "EqualEqual") || (kind == "BangEqual") ? 6 : ((((kind == "DotDotEqual") || (kind == "Less")) || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? 7 : ((kind == "ShiftLeft") || (kind == "ShiftRight")) || (kind == "UnsignedShiftRight") ? 8 : (kind == "Plus") || (kind == "Minus") ? 9 : ((kind == "Star") || (kind == "Slash")) || (kind == "Percent") ? 10 : 0
 
 skipAnnotations(
   state: ParserState

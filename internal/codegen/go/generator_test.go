@@ -481,9 +481,10 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
     "a": 1,
     "b": 2
   }
-  @io.println(scores["a"])
+  @io.println(scores["a"] ?? 0)
   scores["b"] = 3
-  @io.println(scores["b"])
+  @io.println(scores["b"] ?? 0)
+  @io.println(scores["missing"] ?? 7)
 }
 `
 	file, parseErrs := parser.Parse(src)
@@ -500,9 +501,11 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 	}
 	wantParts := []string{
 		`__scores := map[string]int{"a": 1, "b": 2}`,
-		`fmt.Println(__scores["a"])`,
+		`if !__ok`,
+		`return __coalesce`,
+		`.(int)`,
 		`__scores["b"] = 3`,
-		`fmt.Println(__scores["b"])`,
+		`return 7`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

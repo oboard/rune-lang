@@ -80,6 +80,9 @@ func (l *Lexer) nextCode() Token {
 	case '}':
 		return l.token(RBrace)
 	case '?':
+		if l.match('?') {
+			return l.token(QuestionQuestion)
+		}
 		return l.token(Question)
 	case '+':
 		if l.match('+') {
@@ -315,6 +318,9 @@ func (l *Lexer) nextXMLExpr() Token {
 		}
 		return tok
 	case '?':
+		if l.match('?') {
+			return l.token(QuestionQuestion)
+		}
 		return l.token(Question)
 	case '+':
 		if l.match('+') {

@@ -8,11 +8,9 @@
   @assert.eq(scores.has("rune"), true)
   @assert.eq(scores.getOr("rune", 0), 10)
   @assert.eq(scores.getOr("missing", 7), 7)
-
   total ~= 0
-  scores.each((value, key) => total = total + value + key.length())
+  scores.each((value, key) => total = (total + value) + key.length())
   @assert.eq(total, 38)
-
   keys := scores.keys()
   values := scores.values()
   @assert.eq(keys.length(), 2)
@@ -27,20 +25,21 @@
 ? "map literal string keys" {
   scores := {
     "rune": 10,
-    "core": 20
+    "core": 20,
   }
   @assert.eq(scores.size(), 2)
   @assert.eq(scores.has("rune"), true)
   @assert.eq(scores["rune"], 10)
   @assert.eq(scores["core"], 20)
+  @assert.eq(scores["missing"], null)
+  @assert.eq(scores["missing"] ?? 7, 7)
+  @assert.eq(scores["rune"] ?? 0, 10)
   @assert.eq(scores.getOr("missing", 7), 7)
-
   scores["core"] = 25
   scores["new"] = 30
   @assert.eq(scores.size(), 3)
   @assert.eq(scores["core"], 25)
   @assert.eq(scores["new"], 30)
-
   total ~= 0
   scores.each((value) => total = total + value)
   @assert.eq(total, 65)
@@ -50,13 +49,12 @@
   doubled := {
     1: 2,
     2: 4,
-    3: 6
+    3: 6,
   }
   @assert.eq(doubled.size(), 3)
   @assert.eq(doubled[1], 2)
   @assert.eq(doubled[2], 4)
   @assert.eq(doubled[3], 6)
-
   doubled[4] = 8
   @assert.eq(doubled.size(), 4)
   @assert.eq(doubled[4], 8)
@@ -66,19 +64,19 @@
 ? "map literal bool and float keys" {
   flags := {
     true: "enabled",
-    false: "disabled"
+    false: "disabled",
   }
   @assert.eq(flags[true], "enabled")
   @assert.eq(flags[false], "disabled")
   flags[false] = "off"
   @assert.eq(flags[false], "off")
-
   weights := {
     1.5: "light",
-    2.5: "heavy"
+    2.5: "heavy",
   }
   @assert.eq(weights[1.5], "light")
   @assert.eq(weights[2.5], "heavy")
+  @assert.eq(weights[0.5] ?? "missing", "missing")
   weights[3.5] = "extra"
   @assert.eq(weights[3.5], "extra")
 }
@@ -92,14 +90,11 @@
   seen.add("a")
   @assert.eq(seen.size(), 2)
   @assert.eq(seen.has("a"), true)
-
   chars := seen.values()
   @assert.eq(chars.length(), 2)
-
   total ~= 0
   seen.each((value) => total = total + value.length())
   @assert.eq(total, 2)
-
   @assert.eq(seen.delete("a"), true)
   @assert.eq(seen.delete("a"), false)
   @assert.eq(seen.size(), 1)

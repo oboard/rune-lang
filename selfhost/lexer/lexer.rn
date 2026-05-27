@@ -185,7 +185,7 @@ scanToken(step) => {
     ']' => lexed(state, "RBracket")
     '{' => lexed(state, "LBrace")
     '}' => lexed(state, "RBrace")
-    '?' => lexed(state, "Question")
+    '?' => lexQuestion(state)
     '+' => lexPlus(state)
     '-' => lexMinus(state)
     '*' => lexed(state, "Star")
@@ -228,6 +228,11 @@ lexDotDot(state: LexState) -> Lexed => peek(state) {
 lexColon(state: LexState) -> Lexed => peek(state) {
   '=' => lexed(advanceState(state), "Declare")
   _ => lexed(state, "Colon")
+}
+
+lexQuestion(state: LexState) -> Lexed => peek(state) {
+  '?' => lexed(advanceState(state), "QuestionQuestion")
+  _ => lexed(state, "Question")
 }
 
 lexPlus(state: LexState) -> Lexed => peek(state) {

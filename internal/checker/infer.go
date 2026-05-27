@@ -345,6 +345,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)
 		switch e.Op {
+		case lexer.QuestionQuestion:
+			return c.nullCoalesceType(e, left, right)
 		case lexer.AndAnd, lexer.OrOr:
 			if left != Bool && left != Unknown {
 				c.errorf(e.Left.Position(), "operator '%s' expects Bool, got %s", e.Op, left)
@@ -452,6 +454,26 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 	default:
 		return Unknown
 	}
+}
+
+func (c *checker) nullCoalesceType(expr *ast.BinaryExpr, left Type, right Type) Type {
+	if left == Unknown || right == Unknown {
+		return Unknown
+	}
+	if left == Null {
+		return right
+	}
+	inner, ok := parseNullableType(string(left))
+	if !ok {
+		c.errorf(expr.Left.Position(), "operator '??' expects a nullable left operand, got %s", left)
+		return left
+	}
+	result, ok := c.unifyTypes(Type(inner), right)
+	if !ok {
+		c.errorf(expr.Pos, "operator '??' fallback has type %s, expected %s", right, Type(inner))
+		return Unknown
+	}
+	return result
 }
 
 func (c *checker) inferEnumMemberSelector(sel *ast.SelectorExpr, env map[string]Type) (Type, bool) {
@@ -796,6 +818,12 @@ func typesComparable(left Type, right Type) bool {
 	}
 	if left == Never || right == Never {
 		return true
+	}
+	if leftInner, ok := parseNullableType(string(left)); ok {
+		return right == Null || typesComparable(Type(leftInner), right)
+	}
+	if rightInner, ok := parseNullableType(string(right)); ok {
+		return left == Null || typesComparable(left, Type(rightInner))
 	}
 	return false
 }

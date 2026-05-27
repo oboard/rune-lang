@@ -33,6 +33,7 @@ const (
 	LBrace
 	RBrace
 	Question
+	QuestionQuestion
 
 	FatArrow
 	Assign
@@ -148,6 +149,8 @@ func (k Kind) String() string {
 		return "}"
 	case Question:
 		return "?"
+	case QuestionQuestion:
+		return "??"
 	case FatArrow:
 		return "=>"
 	case Assign:
