@@ -6,13 +6,10 @@ main() => {
   @io.println(first[0])
   @io.println(second[0])
   @io.println(third[0])
-
   @iter.range(4, 7).map((value) => value * 2).each((value) => @io.println(value))
-
   buffer := @stringbuffer.from("Rune")
   buffer.append(" core")
   @io.println(buffer.toString())
-
   @io.println(@path.basename("examples/core_modules.rn"))
   @io.println(@process.platform())
 }

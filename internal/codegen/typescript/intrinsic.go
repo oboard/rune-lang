@@ -45,9 +45,9 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
 		return g.numericIntrinsicCall(fn, args, call.ResultType()), true
-	case "binary.new", "binary.fromInts":
-		return g.binaryModuleCall(fn, args, call.ResultType()), true
-	case "buffer.new", "buffer.fromBinary", "reader.new", "writer.new", "writer.withCapacity":
+	case "bytes.new", "bytes.fromInts":
+		return g.bytesModuleCall(fn, args, call.ResultType()), true
+	case "buffer.new", "buffer.fromBytes", "reader.new", "writer.new", "writer.withCapacity":
 		return g.streamModuleCall(fn, args, call.ResultType()), true
 	case "fs.readFile":
 		if len(args) != 1 {
@@ -120,8 +120,8 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return expr, true
 		}
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
-	case strings.HasPrefix(fn.Intrinsic, "binary."):
-		return g.binaryReceiverCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "bytes."):
+		return g.bytesReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "buffer."):
 		return g.bufferReceiverCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "reader."):
@@ -307,11 +307,11 @@ func (g *generator) streamModuleCall(fn *stdlib.Function, args []string, resultT
 			return g.zeroValue(resultType)
 		}
 		return "new RuneBuffer()"
-	case "buffer.fromBinary":
+	case "buffer.fromBytes":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("RuneBuffer.fromBinary(%s)", args[0])
+		return fmt.Sprintf("RuneBuffer.fromBytes(%s)", args[0])
 	case "reader.new":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -365,14 +365,14 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	}
 }
 
-func (g *generator) binaryModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+func (g *generator) bytesModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
-	case "binary.new":
+	case "bytes.new":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("new DataView(new ArrayBuffer(%s))", args[0])
-	case "binary.fromInts":
+	case "bytes.fromInts":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
@@ -382,58 +382,58 @@ func (g *generator) binaryModuleCall(fn *stdlib.Function, args []string, resultT
 	}
 }
 
-func (g *generator) binaryReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+func (g *generator) bytesReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
-	case "binary.length":
+	case "bytes.length":
 		return receiver + ".byteLength"
-	case "binary.clone":
+	case "bytes.clone":
 		return fmt.Sprintf("((__view: DataView): DataView => new DataView(__view.buffer.slice(__view.byteOffset, __view.byteOffset + __view.byteLength)))(%s)", receiver)
-	case "binary.slice":
+	case "bytes.slice":
 		if len(args) != 2 {
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("((__view: DataView): DataView => new DataView(__view.buffer.slice(__view.byteOffset + %s, __view.byteOffset + %s)))(%s)", args[0], args[1], receiver)
-	case "binary.toInts":
+	case "bytes.toInts":
 		return fmt.Sprintf("Array.from(new Uint8Array(%s.buffer, %s.byteOffset, %s.byteLength))", receiver, receiver, receiver)
-	case "binary.getInt4":
+	case "bytes.getInt4":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("((__index: number): number => { const __byte = %s.getUint8(Math.trunc(__index / 2)); const __nibble = __index %% 2 === 0 ? (__byte >> 4) : (__byte & 0xf); return __nibble >= 8 ? __nibble - 16 : __nibble; })(%s)", receiver, args[0])
-	case "binary.setInt4":
+	case "bytes.setInt4":
 		if len(args) != 2 {
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("((__index: number, __value: number): number => { const __byteIndex = Math.trunc(__index / 2); const __old = %s.getUint8(__byteIndex); const __nibble = __value & 0xf; %s.setUint8(__byteIndex, __index %% 2 === 0 ? ((__old & 0x0f) | (__nibble << 4)) : ((__old & 0xf0) | __nibble)); return __value; })(%s, %s)", receiver, receiver, args[0], args[1])
 	}
-	if expr, ok := g.binaryDataViewCall(fn.Intrinsic, receiver, args, resultType); ok {
+	if expr, ok := g.bytesDataViewCall(fn.Intrinsic, receiver, args, resultType); ok {
 		return expr
 	}
 	return g.unsupportedIntrinsic(fn, resultType)
 }
 
-func (g *generator) binaryDataViewCall(intrinsic string, receiver string, args []string, resultType checker.Type) (string, bool) {
+func (g *generator) bytesDataViewCall(intrinsic string, receiver string, args []string, resultType checker.Type) (string, bool) {
 	methods := map[string]string{
-		"binary.getInt8":   "getInt8",
-		"binary.getUInt8":  "getUint8",
-		"binary.getInt16":  "getInt16",
-		"binary.getUInt16": "getUint16",
-		"binary.getInt":    "getInt32",
-		"binary.getUInt":   "getUint32",
-		"binary.getInt64":  "getBigInt64",
-		"binary.getUInt64": "getBigUint64",
-		"binary.getFloat":  "getFloat32",
-		"binary.getDouble": "getFloat64",
-		"binary.setInt8":   "setInt8",
-		"binary.setUInt8":  "setUint8",
-		"binary.setInt16":  "setInt16",
-		"binary.setUInt16": "setUint16",
-		"binary.setInt":    "setInt32",
-		"binary.setUInt":   "setUint32",
-		"binary.setInt64":  "setBigInt64",
-		"binary.setUInt64": "setBigUint64",
-		"binary.setFloat":  "setFloat32",
-		"binary.setDouble": "setFloat64",
+		"bytes.getInt8":   "getInt8",
+		"bytes.getUInt8":  "getUint8",
+		"bytes.getInt16":  "getInt16",
+		"bytes.getUInt16": "getUint16",
+		"bytes.getInt":    "getInt32",
+		"bytes.getUInt":   "getUint32",
+		"bytes.getInt64":  "getBigInt64",
+		"bytes.getUInt64": "getBigUint64",
+		"bytes.getFloat":  "getFloat32",
+		"bytes.getDouble": "getFloat64",
+		"bytes.setInt8":   "setInt8",
+		"bytes.setUInt8":  "setUint8",
+		"bytes.setInt16":  "setInt16",
+		"bytes.setUInt16": "setUint16",
+		"bytes.setInt":    "setInt32",
+		"bytes.setUInt":   "setUint32",
+		"bytes.setInt64":  "setBigInt64",
+		"bytes.setUInt64": "setBigUint64",
+		"bytes.setFloat":  "setFloat32",
+		"bytes.setDouble": "setFloat64",
 	}
 	method, ok := methods[intrinsic]
 	if !ok {
@@ -471,8 +471,8 @@ func (g *generator) bufferReceiverCall(fn *stdlib.Function, receiver string, arg
 		return receiver + ".clear()"
 	case "buffer.clone":
 		return receiver + ".clone()"
-	case "buffer.toBinary":
-		return receiver + ".toBinary()"
+	case "buffer.toBytes":
+		return receiver + ".toBytes()"
 	case "buffer.toInts":
 		return receiver + ".toInts()"
 	case "buffer.append":
@@ -485,11 +485,11 @@ func (g *generator) bufferReceiverCall(fn *stdlib.Function, receiver string, arg
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("%s.appendInt(%s)", receiver, args[0])
-	case "buffer.appendBinary":
+	case "buffer.appendBytes":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("%s.appendBinary(%s)", receiver, args[0])
+		return fmt.Sprintf("%s.appendBytes(%s)", receiver, args[0])
 	case "buffer.reader":
 		return receiver + ".reader()"
 	case "buffer.writer":
@@ -517,11 +517,11 @@ func (g *generator) readerReceiverCall(fn *stdlib.Function, receiver string, arg
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("%s.skip(%s)", receiver, args[0])
-	case "reader.readBinary":
+	case "reader.readBytes":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("%s.readBinary(%s)", receiver, args[0])
+		return fmt.Sprintf("%s.readBytes(%s)", receiver, args[0])
 	case "reader.readInt4":
 		return receiver + ".readInt4()"
 	}
@@ -566,15 +566,15 @@ func (g *generator) writerReceiverCall(fn *stdlib.Function, receiver string, arg
 		return receiver + ".position()"
 	case "writer.clear":
 		return receiver + ".clear()"
-	case "writer.toBinary":
-		return receiver + ".toBinary()"
+	case "writer.toBytes":
+		return receiver + ".toBytes()"
 	case "writer.toInts":
 		return receiver + ".toInts()"
-	case "writer.writeBinary":
+	case "writer.writeBytes":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
 		}
-		return fmt.Sprintf("%s.writeBinary(%s)", receiver, args[0])
+		return fmt.Sprintf("%s.writeBytes(%s)", receiver, args[0])
 	case "writer.writeInt4":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)

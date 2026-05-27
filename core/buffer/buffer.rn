@@ -1,6 +1,6 @@
 new() -> Buffer => "%buffer.new"
 
-fromBinary(value: Binary) -> Buffer => "%buffer.fromBinary"
+fromBytes(value: Bytes) -> Buffer => "%buffer.fromBytes"
 
 Buffer: {
   length() -> Int => "%buffer.length"
@@ -13,7 +13,7 @@ Buffer: {
 
   clone() -> Buffer => "%buffer.clone"
 
-  toBinary() -> Binary => "%buffer.toBinary"
+  toBytes() -> Bytes => "%buffer.toBytes"
 
   toInts() -> Array[Int] => "%buffer.toInts"
 
@@ -21,7 +21,7 @@ Buffer: {
 
   appendInt(value: Int) -> Buffer => "%buffer.appendInt"
 
-  appendBinary(value: Binary) -> Buffer => "%buffer.appendBinary"
+  appendBytes(value: Bytes) -> Buffer => "%buffer.appendBytes"
 
   reader() -> Reader => "%buffer.reader"
 

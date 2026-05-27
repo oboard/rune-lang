@@ -3,9 +3,9 @@
 The Rune CLI lives at `cmd/rune`.
 
 ```text
-rune check <file.rn>   Parse and type-check a Rune program
-rune fmt <file.rn>     Format a Rune source file
-rune run <file.rn>     Compile and run a Rune program
+rune check <path>      Parse and type-check a file or directory
+rune fmt <path>        Format a file or directory (alias: format)
+rune run <path>        Run a file, or a directory with one main
 rune build <file.rn>   Compile a Rune program to an executable
 rune ts <file.rn>      Compile a Rune program to TypeScript
 rune repl              Start the Rune REPL
@@ -16,6 +16,7 @@ Use it through `go run` during development:
 
 ```sh
 go run ./cmd/rune check examples/fib.rn
+go run ./cmd/rune check core
 go run ./cmd/rune run examples/fib.rn
 go run ./cmd/rune ts examples/counter.rn
 ```

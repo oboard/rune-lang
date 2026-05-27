@@ -29,6 +29,7 @@ Or run the toolchain directly:
 
 ```sh
 go run ./cmd/rune check examples/fib.rn
+go run ./cmd/rune check core
 go run ./cmd/rune fmt examples/fib.rn
 go run ./cmd/rune run examples/fib.rn
 go run ./cmd/rune build -o /tmp/rune-fib examples/fib.rn
@@ -46,9 +47,9 @@ go build -o .bin/rune ./cmd/rune
 ## CLI
 
 ```text
-rune check <file.rn>   Parse and type-check a Rune program
-rune fmt <file.rn>     Format a Rune source file
-rune run <file.rn>     Compile and run a Rune program
+rune check <path>      Parse and type-check a file or directory
+rune fmt <path>        Format a file or directory (alias: format)
+rune run <path>        Run a file, or a directory with one main
 rune build <file.rn>   Compile a Rune program to an executable
 rune ts <file.rn>      Compile a Rune program to TypeScript
 rune repl              Start the Rune REPL
@@ -271,7 +272,7 @@ Currently included modules:
 
 ```text
 core/array
-core/binary
+core/bytes
 core/buffer
 core/compress
 core/fs

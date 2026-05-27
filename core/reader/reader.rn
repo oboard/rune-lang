@@ -1,4 +1,4 @@
-new(value: Binary) -> Reader => "%reader.new"
+new(value: Bytes) -> Reader => "%reader.new"
 
 Reader: {
   length() -> Int => "%reader.length"
@@ -15,9 +15,9 @@ Reader: {
 
   skip(count: Int) -> Int => "%reader.skip"
 
-  read(length: Int) -> Binary => "%reader.readBinary"
+  read(length: Int) -> Bytes => "%reader.readBytes"
 
-  readBinary(length: Int) -> Binary => "%reader.readBinary"
+  readBytes(length: Int) -> Bytes => "%reader.readBytes"
 
   readInt4() -> Int4 => "%reader.readInt4"
 

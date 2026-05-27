@@ -120,7 +120,7 @@ func tsType(typ checker.Type) string {
 		return "null"
 	case checker.Object:
 		return "object"
-	case checker.Binary:
+	case checker.Bytes:
 		return "DataView"
 	case checker.Buffer:
 		return "RuneBuffer"
@@ -298,7 +298,7 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `/(?:)/`
-	case checker.Binary:
+	case checker.Bytes:
 		return "new DataView(new ArrayBuffer(0))"
 	case checker.Buffer:
 		return "new RuneBuffer()"

@@ -405,11 +405,11 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 		if _, ok := right.(string); ok {
 			return nil, fmt.Errorf("string concatenation expects String")
 		}
-		return evalNumericBinary(expr.Op, left, right)
+		return evalNumericBytes(expr.Op, left, right)
 	case lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
-		return evalNumericBinary(expr.Op, left, right)
+		return evalNumericBytes(expr.Op, left, right)
 	case lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
-		return evalBitwiseBinary(expr.Op, left, right)
+		return evalBitwiseBytes(expr.Op, left, right)
 	case lexer.EqualEqual:
 		return reflect.DeepEqual(left, right), nil
 	case lexer.BangEqual:
@@ -420,68 +420,68 @@ func (i *Interpreter) evalBinary(expr *ir.BinaryExpr, env *Env) (Value, error) {
 	return nil, fmt.Errorf("unsupported binary operator %s", expr.Op)
 }
 
-func evalNumericBinary(op lexer.Kind, left Value, right Value) (Value, error) {
+func evalNumericBytes(op lexer.Kind, left Value, right Value) (Value, error) {
 	switch l := left.(type) {
 	case int:
 		r, ok := right.(int)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalSignedNumericBinary(op, l, r)
+		return evalSignedNumericBytes(op, l, r)
 	case int8:
 		r, ok := right.(int8)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalSignedNumericBinary(op, l, r)
+		return evalSignedNumericBytes(op, l, r)
 	case int16:
 		r, ok := right.(int16)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalSignedNumericBinary(op, l, r)
+		return evalSignedNumericBytes(op, l, r)
 	case int64:
 		r, ok := right.(int64)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalSignedNumericBinary(op, l, r)
+		return evalSignedNumericBytes(op, l, r)
 	case uint:
 		r, ok := right.(uint)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalUnsignedNumericBinary(op, l, r)
+		return evalUnsignedNumericBytes(op, l, r)
 	case uint8:
 		r, ok := right.(uint8)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalUnsignedNumericBinary(op, l, r)
+		return evalUnsignedNumericBytes(op, l, r)
 	case uint16:
 		r, ok := right.(uint16)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalUnsignedNumericBinary(op, l, r)
+		return evalUnsignedNumericBytes(op, l, r)
 	case uint64:
 		r, ok := right.(uint64)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalUnsignedNumericBinary(op, l, r)
+		return evalUnsignedNumericBytes(op, l, r)
 	case float32:
 		r, ok := right.(float32)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalFloatNumericBinary(op, l, r)
+		return evalFloatNumericBytes(op, l, r)
 	case float64:
 		r, ok := right.(float64)
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalFloatNumericBinary(op, l, r)
+		return evalFloatNumericBytes(op, l, r)
 	case *big.Int:
 		r, ok := right.(*big.Int)
 		if !ok {
@@ -516,7 +516,7 @@ type floatNumber interface {
 	~float32 | ~float64
 }
 
-func evalSignedNumericBinary[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
+func evalSignedNumericBytes[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
 	switch op {
 	case lexer.Plus:
 		return left + right, nil
@@ -533,7 +533,7 @@ func evalSignedNumericBinary[T signedNumber](op lexer.Kind, left T, right T) (Va
 	}
 }
 
-func evalUnsignedNumericBinary[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
+func evalUnsignedNumericBytes[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
 	switch op {
 	case lexer.Plus:
 		return left + right, nil
@@ -550,7 +550,7 @@ func evalUnsignedNumericBinary[T unsignedNumber](op lexer.Kind, left T, right T)
 	}
 }
 
-func evalFloatNumericBinary[T floatNumber](op lexer.Kind, left T, right T) (Value, error) {
+func evalFloatNumericBytes[T floatNumber](op lexer.Kind, left T, right T) (Value, error) {
 	switch op {
 	case lexer.Plus:
 		return left + right, nil
@@ -567,68 +567,68 @@ func evalFloatNumericBinary[T floatNumber](op lexer.Kind, left T, right T) (Valu
 	}
 }
 
-func evalBitwiseBinary(op lexer.Kind, left Value, right Value) (Value, error) {
+func evalBitwiseBytes(op lexer.Kind, left Value, right Value) (Value, error) {
 	switch l := left.(type) {
 	case int:
 		r, ok := right.(int)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalSignedBitwiseBinary(op, l, r)
+		return evalSignedBitwiseBytes(op, l, r)
 	case int8:
 		r, ok := right.(int8)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalSignedBitwiseBinary(op, l, r)
+		return evalSignedBitwiseBytes(op, l, r)
 	case int16:
 		r, ok := right.(int16)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalSignedBitwiseBinary(op, l, r)
+		return evalSignedBitwiseBytes(op, l, r)
 	case int64:
 		r, ok := right.(int64)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalSignedBitwiseBinary(op, l, r)
+		return evalSignedBitwiseBytes(op, l, r)
 	case uint:
 		r, ok := right.(uint)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalUnsignedBitwiseBinary(op, l, r)
+		return evalUnsignedBitwiseBytes(op, l, r)
 	case uint8:
 		r, ok := right.(uint8)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalUnsignedBitwiseBinary(op, l, r)
+		return evalUnsignedBitwiseBytes(op, l, r)
 	case uint16:
 		r, ok := right.(uint16)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalUnsignedBitwiseBinary(op, l, r)
+		return evalUnsignedBitwiseBytes(op, l, r)
 	case uint64:
 		r, ok := right.(uint64)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalUnsignedBitwiseBinary(op, l, r)
+		return evalUnsignedBitwiseBytes(op, l, r)
 	case *big.Int:
 		r, ok := right.(*big.Int)
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalBigIntBitwiseBinary(op, l, r)
+		return evalBigIntBitwiseBytes(op, l, r)
 	default:
 		return nil, fmt.Errorf("bitwise operator expects integer operands")
 	}
 }
 
-func evalSignedBitwiseBinary[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
+func evalSignedBitwiseBytes[T signedNumber](op lexer.Kind, left T, right T) (Value, error) {
 	switch op {
 	case lexer.BitAnd:
 		return left & right, nil
@@ -653,7 +653,7 @@ func evalSignedBitwiseBinary[T signedNumber](op lexer.Kind, left T, right T) (Va
 	}
 }
 
-func evalUnsignedBitwiseBinary[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
+func evalUnsignedBitwiseBytes[T unsignedNumber](op lexer.Kind, left T, right T) (Value, error) {
 	switch op {
 	case lexer.BitAnd:
 		return left & right, nil
@@ -670,7 +670,7 @@ func evalUnsignedBitwiseBinary[T unsignedNumber](op lexer.Kind, left T, right T)
 	}
 }
 
-func evalBigIntBitwiseBinary(op lexer.Kind, left *big.Int, right *big.Int) (Value, error) {
+func evalBigIntBitwiseBytes(op lexer.Kind, left *big.Int, right *big.Int) (Value, error) {
 	out := new(big.Int)
 	switch op {
 	case lexer.BitAnd:
@@ -956,8 +956,8 @@ func typeName(value Value) string {
 		return "Map"
 	case *Set:
 		return "Set"
-	case *Binary:
-		return string(checker.Binary)
+	case *Bytes:
+		return string(checker.Bytes)
 	case *Buffer:
 		return string(checker.Buffer)
 	case *Reader:

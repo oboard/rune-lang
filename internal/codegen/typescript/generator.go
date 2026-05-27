@@ -62,8 +62,8 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.netRuntime()
 		g.line("")
 	}
-	if fileUsesBinaryRuntime(usage) {
-		g.binaryRuntime()
+	if fileUsesBytesRuntime(usage) {
+		g.bytesRuntime()
 		g.line("")
 	}
 	if fileUsesSignals(usage) {
@@ -557,7 +557,7 @@ func join(parts []string, sep string) string {
 	return out
 }
 
-func fileUsesBinaryRuntime(usage codeusage.Usage) bool {
+func fileUsesBytesRuntime(usage codeusage.Usage) bool {
 	return fileUsesType(usage, checker.Buffer) ||
 		fileUsesType(usage, checker.Reader) ||
 		fileUsesType(usage, checker.Writer)

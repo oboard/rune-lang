@@ -31,7 +31,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesTemplateRuntime(usage) {
 		g.imports["fmt"] = true
 	}
-	if fileUsesBinaryRuntime(usage) {
+	if fileUsesBytesRuntime(usage) {
 		g.imports["encoding/binary"] = true
 		g.imports["math"] = true
 	}
@@ -126,8 +126,8 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
-	if fileUsesBinaryRuntime(usage) {
-		g.binaryRuntime()
+	if fileUsesBytesRuntime(usage) {
+		g.bytesRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -237,8 +237,8 @@ func fileUsesType(usage codeusage.Usage, typ checker.Type) bool {
 	return usage.HasType(typ)
 }
 
-func fileUsesBinaryRuntime(usage codeusage.Usage) bool {
-	return fileUsesType(usage, checker.Binary) ||
+func fileUsesBytesRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.Bytes) ||
 		fileUsesType(usage, checker.Buffer) ||
 		fileUsesType(usage, checker.Reader) ||
 		fileUsesType(usage, checker.Writer)

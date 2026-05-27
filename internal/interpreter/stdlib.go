@@ -45,73 +45,73 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
 		return callNumericIntrinsic(fn.Intrinsic, values)
-	case "binary.new":
+	case "bytes.new":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@binary.new expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@bytes.new expects 1 arg, got %d", len(values))
 		}
 		length, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("@binary.new length expects Int")
+			return nil, fmt.Errorf("@bytes.new length expects Int")
 		}
 		if length < 0 {
-			return nil, fmt.Errorf("@binary.new length out of range")
+			return nil, fmt.Errorf("@bytes.new length out of range")
 		}
-		return &Binary{Data: make([]byte, length)}, nil
-	case "binary.fromInts":
+		return &Bytes{Data: make([]byte, length)}, nil
+	case "bytes.fromInts":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@binary.fromInts expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@bytes.fromInts expects 1 arg, got %d", len(values))
 		}
 		array, ok := values[0].(*Array)
 		if !ok {
-			return nil, fmt.Errorf("@binary.fromInts expects Array[Int]")
+			return nil, fmt.Errorf("@bytes.fromInts expects Array[Int]")
 		}
 		out := make([]byte, len(array.Elements))
 		for idx, elem := range array.Elements {
 			value, ok := elem.(int)
 			if !ok {
-				return nil, fmt.Errorf("@binary.fromInts element %d expects Int", idx)
+				return nil, fmt.Errorf("@bytes.fromInts element %d expects Int", idx)
 			}
 			out[idx] = byte(value)
 		}
-		return &Binary{Data: out}, nil
+		return &Bytes{Data: out}, nil
 	case "buffer.new":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("@binary.newBuffer expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("@buffer.new expects 0 args, got %d", len(values))
 		}
 		return &Buffer{}, nil
-	case "buffer.fromBinary":
+	case "buffer.fromBytes":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@binary.bufferFromBinary expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@buffer.fromBytes expects 1 arg, got %d", len(values))
 		}
-		value, ok := values[0].(*Binary)
+		value, ok := values[0].(*Bytes)
 		if !ok {
-			return nil, fmt.Errorf("@binary.bufferFromBinary expects Binary")
+			return nil, fmt.Errorf("@buffer.fromBytes expects Bytes")
 		}
 		return &Buffer{Data: append([]byte(nil), value.Data...)}, nil
 	case "reader.new":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@binary.newReader expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@reader.new expects 1 arg, got %d", len(values))
 		}
-		value, ok := values[0].(*Binary)
+		value, ok := values[0].(*Bytes)
 		if !ok {
-			return nil, fmt.Errorf("@binary.newReader expects Binary")
+			return nil, fmt.Errorf("@reader.new expects Bytes")
 		}
 		return &Reader{Data: append([]byte(nil), value.Data...)}, nil
 	case "writer.new":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("@binary.newWriter expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("@writer.new expects 0 args, got %d", len(values))
 		}
 		return &Writer{}, nil
 	case "writer.withCapacity":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("@binary.writerWithCapacity expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("@writer.withCapacity expects 1 arg, got %d", len(values))
 		}
 		capacity, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("@binary.writerWithCapacity expects Int")
+			return nil, fmt.Errorf("@writer.withCapacity expects Int")
 		}
 		if capacity < 0 {
-			return nil, fmt.Errorf("@binary.writerWithCapacity capacity out of range")
+			return nil, fmt.Errorf("@writer.withCapacity capacity out of range")
 		}
 		return &Writer{Data: make([]byte, 0, capacity)}, nil
 	case "stringbuffer.new":
@@ -477,261 +477,261 @@ func (i *Interpreter) callStringBufferMethod(value *StringBuffer, name string, a
 	}
 }
 
-func (i *Interpreter) callBinaryMethod(value *Binary, name string, args []ir.Expr, env *Env) (Value, error) {
+func (i *Interpreter) callBytesMethod(value *Bytes, name string, args []ir.Expr, env *Env) (Value, error) {
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
-	fn, ok := i.file.Stdlib.ReceiverFunction("binary", "Binary", name)
+	fn, ok := i.file.Stdlib.ReceiverFunction("bytes", "Bytes", name)
 	if !ok {
-		return nil, fmt.Errorf("type Binary has no method %q", name)
+		return nil, fmt.Errorf("type Bytes has no method %q", name)
 	}
 	values, err := i.evalArgs(args, env)
 	if err != nil {
 		return nil, err
 	}
 	switch fn.Intrinsic {
-	case "binary.length":
+	case "bytes.length":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("binary.%s expects 0 args, got %d", name, len(values))
+			return nil, fmt.Errorf("bytes.%s expects 0 args, got %d", name, len(values))
 		}
 		return len(value.Data), nil
-	case "binary.clone":
+	case "bytes.clone":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("binary.clone expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("bytes.clone expects 0 args, got %d", len(values))
 		}
-		return &Binary{Data: append([]byte(nil), value.Data...)}, nil
-	case "binary.slice":
+		return &Bytes{Data: append([]byte(nil), value.Data...)}, nil
+	case "bytes.slice":
 		if len(values) != 2 {
-			return nil, fmt.Errorf("binary.slice expects 2 args, got %d", len(values))
+			return nil, fmt.Errorf("bytes.slice expects 2 args, got %d", len(values))
 		}
 		start, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("binary.slice start expects Int")
+			return nil, fmt.Errorf("bytes.slice start expects Int")
 		}
 		end, ok := values[1].(int)
 		if !ok {
-			return nil, fmt.Errorf("binary.slice end expects Int")
+			return nil, fmt.Errorf("bytes.slice end expects Int")
 		}
-		if err := checkBinaryRange(value, start, end-start); err != nil {
+		if err := checkBytesRange(value, start, end-start); err != nil {
 			return nil, err
 		}
-		return &Binary{Data: append([]byte(nil), value.Data[start:end]...)}, nil
-	case "binary.toInts":
+		return &Bytes{Data: append([]byte(nil), value.Data[start:end]...)}, nil
+	case "bytes.toInts":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("binary.toInts expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("bytes.toInts expects 0 args, got %d", len(values))
 		}
 		out := &Array{Elements: make([]Value, 0, len(value.Data))}
 		for _, b := range value.Data {
 			out.Elements = append(out.Elements, int(b))
 		}
 		return out, nil
-	case "binary.getInt4":
-		offset, err := binaryOffset(values, 1, name)
+	case "bytes.getInt4":
+		offset, err := bytesOffset(values, 1, name)
 		if err != nil {
 			return nil, err
 		}
-		return binaryGetInt4(value, offset)
-	case "binary.setInt4":
+		return bytesGetInt4(value, offset)
+	case "bytes.setInt4":
 		if len(values) != 2 {
-			return nil, fmt.Errorf("binary.%s expects 2 args, got %d", name, len(values))
+			return nil, fmt.Errorf("bytes.%s expects 2 args, got %d", name, len(values))
 		}
 		offset, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("binary.%s offset expects Int", name)
+			return nil, fmt.Errorf("bytes.%s offset expects Int", name)
 		}
 		n, ok := values[1].(int8)
 		if !ok {
-			return nil, fmt.Errorf("binary.%s value expects Int4", name)
+			return nil, fmt.Errorf("bytes.%s value expects Int4", name)
 		}
-		return binarySetInt4(value, offset, n)
+		return bytesSetInt4(value, offset, n)
 	}
-	if result, ok, err := callBinaryDataViewMethod(value, name, fn.Intrinsic, values); ok || err != nil {
+	if result, ok, err := callBytesDataViewMethod(value, name, fn.Intrinsic, values); ok || err != nil {
 		return result, err
 	}
-	return nil, fmt.Errorf("binary.%s is not supported by the interpreter", name)
+	return nil, fmt.Errorf("bytes.%s is not supported by the interpreter", name)
 }
 
-func callBinaryDataViewMethod(value *Binary, name string, intrinsic string, values []Value) (Value, bool, error) {
+func callBytesDataViewMethod(value *Bytes, name string, intrinsic string, values []Value) (Value, bool, error) {
 	switch intrinsic {
-	case "binary.getInt8":
-		offset, err := binaryOffset(values, 1, name)
+	case "bytes.getInt8":
+		offset, err := bytesOffset(values, 1, name)
 		if err != nil {
 			return nil, true, err
 		}
-		if err := checkBinaryRange(value, offset, 1); err != nil {
+		if err := checkBytesRange(value, offset, 1); err != nil {
 			return nil, true, err
 		}
 		return int8(value.Data[offset]), true, nil
-	case "binary.setInt8":
-		offset, err := binaryOffset(values, 2, name)
+	case "bytes.setInt8":
+		offset, err := bytesOffset(values, 2, name)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(int8)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Int8", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Int8", name)
 		}
-		if err := checkBinaryRange(value, offset, 1); err != nil {
+		if err := checkBytesRange(value, offset, 1); err != nil {
 			return nil, true, err
 		}
 		value.Data[offset] = byte(n)
 		return n, true, nil
-	case "binary.getUInt8":
-		offset, err := binaryOffset(values, 1, name)
+	case "bytes.getUInt8":
+		offset, err := bytesOffset(values, 1, name)
 		if err != nil {
 			return nil, true, err
 		}
-		if err := checkBinaryRange(value, offset, 1); err != nil {
+		if err := checkBytesRange(value, offset, 1); err != nil {
 			return nil, true, err
 		}
 		return value.Data[offset], true, nil
-	case "binary.setUInt8":
-		offset, err := binaryOffset(values, 2, name)
+	case "bytes.setUInt8":
+		offset, err := bytesOffset(values, 2, name)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(uint8)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects UInt8", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects UInt8", name)
 		}
-		if err := checkBinaryRange(value, offset, 1); err != nil {
+		if err := checkBytesRange(value, offset, 1); err != nil {
 			return nil, true, err
 		}
 		value.Data[offset] = n
 		return n, true, nil
-	case "binary.getInt16":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 2)
+	case "bytes.getInt16":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 2)
 		if err != nil {
 			return nil, true, err
 		}
 		return int16(order.Uint16(value.Data[offset:])), true, nil
-	case "binary.setInt16":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 2)
+	case "bytes.setInt16":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 2)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(int16)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Int16", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Int16", name)
 		}
 		order.PutUint16(value.Data[offset:], uint16(n))
 		return n, true, nil
-	case "binary.getUInt16":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 2)
+	case "bytes.getUInt16":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 2)
 		if err != nil {
 			return nil, true, err
 		}
 		return order.Uint16(value.Data[offset:]), true, nil
-	case "binary.setUInt16":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 2)
+	case "bytes.setUInt16":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 2)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(uint16)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects UInt16", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects UInt16", name)
 		}
 		order.PutUint16(value.Data[offset:], n)
 		return n, true, nil
-	case "binary.getInt":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 4)
+	case "bytes.getInt":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		return int(int32(order.Uint32(value.Data[offset:]))), true, nil
-	case "binary.setInt":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 4)
+	case "bytes.setInt":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(int)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Int", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Int", name)
 		}
 		order.PutUint32(value.Data[offset:], uint32(int32(n)))
 		return n, true, nil
-	case "binary.getUInt":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 4)
+	case "bytes.getUInt":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		return uint(order.Uint32(value.Data[offset:])), true, nil
-	case "binary.setUInt":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 4)
+	case "bytes.setUInt":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(uint)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects UInt", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects UInt", name)
 		}
 		order.PutUint32(value.Data[offset:], uint32(n))
 		return n, true, nil
-	case "binary.getInt64":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 8)
+	case "bytes.getInt64":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		return int64(order.Uint64(value.Data[offset:])), true, nil
-	case "binary.setInt64":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 8)
+	case "bytes.setInt64":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(int64)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Int64", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Int64", name)
 		}
 		order.PutUint64(value.Data[offset:], uint64(n))
 		return n, true, nil
-	case "binary.getUInt64":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 8)
+	case "bytes.getUInt64":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		return order.Uint64(value.Data[offset:]), true, nil
-	case "binary.setUInt64":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 8)
+	case "bytes.setUInt64":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(uint64)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects UInt64", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects UInt64", name)
 		}
 		order.PutUint64(value.Data[offset:], n)
 		return n, true, nil
-	case "binary.getFloat":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 4)
+	case "bytes.getFloat":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		return math.Float32frombits(order.Uint32(value.Data[offset:])), true, nil
-	case "binary.setFloat":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 4)
+	case "bytes.setFloat":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 4)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(float32)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Float", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Float", name)
 		}
 		order.PutUint32(value.Data[offset:], math.Float32bits(n))
 		return n, true, nil
-	case "binary.getDouble":
-		offset, order, err := binaryOffsetOrder(value, values, 2, name, 8)
+	case "bytes.getDouble":
+		offset, order, err := bytesOffsetOrder(value, values, 2, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		return math.Float64frombits(order.Uint64(value.Data[offset:])), true, nil
-	case "binary.setDouble":
-		offset, order, err := binaryOffsetOrder(value, values, 3, name, 8)
+	case "bytes.setDouble":
+		offset, order, err := bytesOffsetOrder(value, values, 3, name, 8)
 		if err != nil {
 			return nil, true, err
 		}
 		n, ok := values[1].(float64)
 		if !ok {
-			return nil, true, fmt.Errorf("binary.%s value expects Double", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Double", name)
 		}
 		order.PutUint64(value.Data[offset:], math.Float64bits(n))
 		return n, true, nil
@@ -740,27 +740,27 @@ func callBinaryDataViewMethod(value *Binary, name string, intrinsic string, valu
 	}
 }
 
-func binaryOffset(values []Value, expected int, name string) (int, error) {
+func bytesOffset(values []Value, expected int, name string) (int, error) {
 	if len(values) != expected {
-		return 0, fmt.Errorf("binary.%s expects %d args, got %d", name, expected, len(values))
+		return 0, fmt.Errorf("bytes.%s expects %d args, got %d", name, expected, len(values))
 	}
 	offset, ok := values[0].(int)
 	if !ok {
-		return 0, fmt.Errorf("binary.%s offset expects Int", name)
+		return 0, fmt.Errorf("bytes.%s offset expects Int", name)
 	}
 	return offset, nil
 }
 
-func binaryOffsetOrder(value *Binary, values []Value, expected int, name string, size int) (int, binary.ByteOrder, error) {
-	offset, err := binaryOffset(values, expected, name)
+func bytesOffsetOrder(value *Bytes, values []Value, expected int, name string, size int) (int, binary.ByteOrder, error) {
+	offset, err := bytesOffset(values, expected, name)
 	if err != nil {
 		return 0, nil, err
 	}
 	littleEndian, ok := values[expected-1].(bool)
 	if !ok {
-		return 0, nil, fmt.Errorf("binary.%s littleEndian expects Bool", name)
+		return 0, nil, fmt.Errorf("bytes.%s littleEndian expects Bool", name)
 	}
-	if err := checkBinaryRange(value, offset, size); err != nil {
+	if err := checkBytesRange(value, offset, size); err != nil {
 		return 0, nil, err
 	}
 	if littleEndian {
@@ -769,136 +769,136 @@ func binaryOffsetOrder(value *Binary, values []Value, expected int, name string,
 	return offset, binary.BigEndian, nil
 }
 
-func checkBinaryRange(value *Binary, offset int, size int) error {
+func checkBytesRange(value *Bytes, offset int, size int) error {
 	if offset < 0 || size < 0 || offset+size > len(value.Data) {
-		return fmt.Errorf("binary offset out of range")
+		return fmt.Errorf("bytes offset out of range")
 	}
 	return nil
 }
 
-func (b *Binary) GetInt8(offset int) int8 {
-	_ = checkBinaryRange(b, offset, 1)
+func (b *Bytes) GetInt8(offset int) int8 {
+	_ = checkBytesRange(b, offset, 1)
 	return int8(b.Data[offset])
 }
 
-func (b *Binary) SetInt8(offset int, value int8) int8 {
-	_ = checkBinaryRange(b, offset, 1)
+func (b *Bytes) SetInt8(offset int, value int8) int8 {
+	_ = checkBytesRange(b, offset, 1)
 	b.Data[offset] = byte(value)
 	return value
 }
 
-func (b *Binary) GetUInt8(offset int) uint8 {
-	_ = checkBinaryRange(b, offset, 1)
+func (b *Bytes) GetUInt8(offset int) uint8 {
+	_ = checkBytesRange(b, offset, 1)
 	return b.Data[offset]
 }
 
-func (b *Binary) SetUInt8(offset int, value uint8) uint8 {
-	_ = checkBinaryRange(b, offset, 1)
+func (b *Bytes) SetUInt8(offset int, value uint8) uint8 {
+	_ = checkBytesRange(b, offset, 1)
 	b.Data[offset] = value
 	return value
 }
 
-func (b *Binary) GetInt16(offset int, littleEndian bool) int16 {
-	_ = checkBinaryRange(b, offset, 2)
-	return int16(binaryOrder(littleEndian).Uint16(b.Data[offset:]))
+func (b *Bytes) GetInt16(offset int, littleEndian bool) int16 {
+	_ = checkBytesRange(b, offset, 2)
+	return int16(bytesOrder(littleEndian).Uint16(b.Data[offset:]))
 }
 
-func (b *Binary) SetInt16(offset int, value int16, littleEndian bool) int16 {
-	_ = checkBinaryRange(b, offset, 2)
-	binaryOrder(littleEndian).PutUint16(b.Data[offset:], uint16(value))
+func (b *Bytes) SetInt16(offset int, value int16, littleEndian bool) int16 {
+	_ = checkBytesRange(b, offset, 2)
+	bytesOrder(littleEndian).PutUint16(b.Data[offset:], uint16(value))
 	return value
 }
 
-func (b *Binary) GetUInt16(offset int, littleEndian bool) uint16 {
-	_ = checkBinaryRange(b, offset, 2)
-	return binaryOrder(littleEndian).Uint16(b.Data[offset:])
+func (b *Bytes) GetUInt16(offset int, littleEndian bool) uint16 {
+	_ = checkBytesRange(b, offset, 2)
+	return bytesOrder(littleEndian).Uint16(b.Data[offset:])
 }
 
-func (b *Binary) SetUInt16(offset int, value uint16, littleEndian bool) uint16 {
-	_ = checkBinaryRange(b, offset, 2)
-	binaryOrder(littleEndian).PutUint16(b.Data[offset:], value)
+func (b *Bytes) SetUInt16(offset int, value uint16, littleEndian bool) uint16 {
+	_ = checkBytesRange(b, offset, 2)
+	bytesOrder(littleEndian).PutUint16(b.Data[offset:], value)
 	return value
 }
 
-func (b *Binary) GetInt(offset int, littleEndian bool) int {
-	_ = checkBinaryRange(b, offset, 4)
-	return int(int32(binaryOrder(littleEndian).Uint32(b.Data[offset:])))
+func (b *Bytes) GetInt(offset int, littleEndian bool) int {
+	_ = checkBytesRange(b, offset, 4)
+	return int(int32(bytesOrder(littleEndian).Uint32(b.Data[offset:])))
 }
 
-func (b *Binary) SetInt(offset int, value int, littleEndian bool) int {
-	_ = checkBinaryRange(b, offset, 4)
-	binaryOrder(littleEndian).PutUint32(b.Data[offset:], uint32(int32(value)))
+func (b *Bytes) SetInt(offset int, value int, littleEndian bool) int {
+	_ = checkBytesRange(b, offset, 4)
+	bytesOrder(littleEndian).PutUint32(b.Data[offset:], uint32(int32(value)))
 	return value
 }
 
-func (b *Binary) GetUInt(offset int, littleEndian bool) uint {
-	_ = checkBinaryRange(b, offset, 4)
-	return uint(binaryOrder(littleEndian).Uint32(b.Data[offset:]))
+func (b *Bytes) GetUInt(offset int, littleEndian bool) uint {
+	_ = checkBytesRange(b, offset, 4)
+	return uint(bytesOrder(littleEndian).Uint32(b.Data[offset:]))
 }
 
-func (b *Binary) SetUInt(offset int, value uint, littleEndian bool) uint {
-	_ = checkBinaryRange(b, offset, 4)
-	binaryOrder(littleEndian).PutUint32(b.Data[offset:], uint32(value))
+func (b *Bytes) SetUInt(offset int, value uint, littleEndian bool) uint {
+	_ = checkBytesRange(b, offset, 4)
+	bytesOrder(littleEndian).PutUint32(b.Data[offset:], uint32(value))
 	return value
 }
 
-func (b *Binary) GetInt64(offset int, littleEndian bool) int64 {
-	_ = checkBinaryRange(b, offset, 8)
-	return int64(binaryOrder(littleEndian).Uint64(b.Data[offset:]))
+func (b *Bytes) GetInt64(offset int, littleEndian bool) int64 {
+	_ = checkBytesRange(b, offset, 8)
+	return int64(bytesOrder(littleEndian).Uint64(b.Data[offset:]))
 }
 
-func (b *Binary) SetInt64(offset int, value int64, littleEndian bool) int64 {
-	_ = checkBinaryRange(b, offset, 8)
-	binaryOrder(littleEndian).PutUint64(b.Data[offset:], uint64(value))
+func (b *Bytes) SetInt64(offset int, value int64, littleEndian bool) int64 {
+	_ = checkBytesRange(b, offset, 8)
+	bytesOrder(littleEndian).PutUint64(b.Data[offset:], uint64(value))
 	return value
 }
 
-func (b *Binary) GetUInt64(offset int, littleEndian bool) uint64 {
-	_ = checkBinaryRange(b, offset, 8)
-	return binaryOrder(littleEndian).Uint64(b.Data[offset:])
+func (b *Bytes) GetUInt64(offset int, littleEndian bool) uint64 {
+	_ = checkBytesRange(b, offset, 8)
+	return bytesOrder(littleEndian).Uint64(b.Data[offset:])
 }
 
-func (b *Binary) SetUInt64(offset int, value uint64, littleEndian bool) uint64 {
-	_ = checkBinaryRange(b, offset, 8)
-	binaryOrder(littleEndian).PutUint64(b.Data[offset:], value)
+func (b *Bytes) SetUInt64(offset int, value uint64, littleEndian bool) uint64 {
+	_ = checkBytesRange(b, offset, 8)
+	bytesOrder(littleEndian).PutUint64(b.Data[offset:], value)
 	return value
 }
 
-func (b *Binary) GetFloat(offset int, littleEndian bool) float32 {
-	_ = checkBinaryRange(b, offset, 4)
-	return math.Float32frombits(binaryOrder(littleEndian).Uint32(b.Data[offset:]))
+func (b *Bytes) GetFloat(offset int, littleEndian bool) float32 {
+	_ = checkBytesRange(b, offset, 4)
+	return math.Float32frombits(bytesOrder(littleEndian).Uint32(b.Data[offset:]))
 }
 
-func (b *Binary) SetFloat(offset int, value float32, littleEndian bool) float32 {
-	_ = checkBinaryRange(b, offset, 4)
-	binaryOrder(littleEndian).PutUint32(b.Data[offset:], math.Float32bits(value))
+func (b *Bytes) SetFloat(offset int, value float32, littleEndian bool) float32 {
+	_ = checkBytesRange(b, offset, 4)
+	bytesOrder(littleEndian).PutUint32(b.Data[offset:], math.Float32bits(value))
 	return value
 }
 
-func (b *Binary) GetDouble(offset int, littleEndian bool) float64 {
-	_ = checkBinaryRange(b, offset, 8)
-	return math.Float64frombits(binaryOrder(littleEndian).Uint64(b.Data[offset:]))
+func (b *Bytes) GetDouble(offset int, littleEndian bool) float64 {
+	_ = checkBytesRange(b, offset, 8)
+	return math.Float64frombits(bytesOrder(littleEndian).Uint64(b.Data[offset:]))
 }
 
-func (b *Binary) SetDouble(offset int, value float64, littleEndian bool) float64 {
-	_ = checkBinaryRange(b, offset, 8)
-	binaryOrder(littleEndian).PutUint64(b.Data[offset:], math.Float64bits(value))
+func (b *Bytes) SetDouble(offset int, value float64, littleEndian bool) float64 {
+	_ = checkBytesRange(b, offset, 8)
+	bytesOrder(littleEndian).PutUint64(b.Data[offset:], math.Float64bits(value))
 	return value
 }
 
-func binaryOrder(littleEndian bool) binary.ByteOrder {
+func bytesOrder(littleEndian bool) binary.ByteOrder {
 	if littleEndian {
 		return binary.LittleEndian
 	}
 	return binary.BigEndian
 }
 
-func binaryGetInt4(value *Binary, index int) (int8, error) {
+func bytesGetInt4(value *Bytes, index int) (int8, error) {
 	if index < 0 {
-		return 0, fmt.Errorf("binary offset out of range")
+		return 0, fmt.Errorf("bytes offset out of range")
 	}
 	byteIndex := index / 2
-	if err := checkBinaryRange(value, byteIndex, 1); err != nil {
+	if err := checkBytesRange(value, byteIndex, 1); err != nil {
 		return 0, err
 	}
 	b := value.Data[byteIndex]
@@ -914,12 +914,12 @@ func binaryGetInt4(value *Binary, index int) (int8, error) {
 	return int8(nibble), nil
 }
 
-func binarySetInt4(value *Binary, index int, n int8) (int8, error) {
+func bytesSetInt4(value *Bytes, index int, n int8) (int8, error) {
 	if index < 0 {
-		return 0, fmt.Errorf("binary offset out of range")
+		return 0, fmt.Errorf("bytes offset out of range")
 	}
 	byteIndex := index / 2
-	if err := checkBinaryRange(value, byteIndex, 1); err != nil {
+	if err := checkBytesRange(value, byteIndex, 1); err != nil {
 		return 0, err
 	}
 	nibble := byte(n) & 0x0f
@@ -960,11 +960,11 @@ func (i *Interpreter) callBufferMethod(value *Buffer, name string, args []ir.Exp
 			return nil, fmt.Errorf("buffer.clone expects 0 args, got %d", len(values))
 		}
 		return &Buffer{Data: append([]byte(nil), value.Data...)}, nil
-	case "buffer.toBinary":
+	case "buffer.toBytes":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("buffer.toBinary expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("buffer.toBytes expects 0 args, got %d", len(values))
 		}
-		return &Binary{Data: append([]byte(nil), value.Data...)}, nil
+		return &Bytes{Data: append([]byte(nil), value.Data...)}, nil
 	case "buffer.toInts":
 		if len(values) != 0 {
 			return nil, fmt.Errorf("buffer.toInts expects 0 args, got %d", len(values))
@@ -990,15 +990,15 @@ func (i *Interpreter) callBufferMethod(value *Buffer, name string, args []ir.Exp
 		}
 		value.Data = append(value.Data, byte(n))
 		return value, nil
-	case "buffer.appendBinary":
+	case "buffer.appendBytes":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("buffer.appendBinary expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("buffer.appendBytes expects 1 arg, got %d", len(values))
 		}
-		binaryValue, ok := values[0].(*Binary)
+		bytesValue, ok := values[0].(*Bytes)
 		if !ok {
-			return nil, fmt.Errorf("buffer.appendBinary expects Binary")
+			return nil, fmt.Errorf("buffer.appendBytes expects Bytes")
 		}
-		value.Data = append(value.Data, binaryValue.Data...)
+		value.Data = append(value.Data, bytesValue.Data...)
 		return value, nil
 	case "buffer.reader":
 		if len(values) != 0 {
@@ -1072,7 +1072,7 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 		value.Offset += count
 		value.Nibble = 0
 		return value.Offset, nil
-	case "reader.readBinary":
+	case "reader.readBytes":
 		if len(values) != 1 {
 			return nil, fmt.Errorf("reader.%s expects 1 arg, got %d", name, len(values))
 		}
@@ -1086,7 +1086,7 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 		if length < 0 || value.Offset+length > len(value.Data) {
 			return nil, fmt.Errorf("reader offset out of range")
 		}
-		out := &Binary{Data: append([]byte(nil), value.Data[value.Offset:value.Offset+length]...)}
+		out := &Bytes{Data: append([]byte(nil), value.Data[value.Offset:value.Offset+length]...)}
 		value.Offset += length
 		return out, nil
 	case "reader.readInt4":
@@ -1133,26 +1133,26 @@ func (i *Interpreter) callWriterMethod(value *Writer, name string, args []ir.Exp
 		value.Data = nil
 		value.Nibble = 0
 		return nil, nil
-	case "writer.toBinary":
+	case "writer.toBytes":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("writer.toBinary expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("writer.toBytes expects 0 args, got %d", len(values))
 		}
-		return &Binary{Data: append([]byte(nil), value.Data...)}, nil
+		return &Bytes{Data: append([]byte(nil), value.Data...)}, nil
 	case "writer.toInts":
 		if len(values) != 0 {
 			return nil, fmt.Errorf("writer.toInts expects 0 args, got %d", len(values))
 		}
 		return intsFromBytes(value.Data), nil
-	case "writer.writeBinary":
+	case "writer.writeBytes":
 		if len(values) != 1 {
 			return nil, fmt.Errorf("writer.%s expects 1 arg, got %d", name, len(values))
 		}
-		binaryValue, ok := values[0].(*Binary)
+		bytesValue, ok := values[0].(*Bytes)
 		if !ok {
-			return nil, fmt.Errorf("writer.%s expects Binary", name)
+			return nil, fmt.Errorf("writer.%s expects Bytes", name)
 		}
 		writerAlign(value)
-		value.Data = append(value.Data, binaryValue.Data...)
+		value.Data = append(value.Data, bytesValue.Data...)
 		return value, nil
 	case "writer.writeInt4":
 		if len(values) != 1 {
@@ -1204,26 +1204,26 @@ func writerAlign(writer *Writer) {
 	writer.Nibble = 0
 }
 
-func readerBinary(reader *Reader, size int) (*Binary, error) {
+func readerBytes(reader *Reader, size int) (*Bytes, error) {
 	if err := readerAlign(reader); err != nil {
 		return nil, err
 	}
-	if err := checkBinaryRange(&Binary{Data: reader.Data}, reader.Offset, size); err != nil {
+	if err := checkBytesRange(&Bytes{Data: reader.Data}, reader.Offset, size); err != nil {
 		return nil, fmt.Errorf("reader offset out of range")
 	}
-	out := &Binary{Data: reader.Data}
-	out = &Binary{Data: out.Data}
+	out := &Bytes{Data: reader.Data}
+	out = &Bytes{Data: out.Data}
 	offset := reader.Offset
 	reader.Offset += size
-	return &Binary{Data: out.Data[offset:reader.Offset]}, nil
+	return &Bytes{Data: out.Data[offset:reader.Offset]}, nil
 }
 
 func readerReadInt4(reader *Reader) (int8, error) {
 	if reader.Offset < 0 || reader.Offset >= len(reader.Data) {
 		return 0, fmt.Errorf("reader offset out of range")
 	}
-	b := &Binary{Data: reader.Data}
-	n, err := binaryGetInt4(b, reader.Offset*2+reader.Nibble)
+	b := &Bytes{Data: reader.Data}
+	n, err := bytesGetInt4(b, reader.Offset*2+reader.Nibble)
 	if err != nil {
 		return 0, err
 	}
@@ -1278,7 +1278,7 @@ func callReaderNumericMethod(reader *Reader, name string, intrinsic string, valu
 			return nil, true, fmt.Errorf("reader.%s littleEndian expects Bool", name)
 		}
 	}
-	chunk, err := readerBinary(reader, size)
+	chunk, err := readerBytes(reader, size)
 	if err != nil {
 		return nil, true, err
 	}
@@ -1341,7 +1341,7 @@ func callWriterNumericMethod(writer *Writer, name string, intrinsic string, valu
 		}
 	}
 	writerAlign(writer)
-	chunk := &Binary{Data: make([]byte, size)}
+	chunk := &Bytes{Data: make([]byte, size)}
 	switch intrinsic {
 	case "writer.writeInt8":
 		n, ok := values[0].(int8)

@@ -3,9 +3,9 @@
 Rune CLI 位于 `cmd/rune`。
 
 ```text
-rune check <file.rn>   解析并类型检查 Rune 程序
-rune fmt <file.rn>     格式化 Rune 源文件
-rune run <file.rn>     编译并运行 Rune 程序
+rune check <path>      解析并类型检查文件或目录
+rune fmt <path>        格式化文件或目录（别名：format）
+rune run <path>        运行文件，或只有一个 main 的目录
 rune build <file.rn>   编译 Rune 程序为可执行文件
 rune ts <file.rn>      编译 Rune 程序为 TypeScript
 rune repl              启动 Rune REPL
@@ -16,6 +16,7 @@ rune lsp               启动 Rune language server
 
 ```sh
 go run ./cmd/rune check examples/fib.rn
+go run ./cmd/rune check core
 go run ./cmd/rune run examples/fib.rn
 go run ./cmd/rune ts examples/counter.rn
 ```

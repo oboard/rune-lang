@@ -30,7 +30,7 @@ const (
 	Bool          Type = "Bool"
 	Null          Type = "Null"
 	Object        Type = "Object"
-	Binary        Type = "Binary"
+	Bytes         Type = "Bytes"
 	Buffer        Type = "Buffer"
 	Reader        Type = "Reader"
 	Writer        Type = "Writer"

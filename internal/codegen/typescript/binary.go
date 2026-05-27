@@ -1,6 +1,6 @@
 package tscodegen
 
-func (g *generator) binaryRuntime() {
+func (g *generator) bytesRuntime() {
 	g.line("function runeViewBytes(view: DataView): number[] {")
 	g.indent++
 	g.line("return Array.from(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));")
@@ -18,16 +18,16 @@ func (g *generator) binaryRuntime() {
 	g.indent++
 	g.line("private bytes: number[];")
 	g.line("constructor(bytes: number[] = []) { this.bytes = bytes.slice(); }")
-	g.line("static fromBinary(value: DataView): RuneBuffer { return new RuneBuffer(runeViewBytes(value)); }")
+	g.line("static fromBytes(value: DataView): RuneBuffer { return new RuneBuffer(runeViewBytes(value)); }")
 	g.line("get byteLength(): number { return this.bytes.length; }")
 	g.line("clear(): void { this.bytes = []; }")
 	g.line("clone(): RuneBuffer { return new RuneBuffer(this.bytes); }")
-	g.line("toBinary(): DataView { return runeDataViewFromBytes(this.bytes); }")
+	g.line("toBytes(): DataView { return runeDataViewFromBytes(this.bytes); }")
 	g.line("toInts(): number[] { return this.bytes.slice(); }")
 	g.line("append(value: number): RuneBuffer { this.bytes.push(value & 0xff); return this; }")
 	g.line("appendInt(value: number): RuneBuffer { this.bytes.push(value & 0xff); return this; }")
-	g.line("appendBinary(value: DataView): RuneBuffer { this.bytes.push(...runeViewBytes(value)); return this; }")
-	g.line("reader(): RuneReader { return new RuneReader(this.toBinary()); }")
+	g.line("appendBytes(value: DataView): RuneBuffer { this.bytes.push(...runeViewBytes(value)); return this; }")
+	g.line("reader(): RuneReader { return new RuneReader(this.toBytes()); }")
 	g.line("writer(): RuneWriter { return new RuneWriter(this.bytes); }")
 	g.indent--
 	g.line("}")
@@ -45,7 +45,7 @@ func (g *generator) binaryRuntime() {
 	g.line("skip(count: number): number { return this.seek(this.offset + count); }")
 	g.line("private align(): void { if (this.nibble === 1) { this.offset++; this.nibble = 0; } if (this.offset > this.view.byteLength) throw new RangeError(\"reader offset out of range\"); }")
 	g.line("private take(size: number): number { this.align(); const offset = this.offset; if (offset + size > this.view.byteLength) throw new RangeError(\"reader offset out of range\"); this.offset += size; return offset; }")
-	g.line("readBinary(length: number): DataView { const offset = this.take(length); return new DataView(this.view.buffer.slice(this.view.byteOffset + offset, this.view.byteOffset + offset + length)); }")
+	g.line("readBytes(length: number): DataView { const offset = this.take(length); return new DataView(this.view.buffer.slice(this.view.byteOffset + offset, this.view.byteOffset + offset + length)); }")
 	g.line("readInt4(): number { if (this.offset >= this.view.byteLength) throw new RangeError(\"reader offset out of range\"); const byte = this.view.getUint8(this.offset); const nibble = this.nibble === 0 ? byte >> 4 : byte & 0xf; if (this.nibble === 0) this.nibble = 1; else { this.nibble = 0; this.offset++; } return nibble >= 8 ? nibble - 16 : nibble; }")
 	g.line("readInt8(): number { return this.view.getInt8(this.take(1)); }")
 	g.line("readUInt8(): number { return this.view.getUint8(this.take(1)); }")
@@ -68,11 +68,11 @@ func (g *generator) binaryRuntime() {
 	g.line("get byteLength(): number { return this.bytes.length; }")
 	g.line("position(): number { return this.bytes.length; }")
 	g.line("clear(): void { this.bytes = []; this.nibble = 0; }")
-	g.line("toBinary(): DataView { return runeDataViewFromBytes(this.bytes); }")
+	g.line("toBytes(): DataView { return runeDataViewFromBytes(this.bytes); }")
 	g.line("toInts(): number[] { return this.bytes.slice(); }")
 	g.line("private align(): void { this.nibble = 0; }")
 	g.line("private writeView(size: number, fill: (view: DataView) => void): RuneWriter { this.align(); const view = new DataView(new ArrayBuffer(size)); fill(view); this.bytes.push(...runeViewBytes(view)); return this; }")
-	g.line("writeBinary(value: DataView): RuneWriter { this.align(); this.bytes.push(...runeViewBytes(value)); return this; }")
+	g.line("writeBytes(value: DataView): RuneWriter { this.align(); this.bytes.push(...runeViewBytes(value)); return this; }")
 	g.line("writeInt4(value: number): RuneWriter { const nibble = value & 0xf; if (this.nibble === 0) { this.bytes.push(nibble << 4); this.nibble = 1; } else { this.bytes[this.bytes.length - 1] = (this.bytes[this.bytes.length - 1] & 0xf0) | nibble; this.nibble = 0; } return this; }")
 	g.line("writeInt8(value: number): RuneWriter { return this.writeView(1, (view) => view.setInt8(0, value)); }")
 	g.line("writeUInt8(value: number): RuneWriter { return this.writeView(1, (view) => view.setUint8(0, value)); }")

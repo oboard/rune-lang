@@ -39,7 +39,7 @@ type Set struct {
 	Entries map[string]Value
 }
 
-type Binary struct {
+type Bytes struct {
 	Data []byte
 }
 
@@ -123,12 +123,12 @@ func Format(value Value) string {
 			parts = append(parts, Format(value))
 		}
 		return "Set { " + strings.Join(parts, ", ") + " }"
-	case *Binary:
+	case *Bytes:
 		parts := make([]string, 0, len(v.Data))
 		for _, value := range v.Data {
 			parts = append(parts, strconv.Itoa(int(value)))
 		}
-		return "Binary [" + strings.Join(parts, ", ") + "]"
+		return "Bytes [" + strings.Join(parts, ", ") + "]"
 	case *Buffer:
 		parts := make([]string, 0, len(v.Data))
 		for _, value := range v.Data {

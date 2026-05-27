@@ -2,9 +2,12 @@ package main
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -15,6 +18,7 @@ import (
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/repl"
+	"github.com/oboard/rune-lang/internal/stdlib"
 	"github.com/oboard/rune-lang/internal/tester"
 )
 
@@ -42,13 +46,21 @@ func rootCmd() *cobra.Command {
 
 func runCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "run <file.rn> [args...]",
+		Use:   "run <path> [args...]",
 		Short: "Compile and run a Rune program",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			entry, diags, err := resolveRunEntry(args[0])
+			if len(diags) > 0 {
+				printDiagnostics(args[0], diags)
+				return fmt.Errorf("run failed")
+			}
+			if err != nil {
+				return err
+			}
 			switch backend {
 			case "go":
-				goFile, cleanup, err := compileGoToTemp(args[0])
+				goFile, cleanup, err := compileGoToTemp(entry)
 				if err != nil {
 					return err
 				}
@@ -61,7 +73,7 @@ func runCmd() *cobra.Command {
 				run.Stdin = os.Stdin
 				return run.Run()
 			case "ts":
-				tsFile, cleanup, err := compileTypeScriptToTemp(args[0])
+				tsFile, cleanup, err := compileTypeScriptToTemp(entry)
 				if err != nil {
 					return err
 				}
@@ -168,17 +180,11 @@ func goCmd() *cobra.Command {
 
 func checkCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "check <file.rn>",
-		Short: "Parse and type-check a Rune program",
+		Use:   "check <path>",
+		Short: "Parse and type-check Rune source",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, diags := compiler.AnalyzeFile(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("check failed")
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "ok %s\n", args[0])
-			return nil
+			return checkTarget(args[0], cmd.OutOrStdout())
 		},
 	}
 }
@@ -207,31 +213,12 @@ func fmtCmd() *cobra.Command {
 	var checkOnly bool
 	var stdout bool
 	cmd := &cobra.Command{
-		Use:   "fmt <file.rn>",
-		Short: "Format a Rune source file",
-		Args:  cobra.ExactArgs(1),
+		Use:     "fmt <path>",
+		Aliases: []string{"format"},
+		Short:   "Format Rune source",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			original, err := os.ReadFile(args[0])
-			if err != nil {
-				return err
-			}
-			file, errs := parser.Parse(string(original))
-			if len(errs) > 0 {
-				printDiagnostics(args[0], parseDiagnostics(errs))
-				return fmt.Errorf("format failed")
-			}
-			formatted := runefmt.Source(file, string(original))
-			if stdout {
-				fmt.Fprint(cmd.OutOrStdout(), formatted)
-				return nil
-			}
-			if string(original) == formatted {
-				return nil
-			}
-			if checkOnly {
-				return fmt.Errorf("%s is not formatted", args[0])
-			}
-			return os.WriteFile(args[0], []byte(formatted), 0o644)
+			return formatTarget(args[0], checkOnly, stdout, cmd.OutOrStdout())
 		},
 	}
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "fail if the file is not formatted")
@@ -262,6 +249,238 @@ func replCmd() *cobra.Command {
 			return repl.Serve(os.Stdin, os.Stdout)
 		},
 	}
+}
+
+func checkTarget(path string, out io.Writer) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return checkFile(path, out)
+	}
+	if isStdlibRoot(path) {
+		if _, err := stdlib.Load(path); err != nil {
+			return err
+		}
+		fmt.Fprintf(out, "ok %s\n", path)
+		return nil
+	}
+	files, err := runeFiles(path)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no Rune files found in %s", path)
+	}
+	failed := false
+	for _, file := range files {
+		_, diags := compiler.AnalyzeFile(file)
+		if len(diags) == 0 {
+			continue
+		}
+		printDiagnostics(file, diags)
+		failed = true
+	}
+	if failed {
+		return fmt.Errorf("check failed")
+	}
+	fmt.Fprintf(out, "ok %s\n", path)
+	return nil
+}
+
+func checkFile(path string, out io.Writer) error {
+	_, diags := compiler.AnalyzeFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return fmt.Errorf("check failed")
+	}
+	fmt.Fprintf(out, "ok %s\n", path)
+	return nil
+}
+
+func formatTarget(path string, checkOnly bool, stdout bool, out io.Writer) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return formatFile(path, checkOnly, stdout, out)
+	}
+	if stdout {
+		return fmt.Errorf("fmt --stdout only supports a single file")
+	}
+	files, err := runeFiles(path)
+	if err != nil {
+		return err
+	}
+	if len(files) == 0 {
+		return fmt.Errorf("no Rune files found in %s", path)
+	}
+	for _, file := range files {
+		if isStdlibPrelude(file) {
+			continue
+		}
+		if err := formatFile(file, checkOnly, false, out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func formatFile(path string, checkOnly bool, stdout bool, out io.Writer) error {
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	file, errs := parser.Parse(string(original))
+	if len(errs) > 0 {
+		printDiagnostics(path, parseDiagnostics(errs))
+		return fmt.Errorf("format failed")
+	}
+	formatted := runefmt.Source(file, string(original))
+	if stdout {
+		fmt.Fprint(out, formatted)
+		return nil
+	}
+	if string(original) == formatted {
+		return nil
+	}
+	if checkOnly {
+		return fmt.Errorf("%s is not formatted", path)
+	}
+	return os.WriteFile(path, []byte(formatted), 0o644)
+}
+
+func resolveRunEntry(path string) (string, []compiler.Diagnostic, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", nil, err
+	}
+	if !info.IsDir() {
+		return path, nil, nil
+	}
+	files, err := runeFiles(path)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(files) == 0 {
+		return "", nil, fmt.Errorf("no Rune files found in %s", path)
+	}
+	return findMainFile(path, files)
+}
+
+type mainDecl struct {
+	path   string
+	line   int
+	column int
+}
+
+func findMainFile(root string, files []string) (string, []compiler.Diagnostic, error) {
+	var mains []mainDecl
+	var diags []compiler.Diagnostic
+	for _, filePath := range files {
+		if isStdlibPrelude(filePath) {
+			continue
+		}
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return "", nil, err
+		}
+		file, errs := parser.Parse(string(data))
+		if len(errs) > 0 {
+			diags = append(diags, parseDiagnosticsForPath(filePath, errs)...)
+			continue
+		}
+		for _, fn := range file.Functions {
+			if fn.Name != "main" || fn.ReceiverType != "" {
+				continue
+			}
+			mains = append(mains, mainDecl{
+				path:   filePath,
+				line:   fn.NamePos.Line,
+				column: fn.NamePos.Column,
+			})
+		}
+	}
+	if len(diags) > 0 {
+		return "", diags, fmt.Errorf("run failed")
+	}
+	if len(mains) == 0 {
+		return "", nil, fmt.Errorf("no main function found in %s", root)
+	}
+	if len(mains) > 1 {
+		return "", nil, fmt.Errorf("multiple main functions found in %s:\n  %s", root, strings.Join(formatMainDecls(mains), "\n  "))
+	}
+	return mains[0].path, nil, nil
+}
+
+func formatMainDecls(mains []mainDecl) []string {
+	decls := make([]string, 0, len(mains))
+	for _, main := range mains {
+		if main.line > 0 {
+			decls = append(decls, fmt.Sprintf("%s:%d:%d", main.path, main.line, main.column))
+			continue
+		}
+		decls = append(decls, main.path)
+	}
+	sort.Strings(decls)
+	return decls
+}
+
+func runeFiles(path string) ([]string, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		return []string{path}, nil
+	}
+	var files []string
+	err = filepath.WalkDir(path, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) == ".rn" {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(files)
+	return files, nil
+}
+
+func isStdlibRoot(path string) bool {
+	if _, err := os.Stat(filepath.Join(path, "prelude.rn")); err != nil {
+		return false
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		modulePath := filepath.Join(path, entry.Name(), entry.Name()+".rn")
+		if _, err := os.Stat(modulePath); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func isStdlibPrelude(path string) bool {
+	if filepath.Base(path) != "prelude.rn" {
+		return false
+	}
+	return isStdlibRoot(filepath.Dir(path))
 }
 
 func compileGoToTemp(path string) (string, func(), error) {
@@ -374,6 +593,14 @@ func parseDiagnostics(errs []parser.Error) []compiler.Diagnostic {
 			Message: err.Message,
 			Pos:     err.Pos,
 		})
+	}
+	return diags
+}
+
+func parseDiagnosticsForPath(path string, errs []parser.Error) []compiler.Diagnostic {
+	diags := parseDiagnostics(errs)
+	for i := range diags {
+		diags[i].Path = path
 	}
 	return diags
 }

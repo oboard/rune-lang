@@ -22,5 +22,5 @@ main() => {
     1.5: "light",
     2.5: "heavy",
   }
-  @io.println(weights[2.0] ?? "not found")
+  @io.println(weights[2.0] ?? "unknown")
 }

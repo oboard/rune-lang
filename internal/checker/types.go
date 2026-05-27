@@ -48,8 +48,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Null
 	case "Object":
 		return Object
-	case "Binary":
-		return Binary
+	case "Bytes":
+		return Bytes
 	case "Buffer":
 		return Buffer
 	case "Reader":
@@ -500,7 +500,7 @@ func isObjectLike(typ Type) bool {
 	case string(Int), string(Int4), string(Int8), string(Int16), string(Int64),
 		string(Double), string(Float), string(BigInt), string(UInt), string(UInt8),
 		string(UInt16), string(UInt64), string(String), string(Char), string(Bool), string(Null),
-		string(Void), string(Symbol), string(Regex), string(Binary), string(Buffer),
+		string(Void), string(Symbol), string(Regex), string(Bytes), string(Buffer),
 		string(Reader), string(Writer), string(Data):
 		return false
 	default:

@@ -583,9 +583,9 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 	}
 }
 
-func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
+func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 	src := `main() => {
-  bytes := @binary.new(16)
+  bytes := @bytes.new(16)
   bytes.setUint8(0, @uint8.fromInt(255))
   bytes.setInt16(1, @int16.fromInt(0 - 1234), true)
   bytes.setBigUint64(4, @uint64.fromInt(123456), false)
@@ -613,8 +613,8 @@ func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
 	wantParts := []string{
 		`"encoding/binary"`,
 		`"math"`,
-		`type runeBinary struct`,
-		`__bytes := newRuneBinary(16)`,
+		`type runeBytes struct`,
+		`__bytes := newRuneBytes(16)`,
 		`__bytes.SetUInt8(0, uint8(255))`,
 		`__bytes.SetInt16(1, int16(0-1234), true)`,
 		`__bytes.SetUInt64(4, uint64(123456), false)`,

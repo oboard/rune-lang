@@ -41,8 +41,8 @@
   @assert.eq(@float.toDouble(@float.fromDouble(1.5)), 1.5)
 }
 
-? "binary int4 and byte operations" {
-  bytes := @binary.new(4)
+? "bytes int4 and byte operations" {
+  bytes := @bytes.new(4)
   @assert.eq(bytes.length(), 4)
   @assert.eq(bytes.byteLength(), 4)
 
@@ -58,8 +58,8 @@
   @assert.eq(@int8.toInt(bytes.getInt8(2)), 0 - 2)
 }
 
-? "binary numeric DataView operations" {
-  bytes := @binary.new(40)
+? "bytes numeric DataView operations" {
+  bytes := @bytes.new(40)
 
   @assert.eq(@int16.toInt(bytes.setInt16(0, @int16.fromInt(0 - 1234), true)), 0 - 1234)
   @assert.eq(@int16.toInt(bytes.getInt16(0, true)), 0 - 1234)
@@ -82,8 +82,8 @@
   @assert.eq(bytes.getDouble(32, false), 2.25)
 }
 
-? "binary fromInts clone and slice" {
-  bytes := @binary.fromInts([1, 2, 3, 4])
+? "bytes fromInts clone and slice" {
+  bytes := @bytes.fromInts([1, 2, 3, 4])
   cloned := bytes.clone()
   sliced := bytes.slice(1, 3)
 
@@ -97,17 +97,17 @@
 ? "buffer module append and export" {
   buffer := @buffer.new()
   @assert.eq(buffer.isEmpty(), true)
-  @assert.eq(buffer.append(@uint8.fromInt(1)).appendInt(2).appendBinary(@binary.fromInts([3, 4])).length(), 4)
+  @assert.eq(buffer.append(@uint8.fromInt(1)).appendInt(2).appendBytes(@bytes.fromInts([3, 4])).length(), 4)
   @assert.eq(buffer.toInts()[0], 1)
   @assert.eq(buffer.toInts()[3], 4)
 
   cloned := buffer.clone()
   buffer.clear()
   @assert.eq(buffer.length(), 0)
-  @assert.eq(cloned.toBinary().toInts()[2], 3)
+  @assert.eq(cloned.toBytes().toInts()[2], 3)
 
-  fromBinary := @buffer.fromBinary(@binary.fromInts([9, 8]))
-  @assert.eq(fromBinary.toInts()[1], 8)
+  fromBytes := @buffer.fromBytes(@bytes.fromInts([9, 8]))
+  @assert.eq(fromBytes.toInts()[1], 8)
 }
 
 ? "reader module reads sequential values" {
@@ -121,7 +121,7 @@
   writer.writeFloat(@float.fromDouble(1.5), true)
   writer.writeDouble(2.25, false)
 
-  reader := @reader.new(writer.toBinary())
+  reader := @reader.new(writer.toBytes())
   @assert.eq(reader.length(), writer.length())
   @assert.eq(reader.position(), 0)
   @assert.eq(@int4.toInt(reader.readInt4()), 0 - 1)
@@ -137,14 +137,14 @@
 }
 
 ? "reader seek skip and buffer helpers" {
-  buffer := @buffer.fromBinary(@binary.fromInts([10, 20, 30, 40]))
+  buffer := @buffer.fromBytes(@bytes.fromInts([10, 20, 30, 40]))
   reader := buffer.reader()
 
   @assert.eq(@uint8.toInt(reader.readUInt8()), 10)
   @assert.eq(reader.skip(1), 2)
   @assert.eq(@uint8.toInt(reader.readUInt8()), 30)
   @assert.eq(reader.seek(1), 1)
-  @assert.eq(reader.readBinary(2).toInts()[1], 30)
+  @assert.eq(reader.readBytes(2).toInts()[1], 30)
 
   writer := buffer.writer()
   writer.writeUInt8(@uint8.fromInt(50))

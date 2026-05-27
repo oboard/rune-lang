@@ -323,9 +323,9 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 	}
 }
 
-func TestGenerateBinaryIntrinsicProgram(t *testing.T) {
+func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 	src := `main() => {
-  bytes := @binary.new(16)
+  bytes := @bytes.new(16)
   bytes.setUint8(0, @uint8.fromInt(255))
   bytes.setInt16(1, @int16.fromInt(0 - 1234), true)
   bytes.setBigUint64(4, @uint64.fromInt(123456), false)

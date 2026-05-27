@@ -1,0 +1,107 @@
+new(length: Int) -> Bytes => "%bytes.new"
+
+fromInts(values: Array[Int]) -> Bytes => "%bytes.fromInts"
+
+Bytes: {
+  length() -> Int => "%bytes.length"
+
+  byteLength() -> Int => "%bytes.length"
+
+  clone() -> Bytes => "%bytes.clone"
+
+  slice(start: Int, end: Int) -> Bytes => "%bytes.slice"
+
+  toInts() -> Array[Int] => "%bytes.toInts"
+
+  getInt4(index: Int) -> Int4 => "%bytes.getInt4"
+
+  setInt4(index: Int, value: Int4) -> Int4 => "%bytes.setInt4"
+
+  getInt8(offset: Int) -> Int8 => "%bytes.getInt8"
+
+  setInt8(offset: Int, value: Int8) -> Int8 => "%bytes.setInt8"
+
+  getUInt8(offset: Int) -> UInt8 => "%bytes.getUInt8"
+
+  getUint8(offset: Int) -> UInt8 => "%bytes.getUInt8"
+
+  setUInt8(offset: Int, value: UInt8) -> UInt8 => "%bytes.setUInt8"
+
+  setUint8(offset: Int, value: UInt8) -> UInt8 => "%bytes.setUInt8"
+
+  getInt16(offset: Int, littleEndian: Bool) -> Int16 => "%bytes.getInt16"
+
+  setInt16(offset: Int, value: Int16, littleEndian: Bool) -> Int16 => "%bytes.setInt16"
+
+  getUInt16(offset: Int, littleEndian: Bool) -> UInt16 => "%bytes.getUInt16"
+
+  getUint16(offset: Int, littleEndian: Bool) -> UInt16 => "%bytes.getUInt16"
+
+  setUInt16(offset: Int, value: UInt16, littleEndian: Bool) -> UInt16 => "%bytes.setUInt16"
+
+  setUint16(offset: Int, value: UInt16, littleEndian: Bool) -> UInt16 => "%bytes.setUInt16"
+
+  getInt(offset: Int, littleEndian: Bool) -> Int => "%bytes.getInt"
+
+  getInt32(offset: Int, littleEndian: Bool) -> Int => "%bytes.getInt"
+
+  setInt(offset: Int, value: Int, littleEndian: Bool) -> Int => "%bytes.setInt"
+
+  setInt32(offset: Int, value: Int, littleEndian: Bool) -> Int => "%bytes.setInt"
+
+  getUInt(offset: Int, littleEndian: Bool) -> UInt => "%bytes.getUInt"
+
+  getUint(offset: Int, littleEndian: Bool) -> UInt => "%bytes.getUInt"
+
+  getUInt32(offset: Int, littleEndian: Bool) -> UInt => "%bytes.getUInt"
+
+  getUint32(offset: Int, littleEndian: Bool) -> UInt => "%bytes.getUInt"
+
+  setUInt(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%bytes.setUInt"
+
+  setUint(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%bytes.setUInt"
+
+  setUInt32(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%bytes.setUInt"
+
+  setUint32(offset: Int, value: UInt, littleEndian: Bool) -> UInt => "%bytes.setUInt"
+
+  getInt64(offset: Int, littleEndian: Bool) -> Int64 => "%bytes.getInt64"
+
+  getBigInt64(offset: Int, littleEndian: Bool) -> Int64 => "%bytes.getInt64"
+
+  setInt64(offset: Int, value: Int64, littleEndian: Bool) -> Int64 => "%bytes.setInt64"
+
+  setBigInt64(offset: Int, value: Int64, littleEndian: Bool) -> Int64 => "%bytes.setInt64"
+
+  getUInt64(offset: Int, littleEndian: Bool) -> UInt64 => "%bytes.getUInt64"
+
+  getUint64(offset: Int, littleEndian: Bool) -> UInt64 => "%bytes.getUInt64"
+
+  getBigUInt64(offset: Int, littleEndian: Bool) -> UInt64 => "%bytes.getUInt64"
+
+  getBigUint64(offset: Int, littleEndian: Bool) -> UInt64 => "%bytes.getUInt64"
+
+  setUInt64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%bytes.setUInt64"
+
+  setUint64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%bytes.setUInt64"
+
+  setBigUInt64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%bytes.setUInt64"
+
+  setBigUint64(offset: Int, value: UInt64, littleEndian: Bool) -> UInt64 => "%bytes.setUInt64"
+
+  getFloat(offset: Int, littleEndian: Bool) -> Float => "%bytes.getFloat"
+
+  getFloat32(offset: Int, littleEndian: Bool) -> Float => "%bytes.getFloat"
+
+  setFloat(offset: Int, value: Float, littleEndian: Bool) -> Float => "%bytes.setFloat"
+
+  setFloat32(offset: Int, value: Float, littleEndian: Bool) -> Float => "%bytes.setFloat"
+
+  getDouble(offset: Int, littleEndian: Bool) -> Double => "%bytes.getDouble"
+
+  getFloat64(offset: Int, littleEndian: Bool) -> Double => "%bytes.getDouble"
+
+  setDouble(offset: Int, value: Double, littleEndian: Bool) -> Double => "%bytes.setDouble"
+
+  setFloat64(offset: Int, value: Double, littleEndian: Bool) -> Double => "%bytes.setDouble"
+}

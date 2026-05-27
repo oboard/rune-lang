@@ -589,6 +589,47 @@ increment(value) => value + 1
 	}
 }
 
+func TestInlayHintsShowCallArgumentNames(t *testing.T) {
+	uri := "file:///tmp/call_args.rn"
+	src := `fib(n: Int) -> Int => n
+
+Counter: {
+  value: Int
+
+  add(amount: Int) -> Int => .value + amount
+}
+
+main() => {
+  counter := Counter {
+    value: 1
+  }
+  first := [1]
+  @io.println(fib(10) + counter.add(2))
+  @io.println(first[0])
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	hints := s.inlayHints(uri).([]map[string]any)
+	nPos := positionOf(src, "fib(10)", "10")
+	amountPos := positionOf(src, "counter.add(2)", "2")
+	printlnArgPos := positionOf(src, "@io.println(fib", "fib")
+	indexPrintlnArgPos := positionOf(src, "@io.println(first", "first")
+
+	if got := countHintAt(hints, nPos, "n="); got != 1 {
+		t.Fatalf("fib argument hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, amountPos, "amount="); got != 1 {
+		t.Fatalf("method argument hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, printlnArgPos, "input="); got != 1 {
+		t.Fatalf("stdlib expression argument hints = %d, want 1; all hints %#v", got, hints)
+	}
+	if got := countHintAt(hints, indexPrintlnArgPos, "input="); got != 1 {
+		t.Fatalf("stdlib indexed argument hints = %d, want 1; all hints %#v", got, hints)
+	}
+}
+
 func TestSignalHoverShowsDependencyChain(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {

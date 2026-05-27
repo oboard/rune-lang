@@ -11,13 +11,13 @@ Writer: {
 
   clear() -> Void => "%writer.clear"
 
-  toBinary() -> Binary => "%writer.toBinary"
+  toBytes() -> Bytes => "%writer.toBytes"
 
   toInts() -> Array[Int] => "%writer.toInts"
 
-  write(value: Binary) -> Writer => "%writer.writeBinary"
+  write(value: Bytes) -> Writer => "%writer.writeBytes"
 
-  writeBinary(value: Binary) -> Writer => "%writer.writeBinary"
+  writeBytes(value: Bytes) -> Writer => "%writer.writeBytes"
 
   writeInt4(value: Int4) -> Writer => "%writer.writeInt4"
 

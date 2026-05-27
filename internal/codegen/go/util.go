@@ -99,8 +99,8 @@ func goType(typ checker.Type) string {
 		return "any"
 	case checker.Object:
 		return "any"
-	case checker.Binary:
-		return "*runeBinary"
+	case checker.Bytes:
+		return "*runeBytes"
 	case checker.Buffer:
 		return "*runeBuffer"
 	case checker.Reader:
@@ -271,12 +271,12 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `newRuneRegex("", "")`
-	case checker.Binary:
-		return "newRuneBinary(0)"
+	case checker.Bytes:
+		return "newRuneBytes(0)"
 	case checker.Buffer:
 		return "newRuneBuffer()"
 	case checker.Reader:
-		return "newRuneReader(newRuneBinary(0))"
+		return "newRuneReader(newRuneBytes(0))"
 	case checker.Writer:
 		return "newRuneWriter()"
 	case checker.StringBuffer:

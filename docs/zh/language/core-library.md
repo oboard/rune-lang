@@ -242,7 +242,7 @@ true.toString()
 
 ## 定宽数值类型
 
-Rune 也提供面向二进制处理的数值类型转换 helper，供 `Binary`、`Reader` 和
+Rune 也提供面向二进制处理的数值类型转换 helper，供 `Bytes`、`Reader` 和
 `Writer` 使用：
 
 ```rune
@@ -262,13 +262,13 @@ Rune 也提供面向二进制处理的数值类型转换 helper，供 `Binary`�
 有符号转换会按目标宽度回绕，无符号转换会按目标宽度截断。`Float` 表示 32
 位浮点数。
 
-## binary、buffer、reader 与 writer
+## bytes、buffer、reader 与 writer
 
-`Binary` 是固定长度的字节视图。多字节读写需要显式传入 `littleEndian`
+`Bytes` 是固定长度的字节视图。多字节读写需要显式传入 `littleEndian`
 参数，单字节读写不需要：
 
 ```rune
-bytes := @binary.new(16)
+bytes := @bytes.new(16)
 bytes.setInt4(0, @int4.fromInt(0 - 1))
 bytes.setUInt8(1, @uint8.fromInt(255))
 bytes.setInt16(2, @int16.fromInt(0 - 1234), true)
@@ -282,7 +282,7 @@ bytes.setFloat(8, @float.fromDouble(1.5), true)
 @assert.eq(@float.toDouble(bytes.getFloat32(8, true)), 1.5)
 ```
 
-`@binary.fromInts(values)` 可以从字节数组创建 `Binary`。`Binary` 支持
+`@bytes.fromInts(values)` 可以从字节数组创建 `Bytes`。`Bytes` 支持
 `length`、`byteLength`、`clone`、`slice`、`toInts`，以及面向 `Int4`、
 `Int8`、`UInt8`、`Int16`、`UInt16`、`Int`/`UInt`、`Int64`/`UInt64`、
 `Float` 和 `Double` 的 `get*`、`set*` 方法。`Uint*`、`Int32`、
@@ -294,30 +294,30 @@ bytes.setFloat(8, @float.fromDouble(1.5), true)
 buffer := @buffer.new()
 buffer.append(@uint8.fromInt(1))
 buffer.appendInt(2)
-buffer.appendBinary(@binary.fromInts([3, 4]))
+buffer.appendBytes(@bytes.fromInts([3, 4]))
 
 copy := buffer.clone()
-binary := copy.toBinary()
+data := copy.toBytes()
 ints := copy.toInts()
 ```
 
-`@buffer.fromBinary(binary)` 会创建一个可变 buffer 副本。`Buffer` 支持
-`length`、`byteLength`、`isEmpty`、`clear`、`clone`、`toBinary`、`toInts`、
-`append`、`appendInt`、`appendBinary`、`reader` 和 `writer`。
+`@buffer.fromBytes(data)` 会创建一个可变 buffer 副本。`Buffer` 支持
+`length`、`byteLength`、`isEmpty`、`clear`、`clone`、`toBytes`、`toInts`、
+`append`、`appendInt`、`appendBytes`、`reader` 和 `writer`。
 
-`Reader` 用于从 `Binary` 顺序读取：
+`Reader` 用于从 `Bytes` 顺序读取：
 
 ```rune
-reader := @reader.new(binary)
+reader := @reader.new(data)
 first := reader.readUInt8()
 next := reader.readInt16(true)
-chunk := reader.readBinary(4)
+chunk := reader.readBytes(4)
 reader.seek(0)
 reader.skip(1)
 ```
 
 `Reader` 支持 `length`、`byteLength`、`position`、`remaining`、`isEmpty`、
-`seek`、`skip`、`read`/`readBinary`，以及和 `Binary` 读取侧对应的 `read*`
+`seek`、`skip`、`read`/`readBytes`，以及和 `Bytes` 读取侧对应的 `read*`
 方法。
 
 `Writer` 用于顺序写入字节：
@@ -327,12 +327,12 @@ writer := @writer.new()
 writer.writeUInt8(@uint8.fromInt(255))
 writer.writeInt16(@int16.fromInt(0 - 1234), true)
 writer.writeFloat(@float.fromDouble(1.5), true)
-out := writer.toBinary()
+out := writer.toBytes()
 ```
 
 `@writer.withCapacity(capacity)` 可以预分配空间。`Writer` 支持 `length`、
-`byteLength`、`position`、`clear`、`toBinary`、`toInts`、
-`write`/`writeBinary`，以及和 `Binary` 写入侧对应的 `write*` 方法。
+`byteLength`、`position`、`clear`、`toBytes`、`toInts`、
+`write`/`writeBytes`，以及和 `Bytes` 写入侧对应的 `write*` 方法。
 
 ## map 与 set
 

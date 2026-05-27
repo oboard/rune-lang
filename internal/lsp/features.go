@@ -726,7 +726,92 @@ func (s *server) inlayHints(uri string) any {
 			})
 		}
 	})
+	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
+		call, ok := expr.(*ast.CallExpr)
+		if !ok {
+			return
+		}
+		hints = append(hints, callArgumentNameHints(prog, call)...)
+	})
 	return hints
+}
+
+func callArgumentNameHints(prog *compiler.Program, call *ast.CallExpr) []map[string]any {
+	params, tooltip, ok := callParameterInfo(prog, call)
+	if !ok {
+		return nil
+	}
+	hints := make([]map[string]any, 0, min(len(call.Args), len(params)))
+	for i, arg := range call.Args {
+		if i >= len(params) {
+			break
+		}
+		name := params[i].Name
+		if name == "" || name == "_" {
+			continue
+		}
+		pos := arg.Position()
+		hints = append(hints, map[string]any{
+			"position": position{
+				Line:      max(pos.Line-1, 0),
+				Character: max(pos.Column-1, 0),
+			},
+			"label":   name + "=",
+			"kind":    2,
+			"tooltip": tooltip,
+		})
+	}
+	return hints
+}
+
+func callParameterInfo(prog *compiler.Program, call *ast.CallExpr) ([]checker.ParamInfo, string, bool) {
+	switch callee := call.Callee.(type) {
+	case *ast.Identifier:
+		fn := prog.Info.ResolvedFunctions[callee]
+		if fn == nil {
+			return nil, "", false
+		}
+		return fn.Params, functionValueSignature(prog.Info, fn), true
+	case *ast.SelectorExpr:
+		if at, ok := callee.Receiver.(*ast.AtExpr); ok {
+			fn, ok := prog.Info.Stdlib.Function(at.Name, callee.Name)
+			if !ok {
+				return nil, "", false
+			}
+			return stdlibParamInfos(fn), stdlibSignature(at.Name, fn), true
+		}
+		receiver := prog.Info.ExprTypes[callee.Receiver]
+		if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+			fn, ok := prog.Info.Stdlib.ReceiverFunction(moduleName, receiverName, callee.Name)
+			if !ok {
+				return nil, "", false
+			}
+			return stdlibParamInfos(fn), stdlibSignature(moduleName, fn), true
+		}
+		structInfo := prog.Info.Types[baseType(receiver)]
+		if structInfo == nil {
+			return nil, "", false
+		}
+		method := structInfo.Methods[callee.Name]
+		if method == nil {
+			return nil, "", false
+		}
+		return method.Params, functionValueSignature(prog.Info, method), true
+	default:
+		return nil, "", false
+	}
+}
+
+func stdlibParamInfos(fn *stdlib.Function) []checker.ParamInfo {
+	params := make([]checker.ParamInfo, 0, len(fn.Params))
+	for i := range fn.Params {
+		name := fmt.Sprintf("arg%d", i+1)
+		if i < len(fn.ParamNames) && fn.ParamNames[i] != "" {
+			name = fn.ParamNames[i]
+		}
+		params = append(params, checker.ParamInfo{Name: name})
+	}
+	return params
 }
 
 func (s *server) semanticTokens(uri string) any {

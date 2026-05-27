@@ -7,7 +7,7 @@ these module files.
 Current modules:
 
 * `array` - declared placeholder for array APIs
-* `binary` - fixed byte views and numeric reads/writes
+* `bytes` - fixed byte views and numeric reads/writes
 * `buffer` - mutable byte buffers
 * `compress` - async gzip/zlib/brotli/zstd helpers
 * `fs` - async filesystem helpers returning `Result`
