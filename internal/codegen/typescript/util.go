@@ -354,14 +354,24 @@ func hasMain(file *ir.File) bool {
 	return false
 }
 
-var unsafeIdentChars = regexp.MustCompile(`[^A-Za-z0-9_$]`)
-
 func mangleIdent(name string) string {
-	if name == "" {
-		return "__"
+	var b strings.Builder
+	b.WriteString("__")
+	for _, ch := range name {
+		if isSafeMangledIdentRune(ch) {
+			b.WriteRune(ch)
+			continue
+		}
+		fmt.Fprintf(&b, "_u%X_", ch)
 	}
-	name = unsafeIdentChars.ReplaceAllString(name, "_")
-	return "__" + name
+	return b.String()
+}
+
+func isSafeMangledIdentRune(ch rune) bool {
+	return ch == '_' || ch == '$' ||
+		('a' <= ch && ch <= 'z') ||
+		('A' <= ch && ch <= 'Z') ||
+		('0' <= ch && ch <= '9')
 }
 
 var tsSafePropertyIdent = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
@@ -416,6 +426,13 @@ var tsReservedPropertyNames = map[string]bool{
 }
 
 func tsPropertyName(name string) string {
+	if tsCanUseBareProperty(name) {
+		return name
+	}
+	return strconv.Quote(name)
+}
+
+func tsExportName(name string) string {
 	if tsCanUseBareProperty(name) {
 		return name
 	}

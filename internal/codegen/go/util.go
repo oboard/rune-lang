@@ -323,9 +323,25 @@ func mainFunction(file *ir.File) *ir.Function {
 }
 
 func mangleIdent(name string) string {
-	return "__" + name
+	var b strings.Builder
+	b.WriteString("__")
+	for _, ch := range name {
+		if isSafeMangledIdentRune(ch) {
+			b.WriteRune(ch)
+			continue
+		}
+		fmt.Fprintf(&b, "_u%X_", ch)
+	}
+	return b.String()
 }
 
 func mangleEnumMember(enumName string, memberName string) string {
 	return mangleIdent(enumName + "_" + memberName)
+}
+
+func isSafeMangledIdentRune(ch rune) bool {
+	return ch == '_' ||
+		('a' <= ch && ch <= 'z') ||
+		('A' <= ch && ch <= 'Z') ||
+		('0' <= ch && ch <= '9')
 }

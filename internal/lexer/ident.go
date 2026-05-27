@@ -1,11 +1,11 @@
 package lexer
 
-import "unicode"
+import "github.com/oboard/rune-lang/internal/syntax"
 
 func isIdentStart(ch rune) bool {
-	return unicode.IsLetter(ch) || ch == '_'
+	return syntax.IsIdentStart(ch)
 }
 
 func isIdentContinue(ch rune) bool {
-	return isIdentStart(ch) || unicode.IsDigit(ch)
+	return syntax.IsIdentContinue(ch)
 }

@@ -52,6 +52,26 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateUnicodeIdentifiers(t *testing.T) {
+	src := `计算✅(数值🐉: Int) -> Int => {
+  增量📈 := 1
+  数值🐉 + 增量📈
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function ` + mangleIdent("计算✅") + `(` + mangleIdent("数值🐉") + `: number): number`,
+		`const ` + mangleIdent("增量📈") + ` = 1;`,
+		`return ` + mangleIdent("数值🐉") + ` + ` + mangleIdent("增量📈") + `;`,
+		`export { ` + mangleIdent("计算✅") + ` as "计算✅" };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateTemplateLiteral(t *testing.T) {
 	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
 	got := generateForTest(t, src)

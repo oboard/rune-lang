@@ -2,11 +2,12 @@ package gocodegen
 
 import (
 	"strings"
-	"unicode"
+	"unicode/utf8"
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/stdlib"
+	"github.com/oboard/rune-lang/internal/syntax"
 )
 
 func (g *generator) collectExprImports(expr ir.Expr) {
@@ -115,25 +116,22 @@ func rewriteGoFFI(src string) string {
 			continue
 		}
 		j := i + 1
-		if j >= len(src) || !isGoFFIIdentStart(rune(src[j])) {
+		ch, size := utf8.DecodeRuneInString(src[j:])
+		if ch == utf8.RuneError && size == 0 || !syntax.IsIdentStart(ch) {
 			b.WriteByte('$')
 			i++
 			continue
 		}
-		j++
-		for j < len(src) && isGoFFIIdentContinue(rune(src[j])) {
-			j++
+		j += size
+		for j < len(src) {
+			ch, size = utf8.DecodeRuneInString(src[j:])
+			if ch == utf8.RuneError && size == 0 || !syntax.IsIdentContinue(ch) {
+				break
+			}
+			j += size
 		}
 		b.WriteString(mangleIdent(src[i+1 : j]))
 		i = j
 	}
 	return b.String()
-}
-
-func isGoFFIIdentStart(r rune) bool {
-	return r == '_' || unicode.IsLetter(r)
-}
-
-func isGoFFIIdentContinue(r rune) bool {
-	return isGoFFIIdentStart(r) || unicode.IsDigit(r)
 }

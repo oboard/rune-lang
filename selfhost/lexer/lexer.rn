@@ -426,10 +426,30 @@ isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 
 isIdentStart(ch: Char) -> Bool => {
   '_' => true
-  _ => isAlpha(ch)
+  _ => isIdentText(ch) && (isDigit(ch) == false)
 }
 
 isIdentContinue(ch: Char) -> Bool => isIdentStart(ch) || isDigit(ch)
+
+isIdentText(ch: Char) -> Bool => ((isIdentBoundary(ch) == false) && (isAsciiPunctuation(ch) == false))
+
+isIdentBoundary(ch: Char) -> Bool => {
+  '\x00' => true
+  ' ' => true
+  '\t' => true
+  '\r' => true
+  '\n' => true
+  _ => false
+}
+
+isAsciiPunctuation(ch: Char) -> Bool => {
+  '!'..='/' => true
+  ':'..='@' => true
+  '['..='^' => true
+  '`' => true
+  '{'..='~' => true
+  _ => false
+}
 
 isRegexFlag(ch: Char) -> Bool => isAlpha(ch)
 

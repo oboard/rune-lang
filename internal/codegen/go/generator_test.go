@@ -75,6 +75,40 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateUnicodeIdentifiers(t *testing.T) {
+	src := `计算✅(数值🐉: Int) -> Int => {
+  增量📈 := 1
+  数值🐉 + 增量📈
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`func ` + mangleIdent("计算✅") + `(` + mangleIdent("数值🐉") + ` int) int`,
+		mangleIdent("增量📈") + ` := 1`,
+		`return ` + mangleIdent("数值🐉") + ` + ` + mangleIdent("增量📈"),
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "unicode_identifiers.go", got, 0); err != nil {
+		t.Fatalf("generated Go does not parse: %v\n%s", err, got)
+	}
+}
+
 func TestGenerateTemplateLiteral(t *testing.T) {
 	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
 	file, parseErrs := parser.Parse(src)
@@ -310,8 +344,10 @@ isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
 main() => {
   name := "oboard"
   age := 22
+  分数💯 := 42
   @go.stmt("fmt.Println($name)")
   @go.stmt("fmt.Println($age)")
+  @go.stmt("fmt.Println($分数💯)")
   @io.println(isAdult(age))
 }
 `
@@ -335,6 +371,8 @@ main() => {
 		`__name := "oboard"`,
 		`fmt.Println(__name)`,
 		`fmt.Println(__age)`,
+		mangleIdent("分数💯") + ` := 42`,
+		`fmt.Println(` + mangleIdent("分数💯") + `)`,
 		`fmt.Println(__isAdult(__age))`,
 	}
 	for _, want := range wantParts {

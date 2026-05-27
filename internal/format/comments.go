@@ -1,6 +1,10 @@
 package format
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/oboard/rune-lang/internal/syntax"
+)
 
 func preserveLineComments(source string, formatted string, indentUnit string) string {
 	inlineComments := map[string][]string{}
@@ -268,11 +272,11 @@ func validDeclarationAnchorHead(head string) bool {
 }
 
 func isIdentStart(ch rune) bool {
-	return ch == '_' || ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z')
+	return syntax.IsIdentStart(ch)
 }
 
 func isIdentContinue(ch rune) bool {
-	return isIdentStart(ch) || ('0' <= ch && ch <= '9')
+	return syntax.IsIdentContinue(ch)
 }
 
 func containsKey(keys []string, key string) bool {

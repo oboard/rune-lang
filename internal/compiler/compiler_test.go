@@ -64,6 +64,39 @@ main() => @io.println(inc(41))
 	}
 }
 
+func TestAnalyzeSourceSupportsUnicodeIdentifiers(t *testing.T) {
+	src := `问候: {
+  名字💡: String
+
+  欢迎👋() -> String => .名字💡 + "!"
+}
+
+计算✅(数值🐉: Int) -> Int => {
+  增量📈 := 1
+  数值🐉 + 增量📈
+}
+
+main() => {
+  用户👩‍💻 := 问候 { 名字💡: "Rune" }
+  @io.println(用户👩‍💻.欢迎👋())
+  @io.println(计算✅(41))
+}
+`
+	prog, diags := AnalyzeSource("unicode_identifiers.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+
+	var out bytes.Buffer
+	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := runner.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "Rune!\n42" {
+		t.Fatalf("output = %q, want Rune!\\n42", got)
+	}
+}
+
 func TestAnalyzeFileLoadsTransitiveRuneImports(t *testing.T) {
 	dir := t.TempDir()
 	writeRuneFile(t, filepath.Join(dir, "base.rn"), `base() -> Int => 40

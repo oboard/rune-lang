@@ -69,3 +69,19 @@
   @assert.eq(tokens[4].kind, "DotDotDot")
   @assert.eq(tokens[5].kind, "QuestionQuestion")
 }
+
+? "selfhost lexer reads unicode identifiers" {
+  tokens := lex("变量💡 := 1\n用户👩‍💻 := 2\n姓名·字段 := 4")
+  @assert.eq(tokens[0].kind, "Ident")
+  @assert.eq(tokens[0].lexeme, "变量💡")
+  @assert.eq(tokens[1].kind, "Declare")
+  @assert.eq(tokens[2].kind, "Int")
+  @assert.eq(tokens[4].kind, "Ident")
+  @assert.eq(tokens[4].lexeme, "用户👩‍💻")
+  @assert.eq(tokens[5].kind, "Declare")
+  @assert.eq(tokens[6].kind, "Int")
+  @assert.eq(tokens[8].kind, "Ident")
+  @assert.eq(tokens[8].lexeme, "姓名·字段")
+  @assert.eq(tokens[9].kind, "Declare")
+  @assert.eq(tokens[10].kind, "Int")
+}
