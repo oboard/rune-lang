@@ -192,6 +192,21 @@ func TestGenerateArraySpread(t *testing.T) {
 	}
 }
 
+func TestGenerateArrayFoldr(t *testing.T) {
+	src := `sum(values: Array[Int]) -> Int => values.foldr(0, (accumulator, value) => accumulator + value)
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`__values.reduceRight`,
+		`(__accumulator: number, __value: number): number => __accumulator + __value`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateEnumProgram(t *testing.T) {
 	src := `Status: {
   Completed = 0

@@ -98,6 +98,12 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	if fn.Intrinsic == "array.map" {
 		return g.arrayMapExpr(call, g.expr(sel.Receiver)), true
 	}
+	if fn.Intrinsic == "array.reduce" || fn.Intrinsic == "array.foldl" {
+		return g.arrayReduceExpr(call, g.expr(sel.Receiver), false), true
+	}
+	if fn.Intrinsic == "array.foldr" {
+		return g.arrayReduceExpr(call, g.expr(sel.Receiver), true), true
+	}
 	args := make([]string, 0, len(call.Args))
 	for _, arg := range call.Args {
 		args = append(args, g.expr(arg))
@@ -189,6 +195,53 @@ func (g *generator) arrayMapExpr(call *ir.CallExpr, receiver string) string {
 	b.WriteString(fmt.Sprintf("\treturn %s\n", mangleIdent("result")))
 	b.WriteString("}()")
 	return b.String()
+}
+
+func (g *generator) arrayReduceExpr(call *ir.CallExpr, receiver string, reverse bool) string {
+	if len(call.Args) != 2 {
+		return "/* invalid array.reduce */"
+	}
+	callback, arity := g.arrayReducerCallback(call.Args[1])
+	arrayName := g.nextTemp("array")
+	resultName := g.nextTemp("result")
+	indexName := g.nextTemp("index")
+	valueName := g.nextTemp("value")
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("func() %s {\n", goType(call.ResultType())))
+	b.WriteString(fmt.Sprintf("\t%s := %s\n", arrayName, receiver))
+	b.WriteString(fmt.Sprintf("\t%s := %s\n", resultName, g.exprAs(call.Args[0], call.ResultType())))
+	if reverse {
+		b.WriteString(fmt.Sprintf("\tfor %s := len(%s) - 1; %s >= 0; %s-- {\n", indexName, arrayName, indexName, indexName))
+		b.WriteString(fmt.Sprintf("\t\t%s := %s[%s]\n", valueName, arrayName, indexName))
+		b.WriteString(fmt.Sprintf("\t\t%s = %s\n", resultName, arrayReducerCallbackCall(callback, arity, resultName, valueName, indexName, arrayName)))
+		b.WriteString("\t}\n")
+	} else {
+		b.WriteString(fmt.Sprintf("\tfor %s, %s := range %s {\n", indexName, valueName, arrayName))
+		b.WriteString(fmt.Sprintf("\t\t%s = %s\n", resultName, arrayReducerCallbackCall(callback, arity, resultName, valueName, indexName, arrayName)))
+		b.WriteString("\t}\n")
+	}
+	b.WriteString(fmt.Sprintf("\treturn %s\n", resultName))
+	b.WriteString("}()")
+	return b.String()
+}
+
+func (g *generator) arrayReducerCallback(expr ir.Expr) (string, int) {
+	if lambda, ok := expr.(*ir.LambdaExpr); ok {
+		return g.expr(lambda), len(lambda.Params)
+	}
+	params, _, ok := parseGoFuncType(string(expr.ResultType()))
+	if !ok {
+		return g.expr(expr), 4
+	}
+	return g.expr(expr), len(params)
+}
+
+func arrayReducerCallbackCall(callback string, arity int, accumulator string, value string, index string, array string) string {
+	args := []string{accumulator, value, index, array}
+	if arity < len(args) {
+		args = args[:arity]
+	}
+	return fmt.Sprintf("%s(%s)", callback, strings.Join(args, ", "))
 }
 
 func (g *generator) arrayEachExpr(call *ir.CallExpr, receiver string) string {

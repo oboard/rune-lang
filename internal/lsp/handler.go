@@ -72,7 +72,7 @@ func (s *server) handle(req request) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
-		return s.respond(req.ID, s.completion(params.TextDocument.URI))
+		return s.respond(req.ID, s.completion(params.TextDocument.URI, params.Position))
 	case "textDocument/definition":
 		var params textPositionParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

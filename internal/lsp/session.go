@@ -39,7 +39,7 @@ func (s *Session) Hover(uri string, line int, character int) any {
 }
 
 func (s *Session) Completion(uri string, line int, character int) any {
-	return s.server.completion(uri)
+	return s.server.completion(uri, position{Line: line, Character: character})
 }
 
 func (s *Session) Definition(uri string, line int, character int) any {

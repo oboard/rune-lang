@@ -71,6 +71,14 @@ func TestLoadCoreStubs(t *testing.T) {
 		t.Fatalf("unexpected array map declaration: %#v", mapFn)
 	}
 
+	reduceFn, ok := reg.Function("array", "reduce")
+	if !ok {
+		t.Fatal("missing core/array reduce declaration")
+	}
+	if reduceFn.Intrinsic != "array.reduce" || reduceFn.Return != "U" || len(reduceFn.Params) != 2 || reduceFn.Params[0] != "U" || reduceFn.Params[1] != "Func[U,T,Int,Array[T],U]" {
+		t.Fatalf("unexpected array reduce declaration: %#v", reduceFn)
+	}
+
 	regexNew, ok := reg.Function("regex", "new")
 	if !ok {
 		t.Fatal("missing core/regex new declaration")

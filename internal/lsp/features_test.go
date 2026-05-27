@@ -108,7 +108,7 @@ main() => {
 `
 	s := &server{docs: map[string]string{uri: src}}
 
-	completion := s.completion(uri).([]map[string]any)
+	completion := s.completion(uri, position{}).([]map[string]any)
 	if !completionContains(completion, "greet") {
 		t.Fatalf("completion = %#v, want imported TypeScript greet", completion)
 	}
@@ -216,6 +216,38 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	}
 	if !strings.Contains(value, "core/array/array.rn") {
 		t.Fatalf("hover = %q, want core source path", value)
+	}
+}
+
+func TestArrayMemberCompletionUsesReceiverType(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+    solution := {
+        arraySum(values: Array[Int]) -> Int => {
+            values.
+        }
+    }
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	pos := positionOf(src, "values.", ".")
+	pos.Character++
+	items := s.completion(uri, pos).([]map[string]any)
+	for _, label := range []string{"length", "map", "reduce", "foldl", "foldr"} {
+		if !completionContains(items, label) {
+			t.Fatalf("completion labels = %#v, want %s", items, label)
+		}
+	}
+	var reduceDetail string
+	for _, item := range items {
+		if item["label"] == "reduce" {
+			reduceDetail = item["detail"].(string)
+			break
+		}
+	}
+	if !strings.Contains(reduceDetail, "Array[Int].reduce[U]") || !strings.Contains(reduceDetail, "(U, Int, Int, Array[Int]) -> U") {
+		t.Fatalf("reduce detail = %q, want Array[Int] reducer signature", reduceDetail)
 	}
 }
 
@@ -472,7 +504,7 @@ main() => {
 		t.Fatalf("param hover = %q, want inferred Bool", got)
 	}
 
-	completion := s.completion(uri).([]map[string]any)
+	completion := s.completion(uri, position{}).([]map[string]any)
 	var detail string
 	for _, item := range completion {
 		if item["label"] == "fun" {

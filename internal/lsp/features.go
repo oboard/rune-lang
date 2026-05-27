@@ -261,12 +261,19 @@ func structTypeByName(file *ast.File, name string) *ast.StructType {
 	return nil
 }
 
-func (s *server) completion(uri string) any {
+func (s *server) completion(uri string, pos position) any {
 	prog, _ := s.analyze(uri)
-	var items []map[string]any
 	if prog == nil {
+		return []map[string]any{}
+	}
+	if items, ok := s.memberCompletion(uri, prog, pos); ok {
 		return items
 	}
+	return globalCompletion(prog)
+}
+
+func globalCompletion(prog *compiler.Program) []map[string]any {
+	var items []map[string]any
 	if prog.Info.Stdlib != nil {
 		for _, moduleName := range prog.Info.Stdlib.ModuleNames() {
 			module := prog.Info.Stdlib.Modules[moduleName]
@@ -298,6 +305,210 @@ func (s *server) completion(uri string) any {
 			"label":  value.Name,
 			"kind":   6,
 			"detail": fmt.Sprintf("%s: %s", value.Name, displayCheckerType(prog.Info, value.Type)),
+		})
+	}
+	return items
+}
+
+func (s *server) memberCompletion(uri string, prog *compiler.Program, pos position) ([]map[string]any, bool) {
+	if !looksLikeMemberCompletion(s.docs[uri], pos) {
+		return nil, false
+	}
+	receiver, ok := memberCompletionReceiverType(s.docs[uri], prog, pos)
+	if !ok || receiver == "" || receiver == checker.Unknown {
+		return nil, false
+	}
+	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+		return stdlibMemberCompletion(prog.Info, receiver, moduleName, receiverName), true
+	}
+	if structInfo := prog.Info.Types[baseType(receiver)]; structInfo != nil {
+		return structMemberCompletion(prog.Info, structInfo), true
+	}
+	return nil, false
+}
+
+func looksLikeMemberCompletion(text string, pos position) bool {
+	offset, ok := offsetFromPosition(text, pos)
+	if !ok {
+		return false
+	}
+	lineStart := strings.LastIndexByte(text[:offset], '\n') + 1
+	prefixStart := offset
+	for prefixStart > lineStart && isIdentByte(text[prefixStart-1]) {
+		prefixStart--
+	}
+	return prefixStart > lineStart && text[prefixStart-1] == '.'
+}
+
+func memberCompletionReceiverType(text string, prog *compiler.Program, pos position) (checker.Type, bool) {
+	if sel := selectorAtCompletion(prog.File, pos); sel != nil {
+		if typ := prog.Info.ExprTypes[sel.Receiver]; typ != "" {
+			return typ, true
+		}
+	}
+	name := memberCompletionReceiverName(text, pos)
+	if name == "" {
+		return "", false
+	}
+	return localValueTypeBeforePosition(prog, name, pos)
+}
+
+func selectorAtCompletion(file *ast.File, pos position) *ast.SelectorExpr {
+	var found *ast.SelectorExpr
+	walkFileSelectors(file, func(sel *ast.SelectorExpr) {
+		if found != nil {
+			return
+		}
+		line := sel.NamePos.Line - 1
+		char := sel.NamePos.Column - 1
+		if pos.Line == line && pos.Character >= char && pos.Character <= char+max(len(sel.Name), 0) {
+			found = sel
+		}
+	})
+	return found
+}
+
+func memberCompletionReceiverName(text string, pos position) string {
+	offset, ok := offsetFromPosition(text, pos)
+	if !ok {
+		return ""
+	}
+	lineStart := strings.LastIndexByte(text[:offset], '\n') + 1
+	prefixStart := offset
+	for prefixStart > lineStart && isIdentByte(text[prefixStart-1]) {
+		prefixStart--
+	}
+	if prefixStart <= lineStart || text[prefixStart-1] != '.' {
+		return ""
+	}
+	end := prefixStart - 1
+	start := end
+	for start > lineStart && isIdentByte(text[start-1]) {
+		start--
+	}
+	if start == end {
+		return ""
+	}
+	return text[start:end]
+}
+
+func localValueTypeBeforePosition(prog *compiler.Program, name string, pos position) (checker.Type, bool) {
+	var best checker.Type
+	bestOffset := -1
+	consider := func(tok lexer.Position, typ checker.Type) {
+		if typ == "" || typ == checker.Unknown || !tokenBeforePosition(tok, pos) {
+			return
+		}
+		offset := tok.Offset
+		if offset == 0 {
+			offset = (tok.Line * 1_000_000) + tok.Column
+		}
+		if offset > bestOffset {
+			bestOffset = offset
+			best = typ
+		}
+	}
+	for _, typ := range prog.File.Types {
+		structInfo := prog.Info.Types[typ.Name]
+		for _, method := range typ.Methods {
+			methodInfo := (*checker.FuncInfo)(nil)
+			if structInfo != nil {
+				methodInfo = structInfo.Methods[method.Name]
+			}
+			for i, param := range method.Params {
+				if param.Name != name {
+					continue
+				}
+				typ := checker.Type(param.Type)
+				if methodInfo != nil && i < len(methodInfo.Params) {
+					typ = methodInfo.Params[i].Type
+				}
+				consider(param.Pos, typ)
+			}
+		}
+	}
+	for _, fn := range prog.File.Functions {
+		fnInfo := prog.Info.FunctionDecls[fn]
+		for i, param := range fn.Params {
+			if param.Name != name {
+				continue
+			}
+			typ := checker.Type(param.Type)
+			if fnInfo != nil && i < len(fnInfo.Params) {
+				typ = fnInfo.Params[i].Type
+			}
+			consider(param.Pos, typ)
+		}
+	}
+	walkFileStatements(prog.File, func(stmt ast.Stmt) {
+		switch stmt := stmt.(type) {
+		case *ast.LetStmt:
+			if stmt.Name == name {
+				consider(stmt.Pos, prog.Info.ExprTypes[stmt.Value])
+			}
+		case *ast.ObjectDestructureStmt:
+			valueType := prog.Info.ExprTypes[stmt.Value]
+			for _, field := range stmt.Fields {
+				if field.Name != name {
+					continue
+				}
+				if typ, ok := checker.FieldType(prog.Info, valueType, field.Field); ok {
+					consider(field.NamePos, typ)
+				}
+			}
+		}
+	})
+	return best, best != ""
+}
+
+func tokenBeforePosition(tok lexer.Position, pos position) bool {
+	line := tok.Line - 1
+	char := tok.Column - 1
+	return line < pos.Line || (line == pos.Line && char <= pos.Character)
+}
+
+func stdlibMemberCompletion(info *checker.Info, receiver checker.Type, moduleName string, receiverName string) []map[string]any {
+	if info == nil || info.Stdlib == nil {
+		return nil
+	}
+	module := info.Stdlib.Modules[moduleName]
+	if module == nil {
+		return nil
+	}
+	items := make([]map[string]any, 0)
+	for _, fn := range module.Functions {
+		if fn.Receiver != receiverName {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   2,
+			"detail": stdlibMemberSignature(info, receiver, fn),
+		})
+	}
+	return items
+}
+
+func structMemberCompletion(info *checker.Info, structInfo *checker.StructInfo) []map[string]any {
+	items := make([]map[string]any, 0, len(structInfo.Fields)+len(structInfo.Methods))
+	for _, field := range structInfo.Fields {
+		items = append(items, map[string]any{
+			"label":  field.Name,
+			"kind":   5,
+			"detail": fmt.Sprintf("%s: %s", field.Name, displayCheckerType(info, field.Type)),
+		})
+	}
+	methodNames := make([]string, 0, len(structInfo.Methods))
+	for name := range structInfo.Methods {
+		methodNames = append(methodNames, name)
+	}
+	sort.Strings(methodNames)
+	for _, name := range methodNames {
+		method := structInfo.Methods[name]
+		items = append(items, map[string]any{
+			"label":  name,
+			"kind":   2,
+			"detail": classMethodSignature(structInfo.Name, method),
 		})
 	}
 	return items
@@ -1487,6 +1698,95 @@ func stdlibSignature(moduleName string, fn *stdlib.Function) string {
 	return fmt.Sprintf("%s.%s%s(%s) -> %s", owner, fn.Name, generics, strings.Join(params, ", "), ret)
 }
 
+func stdlibMemberSignature(info *checker.Info, receiver checker.Type, fn stdlib.Function) string {
+	bindings := memberTypeBindings(receiver)
+	owner := displayCheckerTypeOneLine(info, receiver)
+	if owner == "" || owner == string(checker.Unknown) {
+		owner = fn.Receiver
+	}
+	params := make([]string, 0, len(fn.Params))
+	for i, typ := range fn.Params {
+		name := fmt.Sprintf("arg%d", i+1)
+		if i < len(fn.ParamNames) && fn.ParamNames[i] != "" {
+			name = fn.ParamNames[i]
+		}
+		params = append(params, fmt.Sprintf("%s: %s", name, displayType(substituteStdlibType(typ, bindings))))
+	}
+	ret := displayType(substituteStdlibType(fn.Return, bindings))
+	if ret == "" {
+		ret = string(checker.Void)
+	}
+	return fmt.Sprintf("%s.%s%s(%s) -> %s", owner, fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+}
+
+func memberTypeBindings(receiver checker.Type) map[string]string {
+	bindings := map[string]string{}
+	if elem, ok := checker.ArrayElement(receiver); ok {
+		bindings["T"] = string(elem)
+		return bindings
+	}
+	base, args, ok := parseDisplayGenericName(string(receiver))
+	if !ok {
+		return bindings
+	}
+	switch base {
+	case "Map", "WeakMap":
+		if len(args) >= 2 {
+			bindings["K"] = args[0]
+			bindings["V"] = args[1]
+		}
+	case "Set", "WeakSet", "Iter":
+		if len(args) >= 1 {
+			bindings["T"] = args[0]
+		}
+	}
+	return bindings
+}
+
+func substituteStdlibType(name string, bindings map[string]string) string {
+	if bound, ok := bindings[name]; ok {
+		return bound
+	}
+	if params, ret, ok := parseRawDisplayFuncType(name); ok {
+		parts := make([]string, 0, len(params)+1)
+		for _, param := range params {
+			parts = append(parts, substituteStdlibType(param, bindings))
+		}
+		parts = append(parts, substituteStdlibType(ret, bindings))
+		return "Func[" + strings.Join(parts, ",") + "]"
+	}
+	if params, ret, ok := parseRawDisplayAsyncFuncType(name); ok {
+		parts := make([]string, 0, len(params)+1)
+		for _, param := range params {
+			parts = append(parts, substituteStdlibType(param, bindings))
+		}
+		parts = append(parts, substituteStdlibType(ret, bindings))
+		return "AsyncFunc[" + strings.Join(parts, ",") + "]"
+	}
+	if strings.HasSuffix(name, "?") && name != "?" {
+		return substituteStdlibType(strings.TrimSuffix(name, "?"), bindings) + "?"
+	}
+	if base, args, ok := parseDisplayGenericName(name); ok {
+		for i, arg := range args {
+			args[i] = substituteStdlibType(arg, bindings)
+		}
+		return base + "[" + strings.Join(args, ",") + "]"
+	}
+	return name
+}
+
+func parseDisplayGenericName(name string) (string, []string, bool) {
+	idx := strings.IndexByte(name, '[')
+	if idx <= 0 || !strings.HasSuffix(name, "]") {
+		return "", nil, false
+	}
+	args := splitDisplayTypeList(strings.TrimSuffix(name[idx+1:], "]"))
+	if len(args) == 0 {
+		return "", nil, false
+	}
+	return name[:idx], args, true
+}
+
 func displayType(name string) string {
 	params, ret, ok := parseDisplayFuncType(name)
 	if ok {
@@ -1726,6 +2026,39 @@ func containsToken(pos position, tok lexer.Token) bool {
 	line := tok.Pos.Line - 1
 	char := tok.Pos.Column - 1
 	return pos.Line == line && pos.Character >= char && pos.Character <= char+len([]rune(tok.Lexeme))
+}
+
+func offsetFromPosition(text string, pos position) (int, bool) {
+	if pos.Line < 0 || pos.Character < 0 {
+		return 0, false
+	}
+	line := 0
+	lineStart := 0
+	for i, ch := range text {
+		if line == pos.Line {
+			offset := lineStart + pos.Character
+			if offset > len(text) {
+				return len(text), true
+			}
+			return offset, true
+		}
+		if ch == '\n' {
+			line++
+			lineStart = i + 1
+		}
+	}
+	if line == pos.Line {
+		offset := lineStart + pos.Character
+		if offset > len(text) {
+			offset = len(text)
+		}
+		return offset, true
+	}
+	return len(text), false
+}
+
+func isIdentByte(ch byte) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_'
 }
 
 func textEdit(pos lexer.Position, oldName string, newName string) map[string]any {

@@ -1600,6 +1600,10 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 			result.Elements = append(result.Elements, value)
 		}
 		return result, nil
+	case fn.Intrinsic == "array.reduce" || fn.Intrinsic == "array.foldl":
+		return i.callArrayReduce(array, name, args, env, false)
+	case fn.Intrinsic == "array.foldr":
+		return i.callArrayReduce(array, name, args, env, true)
 	default:
 		if fn.Body == nil {
 			return nil, fmt.Errorf("array.%s is not supported by the interpreter", name)
@@ -1620,12 +1624,56 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 	}
 }
 
+func (i *Interpreter) callArrayReduce(array *Array, name string, args []ir.Expr, env *Env, reverse bool) (Value, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("array.%s expects 2 args, got %d", name, len(args))
+	}
+	accumulator, err := i.eval(args[0], env)
+	if err != nil {
+		return nil, err
+	}
+	closure, err := i.evalLambdaArg(args[1], env)
+	if err != nil {
+		return nil, err
+	}
+	if reverse {
+		for idx := len(array.Elements) - 1; idx >= 0; idx-- {
+			accumulator, err = i.callClosure(closure, arrayReducerArgs(closure, accumulator, array.Elements[idx], idx, array))
+			if err != nil {
+				return nil, err
+			}
+		}
+		return accumulator, nil
+	}
+	for idx, elem := range array.Elements {
+		accumulator, err = i.callClosure(closure, arrayReducerArgs(closure, accumulator, elem, idx, array))
+		if err != nil {
+			return nil, err
+		}
+	}
+	return accumulator, nil
+}
+
 func arrayCallbackArgs(closure *Closure, elem Value, idx int, array *Array) []Value {
 	values := []Value{elem}
 	if len(closure.Params) >= 2 {
 		values = append(values, idx)
 	}
 	if len(closure.Params) >= 3 {
+		values = append(values, array)
+	}
+	return values
+}
+
+func arrayReducerArgs(closure *Closure, accumulator Value, elem Value, idx int, array *Array) []Value {
+	values := []Value{accumulator}
+	if len(closure.Params) >= 2 {
+		values = append(values, elem)
+	}
+	if len(closure.Params) >= 3 {
+		values = append(values, idx)
+	}
+	if len(closure.Params) >= 4 {
 		values = append(values, array)
 	}
 	return values

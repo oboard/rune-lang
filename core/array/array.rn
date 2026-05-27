@@ -37,6 +37,36 @@ Array[T]: {
     ) -> U
   ) -> Array[U] => "%array.map"
 
+  reduce[U](
+    initial: U,
+    callbackfn: (
+      accumulator: U,
+      value: T,
+      index?: Int,
+      array?: Array[T]
+    ) -> U
+  ) -> U => "%array.reduce"
+
+  foldl[U](
+    initial: U,
+    callbackfn: (
+      accumulator: U,
+      value: T,
+      index?: Int,
+      array?: Array[T]
+    ) -> U
+  ) -> U => "%array.foldl"
+
+  foldr[U](
+    initial: U,
+    callbackfn: (
+      accumulator: U,
+      value: T,
+      index?: Int,
+      array?: Array[T]
+    ) -> U
+  ) -> U => "%array.foldr"
+
   @alias("_[_]")
   at(index: Int) -> T => "%array.at"
 }

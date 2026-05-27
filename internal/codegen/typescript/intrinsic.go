@@ -107,7 +107,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		}
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "array."):
-		return g.arrayIntrinsicCall(fn, receiver, args, call.ResultType()), true
+		return g.arrayIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
 		return g.stringIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "char."):
@@ -696,7 +696,7 @@ func (g *generator) intrinsicArgs(args []ir.Expr) []string {
 	return out
 }
 
-func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, args []string, rawArgs []ir.Expr, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "array.len":
 		return receiver + ".length"
@@ -734,6 +734,10 @@ func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, arg
 			return "undefined"
 		}
 		return fmt.Sprintf("%s.map(%s)", receiver, args[0])
+	case "array.reduce", "array.foldl":
+		return g.arrayReduceCall(receiver, args, rawArgs, false)
+	case "array.foldr":
+		return g.arrayReduceCall(receiver, args, rawArgs, true)
 	case "array.at", "array.get":
 		if len(args) != 1 {
 			return "undefined"
@@ -742,6 +746,40 @@ func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, arg
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}
+}
+
+func (g *generator) arrayReduceCall(receiver string, args []string, rawArgs []ir.Expr, reverse bool) string {
+	if len(args) != 2 || len(rawArgs) != 2 {
+		return "undefined"
+	}
+	callback, arity := g.arrayReducerCallback(rawArgs[1])
+	method := "reduce"
+	if reverse {
+		method = "reduceRight"
+	}
+	accumulator := g.nextTemp("__acc")
+	value := g.nextTemp("__value")
+	index := g.nextTemp("__index")
+	return fmt.Sprintf("%s.%s((%s, %s, %s) => %s, %s)", receiver, method, accumulator, value, index, arrayReducerCallbackCall(callback, arity, accumulator, value, index, receiver), args[0])
+}
+
+func (g *generator) arrayReducerCallback(expr ir.Expr) (string, int) {
+	if lambda, ok := expr.(*ir.LambdaExpr); ok {
+		return g.expr(lambda), len(lambda.Params)
+	}
+	params, _, ok := parseTSFuncType(string(expr.ResultType()))
+	if !ok {
+		return g.expr(expr), 4
+	}
+	return g.expr(expr), len(params)
+}
+
+func arrayReducerCallbackCall(callback string, arity int, accumulator string, value string, index string, array string) string {
+	args := []string{accumulator, value, index, array}
+	if arity < len(args) {
+		args = args[:arity]
+	}
+	return fmt.Sprintf("(%s)(%s)", callback, strings.Join(args, ", "))
 }
 
 func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {

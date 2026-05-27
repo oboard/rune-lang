@@ -99,6 +99,25 @@
   @assert.eq(shifted[2], 5)
 }
 
+? "array reduce and folds" {
+  values := [1, 2, 3, 4]
+  sum := values.reduce(0, (accumulator, value) => accumulator + value)
+  @assert.eq(sum, 10)
+
+  weighted := values.reduce(0, (accumulator, value, index) => accumulator + (value * index))
+  @assert.eq(weighted, 20)
+
+  fromArrayArg := values.reduce(0, (accumulator, value, index, array) => accumulator + array[index])
+  @assert.eq(fromArrayArg, 10)
+
+  words := ["a", "b", "c"]
+  left := words.foldl("", (accumulator, value) => accumulator + value)
+  @assert.eq(left, "abc")
+
+  right := words.foldr("", (accumulator, value) => accumulator + value)
+  @assert.eq(right, "cba")
+}
+
 ? "nested arrays" {
   matrix := [[1, 2], [3, 4]]
   @assert.eq(matrix.length(), 2)

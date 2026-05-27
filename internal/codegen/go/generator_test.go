@@ -415,6 +415,37 @@ func TestGenerateArraySpread(t *testing.T) {
 	}
 }
 
+func TestGenerateArrayReduce(t *testing.T) {
+	src := `sum(values: Array[Int]) -> Int => values.reduce(0, (accumulator, value) => accumulator + value)
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`range __array`,
+		`return __accumulator + __value`,
+		`return __result`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "array_reduce.go", got, 0); err != nil {
+		t.Fatalf("generated Go does not parse: %v\n%s", err, got)
+	}
+}
+
 func TestGenerateSignalProgram(t *testing.T) {
 	src := `main() => {
   count $= 0
