@@ -1,0 +1,10 @@
+@"../selfhost/parser/parser.rn"
+
+main() => {
+  source := "User: {\n  name: String\n  greet(prefix: String) -> String => prefix + .name\n}\nmain() => User { name: \"Rune\" }.greet(\"hi\")\n"
+  file := parse(source)
+  @io.println("errors", file.errors.length())
+  @io.println("types", file.types.length())
+  @io.println("functions", file.functions.length())
+  @io.println("first type", file.types[0].name)
+}
