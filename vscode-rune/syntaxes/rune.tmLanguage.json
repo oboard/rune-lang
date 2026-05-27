@@ -10,6 +10,7 @@
     { "include": "#numbers" },
     { "include": "#modules" },
     { "include": "#typeDefinition" },
+    { "include": "#typeReferences" },
     { "include": "#structLiteral" },
     { "include": "#functionDefinition" },
     { "include": "#operators" },
@@ -153,6 +154,28 @@
             "1": { "name": "constant.other.enum.rune" },
             "2": { "name": "keyword.operator.assignment.rune" },
             "3": { "name": "constant.numeric.integer.rune" }
+          }
+        }
+      ]
+    },
+    "typeReferences": {
+      "patterns": [
+        {
+          "name": "meta.type-annotation.rune",
+          "match": "(:)\\s*(?!(?:Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Char|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Data|Error|Result|Task|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b)([A-Z][A-Za-z0-9_]*)(\\?)?",
+          "captures": {
+            "1": { "name": "punctuation.separator.type.rune" },
+            "2": { "name": "entity.name.type.rune" },
+            "3": { "name": "storage.modifier.nullable.rune" }
+          }
+        },
+        {
+          "name": "meta.return-type.rune",
+          "match": "(->)\\s*(?!(?:Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Char|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Data|Error|Result|Task|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b)([A-Z][A-Za-z0-9_]*)(\\?)?",
+          "captures": {
+            "1": { "name": "keyword.operator.arrow.rune" },
+            "2": { "name": "entity.name.type.rune" },
+            "3": { "name": "storage.modifier.nullable.rune" }
           }
         }
       ]
