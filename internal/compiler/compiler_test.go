@@ -30,6 +30,13 @@ func TestAnalyzeCoreIterSource(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCoreCompressSource(t *testing.T) {
+	_, diags := AnalyzeFile(filepath.Join("..", "..", "core", "compress", "compress.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+}
+
 func TestAnalyzeFileLoadsRuneImports(t *testing.T) {
 	dir := t.TempDir()
 	writeRuneFile(t, filepath.Join(dir, "math.rn"), `inc(value: Int) -> Int => value + 1

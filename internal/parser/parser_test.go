@@ -201,6 +201,26 @@ func TestRoutineDeclAndResultUnwrap(t *testing.T) {
 	}
 }
 
+func TestRoutineDeclWithQualifiedGenericReturn(t *testing.T) {
+	file, errs := Parse(`~ gzip(data: @io.Data) -> Result[@io.Data, Error] => "%compress.gzip"`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Functions) != 1 {
+		t.Fatalf("Parse() functions = %d, want 1", len(file.Functions))
+	}
+	fn := file.Functions[0]
+	if !fn.Routine || fn.Name != "gzip" {
+		t.Fatalf("function = %#v, want routine gzip", fn)
+	}
+	if len(fn.Params) != 1 || fn.Params[0].Type != "Data" || fn.Params[0].TypeDisplay != "@io.Data" {
+		t.Fatalf("params = %#v, want data: @io.Data", fn.Params)
+	}
+	if fn.ReturnType != "Result[Data,Error]" || fn.ReturnDisplay != "Result[@io.Data, Error]" {
+		t.Fatalf("return = %q/%q, want Result[@io.Data, Error]", fn.ReturnType, fn.ReturnDisplay)
+	}
+}
+
 func TestConstructorPatternMatch(t *testing.T) {
 	file, errs := Parse(`main() => readUser() {
     Ok(user) => user.name
