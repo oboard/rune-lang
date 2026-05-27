@@ -2,14 +2,12 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
-	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/oboard/rune-lang/internal/ir"
 )
 
 func TestParseTarget(t *testing.T) {
@@ -129,29 +127,77 @@ func TestResolveRunEntryRejectsMultipleMains(t *testing.T) {
 	}
 }
 
-func TestWriteTypeScriptImportMapPreservesSpecifier(t *testing.T) {
+func TestCompileTypeScriptToTempRunsFromEntryDirectory(t *testing.T) {
 	dir := t.TempDir()
 	tsPath := filepath.Join(dir, "greet.ts")
-	importMap, err := writeTypeScriptImportMap(dir, []ir.TSImport{{
-		Path:      tsPath,
-		Specifier: "greet.ts",
-	}})
+	writeTestFile(t, tsPath, "export function greet(name: string): string { return name }\n")
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `@"greet.ts"
+
+main() => @io.println(greet("Rune"))
+`)
+
+	tsFile, runDir, cleanup, err := compileTypeScriptToTemp(mainPath)
 	if err != nil {
-		t.Fatalf("writeTypeScriptImportMap() error = %v", err)
+		t.Fatalf("compileTypeScriptToTemp() error = %v", err)
 	}
-	data, err := os.ReadFile(importMap)
+	defer cleanup()
+	if filepath.Dir(tsFile) != dir {
+		t.Fatalf("compiled TypeScript dir = %q, want %q", filepath.Dir(tsFile), dir)
+	}
+	if runDir != dir {
+		t.Fatalf("run dir = %q, want %q", runDir, dir)
+	}
+	data, err := os.ReadFile(tsFile)
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	var payload struct {
-		Imports map[string]string `json:"imports"`
+	want := `from "./greet.ts"`
+	if !strings.Contains(string(data), want) {
+		t.Fatalf("runtime TypeScript = %q, want %q", data, want)
 	}
-	if err := json.Unmarshal(data, &payload); err != nil {
-		t.Fatalf("Unmarshal() error = %v", err)
+}
+
+func TestTypeScriptRuntimeSpecifier(t *testing.T) {
+	cases := map[string]string{
+		"greet.ts":       "./greet.ts",
+		"lib/greet.ts":   "./lib/greet.ts",
+		"./greet.ts":     "./greet.ts",
+		"../greet.ts":    "../greet.ts",
+		"https://x/y.ts": "https://x/y.ts",
 	}
-	want := (&url.URL{Scheme: "file", Path: tsPath}).String()
-	if got := payload.Imports["greet.ts"]; got != want {
-		t.Fatalf("import map greet.ts = %q, want %q", got, want)
+	for input, want := range cases {
+		if got := typeScriptRuntimeSpecifier(input); got != want {
+			t.Fatalf("typeScriptRuntimeSpecifier(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestTypeScriptRuntimeCommandSupportsAvailableRuntimes(t *testing.T) {
+	cases := []struct {
+		name string
+		want []string
+	}{
+		{name: "bun", want: []string{"/bin/bun", "main.ts", "arg"}},
+		{name: "deno", want: []string{"/bin/deno", "run", "main.ts", "arg"}},
+		{name: "node", want: []string{"/bin/node", "main.ts", "arg"}},
+		{name: "ts-node", want: []string{"/bin/ts-node", "--esm", "main.ts", "arg"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, err := typeScriptRuntimeCommandWithLookPath("main.ts", []string{"arg"}, func(name string) (string, error) {
+				if name == tc.name {
+					return "/bin/" + name, nil
+				}
+				return "", exec.ErrNotFound
+			})
+			if err != nil {
+				t.Fatalf("typeScriptRuntimeCommandWithLookPath() error = %v", err)
+			}
+			if !reflect.DeepEqual(cmd.Args, tc.want) {
+				t.Fatalf("command args = %#v, want %#v", cmd.Args, tc.want)
+			}
+		})
 	}
 }
 

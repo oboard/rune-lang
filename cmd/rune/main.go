@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -77,18 +76,19 @@ func runCmd() *cobra.Command {
 				run.Stdin = os.Stdin
 				return run.Run()
 			case "ts":
-				tsFile, importMap, cleanup, err := compileTypeScriptToTemp(entry)
+				tsFile, runDir, cleanup, err := compileTypeScriptToTemp(entry)
 				if err != nil {
 					return err
 				}
 				defer cleanup()
-				run, err := typeScriptRuntimeCommand(tsFile, importMap, args[1:])
+				run, err := typeScriptRuntimeCommand(tsFile, args[1:])
 				if err != nil {
 					return err
 				}
 				run.Stdout = os.Stdout
 				run.Stderr = os.Stderr
 				run.Stdin = os.Stdin
+				run.Dir = runDir
 				return run.Run()
 			default:
 				return validateBackend(backend)
@@ -518,73 +518,78 @@ func compileTypeScriptToTemp(path string) (string, string, func(), error) {
 		printDiagnostics(path, diags)
 		return "", "", func() {}, fmt.Errorf("compile failed")
 	}
-	src, err := tscodegen.GenerateIR(prog.IR)
+	src, err := tscodegen.GenerateIR(typeScriptRuntimeIR(prog.IR))
 	if err != nil {
 		return "", "", func() {}, err
 	}
-	dir, err := os.MkdirTemp("", "rune-*")
+	runDir, err := filepath.Abs(filepath.Dir(path))
 	if err != nil {
 		return "", "", func() {}, err
 	}
+	file, err := os.CreateTemp(runDir, ".rune-*.ts")
+	if err != nil {
+		return "", "", func() {}, err
+	}
+	tsFile := file.Name()
 	cleanup := func() {
-		_ = os.RemoveAll(dir)
+		_ = os.Remove(tsFile)
 	}
-	importMap, err := writeTypeScriptImportMap(dir, prog.IR.TSImports)
-	if err != nil {
-		cleanup()
-		return "", "", func() {}, err
-	}
-	tsFile := filepath.Join(dir, "main.ts")
 	src += "\nif (typeof __main === \"function\") {\n  const __runeMainResult = __main();\n  if (__runeMainResult && typeof __runeMainResult.then === \"function\") {\n    await __runeMainResult;\n  }\n}\nif (typeof runeWaitAll === \"function\") {\n  await runeWaitAll();\n}\n"
-	if err := os.WriteFile(tsFile, []byte(src), 0o644); err != nil {
+	if _, err := file.WriteString(src); err != nil {
+		_ = file.Close()
 		cleanup()
 		return "", "", func() {}, err
 	}
-	return tsFile, importMap, cleanup, nil
+	if err := file.Close(); err != nil {
+		cleanup()
+		return "", "", func() {}, err
+	}
+	return tsFile, runDir, cleanup, nil
 }
 
-func writeTypeScriptImportMap(dir string, imports []ir.TSImport) (string, error) {
-	specifiers := map[string]string{}
-	for _, imp := range imports {
-		if imp.Specifier == "" || imp.Path == "" {
-			continue
-		}
-		if _, exists := specifiers[imp.Specifier]; exists {
-			continue
-		}
-		specifiers[imp.Specifier] = (&url.URL{Scheme: "file", Path: imp.Path}).String()
+func typeScriptRuntimeIR(file *ir.File) *ir.File {
+	out := *file
+	out.TSImports = append([]ir.TSImport(nil), file.TSImports...)
+	for i := range out.TSImports {
+		out.TSImports[i].Specifier = typeScriptRuntimeSpecifier(out.TSImports[i].Specifier)
 	}
-	if len(specifiers) == 0 {
-		return "", nil
-	}
-	data, err := json.MarshalIndent(map[string]any{"imports": specifiers}, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	path := filepath.Join(dir, "import_map.json")
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return "", err
-	}
-	return path, nil
+	return &out
 }
 
-func typeScriptRuntimeCommand(path string, importMap string, args []string) (*exec.Cmd, error) {
-	if importMap != "" {
-		if runner, err := exec.LookPath("deno"); err == nil {
-			return exec.Command(runner, append([]string{"run", "--import-map", importMap, path}, args...)...), nil
-		}
-		return nil, fmt.Errorf("TypeScript backend with TypeScript imports requires deno")
+func typeScriptRuntimeSpecifier(specifier string) string {
+	if specifier == "" {
+		return specifier
 	}
-	if runner, err := exec.LookPath("bun"); err == nil {
+	if parsed, err := url.Parse(specifier); err == nil && parsed.Scheme != "" {
+		return specifier
+	}
+	if filepath.IsAbs(specifier) {
+		return (&url.URL{Scheme: "file", Path: specifier}).String()
+	}
+	if strings.HasPrefix(specifier, "./") || strings.HasPrefix(specifier, "../") {
+		return specifier
+	}
+	return "./" + specifier
+}
+
+func typeScriptRuntimeCommand(path string, args []string) (*exec.Cmd, error) {
+	return typeScriptRuntimeCommandWithLookPath(path, args, exec.LookPath)
+}
+
+func typeScriptRuntimeCommandWithLookPath(path string, args []string, lookPath func(string) (string, error)) (*exec.Cmd, error) {
+	if runner, err := lookPath("bun"); err == nil {
 		return exec.Command(runner, append([]string{path}, args...)...), nil
 	}
-	if runner, err := exec.LookPath("deno"); err == nil {
+	if runner, err := lookPath("deno"); err == nil {
 		return exec.Command(runner, append([]string{"run", path}, args...)...), nil
 	}
-	if runner, err := exec.LookPath("node"); err == nil {
+	if runner, err := lookPath("node"); err == nil {
 		return exec.Command(runner, append([]string{path}, args...)...), nil
 	}
-	return nil, fmt.Errorf("TypeScript backend requires bun, deno, or node")
+	if runner, err := lookPath("ts-node"); err == nil {
+		return exec.Command(runner, append([]string{"--esm", path}, args...)...), nil
+	}
+	return nil, fmt.Errorf("TypeScript backend requires bun, deno, node, or ts-node")
 }
 
 func buildEnv(target string) ([]string, error) {
