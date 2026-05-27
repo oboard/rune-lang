@@ -333,6 +333,27 @@ func TestNullCoalesceExpression(t *testing.T) {
 	}
 }
 
+func TestTemplateLiteral(t *testing.T) {
+	file, errs := Parse("greet(name: String) -> String => `Hello, ${name}`\n")
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	lit, ok := file.Functions[0].Body.(*ast.TemplateLiteral)
+	if !ok {
+		t.Fatalf("body = %T, want TemplateLiteral", file.Functions[0].Body)
+	}
+	if len(lit.Parts) != 2 {
+		t.Fatalf("parts = %#v, want text and expression", lit.Parts)
+	}
+	if lit.Parts[0].Text != "Hello, " {
+		t.Fatalf("first part = %#v, want text", lit.Parts[0])
+	}
+	ident, ok := lit.Parts[1].Expr.(*ast.Identifier)
+	if !ok || ident.Name != "name" {
+		t.Fatalf("second part = %#v, want name identifier", lit.Parts[1])
+	}
+}
+
 func TestRegexLiteral(t *testing.T) {
 	file, errs := Parse(`main() => {
     re := /rune\s+(\d+)/ig

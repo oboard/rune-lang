@@ -52,6 +52,15 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateTemplateLiteral(t *testing.T) {
+	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
+	got := generateForTest(t, src)
+	want := "return `count ${__count} char ${__ch}`;"
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+	}
+}
+
 func TestGenerateDestructuringPatterns(t *testing.T) {
 	src := `Point: {
   x: Int

@@ -101,7 +101,7 @@ finishToken(
   canStartRegex: !canEndExpression(kind)
 }
 
-canEndExpression(kind) => "Ident" | "Int" | "Double" | "BigInt" | "String" | "Char" | "Regex" | "XMLText" | "Less" | "RParen" | "RBracket" | "RBrace"
+canEndExpression(kind) => "Ident" | "Int" | "Double" | "BigInt" | "String" | "TemplateString" | "Char" | "Regex" | "XMLText" | "Less" | "RParen" | "RBracket" | "RBrace"
 
 markStart(state: LexState) -> LexState => LexState {
   source: state.source
@@ -200,6 +200,7 @@ scanToken(step) => {
     '<' => lexLess(state)
     '>' => lexGreater(state)
     '"' => lexStringToken(state)
+    '`' => lexTemplateStringToken(state)
     '\'' => lexCharToken(state)
     '_' => isIdentContinue(peek(state)) ? lexIdentifierToken(state) : lexed(state, "Underscore")
     _ => isDigit(ch) ? lexNumberToken(state) : isIdentStart(ch) ? lexIdentifierToken(state) : lexed(state, "Illegal")
@@ -293,10 +294,20 @@ lexStringToken(state: LexState) -> Lexed => {
   lexed(scanned.state, scanned.ok ? "String" : "Illegal")
 }
 
+lexTemplateStringToken(state: LexState) -> Lexed => {
+  scanned := scanTemplateString(state, false)
+  lexed(scanned.state, scanned.ok ? "TemplateString" : "Illegal")
+}
+
 scanString(
   state: LexState,
   escaped: Bool
 ) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanStringStep(advance(state), escaped)
+
+scanTemplateString(
+  state: LexState,
+  escaped: Bool
+) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanTemplateStringStep(advance(state), escaped)
 
 scannedString(
   state: LexState,
@@ -313,6 +324,15 @@ scanStringStep(
   '\\' => scanString(step.state, true)
   '"' => scannedString(step.state, true)
   _ => scanString(step.state, false)
+}
+
+scanTemplateStringStep(
+  step: Advanced,
+  escaped: Bool
+) -> ScannedString => escaped ? scanTemplateString(step.state, false) : step.ch {
+  '\\' => scanTemplateString(step.state, true)
+  '`' => scannedString(step.state, true)
+  _ => scanTemplateString(step.state, false)
 }
 
 lexCharToken(state: LexState) -> Lexed => {

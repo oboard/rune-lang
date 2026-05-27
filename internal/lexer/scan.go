@@ -70,6 +70,25 @@ func (l *Lexer) string() Token {
 	return l.token(Illegal)
 }
 
+func (l *Lexer) templateString() Token {
+	escaped := false
+	for !l.isAtEnd() {
+		ch := l.advance()
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == '`' {
+			return l.token(TemplateString)
+		}
+	}
+	return l.token(Illegal)
+}
+
 func (l *Lexer) char() Token {
 	escaped := false
 	for !l.isAtEnd() {

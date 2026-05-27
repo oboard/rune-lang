@@ -94,6 +94,15 @@
   @assert.eq(body.children[1].kind, "string")
 }
 
+? "selfhost parser reads template literals" {
+  source := "greeting(name: String) -> String => `hello, ${name}`\n"
+  file := parse(source)
+  body := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(body.kind, "template")
+  @assert.eq(body.value, "`hello, ${name}`")
+}
+
 ? "selfhost parser detects object pattern branches" {
   source := "score(point) => point {\n  { x, .. } => x\n  _ => 0\n}\n"
   file := parse(source)

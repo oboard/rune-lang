@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
@@ -39,6 +40,8 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return value, nil
 	case *ir.StringLiteral:
 		return e.Value, nil
+	case *ir.TemplateLiteral:
+		return i.evalTemplateLiteral(e, env)
 	case *ir.CharLiteral:
 		return Char(e.Value), nil
 	case *ir.RegexLiteral:
@@ -190,6 +193,22 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", expr)
 	}
+}
+
+func (i *Interpreter) evalTemplateLiteral(lit *ir.TemplateLiteral, env *Env) (Value, error) {
+	var b strings.Builder
+	for _, part := range lit.Parts {
+		b.WriteString(part.Text)
+		if part.Expr == nil {
+			continue
+		}
+		value, err := i.eval(part.Expr, env)
+		if err != nil {
+			return nil, err
+		}
+		b.WriteString(printValue(value))
+	}
+	return b.String(), nil
 }
 
 func (i *Interpreter) assignIndex(target *ir.IndexExpr, valueExpr ir.Expr, env *Env) (Value, error) {

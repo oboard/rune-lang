@@ -1,6 +1,8 @@
 package gocodegen
 
 import (
+	goparser "go/parser"
+	"go/token"
 	"strings"
 	"testing"
 
@@ -70,6 +72,35 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	want := `case (__ch >= '0' && __ch <= '9'):`
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated Go missing %q:\n%s", want, got)
+	}
+}
+
+func TestGenerateTemplateLiteral(t *testing.T) {
+	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`"fmt"`,
+		`func runeTemplateString(value any) string`,
+		`return "count " + runeTemplateString(__count) + " char " + runeTemplateString(__ch)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "template_literal.go", got, 0); err != nil {
+		t.Fatalf("generated Go does not parse: %v\n%s", err, got)
 	}
 }
 

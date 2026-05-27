@@ -24,6 +24,14 @@
   @assert.eq(tokens[3].lexeme, "\"Rune\\nLang\"")
 }
 
+? "selfhost lexer reads template strings" {
+  tokens := lex("name := `hello, ${user}`")
+  @assert.eq(tokens[0].kind, "Ident")
+  @assert.eq(tokens[1].kind, "Declare")
+  @assert.eq(tokens[2].kind, "TemplateString")
+  @assert.eq(tokens[2].lexeme, "`hello, ${user}`")
+}
+
 ? "selfhost lexer separates regex from slash" {
   regexTokens := lex("value := /a[bc]+/gi")
   @assert.eq(regexTokens[2].kind, "Regex")

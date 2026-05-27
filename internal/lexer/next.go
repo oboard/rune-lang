@@ -19,7 +19,7 @@ func (l *Lexer) Next() Token {
 
 func (l *Lexer) finishToken(tok Token) Token {
 	switch tok.Kind {
-	case Ident, Int, Double, BigInt, String, Char, Regex, XMLText, Less, RParen, RBracket, RBrace:
+	case Ident, Int, Double, BigInt, String, TemplateString, Char, Regex, XMLText, Less, RParen, RBracket, RBrace:
 		l.canStartRegex = false
 	case EOF:
 	default:
@@ -164,6 +164,8 @@ func (l *Lexer) nextCode() Token {
 		return l.token(Greater)
 	case '"':
 		return l.string()
+	case '`':
+		return l.templateString()
 	case '\'':
 		return l.char()
 	case '_':
@@ -397,6 +399,8 @@ func (l *Lexer) nextXMLExpr() Token {
 		return l.token(Greater)
 	case '"':
 		return l.string()
+	case '`':
+		return l.templateString()
 	case '\'':
 		return l.char()
 	case '_':

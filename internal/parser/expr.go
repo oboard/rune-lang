@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -282,6 +283,9 @@ func (p *Parser) parsePrimary() ast.Expr {
 			value = tok.Lexeme
 		}
 		return &ast.StringLiteral{Value: value, Pos: tok.Pos}
+	case lexer.TemplateString:
+		p.advance()
+		return p.parseTemplateLiteral(tok)
 	case lexer.Char:
 		p.advance()
 		value, err := strconv.Unquote(tok.Lexeme)
@@ -357,6 +361,145 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.advance()
 		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
 	}
+}
+
+func (p *Parser) parseTemplateLiteral(tok lexer.Token) ast.Expr {
+	lit := &ast.TemplateLiteral{Pos: tok.Pos}
+	raw := tok.Lexeme
+	if len(raw) < 2 || raw[0] != '`' || raw[len(raw)-1] != '`' {
+		p.errorAt(tok, "invalid template string literal")
+		return lit
+	}
+	inner := []rune(raw[1 : len(raw)-1])
+	textStart := 0
+	for i := 0; i < len(inner); {
+		switch inner[i] {
+		case '\\':
+			i += 2
+			continue
+		case '$':
+			if i+1 >= len(inner) || inner[i+1] != '{' {
+				i++
+				continue
+			}
+			if i > textStart {
+				lit.Parts = append(lit.Parts, ast.TemplatePart{
+					Text: unescapeTemplateText(string(inner[textStart:i])),
+					Pos:  tok.Pos,
+				})
+			}
+			exprStart := i + 2
+			exprEnd, ok := scanTemplateExprEnd(inner, exprStart)
+			if !ok {
+				p.errorAt(tok, "unterminated template expression")
+				return lit
+			}
+			exprSrc := strings.TrimSpace(string(inner[exprStart:exprEnd]))
+			if exprSrc == "" {
+				p.errorAt(tok, "empty template expression")
+				lit.Parts = append(lit.Parts, ast.TemplatePart{
+					Expr: &ast.Identifier{Name: "<error>", Pos: tok.Pos},
+					Pos:  tok.Pos,
+				})
+			} else {
+				lit.Parts = append(lit.Parts, ast.TemplatePart{
+					Expr: p.parseTemplateExpr(tok, exprSrc),
+					Pos:  tok.Pos,
+				})
+			}
+			i = exprEnd + 1
+			textStart = i
+			continue
+		}
+		i++
+	}
+	if textStart < len(inner) || len(lit.Parts) == 0 {
+		lit.Parts = append(lit.Parts, ast.TemplatePart{
+			Text: unescapeTemplateText(string(inner[textStart:])),
+			Pos:  tok.Pos,
+		})
+	}
+	return lit
+}
+
+func scanTemplateExprEnd(input []rune, start int) (int, bool) {
+	depth := 1
+	var quote rune
+	for i := start; i < len(input); i++ {
+		ch := input[i]
+		if quote != 0 {
+			if ch == '\\' {
+				i++
+				continue
+			}
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		switch ch {
+		case '"', '\'', '`':
+			quote = ch
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i, true
+			}
+		}
+	}
+	return 0, false
+}
+
+func (p *Parser) parseTemplateExpr(tok lexer.Token, src string) ast.Expr {
+	nested := New(lexer.Lex(src))
+	expr := nested.parseExpression(1)
+	nested.skipNewlines()
+	if !nested.check(lexer.EOF) {
+		nested.errorAt(nested.peek(), "expected end of template expression")
+	}
+	if len(nested.errors) > 0 {
+		p.errorAt(tok, "invalid template expression: "+nested.errors[0].Message)
+		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
+	}
+	return expr
+}
+
+func unescapeTemplateText(raw string) string {
+	var b strings.Builder
+	runes := []rune(raw)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] != '\\' {
+			b.WriteRune(runes[i])
+			continue
+		}
+		if i+1 >= len(runes) {
+			b.WriteRune('\\')
+			continue
+		}
+		i++
+		switch runes[i] {
+		case 'n':
+			b.WriteRune('\n')
+		case 'r':
+			b.WriteRune('\r')
+		case 't':
+			b.WriteRune('\t')
+		case 'b':
+			b.WriteRune('\b')
+		case 'f':
+			b.WriteRune('\f')
+		case 'v':
+			b.WriteRune('\v')
+		case '0':
+			b.WriteRune('\x00')
+		case '\n':
+		default:
+			b.WriteRune(runes[i])
+		}
+	}
+	return b.String()
 }
 
 func splitRegexLiteral(raw string) (string, string, bool) {

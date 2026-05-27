@@ -114,11 +114,11 @@ func closeBlockKey(openKey string) string {
 }
 
 func updateCommentStack(line string, stack []string) []string {
-	inString := false
+	quote := byte(0)
 	escaped := false
 	for i := 0; i < len(line); i++ {
 		ch := line[i]
-		if inString {
+		if quote != 0 {
 			if escaped {
 				escaped = false
 				continue
@@ -127,13 +127,13 @@ func updateCommentStack(line string, stack []string) []string {
 				escaped = true
 				continue
 			}
-			if ch == '"' {
-				inString = false
+			if ch == quote {
+				quote = 0
 			}
 			continue
 		}
-		if ch == '"' {
-			inString = true
+		if ch == '"' || ch == '\'' || ch == '`' {
+			quote = ch
 			continue
 		}
 		switch ch {
@@ -294,11 +294,11 @@ func appendPendingComments(out []string, comments []string) []string {
 }
 
 func findLineComment(line string) int {
-	inString := false
+	quote := byte(0)
 	escaped := false
 	for i := 0; i < len(line)-1; i++ {
 		ch := line[i]
-		if inString {
+		if quote != 0 {
 			if escaped {
 				escaped = false
 				continue
@@ -307,13 +307,13 @@ func findLineComment(line string) int {
 				escaped = true
 				continue
 			}
-			if ch == '"' {
-				inString = false
+			if ch == quote {
+				quote = 0
 			}
 			continue
 		}
-		if ch == '"' {
-			inString = true
+		if ch == '"' || ch == '\'' || ch == '`' {
+			quote = ch
 			continue
 		}
 		if ch == '/' && line[i+1] == '/' {
@@ -330,10 +330,10 @@ func canonicalLineKey(line string) string {
 
 func removeWhitespaceOutsideStrings(line string) string {
 	var b strings.Builder
-	inString := false
+	quote := rune(0)
 	escaped := false
 	for _, ch := range line {
-		if inString {
+		if quote != 0 {
 			b.WriteRune(ch)
 			if escaped {
 				escaped = false
@@ -343,13 +343,13 @@ func removeWhitespaceOutsideStrings(line string) string {
 				escaped = true
 				continue
 			}
-			if ch == '"' {
-				inString = false
+			if ch == quote {
+				quote = 0
 			}
 			continue
 		}
-		if ch == '"' {
-			inString = true
+		if ch == '"' || ch == '\'' || ch == '`' {
+			quote = ch
 			b.WriteRune(ch)
 			continue
 		}

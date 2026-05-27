@@ -16,6 +16,7 @@ type Usage struct {
 	Routine      bool
 	Signal       bool
 	GoFFI        bool
+	Template     bool
 }
 
 func Collect(file *ir.File) Usage {
@@ -59,6 +60,8 @@ func (u *Usage) collectExpr(file *ir.File, expr ir.Expr) {
 			u.collectCallIntrinsic(file, e)
 		case *ir.ResultUnwrapExpr:
 			u.ResultUnwrap = true
+		case *ir.TemplateLiteral:
+			u.Template = true
 		case *ir.SelectorExpr:
 			if at, ok := e.Receiver.(*ir.AtExpr); ok && at.Name == "go" {
 				u.GoFFI = true

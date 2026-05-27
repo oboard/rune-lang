@@ -28,6 +28,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return e.Value + "n"
 	case *ast.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ast.TemplateLiteral:
+		return f.templateLiteral(e)
 	case *ast.CharLiteral:
 		return strconv.QuoteRune(e.Value)
 	case *ast.RegexLiteral:
@@ -112,6 +114,46 @@ func (f *formatter) expr(expr ast.Expr) string {
 	default:
 		return ""
 	}
+}
+
+func (f *formatter) templateLiteral(lit *ast.TemplateLiteral) string {
+	var b strings.Builder
+	b.WriteByte('`')
+	for _, part := range lit.Parts {
+		if part.Text != "" {
+			b.WriteString(escapeTemplateText(part.Text))
+		}
+		if part.Expr != nil {
+			b.WriteString("${")
+			b.WriteString(f.expr(part.Expr))
+			b.WriteByte('}')
+		}
+	}
+	b.WriteByte('`')
+	return b.String()
+}
+
+func escapeTemplateText(text string) string {
+	var b strings.Builder
+	for i, ch := range text {
+		switch ch {
+		case '\\':
+			b.WriteString(`\\`)
+		case '`':
+			b.WriteString("\\`")
+		case '\r':
+			b.WriteString(`\r`)
+		case '$':
+			if i+1 < len(text) && text[i+1] == '{' {
+				b.WriteString(`\$`)
+			} else {
+				b.WriteRune(ch)
+			}
+		default:
+			b.WriteRune(ch)
+		}
+	}
+	return b.String()
 }
 
 func (f *formatter) chainCallExpr(call *ast.CallExpr) (string, bool) {

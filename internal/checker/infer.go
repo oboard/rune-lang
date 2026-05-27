@@ -210,6 +210,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return BigInt
 	case *ast.StringLiteral:
 		return String
+	case *ast.TemplateLiteral:
+		for _, part := range e.Parts {
+			c.inferExpr(part.Expr, env)
+		}
+		return String
 	case *ast.CharLiteral:
 		return Char
 	case *ast.RegexLiteral:

@@ -73,6 +73,19 @@ type StringLiteral struct {
 
 func (*StringLiteral) exprNode() {}
 
+type TemplateLiteral struct {
+	ExprBase
+	Parts []TemplatePart
+}
+
+func (*TemplateLiteral) exprNode() {}
+
+type TemplatePart struct {
+	Text string
+	Expr Expr
+	Pos  lexer.Position
+}
+
 type CharLiteral struct {
 	ExprBase
 	Value rune

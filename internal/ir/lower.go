@@ -169,6 +169,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &BigIntLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.StringLiteral:
 		return &StringLiteral{ExprBase: l.base(e), Value: e.Value}
+	case *ast.TemplateLiteral:
+		out := &TemplateLiteral{ExprBase: l.base(e)}
+		for _, part := range e.Parts {
+			out.Parts = append(out.Parts, TemplatePart{Text: part.Text, Expr: l.expr(part.Expr), Pos: part.Pos})
+		}
+		return out
 	case *ast.CharLiteral:
 		return &CharLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.RegexLiteral:

@@ -110,3 +110,14 @@
   @assert.eq("abc" < "ab", false)
   @assert.eq("b" < "aa", false)
 }
+
+? "template strings" {
+  name := "Rune"
+  count := 3
+  ch := 'x'
+  ok := true
+  @assert.eq(`Hello, ${name}`, "Hello, Rune")
+  @assert.eq(`count ${count}, char ${ch}, ok ${ok}`, "count 3, char x, ok true")
+  @assert.eq(`sum ${1 + 2}`, "sum 3")
+  @assert.eq(`plain`, "plain")
+}

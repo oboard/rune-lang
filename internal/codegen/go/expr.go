@@ -32,6 +32,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.TemplateLiteral:
+		return g.templateLiteral(e)
 	case *ir.CharLiteral:
 		return strconv.QuoteRune(e.Value)
 	case *ir.RegexLiteral:
@@ -189,6 +191,28 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func (g *generator) templateLiteral(lit *ir.TemplateLiteral) string {
+	parts := make([]string, 0, len(lit.Parts))
+	for _, part := range lit.Parts {
+		if part.Text != "" {
+			parts = append(parts, strconv.Quote(part.Text))
+		}
+		if part.Expr == nil {
+			continue
+		}
+		expr := g.expr(part.Expr)
+		if part.Expr.ResultType() == checker.String {
+			parts = append(parts, expr)
+		} else {
+			parts = append(parts, fmt.Sprintf("runeTemplateString(%s)", expr))
+		}
+	}
+	if len(parts) == 0 {
+		return `""`
+	}
+	return strings.Join(parts, " + ")
 }
 
 func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string, bool) {

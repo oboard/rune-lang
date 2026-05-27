@@ -39,6 +39,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return e.Value + "n"
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.TemplateLiteral:
+		return g.templateLiteral(e)
 	case *ir.CharLiteral:
 		return strconv.Quote(string(e.Value))
 	case *ir.RegexLiteral:
@@ -153,6 +155,46 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "undefined"
 	}
+}
+
+func (g *generator) templateLiteral(lit *ir.TemplateLiteral) string {
+	var b strings.Builder
+	b.WriteByte('`')
+	for _, part := range lit.Parts {
+		if part.Text != "" {
+			b.WriteString(escapeTemplateText(part.Text))
+		}
+		if part.Expr != nil {
+			b.WriteString("${")
+			b.WriteString(g.expr(part.Expr))
+			b.WriteByte('}')
+		}
+	}
+	b.WriteByte('`')
+	return b.String()
+}
+
+func escapeTemplateText(text string) string {
+	var b strings.Builder
+	for i, ch := range text {
+		switch ch {
+		case '\\':
+			b.WriteString(`\\`)
+		case '`':
+			b.WriteString("\\`")
+		case '\r':
+			b.WriteString(`\r`)
+		case '$':
+			if i+1 < len(text) && text[i+1] == '{' {
+				b.WriteString(`\$`)
+			} else {
+				b.WriteRune(ch)
+			}
+		default:
+			b.WriteRune(ch)
+		}
+	}
+	return b.String()
 }
 
 func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string, bool) {

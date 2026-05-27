@@ -77,6 +77,22 @@ func (e *StringLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+type TemplateLiteral struct {
+	Parts []TemplatePart
+	Pos   lexer.Position
+}
+
+func (*TemplateLiteral) exprNode() {}
+func (e *TemplateLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
+type TemplatePart struct {
+	Text string
+	Expr Expr
+	Pos  lexer.Position
+}
+
 type CharLiteral struct {
 	Value rune
 	Pos   lexer.Position

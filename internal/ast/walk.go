@@ -10,6 +10,10 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	switch e := expr.(type) {
 	case *Identifier, *AtExpr, *ThisExpr, *IntegerLiteral, *DoubleLiteral, *BigIntLiteral,
 		*StringLiteral, *CharLiteral, *RegexLiteral, *BoolLiteral, *NullLiteral:
+	case *TemplateLiteral:
+		for _, part := range e.Parts {
+			WalkExpr(part.Expr, visit)
+		}
 	case *UnaryExpr:
 		WalkExpr(e.Expr, visit)
 	case *PostfixExpr:

@@ -28,6 +28,9 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesType(usage, checker.Regex) {
 		g.imports["regexp"] = true
 	}
+	if fileUsesTemplateRuntime(usage) {
+		g.imports["fmt"] = true
+	}
 	if fileUsesBinaryRuntime(usage) {
 		g.imports["encoding/binary"] = true
 		g.imports["math"] = true
@@ -113,6 +116,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	if fileUsesType(usage, checker.Regex) {
 		g.regexRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesTemplateRuntime(usage) {
+		g.templateRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -233,6 +242,10 @@ func fileUsesBinaryRuntime(usage codeusage.Usage) bool {
 		fileUsesType(usage, checker.Buffer) ||
 		fileUsesType(usage, checker.Reader) ||
 		fileUsesType(usage, checker.Writer)
+}
+
+func fileUsesTemplateRuntime(usage codeusage.Usage) bool {
+	return usage.Template
 }
 
 func fileUsesPathRuntime(usage codeusage.Usage) bool {

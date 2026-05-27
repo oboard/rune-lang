@@ -1292,7 +1292,7 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  token.kind == "Int" ? parseLiteral(state, "int") : token.kind == "Double" ? parseLiteral(state, "double") : token.kind == "BigInt" ? parseLiteral(state, "bigint") : token.kind == "String" ? parseLiteral(state, "string") : token.kind == "Char" ? parseLiteral(state, "char") : token.kind == "Regex" ? parseLiteral(state, "regex") : token.kind == "XMLText" ? parseLiteral(state, "xmlText") : token.kind == "Ident" ? parseIdentifierPrimary(state) : token.kind == "At" ? parseAtExpression(state) : token.kind == "Dot" ? parseThisSelector(state) : token.kind == "LBracket" ? parseArrayLiteral(state) : token.kind == "Dollar" ? parseReactiveLiteral(state) : token.kind == "LBrace" ? parseBraceLiteral(state) : token.kind == "LParen" ? parseParenOrTuple(state) : parsePrimaryError(state)
+  token.kind == "Int" ? parseLiteral(state, "int") : token.kind == "Double" ? parseLiteral(state, "double") : token.kind == "BigInt" ? parseLiteral(state, "bigint") : token.kind == "String" ? parseLiteral(state, "string") : token.kind == "TemplateString" ? parseLiteral(state, "template") : token.kind == "Char" ? parseLiteral(state, "char") : token.kind == "Regex" ? parseLiteral(state, "regex") : token.kind == "XMLText" ? parseLiteral(state, "xmlText") : token.kind == "Ident" ? parseIdentifierPrimary(state) : token.kind == "At" ? parseAtExpression(state) : token.kind == "Dot" ? parseThisSelector(state) : token.kind == "LBracket" ? parseArrayLiteral(state) : token.kind == "Dollar" ? parseReactiveLiteral(state) : token.kind == "LBrace" ? parseBraceLiteral(state) : token.kind == "LParen" ? parseParenOrTuple(state) : parsePrimaryError(state)
 }
 
 parseLiteral(
