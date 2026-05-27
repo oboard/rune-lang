@@ -39,6 +39,36 @@ func TestValidateBackend(t *testing.T) {
 	}
 }
 
+func TestSelectRunBackendDefaultsToTypeScriptForTypeScriptImports(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string { return name }\n")
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `@"greet.ts"
+
+main() => @io.println(greet("Rune"))
+`)
+
+	if got := selectRunBackend(mainPath, "go", false); got != "ts" {
+		t.Fatalf("selectRunBackend() = %q, want ts", got)
+	}
+	if got := selectRunBackend(mainPath, "go", true); got != "go" {
+		t.Fatalf("selectRunBackend(explicit go) = %q, want go", got)
+	}
+	if got := selectRunBackend(mainPath, "ts", true); got != "ts" {
+		t.Fatalf("selectRunBackend(explicit ts) = %q, want ts", got)
+	}
+}
+
+func TestSelectRunBackendKeepsGoForRuneOnlyProgram(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, "main() => @io.println(\"Rune\")\n")
+
+	if got := selectRunBackend(mainPath, "go", false); got != "go" {
+		t.Fatalf("selectRunBackend() = %q, want go", got)
+	}
+}
+
 func TestFmtCommandHasFormatAlias(t *testing.T) {
 	cmd := fmtCmd()
 	for _, alias := range cmd.Aliases {

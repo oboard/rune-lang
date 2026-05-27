@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
@@ -61,7 +62,8 @@ func runCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			switch backend {
+			runBackend := selectRunBackend(entry, backend, backendFlagChanged(cmd))
+			switch runBackend {
 			case "go":
 				goFile, cleanup, err := compileGoToTemp(entry)
 				if err != nil {
@@ -91,10 +93,30 @@ func runCmd() *cobra.Command {
 				run.Dir = runDir
 				return run.Run()
 			default:
-				return validateBackend(backend)
+				return validateBackend(runBackend)
 			}
 		},
 	}
+}
+
+func backendFlagChanged(cmd *cobra.Command) bool {
+	for _, flags := range []*pflag.FlagSet{cmd.Flags(), cmd.InheritedFlags(), cmd.Root().PersistentFlags()} {
+		if flag := flags.Lookup("backend"); flag != nil && flag.Changed {
+			return true
+		}
+	}
+	return false
+}
+
+func selectRunBackend(entry string, requested string, explicit bool) string {
+	if requested != "go" || explicit {
+		return requested
+	}
+	prog, _ := compiler.AnalyzeFile(entry)
+	if prog != nil && len(prog.File.TSImports) > 0 {
+		return "ts"
+	}
+	return requested
 }
 
 func buildCmd() *cobra.Command {
