@@ -285,6 +285,25 @@ func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 	switch s := stmt.(type) {
 	case *ast.LetStmt:
 		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.expr(s.Value), Pos: s.Pos}
+	case *ast.ObjectDestructureStmt:
+		value := l.expr(s.Value)
+		out := &ObjectDestructureStmt{Mutable: s.Mutable, Signal: s.Signal, Value: value, Pos: s.Pos}
+		for _, field := range s.Fields {
+			typ := checker.Unknown
+			if value != nil {
+				if fieldType, ok := checker.FieldType(l.info, value.ResultType(), field.Field); ok {
+					typ = fieldType
+				}
+			}
+			out.Fields = append(out.Fields, ObjectBindingField{
+				Field:    field.Field,
+				Name:     field.Name,
+				Type:     typ,
+				FieldPos: field.FieldPos,
+				NamePos:  field.NamePos,
+			})
+		}
+		return out
 	case *ast.AssignStmt:
 		return &AssignStmt{Name: s.Name, Value: l.expr(s.Value), Pos: s.Pos}
 	case *ast.ExprStmt:

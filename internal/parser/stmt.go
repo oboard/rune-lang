@@ -6,6 +6,9 @@ import (
 )
 
 func (p *Parser) parseStatement() ast.Stmt {
+	if p.check(lexer.LBrace) && p.looksLikeObjectDestructureDecl() {
+		return p.parseObjectDestructureStatement()
+	}
 	if p.check(lexer.Ident) {
 		if p.checkNext(lexer.Declare) || p.checkNext(lexer.MutDeclare) || p.checkNext(lexer.SignalDeclare) {
 			name := p.advance()
@@ -41,4 +44,42 @@ func (p *Parser) parseStatement() ast.Stmt {
 	}
 	expr := p.parseExpression(1)
 	return &ast.ExprStmt{Expr: expr, Pos: expr.Position()}
+}
+
+func (p *Parser) parseObjectDestructureStatement() ast.Stmt {
+	start := p.consume(lexer.LBrace, "expected '{' before object destructuring")
+	stmt := &ast.ObjectDestructureStmt{Pos: start.Pos}
+	p.skipNewlines()
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		field := p.consume(lexer.Ident, "expected field name in object destructuring")
+		name := field
+		if p.match(lexer.Colon) {
+			p.skipNewlines()
+			name = p.consume(lexer.Ident, "expected binding name after ':'")
+		}
+		stmt.Fields = append(stmt.Fields, ast.ObjectBindingField{
+			Field:    field.Lexeme,
+			Name:     name.Lexeme,
+			FieldPos: field.Pos,
+			NamePos:  name.Pos,
+		})
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			break
+		}
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after object destructuring")
+	p.skipNewlines()
+	if p.match(lexer.MutDeclare) {
+		stmt.Mutable = true
+	} else if p.match(lexer.SignalDeclare) {
+		stmt.Signal = true
+		stmt.Mutable = true
+	} else {
+		p.consume(lexer.Declare, "expected ':=' after object destructuring")
+	}
+	p.skipNewlines()
+	stmt.Value = p.parseExpression(1)
+	return stmt
 }

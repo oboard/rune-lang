@@ -455,6 +455,33 @@ func TestGenerateSignalAssignmentExpression(t *testing.T) {
 	}
 }
 
+func TestGenerateObjectDestructureProgram(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+main() => {
+  point := Point {
+    x: 20
+    y: 22
+  }
+  { x, y } := point
+  @io.println(x + y)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const { x: __x, y: __y } = __point;`,
+		`console.log(__x + __y);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func generateForTest(t *testing.T, src string) string {
 	t.Helper()
 	file, parseErrs := parser.Parse(src)

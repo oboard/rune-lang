@@ -204,6 +204,9 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 				local[s.Name] = c.inferExpr(s.Value, local)
 			}
 			result = Void
+		case *ast.ObjectDestructureStmt:
+			c.inferObjectDestructureStmt(s, local)
+			result = Void
 		case *ast.AssignStmt:
 			if _, exists := local[s.Name]; !exists {
 				c.errorf(s.Pos, "cannot assign undefined name %q", s.Name)
@@ -215,6 +218,56 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 		}
 	}
 	return result
+}
+
+func (c *checker) inferObjectDestructureStmt(stmt *ast.ObjectDestructureStmt, local map[string]Type) {
+	valueType := c.inferExpr(stmt.Value, local)
+	structInfo := c.info.Types[baseTypeName(valueType)]
+	if structInfo == nil {
+		if valueType != Unknown {
+			c.errorf(stmt.Value.Position(), "type %s has no fields", valueType)
+		}
+		for _, field := range stmt.Fields {
+			if _, exists := local[field.Name]; exists {
+				c.errorf(field.NamePos, "name %q is already defined", field.Name)
+				continue
+			}
+			local[field.Name] = Unknown
+		}
+		return
+	}
+	if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, stmt.Pos) {
+		return
+	}
+	seenFields := map[string]bool{}
+	for _, binding := range stmt.Fields {
+		if seenFields[binding.Field] {
+			c.errorf(binding.FieldPos, "duplicate destructured field %q", binding.Field)
+			continue
+		}
+		seenFields[binding.Field] = true
+		if _, exists := local[binding.Name]; exists {
+			c.errorf(binding.NamePos, "name %q is already defined", binding.Name)
+			continue
+		}
+		field, ok := structInfo.ByName[binding.Field]
+		if !ok {
+			c.errorf(binding.FieldPos, "type %s has no field %q", valueType, binding.Field)
+			local[binding.Name] = Unknown
+			continue
+		}
+		if !c.checkPrivateAccess("field", structInfo.Name+"."+binding.Field, field.Private, field.SourcePath, binding.FieldPos) {
+			local[binding.Name] = Unknown
+			continue
+		}
+		local[binding.Name] = structFieldType(structInfo, valueType, field)
+		c.bindings[binding.Name] = &ast.SelectorExpr{
+			Receiver: stmt.Value,
+			Name:     binding.Field,
+			Pos:      binding.FieldPos,
+			NamePos:  binding.FieldPos,
+		}
+	}
 }
 
 func (c *checker) inferPatternBlock(block *ast.PatternBlock, env map[string]Type) Type {

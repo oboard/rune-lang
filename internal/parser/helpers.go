@@ -114,6 +114,42 @@ func (p *Parser) looksLikeObjectLiteralBody() bool {
 	}
 }
 
+func (p *Parser) looksLikeObjectDestructureDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	if !p.match(lexer.LBrace) {
+		return false
+	}
+	p.skipNewlines()
+	if p.check(lexer.RBrace) {
+		return false
+	}
+	for {
+		if !p.match(lexer.Ident) {
+			return false
+		}
+		if p.match(lexer.Colon) {
+			p.skipNewlines()
+			if !p.match(lexer.Ident) {
+				return false
+			}
+		}
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			break
+		}
+		p.skipNewlines()
+		if p.check(lexer.RBrace) {
+			break
+		}
+	}
+	if !p.match(lexer.RBrace) {
+		return false
+	}
+	p.skipNewlines()
+	return p.check(lexer.Declare) || p.check(lexer.MutDeclare) || p.check(lexer.SignalDeclare)
+}
+
 func (p *Parser) looksLikeMapLiteralBody() bool {
 	if !p.check(lexer.LBrace) {
 		return false
@@ -159,8 +195,19 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
 		i++
 	}
-	if i >= len(p.tokens) {
+	i = p.skipPatternLookahead(i)
+	if i < 0 {
 		return false
+	}
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
+		i++
+	}
+	return i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow
+}
+
+func (p *Parser) skipPatternLookahead(i int) int {
+	if i >= len(p.tokens) {
+		return -1
 	}
 	switch p.tokens[i].Kind {
 	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String, lexer.Char:
@@ -185,16 +232,16 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 			break
 		}
 		if !isLiteralIdentifier(p.tokens[i].Lexeme) {
-			return false
+			return -1
 		}
 		i++
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		i++
 		if i >= len(p.tokens) {
-			return false
+			return -1
 		}
 		if p.tokens[i].Kind != lexer.Int && p.tokens[i].Kind != lexer.Double && p.tokens[i].Kind != lexer.BigInt && p.tokens[i].Kind != lexer.String && p.tokens[i].Kind != lexer.Char && p.tokens[i].Kind != lexer.Ident {
-			return false
+			return -1
 		}
 		i++
 	case lexer.LParen:
@@ -210,12 +257,9 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 			i++
 		}
 	default:
-		return false
+		return -1
 	}
-	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
-		i++
-	}
-	return i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow
+	return i
 }
 
 func isLiteralIdentifier(name string) bool {

@@ -1,6 +1,9 @@
 package ir
 
-import "github.com/oboard/rune-lang/internal/lexer"
+import (
+	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/lexer"
+)
 
 type Stmt interface {
 	stmtNode()
@@ -17,6 +20,27 @@ type LetStmt struct {
 
 func (*LetStmt) stmtNode() {}
 func (s *LetStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+type ObjectBindingField struct {
+	Field    string
+	Name     string
+	Type     checker.Type
+	FieldPos lexer.Position
+	NamePos  lexer.Position
+}
+
+type ObjectDestructureStmt struct {
+	Fields  []ObjectBindingField
+	Mutable bool
+	Signal  bool
+	Value   Expr
+	Pos     lexer.Position
+}
+
+func (*ObjectDestructureStmt) stmtNode() {}
+func (s *ObjectDestructureStmt) Position() lexer.Position {
 	return s.Pos
 }
 

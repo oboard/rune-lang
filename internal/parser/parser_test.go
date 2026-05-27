@@ -363,6 +363,30 @@ func TestObjectMethodDependsOnObjectContext(t *testing.T) {
 	}
 }
 
+func TestObjectDestructureDeclaration(t *testing.T) {
+	file, errs := Parse(`main() => {
+  { state: nextState, ch } := step
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block := file.Functions[0].Body.(*ast.BlockExpr)
+	stmt, ok := block.Statements[0].(*ast.ObjectDestructureStmt)
+	if !ok {
+		t.Fatalf("statement = %T, want ObjectDestructureStmt", block.Statements[0])
+	}
+	if len(stmt.Fields) != 2 {
+		t.Fatalf("fields = %#v, want 2 fields", stmt.Fields)
+	}
+	if stmt.Fields[0].Field != "state" || stmt.Fields[0].Name != "nextState" {
+		t.Fatalf("first field = %#v, want state: nextState", stmt.Fields[0])
+	}
+	if stmt.Fields[1].Field != "ch" || stmt.Fields[1].Name != "ch" {
+		t.Fatalf("second field = %#v, want ch", stmt.Fields[1])
+	}
+}
+
 func TestAnonymousObjectMethodMembers(t *testing.T) {
 	file, errs := Parse(`main() => {
     obj := {

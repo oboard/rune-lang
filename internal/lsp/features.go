@@ -135,6 +135,18 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 				found = hoverResult(localHoverText(prog.Info, let.Name, typ, signals), let.Pos, let.Name)
 			}
 		}
+		if destructure, ok := stmt.(*ast.ObjectDestructureStmt); ok {
+			for _, field := range destructure.Fields {
+				if !containsSymbol(pos, field.NamePos, field.Name) {
+					continue
+				}
+				valueType := prog.Info.ExprTypes[destructure.Value]
+				if typ, ok := checker.FieldType(prog.Info, valueType, field.Field); ok && typ != checker.Unknown {
+					found = hoverResult(localHoverText(prog.Info, field.Name, typ, signals), field.NamePos, field.Name)
+				}
+				return
+			}
+		}
 	})
 	if found != nil {
 		return found
@@ -484,6 +496,14 @@ func letNameAt(file *ast.File, pos position) string {
 		if let, ok := stmt.(*ast.LetStmt); ok && containsSymbol(pos, let.Pos, let.Name) {
 			found = let.Name
 		}
+		if destructure, ok := stmt.(*ast.ObjectDestructureStmt); ok {
+			for _, field := range destructure.Fields {
+				if containsSymbol(pos, field.NamePos, field.Name) {
+					found = field.Name
+					return
+				}
+			}
+		}
 	})
 	return found
 }
@@ -496,6 +516,14 @@ func letTarget(uri string, file *ast.File, name string) *methodTarget {
 		}
 		if let, ok := stmt.(*ast.LetStmt); ok && let.Name == name {
 			found = &methodTarget{uri: uri, name: let.Name, pos: let.Pos}
+		}
+		if destructure, ok := stmt.(*ast.ObjectDestructureStmt); ok {
+			for _, field := range destructure.Fields {
+				if field.Name == name {
+					found = &methodTarget{uri: uri, name: field.Name, pos: field.NamePos}
+					return
+				}
+			}
 		}
 	})
 	return found
@@ -752,6 +780,19 @@ func (s *server) semanticTokens(uri string) any {
 				tokenType: semanticTokenTypeVariable,
 				modifiers: semanticTokenModifierModification,
 			})
+		case *ast.ObjectDestructureStmt:
+			for _, field := range stmt.Fields {
+				if _, ok := signals[field.Name]; !ok {
+					continue
+				}
+				tokens = append(tokens, semanticToken{
+					line:      max(field.NamePos.Line-1, 0),
+					character: max(field.NamePos.Column-1, 0),
+					length:    len(field.Name),
+					tokenType: semanticTokenTypeVariable,
+					modifiers: semanticTokenModifierModification,
+				})
+			}
 		case *ast.AssignStmt:
 			if _, ok := signals[stmt.Name]; !ok {
 				return
@@ -806,13 +847,19 @@ func (s *server) semanticTokens(uri string) any {
 func signalGraph(file *ast.File) map[string][]string {
 	signals := map[string][]string{}
 	walkFileStatements(file, func(stmt ast.Stmt) {
-		let, ok := stmt.(*ast.LetStmt)
-		if !ok {
-			return
-		}
-		deps := exprSignalDeps(let.Value, signals)
-		if let.Signal || len(deps) > 0 {
-			signals[let.Name] = deps
+		switch stmt := stmt.(type) {
+		case *ast.LetStmt:
+			deps := exprSignalDeps(stmt.Value, signals)
+			if stmt.Signal || len(deps) > 0 {
+				signals[stmt.Name] = deps
+			}
+		case *ast.ObjectDestructureStmt:
+			deps := exprSignalDeps(stmt.Value, signals)
+			if stmt.Signal || len(deps) > 0 {
+				for _, field := range stmt.Fields {
+					signals[field.Name] = deps
+				}
+			}
 		}
 	})
 	return signals

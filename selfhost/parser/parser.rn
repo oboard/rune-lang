@@ -999,7 +999,7 @@ parseBlockStatement(
 
 parseStatement(
   state: ParserState
-) -> ExprStep => parserCheck(state, "Ident") && ((parserCheckNext(state, "Declare") || parserCheckNext(state, "MutDeclare")) || parserCheckNext(state, "SignalDeclare")) ? parseLetStatement(state) : parserCheck(state, "Ident") && parserCheckNext(state, "Assign") ? parseAssignStatement(state) : parseExpression(state, 1)
+) -> ExprStep => parserCheck(state, "LBrace") && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state) : parserCheck(state, "Ident") && ((parserCheckNext(state, "Declare") || parserCheckNext(state, "MutDeclare")) || parserCheckNext(state, "SignalDeclare")) ? parseLetStatement(state) : parserCheck(state, "Ident") && parserCheckNext(state, "Assign") ? parseAssignStatement(state) : parseExpression(state, 1)
 
 parseLetStatement(
   state: ParserState
@@ -1010,6 +1010,55 @@ parseLetStatement(
   ExprStep {
     state: value.state
     expr: makeExpr("let", name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+  }
+}
+
+parseObjectDestructureStatement(
+  state: ParserState
+) -> ExprStep => {
+  open := parserConsume(state, "LBrace", "expected '{' before object destructuring")
+  fields := parseObjectBindingList(parserSkipNewlines(open.state))
+  close := parserConsume(fields.state, "RBrace", "expected '}' after object destructuring")
+  op := parserAdvance(parserSkipNewlines(close.state))
+  value := parseExpression(parserSkipNewlines(op.state), 1)
+  ExprStep {
+    state: value.state
+    expr: makeExpr("objectDestructure", "", "", "", op.token.lexeme, fields.params, [value.expr], open.token.line, open.token.column)
+  }
+}
+
+parseObjectBindingList(
+  state: ParserState
+) -> ParamListStep => parseObjectBindingListLoop(state, [])
+
+parseObjectBindingListLoop(
+  state: ParserState,
+  fields: Array[ParsedParam]
+) -> ParamListStep => {
+  current := parserSkipNewlines(state)
+  parserCheck(current, "RBrace") || parserCheck(current, "EOF") ? ParamListStep {
+    state: current
+    params: fields
+  } : parseOneObjectBinding(current, fields)
+}
+
+parseOneObjectBinding(
+  state: ParserState,
+  fields: Array[ParsedParam]
+) -> ParamListStep => {
+  field := parserConsume(state, "Ident", "expected field name in object destructuring")
+  aliasStart := parserMatch(field.state, "Colon")
+  name := aliasStart.ok ? parserConsume(parserSkipNewlines(aliasStart.state), "Ident", "expected binding name after ':'") : field
+  fields.push(ParsedParam {
+    name: name.token.lexeme
+    typeName: field.token.lexeme
+    line: name.token.line
+    column: name.token.column
+  })
+  comma := parserMatch(parserSkipNewlines(name.state), "Comma")
+  comma.ok ? parseObjectBindingListLoop(comma.state, fields) : ParamListStep {
+    state: name.state
+    params: fields
   }
 }
 
@@ -1232,7 +1281,7 @@ parseUnaryOperator(
   state: ParserState
 ) -> ExprStep => {
   op := parserAdvance(state)
-  right := parseUnary(op.state)
+  right := parseExpression(op.state, 11)
   ExprStep {
     state: right.state
     expr: opNode("unary", op.token.lexeme, op.token, [right.expr])
@@ -1688,6 +1737,47 @@ looksLikeEnumMember(
 ) -> Bool => {
   start := parserCheck(state, "Minus") ? skipNewlinesAt(state, state.current + 1) : state.current
   (parserKindAt(state, start) == "Ident") && (parserKindAt(state, skipNewlinesAt(state, start + 1)) == "Assign")
+}
+
+looksLikeObjectDestructureDecl(
+  state: ParserState
+) -> Bool => parserCheck(state, "LBrace") && scanObjectDestructureDecl(state, skipNewlinesAt(state, state.current + 1))
+
+scanObjectDestructureDecl(
+  state: ParserState,
+  index: Int
+) -> Bool => parserKindAt(state, index) == "RBrace" ? false : scanObjectDestructureField(state, index)
+
+scanObjectDestructureField(
+  state: ParserState,
+  index: Int
+) -> Bool => parserKindAt(state, index) != "Ident" ? false : scanObjectDestructureAfterField(state, index + 1)
+
+scanObjectDestructureAfterField(
+  state: ParserState,
+  index: Int
+) -> Bool => parserKindAt(state, index) == "Colon" ? parserKindAt(state, skipNewlinesAt(state, index + 1)) == "Ident" && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1) : scanObjectDestructureAfterName(state, index)
+
+scanObjectDestructureAfterName(
+  state: ParserState,
+  index: Int
+) -> Bool => {
+  current := skipNewlinesAt(state, index)
+  kind := parserKindAt(state, current)
+  kind == "Comma" ? scanObjectDestructureAfterComma(state, skipNewlinesAt(state, current + 1)) : kind == "RBrace" ? scanObjectDestructureAfterClose(state, current + 1) : false
+}
+
+scanObjectDestructureAfterComma(
+  state: ParserState,
+  index: Int
+) -> Bool => parserKindAt(state, index) == "RBrace" ? scanObjectDestructureAfterClose(state, index + 1) : scanObjectDestructureField(state, index)
+
+scanObjectDestructureAfterClose(
+  state: ParserState,
+  index: Int
+) -> Bool => {
+  afterClose := skipNewlinesAt(state, index)
+  ((parserKindAt(state, afterClose) == "Declare") || (parserKindAt(state, afterClose) == "MutDeclare")) || (parserKindAt(state, afterClose) == "SignalDeclare")
 }
 
 looksLikePatternBranch(

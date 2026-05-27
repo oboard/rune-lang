@@ -51,6 +51,41 @@ main() => helper()
 	}
 }
 
+func TestObjectDestructureFormatting(t *testing.T) {
+	src := `main()=>{{state:nextState,ch}:=step}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  { state: nextState, ch } := step
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestPatternPredicateFormattingKeepsFlatBitOr(t *testing.T) {
+	src := `isSpace(ch)=>' ' | '\t' | '\r'
+mask()=>1|2|4`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `isSpace(ch) => ' ' | '\t' | '\r'
+
+mask() => (1 | 2) | 4
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestPrivateDeclarationFormatting(t *testing.T) {
 	src := `- Secret:{
 - value:Int

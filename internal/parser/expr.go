@@ -249,7 +249,7 @@ func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
 func (p *Parser) parseUnary() ast.Expr {
 	if p.match(lexer.Minus, lexer.Bang, lexer.Tilde) {
 		op := p.previous()
-		return &ast.UnaryExpr{Op: op.Kind, Expr: p.parseUnary(), Pos: op.Pos}
+		return &ast.UnaryExpr{Op: op.Kind, Expr: p.parseExpression(11), Pos: op.Pos}
 	}
 	return p.parsePrimary()
 }

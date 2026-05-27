@@ -317,6 +317,21 @@ func structFieldType(info *StructInfo, receiver Type, field FieldInfo) Type {
 	return substituteTypeParams(field.Type, typeParamBindingsForStruct(info, receiver))
 }
 
+func FieldType(info *Info, receiver Type, name string) (Type, bool) {
+	if info == nil {
+		return Unknown, false
+	}
+	structInfo := info.Types[baseTypeName(receiver)]
+	if structInfo == nil {
+		return Unknown, false
+	}
+	field, ok := structInfo.ByName[name]
+	if !ok {
+		return Unknown, false
+	}
+	return structFieldType(structInfo, receiver, field), true
+}
+
 func typeParamBindingsForStruct(info *StructInfo, receiver Type) map[string]Type {
 	if info == nil || len(info.Generics) == 0 {
 		return nil

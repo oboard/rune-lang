@@ -181,6 +181,12 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				})
 			}
 			g.linef("%s %s = %s;", kind, mangleIdent(s.Name), value)
+		case *ir.ObjectDestructureStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapObjectDestructure(s, unwrap, ret)
+				continue
+			}
+			g.objectDestructure(s, g.expr(s.Value))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
 				g.linef("%s.set(%s);", mangleIdent(s.Name), g.expr(s.Value))
@@ -218,6 +224,44 @@ func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, re
 	g.indent--
 	g.line("}")
 	g.linef("const %s = %s.value;", mangleIdent(name), tmp)
+}
+
+func (g *generator) resultUnwrapObjectDestructure(stmt *ir.ObjectDestructureStmt, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("__result")
+	g.linef("const %s = %s;", tmp, g.expr(unwrap.Expr))
+	g.linef("if (!%s.ok) {", tmp)
+	g.indent++
+	g.linef("return %s;", g.resultErrReturn(ret, tmp+".error"))
+	g.indent--
+	g.line("}")
+	g.objectDestructure(stmt, tmp+".value")
+}
+
+func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source string) {
+	signal := stmt.Signal || g.exprUsesSignal(stmt.Value)
+	if !signal {
+		kind := "const"
+		if stmt.Mutable {
+			kind = "let"
+		}
+		bindings := make([]string, 0, len(stmt.Fields))
+		for _, field := range stmt.Fields {
+			bindings = append(bindings, fmt.Sprintf("%s: %s", tsPropertyName(field.Field), mangleIdent(field.Name)))
+		}
+		g.linef("%s { %s } = %s;", kind, strings.Join(bindings, ", "), source)
+		return
+	}
+	tmp := g.nextTemp("__destructure")
+	g.linef("const %s = %s;", tmp, source)
+	for _, field := range stmt.Fields {
+		g.linef("const %s = runeSignal(%s);", mangleIdent(field.Name), tsPropertyAccess(tmp, field.Field))
+		g.addSignal(field.Name, field.Type)
+	}
+	for _, dep := range g.exprSignalDeps(stmt.Value) {
+		for _, field := range stmt.Fields {
+			g.linef("runeWatch(%s, () => { %s.set(%s); });", mangleIdent(dep), mangleIdent(field.Name), tsPropertyAccess(g.expr(stmt.Value), field.Field))
+		}
+	}
 }
 
 func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {

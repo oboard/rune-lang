@@ -46,6 +46,10 @@ func (f *formatter) function(fn *ast.Function) {
 	signature := f.functionSignature(fn)
 	switch body := fn.Body.(type) {
 	case *ast.PatternBlock:
+		if predicate, ok := f.patternPredicate(body); ok {
+			f.lineSignature(signature, " => "+predicate)
+			return
+		}
 		f.lineSignature(signature, " => {")
 		f.indent++
 		for _, branch := range body.Branches {
@@ -88,6 +92,28 @@ func (f *formatter) blockStatements(body *ast.BlockExpr) {
 			f.line("")
 		}
 	}
+}
+
+func (f *formatter) patternPredicate(block *ast.PatternBlock) (string, bool) {
+	if len(block.Branches) < 3 {
+		return "", false
+	}
+	last := block.Branches[len(block.Branches)-1]
+	if _, ok := last.Pattern.(*ast.WildcardPattern); !ok {
+		return "", false
+	}
+	if lit, ok := last.Expr.(*ast.BoolLiteral); !ok || lit.Value {
+		return "", false
+	}
+	parts := make([]string, 0, len(block.Branches)-1)
+	for _, branch := range block.Branches[:len(block.Branches)-1] {
+		lit, ok := branch.Expr.(*ast.BoolLiteral)
+		if !ok || !lit.Value {
+			return "", false
+		}
+		parts = append(parts, f.pattern(branch.Pattern))
+	}
+	return "{ " + strings.Join(parts, " | ") + " }", true
 }
 
 func (f *formatter) functionSignature(fn *ast.Function) []string {

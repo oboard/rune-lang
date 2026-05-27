@@ -69,6 +69,8 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 			switch s := stmt.(type) {
 			case *LetStmt:
 				WalkExpr(s.Value, visit)
+			case *ObjectDestructureStmt:
+				WalkExpr(s.Value, visit)
 			case *AssignStmt:
 				WalkExpr(s.Value, visit)
 			case *ExprStmt:

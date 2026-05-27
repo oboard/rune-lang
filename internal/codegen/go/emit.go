@@ -179,6 +179,12 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			}
 			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
 			g.linef("_ = %s", mangleIdent(s.Name))
+		case *ir.ObjectDestructureStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapObjectDestructure(s, unwrap, ret)
+				continue
+			}
+			g.objectDestructure(s, g.expr(s.Value))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
 				g.linef("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value))
@@ -225,6 +231,49 @@ func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, re
 	g.line("}")
 	g.linef("%s := %s.value", mangleIdent(name), tmp)
 	g.linef("_ = %s", mangleIdent(name))
+}
+
+func (g *generator) resultUnwrapObjectDestructure(stmt *ir.ObjectDestructureStmt, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("result")
+	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("if !%s.ok {", tmp)
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))
+	g.indent--
+	g.line("}")
+	g.objectDestructure(stmt, tmp+".value")
+}
+
+func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source string) {
+	tmp := g.nextTemp("destructure")
+	g.linef("%s := %s", tmp, source)
+	signal := stmt.Signal || g.exprUsesSignal(stmt.Value)
+	for _, field := range stmt.Fields {
+		name := mangleIdent(field.Name)
+		value := goObjectFieldAccess(tmp, field.Field)
+		if signal {
+			g.linef("%s := newRuneSignal(%s)", name, value)
+			g.linef("_ = %s", name)
+			g.addSignal(field.Name, field.Type)
+			continue
+		}
+		g.linef("%s := %s", name, value)
+		g.linef("_ = %s", name)
+	}
+	if !signal {
+		return
+	}
+	for _, dep := range g.exprSignalDeps(stmt.Value) {
+		depName := mangleIdent(dep)
+		for _, field := range stmt.Fields {
+			name := mangleIdent(field.Name)
+			g.linef("%s.Watch(func(_, _ %s) { %s.Set(%s) })", depName, goType(g.signalType(dep)), name, goObjectFieldAccess(g.expr(stmt.Value), field.Field))
+		}
+	}
+}
+
+func goObjectFieldAccess(source string, field string) string {
+	return source + "." + mangleIdent(field)
 }
 
 func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {

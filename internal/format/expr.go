@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 const maxLineLength = 40
@@ -45,6 +46,9 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.ResultUnwrapExpr:
 		return f.postfixReceiverExpr(e.Expr) + "?"
 	case *ast.BinaryExpr:
+		if f.isPatternPredicateBitOr(e) {
+			return strings.Join(f.patternPredicateBitOrParts(e), " | ")
+		}
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
 	case *ast.TernaryExpr:
 		return f.ternaryExpr(e)
@@ -529,6 +533,62 @@ func (f *formatter) exprWithParens(expr ast.Expr) string {
 		return "(" + f.expr(expr) + ")"
 	}
 	return f.expr(expr)
+}
+
+func (f *formatter) isPatternPredicateBitOr(expr *ast.BinaryExpr) bool {
+	if expr == nil || expr.Op != lexer.BitOr {
+		return false
+	}
+	leaves := f.patternPredicateBitOrLeaves(expr)
+	if len(leaves) < 2 {
+		return false
+	}
+	allBitwise := true
+	for _, leaf := range leaves {
+		if !patternPredicateLeaf(leaf) {
+			return false
+		}
+		if !bitwiseLiteralLeaf(leaf) {
+			allBitwise = false
+		}
+	}
+	return !allBitwise
+}
+
+func (f *formatter) patternPredicateBitOrParts(expr ast.Expr) []string {
+	leaves := f.patternPredicateBitOrLeaves(expr)
+	parts := make([]string, 0, len(leaves))
+	for _, leaf := range leaves {
+		parts = append(parts, f.expr(leaf))
+	}
+	return parts
+}
+
+func (f *formatter) patternPredicateBitOrLeaves(expr ast.Expr) []ast.Expr {
+	if binary, ok := expr.(*ast.BinaryExpr); ok && binary.Op == lexer.BitOr {
+		out := f.patternPredicateBitOrLeaves(binary.Left)
+		out = append(out, f.patternPredicateBitOrLeaves(binary.Right)...)
+		return out
+	}
+	return []ast.Expr{expr}
+}
+
+func patternPredicateLeaf(expr ast.Expr) bool {
+	switch expr.(type) {
+	case *ast.BoolLiteral, *ast.IntegerLiteral, *ast.BigIntLiteral, *ast.StringLiteral, *ast.CharLiteral, *ast.NullLiteral, *ast.SelectorExpr:
+		return true
+	default:
+		return false
+	}
+}
+
+func bitwiseLiteralLeaf(expr ast.Expr) bool {
+	switch expr.(type) {
+	case *ast.IntegerLiteral, *ast.BigIntLiteral:
+		return true
+	default:
+		return false
+	}
 }
 
 func (f *formatter) exprNeedsMultiline(expr ast.Expr) bool {

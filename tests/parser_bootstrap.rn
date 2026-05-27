@@ -47,6 +47,18 @@
   @assert.eq(assignment.children[1].kind, "binary")
 }
 
+? "selfhost parser reads object destructuring" {
+  source := "main() => {\n  { state: nextState, ch } := step\n}\n"
+  file := parse(source)
+  stmt := file.functions[0].body.children[0]
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(stmt.kind, "objectDestructure")
+  @assert.eq(stmt.params[0].typeName, "state")
+  @assert.eq(stmt.params[0].name, "nextState")
+  @assert.eq(stmt.params[1].typeName, "ch")
+  @assert.eq(stmt.params[1].name, "ch")
+}
+
 ? "selfhost parser reads char literals" {
   source := "main() => {\n  counts := {\n    'a': 1,\n    'b': 2\n  }\n  counts['a']\n}\n"
   file := parse(source)

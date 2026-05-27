@@ -65,3 +65,56 @@ func TestInterpreterRunsMapLiteral(t *testing.T) {
 		t.Fatalf("output = %q, want map literal output", got)
 	}
 }
+
+func TestInterpreterRunsObjectDestructure(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+main() => {
+  point := Point {
+    x: 20
+    y: 22
+  }
+  { x, y } := point
+  @io.println(x + y)
+}
+`
+	prog, diags := compiler.AnalyzeSource("object_destructure.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := New(prog.IR, WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "42" {
+		t.Fatalf("output = %q, want 42", got)
+	}
+}
+
+func TestInterpreterRunsInferredPatternPredicate(t *testing.T) {
+	src := `isSpace(ch) => ' ' | '\t' | '\r'
+
+main() => {
+  @io.println(isSpace(' '))
+  @io.println(isSpace('x'))
+}
+`
+	prog, diags := compiler.AnalyzeSource("pattern_predicate.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := New(prog.IR, WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "true\nfalse" {
+		t.Fatalf("output = %q, want predicate output", got)
+	}
+}

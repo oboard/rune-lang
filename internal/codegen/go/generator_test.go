@@ -102,6 +102,47 @@ main() => {
 	}
 }
 
+func TestGenerateObjectDestructureProgram(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+main() => {
+  point := Point {
+    x: 20
+    y: 22
+  }
+  { x, y } := point
+  @io.println(x + y)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`__destructure1 := __point`,
+		`__x := __destructure1.__x`,
+		`__y := __destructure1.__y`,
+		`fmt.Println(__x + __y)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateEnumProgram(t *testing.T) {
 	src := `Status: {
   Completed = 0

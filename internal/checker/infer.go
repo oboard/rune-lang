@@ -32,6 +32,7 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 					for _, param := range info.Params {
 						env[param.Name] = param.Type
 					}
+					c.rewritePatternPredicateBody(method, info, env)
 					ret := c.inferFunctionBody(method, info, env)
 					c.finishInferredParams(info, method.Body, env)
 					c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
@@ -74,6 +75,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 				}
 				env[param.Name] = paramType
 			}
+			c.rewritePatternPredicateBody(fn, info, env)
 			ret := c.inferFunctionBody(fn, info, env)
 			c.finishInferredParams(info, fn.Body, env)
 			unwrapErr := c.popRoutineErrors()
@@ -946,6 +948,8 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			for _, stmt := range e.Statements {
 				switch s := stmt.(type) {
 				case *ast.LetStmt:
+					walk(s.Value, Unknown)
+				case *ast.ObjectDestructureStmt:
 					walk(s.Value, Unknown)
 				case *ast.AssignStmt:
 					walk(s.Value, Unknown)

@@ -87,6 +87,23 @@ func (i *Interpreter) exec(stmt ir.Stmt, env *Env) (Value, bool, error) {
 		}
 		env.Define(s.Name, value)
 		return nil, false, nil
+	case *ir.ObjectDestructureStmt:
+		value, err := i.eval(s.Value, env)
+		if err != nil {
+			return nil, false, err
+		}
+		object, ok := value.(*Struct)
+		if !ok {
+			return nil, false, fmt.Errorf("cannot destructure %s", typeName(value))
+		}
+		for _, field := range s.Fields {
+			fieldValue, ok := object.Fields[field.Field]
+			if !ok {
+				return nil, false, fmt.Errorf("type %s has no field %q", object.TypeName, field.Field)
+			}
+			env.Define(field.Name, fieldValue)
+		}
+		return nil, false, nil
 	case *ir.AssignStmt:
 		value, err := i.eval(s.Value, env)
 		if err != nil {
