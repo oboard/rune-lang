@@ -2,7 +2,6 @@
 
 ? "selfhost lexer tokenizes declarations" {
   tokens := lex("main() => 1\n")
-
   @assert.eq(tokens[0].kind, "Ident")
   @assert.eq(tokens[0].lexeme, "main")
   @assert.eq(tokens[0].line, 1)
@@ -17,7 +16,6 @@
 
 ? "selfhost lexer skips comments and reads strings" {
   tokens := lex("// comment\nname := \"Rune\\nLang\"")
-
   @assert.eq(tokens[0].kind, "Newline")
   @assert.eq(tokens[1].kind, "Ident")
   @assert.eq(tokens[1].lexeme, "name")
@@ -30,7 +28,6 @@
   regexTokens := lex("value := /a[bc]+/gi")
   @assert.eq(regexTokens[2].kind, "Regex")
   @assert.eq(regexTokens[2].lexeme, "/a[bc]+/gi")
-
   slashTokens := lex("value / count")
   @assert.eq(slashTokens[0].kind, "Ident")
   @assert.eq(slashTokens[1].kind, "Slash")
@@ -39,7 +36,6 @@
 
 ? "selfhost lexer reads numeric variants" {
   tokens := lex("1 2.5 3e4 5n")
-
   @assert.eq(tokens[0].kind, "Int")
   @assert.eq(tokens[1].kind, "Double")
   @assert.eq(tokens[2].kind, "Double")
@@ -48,11 +44,18 @@
 
 ? "selfhost lexer reads char literals" {
   tokens := lex("ch := 'x'\nnewline := '\\n'")
-
   @assert.eq(tokens[0].kind, "Ident")
   @assert.eq(tokens[1].kind, "Declare")
   @assert.eq(tokens[2].kind, "Char")
   @assert.eq(tokens[2].lexeme, "'x'")
   @assert.eq(tokens[6].kind, "Char")
   @assert.eq(tokens[6].lexeme, "'\\n'")
+}
+
+? "selfhost lexer reads range pattern operator" {
+  tokens := lex("'0'..='9' ...")
+  @assert.eq(tokens[0].kind, "Char")
+  @assert.eq(tokens[1].kind, "DotDotEqual")
+  @assert.eq(tokens[2].kind, "Char")
+  @assert.eq(tokens[3].kind, "DotDotDot")
 }

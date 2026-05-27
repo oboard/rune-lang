@@ -344,6 +344,8 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 		return fmt.Sprintf("%s === %s", subject, g.expr(p.Value))
 	case *ir.ComparePattern:
 		return fmt.Sprintf("%s %s %s", subject, p.Op, g.expr(p.Value))
+	case *ir.RangePattern:
+		return fmt.Sprintf("(%s >= %s && %s <= %s)", subject, g.expr(p.Start), subject, g.expr(p.End))
 	case *ir.TuplePattern:
 		parts := make([]string, 0, len(p.Elements))
 		for i, elem := range p.Elements {

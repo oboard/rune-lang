@@ -4,6 +4,10 @@ charName(ch: Char) -> String => ch {
   _ => "other"
 }
 
+isDigitPattern(ch: Char) -> Bool => '0'..='9'
+
+isAlphaPattern(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
+
 ? "char literals and methods" {
   @assert.eq('a'.toString(), "a")
   @assert.eq('\n'.toString(), "\n")
@@ -24,17 +28,20 @@ charName(ch: Char) -> String => ch {
   @assert.eq(charName('a'), "letter a")
   @assert.eq(charName('\n'), "newline")
   @assert.eq(charName('z'), "other")
+  @assert.eq(isDigitPattern('5'), true)
+  @assert.eq(isDigitPattern('x'), false)
+  @assert.eq(isAlphaPattern('R'), true)
+  @assert.eq(isAlphaPattern('7'), false)
 }
 
 ? "char map and set keys" {
   counts := {
     'a': 1,
-    'b': 2
+    'b': 2,
   }
   @assert.eq(counts['a'], 1)
   counts['c'] = 3
   @assert.eq(counts['c'], 3)
-
   seen := @set.new('a')
   seen.add('a')
   seen.add('b')

@@ -50,8 +50,14 @@ func (l *Lexer) nextCode() Token {
 	case '@':
 		return l.token(At)
 	case '.':
-		if l.match('.') && l.match('.') {
-			return l.token(DotDotDot)
+		if l.match('.') {
+			if l.match('.') {
+				return l.token(DotDotDot)
+			}
+			if l.match('=') {
+				return l.token(DotDotEqual)
+			}
+			return l.token(Illegal)
 		}
 		return l.token(Dot)
 	case ',':
@@ -272,8 +278,14 @@ func (l *Lexer) nextXMLExpr() Token {
 	case '@':
 		return l.token(At)
 	case '.':
-		if l.match('.') && l.match('.') {
-			return l.token(DotDotDot)
+		if l.match('.') {
+			if l.match('.') {
+				return l.token(DotDotDot)
+			}
+			if l.match('=') {
+				return l.token(DotDotEqual)
+			}
+			return l.token(Illegal)
 		}
 		return l.token(Dot)
 	case ',':

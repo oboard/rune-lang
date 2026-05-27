@@ -43,6 +43,17 @@ func (p *ComparePattern) Position() lexer.Position {
 	return p.Pos
 }
 
+type RangePattern struct {
+	Start Expr
+	End   Expr
+	Pos   lexer.Position
+}
+
+func (*RangePattern) patternNode() {}
+func (p *RangePattern) Position() lexer.Position {
+	return p.Pos
+}
+
 type TuplePattern struct {
 	Elements []Pattern
 	Pos      lexer.Position

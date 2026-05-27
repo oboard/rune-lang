@@ -247,6 +247,31 @@ func TestConstructorPatternMatch(t *testing.T) {
 	}
 }
 
+func TestRangePatternMatch(t *testing.T) {
+	file, errs := Parse(`isDigit(ch: Char) -> Bool => ch {
+  '0'..='9' => true
+  _ => false
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("body = %#v, want range pattern match", file.Functions[0].Body)
+	}
+	pattern, ok := match.Branches[0].Pattern.(*ast.RangePattern)
+	if !ok {
+		t.Fatalf("first pattern = %#v, want RangePattern", match.Branches[0].Pattern)
+	}
+	if _, ok := pattern.Start.(*ast.CharLiteral); !ok {
+		t.Fatalf("range start = %#v, want CharLiteral", pattern.Start)
+	}
+	if _, ok := pattern.End.(*ast.CharLiteral); !ok {
+		t.Fatalf("range end = %#v, want CharLiteral", pattern.End)
+	}
+}
+
 func TestRegexLiteral(t *testing.T) {
 	file, errs := Parse(`main() => {
     re := /rune\s+(\d+)/ig

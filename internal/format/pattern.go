@@ -14,6 +14,8 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 		return f.expr(p.Value)
 	case *ast.ComparePattern:
 		return p.Op.String() + f.expr(p.Value)
+	case *ast.RangePattern:
+		return f.expr(p.Start) + "..=" + f.expr(p.End)
 	case *ast.TuplePattern:
 		parts := make([]string, 0, len(p.Elements))
 		for _, elem := range p.Elements {

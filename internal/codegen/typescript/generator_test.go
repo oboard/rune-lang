@@ -42,6 +42,16 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 	}
 }
 
+func TestGeneratePatternPredicateRange(t *testing.T) {
+	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
+`
+	got := generateForTest(t, src)
+	want := `if ((__ch >= "0" && __ch <= "9")) {`
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+	}
+}
+
 func TestGenerateElementArrayChild(t *testing.T) {
 	src := `render() => {
   list := ["Item 1", "Item 2", "Item 3"]

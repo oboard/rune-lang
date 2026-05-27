@@ -95,7 +95,7 @@ func (f *formatter) blockStatements(body *ast.BlockExpr) {
 }
 
 func (f *formatter) patternPredicate(block *ast.PatternBlock) (string, bool) {
-	if len(block.Branches) < 3 {
+	if len(block.Branches) < 2 {
 		return "", false
 	}
 	last := block.Branches[len(block.Branches)-1]

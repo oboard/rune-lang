@@ -49,6 +49,9 @@ func (f *formatter) expr(expr ast.Expr) string {
 		if f.isPatternPredicateBitOr(e) {
 			return strings.Join(f.patternPredicateBitOrParts(e), " | ")
 		}
+		if e.Op == lexer.DotDotEqual {
+			return fmt.Sprintf("%s..=%s", f.exprWithParens(e.Left), f.exprWithParens(e.Right))
+		}
 		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
 	case *ast.TernaryExpr:
 		return f.ternaryExpr(e)
@@ -559,7 +562,11 @@ func (f *formatter) patternPredicateBitOrParts(expr ast.Expr) []string {
 	leaves := f.patternPredicateBitOrLeaves(expr)
 	parts := make([]string, 0, len(leaves))
 	for _, leaf := range leaves {
-		parts = append(parts, f.expr(leaf))
+		part := f.expr(leaf)
+		if patternPredicateRangeLeaf(leaf) {
+			part = "(" + part + ")"
+		}
+		parts = append(parts, part)
 	}
 	return parts
 }
@@ -574,12 +581,20 @@ func (f *formatter) patternPredicateBitOrLeaves(expr ast.Expr) []ast.Expr {
 }
 
 func patternPredicateLeaf(expr ast.Expr) bool {
+	if patternPredicateRangeLeaf(expr) {
+		return true
+	}
 	switch expr.(type) {
 	case *ast.BoolLiteral, *ast.IntegerLiteral, *ast.BigIntLiteral, *ast.StringLiteral, *ast.CharLiteral, *ast.NullLiteral, *ast.SelectorExpr:
 		return true
 	default:
 		return false
 	}
+}
+
+func patternPredicateRangeLeaf(expr ast.Expr) bool {
+	binary, ok := expr.(*ast.BinaryExpr)
+	return ok && binary.Op == lexer.DotDotEqual
 }
 
 func bitwiseLiteralLeaf(expr ast.Expr) bool {

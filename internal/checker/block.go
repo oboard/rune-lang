@@ -390,26 +390,14 @@ func (c *checker) inferPatternSubject(branches []ast.PatternBranch) Type {
 func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 	switch p := pattern.(type) {
 	case *ast.LiteralPattern:
-		switch p.Value.(type) {
-		case *ast.BoolLiteral:
-			return Bool
-		case *ast.IntegerLiteral:
-			return Int
-		case *ast.DoubleLiteral:
-			return Double
-		case *ast.BigIntLiteral:
-			return BigInt
-		case *ast.StringLiteral:
-			return String
-		case *ast.CharLiteral:
-			return Char
-		case *ast.NullLiteral:
-			return Null
-		case *ast.SelectorExpr:
-			if typ, ok := c.enumMemberType(p.Value); ok {
-				return typ
-			}
+		return c.patternExprType(p.Value)
+	case *ast.RangePattern:
+		start := c.patternExprType(p.Start)
+		end := c.patternExprType(p.End)
+		if start == Unknown || end == Unknown || start != end {
+			return Unknown
 		}
+		return start
 	}
 	return Unknown
 }
@@ -438,7 +426,35 @@ func (c *checker) checkPatternForSubject(pattern ast.Pattern, subject Type, env 
 		}
 		return
 	}
+	patternSubject := c.patternLiteralType(pattern)
+	if subject != Unknown && patternSubject != Unknown && subject != patternSubject {
+		c.errorf(pattern.Position(), "pattern has type %s, expected %s", patternSubject, subject)
+	}
 	c.checkPattern(pattern, env)
+}
+
+func (c *checker) patternExprType(expr ast.Expr) Type {
+	switch expr.(type) {
+	case *ast.BoolLiteral:
+		return Bool
+	case *ast.IntegerLiteral:
+		return Int
+	case *ast.DoubleLiteral:
+		return Double
+	case *ast.BigIntLiteral:
+		return BigInt
+	case *ast.StringLiteral:
+		return String
+	case *ast.CharLiteral:
+		return Char
+	case *ast.NullLiteral:
+		return Null
+	case *ast.SelectorExpr:
+		if typ, ok := c.enumMemberType(expr); ok {
+			return typ
+		}
+	}
+	return Unknown
 }
 
 func (c *checker) enumMemberType(expr ast.Expr) (Type, bool) {
@@ -550,6 +566,18 @@ func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
 		typ := c.inferExpr(p.Value, env)
 		if !orderedComparisonType(typ) && typ != Unknown {
 			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, String, or Char literal")
+		}
+	case *ast.RangePattern:
+		start := c.inferExpr(p.Start, env)
+		end := c.inferExpr(p.End, env)
+		if !orderedComparisonType(start) && start != Unknown {
+			c.errorf(p.Start.Position(), "range pattern expects Int, Double, BigInt, String, or Char literal")
+		}
+		if !orderedComparisonType(end) && end != Unknown {
+			c.errorf(p.End.Position(), "range pattern expects Int, Double, BigInt, String, or Char literal")
+		}
+		if start != Unknown && end != Unknown && start != end {
+			c.errorf(p.Pos, "range pattern bounds must have matching types, got %s and %s", start, end)
 		}
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {

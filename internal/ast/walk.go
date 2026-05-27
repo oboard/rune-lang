@@ -85,6 +85,9 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 					WalkExpr(p.Value, visit)
 				case *ComparePattern:
 					WalkExpr(p.Value, visit)
+				case *RangePattern:
+					WalkExpr(p.Start, visit)
+					WalkExpr(p.End, visit)
 				}
 			})
 			WalkExpr(branch.Expr, visit)
@@ -98,6 +101,9 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 					WalkExpr(p.Value, visit)
 				case *ComparePattern:
 					WalkExpr(p.Value, visit)
+				case *RangePattern:
+					WalkExpr(p.Start, visit)
+					WalkExpr(p.End, visit)
 				}
 			})
 			WalkExpr(branch.Expr, visit)

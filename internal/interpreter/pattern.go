@@ -56,6 +56,24 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 		default:
 			return false, fmt.Errorf("unsupported comparison pattern %s", p.Op)
 		}
+	case *ir.RangePattern:
+		start, err := i.eval(p.Start, env)
+		if err != nil {
+			return false, err
+		}
+		end, err := i.eval(p.End, env)
+		if err != nil {
+			return false, err
+		}
+		lower, err := compareOrdered(subject, start)
+		if err != nil {
+			return false, fmt.Errorf("range pattern expects matching ordered values: %w", err)
+		}
+		upper, err := compareOrdered(subject, end)
+		if err != nil {
+			return false, fmt.Errorf("range pattern expects matching ordered values: %w", err)
+		}
+		return lower >= 0 && upper <= 0, nil
 	case *ir.TuplePattern:
 		array, ok := subject.(*Array)
 		if !ok || len(array.Elements) != len(p.Elements) {

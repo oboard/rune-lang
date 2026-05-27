@@ -106,6 +106,9 @@ func WalkPattern(pattern Pattern, visit func(Expr)) {
 		WalkExpr(p.Value, visit)
 	case *ComparePattern:
 		WalkExpr(p.Value, visit)
+	case *RangePattern:
+		WalkExpr(p.Start, visit)
+		WalkExpr(p.End, visit)
 	case *TuplePattern:
 		for _, elem := range p.Elements {
 			WalkPattern(elem, visit)

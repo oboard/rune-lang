@@ -321,6 +321,8 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 		return &LiteralPattern{Value: l.expr(p.Value), Pos: p.Pos}
 	case *ast.ComparePattern:
 		return &ComparePattern{Op: p.Op, Value: l.expr(p.Value), Pos: p.Pos}
+	case *ast.RangePattern:
+		return &RangePattern{Start: l.expr(p.Start), End: l.expr(p.End), Pos: p.Pos}
 	case *ast.TuplePattern:
 		out := &TuplePattern{Pos: p.Pos}
 		for _, elem := range p.Elements {

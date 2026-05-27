@@ -381,6 +381,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 				c.errorf(e.Pos, "ordered comparison requires matching types, got %s and %s", left, right)
 			}
 			return Bool
+		case lexer.DotDotEqual:
+			c.errorf(e.Pos, "range pattern can only be used as a pattern predicate")
+			return Unknown
 		default:
 			return Unknown
 		}

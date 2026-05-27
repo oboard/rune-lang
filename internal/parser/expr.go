@@ -523,7 +523,7 @@ func precedence(kind lexer.Kind) int {
 		return 5
 	case lexer.EqualEqual, lexer.BangEqual:
 		return 6
-	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
+	case lexer.DotDotEqual, lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		return 7
 	case lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
 		return 8

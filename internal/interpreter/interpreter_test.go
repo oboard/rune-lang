@@ -98,10 +98,16 @@ main() => {
 
 func TestInterpreterRunsInferredPatternPredicate(t *testing.T) {
 	src := `isSpace(ch) => ' ' | '\t' | '\r'
+isDigit(ch) => ('0'..='9')
+isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 
 main() => {
   @io.println(isSpace(' '))
   @io.println(isSpace('x'))
+  @io.println(isDigit('5'))
+  @io.println(isDigit('x'))
+  @io.println(isAlpha('R'))
+  @io.println(isAlpha('7'))
 }
 `
 	prog, diags := compiler.AnalyzeSource("pattern_predicate.rn", src)
@@ -114,7 +120,7 @@ main() => {
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
-	if got := strings.TrimSpace(out.String()); got != "true\nfalse" {
+	if got := strings.TrimSpace(out.String()); got != "true\nfalse\ntrue\nfalse\ntrue\nfalse" {
 		t.Fatalf("output = %q, want predicate output", got)
 	}
 }

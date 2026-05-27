@@ -13,8 +13,8 @@ func (c *checker) rewritePatternPredicateBody(fn *ast.Function, info *FuncInfo, 
 	if !ok {
 		return
 	}
-	patterns, ok := c.patternsFromBitOrExpr(expr)
-	if !ok || len(patterns) < 2 {
+	patterns, ok := c.patternsFromPredicateExpr(expr)
+	if !ok {
 		return
 	}
 	if info.ReturnDeclared {
@@ -59,6 +59,8 @@ func (c *checker) bindPatternPredicateSubject(info *FuncInfo, env map[string]Typ
 	param := info.Params[0].Name
 	if current := env[param]; current == Unknown || current == "" {
 		env[param] = subject
+	} else if current != subject {
+		c.errorf(patterns[0].Position(), "pattern has type %s, expected %s", subject, current)
 	}
 }
 
@@ -97,17 +99,30 @@ func (c *checker) patternPredicateBlock(pos lexer.Position, patterns []ast.Patte
 	return block
 }
 
-func (c *checker) patternsFromBitOrExpr(expr ast.Expr) ([]ast.Pattern, bool) {
+func (c *checker) patternsFromPredicateExpr(expr ast.Expr) ([]ast.Pattern, bool) {
 	if binary, ok := expr.(*ast.BinaryExpr); ok && binary.Op == lexer.BitOr {
-		left, ok := c.patternsFromBitOrExpr(binary.Left)
+		return c.patternsFromPredicatePart(binary)
+	}
+	if pattern, ok := c.rangePatternFromExpr(expr); ok {
+		return []ast.Pattern{pattern}, true
+	}
+	return nil, false
+}
+
+func (c *checker) patternsFromPredicatePart(expr ast.Expr) ([]ast.Pattern, bool) {
+	if binary, ok := expr.(*ast.BinaryExpr); ok && binary.Op == lexer.BitOr {
+		left, ok := c.patternsFromPredicatePart(binary.Left)
 		if !ok {
 			return nil, false
 		}
-		right, ok := c.patternsFromBitOrExpr(binary.Right)
+		right, ok := c.patternsFromPredicatePart(binary.Right)
 		if !ok {
 			return nil, false
 		}
 		return append(left, right...), true
+	}
+	if pattern, ok := c.rangePatternFromExpr(expr); ok {
+		return []ast.Pattern{pattern}, true
 	}
 	pattern, ok := c.literalPatternFromExpr(expr)
 	if !ok {
@@ -116,12 +131,32 @@ func (c *checker) patternsFromBitOrExpr(expr ast.Expr) ([]ast.Pattern, bool) {
 	return []ast.Pattern{pattern}, true
 }
 
+func (c *checker) rangePatternFromExpr(expr ast.Expr) (ast.Pattern, bool) {
+	binary, ok := expr.(*ast.BinaryExpr)
+	if !ok || binary.Op != lexer.DotDotEqual {
+		return nil, false
+	}
+	if !patternPredicateRangeEndpoint(binary.Left) || !patternPredicateRangeEndpoint(binary.Right) {
+		return nil, false
+	}
+	return &ast.RangePattern{Start: binary.Left, End: binary.Right, Pos: binary.Pos}, true
+}
+
 func (c *checker) literalPatternFromExpr(expr ast.Expr) (ast.Pattern, bool) {
 	switch expr.(type) {
 	case *ast.BoolLiteral, *ast.IntegerLiteral, *ast.DoubleLiteral, *ast.BigIntLiteral, *ast.StringLiteral, *ast.CharLiteral, *ast.NullLiteral, *ast.SelectorExpr:
 		return &ast.LiteralPattern{Value: expr, Pos: expr.Position()}, true
 	default:
 		return nil, false
+	}
+}
+
+func patternPredicateRangeEndpoint(expr ast.Expr) bool {
+	switch expr.(type) {
+	case *ast.BoolLiteral, *ast.IntegerLiteral, *ast.DoubleLiteral, *ast.BigIntLiteral, *ast.StringLiteral, *ast.CharLiteral, *ast.NullLiteral, *ast.SelectorExpr:
+		return true
+	default:
+		return false
 	}
 }
 

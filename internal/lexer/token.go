@@ -21,6 +21,7 @@ const (
 	At
 	Dollar
 	Dot
+	DotDotEqual
 	DotDotDot
 	Comma
 	Colon
@@ -122,6 +123,8 @@ func (k Kind) String() string {
 		return "$"
 	case Dot:
 		return "."
+	case DotDotEqual:
+		return "..="
 	case DotDotDot:
 		return "..."
 	case Comma:

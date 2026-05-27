@@ -1653,7 +1653,7 @@ functionToExpr(
 
 calleeText(expr: ParsedExpr) -> String => expr.name != "" ? expr.name : expr.value != "" ? expr.value : expr.text
 
-precedence(kind: String) -> Int => kind == "OrOr" ? 1 : kind == "AndAnd" ? 2 : kind == "BitOr" ? 3 : kind == "BitXor" ? 4 : kind == "BitAnd" ? 5 : (kind == "EqualEqual") || (kind == "BangEqual") ? 6 : (((kind == "Less") || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? 7 : ((kind == "ShiftLeft") || (kind == "ShiftRight")) || (kind == "UnsignedShiftRight") ? 8 : (kind == "Plus") || (kind == "Minus") ? 9 : ((kind == "Star") || (kind == "Slash")) || (kind == "Percent") ? 10 : 0
+precedence(kind: String) -> Int => kind == "OrOr" ? 1 : kind == "AndAnd" ? 2 : kind == "BitOr" ? 3 : kind == "BitXor" ? 4 : kind == "BitAnd" ? 5 : (kind == "EqualEqual") || (kind == "BangEqual") ? 6 : ((((kind == "DotDotEqual") || (kind == "Less")) || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? 7 : ((kind == "ShiftLeft") || (kind == "ShiftRight")) || (kind == "UnsignedShiftRight") ? 8 : (kind == "Plus") || (kind == "Minus") ? 9 : ((kind == "Star") || (kind == "Slash")) || (kind == "Percent") ? 10 : 0
 
 skipAnnotations(
   state: ParserState
@@ -1756,7 +1756,7 @@ scanObjectDestructureField(
 scanObjectDestructureAfterField(
   state: ParserState,
   index: Int
-) -> Bool => parserKindAt(state, index) == "Colon" ? parserKindAt(state, skipNewlinesAt(state, index + 1)) == "Ident" && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1) : scanObjectDestructureAfterName(state, index)
+) -> Bool => parserKindAt(state, index) == "Colon" ? (parserKindAt(state, skipNewlinesAt(state, index + 1)) == "Ident") && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1) : scanObjectDestructureAfterName(state, index)
 
 scanObjectDestructureAfterName(
   state: ParserState,
@@ -1801,7 +1801,21 @@ skipPatternLookahead(
   index: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  (((((kind == "Underscore") || (kind == "Int")) || (kind == "Double")) || (kind == "BigInt")) || (kind == "String")) || (kind == "Char") ? index + 1 : kind == "Ident" ? skipIdentifierPatternLookahead(state, index) : (((kind == "Less") || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? skipComparePatternLookahead(state, index + 1) : kind == "LParen" ? skipBalancedAt(state, index, "LParen", "RParen") : -1
+  after := (((((kind == "Underscore") || (kind == "Int")) || (kind == "Double")) || (kind == "BigInt")) || (kind == "String")) || (kind == "Char") ? index + 1 : kind == "Ident" ? skipIdentifierPatternLookahead(state, index) : (((kind == "Less") || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? skipComparePatternLookahead(state, index + 1) : kind == "LParen" ? skipBalancedAt(state, index, "LParen", "RParen") : -1
+  skipRangePatternLookahead(state, after)
+}
+
+skipRangePatternLookahead(
+  state: ParserState,
+  index: Int
+) -> Int => (index >= 0) && (parserKindAt(state, index) == "DotDotEqual") ? skipRangePatternEnd(state, index + 1) : index
+
+skipRangePatternEnd(
+  state: ParserState,
+  index: Int
+) -> Int => {
+  kind := parserKindAt(state, index)
+  (((((kind == "Int") || (kind == "Double")) || (kind == "BigInt")) || (kind == "String")) || (kind == "Char")) || (kind == "Ident") ? index + 1 : -1
 }
 
 skipIdentifierPatternLookahead(

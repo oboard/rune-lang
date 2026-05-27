@@ -52,6 +52,27 @@ main() => {
 	}
 }
 
+func TestGeneratePatternPredicateRange(t *testing.T) {
+	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	want := `case (__ch >= '0' && __ch <= '9'):`
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated Go missing %q:\n%s", want, got)
+	}
+}
+
 func TestGenerateStructProgram(t *testing.T) {
 	src := `User: {
   id: Int

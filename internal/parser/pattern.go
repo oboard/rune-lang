@@ -6,6 +6,20 @@ import (
 )
 
 func (p *Parser) parsePattern() ast.Pattern {
+	pattern := p.parsePatternAtom()
+	if p.match(lexer.DotDotEqual) {
+		literal, ok := pattern.(*ast.LiteralPattern)
+		if !ok {
+			p.errorAt(p.previous(), "range pattern start must be a literal")
+			return pattern
+		}
+		end := p.parsePrimary()
+		return &ast.RangePattern{Start: literal.Value, End: end, Pos: pattern.Position()}
+	}
+	return pattern
+}
+
+func (p *Parser) parsePatternAtom() ast.Pattern {
 	tok := p.peek()
 	switch tok.Kind {
 	case lexer.Underscore:
@@ -47,16 +61,25 @@ func (p *Parser) parsePattern() ast.Pattern {
 	case lexer.LParen:
 		start := p.advance()
 		p.skipNewlines()
-		var elems []ast.Pattern
-		if !p.check(lexer.RParen) {
-			for {
-				elems = append(elems, p.parsePattern())
-				p.skipNewlines()
-				if !p.match(lexer.Comma) {
-					break
-				}
-				p.skipNewlines()
+		if p.check(lexer.RParen) {
+			p.consume(lexer.RParen, "expected ')' after tuple pattern")
+			return &ast.TuplePattern{Pos: start.Pos}
+		}
+		first := p.parsePattern()
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			p.consume(lexer.RParen, "expected ')' after pattern")
+			return first
+		}
+		elems := []ast.Pattern{first}
+		p.skipNewlines()
+		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
+			elems = append(elems, p.parsePattern())
+			p.skipNewlines()
+			if !p.match(lexer.Comma) {
+				break
 			}
+			p.skipNewlines()
 		}
 		p.consume(lexer.RParen, "expected ')' after tuple pattern")
 		return &ast.TuplePattern{Elements: elems, Pos: start.Pos}
