@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#strings" },
+    { "include": "#chars" },
     { "include": "#regex" },
     { "include": "#numbers" },
     { "include": "#modules" },
@@ -34,6 +35,21 @@
           "name": "string.quoted.double.rune",
           "begin": "\"",
           "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.rune",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "chars": {
+      "patterns": [
+        {
+          "name": "constant.character.rune",
+          "begin": "'",
+          "end": "'",
           "patterns": [
             {
               "name": "constant.character.escape.rune",
@@ -186,7 +202,7 @@
         },
         {
           "name": "storage.type.rune",
-          "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Data|Error|Result|Task|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
+          "match": "\\b(Int|Int4|Int8|Int16|Int64|UInt|UInt8|UInt16|UInt64|Float|Double|BigInt|String|Char|Bool|Regex|Null|Void|HTMLElement|Any|Dynamic|Data|Error|Result|Task|Binary|Buffer|Reader|Writer|Array|Map|Set|WeakMap|WeakSet|Record)\\b"
         }
       ]
     },

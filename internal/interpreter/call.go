@@ -42,6 +42,8 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 			return i.callRegexMethod(value, sel.Name, call.Args, env)
 		case string:
 			return i.callStringMethod(value, sel.Name, call.Args, env)
+		case Char:
+			return i.callCharMethod(value, sel.Name, call.Args, env)
 		case bool:
 			return i.callBoolMethod(value, sel.Name, call.Args, env)
 		case *Struct:

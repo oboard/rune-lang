@@ -32,6 +32,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.CharLiteral:
+		return strconv.QuoteRune(e.Value)
 	case *ir.RegexLiteral:
 		return fmt.Sprintf("newRuneRegex(%q, %q)", e.Pattern, e.Flags)
 	case *ir.BoolLiteral:
@@ -410,7 +412,7 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 			if len(args) != 1 {
 				return "/* invalid string.at */", true
 			}
-			return fmt.Sprintf("string([]rune(%s)[%s])", receiver, args[0]), true
+			return fmt.Sprintf("[]rune(%s)[%s]", receiver, args[0]), true
 		case "slice":
 			if len(args) != 2 {
 				return "/* invalid string.slice */", true
@@ -449,6 +451,11 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 			return fmt.Sprintf("strings.ReplaceAll(%s, %s, %s)", receiver, args[0], args[1]), true
 		case "split":
 			return fmt.Sprintf("func() []string { parts := strings.Split(%s, %s); return parts }()", receiver, args[0]), true
+		}
+	case checker.Char:
+		switch sel.Name {
+		case "toString":
+			return fmt.Sprintf("string(%s)", receiver), true
 		}
 	case checker.Bool:
 		switch sel.Name {

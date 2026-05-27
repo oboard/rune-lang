@@ -40,6 +40,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return UInt64
 	case "String":
 		return String
+	case "Char":
+		return Char
 	case "Bool":
 		return Bool
 	case "Null":
@@ -165,6 +167,9 @@ func genericTypeOf(base string, args []Type) Type {
 func NullableOf(elem Type) Type {
 	if elem == Null {
 		return Null
+	}
+	if _, ok := parseNullableType(string(elem)); ok {
+		return elem
 	}
 	return Type(string(elem) + "?")
 }
@@ -479,7 +484,7 @@ func isObjectLike(typ Type) bool {
 		return true
 	case string(Int), string(Int4), string(Int8), string(Int16), string(Int64),
 		string(Double), string(Float), string(BigInt), string(UInt), string(UInt8),
-		string(UInt16), string(UInt64), string(String), string(Bool), string(Null),
+		string(UInt16), string(UInt64), string(String), string(Char), string(Bool), string(Null),
 		string(Void), string(Symbol), string(Regex), string(Binary), string(Buffer),
 		string(Reader), string(Writer), string(Data):
 		return false

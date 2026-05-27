@@ -64,13 +64,15 @@ intValue := 42
 doubleValue := 6.25e-1
 bigValue := 9007199254740993n
 text := "hello\nRune"
+ch := 'R'
 ok := true
 missing := null
 ```
 
 整数字面量类型是 `Int`。带小数点或指数的字面量类型是 `Double`。以 `n`
-结尾的字面量类型是 `BigInt`。`true` 和 `false` 类型是 `Bool`。`null`
-的类型是 `Null`，可以流入 `Int?`、`String?` 这样的可空类型。
+结尾的字面量类型是 `BigInt`。单引号字符字面量类型是 `Char`。`true` 和
+`false` 类型是 `Bool`。`null` 的类型是 `Null`，可以流入 `Int?`、
+`String?` 这样的可空类型。
 
 ## 内置类型
 
@@ -81,6 +83,7 @@ Int
 Double
 BigInt
 String
+Char
 Bool
 Void
 Object
@@ -165,7 +168,7 @@ count++
 ```
 
 `&&` 和 `||` 会短路求值，并要求操作数是布尔值。有序比较支持类型相同的
-`Int`、`Double`、`BigInt` 或 `String`。
+`Int`、`Double`、`BigInt`、`String` 或 `Char`。
 
 位运算符 `~`、`&`、`|`、`^`、`<<`、`>>` 和 `>>>` 要求操作数是匹配的整数
 类型。`>>>` 要求左操作数是无符号整数。
@@ -336,6 +339,7 @@ _          // 通配
 1.5        // Double 字面量
 1n         // BigInt 字面量
 "text"     // String 字面量
+'c'        // Char 字面量
 true       // Bool 字面量
 false
 null

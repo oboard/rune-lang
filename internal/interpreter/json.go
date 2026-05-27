@@ -23,6 +23,9 @@ func jsonValue(value Value, inArray bool) (string, error) {
 	case string:
 		data, err := json.Marshal(v)
 		return string(data), err
+	case Char:
+		data, err := json.Marshal(string(rune(v)))
+		return string(data), err
 	case int, float64, bool:
 		data, err := json.Marshal(v)
 		return string(data), err

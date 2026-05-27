@@ -282,6 +282,15 @@ func (p *Parser) parsePrimary() ast.Expr {
 			value = tok.Lexeme
 		}
 		return &ast.StringLiteral{Value: value, Pos: tok.Pos}
+	case lexer.Char:
+		p.advance()
+		value, err := strconv.Unquote(tok.Lexeme)
+		runes := []rune(value)
+		if err != nil || len(runes) != 1 {
+			p.errorAt(tok, "invalid char literal")
+			return &ast.CharLiteral{Value: 0, Pos: tok.Pos}
+		}
+		return &ast.CharLiteral{Value: runes[0], Pos: tok.Pos}
 	case lexer.Regex:
 		p.advance()
 		pattern, flags, ok := splitRegexLiteral(tok.Lexeme)

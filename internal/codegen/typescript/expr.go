@@ -39,6 +39,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return e.Value + "n"
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.CharLiteral:
+		return strconv.Quote(string(e.Value))
 	case *ir.RegexLiteral:
 		return e.Raw
 	case *ir.BoolLiteral:
@@ -393,6 +395,11 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 			return receiver, true
 		case "concat", "includes", "startsWith", "endsWith", "indexOf", "lastIndexOf", "toLowerCase", "toUpperCase", "trim", "trimStart", "trimEnd", "repeat", "replace", "replaceAll", "split":
 			return fmt.Sprintf("%s.%s(%s)", receiver, sel.Name, strings.Join(args, ", ")), true
+		}
+	case checker.Char:
+		switch sel.Name {
+		case "toString":
+			return receiver, true
 		}
 	case checker.Bool:
 		switch sel.Name {

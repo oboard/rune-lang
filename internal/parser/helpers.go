@@ -163,7 +163,7 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 		return false
 	}
 	switch p.tokens[i].Kind {
-	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
+	case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String, lexer.Char:
 		i++
 	case lexer.Ident:
 		if i+1 < len(p.tokens) && p.tokens[i+1].Kind == lexer.LParen {
@@ -193,7 +193,7 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 		if i >= len(p.tokens) {
 			return false
 		}
-		if p.tokens[i].Kind != lexer.Int && p.tokens[i].Kind != lexer.Double && p.tokens[i].Kind != lexer.BigInt && p.tokens[i].Kind != lexer.String && p.tokens[i].Kind != lexer.Ident {
+		if p.tokens[i].Kind != lexer.Int && p.tokens[i].Kind != lexer.Double && p.tokens[i].Kind != lexer.BigInt && p.tokens[i].Kind != lexer.String && p.tokens[i].Kind != lexer.Char && p.tokens[i].Kind != lexer.Ident {
 			return false
 		}
 		i++

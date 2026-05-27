@@ -26,6 +26,7 @@ const (
 	UInt16        Type = "UInt16"
 	UInt64        Type = "UInt64"
 	String        Type = "String"
+	Char          Type = "Char"
 	Bool          Type = "Bool"
 	Null          Type = "Null"
 	Object        Type = "Object"

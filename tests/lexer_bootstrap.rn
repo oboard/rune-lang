@@ -45,3 +45,14 @@
   @assert.eq(tokens[2].kind, "Double")
   @assert.eq(tokens[3].kind, "BigInt")
 }
+
+? "selfhost lexer reads char literals" {
+  tokens := lex("ch := 'x'\nnewline := '\\n'")
+
+  @assert.eq(tokens[0].kind, "Ident")
+  @assert.eq(tokens[1].kind, "Declare")
+  @assert.eq(tokens[2].kind, "Char")
+  @assert.eq(tokens[2].lexeme, "'x'")
+  @assert.eq(tokens[6].kind, "Char")
+  @assert.eq(tokens[6].lexeme, "'\\n'")
+}

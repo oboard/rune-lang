@@ -93,7 +93,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayMethodCall(call)
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."), strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.mapMethodCall(call)
-	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."):
+	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."):
 		return g.primitiveIntrinsicCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "binary."):
 		return g.binaryReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
@@ -625,7 +625,7 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string,
 		if len(args) != 1 {
 			return "/* invalid string.at */"
 		}
-		return fmt.Sprintf("string([]rune(%s)[%s])", receiver, args[0])
+		return fmt.Sprintf("[]rune(%s)[%s]", receiver, args[0])
 	case "string.slice":
 		if len(args) != 2 {
 			return "/* invalid string.slice */"
@@ -664,6 +664,8 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string,
 		return fmt.Sprintf("strings.ReplaceAll(%s, %s, %s)", receiver, args[0], args[1])
 	case "string.split":
 		return fmt.Sprintf("func() []string { parts := strings.Split(%s, %s); return parts }()", receiver, args[0])
+	case "char.toString":
+		return fmt.Sprintf("string(%s)", receiver)
 	case "bool.not":
 		return "!" + receiver
 	case "bool.xor":

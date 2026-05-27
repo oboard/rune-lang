@@ -112,6 +112,8 @@ func tsType(typ checker.Type) string {
 		return "bigint"
 	case checker.String:
 		return "string"
+	case checker.Char:
+		return "string"
 	case checker.Bool:
 		return "boolean"
 	case checker.Null:
@@ -290,6 +292,8 @@ func zeroValue(typ checker.Type) string {
 		return "0n"
 	case checker.String:
 		return `""`
+	case checker.Char:
+		return `"\0"`
 	case checker.Bool:
 		return "false"
 	case checker.Regex:

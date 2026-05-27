@@ -203,7 +203,14 @@ value := values[0]
 "r,u,n,e".split(",")
 ```
 
-当前运行时测试中，字符串索引和切片按用户可见的 Unicode 字符工作。
+当前运行时测试中，字符串索引和切片按用户可见的 Unicode 字符工作。`at` 和
+`charAt` 返回 `Char`；需要 `String` 时可以调用 `.toString()`。
+
+## char
+
+```rune
+'r'.toString()
+```
 
 ## bool
 

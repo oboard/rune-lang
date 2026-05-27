@@ -110,6 +110,8 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
 		return g.stringIntrinsicCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "char."):
+		return g.charIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "bool."):
 		return g.boolIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "regex."):
@@ -761,6 +763,15 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 	case "string.concat", "string.includes", "string.startsWith", "string.endsWith", "string.indexOf", "string.lastIndexOf", "string.toLowerCase", "string.toUpperCase", "string.trim", "string.trimStart", "string.trimEnd", "string.repeat", "string.replace", "string.replaceAll", "string.split":
 		name := strings.TrimPrefix(fn.Intrinsic, "string.")
 		return fmt.Sprintf("%s.%s(%s)", receiver, name, strings.Join(args, ", "))
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) charIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "char.toString":
+		return receiver
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

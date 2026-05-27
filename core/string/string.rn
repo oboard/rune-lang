@@ -5,9 +5,9 @@ String: {
 
     toString() -> String => "%string.toString"
 
-    at(index: Int) -> String => "%string.at"
+    at(index: Int) -> Char => "%string.at"
 
-    charAt(index: Int) -> String => "%string.at"
+    charAt(index: Int) -> Char => "%string.at"
 
     slice(start: Int, end: Int) -> String => "%string.slice"
 

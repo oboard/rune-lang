@@ -39,6 +39,8 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return value, nil
 	case *ir.StringLiteral:
 		return e.Value, nil
+	case *ir.CharLiteral:
+		return Char(e.Value), nil
 	case *ir.RegexLiteral:
 		return newRegex(e.Pattern, e.Flags)
 	case *ir.BoolLiteral:
@@ -721,13 +723,19 @@ func compareOrdered(left Value, right Value) (int, error) {
 		default:
 			return 0, nil
 		}
+	case Char:
+		r, ok := right.(Char)
+		if !ok {
+			return 0, fmt.Errorf("comparison operands must have matching ordered types")
+		}
+		return compareOrderedValues(l, r), nil
 	default:
-		return 0, fmt.Errorf("comparison expects a numeric type or String")
+		return 0, fmt.Errorf("comparison expects a numeric type, String, or Char")
 	}
 }
 
 type orderedValue interface {
-	~int | ~int8 | ~int16 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint64 | ~float32 | ~float64
+	~int | ~int8 | ~int16 | ~int64 | ~int32 | ~uint | ~uint8 | ~uint16 | ~uint64 | ~float32 | ~float64
 }
 
 func compareOrderedValues[T orderedValue](left T, right T) int {
@@ -844,6 +852,8 @@ func typeName(value Value) string {
 		return string(checker.Null)
 	case string:
 		return string(checker.String)
+	case Char:
+		return string(checker.Char)
 	case bool:
 		return string(checker.Bool)
 	case *Array:

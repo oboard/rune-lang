@@ -36,27 +36,23 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 		if err != nil {
 			return false, err
 		}
-		left, ok := subject.(int)
-		if !ok {
-			return false, fmt.Errorf("comparison pattern expects Int subject")
-		}
-		right, ok := value.(int)
-		if !ok {
-			return false, fmt.Errorf("comparison pattern expects Int value")
+		cmp, err := compareOrdered(subject, value)
+		if err != nil {
+			return false, fmt.Errorf("comparison pattern expects matching ordered values: %w", err)
 		}
 		switch p.Op {
 		case lexer.Less:
-			return left < right, nil
+			return cmp < 0, nil
 		case lexer.LessEqual:
-			return left <= right, nil
+			return cmp <= 0, nil
 		case lexer.Greater:
-			return left > right, nil
+			return cmp > 0, nil
 		case lexer.GreaterEqual:
-			return left >= right, nil
+			return cmp >= 0, nil
 		case lexer.EqualEqual:
-			return left == right, nil
+			return cmp == 0, nil
 		case lexer.BangEqual:
-			return left != right, nil
+			return cmp != 0, nil
 		default:
 			return false, fmt.Errorf("unsupported comparison pattern %s", p.Op)
 		}

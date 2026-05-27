@@ -45,6 +45,9 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 			c.bindTypeParams(expectedType, valueType, typeBindings)
 			expectedType = substituteTypeParams(expectedType, typeBindings)
 		}
+		if expectedType != Unknown && shouldApplyExpectedType(valueType, expectedType) {
+			c.applyExpectedType(field.Value, expectedType)
+		}
 		if valueType != Unknown && expectedType != Unknown && !typesCompatible(expectedType, valueType, nil) {
 			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", lit.TypeName, field.Name, valueType, expectedType)
 		}
@@ -345,6 +348,8 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 			return BigInt
 		case *ast.StringLiteral:
 			return String
+		case *ast.CharLiteral:
+			return Char
 		case *ast.NullLiteral:
 			return Null
 		case *ast.SelectorExpr:
@@ -491,7 +496,7 @@ func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
 	case *ast.ComparePattern:
 		typ := c.inferExpr(p.Value, env)
 		if !orderedComparisonType(typ) && typ != Unknown {
-			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, or String literal")
+			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, String, or Char literal")
 		}
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {

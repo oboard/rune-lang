@@ -83,6 +83,7 @@ module.exports = grammar({
       $.selector_expression,
       $.number,
       $.string,
+      $.char,
       seq(choice("<", "<=", ">", ">="), $.number)
     ),
 
@@ -93,6 +94,7 @@ module.exports = grammar({
       $.module_identifier,
       $.number,
       $.string,
+      $.char,
       $.regex,
       $.binary_expression
     ),
@@ -121,6 +123,7 @@ module.exports = grammar({
     identifier: () => /[A-Za-z_][A-Za-z0-9_]*/,
     number: () => /\d+/,
     string: () => /"([^"\\]|\\.)*"/,
+    char: () => /'([^'\\\n]|\\.)*'/,
     regex: ($) => seq(
       field("open", "/"),
       repeat1(choice($.regex_text, $.regex_escape, $.regex_char_class)),

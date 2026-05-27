@@ -1670,7 +1670,7 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 		if index < 0 || index >= len(runes) {
 			return nil, fmt.Errorf("string index %d out of range", index)
 		}
-		return string(runes[index]), nil
+		return Char(runes[index]), nil
 	case "string.slice":
 		if len(values) != 2 {
 			return nil, fmt.Errorf("string.slice expects 2 args, got %d", len(values))
@@ -1786,6 +1786,28 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 			}
 		}
 		return i.eval(ir.LowerExpr(fn.Body, nil), local)
+	}
+}
+
+func (i *Interpreter) callCharMethod(value Char, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	if _, ok := i.file.Stdlib.ReceiverFunction("char", "Char", name); !ok {
+		return nil, fmt.Errorf("type Char has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch name {
+	case "toString":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("char.toString expects 0 args, got %d", len(values))
+		}
+		return string(rune(value)), nil
+	default:
+		return nil, fmt.Errorf("char.%s is not supported by the interpreter", name)
 	}
 }
 

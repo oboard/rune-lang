@@ -139,7 +139,7 @@ func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env ma
 
 func mapKeyType(typ Type) bool {
 	switch typ {
-	case String, Bool, Int, Int4, Int8, Int16, Int64, UInt, UInt8, UInt16, UInt64, Double, Float:
+	case String, Char, Bool, Int, Int4, Int8, Int16, Int64, UInt, UInt8, UInt16, UInt64, Double, Float:
 		return true
 	default:
 		return false
@@ -191,6 +191,8 @@ func StdlibReceiverModule(receiver Type) (string, string, bool) {
 		return "int", "Int", true
 	case "String":
 		return "string", "String", true
+	case "Char":
+		return "char", "Char", true
 	case "Bool":
 		return "bool", "Bool", true
 	case "Regex":

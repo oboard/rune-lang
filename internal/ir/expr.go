@@ -73,6 +73,13 @@ type StringLiteral struct {
 
 func (*StringLiteral) exprNode() {}
 
+type CharLiteral struct {
+	ExprBase
+	Value rune
+}
+
+func (*CharLiteral) exprNode() {}
+
 type RegexLiteral struct {
 	ExprBase
 	Pattern string

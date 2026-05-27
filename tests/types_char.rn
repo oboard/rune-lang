@@ -1,0 +1,43 @@
+charName(ch: Char) -> String => ch {
+  'a' => "letter a"
+  '\n' => "newline"
+  _ => "other"
+}
+
+? "char literals and methods" {
+  @assert.eq('a'.toString(), "a")
+  @assert.eq('\n'.toString(), "\n")
+  @assert.eq('好'.toString(), "好")
+}
+
+? "string indexing returns char" {
+  @assert.eq("rune".at(1), 'u')
+  @assert.eq("你好".charAt(0), '你')
+  @assert.eq("rune".at(1).toString(), "u")
+}
+
+? "char comparison and patterns" {
+  @assert.eq('a' == 'a', true)
+  @assert.eq('a' != 'b', true)
+  @assert.eq('a' < 'b', true)
+  @assert.eq('c' >= 'b', true)
+  @assert.eq(charName('a'), "letter a")
+  @assert.eq(charName('\n'), "newline")
+  @assert.eq(charName('z'), "other")
+}
+
+? "char map and set keys" {
+  counts := {
+    'a': 1,
+    'b': 2
+  }
+  @assert.eq(counts['a'], 1)
+  counts['c'] = 3
+  @assert.eq(counts['c'], 3)
+
+  seen := @set.new('a')
+  seen.add('a')
+  seen.add('b')
+  @assert.eq(seen.has('a'), true)
+  @assert.eq(seen.size(), 2)
+}

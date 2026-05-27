@@ -201,6 +201,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return BigInt
 	case *ast.StringLiteral:
 		return String
+	case *ast.CharLiteral:
+		return Char
 	case *ast.RegexLiteral:
 		if err := validateRegexFlags(e.Flags); err != "" {
 			c.errorf(e.Pos, err)
@@ -644,6 +646,11 @@ func (c *checker) refineCallArgsFromParams(params []ParamInfo, args []ast.Expr, 
 			continue
 		}
 		argTypes[i] = c.refineUnknownIdentifierType(args[i], argTypes[i], expected, env)
+		if shouldApplyExpectedType(argTypes[i], expected) {
+			refined, _ := c.refineArgumentType(expected, argTypes[i])
+			argTypes[i] = refined
+			c.applyExpectedType(args[i], refined)
+		}
 	}
 }
 
@@ -768,7 +775,7 @@ func isBitwiseType(typ Type) bool {
 }
 
 func orderedComparisonType(typ Type) bool {
-	return isNumericType(typ) || typ == String
+	return isNumericType(typ) || typ == String || typ == Char
 }
 
 func typesComparable(left Type, right Type) bool {
@@ -977,6 +984,10 @@ func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr,
 		expected := Type(params[i])
 		if refined, ok := c.refineArgumentType(expected, argTypes[i]); ok {
 			refinedParams[i] = refined
+			if shouldApplyExpectedType(argTypes[i], expected) {
+				argTypes[i] = refined
+				c.applyExpectedType(args[i], refined)
+			}
 			continue
 		}
 		if !typesCompatible(expected, argTypes[i], nil) {
@@ -987,6 +998,17 @@ func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr,
 		return c.finishRoutineCall(nil, true, Type(ret)), AsyncFuncOfTypes(refinedParams, Type(ret))
 	}
 	return Type(ret), FuncOfTypes(refinedParams, Type(ret))
+}
+
+func shouldApplyExpectedType(actual Type, expected Type) bool {
+	if expected == Unknown {
+		return false
+	}
+	if actualElem, ok := ArrayElement(actual); ok && actualElem == Unknown {
+		_, expectedArray := ArrayElement(expected)
+		return expectedArray
+	}
+	return false
 }
 
 func (c *checker) refineArgumentType(expected Type, actual Type) (Type, bool) {

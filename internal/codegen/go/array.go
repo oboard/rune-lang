@@ -294,6 +294,8 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.CharLiteral:
+		return strconv.QuoteRune(e.Value)
 	case *ir.BoolLiteral:
 		if e.Value {
 			return "true"
@@ -507,6 +509,8 @@ func (g *generator) stdlibBodyExpr(expr ir.Expr, this string) string {
 		return fmt.Sprintf("runeBigInt(%q)", e.Value)
 	case *ir.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ir.CharLiteral:
+		return strconv.QuoteRune(e.Value)
 	case *ir.BoolLiteral:
 		if e.Value {
 			return "true"

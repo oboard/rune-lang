@@ -77,6 +77,16 @@ func (e *StringLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+type CharLiteral struct {
+	Value rune
+	Pos   lexer.Position
+}
+
+func (*CharLiteral) exprNode() {}
+func (e *CharLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
 type RegexLiteral struct {
 	Pattern string
 	Flags   string

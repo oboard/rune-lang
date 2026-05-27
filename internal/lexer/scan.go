@@ -70,6 +70,28 @@ func (l *Lexer) string() Token {
 	return l.token(Illegal)
 }
 
+func (l *Lexer) char() Token {
+	escaped := false
+	for !l.isAtEnd() {
+		ch := l.advance()
+		if ch == '\n' {
+			return l.token(Illegal)
+		}
+		if escaped {
+			escaped = false
+			continue
+		}
+		if ch == '\\' {
+			escaped = true
+			continue
+		}
+		if ch == '\'' {
+			return l.token(Char)
+		}
+	}
+	return l.token(Illegal)
+}
+
 func (l *Lexer) regex() Token {
 	escaped := false
 	inClass := false

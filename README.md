@@ -139,6 +139,7 @@ The built-in scalar types are:
 ```text
 Int
 String
+Char
 Bool
 Void
 HTMLElement

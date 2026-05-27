@@ -27,6 +27,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return e.Value + "n"
 	case *ast.StringLiteral:
 		return strconv.Quote(e.Value)
+	case *ast.CharLiteral:
+		return strconv.QuoteRune(e.Value)
 	case *ast.RegexLiteral:
 		return e.Raw
 	case *ast.BoolLiteral:

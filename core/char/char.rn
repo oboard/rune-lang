@@ -1,0 +1,3 @@
+Char: {
+    toString() -> String => "%char.toString"
+}

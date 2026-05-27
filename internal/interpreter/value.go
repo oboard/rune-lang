@@ -16,6 +16,8 @@ type nullValue struct{}
 
 var NullValue Value = nullValue{}
 
+type Char rune
+
 type Array struct {
 	Elements []Value
 }
@@ -93,6 +95,8 @@ func Format(value Value) string {
 		return "null"
 	case string:
 		return strconv.Quote(v)
+	case Char:
+		return strconv.QuoteRune(rune(v))
 	case *big.Int:
 		return v.String() + "n"
 	case *Array:
@@ -162,6 +166,8 @@ func printValue(value Value) string {
 		return ""
 	case string:
 		return v
+	case Char:
+		return string(rune(v))
 	case EnumValue:
 		return Format(v)
 	default:

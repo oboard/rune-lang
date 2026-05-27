@@ -91,6 +91,8 @@ func goType(typ checker.Type) string {
 		return "uint64"
 	case checker.String:
 		return "string"
+	case checker.Char:
+		return "rune"
 	case checker.Bool:
 		return "bool"
 	case checker.Null:
@@ -263,6 +265,8 @@ func zeroValue(typ checker.Type) string {
 		return "runeBigInt(\"0\")"
 	case checker.String:
 		return `""`
+	case checker.Char:
+		return "rune(0)"
 	case checker.Bool:
 		return "false"
 	case checker.Regex:

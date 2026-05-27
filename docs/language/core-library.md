@@ -206,7 +206,14 @@ value := values[0]
 ```
 
 String indexing and slicing operate on user-visible Unicode characters in the
-current runtime tests.
+current runtime tests. `at` and `charAt` return `Char`; use `.toString()` when
+you need a `String`.
+
+## char
+
+```rune
+'r'.toString()
+```
 
 ## bool
 

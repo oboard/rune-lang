@@ -14,6 +14,7 @@ const (
 	Double
 	BigInt
 	String
+	Char
 	Regex
 	XMLText
 
@@ -109,6 +110,8 @@ func (k Kind) String() string {
 		return "BigInt"
 	case String:
 		return "String"
+	case Char:
+		return "Char"
 	case Regex:
 		return "Regex"
 	case XMLText:

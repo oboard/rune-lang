@@ -41,7 +41,7 @@
 ? "003. Longest Substring Without Repeating Characters" {
   solution := {
     maxInt(a: Int, b: Int) -> Int => a > b ? a : b
-    stringContainsBetween(s: String, start: Int, end: Int, ch: String) -> Bool => start {
+    stringContainsBetween(s: String, start: Int, end: Int, ch: Char) -> Bool => start {
       >=end => false
       _ => s.at(start) == ch ? true : .stringContainsBetween(s, start + 1, end, ch)
     }
@@ -107,7 +107,7 @@
 ? "010. Regular Expression Matching" {
   solution := {
     lc010RegexMatch(text: String, pattern: String) -> Bool => .lc010MatchAt(text, pattern, 0, 0)
-    lc010MatchAt(text: String, pattern: String, i: Int, j: Int) -> Bool => j >= pattern.length() ? i >= text.length() : ((j + 1) < pattern.length()) && (pattern.at(j + 1) == "*") ? .lc010MatchAt(text, pattern, i, j + 2) || (((i < text.length()) && ((pattern.at(j) == ".") || (pattern.at(j) == text.at(i)))) && .lc010MatchAt(text, pattern, i + 1, j)) : ((i < text.length()) && ((pattern.at(j) == ".") || (pattern.at(j) == text.at(i)))) && .lc010MatchAt(text, pattern, i + 1, j + 1)
+    lc010MatchAt(text: String, pattern: String, i: Int, j: Int) -> Bool => j >= pattern.length() ? i >= text.length() : ((j + 1) < pattern.length()) && (pattern.at(j + 1) == '*') ? .lc010MatchAt(text, pattern, i, j + 2) || (((i < text.length()) && ((pattern.at(j) == '.') || (pattern.at(j) == text.at(i)))) && .lc010MatchAt(text, pattern, i + 1, j)) : ((i < text.length()) && ((pattern.at(j) == '.') || (pattern.at(j) == text.at(i)))) && .lc010MatchAt(text, pattern, i + 1, j + 1)
   }
 
   @assert.eq(solution.lc010RegexMatch("aab", "c*a*b"), true)
@@ -300,10 +300,10 @@
 ? "032. Longest Valid Parentheses" {
   solution := {
     minInt(a: Int, b: Int) -> Int => a < b ? a : b
-    countChar(s: String, ch: String) -> Int => .countCharFrom(s, ch, 0, 0)
-    countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
+    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0)
+    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
     lc032LongestValidParentheses(s: String) -> Int => {
-      .minInt(.countChar(s, "("), .countChar(s, ")")) * 2
+      .minInt(.countChar(s, '('), .countChar(s, ')')) * 2
     }
   }
 
@@ -416,8 +416,8 @@
 
 ? "049. Group Anagrams" {
   solution := {
-    countChar(s: String, ch: String) -> Int => .countCharFrom(s, ch, 0, 0)
-    countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
+    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0)
+    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
     lc049GroupAnagramsCount(words: Array[String]) -> Int => {
       groups := [""]
       groups.pop()
@@ -563,8 +563,8 @@
 ? "076. Minimum Window Substring" {
   solution := {
     minInt(a: Int, b: Int) -> Int => a < b ? a : b
-    countChar(s: String, ch: String) -> Int => .countCharFrom(s, ch, 0, 0)
-    countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
+    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0)
+    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
     lc076MinWindowLength(s: String, target: String) -> Int => .lc076Start(s, target, 0, s.length() + 1)
     lc076Start(s: String, target: String, start: Int, best: Int) -> Int => start >= s.length() ? best : .lc076Start(s, target, start + 1, .lc076End(s, target, start, start + target.length(), best))
     lc076End(s: String, target: String, start: Int, end: Int, best: Int) -> Int => end > s.length() ? best : .lc076End(s, target, start, end + 1, .lc076ContainsAll(s.slice(start, end), target, 0) ? .minInt(best, end - start) : best)
@@ -1276,8 +1276,8 @@
 
 ? "438. Find All Anagrams in a String" {
   solution := {
-    countChar(s: String, ch: String) -> Int => .countCharFrom(s, ch, 0, 0)
-    countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
+    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0)
+    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
     lc049IsAnagram(left: String, right: String) -> Bool => (left.length() == right.length()) && .lc049SameCounts(left, right, 0)
     lc049SameCounts(left: String, right: String, index: Int) -> Bool => (index >= left.length()) || ((.countChar(left, left.at(index)) == .countChar(right, left.at(index))) && .lc049SameCounts(left, right, index + 1))
     lc438FindAnagramsCount(s: String, p: String) -> Int => .lc438Start(s, p, 0, 0)
@@ -1418,13 +1418,13 @@
 ? "621. Task Scheduler" {
   solution := {
     maxInt(a: Int, b: Int) -> Int => a > b ? a : b
-    countChar(s: String, ch: String) -> Int => .countCharFrom(s, ch, 0, 0)
-    countCharFrom(s: String, ch: String, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
+    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0)
+    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => index >= s.length() ? total : .countCharFrom(s, ch, index + 1, s.at(index) == ch ? total + 1 : total)
     lc621LeastInterval(tasks: String, cooldown: Int) -> Int => {
-      maxCount ~= 0
-      tasks.split("").each((task) => maxCount = .maxInt(maxCount, .countChar(tasks, task)))
+      maxCount := .lc621MaxTaskCount(tasks, 0, 0)
       .maxInt(tasks.length(), ((maxCount - 1) * (cooldown + 1)) + 1)
     }
+    lc621MaxTaskCount(tasks: String, index: Int, maxCount: Int) -> Int => index >= tasks.length() ? maxCount : .lc621MaxTaskCount(tasks, index + 1, .maxInt(maxCount, .countChar(tasks, tasks.at(index))))
   }
 
   @assert.eq(solution.lc621LeastInterval("AAABBB", 2), 7)
@@ -1468,11 +1468,10 @@
     }
     lc763PartitionAt(s: String, index: Int, currentEnd: Int, count: Int) -> Int => index >= s.length() ? count : .lc763PartitionNext(s, index, .maxInt(currentEnd, .lc763LastIndex(s, s.at(index))), count)
     lc763PartitionNext(s: String, index: Int, currentEnd: Int, count: Int) -> Int => .lc763PartitionAt(s, index + 1, currentEnd, index == currentEnd ? count + 1 : count)
-    lc763LastIndex(s: String, ch: String) -> Int => {
-      last ~= 0
-      s.split("").each((item, index) => item == ch ? last = index : last = last)
-      last
+    lc763LastIndex(s: String, ch: Char) -> Int => {
+      .lc763LastIndexFrom(s, ch, 0, 0)
     }
+    lc763LastIndexFrom(s: String, ch: Char, index: Int, last: Int) -> Int => index >= s.length() ? last : .lc763LastIndexFrom(s, ch, index + 1, s.at(index) == ch ? index : last)
   }
 
   @assert.eq(solution.lc763PartitionLabelsCount("ababcbacadefegdehijhklij"), 3)

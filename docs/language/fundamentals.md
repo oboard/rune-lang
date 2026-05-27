@@ -59,22 +59,23 @@ commas for compact lists.
 
 ## Literals
 
-Rune has scalar literals for integers, doubles, big integers, strings, booleans,
-and null:
+Rune has scalar literals for integers, doubles, big integers, strings,
+characters, booleans, and null:
 
 ```rune
 intValue := 42
 doubleValue := 6.25e-1
 bigValue := 9007199254740993n
 text := "hello\nRune"
+ch := 'R'
 ok := true
 missing := null
 ```
 
 Integer literals have type `Int`. Decimal or exponent literals have type
-`Double`. Literals ending in `n` have type `BigInt`. `true` and `false` have
-type `Bool`. `null` has type `Null` and can flow into nullable types such as
-`Int?` or `String?`.
+`Double`. Literals ending in `n` have type `BigInt`. Single-quoted character
+literals have type `Char`. `true` and `false` have type `Bool`. `null` has type
+`Null` and can flow into nullable types such as `Int?` or `String?`.
 
 ## Built-In Types
 
@@ -85,6 +86,7 @@ Int
 Double
 BigInt
 String
+Char
 Bool
 Void
 Object
@@ -169,7 +171,7 @@ but both sides must be `String` when either side is a string.
 ```
 
 `&&` and `||` short-circuit and require boolean operands. Ordered comparison
-works on matching `Int`, `Double`, `BigInt`, or `String` values.
+works on matching `Int`, `Double`, `BigInt`, `String`, or `Char` values.
 
 Bitwise operators `~`, `&`, `|`, `^`, `<<`, `>>`, and `>>>` require matching
 integer operands. `>>>` requires an unsigned integer left operand.
@@ -343,6 +345,7 @@ _          // wildcard
 1.5        // Double literal
 1n         // BigInt literal
 "text"     // String literal
+'c'        // Char literal
 true       // Bool literal
 false
 null

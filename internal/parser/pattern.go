@@ -11,7 +11,7 @@ func (p *Parser) parsePattern() ast.Pattern {
 	case lexer.Underscore:
 		p.advance()
 		return &ast.WildcardPattern{Pos: tok.Pos}
-	case lexer.Int, lexer.Double, lexer.BigInt, lexer.String:
+	case lexer.Int, lexer.Double, lexer.BigInt, lexer.String, lexer.Char:
 		return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 	case lexer.Ident:
 		if p.checkNext(lexer.LParen) {
