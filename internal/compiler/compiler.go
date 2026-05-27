@@ -135,7 +135,7 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 			continue
 		}
 		if filepath.Ext(importPath) == ".ts" {
-			tsImport, importedDiags := l.loadTypeScript(importPath, imp.Pos)
+			tsImport, importedDiags := l.loadTypeScript(importPath, imp.Path, imp.Pos)
 			diags = append(diags, importedDiags...)
 			if tsImport != nil {
 				merged.TSImports = append(merged.TSImports, *tsImport)
@@ -152,7 +152,7 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	return merged, parseErrs, diags
 }
 
-func (l *importLoader) loadTypeScript(path string, pos lexer.Position) (*ast.TSImport, []Diagnostic) {
+func (l *importLoader) loadTypeScript(path string, specifier string, pos lexer.Position) (*ast.TSImport, []Diagnostic) {
 	normalized, ok := normalizeImportPath(path)
 	if !ok {
 		return nil, []Diagnostic{{Message: fmt.Sprintf("cannot resolve TypeScript import %q", path), Pos: pos, Path: path}}
@@ -170,6 +170,7 @@ func (l *importLoader) loadTypeScript(path string, pos lexer.Position) (*ast.TSI
 		l.sources[normalized] = src
 	}
 	imp, diags := parseTypeScriptImport(normalized, src, pos)
+	imp.Specifier = specifier
 	l.tsFiles[normalized] = true
 	return &imp, diags
 }

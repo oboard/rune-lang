@@ -2,10 +2,14 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/oboard/rune-lang/internal/ir"
 )
 
 func TestParseTarget(t *testing.T) {
@@ -122,6 +126,32 @@ func TestResolveRunEntryRejectsMultipleMains(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "multiple main functions found") {
 		t.Fatalf("resolveRunEntry() error = %v, want duplicate main error", err)
+	}
+}
+
+func TestWriteTypeScriptImportMapPreservesSpecifier(t *testing.T) {
+	dir := t.TempDir()
+	tsPath := filepath.Join(dir, "greet.ts")
+	importMap, err := writeTypeScriptImportMap(dir, []ir.TSImport{{
+		Path:      tsPath,
+		Specifier: "greet.ts",
+	}})
+	if err != nil {
+		t.Fatalf("writeTypeScriptImportMap() error = %v", err)
+	}
+	data, err := os.ReadFile(importMap)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	var payload struct {
+		Imports map[string]string `json:"imports"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+	want := (&url.URL{Scheme: "file", Path: tsPath}).String()
+	if got := payload.Imports["greet.ts"]; got != want {
+		t.Fatalf("import map greet.ts = %q, want %q", got, want)
 	}
 }
 

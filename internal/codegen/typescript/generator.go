@@ -2,7 +2,6 @@ package tscodegen
 
 import (
 	"fmt"
-	"net/url"
 	"sort"
 	"strconv"
 
@@ -129,6 +128,7 @@ func GenerateIR(file *ir.File) (string, error) {
 
 func (g *generator) typeScriptImports() bool {
 	byPath := map[string]map[string]bool{}
+	specifiers := map[string]string{}
 	var paths []string
 	for _, imp := range g.file.TSImports {
 		if len(imp.Functions) == 0 && len(imp.Values) == 0 {
@@ -136,6 +136,7 @@ func (g *generator) typeScriptImports() bool {
 		}
 		if byPath[imp.Path] == nil {
 			byPath[imp.Path] = map[string]bool{}
+			specifiers[imp.Path] = imp.Specifier
 			paths = append(paths, imp.Path)
 		}
 		for _, fn := range imp.Functions {
@@ -158,13 +159,13 @@ func (g *generator) typeScriptImports() bool {
 		for _, name := range names {
 			specs = append(specs, fmt.Sprintf("%s as %s", name, mangleIdent(name)))
 		}
-		g.linef("import { %s } from %s;", join(specs, ", "), strconv.Quote(typeScriptFileSpecifier(path)))
+		specifier := specifiers[path]
+		if specifier == "" {
+			specifier = path
+		}
+		g.linef("import { %s } from %s;", join(specs, ", "), strconv.Quote(specifier))
 	}
 	return true
-}
-
-func typeScriptFileSpecifier(path string) string {
-	return (&url.URL{Scheme: "file", Path: path}).String()
 }
 
 func usesGoFFI(usage codeusage.Usage) bool {

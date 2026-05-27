@@ -20,7 +20,7 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 		out.GoImports = append(out.GoImports, GoImport{Path: imp.Path, Pos: imp.Pos})
 	}
 	for _, imp := range file.TSImports {
-		tsImport := TSImport{Path: imp.Path, Pos: imp.Pos}
+		tsImport := TSImport{Path: imp.Path, Specifier: imp.Specifier, Pos: imp.Pos}
 		for _, fn := range imp.Functions {
 			tsImport.Functions = append(tsImport.Functions, TSFunction{Name: fn.Name})
 		}

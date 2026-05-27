@@ -28,6 +28,7 @@ type GoImport struct {
 
 type TSImport struct {
 	Path      string
+	Specifier string
 	Pos       lexer.Position
 	Functions []TSFunction
 	Values    []TSValue

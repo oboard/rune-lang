@@ -135,7 +135,7 @@ main() => {
 	if len(diags) > 0 {
 		t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v", diags)
 	}
-	wantImport := `import { greet as __greet, version as __version } from "file://` + tsPath + `";`
+	wantImport := `import { greet as __greet, version as __version } from "greet.ts";`
 	if !strings.Contains(got, wantImport) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", wantImport, got)
 	}
