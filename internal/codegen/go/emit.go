@@ -328,6 +328,9 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 			g.linef("case %s:", g.patternCondition(subject, branch.Pattern))
 		}
 		g.indent++
+		if binding := g.patternBinding(subject, branch.Pattern); binding != "" {
+			g.line(binding)
+		}
 		if ret == checker.Void {
 			if expr := g.expr(branch.Expr); expr != "" {
 				g.line(expr)
@@ -347,6 +350,8 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 
 func (g *generator) patternCondition(subject string, pattern ir.Pattern) string {
 	switch p := pattern.(type) {
+	case *ir.BindingPattern:
+		return "true"
 	case *ir.LiteralPattern:
 		return fmt.Sprintf("%s == %s", subject, g.expr(p.Value))
 	case *ir.ComparePattern:
@@ -368,9 +373,53 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 		default:
 			return "false"
 		}
+	case *ir.MapPattern:
+		return g.mapPatternCondition(subject, p)
+	case *ir.ObjectPattern:
+		return g.objectPatternCondition(subject, p)
 	default:
 		return "true"
 	}
+}
+
+func (g *generator) mapPatternCondition(subject string, pattern *ir.MapPattern) string {
+	parts := make([]string, 0, len(pattern.Entries))
+	for _, entry := range pattern.Entries {
+		key := g.expr(entry.Key)
+		value := g.nextTemp("pattern")
+		ok := g.nextTemp("ok")
+		condition := g.patternCondition(value, entry.Pattern)
+		target := value
+		if condition == "true" {
+			target = "_"
+		}
+		if entry.Optional {
+			parts = append(parts, fmt.Sprintf("func() bool { %s, %s := %s[%s]; return !%s || (%s) }()", target, ok, subject, key, ok, condition))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("func() bool { %s, %s := %s[%s]; return %s && (%s) }()", target, ok, subject, key, ok, condition))
+	}
+	if len(parts) == 0 {
+		return "true"
+	}
+	return strings.Join(parts, " && ")
+}
+
+func (g *generator) objectPatternCondition(subject string, pattern *ir.ObjectPattern) string {
+	parts := make([]string, 0, len(pattern.Fields))
+	for _, field := range pattern.Fields {
+		if field.Optional && !field.Exists {
+			continue
+		}
+		condition := g.patternCondition(goObjectFieldAccess(subject, field.Name), field.Pattern)
+		if condition != "true" {
+			parts = append(parts, condition)
+		}
+	}
+	if len(parts) == 0 {
+		return "true"
+	}
+	return strings.Join(parts, " && ")
 }
 
 func (g *generator) signalRuntime() {

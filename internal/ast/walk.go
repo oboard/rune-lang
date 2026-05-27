@@ -79,33 +79,13 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 		}
 	case *PatternBlock:
 		for _, branch := range e.Branches {
-			WalkPattern(branch.Pattern, func(p Pattern) {
-				switch p := p.(type) {
-				case *LiteralPattern:
-					WalkExpr(p.Value, visit)
-				case *ComparePattern:
-					WalkExpr(p.Value, visit)
-				case *RangePattern:
-					WalkExpr(p.Start, visit)
-					WalkExpr(p.End, visit)
-				}
-			})
+			WalkPatternExprs(branch.Pattern, visit)
 			WalkExpr(branch.Expr, visit)
 		}
 	case *MatchExpr:
 		WalkExpr(e.Subject, visit)
 		for _, branch := range e.Branches {
-			WalkPattern(branch.Pattern, func(p Pattern) {
-				switch p := p.(type) {
-				case *LiteralPattern:
-					WalkExpr(p.Value, visit)
-				case *ComparePattern:
-					WalkExpr(p.Value, visit)
-				case *RangePattern:
-					WalkExpr(p.Start, visit)
-					WalkExpr(p.End, visit)
-				}
-			})
+			WalkPatternExprs(branch.Pattern, visit)
 			WalkExpr(branch.Expr, visit)
 		}
 	case *WatchExpr:
@@ -122,6 +102,41 @@ func WalkPattern(pattern Pattern, visit func(Pattern)) {
 	if tuple, ok := pattern.(*TuplePattern); ok {
 		for _, elem := range tuple.Elements {
 			WalkPattern(elem, visit)
+		}
+	}
+	if mapPattern, ok := pattern.(*MapPattern); ok {
+		for _, entry := range mapPattern.Entries {
+			WalkPattern(entry.Pattern, visit)
+		}
+	}
+	if objectPattern, ok := pattern.(*ObjectPattern); ok {
+		for _, field := range objectPattern.Fields {
+			WalkPattern(field.Pattern, visit)
+		}
+	}
+}
+
+func WalkPatternExprs(pattern Pattern, visit func(Expr)) {
+	switch p := pattern.(type) {
+	case *LiteralPattern:
+		WalkExpr(p.Value, visit)
+	case *ComparePattern:
+		WalkExpr(p.Value, visit)
+	case *RangePattern:
+		WalkExpr(p.Start, visit)
+		WalkExpr(p.End, visit)
+	case *TuplePattern:
+		for _, elem := range p.Elements {
+			WalkPatternExprs(elem, visit)
+		}
+	case *MapPattern:
+		for _, entry := range p.Entries {
+			WalkExpr(entry.Key, visit)
+			WalkPatternExprs(entry.Pattern, visit)
+		}
+	case *ObjectPattern:
+		for _, field := range p.Fields {
+			WalkPatternExprs(field.Pattern, visit)
 		}
 	}
 }

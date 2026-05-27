@@ -114,5 +114,14 @@ func WalkPattern(pattern Pattern, visit func(Expr)) {
 			WalkPattern(elem, visit)
 		}
 	case *ConstructorPattern:
+	case *MapPattern:
+		for _, entry := range p.Entries {
+			WalkExpr(entry.Key, visit)
+			WalkPattern(entry.Pattern, visit)
+		}
+	case *ObjectPattern:
+		for _, field := range p.Fields {
+			WalkPattern(field.Pattern, visit)
+		}
 	}
 }

@@ -57,7 +57,7 @@ func (l *Lexer) nextCode() Token {
 			if l.match('=') {
 				return l.token(DotDotEqual)
 			}
-			return l.token(Illegal)
+			return l.token(DotDot)
 		}
 		return l.token(Dot)
 	case ',':
@@ -285,7 +285,7 @@ func (l *Lexer) nextXMLExpr() Token {
 			if l.match('=') {
 				return l.token(DotDotEqual)
 			}
-			return l.token(Illegal)
+			return l.token(DotDot)
 		}
 		return l.token(Dot)
 	case ',':

@@ -233,11 +233,8 @@ func (p *Parser) skipPatternLookahead(i int) int {
 			i += 3
 			break
 		}
-		if !isLiteralIdentifier(p.tokens[i].Lexeme) {
-			return -1
-		}
+		rangeStart = isLiteralIdentifier(p.tokens[i].Lexeme)
 		i++
-		rangeStart = true
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		i++
 		if i >= len(p.tokens) {
@@ -260,6 +257,18 @@ func (p *Parser) skipPatternLookahead(i int) int {
 			i++
 		}
 		rangeStart = true
+	case lexer.LBrace:
+		depth := 1
+		i++
+		for i < len(p.tokens) && depth > 0 {
+			switch p.tokens[i].Kind {
+			case lexer.LBrace:
+				depth++
+			case lexer.RBrace:
+				depth--
+			}
+			i++
+		}
 	default:
 		return -1
 	}

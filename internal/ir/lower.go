@@ -317,6 +317,8 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 	switch p := pattern.(type) {
 	case *ast.WildcardPattern:
 		return &WildcardPattern{Pos: p.Pos}
+	case *ast.BindingPattern:
+		return &BindingPattern{Name: p.Name, Type: checker.Type(p.Type), Pos: p.Pos}
 	case *ast.LiteralPattern:
 		return &LiteralPattern{Value: l.expr(p.Value), Pos: p.Pos}
 	case *ast.ComparePattern:
@@ -331,6 +333,30 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 		return out
 	case *ast.ConstructorPattern:
 		return &ConstructorPattern{Name: p.Name, Binding: p.Binding, BindingPos: p.BindingPos, Pos: p.Pos}
+	case *ast.MapPattern:
+		out := &MapPattern{Rest: p.Rest, Pos: p.Pos}
+		for _, entry := range p.Entries {
+			out.Entries = append(out.Entries, MapPatternEntry{
+				Key:      l.expr(entry.Key),
+				Pattern:  l.pattern(entry.Pattern),
+				Optional: entry.Optional,
+				Pos:      entry.Pos,
+			})
+		}
+		return out
+	case *ast.ObjectPattern:
+		out := &ObjectPattern{Rest: p.Rest, Pos: p.Pos}
+		for _, field := range p.Fields {
+			out.Fields = append(out.Fields, ObjectPatternField{
+				Name:     field.Name,
+				Pattern:  l.pattern(field.Pattern),
+				Optional: field.Optional,
+				Exists:   field.Exists,
+				Type:     checker.Type(field.Type),
+				Pos:      field.Pos,
+			})
+		}
+		return out
 	default:
 		return nil
 	}

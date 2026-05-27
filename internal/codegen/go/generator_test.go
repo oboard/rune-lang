@@ -73,6 +73,49 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateDestructuringPatterns(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+pointScore(point: Point) -> Int => point {
+  { x, y: yy, .. } => x + yy
+  _ => 0
+}
+
+mapScore(values: Map[String, Int]) -> Int => values {
+  { "a": value, .. } => value
+  _ => 0
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`__x := __match`,
+		`__yy := __match`,
+		`return __x + __yy`,
+		`func() bool { _, __ok`,
+		`__value := __match`,
+		`return __value`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateStructProgram(t *testing.T) {
 	src := `User: {
   id: Int

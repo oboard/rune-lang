@@ -322,6 +322,9 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 			g.linef("%s (%s) {", prefix, g.patternCondition(subject, branch.Pattern))
 		}
 		g.indent++
+		if binding := g.patternBinding(subject, branch.Pattern); binding != "" {
+			g.line(binding)
+		}
 		if ret == checker.Void {
 			if expr := g.expr(branch.Expr); expr != "" {
 				g.line(g.stmtExpr(branch.Expr) + ";")
@@ -340,6 +343,8 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 
 func (g *generator) patternCondition(subject string, pattern ir.Pattern) string {
 	switch p := pattern.(type) {
+	case *ir.BindingPattern:
+		return "true"
 	case *ir.LiteralPattern:
 		return fmt.Sprintf("%s === %s", subject, g.expr(p.Value))
 	case *ir.ComparePattern:
@@ -361,9 +366,52 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 		default:
 			return "false"
 		}
+	case *ir.MapPattern:
+		return g.mapPatternCondition(subject, p)
+	case *ir.ObjectPattern:
+		return g.objectPatternCondition(subject, p)
 	default:
 		return "true"
 	}
+}
+
+func (g *generator) mapPatternCondition(subject string, pattern *ir.MapPattern) string {
+	parts := make([]string, 0, len(pattern.Entries))
+	for _, entry := range pattern.Entries {
+		key := g.nextTemp("__key")
+		value := g.nextTemp("__pattern")
+		condition := g.patternCondition(value, entry.Pattern)
+		valueDecl := ""
+		if condition != "true" {
+			valueDecl = fmt.Sprintf(" const %s = %s.get(%s)!;", value, subject, key)
+		}
+		if entry.Optional {
+			parts = append(parts, fmt.Sprintf("(() => { const %s = %s; if (!%s.has(%s)) return true;%s return %s; })()", key, g.expr(entry.Key), subject, key, valueDecl, condition))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("(() => { const %s = %s; if (!%s.has(%s)) return false;%s return %s; })()", key, g.expr(entry.Key), subject, key, valueDecl, condition))
+	}
+	if len(parts) == 0 {
+		return "true"
+	}
+	return strings.Join(parts, " && ")
+}
+
+func (g *generator) objectPatternCondition(subject string, pattern *ir.ObjectPattern) string {
+	parts := make([]string, 0, len(pattern.Fields))
+	for _, field := range pattern.Fields {
+		if field.Optional && !field.Exists {
+			continue
+		}
+		condition := g.patternCondition(tsPropertyAccess(subject, field.Name), field.Pattern)
+		if condition != "true" {
+			parts = append(parts, condition)
+		}
+	}
+	if len(parts) == 0 {
+		return "true"
+	}
+	return strings.Join(parts, " && ")
 }
 
 func (g *generator) signalRuntime() {

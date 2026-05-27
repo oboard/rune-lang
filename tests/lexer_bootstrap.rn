@@ -53,9 +53,10 @@
 }
 
 ? "selfhost lexer reads range pattern operator" {
-  tokens := lex("'0'..='9' ...")
+  tokens := lex("'0'..='9' .. ...")
   @assert.eq(tokens[0].kind, "Char")
   @assert.eq(tokens[1].kind, "DotDotEqual")
   @assert.eq(tokens[2].kind, "Char")
-  @assert.eq(tokens[3].kind, "DotDotDot")
+  @assert.eq(tokens[3].kind, "DotDot")
+  @assert.eq(tokens[4].kind, "DotDotDot")
 }

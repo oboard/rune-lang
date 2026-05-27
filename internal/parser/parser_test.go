@@ -272,6 +272,48 @@ func TestRangePatternMatch(t *testing.T) {
 	}
 }
 
+func TestObjectAndMapPatternMatch(t *testing.T) {
+	file, errs := Parse(`pointScore(point) => point {
+  { x, y: yy, .. } => x + yy
+  _ => 0
+}
+
+mapScore(values) => values {
+  { "a": value, .. } => value
+  _ => 0
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	pointMatch, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(pointMatch.Branches) != 2 {
+		t.Fatalf("point body = %#v, want object pattern match", file.Functions[0].Body)
+	}
+	objectPattern, ok := pointMatch.Branches[0].Pattern.(*ast.ObjectPattern)
+	if !ok || !objectPattern.Rest || len(objectPattern.Fields) != 2 {
+		t.Fatalf("point pattern = %#v, want object pattern with rest", pointMatch.Branches[0].Pattern)
+	}
+	if binding, ok := objectPattern.Fields[0].Pattern.(*ast.BindingPattern); !ok || binding.Name != "x" {
+		t.Fatalf("first object field = %#v, want x binding", objectPattern.Fields[0].Pattern)
+	}
+	if binding, ok := objectPattern.Fields[1].Pattern.(*ast.BindingPattern); !ok || binding.Name != "yy" {
+		t.Fatalf("second object field = %#v, want yy binding", objectPattern.Fields[1].Pattern)
+	}
+
+	mapMatch, ok := file.Functions[1].Body.(*ast.MatchExpr)
+	if !ok || len(mapMatch.Branches) != 2 {
+		t.Fatalf("map body = %#v, want map pattern match", file.Functions[1].Body)
+	}
+	mapPattern, ok := mapMatch.Branches[0].Pattern.(*ast.MapPattern)
+	if !ok || !mapPattern.Rest || len(mapPattern.Entries) != 1 {
+		t.Fatalf("map pattern = %#v, want map pattern with rest", mapMatch.Branches[0].Pattern)
+	}
+	if binding, ok := mapPattern.Entries[0].Pattern.(*ast.BindingPattern); !ok || binding.Name != "value" {
+		t.Fatalf("map value pattern = %#v, want value binding", mapPattern.Entries[0].Pattern)
+	}
+}
+
 func TestRegexLiteral(t *testing.T) {
 	file, errs := Parse(`main() => {
     re := /rune\s+(\d+)/ig

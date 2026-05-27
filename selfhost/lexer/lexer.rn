@@ -222,7 +222,7 @@ lexDot(state: LexState) -> Lexed => peek(state) {
 lexDotDot(state: LexState) -> Lexed => peek(state) {
   '.' => lexed(advanceState(state), "DotDotDot")
   '=' => lexed(advanceState(state), "DotDotEqual")
-  _ => lexed(state, "Illegal")
+  _ => lexed(state, "DotDot")
 }
 
 lexColon(state: LexState) -> Lexed => peek(state) {
@@ -395,9 +395,9 @@ scanIdentifier(
   state: LexState
 ) -> LexState => isIdentContinue(peek(state)) ? scanIdentifier(advanceState(state)) : state
 
-isDigit(ch: Char) -> Bool => '0' ..= '9'
+isDigit(ch: Char) -> Bool => '0'..='9'
 
-isAlpha(ch: Char) -> Bool => ('a' ..= 'z') | ('A' ..= 'Z')
+isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 
 isIdentStart(ch: Char) -> Bool => {
   '_' => true

@@ -54,10 +54,14 @@ func (p *Parser) parsePatternAtom() ast.Pattern {
 		if isLiteralIdentifier(tok.Lexeme) {
 			return &ast.LiteralPattern{Value: p.parsePrimary(), Pos: tok.Pos}
 		}
+		p.advance()
+		return &ast.BindingPattern{Name: tok.Lexeme, Pos: tok.Pos}
 	case lexer.Less, lexer.LessEqual, lexer.Greater, lexer.GreaterEqual:
 		op := p.advance()
 		value := p.parsePrimary()
 		return &ast.ComparePattern{Op: op.Kind, Value: value, Pos: op.Pos}
+	case lexer.LBrace:
+		return p.parseMapOrObjectPattern()
 	case lexer.LParen:
 		start := p.advance()
 		p.skipNewlines()
@@ -88,4 +92,95 @@ func (p *Parser) parsePatternAtom() ast.Pattern {
 	p.errorAt(tok, "expected pattern")
 	p.advance()
 	return &ast.WildcardPattern{Pos: tok.Pos}
+}
+
+func (p *Parser) parseMapOrObjectPattern() ast.Pattern {
+	start := p.consume(lexer.LBrace, "expected '{' before pattern")
+	p.skipNewlines()
+	if p.check(lexer.RBrace) {
+		p.consume(lexer.RBrace, "expected '}' after pattern")
+		return &ast.ObjectPattern{Pos: start.Pos}
+	}
+	if p.check(lexer.Ident) && p.patternLooksLikeObjectField() {
+		return p.parseObjectPattern(start.Pos)
+	}
+	return p.parseMapPattern(start.Pos)
+}
+
+func (p *Parser) parseObjectPattern(pos lexer.Position) ast.Pattern {
+	pattern := &ast.ObjectPattern{Pos: pos}
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		if p.match(lexer.DotDot) {
+			pattern.Rest = true
+			p.skipNewlines()
+			p.match(lexer.Comma)
+			p.skipNewlines()
+			break
+		}
+		field := p.consume(lexer.Ident, "expected object pattern field")
+		optional := p.match(lexer.Question)
+		var value ast.Pattern
+		if p.match(lexer.Colon) {
+			p.skipNewlines()
+			value = p.parsePattern()
+		} else {
+			value = &ast.BindingPattern{Name: field.Lexeme, Pos: field.Pos}
+		}
+		pattern.Fields = append(pattern.Fields, ast.ObjectPatternField{
+			Name:     field.Lexeme,
+			Pattern:  value,
+			Optional: optional,
+			Pos:      field.Pos,
+		})
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			break
+		}
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after object pattern")
+	return pattern
+}
+
+func (p *Parser) parseMapPattern(pos lexer.Position) ast.Pattern {
+	pattern := &ast.MapPattern{Pos: pos}
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		if p.match(lexer.DotDot) {
+			pattern.Rest = true
+			p.skipNewlines()
+			p.match(lexer.Comma)
+			p.skipNewlines()
+			break
+		}
+		key := p.parsePrimary()
+		optional := p.match(lexer.Question)
+		p.consume(lexer.Colon, "expected ':' after map pattern key")
+		p.skipNewlines()
+		value := p.parsePattern()
+		pattern.Entries = append(pattern.Entries, ast.MapPatternEntry{
+			Key:      key,
+			Pattern:  value,
+			Optional: optional,
+			Pos:      key.Position(),
+		})
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			break
+		}
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after map pattern")
+	return pattern
+}
+
+func (p *Parser) patternLooksLikeObjectField() bool {
+	if p.curr+1 >= len(p.tokens) {
+		return false
+	}
+	switch p.tokens[p.curr+1].Kind {
+	case lexer.Colon, lexer.Question, lexer.Comma, lexer.RBrace:
+		return true
+	default:
+		return false
+	}
 }

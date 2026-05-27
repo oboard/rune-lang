@@ -124,3 +124,50 @@ main() => {
 		t.Fatalf("output = %q, want predicate output", got)
 	}
 }
+
+func TestInterpreterRunsDestructuringPatterns(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+pointScore(point: Point) -> Int => point {
+  { x, y: yy, .. } => x + yy
+  _ => 0
+}
+
+optionalPoint(point: Point) -> Int => point {
+  { z?: 1, .. } => 7
+  _ => 0
+}
+
+mapScore(values: Map[String, Int]) -> Int => values {
+  { "a": value, .. } => value
+  { "missing"?: 1, .. } => 7
+  _ => 0
+}
+
+main() => {
+  point := Point { x: 20, y: 22 }
+  first := { "a": 41 }
+  second := { "b": 1 }
+  @io.println(pointScore(point))
+  @io.println(optionalPoint(point))
+  @io.println(mapScore(first))
+  @io.println(mapScore(second))
+}
+`
+	prog, diags := compiler.AnalyzeSource("destructuring_patterns.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := New(prog.IR, WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "42\n7\n41\n7" {
+		t.Fatalf("output = %q, want destructuring pattern output", got)
+	}
+}

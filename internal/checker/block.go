@@ -1,6 +1,8 @@
 package checker
 
 import (
+	"fmt"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
 )
@@ -271,17 +273,25 @@ func (c *checker) inferObjectDestructureStmt(stmt *ast.ObjectDestructureStmt, lo
 }
 
 func (c *checker) inferPatternBlock(block *ast.PatternBlock, env map[string]Type) Type {
+	return c.inferPatternBlockForSubject(block, Unknown, env)
+}
+
+func (c *checker) inferPatternBlockForSubject(block *ast.PatternBlock, subject Type, env map[string]Type) Type {
 	result := Unknown
+	var branchExprs []ast.Expr
 	for _, branch := range block.Branches {
-		c.checkPattern(branch.Pattern, env)
-		typ := c.inferExpr(branch.Expr, env)
+		branchEnv := cloneEnv(env)
+		c.checkPatternForSubject(branch.Pattern, subject, branchEnv)
+		typ := c.inferExpr(branch.Expr, branchEnv)
+		branchExprs = append(branchExprs, branch.Expr)
 		if result == Unknown {
 			result = typ
 			continue
 		}
-		if typ != Unknown && result != typ {
-			c.errorf(branch.Expr.Position(), "pattern branch returns %s, expected %s", typ, result)
-		}
+		result = c.mergeBranchTypes(result, typ, branch.Expr.Position())
+	}
+	for _, expr := range branchExprs {
+		c.applyExpectedType(expr, result)
 	}
 	return result
 }
@@ -398,39 +408,40 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 			return Unknown
 		}
 		return start
+	case *ast.MapPattern:
+		keyType := Unknown
+		valueType := Unknown
+		for _, entry := range p.Entries {
+			key := c.patternExprType(entry.Key)
+			if keyType == Unknown {
+				keyType = key
+			} else if key != Unknown && keyType != key {
+				return Unknown
+			}
+			value := c.patternLiteralType(entry.Pattern)
+			if valueType == Unknown {
+				valueType = value
+			} else if value != Unknown && valueType != value {
+				return Unknown
+			}
+		}
+		if keyType != Unknown && valueType != Unknown {
+			return MapOf(keyType, valueType)
+		}
 	}
 	return Unknown
 }
 
 func (c *checker) checkPatternForSubject(pattern ast.Pattern, subject Type, env map[string]Type) {
-	if constructor, ok := pattern.(*ast.ConstructorPattern); ok {
-		okType, errType, result := parseResultType(subject)
-		if !result {
-			if subject != Unknown {
-				c.errorf(constructor.Pos, "constructor pattern %s expects Result, got %s", constructor.Name, subject)
-			}
-			return
+	switch pattern.(type) {
+	case *ast.MapPattern, *ast.ObjectPattern:
+	default:
+		patternSubject := c.patternLiteralType(pattern)
+		if subject != Unknown && patternSubject != Unknown && subject != patternSubject {
+			c.errorf(pattern.Position(), "pattern has type %s, expected %s", patternSubject, subject)
 		}
-		var bindingType Type
-		switch constructor.Name {
-		case "Ok":
-			bindingType = okType
-		case "Err":
-			bindingType = errType
-		default:
-			c.errorf(constructor.Pos, "unknown result constructor %q", constructor.Name)
-			return
-		}
-		if constructor.Binding != "" {
-			env[constructor.Binding] = bindingType
-		}
-		return
 	}
-	patternSubject := c.patternLiteralType(pattern)
-	if subject != Unknown && patternSubject != Unknown && subject != patternSubject {
-		c.errorf(pattern.Position(), "pattern has type %s, expected %s", patternSubject, subject)
-	}
-	c.checkPattern(pattern, env)
+	c.checkPatternWithSubject(pattern, subject, env, false)
 }
 
 func (c *checker) patternExprType(expr ast.Expr) Type {
@@ -559,7 +570,19 @@ func (c *checker) unionObjectTypes(left Type, right Type) (Type, bool) {
 }
 
 func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
+	c.checkPatternWithSubject(pattern, Unknown, env, false)
+}
+
+func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env map[string]Type, optional bool) {
 	switch p := pattern.(type) {
+	case *ast.WildcardPattern:
+	case *ast.BindingPattern:
+		if optional {
+			c.errorf(p.Pos, "optional pattern binding %q is not available when the key is absent", p.Name)
+			return
+		}
+		p.Type = string(subject)
+		env[p.Name] = subject
 	case *ast.LiteralPattern:
 		c.inferExpr(p.Value, env)
 	case *ast.ComparePattern:
@@ -581,9 +604,121 @@ func (c *checker) checkPattern(pattern ast.Pattern, env map[string]Type) {
 		}
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {
-			c.checkPattern(elem, env)
+			c.checkPatternWithSubject(elem, Unknown, env, optional)
 		}
 	case *ast.ConstructorPattern:
-		c.errorf(p.Pos, "constructor pattern requires a Result subject")
+		c.checkConstructorPattern(p, subject, env, optional)
+	case *ast.MapPattern:
+		c.checkMapPattern(p, subject, env, optional)
+	case *ast.ObjectPattern:
+		c.checkObjectPattern(p, subject, env, optional)
+	}
+}
+
+func (c *checker) checkConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) {
+	okType, errType, result := parseResultType(subject)
+	if !result {
+		if subject != Unknown {
+			c.errorf(pattern.Pos, "constructor pattern %s expects Result, got %s", pattern.Name, subject)
+		} else {
+			c.errorf(pattern.Pos, "constructor pattern requires a Result subject")
+		}
+		return
+	}
+	var bindingType Type
+	switch pattern.Name {
+	case "Ok":
+		bindingType = okType
+	case "Err":
+		bindingType = errType
+	default:
+		c.errorf(pattern.Pos, "unknown result constructor %q", pattern.Name)
+		return
+	}
+	if pattern.Binding != "" {
+		if optional {
+			c.errorf(pattern.BindingPos, "optional pattern binding %q is not available when the key is absent", pattern.Binding)
+			return
+		}
+		env[pattern.Binding] = bindingType
+	}
+}
+
+func (c *checker) checkMapPattern(pattern *ast.MapPattern, subject Type, env map[string]Type, optional bool) {
+	if !pattern.Rest {
+		c.errorf(pattern.Pos, "map pattern requires '..' to ignore unmatched keys")
+	}
+	keyType, valueType, ok := MapKeyValue(subject)
+	if !ok {
+		if subject != Unknown {
+			c.errorf(pattern.Pos, "map pattern expects Map, got %s", subject)
+		}
+		keyType = Unknown
+		valueType = Unknown
+	}
+	seen := map[string]lexer.Position{}
+	for _, entry := range pattern.Entries {
+		key := c.inferExpr(entry.Key, env)
+		if keyType != Unknown && key != Unknown && !typesCompatible(keyType, key, nil) {
+			c.errorf(entry.Key.Position(), "map pattern key has type %s, expected %s", key, keyType)
+		}
+		if prev, exists := seen[patternKeyText(entry.Key)]; exists {
+			c.errorf(entry.Pos, "duplicate map pattern key also used at %s", prev)
+		}
+		seen[patternKeyText(entry.Key)] = entry.Pos
+		c.checkPatternWithSubject(entry.Pattern, valueType, env, entry.Optional)
+	}
+}
+
+func (c *checker) checkObjectPattern(pattern *ast.ObjectPattern, subject Type, env map[string]Type, optional bool) {
+	if !pattern.Rest {
+		c.errorf(pattern.Pos, "object pattern requires '..' to ignore unmatched fields")
+	}
+	structInfo := c.info.Types[baseTypeName(subject)]
+	if structInfo == nil {
+		if subject != Unknown && subject != Object {
+			c.errorf(pattern.Pos, "object pattern expects an object, got %s", subject)
+		}
+	}
+	seen := map[string]lexer.Position{}
+	for idx := range pattern.Fields {
+		field := &pattern.Fields[idx]
+		if prev, exists := seen[field.Name]; exists {
+			c.errorf(field.Pos, "duplicate object pattern field %q also used at %s", field.Name, prev)
+		}
+		seen[field.Name] = field.Pos
+		fieldType := Unknown
+		field.Exists = structInfo == nil || subject == Object || subject == Unknown
+		if structInfo != nil {
+			info, ok := structInfo.ByName[field.Name]
+			field.Exists = ok
+			if !ok {
+				if !field.Optional {
+					c.errorf(field.Pos, "type %s has no field %q", subject, field.Name)
+				}
+			} else if c.checkPrivateAccess("field", structInfo.Name+"."+field.Name, info.Private, info.SourcePath, field.Pos) {
+				fieldType = structFieldType(structInfo, subject, info)
+			}
+		}
+		field.Type = string(fieldType)
+		if !field.Exists && field.Optional {
+			continue
+		}
+		c.checkPatternWithSubject(field.Pattern, fieldType, env, field.Optional)
+	}
+}
+
+func patternKeyText(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.StringLiteral:
+		return "string:" + e.Value
+	case *ast.CharLiteral:
+		return fmt.Sprintf("char:%d", e.Value)
+	case *ast.IntegerLiteral:
+		return fmt.Sprintf("int:%d", e.Value)
+	case *ast.BoolLiteral:
+		return fmt.Sprintf("bool:%t", e.Value)
+	default:
+		return ast.ExprName(expr)
 	}
 }

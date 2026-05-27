@@ -52,6 +52,38 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateDestructuringPatterns(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+pointScore(point: Point) -> Int => point {
+  { x, y: yy, .. } => x + yy
+  _ => 0
+}
+
+mapScore(values: Map[String, Int]) -> Int => values {
+  { "a": value, .. } => value
+  _ => 0
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __x = __match`,
+		`const __yy = __match`,
+		`return __x + __yy;`,
+		`.has(__key`,
+		`const __value = __match`,
+		`return __value;`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateElementArrayChild(t *testing.T) {
 	src := `render() => {
   list := ["Item 1", "Item 2", "Item 3"]

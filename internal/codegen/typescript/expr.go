@@ -585,7 +585,7 @@ func matchNeedsSubjectTemp(match *ir.MatchExpr) bool {
 
 func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
-	case *ir.ConstructorPattern:
+	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern:
 		return true
 	case *ir.TuplePattern:
 		for _, elem := range p.Elements {
@@ -598,17 +598,43 @@ func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 }
 
 func (g *generator) patternBinding(subject string, pattern ir.Pattern) string {
-	constructor, ok := pattern.(*ir.ConstructorPattern)
-	if !ok || constructor.Binding == "" {
-		return ""
-	}
-	switch constructor.Name {
-	case "Ok":
-		return fmt.Sprintf("const %s = %s.value; ", mangleIdent(constructor.Binding), subject)
-	case "Err":
-		return fmt.Sprintf("const %s = %s.error; ", mangleIdent(constructor.Binding), subject)
-	default:
-		return ""
+	var parts []string
+	g.appendPatternBindings(&parts, subject, pattern)
+	return strings.Join(parts, " ")
+}
+
+func (g *generator) appendPatternBindings(parts *[]string, subject string, pattern ir.Pattern) {
+	switch p := pattern.(type) {
+	case *ir.BindingPattern:
+		*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.Name), subject))
+	case *ir.TuplePattern:
+		for idx, elem := range p.Elements {
+			g.appendPatternBindings(parts, fmt.Sprintf("%s[%d]", subject, idx), elem)
+		}
+	case *ir.ConstructorPattern:
+		if p.Binding == "" {
+			return
+		}
+		switch p.Name {
+		case "Ok":
+			*parts = append(*parts, fmt.Sprintf("const %s = %s.value;", mangleIdent(p.Binding), subject))
+		case "Err":
+			*parts = append(*parts, fmt.Sprintf("const %s = %s.error;", mangleIdent(p.Binding), subject))
+		}
+	case *ir.MapPattern:
+		for _, entry := range p.Entries {
+			if entry.Optional {
+				continue
+			}
+			g.appendPatternBindings(parts, fmt.Sprintf("%s.get(%s)!", subject, g.expr(entry.Key)), entry.Pattern)
+		}
+	case *ir.ObjectPattern:
+		for _, field := range p.Fields {
+			if field.Optional && !field.Exists {
+				continue
+			}
+			g.appendPatternBindings(parts, tsPropertyAccess(subject, field.Name), field.Pattern)
+		}
 	}
 }
 

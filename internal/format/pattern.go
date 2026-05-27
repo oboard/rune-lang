@@ -10,6 +10,8 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 	switch p := pattern.(type) {
 	case *ast.WildcardPattern:
 		return "_"
+	case *ast.BindingPattern:
+		return p.Name
 	case *ast.LiteralPattern:
 		return f.expr(p.Value)
 	case *ast.ComparePattern:
@@ -28,6 +30,36 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 			binding = "_"
 		}
 		return p.Name + "(" + binding + ")"
+	case *ast.MapPattern:
+		parts := make([]string, 0, len(p.Entries)+1)
+		for _, entry := range p.Entries {
+			key := f.expr(entry.Key)
+			if entry.Optional {
+				key += "?"
+			}
+			parts = append(parts, key+": "+f.pattern(entry.Pattern))
+		}
+		if p.Rest {
+			parts = append(parts, "..")
+		}
+		return "{ " + strings.Join(parts, ", ") + " }"
+	case *ast.ObjectPattern:
+		parts := make([]string, 0, len(p.Fields)+1)
+		for _, field := range p.Fields {
+			name := field.Name
+			if field.Optional {
+				name += "?"
+			}
+			if binding, ok := field.Pattern.(*ast.BindingPattern); ok && binding.Name == field.Name && !field.Optional {
+				parts = append(parts, field.Name)
+				continue
+			}
+			parts = append(parts, name+": "+f.pattern(field.Pattern))
+		}
+		if p.Rest {
+			parts = append(parts, "..")
+		}
+		return "{ " + strings.Join(parts, ", ") + " }"
 	default:
 		return "_"
 	}

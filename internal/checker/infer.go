@@ -124,6 +124,13 @@ func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[st
 		c.routineDepth++
 		c.unwrapErrors = append(c.unwrapErrors, Unknown)
 	}
+	if block, ok := fn.Body.(*ast.PatternBlock); ok && info != nil && len(info.Params) > 0 {
+		ret := c.inferPatternBlockForSubject(block, info.Params[0].Type, env)
+		if info == nil || !info.Routine {
+			c.unwrapErrors = append(c.unwrapErrors, Unknown)
+		}
+		return ret
+	}
 	ret := c.inferExpr(fn.Body, env)
 	if info == nil || !info.Routine {
 		c.unwrapErrors = append(c.unwrapErrors, Unknown)
