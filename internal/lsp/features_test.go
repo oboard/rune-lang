@@ -93,6 +93,65 @@ main() => helper()
 	}
 }
 
+func TestTypeScriptImportFunctionFeatures(t *testing.T) {
+	dir := t.TempDir()
+	tsPath := filepath.Join(dir, "greet.ts")
+	writeLSPFile(t, tsPath, "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport let version: string = \"1.0.0\";\n")
+	mainPath := filepath.Join(dir, "main.rn")
+	uri := fileURI(mainPath)
+	src := `@"greet.ts"
+
+main() => {
+  @io.println(greet("Rune"))
+  @io.println(version)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	completion := s.completion(uri).([]map[string]any)
+	if !completionContains(completion, "greet") {
+		t.Fatalf("completion = %#v, want imported TypeScript greet", completion)
+	}
+	if !completionContains(completion, "version") {
+		t.Fatalf("completion = %#v, want imported TypeScript version", completion)
+	}
+
+	callPos := positionOf(src, `greet("Rune")`, "greet")
+	hover := s.hover(uri, callPos).(map[string]any)
+	if got := hoverValue(hover); !strings.Contains(got, "greet: (name: String) -> String") {
+		t.Fatalf("hover = %q, want TypeScript function signature", got)
+	}
+
+	def := s.definition(uri, callPos).(map[string]any)
+	if got := def["uri"].(string); got != fileURI(tsPath) {
+		t.Fatalf("definition uri = %s, want %s", got, fileURI(tsPath))
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 16 {
+		t.Fatalf("definition start = %+v, want TypeScript function name", start)
+	}
+	if got := s.rename(uri, callPos, "hello"); got != nil {
+		t.Fatalf("rename imported TypeScript function = %#v, want nil", got)
+	}
+	hints := s.inlayHints(uri).([]map[string]any)
+	if !inlayLabelsContain(hints, "name=") {
+		t.Fatalf("inlay hints = %#v, want TypeScript function argument name", hints)
+	}
+
+	versionPos := positionOf(src, `version)`, "version")
+	versionHover := s.hover(uri, versionPos).(map[string]any)
+	if got := hoverValue(versionHover); !strings.Contains(got, "version: String") {
+		t.Fatalf("version hover = %q, want TypeScript value signature", got)
+	}
+	versionDef := s.definition(uri, versionPos).(map[string]any)
+	if got := versionDef["uri"].(string); got != fileURI(tsPath) {
+		t.Fatalf("version definition uri = %s, want %s", got, fileURI(tsPath))
+	}
+	if got := s.rename(uri, versionPos, "release"); got != nil {
+		t.Fatalf("rename imported TypeScript value = %#v, want nil", got)
+	}
+}
+
 func TestStructLiteralTypeHoverAndSemanticToken(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
@@ -912,6 +971,15 @@ func countHintAt(hints []map[string]any, pos position, label string) int {
 func diagnosticsContain(diags []compiler.Diagnostic, want string) bool {
 	for _, diag := range diags {
 		if strings.Contains(diag.Message, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func completionContains(items []map[string]any, label string) bool {
+	for _, item := range items {
+		if item["label"] == label {
 			return true
 		}
 	}

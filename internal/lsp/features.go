@@ -164,6 +164,10 @@ func (s *server) exprHover(prog *compiler.Program, pos position) any {
 				found = hoverResult(functionValueSignature(prog.Info, fn), e.Pos, e.Name)
 				return
 			}
+			if value := prog.Info.ResolvedValues[e]; value != nil {
+				found = hoverResult(fmt.Sprintf("%s: %s", value.Name, displayCheckerType(prog.Info, value.Type)), e.Pos, e.Name)
+				return
+			}
 			if typ := prog.Info.ExprTypes[e]; typ != "" && typ != checker.Unknown {
 				found = hoverResult(localHoverText(prog.Info, e.Name, typ, signals), e.Pos, e.Name)
 			}
@@ -282,6 +286,20 @@ func (s *server) completion(uri string) any {
 			"detail": functionSignature(prog.Info, fn),
 		})
 	}
+	for _, fn := range prog.Info.ExternalFunctions {
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   3,
+			"detail": functionValueSignature(prog.Info, fn),
+		})
+	}
+	for _, value := range prog.Info.ExternalValues {
+		items = append(items, map[string]any{
+			"label":  value.Name,
+			"kind":   6,
+			"detail": fmt.Sprintf("%s: %s", value.Name, displayCheckerType(prog.Info, value.Type)),
+		})
+	}
 	return items
 }
 
@@ -306,13 +324,11 @@ func (s *server) definition(uri string, pos position) any {
 	if target := localTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
-	for _, fn := range prog.File.Functions {
-		if fn.Name == word {
-			return map[string]any{
-				"uri":   sourceURI(uri, fn.SourcePath),
-				"range": symbolRange(fn.NamePos, len(fn.Name)),
-			}
-		}
+	if target := externalValueTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
+	if target := functionTarget(uri, prog, pos); target != nil {
+		return target.location()
 	}
 	return nil
 }
@@ -373,16 +389,42 @@ func functionTarget(uri string, prog *compiler.Program, pos position) *methodTar
 			return &methodTarget{uri: sourceURI(uri, fn.SourcePath), name: fn.Name, pos: fn.NamePos}
 		}
 	}
+	if ident := identifierAt(prog.File, pos); ident != nil {
+		if fn := prog.Info.ResolvedFunctions[ident]; fn != nil {
+			return functionInfoTarget(uri, fn)
+		}
+	}
 	call := functionCallAt(prog.File, pos)
 	if call == nil {
 		return nil
 	}
-	for _, fn := range prog.File.Functions {
-		if fn.Name == call.Name {
-			return &methodTarget{uri: sourceURI(uri, fn.SourcePath), name: fn.Name, pos: fn.NamePos}
-		}
+	if fn := prog.Info.ResolvedFunctions[call]; fn != nil {
+		return functionInfoTarget(uri, fn)
 	}
 	return nil
+}
+
+func functionInfoTarget(uri string, fn *checker.FuncInfo) *methodTarget {
+	if fn == nil {
+		return nil
+	}
+	pos := fn.NamePos
+	if pos.Line == 0 && fn.Node != nil {
+		pos = fn.Node.NamePos
+	}
+	return &methodTarget{uri: sourceURI(uri, fn.SourcePath), name: fn.Name, pos: pos, external: fn.External}
+}
+
+func externalValueTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	ident := identifierAt(prog.File, pos)
+	if ident == nil {
+		return nil
+	}
+	value := prog.Info.ResolvedValues[ident]
+	if value == nil {
+		return nil
+	}
+	return &methodTarget{uri: sourceURI(uri, value.SourcePath), name: value.Name, pos: value.NamePos, external: true}
 }
 
 func functionCallAt(file *ast.File, pos position) *ast.Identifier {
@@ -475,16 +517,25 @@ func typeTarget(uri string, prog *compiler.Program, pos position) *methodTarget 
 }
 
 func identifierNameAt(file *ast.File, pos position) string {
+	if ident := identifierAt(file, pos); ident != nil {
+		return ident.Name
+	}
+	return ""
+}
+
+func identifierAt(file *ast.File, pos position) *ast.Identifier {
 	var found string
+	var foundIdent *ast.Identifier
 	walkFileExprs(file, func(expr ast.Expr) {
 		if found != "" {
 			return
 		}
 		if ident, ok := expr.(*ast.Identifier); ok && containsSymbol(pos, ident.Pos, ident.Name) {
 			found = ident.Name
+			foundIdent = ident
 		}
 	})
-	return found
+	return foundIdent
 }
 
 func letNameAt(file *ast.File, pos position) string {
@@ -1097,6 +1148,12 @@ func (s *server) rename(uri string, pos position, newName string) any {
 				"changes": map[string]any{uri: methodRenameEdits(prog, target, newName)},
 			}
 		}
+		if target := functionTarget(uri, prog, pos); target != nil && target.external {
+			return nil
+		}
+		if target := externalValueTarget(uri, prog, pos); target != nil {
+			return nil
+		}
 	}
 	return map[string]any{
 		"changes": map[string]any{uri: wordRenameEdits(text, word, newName)},
@@ -1126,6 +1183,7 @@ type methodTarget struct {
 	name       string
 	pos        lexer.Position
 	structName string
+	external   bool
 }
 
 func (t *methodTarget) location() map[string]any {
@@ -1388,7 +1446,7 @@ func functionValueSignature(info *checker.Info, fn *checker.FuncInfo) string {
 		params = append(params, fmt.Sprintf("%s: %s", param.Name, displayCheckerType(info, typ)))
 	}
 	ret := fn.Return
-	if ret == "" || ret == checker.Unknown {
+	if ret == "" || (ret == checker.Unknown && !fn.External) {
 		ret = checker.Void
 	}
 	prefix := ""

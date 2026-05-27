@@ -2,6 +2,7 @@ package checker
 
 import (
 	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 func (c *checker) checkGoImports(file *ast.File) {
@@ -92,19 +93,41 @@ func (c *checker) collect(file *ast.File) {
 			continue
 		}
 	}
+	for _, imp := range file.TSImports {
+		for _, fn := range imp.Functions {
+			info := c.collectTypeScriptFunction(fn)
+			if !c.addFunctionInfo(fn.NamePos, nil, info) {
+				continue
+			}
+			c.info.ExternalFunctions = append(c.info.ExternalFunctions, info)
+		}
+		for _, value := range imp.Values {
+			info := c.collectTypeScriptValue(value)
+			if !c.addExternalValue(value.NamePos, info) {
+				continue
+			}
+			c.info.ExternalValues = append(c.info.ExternalValues, info)
+		}
+	}
 }
 
 func (c *checker) addFunction(fn *ast.Function, info *FuncInfo) bool {
-	for _, existing := range c.info.functionsByName[fn.Name] {
+	return c.addFunctionInfo(fn.NamePos, fn, info)
+}
+
+func (c *checker) addFunctionInfo(pos lexer.Position, fn *ast.Function, info *FuncInfo) bool {
+	for _, existing := range c.info.functionsByName[info.Name] {
 		if sameSourcePath(existing.SourcePath, info.SourcePath) || (!existing.Private && !info.Private) {
-			c.errorf(fn.NamePos, "duplicate function %q", fn.Name)
+			c.errorf(pos, "duplicate function %q", info.Name)
 			return false
 		}
 	}
-	c.info.functionsByName[fn.Name] = append(c.info.functionsByName[fn.Name], info)
-	c.info.FunctionDecls[fn] = info
-	if existing := c.info.Functions[fn.Name]; existing == nil || (existing.Private && !info.Private) {
-		c.info.Functions[fn.Name] = info
+	c.info.functionsByName[info.Name] = append(c.info.functionsByName[info.Name], info)
+	if fn != nil {
+		c.info.FunctionDecls[fn] = info
+	}
+	if existing := c.info.Functions[info.Name]; existing == nil || (existing.Private && !info.Private) {
+		c.info.Functions[info.Name] = info
 	}
 	return true
 }
@@ -113,7 +136,7 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 	generics := append([]string(nil), inheritedGenerics...)
 	generics = append(generics, fn.Generics...)
 	genericTypes := genericSet(generics...)
-	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown}
+	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown, Pos: fn.Pos, NamePos: fn.NamePos}
 	if fn.Private {
 		info.LinkName = privateLinkName(fn.SourcePath, fn.Name)
 	}
@@ -148,4 +171,52 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 		}
 	})
 	return info
+}
+
+func (c *checker) collectTypeScriptFunction(fn ast.TSFunction) *FuncInfo {
+	info := &FuncInfo{
+		Name:           fn.Name,
+		LinkName:       fn.Name,
+		External:       true,
+		SourcePath:     fn.SourcePath,
+		Routine:        fn.Routine,
+		Return:         Unknown,
+		ReturnDeclared: fn.ReturnType != "",
+		Pos:            fn.Pos,
+		NamePos:        fn.NamePos,
+	}
+	for _, param := range fn.Params {
+		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: c.resolveExternalType(param.Type)})
+	}
+	if fn.ReturnType != "" {
+		info.Return = c.resolveExternalType(fn.ReturnType)
+	}
+	return info
+}
+
+func (c *checker) collectTypeScriptValue(value ast.TSValue) *ExternalValueInfo {
+	return &ExternalValueInfo{
+		Name:       value.Name,
+		LinkName:   value.Name,
+		SourcePath: value.SourcePath,
+		Type:       c.resolveExternalType(value.Type),
+		Pos:        value.Pos,
+		NamePos:    value.NamePos,
+	}
+}
+
+func (c *checker) addExternalValue(pos lexer.Position, info *ExternalValueInfo) bool {
+	if c.info.valuesByName[info.Name] != nil || len(c.info.functionsByName[info.Name]) > 0 {
+		c.errorf(pos, "duplicate declaration %q", info.Name)
+		return false
+	}
+	c.info.valuesByName[info.Name] = info
+	return true
+}
+
+func (c *checker) resolveExternalType(name string) Type {
+	if name == "" || isDynamicTypeName(name) {
+		return Unknown
+	}
+	return c.resolveType(name)
 }

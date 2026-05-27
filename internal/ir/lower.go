@@ -19,6 +19,16 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 	for _, imp := range file.GoImports {
 		out.GoImports = append(out.GoImports, GoImport{Path: imp.Path, Pos: imp.Pos})
 	}
+	for _, imp := range file.TSImports {
+		tsImport := TSImport{Path: imp.Path, Pos: imp.Pos}
+		for _, fn := range imp.Functions {
+			tsImport.Functions = append(tsImport.Functions, TSFunction{Name: fn.Name})
+		}
+		for _, value := range imp.Values {
+			tsImport.Values = append(tsImport.Values, TSValue{Name: value.Name})
+		}
+		out.TSImports = append(out.TSImports, tsImport)
+	}
 	for _, typ := range file.Types {
 		out.Types = append(out.Types, l.structType(typ))
 	}
@@ -154,6 +164,8 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		if l.info != nil {
 			if fn := l.info.ResolvedFunctions[e]; fn != nil && fn.LinkName != "" {
 				name = fn.LinkName
+			} else if value := l.info.ResolvedValues[e]; value != nil && value.LinkName != "" {
+				name = value.LinkName
 			}
 		}
 		return &Identifier{ExprBase: l.base(e), Name: name}

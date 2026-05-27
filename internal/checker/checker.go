@@ -57,10 +57,20 @@ type ParamInfo struct {
 	Type Type
 }
 
+type ExternalValueInfo struct {
+	Name       string
+	LinkName   string
+	SourcePath string
+	Type       Type
+	Pos        lexer.Position
+	NamePos    lexer.Position
+}
+
 type FuncInfo struct {
 	Name           string
 	LinkName       string
 	Private        bool
+	External       bool
 	SourcePath     string
 	Routine        bool
 	Generics       []string
@@ -68,6 +78,8 @@ type FuncInfo struct {
 	Params         []ParamInfo
 	Return         Type
 	ReturnDeclared bool
+	Pos            lexer.Position
+	NamePos        lexer.Position
 	Node           *ast.Function
 }
 
@@ -108,7 +120,10 @@ type EnumInfo struct {
 type Info struct {
 	Functions         map[string]*FuncInfo
 	FunctionDecls     map[*ast.Function]*FuncInfo
+	ExternalFunctions []*FuncInfo
+	ExternalValues    []*ExternalValueInfo
 	ResolvedFunctions map[*ast.Identifier]*FuncInfo
+	ResolvedValues    map[*ast.Identifier]*ExternalValueInfo
 	Types             map[string]*StructInfo
 	Enums             map[string]*EnumInfo
 	Stdlib            *stdlib.Registry
@@ -117,6 +132,7 @@ type Info struct {
 	AwaitCalls        map[*ast.CallExpr]bool
 
 	functionsByName map[string][]*FuncInfo
+	valuesByName    map[string]*ExternalValueInfo
 }
 
 func privateLinkName(sourcePath string, name string) string {

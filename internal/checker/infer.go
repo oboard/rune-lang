@@ -239,6 +239,10 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			c.info.ExprTypes[e] = typ
 			return typ
 		}
+		if value := c.resolveExternalValue(e.Name); value != nil {
+			c.info.ResolvedValues[e] = value
+			return value.Type
+		}
 		if e.Name != "<error>" {
 			c.errorf(e.Pos, "undefined name %q", e.Name)
 		}

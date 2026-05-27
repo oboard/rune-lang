@@ -9,6 +9,7 @@ import (
 type File struct {
 	Imports   []Import
 	GoImports []GoImport
+	TSImports []TSImport
 	Types     []*StructType
 	Enums     []*EnumType
 	Functions []*Function
@@ -23,6 +24,31 @@ type Import struct {
 type GoImport struct {
 	Path string
 	Pos  lexer.Position
+}
+
+type TSImport struct {
+	Path      string
+	Pos       lexer.Position
+	Functions []TSFunction
+	Values    []TSValue
+}
+
+type TSFunction struct {
+	Name       string
+	Routine    bool
+	Params     []Param
+	ReturnType string
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
+}
+
+type TSValue struct {
+	Name       string
+	Type       string
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }
 
 type Annotation struct {

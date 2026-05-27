@@ -2,6 +2,9 @@ package tscodegen
 
 import (
 	"fmt"
+	"net/url"
+	"sort"
+	"strconv"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
@@ -22,6 +25,9 @@ func GenerateIR(file *ir.File) (string, error) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")
 	}
 	g := &generator{file: file}
+	if g.typeScriptImports() {
+		g.line("")
+	}
 	if fileUsesTaskRuntime(usage) {
 		g.taskRuntime()
 		g.line("")
@@ -119,6 +125,46 @@ func GenerateIR(file *ir.File) (string, error) {
 		return g.buf.String(), err
 	}
 	return g.buf.String(), nil
+}
+
+func (g *generator) typeScriptImports() bool {
+	byPath := map[string]map[string]bool{}
+	var paths []string
+	for _, imp := range g.file.TSImports {
+		if len(imp.Functions) == 0 && len(imp.Values) == 0 {
+			continue
+		}
+		if byPath[imp.Path] == nil {
+			byPath[imp.Path] = map[string]bool{}
+			paths = append(paths, imp.Path)
+		}
+		for _, fn := range imp.Functions {
+			byPath[imp.Path][fn.Name] = true
+		}
+		for _, value := range imp.Values {
+			byPath[imp.Path][value.Name] = true
+		}
+	}
+	if len(paths) == 0 {
+		return false
+	}
+	for _, path := range paths {
+		names := make([]string, 0, len(byPath[path]))
+		for name := range byPath[path] {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		specs := make([]string, 0, len(names))
+		for _, name := range names {
+			specs = append(specs, fmt.Sprintf("%s as %s", name, mangleIdent(name)))
+		}
+		g.linef("import { %s } from %s;", join(specs, ", "), strconv.Quote(typeScriptFileSpecifier(path)))
+	}
+	return true
+}
+
+func typeScriptFileSpecifier(path string) string {
+	return (&url.URL{Scheme: "file", Path: path}).String()
 }
 
 func usesGoFFI(usage codeusage.Usage) bool {

@@ -74,6 +74,7 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 func loadImportGraph(entryPath string, entrySource string, hasEntrySource bool) (*ast.File, string, []parser.Error, []Diagnostic) {
 	loader := importLoader{
 		files:    map[string]bool{},
+		tsFiles:  map[string]bool{},
 		visiting: map[string]bool{},
 		sources:  map[string]string{},
 	}
@@ -93,6 +94,7 @@ func loadImportGraph(entryPath string, entrySource string, hasEntrySource bool) 
 
 type importLoader struct {
 	files    map[string]bool
+	tsFiles  map[string]bool
 	visiting map[string]bool
 	sources  map[string]string
 }
@@ -132,6 +134,14 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.Pos, Path: normalized})
 			continue
 		}
+		if filepath.Ext(importPath) == ".ts" {
+			tsImport, importedDiags := l.loadTypeScript(importPath, imp.Pos)
+			diags = append(diags, importedDiags...)
+			if tsImport != nil {
+				merged.TSImports = append(merged.TSImports, *tsImport)
+			}
+			continue
+		}
 		imported, importedParseErrs, importedDiags := l.load(importPath)
 		parseErrs = append(parseErrs, importedParseErrs...)
 		diags = append(diags, importedDiags...)
@@ -142,11 +152,34 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	return merged, parseErrs, diags
 }
 
+func (l *importLoader) loadTypeScript(path string, pos lexer.Position) (*ast.TSImport, []Diagnostic) {
+	normalized, ok := normalizeImportPath(path)
+	if !ok {
+		return nil, []Diagnostic{{Message: fmt.Sprintf("cannot resolve TypeScript import %q", path), Pos: pos, Path: path}}
+	}
+	if l.tsFiles[normalized] {
+		return nil, nil
+	}
+	src, ok := l.sources[normalized]
+	if !ok {
+		data, err := os.ReadFile(normalized)
+		if err != nil {
+			return nil, []Diagnostic{{Message: err.Error(), Pos: pos, Path: normalized}}
+		}
+		src = string(data)
+		l.sources[normalized] = src
+	}
+	imp, diags := parseTypeScriptImport(normalized, src, pos)
+	l.tsFiles[normalized] = true
+	return &imp, diags
+}
+
 func mergeFile(dst *ast.File, src *ast.File, includeTests bool) {
 	if src == nil {
 		return
 	}
 	dst.GoImports = append(dst.GoImports, src.GoImports...)
+	dst.TSImports = append(dst.TSImports, src.TSImports...)
 	dst.Types = append(dst.Types, src.Types...)
 	dst.Enums = append(dst.Enums, src.Enums...)
 	dst.Functions = append(dst.Functions, src.Functions...)

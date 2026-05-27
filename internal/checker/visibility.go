@@ -59,6 +59,13 @@ func (c *checker) resolveFunction(name string, pos lexer.Position) (*FuncInfo, b
 	return nil, false
 }
 
+func (c *checker) resolveExternalValue(name string) *ExternalValueInfo {
+	if c.info == nil {
+		return nil
+	}
+	return c.info.valuesByName[name]
+}
+
 func (c *checker) reportUnknownOrPrivateType(pos lexer.Position, name string) {
 	if privateName, ok := c.inaccessibleTypeName(name); ok {
 		c.errorf(pos, "type %q is private", privateName)

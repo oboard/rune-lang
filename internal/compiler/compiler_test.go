@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/interpreter"
 )
 
@@ -62,6 +63,108 @@ main() => @io.println(inc(41))
 	if got := strings.TrimSpace(out.String()); got != "42" {
 		t.Fatalf("output = %q, want 42", got)
 	}
+}
+
+func TestAnalyzeFileLoadsTypeScriptImports(t *testing.T) {
+	dir := t.TempDir()
+	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport function score(value: number): number { return value }\n\nexport function flag(value: boolean): boolean { return value }\n\nexport function size(value: bigint): bigint { return value }\n\nexport function noop(): void {}\n\nexport function mystery(value: any): unknown { return value }\n\nexport const version: string = \"1.0.0\"\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"greet.ts"
+
+main() => {
+  @io.println(greet("Rune"))
+  @io.println(version)
+}
+`)
+
+	prog, diags := AnalyzeFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+	fn := prog.Info.Functions["greet"]
+	if fn == nil || !fn.External {
+		t.Fatalf("greet function = %#v, want external TypeScript function", fn)
+	}
+	if len(fn.Params) != 1 || fn.Params[0].Name != "name" || fn.Params[0].Type != checker.String {
+		t.Fatalf("greet params = %#v, want name: String", fn.Params)
+	}
+	if fn.Return != checker.String {
+		t.Fatalf("greet return = %s, want String", fn.Return)
+	}
+	score := prog.Info.Functions["score"]
+	if score == nil || len(score.Params) != 1 || score.Params[0].Type != checker.Double || score.Return != checker.Double {
+		t.Fatalf("score function = %#v, want (Double) -> Double", score)
+	}
+	flag := prog.Info.Functions["flag"]
+	if flag == nil || len(flag.Params) != 1 || flag.Params[0].Type != checker.Bool || flag.Return != checker.Bool {
+		t.Fatalf("flag function = %#v, want (Bool) -> Bool", flag)
+	}
+	size := prog.Info.Functions["size"]
+	if size == nil || len(size.Params) != 1 || size.Params[0].Type != checker.BigInt || size.Return != checker.BigInt {
+		t.Fatalf("size function = %#v, want (BigInt) -> BigInt", size)
+	}
+	noop := prog.Info.Functions["noop"]
+	if noop == nil || noop.Return != checker.Void {
+		t.Fatalf("noop function = %#v, want Void return", noop)
+	}
+	mystery := prog.Info.Functions["mystery"]
+	if mystery == nil || len(mystery.Params) != 1 || mystery.Params[0].Type != checker.Unknown || mystery.Return != checker.Unknown {
+		t.Fatalf("mystery function = %#v, want Unknown types", mystery)
+	}
+	if len(prog.Info.ExternalValues) != 1 {
+		t.Fatalf("external values = %#v, want version", prog.Info.ExternalValues)
+	}
+	version := prog.Info.ExternalValues[0]
+	if version.Name != "version" || version.Type != checker.String {
+		t.Fatalf("external value = %#v, want version: String", version)
+	}
+}
+
+func TestGenerateTypeScriptFileImportsTypeScriptFunctions(t *testing.T) {
+	dir := t.TempDir()
+	tsPath := filepath.Join(dir, "greet.ts")
+	writeTextFile(t, tsPath, "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport const version: string = \"1.0.0\"\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"greet.ts"
+
+main() => {
+  @io.println(greet("Rune"))
+  @io.println(version)
+}
+`)
+
+	got, diags := GenerateTypeScriptFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v", diags)
+	}
+	wantImport := `import { greet as __greet, version as __version } from "file://` + tsPath + `";`
+	if !strings.Contains(got, wantImport) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", wantImport, got)
+	}
+	if !strings.Contains(got, `console.log(__greet("Rune"));`) {
+		t.Fatalf("generated TypeScript does not call imported alias:\n%s", got)
+	}
+	if !strings.Contains(got, `console.log(__version);`) {
+		t.Fatalf("generated TypeScript does not read imported value alias:\n%s", got)
+	}
+	if strings.Contains(got, "function __greet") {
+		t.Fatalf("generated TypeScript should not emit imported function body:\n%s", got)
+	}
+}
+
+func TestGenerateGoFileRejectsTypeScriptImports(t *testing.T) {
+	dir := t.TempDir()
+	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string { return name }\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"greet.ts"
+
+main() => @io.println(greet("Rune"))
+`)
+
+	_, diags := GenerateGoFile(filepath.Join(dir, "main.rn"))
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, "Go backend does not support TypeScript imports") {
+			return
+		}
+	}
+	t.Fatalf("GenerateGoFile() diagnostics = %#v, want TypeScript import backend diagnostic", diags)
 }
 
 func TestAnalyzeSourceSupportsUnicodeIdentifiers(t *testing.T) {
@@ -254,6 +357,11 @@ main() => inc(1)
 }
 
 func writeRuneFile(t *testing.T, path string, src string) {
+	t.Helper()
+	writeTextFile(t, path, src)
+}
+
+func writeTextFile(t *testing.T, path string, src string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", path, err)

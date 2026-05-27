@@ -18,6 +18,7 @@ type Module struct {
 
 type File struct {
 	GoImports []GoImport
+	TSImports []TSImport
 	Types     []*StructType
 	Enums     []*EnumType
 	Functions []*Function
@@ -28,6 +29,21 @@ type File struct {
 type GoImport struct {
 	Path string
 	Pos  lexer.Position
+}
+
+type TSImport struct {
+	Path      string
+	Pos       lexer.Position
+	Functions []TSFunction
+	Values    []TSValue
+}
+
+type TSFunction struct {
+	Name string
+}
+
+type TSValue struct {
+	Name string
 }
 
 type StructType struct {

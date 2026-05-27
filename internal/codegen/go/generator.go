@@ -17,6 +17,9 @@ func Generate(file *ast.File, info *checker.Info) (string, error) {
 }
 
 func GenerateIR(file *ir.File) (string, error) {
+	if len(file.TSImports) > 0 {
+		return "", fmt.Errorf("Go backend does not support TypeScript imports")
+	}
 	g := &generator{file: file, imports: map[string]bool{}}
 	usage := codeusage.Collect(file)
 	for _, imp := range file.GoImports {
