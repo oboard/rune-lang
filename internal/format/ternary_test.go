@@ -14,12 +14,24 @@ func TestTernaryExpressionFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `main() => {
-  value := flag ? 1 : other ? 2 : 3
-  total := (flag ? 1 : 2) + 3
+  value := (
+    flag ? 1
+      : (
+        other ? 2
+          : 3
+      )
+  )
+  total := (
+    flag ? 1
+      : 2
+  ) + 3
 }
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
 	}
 }
 
@@ -31,11 +43,14 @@ func TestMultilineTernaryCalleeFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `fun(flag) => {
-  (flag ? (x) => {
-    k: x.a + 1,
-  } : (y) => {
-    k: y.b + 1,
-  })(value).k
+  (
+    flag ? (x) => {
+      k: x.a + 1,
+    }
+      : (y) => {
+        k: y.b + 1,
+      }
+  )(value).k
 }
 `
 	if got != want {
@@ -54,7 +69,10 @@ func TestTernarySelectorReceiverFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `main() => {
-  (flag ? left : right).map()
+  (
+    flag ? left
+      : right
+  ).map()
 }
 `
 	if got != want {
@@ -62,5 +80,23 @@ func TestTernarySelectorReceiverFormatting(t *testing.T) {
 	}
 	if _, errs := parser.Parse(got); len(errs) > 0 {
 		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestConditionalExpressionWithoutElseFormatting(t *testing.T) {
+	file, errs := parser.Parse(`main()=>{isHelp ? handled = true}`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  (
+    isHelp ? handled = true
+  )
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
 	}
 }

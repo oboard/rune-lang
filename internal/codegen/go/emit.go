@@ -196,6 +196,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
 				continue
 			}
+			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok && ternary.Alternative == nil && !(last && ret != checker.Void) {
+				g.conditionalExprStmt(ternary)
+				continue
+			}
 			if stmt, ok := g.arrayEachStmt(s.Expr); ok {
 				g.line(stmt)
 				continue
@@ -219,6 +223,16 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
+}
+
+func (g *generator) conditionalExprStmt(expr *ir.TernaryExpr) {
+	g.linef("if %s {", g.expr(expr.Condition))
+	g.indent++
+	if consequence := g.expr(expr.Consequence); consequence != "" {
+		g.line(consequence)
+	}
+	g.indent--
+	g.line("}")
 }
 
 func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {

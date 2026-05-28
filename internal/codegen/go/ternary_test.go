@@ -51,6 +51,30 @@ func TestGenerateVoidTernaryExpression(t *testing.T) {
 	}
 }
 
+func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
+	src := `main() => {
+  handled ~= false
+  true ? handled = true
+}
+`
+	got := generateGoForTest(t, src)
+	wantParts := []string{
+		`if true {`,
+		`__handled = true`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `__handled = __handled`) {
+		t.Fatalf("generated Go contains redundant else assignment:\n%s", got)
+	}
+	if strings.Contains(got, `func()`) {
+		t.Fatalf("generated Go contains unnecessary ternary thunk:\n%s", got)
+	}
+}
+
 func generateGoForTest(t *testing.T, src string) string {
 	t.Helper()
 	file, parseErrs := parser.Parse(src)

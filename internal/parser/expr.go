@@ -83,12 +83,15 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			p.skipNewlines()
 			consequence := p.parseExpression(1)
 			p.skipNewlines()
-			p.consume(lexer.Colon, "expected ':' after ternary consequence")
-			p.skipNewlines()
+			var alternative ast.Expr
+			if p.match(lexer.Colon) {
+				p.skipNewlines()
+				alternative = p.parseExpression(1)
+			}
 			left = &ast.TernaryExpr{
 				Condition:   left,
 				Consequence: consequence,
-				Alternative: p.parseExpression(1),
+				Alternative: alternative,
 				Pos:         left.Position(),
 			}
 			continue

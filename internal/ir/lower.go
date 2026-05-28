@@ -204,7 +204,11 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
 	case *ast.TernaryExpr:
-		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.expr(e.Consequence), Alternative: l.expr(e.Alternative)}
+		var alternative Expr
+		if e.Alternative != nil {
+			alternative = l.expr(e.Alternative)
+		}
+		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.expr(e.Consequence), Alternative: alternative}
 	case *ast.AssignExpr:
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Target: l.expr(e.Target), Value: l.expr(e.Value)}
 	case *ast.CallExpr:

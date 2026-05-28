@@ -70,6 +70,9 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		if value {
 			return i.eval(e.Consequence, env)
 		}
+		if e.Alternative == nil {
+			return nil, nil
+		}
 		return i.eval(e.Alternative, env)
 	case *ir.AssignExpr:
 		if target, ok := e.Target.(*ir.IndexExpr); ok {

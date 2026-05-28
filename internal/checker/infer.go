@@ -411,6 +411,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			c.errorf(e.Condition.Position(), "ternary condition expects Bool, got %s", condition)
 		}
 		consequence := c.inferExpr(e.Consequence, env)
+		if e.Alternative == nil {
+			return Void
+		}
 		alternative := c.inferExpr(e.Alternative, env)
 		result, ok := c.mergeFunctionValueTypes(consequence, alternative)
 		if !ok {
@@ -1000,7 +1003,9 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 		case *ast.TernaryExpr:
 			walk(e.Condition, Bool)
 			walk(e.Consequence, expected)
-			walk(e.Alternative, expected)
+			if e.Alternative != nil {
+				walk(e.Alternative, expected)
+			}
 		case *ast.UnaryExpr:
 			walk(e.Expr, expected)
 		case *ast.PostfixExpr:

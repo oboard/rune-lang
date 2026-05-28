@@ -29,3 +29,23 @@ func TestGenerateVoidTernaryExpression(t *testing.T) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
 }
+
+func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
+	src := `main() => {
+ handled ~= false
+  true ? handled = true
+}`
+	got := generateForTest(t, src)
+	want := `if (true) {
+    __handled = true;
+  }`
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+	}
+	if strings.Contains(got, `__handled = __handled`) {
+		t.Fatalf("generated TypeScript contains redundant else assignment:\n%s", got)
+	}
+	if strings.Contains(got, `: undefined`) {
+		t.Fatalf("generated TypeScript contains unnecessary else fallback:\n%s", got)
+	}
+}

@@ -646,6 +646,12 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 func (g *generator) ternaryExpr(expr *ir.TernaryExpr) string {
 	condition := g.expr(expr.Condition)
 	consequence := g.expr(expr.Consequence)
+	if expr.Alternative == nil {
+		if expr.ResultType() == checker.Void {
+			return fmt.Sprintf("func() { if %s { %s; return } }()", condition, consequence)
+		}
+		return fmt.Sprintf("func() %s { if %s { return %s }; return %s }()", goType(expr.ResultType()), condition, consequence, g.zeroValue(expr.ResultType()))
+	}
 	alternative := g.expr(expr.Alternative)
 	if expr.ResultType() == checker.Void {
 		return fmt.Sprintf("func() { if %s { %s; return }; %s }()", condition, consequence, alternative)

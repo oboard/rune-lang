@@ -11,7 +11,7 @@
     lc001TwoSum(nums: Array[Int], target: Int) -> Array[Int] => {
       result := [0]
       result.pop()
-      nums.each((a, i) => nums.each((b, j) => ((result.length() == 0) && (i < j)) && ((a + b) == target) ? .pushTwoInt(result, i, j) : 0))
+      nums.each((a, i) => nums.each((b, j) => ((result.length() == 0) && (i < j)) && ((a + b) == target) ? .pushTwoInt(result, i, j)))
       result
     }
   }
@@ -119,7 +119,7 @@
     minInt(a: Int, b: Int) -> Int => a < b ? a : b
     lc011MaxArea(heights: Array[Int]) -> Int => {
       best ~= 0
-      heights.each((leftHeight, left) => heights.each((rightHeight, right) => left < right ? best = .maxInt(best, .minInt(leftHeight, rightHeight) * (right - left)) : best = best))
+      heights.each((leftHeight, left) => heights.each((rightHeight, right) => left < right ? best = .maxInt(best, .minInt(leftHeight, rightHeight) * (right - left))))
       best
     }
   }
@@ -131,7 +131,7 @@
   solution := {
     lc015ThreeSumExists(nums: Array[Int]) -> Bool => {
       found ~= false
-      nums.each((a, i) => nums.each((b, j) => nums.each((c, k) => ((i < j) && (j < k)) && (((a + b) + c) == 0) ? found = true : found = found)))
+      nums.each((a, i) => nums.each((b, j) => nums.each((c, k) => ((i < j) && (j < k)) && (((a + b) + c) == 0) ? found = true)))
       found
     }
   }
@@ -164,7 +164,7 @@
       out := [0]
       out.pop()
       removeAt := values.length() - n
-      values.each((value, index) => index == removeAt ? 0 : out.push(value))
+      values.each((value, index) => index != removeAt ? out.push(value))
       out
     }
   }
@@ -314,7 +314,7 @@
   solution := {
     arrayIndexOfInt(values: Array[Int], needle: Int) -> Int => {
       found ~= 0 - 1
-      values.each((value, index) => (found == (0 - 1)) && (value == needle) ? found = index : found = found)
+      values.each((value, index) => (found == (0 - 1)) && (value == needle) ? found = index)
       found
     }
     lc033SearchRotated(nums: Array[Int], target: Int) -> Int => .arrayIndexOfInt(nums, target)
@@ -327,7 +327,7 @@
   solution := {
     arrayIndexOfInt(values: Array[Int], needle: Int) -> Int => {
       found ~= 0 - 1
-      values.each((value, index) => (found == (0 - 1)) && (value == needle) ? found = index : found = found)
+      values.each((value, index) => (found == (0 - 1)) && (value == needle) ? found = index)
       found
     }
     lc034SearchRange(nums: Array[Int], target: Int) -> Array[Int] => {
@@ -339,7 +339,7 @@
     }
     lc034LastIndex(nums: Array[Int], target: Int) -> Int => {
       last ~= 0 - 1
-      nums.each((value, index) => value == target ? last = index : last = last)
+      nums.each((value, index) => value == target ? last = index)
       last
     }
   }
@@ -366,17 +366,17 @@
     minInt(a: Int, b: Int) -> Int => a < b ? a : b
     lc042TrapRainWater(height: Array[Int]) -> Int => {
       total ~= 0
-      height.each((value, index) => (index > 0) && (index < (height.length() - 1)) ? total = total + .maxInt(0, .minInt(.lc042MaxLeft(height, index), .lc042MaxRight(height, index)) - value) : total = total)
+      height.each((value, index) => (index > 0) && (index < (height.length() - 1)) ? total = total + .maxInt(0, .minInt(.lc042MaxLeft(height, index), .lc042MaxRight(height, index)) - value))
       total
     }
     lc042MaxLeft(height: Array[Int], index: Int) -> Int => {
       best ~= 0
-      height.each((value, i) => i < index ? best = .maxInt(best, value) : best = best)
+      height.each((value, i) => i < index ? best = .maxInt(best, value))
       best
     }
     lc042MaxRight(height: Array[Int], index: Int) -> Int => {
       best ~= 0
-      height.each((value, i) => i > index ? best = .maxInt(best, value) : best = best)
+      height.each((value, i) => i > index ? best = .maxInt(best, value))
       best
     }
   }
@@ -421,12 +421,12 @@
     lc049GroupAnagramsCount(words: Array[String]) -> Int => {
       groups := [""]
       groups.pop()
-      words.each((word) => .lc049HasGroup(groups, word) ? 0 : groups.push(word))
+      words.each((word) => !.lc049HasGroup(groups, word) ? groups.push(word))
       groups.length()
     }
     lc049HasGroup(groups: Array[String], word: String) -> Bool => {
       found ~= false
-      groups.each((group) => .lc049IsAnagram(group, word) ? found = true : found = found)
+      groups.each((group) => .lc049IsAnagram(group, word) ? found = true)
       found
     }
     lc049IsAnagram(left: String, right: String) -> Bool => (left.length() == right.length()) && .lc049SameCounts(left, right, 0)
@@ -446,7 +446,7 @@
     }
     lc053MaxSubArray(nums: Array[Int]) -> Int => {
       best ~= nums[0]
-      nums.each((left, i) => nums.each((right, j) => i <= j ? best = .maxInt(best, .arraySum(nums.slice(i, j + 1))) : best = best))
+      nums.each((left, i) => nums.each((right, j) => i <= j ? best = .maxInt(best, .arraySum(nums.slice(i, j + 1)))))
       best
     }
   }
@@ -459,7 +459,7 @@
     maxInt(a: Int, b: Int) -> Int => a > b ? a : b
     lc055CanJump(nums: Array[Int]) -> Bool => {
       farthest ~= 0
-      nums.each((jump, index) => index <= farthest ? farthest = .maxInt(farthest, index + jump) : farthest = farthest)
+      nums.each((jump, index) => index <= farthest ? farthest = .maxInt(farthest, index + jump))
       farthest >= (nums.length() - 1)
     }
   }
@@ -473,7 +473,7 @@
     lc056MergeIntervalsCount(flat: Array[Int]) -> Int => {
       count ~= 0
       currentEnd ~= 0 - 1
-      flat.each((value, index) => ((index % 2) == 0) && (value > currentEnd) ? count = count + 1 : (index % 2) == 1 ? currentEnd = .maxInt(currentEnd, value) : count = count)
+      flat.each((value, index) => ((index % 2) == 0) && (value > currentEnd) ? count = count + 1 : (index % 2) == 1 ? currentEnd = .maxInt(currentEnd, value))
       count
     }
   }
@@ -596,12 +596,12 @@
     minInt(a: Int, b: Int) -> Int => a < b ? a : b
     lc084LargestRectangleArea(heights: Array[Int]) -> Int => {
       best ~= 0
-      heights.each((height, i) => heights.each((other, j) => i <= j ? best = .maxInt(best, .lc084MinRange(heights, i, j) * ((j - i) + 1)) : best = best))
+      heights.each((height, i) => heights.each((other, j) => i <= j ? best = .maxInt(best, .lc084MinRange(heights, i, j) * ((j - i) + 1))))
       best
     }
     lc084MinRange(values: Array[Int], start: Int, end: Int) -> Int => {
       best ~= values[start]
-      values.each((value, index) => (index >= start) && (index <= end) ? best = .minInt(best, value) : best = best)
+      values.each((value, index) => (index >= start) && (index <= end) ? best = .minInt(best, value))
       best
     }
   }
@@ -645,7 +645,7 @@
   solution := {
     lc098IsValidBSTInorder(values: Array[Int]) -> Bool => {
       ok ~= true
-      values.each((value, index) => (index > 0) && (value <= values[index - 1]) ? ok = false : ok = ok)
+      values.each((value, index) => (index > 0) && (value <= values[index - 1]) ? ok = false)
       ok
     }
   }
@@ -703,7 +703,7 @@
     maxInt(a: Int, b: Int) -> Int => a > b ? a : b
     lc121MaxProfit(prices: Array[Int]) -> Int => {
       best ~= 0
-      prices.each((buy, i) => prices.each((sell, j) => i < j ? best = .maxInt(best, sell - buy) : best = best))
+      prices.each((buy, i) => prices.each((sell, j) => i < j ? best = .maxInt(best, sell - buy)))
       best
     }
   }
@@ -718,7 +718,7 @@
       set := @set.new(0)
       nums.each((value) => set.add(value))
       best ~= 0
-      nums.each((value) => set.has(value - 1) ? best = best : best = .maxInt(best, .lc128Run(set, value)))
+      nums.each((value) => !set.has(value - 1) ? best = .maxInt(best, .lc128Run(set, value)))
       best
     }
     lc128Run(set: Set[Int], value: Int) -> Int => set.has(value) ? 1 + .lc128Run(set, value + 1) : 0
@@ -731,7 +731,7 @@
   solution := {
     arrayCountInt(values: Array[Int], needle: Int) -> Int => {
       count ~= 0
-      values.each((value) => value == needle ? count = count + 1 : count = count)
+      values.each((value) => value == needle ? count = count + 1)
       count
     }
     lc136SingleNumber(nums: Array[Int]) -> Int => {
@@ -748,7 +748,7 @@
   solution := {
     lc139WordBreak(s: String, words: Array[String]) -> Bool => {
       ok ~= false
-      words.each((word) => (s == word) || s.startsWith(word) ? ok = true : ok = ok)
+      words.each((word) => (s == word) || s.startsWith(word) ? ok = true)
       ok
     }
   }
@@ -824,7 +824,7 @@
     }
     lc152MaxProduct(nums: Array[Int]) -> Int => {
       best ~= nums[0]
-      nums.each((left, i) => nums.each((right, j) => i <= j ? best = .maxInt(best, .arrayProduct(nums.slice(i, j + 1))) : best = best))
+      nums.each((left, i) => nums.each((right, j) => i <= j ? best = .maxInt(best, .arrayProduct(nums.slice(i, j + 1)))))
       best
     }
   }
@@ -836,7 +836,7 @@
   solution := {
     arrayMin(values: Array[Int]) -> Int => {
       best ~= values[0]
-      values.each((value) => value < best ? best = value : best = best)
+      values.each((value) => value < best ? best = value)
       best
     }
     lc155MinStackMin(values: Array[Int]) -> Int => .arrayMin(values)
@@ -857,12 +857,12 @@
   solution := {
     arrayCountInt(values: Array[Int], needle: Int) -> Int => {
       count ~= 0
-      values.each((value) => value == needle ? count = count + 1 : count = count)
+      values.each((value) => value == needle ? count = count + 1)
       count
     }
     lc169MajorityElement(nums: Array[Int]) -> Int => {
       winner ~= nums[0]
-      nums.each((value) => .arrayCountInt(nums, value) > (nums.length() / 2) ? winner = value : winner = winner)
+      nums.each((value) => .arrayCountInt(nums, value) > (nums.length() / 2) ? winner = value)
       winner
     }
   }
@@ -988,7 +988,7 @@
     lc234IsPalindromeList(values: Array[Int]) -> Bool => .lcArrayEqual(values, values.reverse())
     lcArrayEqual(left: Array[Int], right: Array[Int]) -> Bool => {
       ok ~= left.length() == right.length()
-      left.each((value, index) => (index < right.length()) && (value == right[index]) ? ok = ok : ok = false)
+      left.each((value, index) => !((index < right.length()) && (value == right[index])) ? ok = false)
       ok
     }
   }
@@ -1018,13 +1018,13 @@
   solution := {
     arrayMax(values: Array[Int]) -> Int => {
       best ~= values[0]
-      values.each((value) => value > best ? best = value : best = best)
+      values.each((value) => value > best ? best = value)
       best
     }
     lc239SlidingWindowMaximum(nums: Array[Int], k: Int) -> Array[Int] => {
       out := [0]
       out.pop()
-      nums.each((value, index) => (index + k) <= nums.length() ? out.push(.arrayMax(nums.slice(index, index + k))) : 0)
+      nums.each((value, index) => (index + k) <= nums.length() ? out.push(.arrayMax(nums.slice(index, index + k))))
       out
     }
   }
@@ -1036,7 +1036,7 @@
   solution := {
     arrayContainsInt(values: Array[Int], needle: Int) -> Bool => {
       found ~= false
-      values.each((value) => value == needle ? found = true : found = found)
+      values.each((value) => value == needle ? found = true)
       found
     }
     lc240SearchMatrixFlat(values: Array[Int], target: Int) -> Bool => .arrayContainsInt(values, target)
@@ -1085,12 +1085,12 @@
   solution := {
     arrayCountInt(values: Array[Int], needle: Int) -> Int => {
       count ~= 0
-      values.each((value) => value == needle ? count = count + 1 : count = count)
+      values.each((value) => value == needle ? count = count + 1)
       count
     }
     lc287FindDuplicate(nums: Array[Int]) -> Int => {
       duplicate ~= 0
-      nums.each((value) => .arrayCountInt(nums, value) > 1 ? duplicate = value : duplicate = duplicate)
+      nums.each((value) => .arrayCountInt(nums, value) > 1 ? duplicate = value)
       duplicate
     }
   }
@@ -1116,7 +1116,7 @@
     }
     lc300LisEndingAt(nums: Array[Int], end: Int) -> Int => {
       best ~= 1
-      nums.each((value, index) => (index < end) && (value < nums[end]) ? best = .maxInt(best, 1 + .lc300LisEndingAt(nums, index)) : best = best)
+      nums.each((value, index) => (index < end) && (value < nums[end]) ? best = .maxInt(best, 1 + .lc300LisEndingAt(nums, index)))
       best
     }
   }
@@ -1159,8 +1159,8 @@
     lc328OddEvenList(values: Array[Int]) -> Array[Int] => {
       out := [0]
       out.pop()
-      values.each((value, index) => (index % 2) == 0 ? out.push(value) : 0)
-      values.each((value, index) => (index % 2) == 1 ? out.push(value) : 0)
+      values.each((value, index) => (index % 2) == 0 ? out.push(value))
+      values.each((value, index) => (index % 2) == 1 ? out.push(value))
       out
     }
   }
@@ -1201,12 +1201,12 @@
   solution := {
     arrayCountInt(values: Array[Int], needle: Int) -> Int => {
       count ~= 0
-      values.each((value) => value == needle ? count = count + 1 : count = count)
+      values.each((value) => value == needle ? count = count + 1)
       count
     }
     lc347TopFrequentFirst(nums: Array[Int]) -> Int => {
       best ~= nums[0]
-      nums.each((value) => .arrayCountInt(nums, value) > .arrayCountInt(nums, best) ? best = value : best = best)
+      nums.each((value) => .arrayCountInt(nums, value) > .arrayCountInt(nums, best) ? best = value)
       best
     }
   }
@@ -1266,7 +1266,7 @@
     lc437PathSumLinear(values: Array[Int], target: Int) -> Int => .lc560SubarraySum(values, target)
     lc560SubarraySum(nums: Array[Int], k: Int) -> Int => {
       count ~= 0
-      nums.each((left, i) => nums.each((right, j) => (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1 : count = count))
+      nums.each((left, i) => nums.each((right, j) => (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1))
       count
     }
   }
@@ -1291,7 +1291,7 @@
   solution := {
     arrayContainsInt(values: Array[Int], needle: Int) -> Bool => {
       found ~= false
-      values.each((value) => value == needle ? found = true : found = found)
+      values.each((value) => value == needle ? found = true)
       found
     }
     lc448FindDisappearedCount(nums: Array[Int]) -> Int => .lc448Missing(nums, 1, 0)
@@ -1357,7 +1357,7 @@
     }
     lc560SubarraySum(nums: Array[Int], k: Int) -> Int => {
       count ~= 0
-      nums.each((left, i) => nums.each((right, j) => (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1 : count = count))
+      nums.each((left, i) => nums.each((right, j) => (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1))
       count
     }
   }
@@ -1397,8 +1397,8 @@
       sorted := .sortInts(nums)
       first ~= 0 - 1
       last ~= 0 - 1
-      nums.each((value, index) => value != sorted[index] ? first = .lc581First(first, index) : first = first)
-      nums.each((value, index) => value != sorted[index] ? last = index : last = last)
+      nums.each((value, index) => value != sorted[index] ? first = .lc581First(first, index))
+      nums.each((value, index) => value != sorted[index] ? last = index)
       first == (0 - 1) ? 0 : (last - first) + 1
     }
     lc581First(first: Int, index: Int) -> Int => first == (0 - 1) ? index : first
@@ -1438,7 +1438,7 @@
     }
     lc647CountSubstrings(s: String) -> Int => {
       count ~= 0
-      s.split("").each((ch, start) => s.split("").each((other, end) => (start <= end) && .lc005IsPalindromeRange(s, start, end) ? count = count + 1 : count = count))
+      s.split("").each((ch, start) => s.split("").each((other, end) => (start <= end) && .lc005IsPalindromeRange(s, start, end) ? count = count + 1))
       count
     }
   }

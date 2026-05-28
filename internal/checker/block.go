@@ -354,7 +354,9 @@ func (c *checker) applyExpectedType(expr ast.Expr, typ Type) {
 		}
 	case *ast.TernaryExpr:
 		c.applyExpectedType(e.Consequence, typ)
-		c.applyExpectedType(e.Alternative, typ)
+		if e.Alternative != nil {
+			c.applyExpectedType(e.Alternative, typ)
+		}
 	}
 }
 

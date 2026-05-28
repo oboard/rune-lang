@@ -144,6 +144,38 @@ func TestMapLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestBlockExpressionKeepsMatchIndentation(t *testing.T) {
+	src := `main()=>{solution:={coin(amount:Int)->Int=>{amount {
+0 => 0
+<0 => 10000
+_ => 42
+}}}}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  solution := {
+    coin(amount: Int) -> Int => {
+      amount {
+        0 => 0
+        <0 => 10000
+        _ => 42
+      }
+    }
+  }
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestAnonymousObjectMethodReturnTypeFormatting(t *testing.T) {
 	src := `main()=>{obj:={nextAge() -> Int => .age + 1 title(prefix: String) -> String => prefix + .name}}`
 	file, errs := parser.Parse(src)

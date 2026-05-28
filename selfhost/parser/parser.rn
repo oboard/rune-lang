@@ -1239,11 +1239,25 @@ parseTernaryExpression(
 ) -> ExprStep => {
   question := parserAdvance(state)
   consequence := parseExpression(parserSkipNewlines(question.state), 1)
-  colon := parserConsume(parserSkipNewlines(consequence.state), "Colon", "expected ':' after ternary consequence")
-  alternative := parseExpression(parserSkipNewlines(colon.state), 1)
+  afterConsequence := parserSkipNewlines(consequence.state)
+  colon := parserMatch(afterConsequence, "Colon")
+  colon.ok ? parseTernaryAlternative(colon.state, question.token, condition, consequence.expr, minPrec) : parseExpressionLoop(ExprStep {
+    state: afterConsequence
+    expr: opNode("ternary", "?:", question.token, [condition, consequence.expr])
+  }, minPrec)
+}
+
+parseTernaryAlternative(
+  state: ParserState,
+  token: Token,
+  condition: ParsedExpr,
+  consequence: ParsedExpr,
+  minPrec: Int
+) -> ExprStep => {
+  alternative := parseExpression(parserSkipNewlines(state), 1)
   parseExpressionLoop(ExprStep {
     state: alternative.state
-    expr: opNode("ternary", "?:", question.token, [condition, consequence.expr, alternative.expr])
+    expr: opNode("ternary", "?:", token, [condition, consequence, alternative.expr])
   }, minPrec)
 }
 

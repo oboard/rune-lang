@@ -48,6 +48,25 @@ func TestParseTernaryLowerThanOr(t *testing.T) {
 	}
 }
 
+func TestParseConditionalExpressionWithoutElse(t *testing.T) {
+	file, errs := Parse(`main() => {
+  handled ~= false
+  isHelp ? handled = true
+}`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block := file.Functions[0].Body.(*ast.BlockExpr)
+	stmt := block.Statements[1].(*ast.ExprStmt)
+	ternary, ok := stmt.Expr.(*ast.TernaryExpr)
+	if !ok {
+		t.Fatalf("expr stmt = %T, want TernaryExpr", stmt.Expr)
+	}
+	if ternary.Alternative != nil {
+		t.Fatalf("alternative = %T, want nil", ternary.Alternative)
+	}
+}
+
 func TestParseInvalidTernaryCalleeDoesNotHang(t *testing.T) {
 	_, errs := Parse(`Return: {
   b: Int

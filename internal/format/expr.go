@@ -196,7 +196,7 @@ func (f *formatter) chainReceiverExpr(expr ast.Expr) string {
 func (f *formatter) postfixReceiverExpr(expr ast.Expr) string {
 	formatted := f.expr(expr)
 	switch expr.(type) {
-	case *ast.AssignExpr, *ast.BinaryExpr, *ast.LambdaExpr, *ast.TernaryExpr, *ast.WatchExpr:
+	case *ast.AssignExpr, *ast.BinaryExpr, *ast.LambdaExpr, *ast.WatchExpr:
 		return "(" + formatted + ")"
 	default:
 		return formatted
@@ -206,7 +206,7 @@ func (f *formatter) postfixReceiverExpr(expr ast.Expr) string {
 func (f *formatter) unaryOperandExpr(expr ast.Expr) string {
 	formatted := f.expr(expr)
 	switch expr.(type) {
-	case *ast.AssignExpr, *ast.BinaryExpr, *ast.TernaryExpr, *ast.WatchExpr:
+	case *ast.AssignExpr, *ast.BinaryExpr, *ast.WatchExpr:
 		return "(" + formatted + ")"
 	default:
 		return formatted
@@ -409,8 +409,6 @@ func (f *formatter) blockExpr(block *ast.BlockExpr) string {
 		for j, line := range strings.Split(formatted, "\n") {
 			if j == 0 {
 				b.WriteString(bodyIndent)
-			} else if line != "" {
-				b.WriteString(f.indentString(f.indent))
 			}
 			b.WriteString(line)
 			b.WriteByte('\n')
@@ -560,24 +558,39 @@ func (f *formatter) exprWithIndent(expr ast.Expr, indent int) string {
 }
 
 func (f *formatter) ternaryExpr(expr *ast.TernaryExpr) string {
-	condition := f.expr(expr.Condition)
-	if _, ok := expr.Condition.(*ast.TernaryExpr); ok {
-		condition = "(" + condition + ")"
+	condition := f.exprWithIndent(expr.Condition, f.indent+1)
+	consequence := f.exprWithIndent(expr.Consequence, f.indent+1)
+
+	var b strings.Builder
+	b.WriteString("(\n")
+	b.WriteString(f.indentString(f.indent + 1))
+	b.WriteString(appendToLastLine(condition, " ? "+consequence))
+	b.WriteByte('\n')
+	if expr.Alternative != nil {
+		alternative := f.exprWithIndent(expr.Alternative, f.indent+2)
+		b.WriteString(f.indentString(f.indent + 2))
+		b.WriteString(": ")
+		b.WriteString(alternative)
+		b.WriteByte('\n')
 	}
-	return fmt.Sprintf(
-		"%s ? %s : %s",
-		condition,
-		f.expr(expr.Consequence),
-		f.expr(expr.Alternative),
-	)
+	b.WriteString(f.indentString(f.indent))
+	b.WriteString(")")
+	return b.String()
 }
 
 func (f *formatter) exprWithParens(expr ast.Expr) string {
 	switch expr.(type) {
-	case *ast.BinaryExpr, *ast.TernaryExpr:
+	case *ast.BinaryExpr:
 		return "(" + f.expr(expr) + ")"
 	}
 	return f.expr(expr)
+}
+
+func appendToLastLine(text string, suffix string) string {
+	if !strings.HasSuffix(text, "\n") {
+		return text + suffix
+	}
+	return strings.TrimSuffix(text, "\n") + suffix + "\n"
 }
 
 func (f *formatter) isPatternPredicateBitOr(expr *ast.BinaryExpr) bool {
@@ -666,9 +679,7 @@ func (f *formatter) exprNeedsMultiline(expr ast.Expr) bool {
 		}
 		return false
 	case *ast.TernaryExpr:
-		return f.exprNeedsMultiline(e.Condition) ||
-			f.exprNeedsMultiline(e.Consequence) ||
-			f.exprNeedsMultiline(e.Alternative)
+		return true
 	default:
 		return false
 	}

@@ -72,7 +72,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return s
 	case *ir.TernaryExpr:
 		condition := g.exprPrec(e.Condition, 1)
-		s := fmt.Sprintf("%s ? %s : %s", condition, g.expr(e.Consequence), g.exprPrec(e.Alternative, 0))
+		alternative := "undefined"
+		if e.Alternative != nil {
+			alternative = g.exprPrec(e.Alternative, 0)
+		}
+		s := fmt.Sprintf("%s ? %s : %s", condition, g.expr(e.Consequence), alternative)
 		if parentPrec > 0 {
 			return "(" + s + ")"
 		}
