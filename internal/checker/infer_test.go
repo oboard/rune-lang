@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/parser"
@@ -53,4 +54,59 @@ half(value) => value / 2
 			t.Fatalf("%s return type = %s, want %s", tc.name, got, tc.returnType)
 		}
 	}
+}
+
+func TestArrayEachLambdaUsesExpectedElementTypeBeforeFieldInference(t *testing.T) {
+	src := `LocalOption: {
+  name: String
+  valueName: String
+  defaultValue: String?
+}
+
+main() => {
+  options := [
+    LocalOption {
+      name: "output"
+      valueName: "file"
+      defaultValue: null
+    }
+  ]
+  values := @map.new("", "")
+  options.each((option) => {
+    useDefault := !option.valueName.isEmpty() && (option.defaultValue != null)
+    (
+      useDefault ? values.set(option.name, option.defaultValue ?? "")
+        : values
+    )
+  })
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	_, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+}
+
+func TestLambdaArgumentToNonFunctionStdlibParamIsRejected(t *testing.T) {
+	src := `main() => {
+  values := [1]
+  values.push((value) => value)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	_, diags := Check(file)
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, "argument 1 to @array.push has type") &&
+			strings.Contains(diag.Message, "expected Int") {
+			return
+		}
+	}
+	t.Fatalf("diagnostics = %#v, want lambda argument mismatch", diags)
 }

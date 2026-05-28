@@ -85,6 +85,28 @@ func TestInterpreterRunsTemplateLiteral(t *testing.T) {
 	}
 }
 
+func TestInterpreterReadsInputIntrinsics(t *testing.T) {
+	src := `main() => {
+  @io.println(@io.scan())
+  @io.println(@io.scanLine())
+  @io.println(@io.readAll())
+}
+`
+	prog, diags := compiler.AnalyzeSource("io_input.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := New(prog.IR, WithInput(strings.NewReader("alpha beta gamma\nrest")), WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "alpha\n beta gamma\nrest" {
+		t.Fatalf("output = %q, want scanned stdin output", got)
+	}
+}
+
 func TestInterpreterRunsObjectDestructure(t *testing.T) {
 	src := `Point: {
   x: Int

@@ -34,6 +34,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesTemplateRuntime(usage) {
 		g.imports["fmt"] = true
 	}
+	if fileUsesIORuntime(usage) {
+		g.imports["bufio"] = true
+		g.imports["fmt"] = true
+		g.imports["io"] = true
+		g.imports["os"] = true
+	}
 	if fileUsesBytesRuntime(usage) {
 		g.imports["encoding/binary"] = true
 		g.imports["math"] = true
@@ -47,6 +53,10 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesProcessRuntime(usage) {
 		g.imports["os"] = true
 		g.imports["runtime"] = true
+	}
+	if fileUsesCLIRuntime(usage) {
+		g.imports["os"] = true
+		g.imports["strings"] = true
 	}
 	if fileUsesStringBufferRuntime(usage) {
 		g.imports["strings"] = true
@@ -159,8 +169,20 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
+	if fileUsesIORuntime(usage) {
+		g.ioRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
 	if fileUsesProcessRuntime(usage) {
 		g.processRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesCLIRuntime(usage) {
+		g.cliRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -255,8 +277,20 @@ func fileUsesPathRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("path.")
 }
 
+func fileUsesIORuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("io.scan") || usage.HasIntrinsicPrefix("io.readAll")
+}
+
 func fileUsesProcessRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("process.")
+}
+
+func fileUsesCLIRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("cli.") ||
+		fileUsesType(usage, checker.Type("CliCommand")) ||
+		fileUsesType(usage, checker.Type("CliOption")) ||
+		fileUsesType(usage, checker.Type("CliArgument")) ||
+		fileUsesType(usage, checker.Type("CliParseResult"))
 }
 
 func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {
@@ -446,6 +480,56 @@ func (g *generator) processRuntime() {
 	g.line("}")
 	g.line("func runeProcessExit(code int) struct{} { os.Exit(code); return struct{}{} }")
 	g.line("func runeProcessPlatform() string { return runtime.GOOS }")
+}
+
+func (g *generator) ioRuntime() {
+	g.line("var runeInputReader = bufio.NewReader(os.Stdin)")
+	g.line("")
+	g.line("func runeIoScan() any {")
+	g.indent++
+	g.line("var token string")
+	g.line("if _, err := fmt.Fscan(runeInputReader, &token); err != nil {")
+	g.indent++
+	g.line("return any(nil)")
+	g.indent--
+	g.line("}")
+	g.line("return token")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeIoScanLine() any {")
+	g.indent++
+	g.line("line, err := runeInputReader.ReadString('\\n')")
+	g.line("if err != nil && len(line) == 0 {")
+	g.indent++
+	g.line("return any(nil)")
+	g.indent--
+	g.line("}")
+	g.line("if len(line) > 0 && line[len(line)-1] == '\\n' {")
+	g.indent++
+	g.line("line = line[:len(line)-1]")
+	g.indent--
+	g.line("}")
+	g.line("if len(line) > 0 && line[len(line)-1] == '\\r' {")
+	g.indent++
+	g.line("line = line[:len(line)-1]")
+	g.indent--
+	g.line("}")
+	g.line("return line")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeIoReadAll() string {")
+	g.indent++
+	g.line("data, err := io.ReadAll(runeInputReader)")
+	g.line("if err != nil {")
+	g.indent++
+	g.line("return \"\"")
+	g.indent--
+	g.line("}")
+	g.line("return string(data)")
+	g.indent--
+	g.line("}")
 }
 
 func (g *generator) stringBufferRuntime() {

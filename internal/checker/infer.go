@@ -534,6 +534,10 @@ func validateRegexFlags(flags string) string {
 func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	argTypes := make([]Type, 0, len(call.Args))
 	for _, arg := range call.Args {
+		if _, ok := arg.(*ast.LambdaExpr); ok {
+			argTypes = append(argTypes, Unknown)
+			continue
+		}
 		argTypes = append(argTypes, c.inferExpr(arg, env))
 	}
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
@@ -559,7 +563,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 				fieldType := structFieldType(structInfo, receiver, field)
 				if _, _, ok := parseCallableType(string(fieldType)); ok {
 					c.info.ExprTypes[sel] = fieldType
-					ret, _ := c.inferFunctionValueCall(sel.Name, fieldType, call.Args, argTypes, sel.Pos)
+					ret, _ := c.inferFunctionValueCall(sel.Name, fieldType, call.Args, argTypes, env, sel.Pos)
 					return ret
 				}
 			}
@@ -582,7 +586,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			if !c.checkPrivateAccess("field", structInfo.Name+"."+sel.Name, field.Private, field.SourcePath, sel.Pos) {
 				return Unknown
 			}
-			ret, _ := c.inferFunctionValueCall(sel.Name, structFieldType(structInfo, receiver, field), call.Args, argTypes, sel.Pos)
+			ret, _ := c.inferFunctionValueCall(sel.Name, structFieldType(structInfo, receiver, field), call.Args, argTypes, env, sel.Pos)
 			return ret
 		}
 		if method == nil {
@@ -592,15 +596,17 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if !c.checkPrivateAccess("method", structInfo.Name+"."+sel.Name, method.Private, method.SourcePath, sel.Pos) {
 			return Unknown
 		}
+		c.refineCallArgsFromParams(method.Params, call.Args, argTypes, env)
 		c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
 		return c.finishRoutineCall(call, method.Routine, method.Return)
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
 		if ident.Name == "Ok" || ident.Name == "Err" {
+			c.inferDeferredCallArgs(call.Args, argTypes, env)
 			return c.inferResultConstructor(ident.Name, call, argTypes)
 		}
 		if localType, ok := env[ident.Name]; ok {
-			ret, refined := c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, ident.Pos)
+			ret, refined := c.inferFunctionValueCall(ident.Name, localType, call.Args, argTypes, env, ident.Pos)
 			if refined != Unknown && refined != localType {
 				env[ident.Name] = refined
 				if binding := c.bindings[ident.Name]; binding != nil {
@@ -629,13 +635,18 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			}
 		}
 		c.refineCallArgsFromParams(fn.Params, call.Args, argTypes, env)
+		for i, argType := range argTypes {
+			if i < len(fn.Params) && fn.Params[i].Type == Unknown && argType != Unknown {
+				fn.Params[i].Type = argType
+			}
+		}
 		c.info.ResolvedFunctions[ident] = fn
 		c.info.ExprTypes[ident] = functionType(fn)
 		c.checkArgs(ident.Name, fn.Params, call.Args, argTypes, ident.Pos)
 		return c.finishRoutineCall(call, fn.Routine, fn.Return)
 	}
 	calleeType := c.inferExpr(call.Callee, env)
-	ret, refined := c.inferFunctionValueCall("<expr>", calleeType, call.Args, argTypes, call.Callee.Position())
+	ret, refined := c.inferFunctionValueCall("<expr>", calleeType, call.Args, argTypes, env, call.Callee.Position())
 	if refined != Unknown && refined != calleeType {
 		c.info.ExprTypes[call.Callee] = refined
 		c.applyExpectedType(call.Callee, refined)
@@ -685,6 +696,10 @@ func (c *checker) refineCallArgsFromParams(params []ParamInfo, args []ast.Expr, 
 	limit := min(len(params), len(argTypes))
 	for i := 0; i < limit; i++ {
 		expected := params[i].Type
+		if _, ok := args[i].(*ast.LambdaExpr); ok {
+			argTypes[i] = c.inferLambdaArg(args[i], expected, env)
+			continue
+		}
 		if expected == "" || expected == Unknown {
 			continue
 		}
@@ -695,6 +710,23 @@ func (c *checker) refineCallArgsFromParams(params []ParamInfo, args []ast.Expr, 
 			c.applyExpectedType(args[i], refined)
 		}
 	}
+}
+
+func (c *checker) inferDeferredCallArgs(args []ast.Expr, argTypes []Type, env map[string]Type) {
+	limit := min(len(args), len(argTypes))
+	for i := 0; i < limit; i++ {
+		if _, ok := args[i].(*ast.LambdaExpr); !ok || argTypes[i] != Unknown {
+			continue
+		}
+		argTypes[i] = c.inferLambdaArg(args[i], Unknown, env)
+	}
+}
+
+func (c *checker) inferLambdaArg(arg ast.Expr, expected Type, env map[string]Type) Type {
+	if expected != "" && expected != Unknown {
+		c.applyExpectedType(arg, expected)
+	}
+	return c.inferExpr(arg, env)
 }
 
 func (c *checker) refineNumericBinaryOperands(expr *ast.BinaryExpr, left Type, right Type, env map[string]Type) (Type, Type) {
@@ -1015,7 +1047,7 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 	return out
 }
 
-func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, pos lexer.Position) (Type, Type) {
+func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr, argTypes []Type, env map[string]Type, pos lexer.Position) (Type, Type) {
 	params, ret, ok := parseCallableType(string(typ))
 	if !ok {
 		if typ != Unknown {
@@ -1033,6 +1065,9 @@ func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr,
 	}
 	for i := 0; i < limit; i++ {
 		expected := Type(params[i])
+		if _, ok := args[i].(*ast.LambdaExpr); ok {
+			argTypes[i] = c.inferLambdaArg(args[i], expected, env)
+		}
 		if refined, ok := c.refineArgumentType(expected, argTypes[i]); ok {
 			refinedParams[i] = refined
 			if shouldApplyExpectedType(argTypes[i], expected) {

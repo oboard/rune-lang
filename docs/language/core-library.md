@@ -23,10 +23,17 @@ present there.
 @io.print(value)
 @io.println(value)
 @io.printf(format, value)
+@io.scan()
+@io.scanLine()
+@io.readAll()
 ```
 
 The Go backend lowers these helpers to `fmt` calls. The TypeScript backend
 lowers printing to console output.
+
+`scan` reads the next whitespace-delimited stdin token, `scanLine` reads the
+next stdin line, and `readAll` reads the remaining stdin text. `scan` and
+`scanLine` return `null` at EOF.
 
 `@io.Data` is the byte-data type returned by async file APIs. It maps to
 `[]byte` on the Go backend and `Uint8Array` on the TypeScript backend.
@@ -97,6 +104,28 @@ The module declares `gzip`, `gunzip`, `deflate`, `inflate`, `brotli`,
 ```
 
 `@process.exit(code)` returns `Never`.
+
+## cli
+
+The `cli` module provides small command, option, argument, parse-result, and
+help-text helpers for building command-line programs:
+
+```rune
+cmd ~= @cli.command("ship", "Ship a build artifact")
+cmd = @cli.withVersion(cmd, "1.0.0")
+cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
+cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", false, "dist/app"))
+cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
+
+result := @cli.parse(cmd)
+@io.println(result.values.getOr("output", ""))
+@io.println(result.flags.getOr("verbose", false))
+@io.println(result.positionals.getOr("target", ""))
+```
+
+Use `@cli.parseArgs(cmd, args)` to parse an explicit argument array in tests.
+`@cli.help(cmd)` returns the generated usage text. Parse errors are reported in
+`result.error`; `-h` and `--help` set `result.help`.
 
 ## iter
 

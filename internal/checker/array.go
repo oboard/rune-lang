@@ -268,9 +268,17 @@ func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string
 	if expected == "Dynamic" {
 		return
 	}
-	if params, ret, ok := parseFuncType(expected); ok {
-		lambda, ok := arg.(*ast.LambdaExpr)
+	if lambda, ok := arg.(*ast.LambdaExpr); ok {
+		expectedFunc := expected
+		resolvedExpected := c.resolveDeclaredType(expected, bindings)
+		if _, _, ok := parseFuncType(expectedFunc); !ok {
+			if _, _, ok := parseFuncType(string(resolvedExpected)); ok {
+				expectedFunc = string(resolvedExpected)
+			}
+		}
+		params, ret, ok := parseFuncType(expectedFunc)
 		if !ok {
+			actual = c.inferExpr(lambda, env)
 			c.bindDeclaredType(expected, actual, bindings, arg.Position(), moduleName, functionName, index)
 			return
 		}
@@ -286,7 +294,8 @@ func (c *checker) checkDeclaredGenericArg(moduleName string, functionName string
 			local[lambda.Params[i]] = paramType
 		}
 		retType := c.inferExpr(lambda.Body, local)
-		c.info.ExprTypes[lambda] = funcTypeOf(paramTypes, retType)
+		lambdaType := funcTypeOf(paramTypes, retType)
+		c.info.ExprTypes[lambda] = lambdaType
 		c.bindDeclaredType(ret, retType, bindings, arg.Position(), moduleName, functionName, index)
 		return
 	}

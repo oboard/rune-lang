@@ -1,0 +1,44 @@
+? "cli parses flags options and arguments" {
+  cmd ~= @cli.command("ship", "Ship build artifacts")
+  cmd = @cli.withVersion(cmd, "1.0.0")
+  cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
+  cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", true, null))
+  cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
+  result := @cli.parseArgs(cmd, ["-v", "--output=dist/app", "core"])
+  @assert.eq(result.error, null)
+  @assert.eq(result.help, false)
+  @assert.eq(result.flags.getOr("verbose", false), true)
+  @assert.eq(result.values.getOr("output", ""), "dist/app")
+  @assert.eq(result.positionals.getOr("target", ""), "core")
+  @assert.eq(result.args.length(), 3)
+  @assert.eq(result.rest.length(), 0)
+}
+
+? "cli supports defaults rest args and short values" {
+  cmd ~= @cli.command("fmtx", "Format files")
+  cmd = @cli.withOption(cmd, @cli.option("mode", "m", "MODE", "format mode", false, "check"))
+  cmd = @cli.withArgument(cmd, @cli.argument("path", "input path", false))
+  result := @cli.parseArgs(cmd, ["-mwrite", "--", "one", "two"])
+  @assert.eq(result.error, null)
+  @assert.eq(result.values.getOr("mode", ""), "write")
+  @assert.eq(result.rest.length(), 2)
+  @assert.eq(result.rest[0], "one")
+  @assert.eq(result.rest[1], "two")
+  defaults := @cli.parseArgs(cmd, [])
+  @assert.eq(defaults.error, null)
+  @assert.eq(defaults.values.getOr("mode", ""), "check")
+}
+
+? "cli validates required values and help" {
+  cmd ~= @cli.command("ship", "Ship build artifacts")
+  cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", true, null))
+  cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
+  missing := @cli.parseArgs(cmd, ["core"])
+  @assert.eq(missing.error, "missing required option --output")
+  helpResult := @cli.parseArgs(cmd, ["--help"])
+  @assert.eq(helpResult.help, true)
+  @assert.eq(helpResult.error, null)
+  helpText := @cli.help(cmd)
+  @assert.eq(helpText.includes("Usage: ship [options] <target>"), true)
+  @assert.eq(helpText.includes("--output <FILE>"), true)
+}

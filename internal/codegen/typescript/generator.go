@@ -43,8 +43,16 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.pathRuntime()
 		g.line("")
 	}
+	if fileUsesIORuntime(usage) {
+		g.ioRuntime()
+		g.line("")
+	}
 	if fileUsesProcessRuntime(usage) {
 		g.processRuntime()
+		g.line("")
+	}
+	if fileUsesCLIRuntime(usage) {
+		g.cliRuntime()
 		g.line("")
 	}
 	if fileUsesStringBufferRuntime(usage) {
@@ -267,6 +275,52 @@ func (g *generator) processRuntime() {
 	g.line("function runeProcessEnv(name: string): string | null { const value = runeProcessObject().env?.[name]; return value === undefined ? null : String(value); }")
 	g.line("function runeProcessExit(code: number): never { const proc = runeProcessObject(); if (typeof proc.exit === \"function\") proc.exit(code); throw new Error(`process.exit(${code})`); }")
 	g.line("function runeProcessPlatform(): string { return runeProcessObject().platform ?? \"unknown\"; }")
+}
+
+func (g *generator) ioRuntime() {
+	g.line("let runeIoInputCache: string | null = null;")
+	g.line("let runeIoInputOffset = 0;")
+	g.line("function runeIoReadStdin(): string {")
+	g.indent++
+	g.line("const requireFn = (globalThis as any).require;")
+	g.line("if (typeof requireFn === \"function\") {")
+	g.indent++
+	g.line("try { return String(requireFn(\"node:fs\").readFileSync(0, \"utf8\")); } catch {}")
+	g.indent--
+	g.line("}")
+	g.line("const deno = (globalThis as any).Deno;")
+	g.line("if (deno?.readTextFileSync) {")
+	g.indent++
+	g.line("try { return deno.readTextFileSync(\"/dev/stdin\"); } catch {}")
+	g.indent--
+	g.line("}")
+	g.line("return \"\";")
+	g.indent--
+	g.line("}")
+	g.line("function runeIoInput(): string { if (runeIoInputCache === null) runeIoInputCache = runeIoReadStdin(); return runeIoInputCache; }")
+	g.line("function runeIoReadAll(): string { const input = runeIoInput(); const out = input.slice(runeIoInputOffset); runeIoInputOffset = input.length; return out; }")
+	g.line("function runeIoScan(): string | null {")
+	g.indent++
+	g.line("const input = runeIoInput();")
+	g.line("while (runeIoInputOffset < input.length && /\\s/.test(input[runeIoInputOffset]!)) runeIoInputOffset += 1;")
+	g.line("if (runeIoInputOffset >= input.length) return null;")
+	g.line("const start = runeIoInputOffset;")
+	g.line("while (runeIoInputOffset < input.length && !/\\s/.test(input[runeIoInputOffset]!)) runeIoInputOffset += 1;")
+	g.line("return input.slice(start, runeIoInputOffset);")
+	g.indent--
+	g.line("}")
+	g.line("function runeIoScanLine(): string | null {")
+	g.indent++
+	g.line("const input = runeIoInput();")
+	g.line("if (runeIoInputOffset >= input.length) return null;")
+	g.line("let end = input.indexOf(\"\\n\", runeIoInputOffset);")
+	g.line("if (end < 0) end = input.length;")
+	g.line("let line = input.slice(runeIoInputOffset, end);")
+	g.line("runeIoInputOffset = end < input.length ? end + 1 : end;")
+	g.line("if (line.endsWith(\"\\r\")) line = line.slice(0, -1);")
+	g.line("return line;")
+	g.indent--
+	g.line("}")
 }
 
 func (g *generator) stringBufferRuntime() {
@@ -614,8 +668,20 @@ func fileUsesPathRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("path.")
 }
 
+func fileUsesIORuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("io.scan") || usage.HasIntrinsicPrefix("io.readAll")
+}
+
 func fileUsesProcessRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("process.")
+}
+
+func fileUsesCLIRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("cli.") ||
+		fileUsesType(usage, checker.Type("CliCommand")) ||
+		fileUsesType(usage, checker.Type("CliOption")) ||
+		fileUsesType(usage, checker.Type("CliArgument")) ||
+		fileUsesType(usage, checker.Type("CliParseResult"))
 }
 
 func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {

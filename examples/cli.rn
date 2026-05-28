@@ -1,0 +1,34 @@
+showHelp(cmd: CliCommand) -> Never => {
+  @io.print(@cli.help(cmd))
+  @process.exit(0)
+}
+
+showError(
+  cmd: CliCommand,
+  message: String
+) -> Never => {
+  @io.println(message)
+  @io.print(@cli.help(cmd))
+  @process.exit(2)
+}
+
+main() => {
+  cmd ~= @cli.command("ship", "Ship a build artifact")
+  cmd = @cli.withVersion(cmd, "1.0.0")
+  cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
+  cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output file", false, "dist/app"))
+  cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
+  result := @cli.parse(cmd)
+  (
+    result.help ? showHelp(cmd)
+      : null
+  )
+  errorMessage := result.error ?? ""
+  (
+    errorMessage.isEmpty() ? null
+      : showError(cmd, errorMessage)
+  )
+  @io.println("target: " + result.positionals.getOr("target", ""))
+  @io.println("output: " + result.values.getOr("output", ""))
+  @io.println("verbose: " + result.flags.getOr("verbose", false).toString())
+}

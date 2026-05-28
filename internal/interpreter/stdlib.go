@@ -3,6 +3,7 @@ package interpreter
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 	"math/big"
 	"os"
@@ -40,6 +41,45 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		return i.callGoBackedFunction(fn.Go.Symbol, values)
 	}
 	switch fn.Intrinsic {
+	case "io.scan":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@io.scan expects 0 args, got %d", len(values))
+		}
+		var token string
+		if _, err := fmt.Fscan(i.in, &token); err != nil {
+			if err == io.EOF {
+				return NullValue, nil
+			}
+			return nil, err
+		}
+		return token, nil
+	case "io.scanLine":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@io.scanLine expects 0 args, got %d", len(values))
+		}
+		line, err := i.in.ReadString('\n')
+		if err != nil && len(line) == 0 {
+			if err == io.EOF {
+				return NullValue, nil
+			}
+			return nil, err
+		}
+		if len(line) > 0 && line[len(line)-1] == '\n' {
+			line = line[:len(line)-1]
+		}
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		return line, nil
+	case "io.readAll":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("@io.readAll expects 0 args, got %d", len(values))
+		}
+		data, err := io.ReadAll(i.in)
+		if err != nil {
+			return nil, err
+		}
+		return string(data), nil
 	case "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",

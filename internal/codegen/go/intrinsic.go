@@ -33,14 +33,21 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return g.iterModuleCall(fn, g.intrinsicArgs(call.Args), call.ResultType()), true
 		}
 	}
+	args := g.intrinsicArgs(call.Args)
 	if fn.Intrinsic == "" && fn.Go == nil {
+		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+			if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "cli" && fn.Body != nil {
+				return g.cliModuleCall(fn, args, call.ResultType()), true
+			}
+		}
 		return "", false
 	}
 	if fn.Go != nil && fn.Go.Symbol != "" {
 		return fmt.Sprintf("%s(%s)", fn.Go.Symbol, strings.Join(g.intrinsicArgs(call.Args), ", ")), true
 	}
-	args := g.intrinsicArgs(call.Args)
 	switch fn.Intrinsic {
+	case "io.scan", "io.scanLine", "io.readAll":
+		return g.ioModuleCall(fn, args, call.ResultType()), true
 	case "int.toString", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
@@ -181,6 +188,19 @@ func (g *generator) processModuleCall(fn *stdlib.Function, args []string, result
 		return fmt.Sprintf("runeProcessExit(%s)", args[0])
 	case "process.platform":
 		return "runeProcessPlatform()"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) ioModuleCall(fn *stdlib.Function, _ []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "io.scan":
+		return "runeIoScan()"
+	case "io.scanLine":
+		return "runeIoScanLine()"
+	case "io.readAll":
+		return "runeIoReadAll()"
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

@@ -1,6 +1,7 @@
 package interpreter
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,7 @@ type Interpreter struct {
 	types     map[string]*ir.StructType
 	enums     map[string]*ir.EnumType
 	globals   *Env
+	in        *bufio.Reader
 	out       io.Writer
 }
 
@@ -23,6 +25,7 @@ func New(file *ir.File, opts ...Option) *Interpreter {
 		types:     map[string]*ir.StructType{},
 		enums:     map[string]*ir.EnumType{},
 		globals:   NewEnv(nil),
+		in:        bufio.NewReader(os.Stdin),
 		out:       os.Stdout,
 	}
 	for _, opt := range opts {
@@ -37,6 +40,12 @@ type Option func(*Interpreter)
 func WithOutput(out io.Writer) Option {
 	return func(i *Interpreter) {
 		i.out = out
+	}
+}
+
+func WithInput(in io.Reader) Option {
+	return func(i *Interpreter) {
+		i.in = bufio.NewReader(in)
 	}
 }
 

@@ -22,10 +22,16 @@ Rune 的内置能力由声明驱动。类型检查器和后端会从
 @io.print(value)
 @io.println(value)
 @io.printf(format, value)
+@io.scan()
+@io.scanLine()
+@io.readAll()
 ```
 
 Go 后端会把这些 helper 降低为 `fmt` 调用。TypeScript 后端会降低为 console
 输出。
+
+`scan` 读取下一个以空白分隔的 stdin token，`scanLine` 读取下一行，
+`readAll` 读取剩余 stdin 文本。`scan` 和 `scanLine` 在 EOF 时返回 `null`。
 
 `@io.Data` 是异步文件 API 返回的字节数据类型。Go 后端映射为 `[]byte`，
 TypeScript 后端映射为 `Uint8Array`。
@@ -95,6 +101,28 @@ TypeScript 后端映射为 `Uint8Array`。
 ```
 
 `@process.exit(code)` 返回 `Never`。
+
+## cli
+
+`cli` 模块提供命令、选项、参数、解析结果和帮助文本 helper，用于构建命令行
+程序：
+
+```rune
+cmd ~= @cli.command("ship", "Ship a build artifact")
+cmd = @cli.withVersion(cmd, "1.0.0")
+cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
+cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", false, "dist/app"))
+cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
+
+result := @cli.parse(cmd)
+@io.println(result.values.getOr("output", ""))
+@io.println(result.flags.getOr("verbose", false))
+@io.println(result.positionals.getOr("target", ""))
+```
+
+测试中可以用 `@cli.parseArgs(cmd, args)` 解析显式参数数组。`@cli.help(cmd)`
+返回生成的 usage 文本。解析错误放在 `result.error`；`-h` 和 `--help` 会设置
+`result.help`。
 
 ## iter
 

@@ -9,6 +9,7 @@ Current modules:
 * `array` - declared placeholder for array APIs
 * `bytes` - fixed byte views and numeric reads/writes
 * `buffer` - mutable byte buffers
+* `cli` - command-line option and argument parsing helpers
 * `compress` - async gzip/zlib/brotli/zstd helpers
 * `fs` - async filesystem helpers returning `Result`
 * `map` - map construction and receiver APIs
@@ -20,7 +21,7 @@ Current modules:
 * `stringbuffer` - mutable string builder
 * `iter` - tuple-returning iterator helpers
 * `writer` - sequential binary writers
-* `io` - I/O declarations backed by Go `fmt`
+* `io` - print helpers and stdin scanning declarations
 * `json` - JSON serialization helpers
 * `go` - inline Go FFI declarations
 

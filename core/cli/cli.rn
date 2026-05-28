@@ -1,0 +1,489 @@
+CliCommand: {
+  name: String
+  version: String?
+  about: String
+  options: Array[CliOption]
+  arguments: Array[CliArgument]
+}
+
+CliOption: {
+  name: String
+  short: String
+  valueName: String
+  help: String
+  required: Bool
+  defaultValue: String?
+}
+
+CliArgument: {
+  name: String
+  help: String
+  required: Bool
+}
+
+CliParseResult: {
+  command: CliCommand
+  values: Map[String, String]
+  flags: Map[String, Bool]
+  positionals: Map[String, String]
+  args: Array[String]
+  rest: Array[String]
+  help: Bool
+  error: String?
+}
+
+command(
+  name: String,
+  about: String
+) -> CliCommand => CliCommand {
+  name: name
+  version: null
+  about: about
+  options: []
+  arguments: []
+}
+
+withVersion(
+  command: CliCommand,
+  version: String
+) -> CliCommand => CliCommand {
+  name: command.name
+  version: version
+  about: command.about
+  options: command.options
+  arguments: command.arguments
+}
+
+withOption(
+  command: CliCommand,
+  option: CliOption
+) -> CliCommand => CliCommand {
+  name: command.name
+  version: command.version
+  about: command.about
+  options: [...command.options, option]
+  arguments: command.arguments
+}
+
+withArgument(
+  command: CliCommand,
+  argument: CliArgument
+) -> CliCommand => CliCommand {
+  name: command.name
+  version: command.version
+  about: command.about
+  options: command.options
+  arguments: [...command.arguments, argument]
+}
+
+flag(
+  name: String,
+  short: String,
+  help: String
+) -> CliOption => CliOption {
+  name: name
+  short: short
+  valueName: ""
+  help: help
+  required: false
+  defaultValue: null
+}
+
+option(
+  name: String,
+  short: String,
+  valueName: String,
+  help: String,
+  required: Bool,
+  defaultValue: String?
+) -> CliOption => CliOption {
+  name: name
+  short: short
+  valueName: valueName
+  help: help
+  required: required
+  defaultValue: defaultValue
+}
+
+argument(
+  name: String,
+  help: String,
+  required: Bool
+) -> CliArgument => CliArgument {
+  name: name
+  help: help
+  required: required
+}
+
+parse(
+  command: CliCommand
+) -> CliParseResult => {
+  argv := @process.argv()
+  rawArgs := argv.slice(1, argv.length())
+  args ~= rawArgs
+  skipScript := (args.length() > 0) && (args[0].endsWith(".ts") || args[0].endsWith(".js"))
+  (
+    skipScript ? args = args.slice(1, args.length())
+      : args = args
+  )
+  parseArgs(command, args)
+}
+
+parseArgs(
+  command: CliCommand,
+  args: Array[String]
+) -> CliParseResult => {
+  values := @map.new("", "")
+  flags := @map.new("", false)
+  positionals := @map.new("", "")
+  rest := args.slice(0, 0)
+  positionalValues := args.slice(0, 0)
+  helpValue ~= false
+  parseError ~= ""
+  afterDoubleDash ~= false
+  skipNext ~= false
+  command.options.each((option) => {
+    useDefault := !option.valueName.isEmpty() && (option.defaultValue != null)
+    (
+      useDefault ? values.set(option.name, option.defaultValue ?? "")
+        : values
+    )
+  })
+  args.each((arg, index) => {
+    handled ~= false
+    (
+      skipNext ? handled = true
+        : handled = handled
+    )
+    (
+      skipNext ? skipNext = false
+        : skipNext = skipNext
+    )
+    appendRest := !handled && afterDoubleDash
+    (
+      appendRest ? rest.push(arg)
+        : 0
+    )
+    (
+      appendRest ? handled = true
+        : handled = handled
+    )
+    isSeparator := (!handled && parseError.isEmpty()) && (arg == "--")
+    (
+      isSeparator ? afterDoubleDash = true
+        : afterDoubleDash = afterDoubleDash
+    )
+    (
+      isSeparator ? handled = true
+        : handled = handled
+    )
+    isHelp := (!handled && parseError.isEmpty()) && ((arg == "--help") || (arg == "-h"))
+    (
+      isHelp ? helpValue = true
+        : helpValue = helpValue
+    )
+    (
+      isHelp ? handled = true
+        : handled = handled
+    )
+    isLong := ((!handled && parseError.isEmpty()) && arg.startsWith("--")) && (arg.length() > 2)
+    longName ~= (
+      isLong ? arg.slice(2, arg.length())
+        : ""
+    )
+    longValue ~= ""
+    longHasValue ~= false
+    eqIndex := longName.indexOf("=")
+    hasEquals := isLong && (eqIndex >= 0)
+    (
+      hasEquals ? longValue = longName.slice(eqIndex + 1, longName.length())
+        : longValue = longValue
+    )
+    (
+      hasEquals ? longName = longName.slice(0, eqIndex)
+        : longName = longName
+    )
+    (
+      hasEquals ? longHasValue = true
+        : longHasValue = longHasValue
+    )
+    noName := (
+      longName.startsWith("no-") ? longName.slice(3, longName.length())
+        : ""
+    )
+    noFound ~= false
+    noTakesValue ~= false
+    command.options.each((option) => {
+      match := ((isLong && !handled) && !noName.isEmpty()) && (option.name == noName)
+      (
+        match ? noFound = true
+          : noFound = noFound
+      )
+      (
+        match ? noTakesValue = !option.valueName.isEmpty()
+          : noTakesValue = noTakesValue
+      )
+    })
+    useNoFlag := (((isLong && !handled) && !noName.isEmpty()) && noFound) && !noTakesValue
+    (
+      useNoFlag ? flags.set(noName, false)
+        : flags
+    )
+    (
+      useNoFlag ? handled = true
+        : handled = handled
+    )
+    longFound ~= false
+    longTakesValue ~= false
+    longOptionName ~= ""
+    command.options.each((option) => {
+      match := (isLong && !handled) && (option.name == longName)
+      (
+        match ? longFound = true
+          : longFound = longFound
+      )
+      (
+        match ? longTakesValue = !option.valueName.isEmpty()
+          : longTakesValue = longTakesValue
+      )
+      (
+        match ? longOptionName = option.name
+          : longOptionName = longOptionName
+      )
+    })
+    unknownLong := (isLong && !handled) && !longFound
+    (
+      unknownLong ? parseError = "unknown option --" + longName
+        : parseError = parseError
+    )
+    (
+      unknownLong ? handled = true
+        : handled = handled
+    )
+    missingLongValue := ((((isLong && !handled) && longFound) && longTakesValue) && !longHasValue) && ((index + 1) >= args.length())
+    (
+      missingLongValue ? parseError = "missing value for --" + longName
+        : parseError = parseError
+    )
+    (
+      missingLongValue ? handled = true
+        : handled = handled
+    )
+    useLongNext := (((isLong && !handled) && longFound) && longTakesValue) && !longHasValue
+    (
+      useLongNext ? longValue = args[index + 1]
+        : longValue = longValue
+    )
+    (
+      useLongNext ? skipNext = true
+        : skipNext = skipNext
+    )
+    (
+      useLongNext ? longHasValue = true
+        : longHasValue = longHasValue
+    )
+    storeLongValue := ((isLong && !handled) && longFound) && longTakesValue
+    (
+      storeLongValue ? values.set(longOptionName, longValue)
+        : values
+    )
+    (
+      storeLongValue ? handled = true
+        : handled = handled
+    )
+    storeLongFlag := ((isLong && !handled) && longFound) && !longTakesValue
+    (
+      storeLongFlag ? flags.set(longOptionName, !longHasValue || (longValue != "false"))
+        : flags
+    )
+    (
+      storeLongFlag ? handled = true
+        : handled = handled
+    )
+    isShort := ((!handled && parseError.isEmpty()) && arg.startsWith("-")) && (arg != "-")
+    clusterDone ~= false
+    arg.slice(1, arg.length()).split("").each((short, shortIndex) => {
+      active := (isShort && !clusterDone) && parseError.isEmpty()
+      shortHelp := active && (short == "h")
+      (
+        shortHelp ? helpValue = true
+          : helpValue = helpValue
+      )
+      shortFound ~= false
+      shortTakesValue ~= false
+      shortOptionName ~= ""
+      command.options.each((option) => {
+        match := (active && !shortHelp) && (option.short == short)
+        (
+          match ? shortFound = true
+            : shortFound = shortFound
+        )
+        (
+          match ? shortTakesValue = !option.valueName.isEmpty()
+            : shortTakesValue = shortTakesValue
+        )
+        (
+          match ? shortOptionName = option.name
+            : shortOptionName = shortOptionName
+        )
+      })
+      unknownShort := (active && !shortHelp) && !shortFound
+      (
+        unknownShort ? parseError = "unknown option -" + short
+          : parseError = parseError
+      )
+      (
+        unknownShort ? clusterDone = true
+          : clusterDone = clusterDone
+      )
+      shortValue ~= arg.slice(shortIndex + 2, arg.length())
+      missingShortValue := ((((active && !shortHelp) && shortFound) && shortTakesValue) && shortValue.isEmpty()) && ((index + 1) >= args.length())
+      (
+        missingShortValue ? parseError = "missing value for -" + short
+          : parseError = parseError
+      )
+      (
+        missingShortValue ? clusterDone = true
+          : clusterDone = clusterDone
+      )
+      useShortNext := ((((active && !shortHelp) && shortFound) && shortTakesValue) && shortValue.isEmpty()) && parseError.isEmpty()
+      (
+        useShortNext ? shortValue = args[index + 1]
+          : shortValue = shortValue
+      )
+      (
+        useShortNext ? skipNext = true
+          : skipNext = skipNext
+      )
+      storeShortValue := (((active && !shortHelp) && shortFound) && shortTakesValue) && parseError.isEmpty()
+      (
+        storeShortValue ? values.set(shortOptionName, shortValue)
+          : values
+      )
+      (
+        storeShortValue ? clusterDone = true
+          : clusterDone = clusterDone
+      )
+      storeShortFlag := (((active && !shortHelp) && shortFound) && !shortTakesValue) && parseError.isEmpty()
+      (
+        storeShortFlag ? flags.set(shortOptionName, true)
+          : flags
+      )
+    })
+    (
+      isShort ? handled = true
+        : handled = handled
+    )
+    positional := !handled && parseError.isEmpty()
+    (
+      positional ? positionalValues.push(arg)
+        : 0
+    )
+  })
+  command.options.each((option) => {
+    missing := (((parseError.isEmpty() && !helpValue) && option.required) && !option.valueName.isEmpty()) && !values.has(option.name)
+    (
+      missing ? parseError = "missing required option --" + option.name
+        : parseError = parseError
+    )
+  })
+  positionIndex ~= 0
+  command.arguments.each((argument) => {
+    hasValue := positionIndex < positionalValues.length()
+    (
+      hasValue ? positionals.set(argument.name, positionalValues[positionIndex])
+        : positionals
+    )
+    positionIndex = positionIndex + 1
+  })
+  command.arguments.each((argument) => {
+    missing := ((parseError.isEmpty() && !helpValue) && argument.required) && !positionals.has(argument.name)
+    (
+      missing ? parseError = "missing required argument " + argument.name
+        : parseError = parseError
+    )
+  })
+  unexpected := (parseError.isEmpty() && !helpValue) && (positionalValues.length() > command.arguments.length())
+  (
+    unexpected ? parseError = "unexpected argument " + positionalValues[command.arguments.length()]
+      : parseError = parseError
+  )
+  CliParseResult {
+    command: command
+    values: values
+    flags: flags
+    positionals: positionals
+    args: args
+    rest: rest
+    help: helpValue
+    error: (
+      parseError.isEmpty() ? null
+        : parseError
+    )
+  }
+}
+
+help(command: CliCommand) -> String => {
+  text ~= "Usage: " + command.name
+  (
+    command.options.isEmpty() ? text = text
+      : text = text + " [options]"
+  )
+  command.arguments.each((argument) => {
+    text = text + " "
+    text = text + (
+      argument.required ? ("<" + argument.name) + ">"
+        : ("[" + argument.name) + "]"
+    )
+  })
+  text = text + "\n"
+  versionText := command.version ?? ""
+  (
+    versionText.isEmpty() ? text = text
+      : text = ((text + "Version: ") + versionText) + "\n"
+  )
+  (
+    command.about.isEmpty() ? text = text
+      : text = ((text + "\n") + command.about) + "\n"
+  )
+  (
+    command.arguments.isEmpty() ? text = text
+      : text = text + "\nArguments:\n"
+  )
+  command.arguments.each((argument) => {
+    text = (text + "  ") + argument.name
+    text = (
+      argument.help.isEmpty() ? text
+        : (text + "\t") + argument.help
+    )
+    text = text + "\n"
+  })
+  text = text + "\nOptions:\n"
+  command.options.each((option) => {
+    text = text + "  "
+    text = (
+      option.short.isEmpty() ? text
+        : ((text + "-") + option.short) + ", "
+    )
+    text = (text + "--") + option.name
+    text = (
+      option.valueName.isEmpty() ? text
+        : ((text + " <") + option.valueName) + ">"
+    )
+    text = (
+      option.help.isEmpty() ? text
+        : (text + "\t") + option.help
+    )
+    text = (
+      option.required ? text + " (required)"
+        : text
+    )
+    defaultValue := option.defaultValue ?? ""
+    text = (
+      defaultValue.isEmpty() ? text
+        : ((text + " (default: ") + defaultValue) + ")"
+    )
+    text = text + "\n"
+  })
+  text + "  -h, --help\tShow help\n"
+}
