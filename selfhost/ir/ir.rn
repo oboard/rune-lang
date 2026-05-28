@@ -1,0 +1,311 @@
+@"../parser/parser.rn"
+
+IRImport: {
+  path: String
+  go: Bool
+  line: Int
+  column: Int
+}
+
+IRParam: {
+  name: String
+  typeName: String
+  line: Int
+  column: Int
+}
+
+IRExpr: {
+  kind: String
+  text: String
+  name: String
+  value: String
+  op: String
+  params: Array[IRParam]
+  children: Array[IRExpr]
+  line: Int
+  column: Int
+}
+
+IRField: {
+  name: String
+  private: Bool
+  typeName: String
+  line: Int
+  column: Int
+}
+
+IREnumMember: {
+  name: String
+  private: Bool
+  value: String
+  line: Int
+  column: Int
+}
+
+IRFunction: {
+  name: String
+  private: Bool
+  routine: Bool
+  receiverType: String
+  generics: Array[String]
+  params: Array[IRParam]
+  returnType: String
+  body: IRExpr
+  line: Int
+  column: Int
+}
+
+IRStructType: {
+  name: String
+  private: Bool
+  generics: Array[String]
+  fields: Array[IRField]
+  methods: Array[IRFunction]
+  line: Int
+  column: Int
+}
+
+IREnumType: {
+  name: String
+  private: Bool
+  members: Array[IREnumMember]
+  line: Int
+  column: Int
+}
+
+IRTest: {
+  name: String
+  body: IRExpr
+  line: Int
+  column: Int
+}
+
+IRFile: {
+  imports: Array[IRImport]
+  structs: Array[IRStructType]
+  enums: Array[IREnumType]
+  functions: Array[IRFunction]
+  tests: Array[IRTest]
+  errors: Array[ParseError]
+}
+
+lower(source: String) -> IRFile => lowerParsed(parse(source))
+
+lowerParsed(
+  file: ParsedFile
+) -> IRFile => {
+  out := IRFile {
+    imports: []
+    structs: []
+    enums: []
+    functions: []
+    tests: []
+    errors: file.errors
+  }
+  file.imports.each((importDecl) => out.imports.push(lowerImport(importDecl)))
+  file.types.each((typeDecl) => lowerTypeInto(out, typeDecl))
+  file.functions.each((fn) => out.functions.push(lowerFunction(fn)))
+  file.tests.each((testDecl) => out.tests.push(lowerTest(testDecl)))
+  out
+}
+
+lowerTypeInto(
+  file: IRFile,
+  typeDecl: ParsedType
+) -> IRFile => typeDecl.enum ? pushEnumType(file, typeDecl) : pushStructType(file, typeDecl)
+
+pushStructType(
+  file: IRFile,
+  typeDecl: ParsedType
+) -> IRFile => {
+  file.structs.push(lowerStructType(typeDecl))
+  file
+}
+
+pushEnumType(
+  file: IRFile,
+  typeDecl: ParsedType
+) -> IRFile => {
+  file.enums.push(lowerEnumType(typeDecl))
+  file
+}
+
+emptyIRExpr() -> IRExpr => IRExpr {
+  kind: ""
+  text: ""
+  name: ""
+  value: ""
+  op: ""
+  params: []
+  children: []
+  line: 0
+  column: 0
+}
+
+emptyIRFunction() -> IRFunction => IRFunction {
+  name: ""
+  private: false
+  routine: false
+  receiverType: ""
+  generics: []
+  params: []
+  returnType: ""
+  body: emptyIRExpr()
+  line: 0
+  column: 0
+}
+
+lowerImport(
+  importDecl: ParsedImport
+) -> IRImport => IRImport {
+  path: importDecl.path
+  go: importDecl.go
+  line: importDecl.line
+  column: importDecl.column
+}
+
+lowerParam(
+  param: ParsedParam
+) -> IRParam => IRParam {
+  name: param.name
+  typeName: param.typeName
+  line: param.line
+  column: param.column
+}
+
+lowerField(
+  field: ParsedField
+) -> IRField => IRField {
+  name: field.name
+  private: field.private
+  typeName: field.typeName
+  line: field.line
+  column: field.column
+}
+
+lowerEnumMember(
+  member: ParsedEnumMember
+) -> IREnumMember => IREnumMember {
+  name: member.name
+  private: member.private
+  value: member.value
+  line: member.line
+  column: member.column
+}
+
+lowerFunction(
+  fn: ParsedFunction
+) -> IRFunction => IRFunction {
+  name: fn.name
+  private: fn.private
+  routine: fn.routine
+  receiverType: fn.receiverType
+  generics: fn.generics
+  params: lowerParams(fn.params)
+  returnType: fn.returnType
+  body: lowerExpr(fn.body)
+  line: fn.line
+  column: fn.column
+}
+
+lowerStructType(
+  typeDecl: ParsedType
+) -> IRStructType => IRStructType {
+  name: typeDecl.name
+  private: typeDecl.private
+  generics: typeDecl.generics
+  fields: lowerFields(typeDecl.fields)
+  methods: lowerFunctions(typeDecl.methods)
+  line: typeDecl.line
+  column: typeDecl.column
+}
+
+lowerEnumType(
+  typeDecl: ParsedType
+) -> IREnumType => IREnumType {
+  name: typeDecl.name
+  private: typeDecl.private
+  members: lowerEnumMembers(typeDecl.members)
+  line: typeDecl.line
+  column: typeDecl.column
+}
+
+lowerTest(
+  testDecl: ParsedTest
+) -> IRTest => IRTest {
+  name: testDecl.name
+  body: lowerExpr(testDecl.body)
+  line: testDecl.line
+  column: testDecl.column
+}
+
+lowerExpr(
+  expr: ParsedExpr
+) -> IRExpr => IRExpr {
+  kind: expr.kind
+  text: expr.text
+  name: expr.name
+  value: expr.value
+  op: expr.op
+  params: lowerParams(expr.params)
+  children: lowerExprs(expr.children)
+  line: expr.line
+  column: expr.column
+}
+
+lowerParams(
+  params: Array[ParsedParam]
+) -> Array[IRParam] => {
+  out := [IRParam {
+    name: ""
+    typeName: ""
+    line: 0
+    column: 0
+  }].slice(0, 0)
+  params.each((param) => out.push(lowerParam(param)))
+  out
+}
+
+lowerFields(
+  fields: Array[ParsedField]
+) -> Array[IRField] => {
+  out := [IRField {
+    name: ""
+    private: false
+    typeName: ""
+    line: 0
+    column: 0
+  }].slice(0, 0)
+  fields.each((field) => out.push(lowerField(field)))
+  out
+}
+
+lowerEnumMembers(
+  members: Array[ParsedEnumMember]
+) -> Array[IREnumMember] => {
+  out := [IREnumMember {
+    name: ""
+    private: false
+    value: ""
+    line: 0
+    column: 0
+  }].slice(0, 0)
+  members.each((member) => out.push(lowerEnumMember(member)))
+  out
+}
+
+lowerFunctions(
+  functions: Array[ParsedFunction]
+) -> Array[IRFunction] => {
+  out := [emptyIRFunction()].slice(0, 0)
+  functions.each((fn) => out.push(lowerFunction(fn)))
+  out
+}
+
+lowerExprs(
+  exprs: Array[ParsedExpr]
+) -> Array[IRExpr] => {
+  out := [emptyIRExpr()].slice(0, 0)
+  exprs.each((expr) => out.push(lowerExpr(expr)))
+  out
+}

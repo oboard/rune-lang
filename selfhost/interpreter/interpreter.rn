@@ -1,0 +1,1175 @@
+@"../ir/ir.rn"
+
+RuntimeField: {
+  name: String
+  value: RuntimeValue
+}
+
+RuntimeEntry: {
+  key: RuntimeValue
+  value: RuntimeValue
+}
+
+RuntimeValue: {
+  kind: String
+  text: String
+  intValue: Int
+  doubleValue: Double
+  boolValue: Bool
+  charValue: Char
+  array: Array[RuntimeValue]
+  entries: Array[RuntimeEntry]
+  fields: Array[RuntimeField]
+  typeName: String
+  closureIndex: Int
+}
+
+RuntimeBinding: {
+  name: String
+  value: RuntimeValue
+}
+
+RuntimeEnv: {
+  bindings: Array[RuntimeBinding]
+}
+
+RuntimeClosure: {
+  params: Array[IRParam]
+  body: IRExpr
+  env: RuntimeEnv
+}
+
+EvalResult: {
+  ok: Bool
+  error: String
+  value: RuntimeValue
+}
+
+EnvLookup: {
+  found: Bool
+  value: RuntimeValue
+}
+
+FieldLookup: {
+  found: Bool
+  value: RuntimeValue
+}
+
+Interpreter: {
+  file: IRFile
+  functions: Array[IRFunction]
+  structs: Array[IRStructType]
+  enums: Array[IREnumType]
+  closures: Array[RuntimeClosure]
+  output: Array[String]
+}
+
+InterpretResult: {
+  ok: Bool
+  error: String
+  value: RuntimeValue
+  output: Array[String]
+  interpreter: Interpreter
+}
+
+interpret(source: String) -> InterpretResult => {
+  file := lower(source)
+  interpreter := newInterpreter(file)
+  result := file.errors.length() > 0 ? errorResult(file.errors[0].message) : runMain(interpreter)
+  InterpretResult {
+    ok: result.ok
+    error: result.error
+    value: result.value
+    output: interpreter.output
+    interpreter: interpreter
+  }
+}
+
+newInterpreter(file: IRFile) -> Interpreter => Interpreter {
+  file: file
+  functions: file.functions
+  structs: file.structs
+  enums: file.enums
+  closures: []
+  output: []
+}
+
+runMain(interpreter: Interpreter) -> EvalResult => {
+  fn := findFunction(interpreter, "main")
+  fn.name == "" ? errorResult("main is not defined") : callFunction(interpreter, fn, [])
+}
+
+emptyEnv() -> RuntimeEnv => RuntimeEnv { bindings: [] }
+
+emptyValue() -> RuntimeValue => RuntimeValue {
+  kind: "void"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+voidValue() -> RuntimeValue => emptyValue()
+
+nullValue() -> RuntimeValue => RuntimeValue {
+  kind: "null"
+  text: "null"
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+boolValue(value: Bool) -> RuntimeValue => RuntimeValue {
+  kind: "bool"
+  text: value ? "true" : "false"
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: value
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+intValue(value: Int) -> RuntimeValue => RuntimeValue {
+  kind: "int"
+  text: intToString(value)
+  intValue: value
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+doubleValue(value: Double, text: String) -> RuntimeValue => RuntimeValue {
+  kind: "double"
+  text: text
+  intValue: 0
+  doubleValue: value
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+stringValue(value: String) -> RuntimeValue => RuntimeValue {
+  kind: "string"
+  text: value
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+charValue(value: Char) -> RuntimeValue => RuntimeValue {
+  kind: "char"
+  text: value.toString()
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: value
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+arrayValue(values: Array[RuntimeValue]) -> RuntimeValue => RuntimeValue {
+  kind: "array"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: values
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+tupleValue(values: Array[RuntimeValue]) -> RuntimeValue => RuntimeValue {
+  kind: "tuple"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: values
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+mapValue(entries: Array[RuntimeEntry]) -> RuntimeValue => RuntimeValue {
+  kind: "map"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: entries
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+setValue(entries: Array[RuntimeEntry]) -> RuntimeValue => RuntimeValue {
+  kind: "set"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: entries
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+structValue(typeName: String, fields: Array[RuntimeField]) -> RuntimeValue => RuntimeValue {
+  kind: "struct"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: fields
+  typeName: typeName
+  closureIndex: -1
+}
+
+moduleValue(name: String) -> RuntimeValue => RuntimeValue {
+  kind: "module"
+  text: name
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: -1
+}
+
+closureValue(index: Int) -> RuntimeValue => RuntimeValue {
+  kind: "closure"
+  text: ""
+  intValue: 0
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: ""
+  closureIndex: index
+}
+
+enumValue(typeName: String, name: String, value: Int) -> RuntimeValue => RuntimeValue {
+  kind: "enum"
+  text: name
+  intValue: value
+  doubleValue: 0.0
+  boolValue: false
+  charValue: '\x00'
+  array: []
+  entries: []
+  fields: []
+  typeName: typeName
+  closureIndex: -1
+}
+
+okResult(value: RuntimeValue) -> EvalResult => EvalResult {
+  ok: true
+  error: ""
+  value: value
+}
+
+errorResult(message: String) -> EvalResult => EvalResult {
+  ok: false
+  error: message
+  value: emptyValue()
+}
+
+evalExpr(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => expr.kind {
+  "identifier" => evalIdentifier(interpreter, env, expr.name)
+  "at" => okResult(moduleValue(expr.name))
+  "this" => evalIdentifier(interpreter, env, "this")
+  "int" => okResult(intValue(parseIntText(expr.value)))
+  "double" => okResult(doubleValue(parseDoubleText(expr.value), expr.value))
+  "bigint" => okResult(stringValue(expr.value))
+  "string" => okResult(stringValue(decodeQuoted(expr.value)))
+  "template" => okResult(stringValue(decodeTemplate(expr.value)))
+  "char" => okResult(charValue(decodeCharLiteral(expr.value)))
+  "regex" => okResult(stringValue(expr.value))
+  "bool" => okResult(boolValue(expr.value == "true"))
+  "null" => okResult(nullValue())
+  "unary" => evalUnary(interpreter, env, expr)
+  "postfix" => evalPostfix(interpreter, env, expr)
+  "binary" => evalBinary(interpreter, env, expr)
+  "ternary" => evalTernary(interpreter, env, expr)
+  "assign" => evalAssign(interpreter, env, expr)
+  "call" => evalCall(interpreter, env, expr)
+  "lambda" => evalLambda(interpreter, env, expr)
+  "selector" => evalSelector(interpreter, env, expr)
+  "index" => evalIndex(interpreter, env, expr)
+  "array" => evalArray(interpreter, env, expr)
+  "tuple" => evalTuple(interpreter, env, expr)
+  "map" => evalMap(interpreter, env, expr)
+  "spread" => errorResult("spread is only supported inside array literals")
+  "reactive" => evalExpr(interpreter, env, expr.children[0])
+  "struct" => evalStructLiteral(interpreter, env, expr)
+  "object" => evalObjectLiteral(interpreter, env, expr)
+  "block" => evalBlock(interpreter, env, expr)
+  "match" => evalMatch(interpreter, env, expr)
+  "patternBlock" => errorResult("pattern block cannot be evaluated without a subject")
+  "let" => evalLet(interpreter, env, expr)
+  "objectDestructure" => evalObjectDestructure(interpreter, env, expr)
+  "error" => errorResult("cannot evaluate parser error expression")
+  _ => errorResult("unsupported expression kind " + expr.kind)
+}
+
+evalIdentifier(interpreter: Interpreter, env: RuntimeEnv, name: String) -> EvalResult => {
+  found := envGet(env, name)
+  found.found ? okResult(found.value) : errorResult("undefined name " + name)
+}
+
+evalUnary(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  value := evalExpr(interpreter, env, expr.children[0])
+  value.ok ? evalUnaryValue(expr.op, value.value) : value
+}
+
+evalUnaryValue(op: String, value: RuntimeValue) -> EvalResult =>
+  op == "-" ? (value.kind == "int" ? okResult(intValue(0 - value.intValue)) : errorResult("operator '-' expects Int")) :
+  op == "!" ? (value.kind == "bool" ? okResult(boolValue(!value.boolValue)) : errorResult("operator '!' expects Bool")) :
+  errorResult("unsupported unary operator " + op)
+
+evalPostfix(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  target := expr.children[0]
+  target.kind != "identifier" ? errorResult("postfix operator expects an identifier") : evalPostfixIdentifier(env, target.name)
+}
+
+evalPostfixIdentifier(env: RuntimeEnv, name: String) -> EvalResult => {
+  found := envGet(env, name)
+  !found.found ? errorResult("undefined name " + name) :
+    found.value.kind == "int" ? assignExisting(env, name, intValue(found.value.intValue + 1), found.value) :
+    errorResult("operator '++' expects Int")
+}
+
+assignExisting(env: RuntimeEnv, name: String, next: RuntimeValue, previous: RuntimeValue) -> EvalResult =>
+  envAssign(env, name, next) ? okResult(previous) : errorResult("undefined name " + name)
+
+evalBinary(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  expr.op == "&&" ? evalAnd(interpreter, env, expr) :
+  expr.op == "||" ? evalOr(interpreter, env, expr) :
+  expr.op == "??" ? evalNullCoalesce(interpreter, env, expr) :
+  evalStrictBinary(interpreter, env, expr)
+
+evalAnd(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  left := evalExpr(interpreter, env, expr.children[0])
+  !left.ok ? left : left.value.kind != "bool" ? errorResult("operator '&&' expects Bool") :
+    !left.value.boolValue ? okResult(boolValue(false)) : evalBoolRight(interpreter, env, expr.children[1], "&&")
+}
+
+evalOr(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  left := evalExpr(interpreter, env, expr.children[0])
+  !left.ok ? left : left.value.kind != "bool" ? errorResult("operator '||' expects Bool") :
+    left.value.boolValue ? okResult(boolValue(true)) : evalBoolRight(interpreter, env, expr.children[1], "||")
+}
+
+evalBoolRight(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr, op: String) -> EvalResult => {
+  right := evalExpr(interpreter, env, expr)
+  !right.ok ? right : right.value.kind == "bool" ? right : errorResult("operator '" + op + "' expects Bool")
+}
+
+evalNullCoalesce(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  left := evalExpr(interpreter, env, expr.children[0])
+  !left.ok ? left : left.value.kind != "null" ? left : evalExpr(interpreter, env, expr.children[1])
+}
+
+evalStrictBinary(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  left := evalExpr(interpreter, env, expr.children[0])
+  right := left.ok ? evalExpr(interpreter, env, expr.children[1]) : left
+  !left.ok ? left : !right.ok ? right : evalBinaryValues(expr.op, left.value, right.value)
+}
+
+evalBinaryValues(op: String, left: RuntimeValue, right: RuntimeValue) -> EvalResult =>
+  op == "+" ? evalPlus(left, right) :
+  op == "-" ? evalIntBinary(left, right, op) :
+  op == "*" ? evalIntBinary(left, right, op) :
+  op == "/" ? evalIntBinary(left, right, op) :
+  op == "%" ? evalIntBinary(left, right, op) :
+  op == "==" ? okResult(boolValue(runtimeEqual(left, right))) :
+  op == "!=" ? okResult(boolValue(!runtimeEqual(left, right))) :
+  op == "<" ? evalOrdered(left, right, op) :
+  op == "<=" ? evalOrdered(left, right, op) :
+  op == ">" ? evalOrdered(left, right, op) :
+  op == ">=" ? evalOrdered(left, right, op) :
+  errorResult("unsupported binary operator " + op)
+
+evalPlus(left: RuntimeValue, right: RuntimeValue) -> EvalResult =>
+  left.kind == "string" && right.kind == "string" ? okResult(stringValue(left.text + right.text)) : evalIntBinary(left, right, "+")
+
+evalIntBinary(left: RuntimeValue, right: RuntimeValue, op: String) -> EvalResult =>
+  (left.kind != "int") || (right.kind != "int") ? errorResult("arithmetic operands must be Int") :
+  okResult(intValue(op == "+" ? left.intValue + right.intValue : op == "-" ? left.intValue - right.intValue : op == "*" ? left.intValue * right.intValue : op == "/" ? left.intValue / right.intValue : left.intValue % right.intValue))
+
+evalOrdered(left: RuntimeValue, right: RuntimeValue, op: String) -> EvalResult =>
+  left.kind == "int" && right.kind == "int" ? okResult(boolValue(op == "<" ? left.intValue < right.intValue : op == "<=" ? left.intValue <= right.intValue : op == ">" ? left.intValue > right.intValue : left.intValue >= right.intValue)) :
+  left.kind == "string" && right.kind == "string" ? okResult(boolValue(op == "<" ? left.text < right.text : op == "<=" ? left.text <= right.text : op == ">" ? left.text > right.text : left.text >= right.text)) :
+  left.kind == "char" && right.kind == "char" ? okResult(boolValue(op == "<" ? left.charValue < right.charValue : op == "<=" ? left.charValue <= right.charValue : op == ">" ? left.charValue > right.charValue : left.charValue >= right.charValue)) :
+  errorResult("comparison operands must have matching ordered types")
+
+evalTernary(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  condition := evalExpr(interpreter, env, expr.children[0])
+  !condition.ok ? condition : condition.value.kind != "bool" ? errorResult("ternary condition expects Bool") :
+    condition.value.boolValue ? evalExpr(interpreter, env, expr.children[1]) : evalExpr(interpreter, env, expr.children[2])
+}
+
+evalAssign(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  expr.children.length() == 2 ? evalAssignTarget(interpreter, env, expr.children[0], expr.children[1]) :
+  evalAssignName(interpreter, env, expr.name, expr.children[0])
+
+evalAssignName(interpreter: Interpreter, env: RuntimeEnv, name: String, valueExpr: IRExpr) -> EvalResult => {
+  value := evalExpr(interpreter, env, valueExpr)
+  !value.ok ? value : envAssign(env, name, value.value) ? okResult(voidValue()) : errorResult("undefined name " + name)
+}
+
+evalAssignTarget(interpreter: Interpreter, env: RuntimeEnv, target: IRExpr, valueExpr: IRExpr) -> EvalResult =>
+  target.kind == "identifier" ? evalAssignName(interpreter, env, target.name, valueExpr) :
+  target.kind == "index" ? evalIndexAssign(interpreter, env, target, valueExpr) :
+  errorResult("assignment target is not assignable")
+
+evalIndexAssign(interpreter: Interpreter, env: RuntimeEnv, target: IRExpr, valueExpr: IRExpr) -> EvalResult => {
+  receiver := evalExpr(interpreter, env, target.children[0])
+  index := receiver.ok ? evalExpr(interpreter, env, target.children[1]) : receiver
+  value := index.ok ? evalExpr(interpreter, env, valueExpr) : index
+  !receiver.ok ? receiver : !index.ok ? index : !value.ok ? value : assignIndexValue(receiver.value, index.value, value.value)
+}
+
+assignIndexValue(receiver: RuntimeValue, index: RuntimeValue, value: RuntimeValue) -> EvalResult =>
+  receiver.kind == "map" ? okResult(mapSet(receiver, index, value)) :
+  receiver.kind == "array" && index.kind == "int" ? okResult(receiver.array.set(index.intValue, value)) :
+  errorResult(receiver.kind + " is not assignable by index")
+
+evalCall(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  callee := expr.children[0]
+  callee.kind == "identifier" ? callNamedFunction(interpreter, env, callee.name, expr.children) :
+    callee.kind == "selector" ? callSelector(interpreter, env, callee, expr.children) :
+    callEvaluated(interpreter, env, callee, expr.children)
+}
+
+callNamedFunction(interpreter: Interpreter, env: RuntimeEnv, name: String, children: Array[IRExpr]) -> EvalResult => {
+  fn := findFunction(interpreter, name)
+  fn.name == "" ? callEvaluated(interpreter, env, children[0], children) : callFunction(interpreter, fn, evalArgs(interpreter, env, children, 1))
+}
+
+callSelector(interpreter: Interpreter, env: RuntimeEnv, callee: IRExpr, children: Array[IRExpr]) -> EvalResult => {
+  receiverExpr := callee.children[0]
+  receiverExpr.kind == "at" ? callModuleFunction(interpreter, env, receiverExpr.name, callee.name, children) :
+    callReceiverMethod(interpreter, env, receiverExpr, callee.name, children)
+}
+
+callEvaluated(interpreter: Interpreter, env: RuntimeEnv, callee: IRExpr, children: Array[IRExpr]) -> EvalResult => {
+  value := evalExpr(interpreter, env, callee)
+  !value.ok ? value : callClosureValue(interpreter, value.value, evalArgs(interpreter, env, children, 1))
+}
+
+evalArgs(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int) -> Array[RuntimeValue] =>
+  evalArgsLoop(interpreter, env, children, index, [])
+
+evalArgsLoop(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] =>
+  index >= children.length() ? out : evalArgsNext(interpreter, env, children, index, out)
+
+evalArgsNext(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] => {
+  value := evalExpr(interpreter, env, children[index])
+  out.push(value.ok ? value.value : stringValue("error:" + value.error))
+  evalArgsLoop(interpreter, env, children, index + 1, out)
+}
+
+evalLambda(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  index := interpreter.closures.length()
+  interpreter.closures.push(RuntimeClosure { params: expr.params body: expr.children[0] env: env })
+  okResult(closureValue(index))
+}
+
+callClosureValue(interpreter: Interpreter, closure: RuntimeValue, args: Array[RuntimeValue]) -> EvalResult =>
+  closure.kind == "closure" ? callClosure(interpreter, interpreter.closures[closure.closureIndex], args) : errorResult(closure.kind + " is not callable")
+
+callClosure(interpreter: Interpreter, closure: RuntimeClosure, args: Array[RuntimeValue]) -> EvalResult => {
+  bindArgs(closure.env, closure.params, args, 0)
+  evalExpr(interpreter, closure.env, closure.body)
+}
+
+callFunction(interpreter: Interpreter, fn: IRFunction, args: Array[RuntimeValue]) -> EvalResult => {
+  env := emptyEnv()
+  bindArgs(env, fn.params, args, 0)
+  exprLooksPatternPredicate(fn.body) && (args.length() > 0) ? okResult(boolValue(matchPredicateExpr(args[0], fn.body))) : evalFunctionBody(interpreter, fn, env)
+}
+
+evalFunctionBody(interpreter: Interpreter, fn: IRFunction, env: RuntimeEnv) -> EvalResult => {
+  value := evalExpr(interpreter, env, fn.body)
+  !value.ok ? value : fn.returnType == "Void" ? okResult(voidValue()) : value
+}
+
+bindArgs(env: RuntimeEnv, params: Array[IRParam], args: Array[RuntimeValue], index: Int) -> RuntimeEnv =>
+  index >= params.length() ? env : bindArgs(envDefine(env, params[index].name, index < args.length() ? args[index] : nullValue()), params, args, index + 1)
+
+callModuleFunction(interpreter: Interpreter, env: RuntimeEnv, module: String, name: String, children: Array[IRExpr]) -> EvalResult =>
+  module == "io" && name == "println" ? callPrintln(interpreter, env, children) :
+  module == "assert" && name == "eq" ? callAssertEq(interpreter, env, children) :
+  module == "map" && name == "new" ? okResult(mapValue([])) :
+  module == "set" && name == "new" ? okResult(setValue([])) :
+  errorResult("unknown module function @" + module + "." + name)
+
+callPrintln(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr]) -> EvalResult => {
+  values := evalArgs(interpreter, env, children, 1)
+  interpreter.output.push(joinRuntimeValues(values, 0, ""))
+  okResult(voidValue())
+}
+
+callAssertEq(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr]) -> EvalResult => {
+  values := evalArgs(interpreter, env, children, 1)
+  values.length() < 2 ? errorResult("@assert.eq expects two arguments") :
+    runtimeEqual(values[0], values[1]) ? okResult(voidValue()) :
+    errorResult("assert.eq failed: " + formatRuntimeValue(values[0]) + " != " + formatRuntimeValue(values[1]))
+}
+
+callReceiverMethod(interpreter: Interpreter, env: RuntimeEnv, receiverExpr: IRExpr, name: String, children: Array[IRExpr]) -> EvalResult => {
+  receiver := evalExpr(interpreter, env, receiverExpr)
+  !receiver.ok ? receiver : callMethodValue(interpreter, env, receiver.value, name, children)
+}
+
+callMethodValue(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult =>
+  receiver.kind == "array" ? callArrayMethod(interpreter, env, receiver, name, children) :
+  receiver.kind == "tuple" ? callArrayMethod(interpreter, env, receiver, name, children) :
+  receiver.kind == "string" ? callStringMethod(interpreter, env, receiver, name, children) :
+  receiver.kind == "map" ? callMapMethod(interpreter, env, receiver, name, children) :
+  receiver.kind == "set" ? callSetMethod(interpreter, env, receiver, name, children) :
+  receiver.kind == "int" && name == "toString" ? okResult(stringValue(intToString(receiver.intValue))) :
+  receiver.kind == "bool" && name == "toString" ? okResult(stringValue(receiver.boolValue ? "true" : "false")) :
+  receiver.kind == "char" && name == "toString" ? okResult(stringValue(receiver.charValue.toString())) :
+  receiver.kind == "struct" ? callStructMethod(interpreter, env, receiver, name, children) :
+  errorResult("type " + receiver.kind + " has no method " + name)
+
+callArrayMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult =>
+  name == "length" ? okResult(intValue(receiver.array.length())) :
+  name == "isEmpty" ? okResult(boolValue(receiver.array.length() == 0)) :
+  name == "push" ? arrayPushMethod(interpreter, env, receiver, children) :
+  name == "set" ? arraySetMethod(interpreter, env, receiver, children) :
+  name == "pop" ? okResult(receiver.array.pop()) :
+  name == "first" ? okResult(receiver.array[0]) :
+  name == "last" ? okResult(receiver.array[receiver.array.length() - 1]) :
+  name == "slice" ? arraySliceMethod(interpreter, env, receiver, children) :
+  name == "clone" ? okResult(arrayValue(receiver.array.clone())) :
+  name == "reverse" ? okResult(arrayValue(receiver.array.reverse())) :
+  name == "contains" ? arrayContainsMethod(interpreter, env, receiver, children) :
+  name == "each" ? arrayEachMethod(interpreter, env, receiver, children) :
+  name == "map" ? arrayMapMethod(interpreter, env, receiver, children) :
+  name == "at" ? arrayAtMethod(interpreter, env, receiver, children) :
+  errorResult("Array has no method " + name)
+
+arrayPushMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  receiver.array.push(args[0])
+  okResult(intValue(receiver.array.length()))
+}
+
+arraySetMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  args[0].kind != "int" ? errorResult("Array.set index expects Int") : okResult(receiver.array.set(args[0].intValue, args[1]))
+}
+
+arraySliceMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(arrayValue(receiver.array.slice(args[0].intValue, args[1].intValue)))
+}
+
+arrayContainsMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(boolValue(runtimeArrayContains(receiver.array, args[0], 0)))
+}
+
+arrayEachMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  callEachLoop(interpreter, receiver.array, args[0], 0)
+}
+
+arrayMapMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(arrayValue(mapArrayLoop(interpreter, receiver.array, args[0], 0, [])))
+}
+
+arrayAtMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  args[0].kind != "int" ? errorResult("Array.at index expects Int") : okResult(receiver.array[args[0].intValue])
+}
+
+callEachLoop(interpreter: Interpreter, values: Array[RuntimeValue], callback: RuntimeValue, index: Int) -> EvalResult =>
+  index >= values.length() ? okResult(voidValue()) : callEachNext(interpreter, values, callback, index)
+
+callEachNext(interpreter: Interpreter, values: Array[RuntimeValue], callback: RuntimeValue, index: Int) -> EvalResult => {
+  callClosureValue(interpreter, callback, [values[index], intValue(index), arrayValue(values)])
+  callEachLoop(interpreter, values, callback, index + 1)
+}
+
+mapArrayLoop(interpreter: Interpreter, values: Array[RuntimeValue], callback: RuntimeValue, index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] =>
+  index >= values.length() ? out : mapArrayNext(interpreter, values, callback, index, out)
+
+mapArrayNext(interpreter: Interpreter, values: Array[RuntimeValue], callback: RuntimeValue, index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] => {
+  result := callClosureValue(interpreter, callback, [values[index], intValue(index), arrayValue(values)])
+  out.push(result.value)
+  mapArrayLoop(interpreter, values, callback, index + 1, out)
+}
+
+callStringMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult =>
+  name == "length" ? okResult(intValue(receiver.text.length())) :
+  name == "isEmpty" ? okResult(boolValue(receiver.text.length() == 0)) :
+  name == "toString" ? okResult(receiver) :
+  name == "at" || name == "charAt" ? stringAtMethod(interpreter, env, receiver, children) :
+  name == "slice" ? stringSliceMethod(interpreter, env, receiver, children) :
+  name == "concat" ? stringConcatMethod(interpreter, env, receiver, children) :
+  name == "includes" ? stringSearchMethod(interpreter, env, receiver, children, "includes") :
+  name == "startsWith" ? stringSearchMethod(interpreter, env, receiver, children, "startsWith") :
+  name == "endsWith" ? stringSearchMethod(interpreter, env, receiver, children, "endsWith") :
+  name == "indexOf" ? stringIndexMethod(interpreter, env, receiver, children, false) :
+  name == "lastIndexOf" ? stringIndexMethod(interpreter, env, receiver, children, true) :
+  name == "trim" ? okResult(stringValue(receiver.text.trim())) :
+  name == "trimStart" ? okResult(stringValue(receiver.text.trimStart())) :
+  name == "trimEnd" ? okResult(stringValue(receiver.text.trimEnd())) :
+  name == "replace" ? stringReplaceMethod(interpreter, env, receiver, children, false) :
+  name == "replaceAll" ? stringReplaceMethod(interpreter, env, receiver, children, true) :
+  name == "split" ? stringSplitMethod(interpreter, env, receiver, children) :
+  errorResult("String has no method " + name)
+
+stringAtMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(charValue(receiver.text.at(args[0].intValue)))
+}
+
+stringSliceMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(stringValue(receiver.text.slice(args[0].intValue, args[1].intValue)))
+}
+
+stringConcatMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(stringValue(receiver.text + args[0].text))
+}
+
+stringSearchMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr], mode: String) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(boolValue(mode == "includes" ? receiver.text.includes(args[0].text) : mode == "startsWith" ? receiver.text.startsWith(args[0].text) : receiver.text.endsWith(args[0].text)))
+}
+
+stringIndexMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr], last: Bool) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(intValue(last ? receiver.text.lastIndexOf(args[0].text) : receiver.text.indexOf(args[0].text)))
+}
+
+stringReplaceMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr], all: Bool) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(stringValue(all ? receiver.text.replaceAll(args[0].text, args[1].text) : receiver.text.replace(args[0].text, args[1].text)))
+}
+
+stringSplitMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  parts := receiver.text.split(args[0].text)
+  out := [emptyValue()].slice(0, 0)
+  parts.each((part) => out.push(stringValue(part)))
+  okResult(arrayValue(out))
+}
+
+callMapMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult =>
+  name == "size" ? okResult(intValue(receiver.entries.length())) :
+  name == "has" ? mapHasMethod(interpreter, env, receiver, children) :
+  name == "getOr" ? mapGetOrMethod(interpreter, env, receiver, children) :
+  name == "set" ? mapSetMethod(interpreter, env, receiver, children) :
+  name == "keys" ? okResult(arrayValue(mapKeys(receiver.entries, 0, []))) :
+  name == "values" ? okResult(arrayValue(mapValues(receiver.entries, 0, []))) :
+  name == "each" ? mapEachMethod(interpreter, env, receiver, children) :
+  errorResult("Map has no method " + name)
+
+mapHasMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(boolValue(mapEntryIndex(receiver.entries, args[0], 0) >= 0))
+}
+
+mapGetOrMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  idx := mapEntryIndex(receiver.entries, args[0], 0)
+  okResult(idx >= 0 ? receiver.entries[idx].value : args[1])
+}
+
+mapSetMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(mapSet(receiver, args[0], args[1]))
+}
+
+mapEachMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  mapEachLoop(interpreter, receiver, args[0], 0)
+}
+
+callSetMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult =>
+  name == "size" ? okResult(intValue(receiver.entries.length())) :
+  name == "has" ? setHasMethod(interpreter, env, receiver, children) :
+  name == "add" ? setAddMethod(interpreter, env, receiver, children) :
+  name == "values" ? okResult(arrayValue(mapKeys(receiver.entries, 0, []))) :
+  name == "each" ? mapEachMethod(interpreter, env, receiver, children) :
+  errorResult("Set has no method " + name)
+
+setHasMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(boolValue(mapEntryIndex(receiver.entries, args[0], 0) >= 0))
+}
+
+setAddMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  okResult(mapSet(receiver, args[0], args[0]))
+}
+
+mapKeys(entries: Array[RuntimeEntry], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] =>
+  index >= entries.length() ? out : mapKeys(entries, index + 1, pushRuntime(out, entries[index].key))
+
+mapValues(entries: Array[RuntimeEntry], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] =>
+  index >= entries.length() ? out : mapValues(entries, index + 1, pushRuntime(out, entries[index].value))
+
+mapEachLoop(interpreter: Interpreter, receiver: RuntimeValue, callback: RuntimeValue, index: Int) -> EvalResult =>
+  index >= receiver.entries.length() ? okResult(voidValue()) : mapEachNext(interpreter, receiver, callback, index)
+
+mapEachNext(interpreter: Interpreter, receiver: RuntimeValue, callback: RuntimeValue, index: Int) -> EvalResult => {
+  entry := receiver.entries[index]
+  callClosureValue(interpreter, callback, [entry.value, entry.key, receiver])
+  mapEachLoop(interpreter, receiver, callback, index + 1)
+}
+
+pushRuntime(values: Array[RuntimeValue], value: RuntimeValue) -> Array[RuntimeValue] => {
+  values.push(value)
+  values
+}
+
+mapSet(receiver: RuntimeValue, key: RuntimeValue, value: RuntimeValue) -> RuntimeValue => {
+  idx := mapEntryIndex(receiver.entries, key, 0)
+  entry := RuntimeEntry { key: key value: value }
+  mapSetEntry(receiver.entries, idx, entry)
+  receiver
+}
+
+mapSetEntry(entries: Array[RuntimeEntry], index: Int, entry: RuntimeEntry) -> Array[RuntimeEntry] =>
+  index >= 0 ? setExistingEntry(entries, index, entry) : pushEntry(entries, entry)
+
+setExistingEntry(entries: Array[RuntimeEntry], index: Int, entry: RuntimeEntry) -> Array[RuntimeEntry] => {
+  entries.set(index, entry)
+  entries
+}
+
+pushEntry(entries: Array[RuntimeEntry], entry: RuntimeEntry) -> Array[RuntimeEntry] => {
+  entries.push(entry)
+  entries
+}
+
+mapEntryIndex(entries: Array[RuntimeEntry], key: RuntimeValue, index: Int) -> Int =>
+  index >= entries.length() ? -1 : runtimeEqual(entries[index].key, key) ? index : mapEntryIndex(entries, key, index + 1)
+
+callStructMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult => {
+  field := fieldLookup(receiver.fields, name, 0)
+  field.found ? callClosureValue(interpreter, field.value, evalArgs(interpreter, env, children, 1)) : callDeclaredStructMethod(interpreter, env, receiver, name, children)
+}
+
+callDeclaredStructMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, name: String, children: Array[IRExpr]) -> EvalResult => {
+  method := findMethod(interpreter, receiver.typeName, name)
+  method.name == "" ? errorResult("type " + receiver.typeName + " has no method " + name) : callMethodFunction(interpreter, method, receiver, evalArgs(interpreter, env, children, 1))
+}
+
+callMethodFunction(interpreter: Interpreter, method: IRFunction, receiver: RuntimeValue, args: Array[RuntimeValue]) -> EvalResult => {
+  env := emptyEnv()
+  envDefine(env, "this", receiver)
+  bindArgs(env, method.params, args, 0)
+  evalFunctionBody(interpreter, method, env)
+}
+
+evalSelector(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  receiverExpr := expr.children[0]
+  enumLookup := receiverExpr.kind == "identifier" ? findEnumMember(interpreter, receiverExpr.name, expr.name) : emptyValue()
+  enumLookup.kind == "enum" ? okResult(enumLookup) : evalSelectorReceiver(interpreter, env, receiverExpr, expr.name)
+}
+
+evalSelectorReceiver(interpreter: Interpreter, env: RuntimeEnv, receiverExpr: IRExpr, name: String) -> EvalResult => {
+  receiver := evalExpr(interpreter, env, receiverExpr)
+  !receiver.ok ? receiver : receiver.value.kind == "struct" ? selectField(receiver.value, name) : errorResult("cannot select " + name + " from " + receiver.value.kind)
+}
+
+selectField(receiver: RuntimeValue, name: String) -> EvalResult => {
+  field := fieldLookup(receiver.fields, name, 0)
+  field.found ? okResult(field.value) : errorResult("type " + receiver.typeName + " has no field " + name)
+}
+
+evalIndex(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  receiver := evalExpr(interpreter, env, expr.children[0])
+  index := receiver.ok ? evalExpr(interpreter, env, expr.children[1]) : receiver
+  !receiver.ok ? receiver : !index.ok ? index : indexValue(receiver.value, index.value)
+}
+
+indexValue(receiver: RuntimeValue, index: RuntimeValue) -> EvalResult =>
+  receiver.kind == "array" && index.kind == "int" ? okResult(receiver.array[index.intValue]) :
+  receiver.kind == "tuple" && index.kind == "int" ? okResult(receiver.array[index.intValue]) :
+  receiver.kind == "string" && index.kind == "int" ? okResult(charValue(receiver.text.at(index.intValue))) :
+  receiver.kind == "map" ? mapIndexValue(receiver, index) :
+  errorResult(receiver.kind + " is not indexable")
+
+mapIndexValue(receiver: RuntimeValue, index: RuntimeValue) -> EvalResult => {
+  idx := mapEntryIndex(receiver.entries, index, 0)
+  okResult(idx >= 0 ? receiver.entries[idx].value : nullValue())
+}
+
+evalArray(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  okResult(arrayValue(evalArrayElements(interpreter, env, expr.children, 0, [])))
+
+evalArrayElements(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] =>
+  index >= children.length() ? out : evalArrayElement(interpreter, env, children, index, out)
+
+evalArrayElement(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeValue]) -> Array[RuntimeValue] => {
+  child := children[index]
+  value := child.kind == "spread" ? evalExpr(interpreter, env, child.children[0]) : evalExpr(interpreter, env, child)
+  appendArrayElement(out, child, value.value)
+  evalArrayElements(interpreter, env, children, index + 1, out)
+}
+
+appendArrayElement(out: Array[RuntimeValue], child: IRExpr, value: RuntimeValue) -> Array[RuntimeValue] =>
+  child.kind == "spread" && value.kind == "array" ? appendRuntimeArray(out, value.array, 0) : pushRuntime(out, value)
+
+appendRuntimeArray(out: Array[RuntimeValue], values: Array[RuntimeValue], index: Int) -> Array[RuntimeValue] =>
+  index >= values.length() ? out : appendRuntimeArray(pushRuntime(out, values[index]), values, index + 1)
+
+evalTuple(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  okResult(tupleValue(evalArrayElements(interpreter, env, expr.children, 0, [])))
+
+evalMap(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  okResult(mapValue(evalMapEntries(interpreter, env, expr.children, 0, [])))
+
+evalMapEntries(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeEntry]) -> Array[RuntimeEntry] =>
+  index >= children.length() ? out : evalMapEntry(interpreter, env, children, index, out)
+
+evalMapEntry(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeEntry]) -> Array[RuntimeEntry] => {
+  entry := children[index]
+  key := evalExpr(interpreter, env, entry.children[0])
+  value := evalExpr(interpreter, env, entry.children[1])
+  out.push(RuntimeEntry { key: key.value value: value.value })
+  evalMapEntries(interpreter, env, children, index + 1, out)
+}
+
+evalStructLiteral(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  okResult(structValue(expr.name, evalFields(interpreter, env, expr.children, 0, [])))
+
+evalObjectLiteral(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  fields := [RuntimeField { name: "" value: emptyValue() }].slice(0, 0)
+  object := structValue("Object", fields)
+  objectEnv := envDefine(env, "this", object)
+  fillObjectFields(interpreter, objectEnv, fields, expr.children, 0)
+  okResult(object)
+}
+
+evalFields(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeField]) -> Array[RuntimeField] =>
+  index >= children.length() ? out : evalField(interpreter, env, children, index, out)
+
+evalField(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, out: Array[RuntimeField]) -> Array[RuntimeField] => {
+  field := children[index]
+  value := evalExpr(interpreter, env, field.children[0])
+  out.push(RuntimeField { name: field.name value: value.value })
+  evalFields(interpreter, env, children, index + 1, out)
+}
+
+fillObjectFields(interpreter: Interpreter, env: RuntimeEnv, out: Array[RuntimeField], children: Array[IRExpr], index: Int) -> Array[RuntimeField] =>
+  index >= children.length() ? out : fillObjectField(interpreter, env, out, children, index)
+
+fillObjectField(interpreter: Interpreter, env: RuntimeEnv, out: Array[RuntimeField], children: Array[IRExpr], index: Int) -> Array[RuntimeField] => {
+  field := children[index]
+  value := (field.kind == "method") || (field.kind == "privateMethod") ? evalMethodLiteral(interpreter, env, field) : evalExpr(interpreter, env, field.children[0])
+  out.push(RuntimeField { name: field.name value: value.value })
+  fillObjectFields(interpreter, env, out, children, index + 1)
+}
+
+evalMethodLiteral(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  index := interpreter.closures.length()
+  interpreter.closures.push(RuntimeClosure { params: expr.params body: expr.children[0] env: env })
+  okResult(closureValue(index))
+}
+
+evalBlock(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult =>
+  evalBlockLoop(interpreter, env, expr.children, 0, voidValue())
+
+evalBlockLoop(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int, previous: RuntimeValue) -> EvalResult =>
+  index >= children.length() ? okResult(previous) : evalBlockNext(interpreter, env, children, index)
+
+evalBlockNext(interpreter: Interpreter, env: RuntimeEnv, children: Array[IRExpr], index: Int) -> EvalResult => {
+  value := evalExpr(interpreter, env, children[index])
+  !value.ok ? value : evalBlockLoop(interpreter, env, children, index + 1, value.value)
+}
+
+evalLet(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  value := evalExpr(interpreter, env, expr.children[0])
+  !value.ok ? value : okResult(envDefine(env, expr.name, value.value).bindings.length() >= 0 ? voidValue() : voidValue())
+}
+
+evalObjectDestructure(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  value := evalExpr(interpreter, env, expr.children[0])
+  !value.ok ? value : value.value.kind != "struct" ? errorResult("cannot destructure " + value.value.kind) : destructureFields(env, value.value, expr.params, 0)
+}
+
+destructureFields(env: RuntimeEnv, value: RuntimeValue, params: Array[IRParam], index: Int) -> EvalResult =>
+  index >= params.length() ? okResult(voidValue()) : destructureField(env, value, params, index)
+
+destructureField(env: RuntimeEnv, value: RuntimeValue, params: Array[IRParam], index: Int) -> EvalResult => {
+  field := fieldLookup(value.fields, params[index].typeName, 0)
+  !field.found ? errorResult("type " + value.typeName + " has no field " + params[index].typeName) : destructureFields(envDefine(env, params[index].name, field.value), value, params, index + 1)
+}
+
+evalMatch(interpreter: Interpreter, env: RuntimeEnv, expr: IRExpr) -> EvalResult => {
+  subject := evalExpr(interpreter, env, expr.children[0])
+  !subject.ok ? subject : evalMatchBranch(interpreter, env, subject.value, expr.children, 1)
+}
+
+evalMatchBranch(interpreter: Interpreter, env: RuntimeEnv, subject: RuntimeValue, children: Array[IRExpr], index: Int) -> EvalResult =>
+  index >= children.length() ? errorResult("match expression was not exhaustive") :
+  matchPatternText(subject, children[index].children[0].text) ? evalExpr(interpreter, env, children[index].children[1]) :
+  evalMatchBranch(interpreter, env, subject, children, index + 1)
+
+envDefine(env: RuntimeEnv, name: String, value: RuntimeValue) -> RuntimeEnv => {
+  env.bindings.push(RuntimeBinding { name: name value: value })
+  env
+}
+
+envGet(env: RuntimeEnv, name: String) -> EnvLookup => envGetAt(env, name, env.bindings.length() - 1)
+
+envGetAt(env: RuntimeEnv, name: String, index: Int) -> EnvLookup =>
+  index < 0 ? EnvLookup { found: false value: emptyValue() } :
+  env.bindings[index].name == name ? EnvLookup { found: true value: env.bindings[index].value } :
+  envGetAt(env, name, index - 1)
+
+envAssign(env: RuntimeEnv, name: String, value: RuntimeValue) -> Bool => {
+  index := envIndex(env, name, env.bindings.length() - 1)
+  index < 0 ? false : envSet(env, index, name, value)
+}
+
+envSet(env: RuntimeEnv, index: Int, name: String, value: RuntimeValue) -> Bool => {
+  env.bindings.set(index, RuntimeBinding { name: name value: value })
+  true
+}
+
+envIndex(env: RuntimeEnv, name: String, index: Int) -> Int =>
+  index < 0 ? -1 : env.bindings[index].name == name ? index : envIndex(env, name, index - 1)
+
+findFunction(interpreter: Interpreter, name: String) -> IRFunction => findFunctionAt(interpreter.functions, name, 0)
+
+findFunctionAt(functions: Array[IRFunction], name: String, index: Int) -> IRFunction =>
+  index >= functions.length() ? emptyIRFunction() : functions[index].name == name ? functions[index] : findFunctionAt(functions, name, index + 1)
+
+findStruct(interpreter: Interpreter, name: String) -> IRStructType => findStructAt(interpreter.structs, name, 0)
+
+findStructAt(structs: Array[IRStructType], name: String, index: Int) -> IRStructType =>
+  index >= structs.length() ? emptyIRStructType() : structs[index].name == name ? structs[index] : findStructAt(structs, name, index + 1)
+
+findMethod(interpreter: Interpreter, typeName: String, name: String) -> IRFunction =>
+  findMethodAt(findStruct(interpreter, typeName).methods, name, 0)
+
+findMethodAt(methods: Array[IRFunction], name: String, index: Int) -> IRFunction =>
+  index >= methods.length() ? emptyIRFunction() : methods[index].name == name ? methods[index] : findMethodAt(methods, name, index + 1)
+
+emptyIRStructType() -> IRStructType => IRStructType {
+  name: ""
+  private: false
+  generics: []
+  fields: []
+  methods: []
+  line: 0
+  column: 0
+}
+
+findEnumMember(interpreter: Interpreter, typeName: String, memberName: String) -> RuntimeValue =>
+  findEnumMemberAt(interpreter.enums, typeName, memberName, 0)
+
+findEnumMemberAt(enums: Array[IREnumType], typeName: String, memberName: String, index: Int) -> RuntimeValue =>
+  index >= enums.length() ? emptyValue() : enums[index].name == typeName ? findEnumTypeMember(enums[index], memberName, 0) : findEnumMemberAt(enums, typeName, memberName, index + 1)
+
+findEnumTypeMember(enumDecl: IREnumType, memberName: String, index: Int) -> RuntimeValue =>
+  index >= enumDecl.members.length() ? emptyValue() : enumDecl.members[index].name == memberName ? enumValue(enumDecl.name, memberName, parseIntText(enumDecl.members[index].value)) : findEnumTypeMember(enumDecl, memberName, index + 1)
+
+fieldLookup(fields: Array[RuntimeField], name: String, index: Int) -> FieldLookup =>
+  index >= fields.length() ? FieldLookup { found: false value: emptyValue() } :
+  fields[index].name == name ? FieldLookup { found: true value: fields[index].value } :
+  fieldLookup(fields, name, index + 1)
+
+runtimeArrayContains(values: Array[RuntimeValue], value: RuntimeValue, index: Int) -> Bool =>
+  index >= values.length() ? false : runtimeEqual(values[index], value) ? true : runtimeArrayContains(values, value, index + 1)
+
+runtimeEqual(left: RuntimeValue, right: RuntimeValue) -> Bool =>
+  left.kind != right.kind ? false :
+  left.kind == "void" ? true :
+  left.kind == "null" ? true :
+  left.kind == "bool" ? left.boolValue == right.boolValue :
+  left.kind == "int" ? left.intValue == right.intValue :
+  left.kind == "double" ? left.doubleValue == right.doubleValue :
+  left.kind == "string" ? left.text == right.text :
+  left.kind == "char" ? left.charValue == right.charValue :
+  left.kind == "enum" ? (left.typeName == right.typeName) && (left.text == right.text) :
+  left.kind == "array" || left.kind == "tuple" ? runtimeArrayEqual(left.array, right.array, 0) :
+  left.kind == "struct" ? runtimeFieldsEqual(left.fields, right.fields, 0) :
+  left.kind == "map" || left.kind == "set" ? runtimeEntriesEqual(left.entries, right.entries, 0) :
+  left.closureIndex == right.closureIndex
+
+runtimeArrayEqual(left: Array[RuntimeValue], right: Array[RuntimeValue], index: Int) -> Bool =>
+  left.length() != right.length() ? false : index >= left.length() ? true : runtimeEqual(left[index], right[index]) ? runtimeArrayEqual(left, right, index + 1) : false
+
+runtimeFieldsEqual(left: Array[RuntimeField], right: Array[RuntimeField], index: Int) -> Bool =>
+  left.length() != right.length() ? false : index >= left.length() ? true : (left[index].name == right[index].name) && runtimeEqual(left[index].value, right[index].value) ? runtimeFieldsEqual(left, right, index + 1) : false
+
+runtimeEntriesEqual(left: Array[RuntimeEntry], right: Array[RuntimeEntry], index: Int) -> Bool =>
+  left.length() != right.length() ? false : index >= left.length() ? true : runtimeEqual(left[index].key, right[index].key) && runtimeEqual(left[index].value, right[index].value) ? runtimeEntriesEqual(left, right, index + 1) : false
+
+formatRuntimeValue(value: RuntimeValue) -> String =>
+  value.kind == "void" ? "" :
+  value.kind == "null" ? "null" :
+  value.kind == "bool" ? (value.boolValue ? "true" : "false") :
+  value.kind == "int" ? intToString(value.intValue) :
+  value.kind == "double" ? value.text :
+  value.kind == "string" ? value.text :
+  value.kind == "char" ? value.charValue.toString() :
+  value.kind == "array" ? "[" + formatValues(value.array, 0, "") + "]" :
+  value.kind == "tuple" ? "(" + formatValues(value.array, 0, "") + ")" :
+  value.kind == "map" ? "Map {" + formatEntries(value.entries, 0, "") + "}" :
+  value.kind == "set" ? "Set {" + formatEntries(value.entries, 0, "") + "}" :
+  value.kind == "enum" ? value.typeName + "." + value.text :
+  value.kind == "struct" ? value.typeName + " {" + formatFields(value.fields, 0, "") + "}" :
+  value.kind
+
+joinRuntimeValues(values: Array[RuntimeValue], index: Int, out: String) -> String =>
+  index >= values.length() ? out : joinRuntimeValues(values, index + 1, out + (index == 0 ? "" : " ") + formatRuntimeValue(values[index]))
+
+formatValues(values: Array[RuntimeValue], index: Int, out: String) -> String =>
+  index >= values.length() ? out : formatValues(values, index + 1, out + (index == 0 ? "" : ", ") + formatRuntimeValue(values[index]))
+
+formatFields(fields: Array[RuntimeField], index: Int, out: String) -> String =>
+  index >= fields.length() ? out : formatFields(fields, index + 1, out + (index == 0 ? "" : ", ") + fields[index].name + ": " + formatRuntimeValue(fields[index].value))
+
+formatEntries(entries: Array[RuntimeEntry], index: Int, out: String) -> String =>
+  index >= entries.length() ? out : formatEntries(entries, index + 1, out + (index == 0 ? "" : ", ") + formatRuntimeValue(entries[index].key) + ": " + formatRuntimeValue(entries[index].value))
+
+parseIntText(text: String) -> Int => text.startsWith("-") ? 0 - parseUnsignedInt(text, 1, 0) : parseUnsignedInt(text, 0, 0)
+
+intToString(value: Int) -> String => value == 0 ? "0" : value < 0 ? "-" + unsignedIntToString(0 - value, "") : unsignedIntToString(value, "")
+
+unsignedIntToString(value: Int, out: String) -> String =>
+  value <= 0 ? out : unsignedIntToString(value / 10, digitString(value % 10) + out)
+
+digitString(value: Int) -> String =>
+  value == 0 ? "0" :
+  value == 1 ? "1" :
+  value == 2 ? "2" :
+  value == 3 ? "3" :
+  value == 4 ? "4" :
+  value == 5 ? "5" :
+  value == 6 ? "6" :
+  value == 7 ? "7" :
+  value == 8 ? "8" :
+  "9"
+
+parseUnsignedInt(text: String, index: Int, out: Int) -> Int =>
+  index >= text.length() ? out : isDigitChar(text.at(index)) ? parseUnsignedInt(text, index + 1, (out * 10) + digitValue(text.at(index))) : out
+
+parseDoubleText(text: String) -> Double => @int.toDouble(parseIntText(text))
+
+isDigitChar(ch: Char) -> Bool => (ch >= '0') && (ch <= '9')
+
+digitValue(ch: Char) -> Int => ch == '0' ? 0 : ch == '1' ? 1 : ch == '2' ? 2 : ch == '3' ? 3 : ch == '4' ? 4 : ch == '5' ? 5 : ch == '6' ? 6 : ch == '7' ? 7 : ch == '8' ? 8 : 9
+
+decodeQuoted(raw: String) -> String => raw.length() >= 2 ? decodeEscapes(raw.slice(1, raw.length() - 1), 0, "") : raw
+
+decodeTemplate(raw: String) -> String => raw.length() >= 2 ? decodeEscapes(raw.slice(1, raw.length() - 1), 0, "") : raw
+
+decodeEscapes(text: String, index: Int, out: String) -> String =>
+  index >= text.length() ? out : decodeEscapeStep(text, index, out)
+
+decodeEscapeStep(text: String, index: Int, out: String) -> String => {
+  ch := text.at(index)
+  (ch == '\\') && ((index + 1) < text.length()) ? decodeEscapes(text, index + 2, out + escapedChar(text.at(index + 1)).toString()) : decodeEscapes(text, index + 1, out + ch.toString())
+}
+
+escapedChar(ch: Char) -> Char => ch == 'n' ? '\n' : ch == 't' ? '\t' : ch == 'r' ? '\r' : ch == '\\' ? '\\' : ch == '\'' ? '\'' : ch == '"' ? '"' : ch
+
+decodeCharLiteral(raw: String) -> Char =>
+  raw.length() >= 3 ? ((raw.at(1) == '\\') && (raw.length() >= 4) ? escapedChar(raw.at(2)) : raw.at(1)) : '\x00'
+
+exprLooksPatternPredicate(expr: IRExpr) -> Bool =>
+  expr.kind == "binary" ? (expr.op == "|" ? exprLooksPatternPredicate(expr.children[0]) && exprLooksPatternPredicate(expr.children[1]) : expr.op == "..=" ? true : false) :
+  ((((((expr.kind == "int") || (expr.kind == "string")) || (expr.kind == "char")) || (expr.kind == "bool")) || (expr.kind == "null")) || (expr.kind == "identifier" && expr.name == "_"))
+
+matchPredicateExpr(subject: RuntimeValue, expr: IRExpr) -> Bool =>
+  expr.kind == "binary" ? (expr.op == "|" ? matchPredicateExpr(subject, expr.children[0]) || matchPredicateExpr(subject, expr.children[1]) : expr.op == "..=" ? matchRangePredicate(subject, expr.children[0], expr.children[1]) : false) :
+  matchPatternValue(subject, literalPatternValue(expr))
+
+matchRangePredicate(subject: RuntimeValue, left: IRExpr, right: IRExpr) -> Bool =>
+  subject.kind == "char" && left.kind == "char" && right.kind == "char" ? (subject.charValue >= decodeCharLiteral(left.value)) && (subject.charValue <= decodeCharLiteral(right.value)) :
+  subject.kind == "int" && left.kind == "int" && right.kind == "int" ? (subject.intValue >= parseIntText(left.value)) && (subject.intValue <= parseIntText(right.value)) :
+  false
+
+literalPatternValue(expr: IRExpr) -> RuntimeValue =>
+  expr.kind == "int" ? intValue(parseIntText(expr.value)) :
+  expr.kind == "string" ? stringValue(decodeQuoted(expr.value)) :
+  expr.kind == "char" ? charValue(decodeCharLiteral(expr.value)) :
+  expr.kind == "bool" ? boolValue(expr.value == "true") :
+  expr.kind == "null" ? nullValue() :
+  emptyValue()
+
+matchPatternValue(subject: RuntimeValue, pattern: RuntimeValue) -> Bool => pattern.kind == "void" ? false : runtimeEqual(subject, pattern)
+
+matchPatternText(subject: RuntimeValue, text: String) -> Bool =>
+  text == "_" ? true :
+  text.includes("..=") ? matchRangeText(subject, text) :
+  text.startsWith("\"") ? runtimeEqual(subject, stringValue(decodeQuoted(text))) :
+  text.startsWith("'") ? runtimeEqual(subject, charValue(decodeCharLiteral(text))) :
+  text == "true" ? runtimeEqual(subject, boolValue(true)) :
+  text == "false" ? runtimeEqual(subject, boolValue(false)) :
+  text == "null" ? subject.kind == "null" :
+  runtimeEqual(subject, intValue(parseIntText(text)))
+
+matchRangeText(subject: RuntimeValue, text: String) -> Bool => {
+  parts := text.split("..=")
+  subject.kind == "char" ? (subject.charValue >= decodeCharLiteral(parts[0])) && (subject.charValue <= decodeCharLiteral(parts[1])) :
+    subject.kind == "int" ? (subject.intValue >= parseIntText(parts[0])) && (subject.intValue <= parseIntText(parts[1])) :
+    false
+}
