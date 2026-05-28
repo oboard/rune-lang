@@ -69,6 +69,56 @@ func TestSelectRunBackendKeepsGoForRuneOnlyProgram(t *testing.T) {
 	}
 }
 
+func TestRunProgramArgsUsesDashBoundary(t *testing.T) {
+	args := []string{"main.rn", "-v", "target"}
+	if got, want := runProgramArgs(args, 1), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runProgramArgs() = %#v, want %#v", got, want)
+	}
+	if got, want := runProgramArgs(args, -1), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runProgramArgs(no dash) = %#v, want %#v", got, want)
+	}
+	if got, want := runProgramArgs(args, 0), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("runProgramArgs(dash before path) = %#v, want %#v", got, want)
+	}
+}
+
+func TestRunEntryGoForwardsProgramArgs(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  argv := @process.argv()
+  @io.println(argv[1])
+  @io.println(argv[2])
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runEntry(mainPath, "go", []string{"-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "-v\ntarget\n"; got != want {
+		t.Fatalf("runEntry() output = %q, want %q", got, want)
+	}
+}
+
+func TestRunEntryGoPreservesProgramExitCode(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, "main() => @process.exit(2)\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := runEntry(mainPath, "go", nil, strings.NewReader(""), &out, &errOut)
+	code, ok := exitCode(err)
+	if !ok || code != 2 {
+		t.Fatalf("runEntry() error = %v, exit code = %d/%v, want 2", err, code, ok)
+	}
+	if strings.Contains(errOut.String(), "exit status") {
+		t.Fatalf("stderr = %q, want no go run exit wrapper", errOut.String())
+	}
+}
+
 func TestFmtCommandHasFormatAlias(t *testing.T) {
 	cmd := fmtCmd()
 	for _, alias := range cmd.Aliases {

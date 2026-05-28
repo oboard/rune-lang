@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -30,9 +32,20 @@ var backend string
 
 func main() {
 	if err := rootCmd().Execute(); err != nil {
+		if code, ok := exitCode(err); ok {
+			os.Exit(code)
+		}
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func exitCode(err error) (int, bool) {
+	var exit interface{ ExitCode() int }
+	if errors.As(err, &exit) {
+		return exit.ExitCode(), true
+	}
+	return 0, false
 }
 
 func rootCmd() *cobra.Command {
@@ -63,39 +76,59 @@ func runCmd() *cobra.Command {
 				return err
 			}
 			runBackend := selectRunBackend(entry, backend, backendFlagChanged(cmd))
-			switch runBackend {
-			case "go":
-				goFile, cleanup, err := compileGoToTemp(entry)
-				if err != nil {
-					return err
-				}
-				defer cleanup()
-
-				goArgs := append([]string{"run", goFile}, args[1:]...)
-				run := exec.Command("go", goArgs...)
-				run.Stdout = os.Stdout
-				run.Stderr = os.Stderr
-				run.Stdin = os.Stdin
-				return run.Run()
-			case "ts":
-				tsFile, runDir, cleanup, err := compileTypeScriptToTemp(entry)
-				if err != nil {
-					return err
-				}
-				defer cleanup()
-				run, err := typeScriptRuntimeCommand(tsFile, args[1:])
-				if err != nil {
-					return err
-				}
-				run.Stdout = os.Stdout
-				run.Stderr = os.Stderr
-				run.Stdin = os.Stdin
-				run.Dir = runDir
-				return run.Run()
-			default:
-				return validateBackend(runBackend)
+			if err := validateBackend(runBackend); err != nil {
+				return err
 			}
+			cmd.SilenceUsage = true
+			cmd.SilenceErrors = true
+			return runEntry(entry, runBackend, runProgramArgs(args, cmd.ArgsLenAtDash()), os.Stdin, os.Stdout, os.Stderr)
 		},
+	}
+}
+
+func runProgramArgs(args []string, dash int) []string {
+	if len(args) <= 1 {
+		return nil
+	}
+	start := 1
+	if dash > 0 && dash < len(args) {
+		start = dash
+	}
+	out := make([]string, len(args[start:]))
+	copy(out, args[start:])
+	return out
+}
+
+func runEntry(entry string, runBackend string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	switch runBackend {
+	case "go":
+		exe, cleanup, err := compileGoExecutableToTemp(entry, stdout, stderr)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		run := exec.Command(exe, programArgs...)
+		run.Stdout = stdout
+		run.Stderr = stderr
+		run.Stdin = stdin
+		return run.Run()
+	case "ts":
+		tsFile, runDir, cleanup, err := compileTypeScriptToTemp(entry)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		run, err := typeScriptRuntimeCommand(tsFile, programArgs)
+		if err != nil {
+			return err
+		}
+		run.Stdout = stdout
+		run.Stderr = stderr
+		run.Stdin = stdin
+		run.Dir = runDir
+		return run.Run()
+	default:
+		return validateBackend(runBackend)
 	}
 }
 
@@ -532,6 +565,25 @@ func compileGoToTemp(path string) (string, func(), error) {
 		return "", func() {}, err
 	}
 	return goFile, cleanup, nil
+}
+
+func compileGoExecutableToTemp(path string, stdout io.Writer, stderr io.Writer) (string, func(), error) {
+	goFile, cleanup, err := compileGoToTemp(path)
+	if err != nil {
+		return "", cleanup, err
+	}
+	exe := filepath.Join(filepath.Dir(goFile), "main")
+	if runtime.GOOS == "windows" {
+		exe += ".exe"
+	}
+	build := exec.Command("go", "build", "-o", exe, goFile)
+	build.Stdout = stdout
+	build.Stderr = stderr
+	if err := build.Run(); err != nil {
+		cleanup()
+		return "", func() {}, err
+	}
+	return exe, cleanup, nil
 }
 
 func compileTypeScriptToTemp(path string) (string, string, func(), error) {
