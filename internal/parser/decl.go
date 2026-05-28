@@ -76,10 +76,10 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	p.consume(lexer.LBrace, "expected '{' after type declaration")
 	p.skipNewlines()
 	if p.looksLikeEnumMember() {
-		if len(generics) > 0 {
+		if len(generics) > 0 && p.looksLikeEnumValueMember() {
 			p.errorAt(name, "enum declarations cannot have generic parameters")
 		}
-		enum := p.parseEnumBody(name, private)
+		enum := p.parseEnumBody(name, private, generics)
 		return nil, enum
 	}
 	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
@@ -128,30 +128,83 @@ func (p *Parser) looksLikeEnumMember() bool {
 		return false
 	}
 	p.skipNewlines()
+	if p.check(lexer.Assign) {
+		return true
+	}
+	if !p.match(lexer.LParen) {
+		return false
+	}
+	depth := 1
+	for !p.check(lexer.EOF) && depth > 0 {
+		tok := p.advance()
+		switch tok.Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		}
+	}
+	p.skipNewlines()
+	return !p.check(lexer.Arrow) && !p.check(lexer.FatArrow)
+}
+
+func (p *Parser) looksLikeEnumValueMember() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	p.match(lexer.Minus)
+	p.skipNewlines()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.skipNewlines()
 	return p.check(lexer.Assign)
 }
 
-func (p *Parser) parseEnumBody(name lexer.Token, private bool) *ast.EnumType {
-	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Pos: name.Pos, NamePos: name.Pos}
+func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string) *ast.EnumType {
+	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		memberPrivate := p.parsePrivateModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
 		p.skipNewlines()
-		p.consume(lexer.Assign, "expected '=' after enum member name")
-		p.skipNewlines()
-		value, valuePos := p.parseEnumValue()
-		enum.Members = append(enum.Members, ast.EnumMember{
-			Name:    memberName.Lexeme,
-			Private: memberPrivate,
-			Value:   value,
-			Pos:     valuePos,
-		})
+		member := ast.EnumMember{Name: memberName.Lexeme, Private: memberPrivate, Pos: memberName.Pos}
+		if p.match(lexer.Assign) {
+			p.skipNewlines()
+			value, _ := p.parseEnumValue()
+			member.Value = value
+			member.HasValue = true
+		} else if p.match(lexer.LParen) {
+			p.skipNewlines()
+			member.Params = p.parseEnumConstructorParams()
+			p.consume(lexer.RParen, "expected ')' after enum constructor parameters")
+		} else {
+			p.errorAt(memberName, "expected '=' or '(' after enum member name")
+		}
+		enum.Members = append(enum.Members, member)
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
 		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after enum declaration")
 	return enum
+}
+
+func (p *Parser) parseEnumConstructorParams() []ast.Param {
+	var params []ast.Param
+	if p.check(lexer.RParen) {
+		return params
+	}
+	for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
+		name := p.consume(lexer.Ident, "expected enum constructor parameter name")
+		p.consume(lexer.Colon, "expected ':' after enum constructor parameter name")
+		typ := p.parseTypeName()
+		params = append(params, ast.Param{Name: name.Lexeme, Type: typ.canonical, TypeDisplay: typ.display, Pos: name.Pos})
+		p.skipNewlines()
+		if !p.match(lexer.Comma) {
+			break
+		}
+		p.skipNewlines()
+	}
+	return params
 }
 
 func (p *Parser) parseEnumValue() (int, lexer.Position) {

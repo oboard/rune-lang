@@ -635,6 +635,9 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 }
 
 func (c *checker) checkConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) {
+	if c.checkEnumConstructorPattern(pattern, subject, env, optional) {
+		return
+	}
 	okType, errType, result := parseResultType(subject)
 	if !result {
 		if subject != Unknown {
@@ -661,6 +664,39 @@ func (c *checker) checkConstructorPattern(pattern *ast.ConstructorPattern, subje
 		}
 		env[pattern.Binding] = bindingType
 	}
+}
+
+func (c *checker) checkEnumConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) bool {
+	enumName := baseTypeName(subject)
+	enum := c.info.Enums[enumName]
+	if enum == nil {
+		return false
+	}
+	member, ok := enum.ByName[pattern.Name]
+	if !ok || member.HasValue {
+		c.errorf(pattern.Pos, "enum %s has no constructor %q", enum.Name, pattern.Name)
+		return true
+	}
+	if !c.checkPrivateAccess("enum constructor", enum.Name+"."+pattern.Name, member.Private, member.SourcePath, pattern.Pos) {
+		return true
+	}
+	if pattern.Binding == "" {
+		return true
+	}
+	if optional {
+		c.errorf(pattern.BindingPos, "optional pattern binding %q is not available when the key is absent", pattern.Binding)
+		return true
+	}
+	if len(member.Params) == 0 {
+		c.errorf(pattern.BindingPos, "constructor %s.%s does not bind a value", enum.Name, pattern.Name)
+		return true
+	}
+	if len(member.Params) > 1 {
+		c.errorf(pattern.BindingPos, "constructor %s.%s binds multiple values", enum.Name, pattern.Name)
+		return true
+	}
+	env[pattern.Binding] = substituteTypeParams(member.Params[0].Type, typeParamBindingsForEnum(enum, subject))
+	return true
 }
 
 func (c *checker) checkMapPattern(pattern *ast.MapPattern, subject Type, env map[string]Type, optional bool) {

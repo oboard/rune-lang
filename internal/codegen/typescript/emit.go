@@ -19,14 +19,29 @@ func (g *generator) structType(typ *ir.StructType) {
 }
 
 func (g *generator) enumType(enum *ir.EnumType) {
+	if !enumHasValueMembers(enum) {
+		return
+	}
 	g.linef("type %s = number;", mangleIdent(enum.Name))
 	g.linef("const %s = {", mangleIdent(enum.Name))
 	g.indent++
 	for _, member := range enum.Members {
+		if !member.HasValue {
+			continue
+		}
 		g.linef("%s: %d,", tsPropertyName(member.Name), member.Value)
 	}
 	g.indent--
 	g.line("} as const;")
+}
+
+func enumHasValueMembers(enum *ir.EnumType) bool {
+	for _, member := range enum.Members {
+		if member.HasValue {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *generator) function(fn *ir.Function) error {

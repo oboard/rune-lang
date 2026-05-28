@@ -116,6 +116,72 @@ message(flag: Bool) => read(flag) {
 	}
 }
 
+func TestGenericEnumConstructorsBindPayloads(t *testing.T) {
+	src := `Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+read(flag: Bool) -> Result[String, String] => flag {
+  true => Ok("Ada")
+  false => Err("no")
+}
+
+message(flag: Bool) => read(flag) {
+  Ok(user) => user
+  Err(reason) => reason
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	readBody := file.Functions[0].Body.(*ast.MatchExpr)
+	okCall := readBody.Branches[0].Expr.(*ast.CallExpr)
+	errCall := readBody.Branches[1].Expr.(*ast.CallExpr)
+	if got, want := info.ExprTypes[okCall], ResultOf(String, String); got != want {
+		t.Fatalf("Ok constructor type = %s, want %s", got, want)
+	}
+	if got, want := info.ExprTypes[errCall], ResultOf(String, String); got != want {
+		t.Fatalf("Err constructor type = %s, want %s", got, want)
+	}
+	messageBody := file.Functions[1].Body.(*ast.MatchExpr)
+	okExpr := messageBody.Branches[0].Expr.(*ast.Identifier)
+	errExpr := messageBody.Branches[1].Expr.(*ast.Identifier)
+	if got, want := info.ExprTypes[okExpr], String; got != want {
+		t.Fatalf("Ok binding type = %s, want %s", got, want)
+	}
+	if got, want := info.ExprTypes[errExpr], String; got != want {
+		t.Fatalf("Err binding type = %s, want %s", got, want)
+	}
+}
+
+func TestGenericEnumConstructorsResolveRecursiveParams(t *testing.T) {
+	src := `Tree[T]: {
+  Leaf(value: T)
+  Branch(left: Tree[T], right: Tree[T])
+}
+
+tree(name: String) -> Tree[String] => Branch(Leaf(name), Leaf(name))
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	call := file.Functions[0].Body.(*ast.CallExpr)
+	if got, want := info.ExprTypes[call], Type("Tree[String]"); got != want {
+		t.Fatalf("Branch constructor type = %s, want %s", got, want)
+	}
+}
+
 func TestIntToStringReceiverUsesCoreDecl(t *testing.T) {
 	src := `label(count: Int) => count.toString()
 `

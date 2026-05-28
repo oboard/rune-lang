@@ -382,7 +382,7 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 		}
 		return ArrayOf(elemType)
 	}
-	if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base)) {
+	if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base) || c.coreEnumExists(base)) {
 		resolved := make([]Type, 0, len(args))
 		for _, arg := range args {
 			resolved = append(resolved, c.resolveDeclaredType(arg, bindings))

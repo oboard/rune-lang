@@ -604,6 +604,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		return c.finishRoutineCall(call, method.Routine, method.Return)
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
+		if typ, ok := c.inferEnumConstructor(ident.Name, call, argTypes); ok {
+			return typ
+		}
 		if ident.Name == "Ok" || ident.Name == "Err" {
 			c.inferDeferredCallArgs(call.Args, argTypes, env)
 			return c.inferResultConstructor(ident.Name, call, argTypes)
@@ -730,6 +733,104 @@ func (c *checker) inferLambdaArg(arg ast.Expr, expected Type, env map[string]Typ
 		c.applyExpectedType(arg, expected)
 	}
 	return c.inferExpr(arg, env)
+}
+
+func (c *checker) inferEnumConstructor(name string, call *ast.CallExpr, argTypes []Type) (Type, bool) {
+	constructors := c.info.Constructors[name]
+	if len(constructors) == 0 {
+		return Unknown, false
+	}
+	constructor := constructors[0]
+	if len(constructors) > 1 {
+		c.errorf(call.Pos, "ambiguous enum constructor %q", name)
+		return Unknown, true
+	}
+	if !c.checkPrivateAccess("enum", constructor.Enum.Name, constructor.Enum.Private, constructor.Enum.SourcePath, call.Pos) {
+		return Unknown, true
+	}
+	if !c.checkPrivateAccess("enum constructor", constructor.Enum.Name+"."+name, constructor.Member.Private, constructor.Member.SourcePath, call.Pos) {
+		return Unknown, true
+	}
+	if len(constructor.Member.Params) != len(call.Args) {
+		c.errorf(call.Pos, "constructor %q expects %d args, got %d", name, len(constructor.Member.Params), len(call.Args))
+		return Unknown, true
+	}
+	bindings := enumConstructorBindings(constructor.Enum.Generics, constructor.Member.Params, argTypes)
+	for idx, param := range constructor.Member.Params {
+		expected := substituteTypeParams(param.Type, bindings)
+		if idx < len(argTypes) && !typesCompatible(expected, argTypes[idx], nil) {
+			c.errorf(call.Args[idx].Position(), "argument %d to %q has type %s, expected %s", idx+1, name, argTypes[idx], expected)
+		}
+	}
+	if len(constructor.Enum.Generics) == 0 {
+		return Type(constructor.Enum.Name), true
+	}
+	args := make([]Type, 0, len(constructor.Enum.Generics))
+	for _, generic := range constructor.Enum.Generics {
+		if typ, ok := bindings[generic]; ok {
+			args = append(args, typ)
+		} else {
+			args = append(args, Unknown)
+		}
+	}
+	return genericTypeOf(constructor.Enum.Name, args), true
+}
+
+func enumConstructorBindings(generics []string, params []ParamInfo, argTypes []Type) map[string]Type {
+	bindings := make(map[string]Type, len(generics))
+	genericNames := genericSet(generics...)
+	for _, generic := range generics {
+		bindings[generic] = Unknown
+	}
+	limit := min(len(params), len(argTypes))
+	for i := 0; i < limit; i++ {
+		bindTypeParams(params[i].Type, argTypes[i], genericNames, bindings)
+	}
+	return bindings
+}
+
+func bindTypeParams(pattern Type, actual Type, generics map[string]bool, bindings map[string]Type) {
+	if actual == Unknown || pattern == Unknown {
+		return
+	}
+	if generics[string(pattern)] {
+		if current := bindings[string(pattern)]; current == "" || current == Unknown {
+			bindings[string(pattern)] = actual
+		}
+		return
+	}
+	if inner, ok := parseNullableType(string(pattern)); ok {
+		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
+			bindTypeParams(Type(inner), Type(actualInner), generics, bindings)
+		}
+		return
+	}
+	if elem, ok := parseArrayType(string(pattern)); ok {
+		if actualElem, actualArray := parseArrayType(string(actual)); actualArray {
+			bindTypeParams(Type(elem), Type(actualElem), generics, bindings)
+		}
+		return
+	}
+	if base, args, ok := parseGenericType(string(pattern)); ok {
+		actualBase, actualArgs, actualGeneric := parseGenericType(string(actual))
+		if !actualGeneric || base != actualBase || len(args) != len(actualArgs) {
+			return
+		}
+		for i := range args {
+			bindTypeParams(Type(args[i]), Type(actualArgs[i]), generics, bindings)
+		}
+		return
+	}
+	if params, ret, ok := parseFuncType(string(pattern)); ok {
+		actualParams, actualRet, actualFunc := parseFuncType(string(actual))
+		if !actualFunc || len(params) != len(actualParams) {
+			return
+		}
+		for i := range params {
+			bindTypeParams(Type(params[i]), Type(actualParams[i]), generics, bindings)
+		}
+		bindTypeParams(Type(ret), Type(actualRet), generics, bindings)
+	}
 }
 
 func (c *checker) refineNumericBinaryOperands(expr *ast.BinaryExpr, left Type, right Type, env map[string]Type) (Type, Type) {

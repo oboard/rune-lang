@@ -43,17 +43,36 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
 			continue
 		}
-		info := &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, ByName: map[string]EnumMemberInfo{}, Node: enum}
+		c.info.Enums[enum.Name] = &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, Generics: append([]string(nil), enum.Generics...), ByName: map[string]EnumMemberInfo{}, Node: enum}
+	}
+	for _, enum := range file.Enums {
+		info := c.info.Enums[enum.Name]
+		if info == nil || info.Node != enum {
+			continue
+		}
+		enumGenerics := genericSet(enum.Generics...)
 		for _, member := range enum.Members {
 			if _, exists := info.ByName[member.Name]; exists {
 				c.errorf(member.Pos, "duplicate enum member %s.%s", enum.Name, member.Name)
 				continue
 			}
-			memberInfo := EnumMemberInfo{Name: member.Name, Private: member.Private, SourcePath: enum.SourcePath, Value: member.Value}
+			if member.HasValue && len(enum.Generics) > 0 {
+				c.errorf(member.Pos, "integer enum member %s.%s cannot belong to generic enum %s", enum.Name, member.Name, enum.Name)
+			}
+			memberInfo := EnumMemberInfo{Name: member.Name, Private: member.Private, SourcePath: enum.SourcePath, Value: member.Value, HasValue: member.HasValue, Pos: member.Pos}
+			for _, param := range member.Params {
+				paramType := c.resolveTypeWithGenerics(param.Type, enumGenerics)
+				if paramType == Unknown && !isDynamicTypeName(param.Type) {
+					c.reportUnknownOrPrivateType(param.Pos, param.Type)
+				}
+				memberInfo.Params = append(memberInfo.Params, ParamInfo{Name: param.Name, Type: paramType})
+			}
 			info.Members = append(info.Members, memberInfo)
 			info.ByName[member.Name] = memberInfo
+			if !member.HasValue {
+				c.info.Constructors[member.Name] = append(c.info.Constructors[member.Name], EnumConstructorInfo{Enum: info, Member: memberInfo})
+			}
 		}
-		c.info.Enums[enum.Name] = info
 	}
 	for _, typ := range file.Types {
 		info := c.info.Types[typ.Name]

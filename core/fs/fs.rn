@@ -1,23 +1,43 @@
-~ readFile(path: String) -> Result[@io.Data, Error] => "%fs.readFile"
-
-~ readFileText(path: String) -> Result[String, Error] => "%fs.readFileText"
-
-~ writeFile(path: String, data: @io.Data) -> Result[Void, Error] => "%fs.writeFile"
-
-~ writeFileText(path: String, data: String) -> Result[Void, Error] => "%fs.writeFileText"
-
-~ exists(path: String) -> Result[Bool, Error] => "%fs.exists"
-
-~ readdir(path: String) -> Result[Array[String], Error] => "%fs.readdir"
-
-~ mkdir(path: String) -> Result[Void, Error] => "%fs.mkdir"
-
-~ remove(path: String) -> Result[Void, Error] => "%fs.remove"
-
-~ stat(path: String) -> Result[FileStat, Error] => "%fs.stat"
-
 FileStat: {
   size: Int
   isFile: Bool
   isDirectory: Bool
 }
+
+~ readFile(
+  path: String
+) -> Result[@io.Data, Error] => "%fs.readFile"
+
+~ readFileText(
+  path: String
+) -> Result[String, Error] => "%fs.readFileText"
+
+~ writeFile(
+  path: String,
+  data: @io.Data
+) -> Result[Void, Error] => "%fs.writeFile"
+
+~ writeFileText(
+  path: String,
+  data: String
+) -> Result[Void, Error] => "%fs.writeFileText"
+
+~ exists(
+  path: String
+) -> Result[Bool, Error] => "%fs.exists"
+
+~ readdir(
+  path: String
+) -> Result[Array[String], Error] => "%fs.readdir"
+
+~ mkdir(
+  path: String
+) -> Result[Void, Error] => "%fs.mkdir"
+
+~ remove(
+  path: String
+) -> Result[Void, Error] => "%fs.remove"
+
+~ stat(
+  path: String
+) -> Result[FileStat, Error] => "%fs.stat"

@@ -95,7 +95,7 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 			}
 			return ArrayOf(elem)
 		}
-		if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base)) {
+		if base, args, ok := parseGenericType(name); ok && (isBuiltinGenericType(base) || c.coreTypeExists(base) || c.coreEnumExists(base)) {
 			resolved := make([]Type, 0, len(args))
 			for _, arg := range args {
 				typ := c.resolveTypeWithGenerics(arg, generics)
@@ -139,6 +139,10 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 
 func (c *checker) coreTypeExists(name string) bool {
 	return c != nil && c.info != nil && c.info.Types[name] != nil
+}
+
+func (c *checker) coreEnumExists(name string) bool {
+	return c != nil && c.info != nil && c.info.Enums[name] != nil
 }
 
 func (c *checker) resolveDeclaredReturn(name string) Type {
@@ -333,6 +337,23 @@ func FieldType(info *Info, receiver Type, name string) (Type, bool) {
 }
 
 func typeParamBindingsForStruct(info *StructInfo, receiver Type) map[string]Type {
+	if info == nil || len(info.Generics) == 0 {
+		return nil
+	}
+	base, args, ok := parseGenericType(string(receiver))
+	if !ok || base != info.Name {
+		return nil
+	}
+	bindings := make(map[string]Type, len(info.Generics))
+	for idx, name := range info.Generics {
+		if idx < len(args) {
+			bindings[name] = Type(args[idx])
+		}
+	}
+	return bindings
+}
+
+func typeParamBindingsForEnum(info *EnumInfo, receiver Type) map[string]Type {
 	if info == nil || len(info.Generics) == 0 {
 		return nil
 	}

@@ -106,12 +106,21 @@ type EnumMemberInfo struct {
 	Private    bool
 	SourcePath string
 	Value      int
+	HasValue   bool
+	Params     []ParamInfo
+	Pos        lexer.Position
+}
+
+type EnumConstructorInfo struct {
+	Enum   *EnumInfo
+	Member EnumMemberInfo
 }
 
 type EnumInfo struct {
 	Name       string
 	Private    bool
 	SourcePath string
+	Generics   []string
 	Members    []EnumMemberInfo
 	ByName     map[string]EnumMemberInfo
 	Node       *ast.EnumType
@@ -126,6 +135,7 @@ type Info struct {
 	ResolvedValues    map[*ast.Identifier]*ExternalValueInfo
 	Types             map[string]*StructInfo
 	Enums             map[string]*EnumInfo
+	Constructors      map[string][]EnumConstructorInfo
 	Stdlib            *stdlib.Registry
 	ExprTypes         map[ast.Expr]Type
 	AsyncCalls        map[*ast.CallExpr]bool

@@ -1,32 +1,40 @@
-new[K, V](keyType: K, valueType: V) -> Map[K, V] => "%map.new"
-
 Map[K, V]: {
-    size() -> Int => "%map.size"
+  size() -> Int => "%map.size"
 
-    has(key: K) -> Bool => "%map.has"
+  has(key: K) -> Bool => "%map.has"
 
-    getOr(key: K, fallback: V) -> V => "%map.getOr"
+  getOr(key: K, fallback: V) -> V => "%map.getOr"
 
-    set(key: K, value: V) -> Map[K, V] => "%map.set"
+  set(key: K, value: V) -> Map[K, V] => "%map.set"
 
-    delete(key: K) -> Bool => "%map.delete"
+  delete(key: K) -> Bool => "%map.delete"
 
-    clear() -> Void => "%map.clear"
+  clear() -> Void => "%map.clear"
 
-    keys() -> Array[K] => "%map.keys"
+  keys() -> Array[K] => "%map.keys"
 
-    values() -> Array[V] => "%map.values"
+  values() -> Array[V] => "%map.values"
 
-    each[R](callbackfn: (value: V, key?: K, map?: Map[K, V]) -> R) -> Void => "%map.each"
-
+  each[R](
+    callbackfn: (
+      value: V,
+      key?: K,
+      map?: Map[K, V]
+    ) -> R
+  ) -> Void => "%map.each"
 }
 
 WeakMap[K, V]: {
-    has(key: K) -> Bool => "%weakMap.has"
+  has(key: K) -> Bool => "%weakMap.has"
 
-    getOr(key: K, fallback: V) -> V => "%weakMap.getOr"
+  getOr(key: K, fallback: V) -> V => "%weakMap.getOr"
 
-    set(key: K, value: V) -> WeakMap[K, V] => "%weakMap.set"
+  set(key: K, value: V) -> WeakMap[K, V] => "%weakMap.set"
 
-    delete(key: K) -> Bool => "%weakMap.delete"
+  delete(key: K) -> Bool => "%weakMap.delete"
 }
+
+new[K, V](
+  keyType: K,
+  valueType: V
+) -> Map[K, V] => "%map.new"

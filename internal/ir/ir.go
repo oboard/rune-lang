@@ -65,18 +65,21 @@ type Field struct {
 }
 
 type EnumType struct {
-	Name    string
-	Private bool
-	Members []EnumMember
-	Pos     lexer.Position
-	NamePos lexer.Position
+	Name     string
+	Private  bool
+	Generics []string
+	Members  []EnumMember
+	Pos      lexer.Position
+	NamePos  lexer.Position
 }
 
 type EnumMember struct {
-	Name    string
-	Private bool
-	Value   int
-	Pos     lexer.Position
+	Name     string
+	Private  bool
+	Value    int
+	HasValue bool
+	Params   []Param
+	Pos      lexer.Position
 }
 
 type Function struct {

@@ -1,9 +1,9 @@
+Int: {
+  toString() -> String => "%int.toString"
+}
+
 toDouble(value: Int) -> Double => "%int.toDouble"
 
 toBigInt(value: Int) -> BigInt => "%int.toBigInt"
 
 toString(value: Int) -> String => "%int.toString"
-
-Int: {
-  toString() -> String => "%int.toString"
-}

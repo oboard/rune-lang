@@ -1,27 +1,55 @@
-~ gzip(data: @io.Data) -> Result[@io.Data, Error] => "%compress.gzip"
+~ gzip(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.gzip"
 
-~ gunzip(data: @io.Data) -> Result[@io.Data, Error] => "%compress.gunzip"
+~ gunzip(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.gunzip"
 
-~ deflate(data: @io.Data) -> Result[@io.Data, Error] => "%compress.deflate"
+~ deflate(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.deflate"
 
-~ inflate(data: @io.Data) -> Result[@io.Data, Error] => "%compress.inflate"
+~ inflate(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.inflate"
 
-~ brotli(data: @io.Data) -> Result[@io.Data, Error] => "%compress.brotli"
+~ brotli(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.brotli"
 
-~ unbrotli(data: @io.Data) -> Result[@io.Data, Error] => "%compress.unbrotli"
+~ unbrotli(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.unbrotli"
 
-~ zstd(data: @io.Data) -> Result[@io.Data, Error] => "%compress.zstd"
+~ zstd(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.zstd"
 
-~ unzstd(data: @io.Data) -> Result[@io.Data, Error] => "%compress.unzstd"
+~ unzstd(
+  data: @io.Data
+) -> Result[@io.Data, Error] => "%compress.unzstd"
 
-~ gzipText(value: String) -> Result[@io.Data, Error] => "%compress.gzipText"
+~ gzipText(
+  value: String
+) -> Result[@io.Data, Error] => "%compress.gzipText"
 
-~ gunzipText(data: @io.Data) -> Result[String, Error] => "%compress.gunzipText"
+~ gunzipText(
+  data: @io.Data
+) -> Result[String, Error] => "%compress.gunzipText"
 
-~ brotliText(value: String) -> Result[@io.Data, Error] => "%compress.brotliText"
+~ brotliText(
+  value: String
+) -> Result[@io.Data, Error] => "%compress.brotliText"
 
-~ unbrotliText(data: @io.Data) -> Result[String, Error] => "%compress.unbrotliText"
+~ unbrotliText(
+  data: @io.Data
+) -> Result[String, Error] => "%compress.unbrotliText"
 
-~ zstdText(value: String) -> Result[@io.Data, Error] => "%compress.zstdText"
+~ zstdText(
+  value: String
+) -> Result[@io.Data, Error] => "%compress.zstdText"
 
-~ unzstdText(data: @io.Data) -> Result[String, Error] => "%compress.unzstdText"
+~ unzstdText(
+  data: @io.Data
+) -> Result[String, Error] => "%compress.unzstdText"

@@ -13,7 +13,10 @@ Array[T]: {
 
   last() -> T => "%array.last"
 
-  slice(start: Int, end: Int) -> Array[T] => "%array.slice"
+  slice(
+    start: Int,
+    end: Int
+  ) -> Array[T] => "%array.slice"
 
   clone() -> Array[T] => "%array.clone"
 

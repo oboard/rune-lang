@@ -26,10 +26,14 @@ func (f *formatter) structType(typ *ast.StructType) {
 }
 
 func (f *formatter) enumType(enum *ast.EnumType) {
-	f.linef("%s%s: {", privatePrefix(enum.Private), enum.Name)
+	f.linef("%s%s%s: {", privatePrefix(enum.Private), enum.Name, formatGenerics(enum.Generics))
 	f.indent++
 	for _, member := range enum.Members {
-		f.linef("%s%s = %d", privatePrefix(member.Private), member.Name, member.Value)
+		if member.HasValue {
+			f.linef("%s%s = %d", privatePrefix(member.Private), member.Name, member.Value)
+			continue
+		}
+		f.linef("%s%s(%s)", privatePrefix(member.Private), member.Name, formatParams(member.Params))
 	}
 	f.indent--
 	f.line("}")
@@ -166,6 +170,14 @@ func formatParam(param ast.Param) string {
 		return param.Name
 	}
 	return param.Name + ": " + formatType(param.Type, param.TypeDisplay)
+}
+
+func formatParams(params []ast.Param) string {
+	out := make([]string, 0, len(params))
+	for _, param := range params {
+		out = append(out, formatParam(param))
+	}
+	return strings.Join(out, ", ")
 }
 
 func privatePrefix(private bool) string {

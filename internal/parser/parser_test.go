@@ -116,6 +116,33 @@ func TestEnumDeclWithIntegerMembers(t *testing.T) {
 	}
 }
 
+func TestGenericEnumDeclWithConstructors(t *testing.T) {
+	file, errs := Parse(`Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Enums) != 1 {
+		t.Fatalf("Parse() produced %d enums, want 1", len(file.Enums))
+	}
+	enum := file.Enums[0]
+	if enum.Name != "Result" || len(enum.Generics) != 2 || enum.Generics[0] != "T" || enum.Generics[1] != "E" {
+		t.Fatalf("enum = %#v, want generic Result[T, E]", enum)
+	}
+	if len(enum.Members) != 2 {
+		t.Fatalf("members = %#v, want Ok and Err", enum.Members)
+	}
+	if enum.Members[0].HasValue || enum.Members[0].Name != "Ok" || len(enum.Members[0].Params) != 1 || enum.Members[0].Params[0].Type != "T" {
+		t.Fatalf("first member = %#v, want Ok(value: T)", enum.Members[0])
+	}
+	if enum.Members[1].HasValue || enum.Members[1].Name != "Err" || len(enum.Members[1].Params) != 1 || enum.Members[1].Params[0].Type != "E" {
+		t.Fatalf("second member = %#v, want Err(error: E)", enum.Members[1])
+	}
+}
+
 func TestFunctionDeclRequiresFatArrow(t *testing.T) {
 	file, errs := Parse(`main() {
 }

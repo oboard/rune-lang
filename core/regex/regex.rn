@@ -1,19 +1,23 @@
-new(pattern: String, flags: String) -> Regex => "%regex.new"
-
-escape(value: String) -> String => "%regex.escape"
-
 Regex: {
   exec(string: String) -> Array[String] => "%regex.exec"
 
   match(string: String) -> Array[String] => "%regex.match"
 
-  matchAll(string: String) -> Array[Array[String]] => "%regex.matchAll"
+  matchAll(
+    string: String
+  ) -> Array[Array[String]] => "%regex.matchAll"
 
   test(string: String) -> Bool => "%regex.test"
 
-  replace(string: String, replaceValue: String) -> String => "%regex.replace"
+  replace(
+    string: String,
+    replaceValue: String
+  ) -> String => "%regex.replace"
 
-  replaceAll(string: String, replaceValue: String) -> String => "%regex.replaceAll"
+  replaceAll(
+    string: String,
+    replaceValue: String
+  ) -> String => "%regex.replaceAll"
 
   search(string: String) -> Int => "%regex.search"
 
@@ -43,3 +47,10 @@ Regex: {
 
   setLastIndex(index: Int) -> Int => "%regex.setLastIndex"
 }
+
+new(
+  pattern: String,
+  flags: String
+) -> Regex => "%regex.new"
+
+escape(value: String) -> String => "%regex.escape"

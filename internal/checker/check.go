@@ -31,6 +31,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 			ResolvedValues:    map[*ast.Identifier]*ExternalValueInfo{},
 			Types:             map[string]*StructInfo{},
 			Enums:             map[string]*EnumInfo{},
+			Constructors:      map[string][]EnumConstructorInfo{},
 			Stdlib:            reg,
 			ExprTypes:         map[ast.Expr]Type{},
 			AsyncCalls:        map[*ast.CallExpr]bool{},

@@ -3,6 +3,7 @@ package ir
 import (
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 func LowerPackage(name string, modules []*Module) *Package {
@@ -97,9 +98,34 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 }
 
 func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
-	out := &EnumType{Name: enum.Name, Private: enum.Private, Pos: enum.Pos, NamePos: enum.NamePos}
+	out := &EnumType{Name: enum.Name, Private: enum.Private, Generics: append([]string(nil), enum.Generics...), Pos: enum.Pos, NamePos: enum.NamePos}
 	for _, member := range enum.Members {
-		out.Members = append(out.Members, EnumMember{Name: member.Name, Private: member.Private, Value: member.Value, Pos: member.Pos})
+		lowered := EnumMember{Name: member.Name, Private: member.Private, Value: member.Value, HasValue: member.HasValue, Pos: member.Pos}
+		if l.info != nil {
+			if enumInfo := l.info.Enums[enum.Name]; enumInfo != nil {
+				if memberInfo, ok := enumInfo.ByName[member.Name]; ok {
+					lowered.Params = append(lowered.Params, paramsFromInfo(memberInfo.Params, member.Params)...)
+				}
+			}
+		}
+		if len(lowered.Params) == 0 {
+			for _, param := range member.Params {
+				lowered.Params = append(lowered.Params, Param{Name: param.Name, Type: checker.Type(param.Type), Pos: param.Pos})
+			}
+		}
+		out.Members = append(out.Members, lowered)
+	}
+	return out
+}
+
+func paramsFromInfo(infos []checker.ParamInfo, params []ast.Param) []Param {
+	out := make([]Param, 0, len(infos))
+	for idx, info := range infos {
+		pos := lexer.Position{}
+		if idx < len(params) {
+			pos = params[idx].Pos
+		}
+		out = append(out, Param{Name: info.Name, Type: info.Type, Pos: pos})
 	}
 	return out
 }

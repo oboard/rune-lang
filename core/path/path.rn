@@ -10,6 +10,9 @@ normalize(path: String) -> String => "%path.normalize"
 
 resolve(parts: Array[String]) -> String => "%path.resolve"
 
-relative(from: String, to: String) -> String => "%path.relative"
+relative(
+  from: String,
+  to: String
+) -> String => "%path.relative"
 
 isAbsolute(path: String) -> Bool => "%path.isAbsolute"
