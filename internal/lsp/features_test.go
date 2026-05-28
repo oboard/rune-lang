@@ -203,8 +203,9 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 		t.Fatalf("definition uri = %s, want core/array/array.rn", defURI)
 	}
 	start := def["range"].(map[string]any)["start"].(position)
-	if start.Line != 31 || start.Character != 2 {
-		t.Fatalf("definition start = %+v, want line 31 char 2", start)
+	wantStart := positionInFile(t, filePathFromURI(defURI), "  map[U](", "map")
+	if start != wantStart {
+		t.Fatalf("definition start = %+v, want %+v", start, wantStart)
 	}
 	if got := s.rename(uri, positionOf(src, "arr.map", "map"), "collect"); got != nil {
 		t.Fatalf("array method rename = %#v, want nil", got)
@@ -266,8 +267,9 @@ func TestRegexMethodDefinitionUsesCoreStub(t *testing.T) {
 		t.Fatalf("definition uri = %s, want core/regex/regex.rn", defURI)
 	}
 	start := def["range"].(map[string]any)["start"].(position)
-	if start.Line != 7 || start.Character != 2 {
-		t.Fatalf("definition start = %+v, want line 7 char 2", start)
+	wantStart := positionInFile(t, filePathFromURI(defURI), "  match(string", "match")
+	if start != wantStart {
+		t.Fatalf("definition start = %+v, want %+v", start, wantStart)
 	}
 	if got := s.rename(uri, positionOf(src, "word.match", "match"), "matches"); got != nil {
 		t.Fatalf("regex method rename = %#v, want nil", got)
@@ -408,6 +410,30 @@ func TestAnonymousObjectHover(t *testing.T) {
 	nextAgeHover := s.hover(uri, positionOf(src, "obj.nextAge", "nextAge")).(map[string]any)
 	if got := hoverValue(nextAgeHover); !strings.Contains(got, "nextAge: () -> Int") {
 		t.Fatalf("hover = %q, want nextAge function field type", got)
+	}
+}
+
+func TestAnonymousObjectMethodSelfReferenceHover(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+    solution := {
+        emptyIntArray() -> Array[Int] => {
+            out := [0]
+            out.pop()
+            out
+        }
+        lc002AddTwoNumbersDigits(left: Array[Int], right: Array[Int]) -> Array[Int] => .lc002AddDigits(left, right, 0, 0, .emptyIntArray())
+        lc002AddDigits(left: Array[Int], right: Array[Int], index: Int, carry: Int, out: Array[Int]) -> Array[Int] => out
+    }
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	hover := s.hover(uri, positionOf(src, ".lc002AddDigits(left", "lc002AddDigits")).(map[string]any)
+	got := hoverValue(hover)
+	want := "lc002AddDigits: (Array[Int], Array[Int], Int, Int, Array[Int]) -> Array[Int]"
+	if !strings.Contains(got, want) {
+		t.Fatalf("hover = %q, want %q", got, want)
 	}
 }
 
@@ -1031,6 +1057,15 @@ func writeLSPFile(t *testing.T, path string, src string) {
 	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
 		t.Fatalf("WriteFile(%s) error = %v", path, err)
 	}
+}
+
+func positionInFile(t *testing.T, path string, context string, needle string) position {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+	return positionOf(string(src), context, needle)
 }
 
 func positionOf(src string, context string, needle string) position {

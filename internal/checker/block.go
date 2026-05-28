@@ -149,8 +149,9 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 		if _, exists := byName[field.Name]; exists {
 			c.errorf(field.Pos, "duplicate field value %q", field.Name)
 		}
-		if _, isLambda := field.Value.(*ast.LambdaExpr); isLambda && selfName != "" {
-			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, Type: Unknown}
+		if lambda, isLambda := field.Value.(*ast.LambdaExpr); isLambda && selfName != "" {
+			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, Type: c.lambdaSignaturePlaceholder(lambda)}
+			c.info.ExprTypes[lambda] = fieldInfo.Type
 			fields = append(fields, fieldInfo)
 			byName[field.Name] = fieldInfo
 			continue
@@ -178,6 +179,22 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 	}
 	c.registerAnonymousObjectType(typ, fields, byName)
 	return typ
+}
+
+func (c *checker) lambdaSignaturePlaceholder(lambda *ast.LambdaExpr) Type {
+	params := make([]Type, 0, len(lambda.Params))
+	for i := range lambda.Params {
+		paramType := Unknown
+		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+			paramType = c.resolveTypeWithGenerics(lambda.ParamTypes[i], c.genericTypes)
+		}
+		params = append(params, paramType)
+	}
+	ret := Unknown
+	if lambda.ReturnType != "" {
+		ret = c.resolveTypeWithGenerics(lambda.ReturnType, c.genericTypes)
+	}
+	return FuncOfTypes(params, ret)
 }
 
 func (c *checker) registerAnonymousObjectType(typ Type, fields []FieldInfo, byName map[string]FieldInfo) {
