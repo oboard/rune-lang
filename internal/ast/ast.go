@@ -38,7 +38,7 @@ type TSFunction struct {
 	Name       string
 	Routine    bool
 	Params     []Param
-	ReturnType string
+	ReturnType Type
 	Pos        lexer.Position
 	NamePos    lexer.Position
 	SourcePath string
@@ -46,7 +46,7 @@ type TSFunction struct {
 
 type TSValue struct {
 	Name       string
-	Type       string
+	Type       Type
 	Pos        lexer.Position
 	NamePos    lexer.Position
 	SourcePath string
@@ -70,11 +70,10 @@ type StructType struct {
 }
 
 type Field struct {
-	Name        string
-	Private     bool
-	Type        string
-	TypeDisplay string
-	Pos         lexer.Position
+	Name    string
+	Private bool
+	Type    Type
+	Pos     lexer.Position
 }
 
 type EnumType struct {
@@ -97,19 +96,18 @@ type EnumMember struct {
 }
 
 type Function struct {
-	Name          string
-	Private       bool
-	Routine       bool
-	Generics      []string
-	Annotations   []Annotation
-	ReceiverType  string
-	Params        []Param
-	ReturnType    string
-	ReturnDisplay string
-	Body          Expr
-	Pos           lexer.Position
-	NamePos       lexer.Position
-	SourcePath    string
+	Name         string
+	Private      bool
+	Routine      bool
+	Generics     []string
+	Annotations  []Annotation
+	ReceiverType string
+	Params       []Param
+	ReturnType   Type
+	Body         Expr
+	Pos          lexer.Position
+	NamePos      lexer.Position
+	SourcePath   string
 }
 
 func (f *Function) Signature() string {
@@ -133,17 +131,16 @@ func (f *Function) Signature() string {
 		}
 		b.WriteString(param.Name)
 		b.WriteString(": ")
-		b.WriteString(param.Type)
+		b.WriteString(param.Type.Display())
 	}
 	b.WriteByte(')')
 	return b.String()
 }
 
 type Param struct {
-	Name        string
-	Type        string
-	TypeDisplay string
-	Pos         lexer.Position
+	Name string
+	Type Type
+	Pos  lexer.Position
 }
 
 type Test struct {

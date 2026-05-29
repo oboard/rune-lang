@@ -10,7 +10,7 @@ func (f *formatter) structType(typ *ast.StructType) {
 	f.linef("%s%s%s: {", privatePrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
-		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type, field.TypeDisplay))
+		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type))
 	}
 	if len(typ.Fields) > 0 && len(typ.Methods) > 0 {
 		f.line("")
@@ -125,7 +125,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	for _, param := range fn.Params {
 		params = append(params, formatParam(param))
 	}
-	ret := formatReturnType(fn.ReturnType, fn.ReturnDisplay)
+	ret := formatReturnType(fn.ReturnType)
 	single := fn.Name + formatGenerics(fn.Generics) + "(" + strings.Join(params, ", ") + ")" + ret
 	if fn.Routine {
 		single = "~ " + single
@@ -166,10 +166,10 @@ func (f *formatter) lineSignature(lines []string, suffix string) {
 }
 
 func formatParam(param ast.Param) string {
-	if param.Type == "" {
+	if param.Type.IsZero() {
 		return param.Name
 	}
-	return param.Name + ": " + formatType(param.Type, param.TypeDisplay)
+	return param.Name + ": " + formatType(param.Type)
 }
 
 func formatParams(params []ast.Param) string {
@@ -188,10 +188,10 @@ func privatePrefix(private bool) string {
 }
 
 func (f *formatter) formatParamLines(param ast.Param) []string {
-	if param.Type == "" {
+	if param.Type.IsZero() {
 		return []string{param.Name}
 	}
-	typ := formatType(param.Type, param.TypeDisplay)
+	typ := formatType(param.Type)
 	single := param.Name + ": " + typ
 	if len(f.indentString(f.indent+1)+single) <= maxLineLength {
 		return []string{single}
@@ -211,11 +211,11 @@ func (f *formatter) formatParamLines(param ast.Param) []string {
 	return []string{single}
 }
 
-func formatReturnType(canonical string, display string) string {
-	if canonical == "" {
+func formatReturnType(typ ast.Type) string {
+	if typ.IsZero() {
 		return ""
 	}
-	return " -> " + formatType(canonical, display)
+	return " -> " + formatType(typ)
 }
 
 func splitFunctionType(typ string) ([]string, string, bool) {
@@ -324,9 +324,6 @@ func formatGenerics(names []string) string {
 	return "[" + strings.Join(names, ", ") + "]"
 }
 
-func formatType(canonical string, display string) string {
-	if display != "" {
-		return display
-	}
-	return canonical
+func formatType(typ ast.Type) string {
+	return typ.Display()
 }

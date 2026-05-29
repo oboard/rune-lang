@@ -135,10 +135,10 @@ func TestGenericEnumDeclWithConstructors(t *testing.T) {
 	if len(enum.Members) != 2 {
 		t.Fatalf("members = %#v, want Ok and Err", enum.Members)
 	}
-	if enum.Members[0].HasValue || enum.Members[0].Name != "Ok" || len(enum.Members[0].Params) != 1 || enum.Members[0].Params[0].Type != "T" {
+	if enum.Members[0].HasValue || enum.Members[0].Name != "Ok" || len(enum.Members[0].Params) != 1 || enum.Members[0].Params[0].Type.Canonical() != "T" {
 		t.Fatalf("first member = %#v, want Ok(value: T)", enum.Members[0])
 	}
-	if enum.Members[1].HasValue || enum.Members[1].Name != "Err" || len(enum.Members[1].Params) != 1 || enum.Members[1].Params[0].Type != "E" {
+	if enum.Members[1].HasValue || enum.Members[1].Name != "Err" || len(enum.Members[1].Params) != 1 || enum.Members[1].Params[0].Type.Canonical() != "E" {
 		t.Fatalf("second member = %#v, want Err(error: E)", enum.Members[1])
 	}
 }
@@ -199,7 +199,7 @@ main() => {
 	if !ok {
 		t.Fatalf("let value = %T, want LambdaExpr", let.Value)
 	}
-	if len(lambda.ParamTypes) != 1 || lambda.ParamTypes[0] != "Input" {
+	if len(lambda.ParamTypes) != 1 || lambda.ParamTypes[0].Canonical() != "Input" {
 		t.Fatalf("lambda param types = %v, want [Input]", lambda.ParamTypes)
 	}
 }
@@ -241,11 +241,17 @@ func TestRoutineDeclWithQualifiedGenericReturn(t *testing.T) {
 	if !fn.Routine || fn.Name != "gzip" {
 		t.Fatalf("function = %#v, want routine gzip", fn)
 	}
-	if len(fn.Params) != 1 || fn.Params[0].Type != "Data" || fn.Params[0].TypeDisplay != "@io.Data" {
+	if len(fn.Params) != 1 || fn.Params[0].Type.Canonical() != "Data" || fn.Params[0].Type.Display() != "@io.Data" {
 		t.Fatalf("params = %#v, want data: @io.Data", fn.Params)
 	}
-	if fn.ReturnType != "Result[Data,Error]" || fn.ReturnDisplay != "Result[@io.Data, Error]" {
-		t.Fatalf("return = %q/%q, want Result[@io.Data, Error]", fn.ReturnType, fn.ReturnDisplay)
+	if fn.Params[0].Type.Kind != ast.TypeName || fn.Params[0].Type.Module != "io" || fn.Params[0].Type.Name != "Data" {
+		t.Fatalf("param type node = %#v, want qualified Data type", fn.Params[0].Type)
+	}
+	if fn.ReturnType.Canonical() != "Result[Data,Error]" || fn.ReturnType.Display() != "Result[@io.Data, Error]" {
+		t.Fatalf("return = %q/%q, want Result[@io.Data, Error]", fn.ReturnType.Canonical(), fn.ReturnType.Display())
+	}
+	if fn.ReturnType.Kind != ast.TypeName || fn.ReturnType.Name != "Result" || len(fn.ReturnType.Args) != 2 || fn.ReturnType.Args[0].Module != "io" {
+		t.Fatalf("return type node = %#v, want Result with qualified Data argument", fn.ReturnType)
 	}
 }
 
@@ -467,12 +473,15 @@ func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
 		t.Fatalf("parsed file = %#v, want one array method", file)
 	}
 	param := file.Types[0].Methods[0].Params[0]
-	if param.Type != "Func[T,Int,Array[T],Void]" {
-		t.Fatalf("param type = %q, want canonical Func type", param.Type)
+	if param.Type.Canonical() != "Func[T,Int,Array[T],Void]" {
+		t.Fatalf("param type = %q, want canonical Func type", param.Type.Canonical())
+	}
+	if param.Type.Kind != ast.TypeFunction || len(param.Type.Params) != 3 || param.Type.Params[1].Name != "index" || !param.Type.Params[1].Optional {
+		t.Fatalf("param type node = %#v, want function type with named optional parameter", param.Type)
 	}
 	wantDisplay := "(value: T, index?: Int, array?: Array[T]) -> Void"
-	if param.TypeDisplay != wantDisplay {
-		t.Fatalf("param type display = %q, want %q", param.TypeDisplay, wantDisplay)
+	if param.Type.Display() != wantDisplay {
+		t.Fatalf("param type display = %q, want %q", param.Type.Display(), wantDisplay)
 	}
 }
 

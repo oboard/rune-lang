@@ -61,9 +61,10 @@ func (c *checker) collect(file *ast.File) {
 			}
 			memberInfo := EnumMemberInfo{Name: member.Name, Private: member.Private, SourcePath: enum.SourcePath, Value: member.Value, HasValue: member.HasValue, Pos: member.Pos}
 			for _, param := range member.Params {
-				paramType := c.resolveTypeWithGenerics(param.Type, enumGenerics)
-				if paramType == Unknown && !isDynamicTypeName(param.Type) {
-					c.reportUnknownOrPrivateType(param.Pos, param.Type)
+				paramName := param.Type.Canonical()
+				paramType := c.resolveTypeWithGenerics(paramName, enumGenerics)
+				if paramType == Unknown && !isDynamicTypeName(paramName) {
+					c.reportUnknownOrPrivateType(param.Pos, paramName)
 				}
 				memberInfo.Params = append(memberInfo.Params, ParamInfo{Name: param.Name, Type: paramType})
 			}
@@ -86,11 +87,12 @@ func (c *checker) collect(file *ast.File) {
 				continue
 			}
 			var fieldType Type
+			fieldName := field.Type.Canonical()
 			c.withSourcePath(typ.SourcePath, func() {
-				fieldType = c.resolveTypeWithGenerics(field.Type, typeGenerics)
+				fieldType = c.resolveTypeWithGenerics(fieldName, typeGenerics)
 			})
-			if fieldType == Unknown && !isDynamicTypeName(field.Type) {
-				c.reportUnknownOrPrivateType(field.Pos, field.Type)
+			if fieldType == Unknown && !isDynamicTypeName(fieldName) {
+				c.reportUnknownOrPrivateType(field.Pos, fieldName)
 			}
 			fieldInfo := FieldInfo{Name: field.Name, Private: field.Private, SourcePath: typ.SourcePath, Type: fieldType}
 			info.Fields = append(info.Fields, fieldInfo)
@@ -166,23 +168,25 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 				c.errorf(param.Pos, "duplicate parameter %q", param.Name)
 			}
 			seenParams[param.Name] = true
-			if param.Type == "" {
+			paramName := param.Type.Canonical()
+			if paramName == "" {
 				info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: Unknown})
 				continue
 			}
-			typ := c.resolveTypeWithGenerics(param.Type, genericTypes)
-			if typ == Unknown && !isDynamicTypeName(param.Type) {
-				c.reportUnknownOrPrivateType(param.Pos, param.Type)
+			typ := c.resolveTypeWithGenerics(paramName, genericTypes)
+			if typ == Unknown && !isDynamicTypeName(paramName) {
+				c.reportUnknownOrPrivateType(param.Pos, paramName)
 			}
 			info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: typ})
 		}
-		if fn.ReturnType != "" {
-			typ := c.resolveTypeWithGenerics(fn.ReturnType, genericTypes)
-			if typ == Unknown && !isDynamicTypeName(fn.ReturnType) {
-				if privateName, ok := c.inaccessibleTypeName(fn.ReturnType); ok {
+		returnName := fn.ReturnType.Canonical()
+		if returnName != "" {
+			typ := c.resolveTypeWithGenerics(returnName, genericTypes)
+			if typ == Unknown && !isDynamicTypeName(returnName) {
+				if privateName, ok := c.inaccessibleTypeName(returnName); ok {
 					c.errorf(fn.NamePos, "return type %q is private", privateName)
 				} else {
-					c.errorf(fn.NamePos, "unknown return type %q", fn.ReturnType)
+					c.errorf(fn.NamePos, "unknown return type %q", returnName)
 				}
 			}
 			info.Return = typ
@@ -200,15 +204,15 @@ func (c *checker) collectTypeScriptFunction(fn ast.TSFunction) *FuncInfo {
 		SourcePath:     fn.SourcePath,
 		Routine:        fn.Routine,
 		Return:         Unknown,
-		ReturnDeclared: fn.ReturnType != "",
+		ReturnDeclared: !fn.ReturnType.IsZero(),
 		Pos:            fn.Pos,
 		NamePos:        fn.NamePos,
 	}
 	for _, param := range fn.Params {
-		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: c.resolveExternalType(param.Type)})
+		info.Params = append(info.Params, ParamInfo{Name: param.Name, Type: c.resolveExternalType(param.Type.Canonical())})
 	}
-	if fn.ReturnType != "" {
-		info.Return = c.resolveExternalType(fn.ReturnType)
+	if returnName := fn.ReturnType.Canonical(); returnName != "" {
+		info.Return = c.resolveExternalType(returnName)
 	}
 	return info
 }
@@ -218,7 +222,7 @@ func (c *checker) collectTypeScriptValue(value ast.TSValue) *ExternalValueInfo {
 		Name:       value.Name,
 		LinkName:   value.Name,
 		SourcePath: value.SourcePath,
-		Type:       c.resolveExternalType(value.Type),
+		Type:       c.resolveExternalType(value.Type.Canonical()),
 		Pos:        value.Pos,
 		NamePos:    value.NamePos,
 	}

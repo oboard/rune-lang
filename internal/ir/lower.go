@@ -89,7 +89,7 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 		}
 	}
 	for _, field := range typ.Fields {
-		out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: checker.Type(field.Type), Pos: field.Pos})
+		out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: checker.Type(field.Type.Canonical()), Pos: field.Pos})
 	}
 	for _, method := range typ.Methods {
 		out.Methods = append(out.Methods, l.function(method, typ.Name))
@@ -110,7 +110,7 @@ func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
 		}
 		if len(lowered.Params) == 0 {
 			for _, param := range member.Params {
-				lowered.Params = append(lowered.Params, Param{Name: param.Name, Type: checker.Type(param.Type), Pos: param.Pos})
+				lowered.Params = append(lowered.Params, Param{Name: param.Name, Type: checker.Type(param.Type.Canonical()), Pos: param.Pos})
 			}
 		}
 		out.Members = append(out.Members, lowered)
@@ -156,10 +156,10 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 		}
 	}
 	for _, param := range fn.Params {
-		out.Params = append(out.Params, Param{Name: param.Name, Type: checker.Type(param.Type), Pos: param.Pos})
+		out.Params = append(out.Params, Param{Name: param.Name, Type: checker.Type(param.Type.Canonical()), Pos: param.Pos})
 	}
-	if fn.ReturnType != "" {
-		out.Return = checker.Type(fn.ReturnType)
+	if returnName := fn.ReturnType.Canonical(); returnName != "" {
+		out.Return = checker.Type(returnName)
 	}
 	return out
 }

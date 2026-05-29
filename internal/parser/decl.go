@@ -2,7 +2,6 @@ package parser
 
 import (
 	"strconv"
-	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -100,11 +99,10 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		p.consume(lexer.Colon, "expected ':' after field name")
 		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
-			Name:        fieldName.Lexeme,
-			Private:     private,
-			Type:        fieldType.canonical,
-			TypeDisplay: fieldType.display,
-			Pos:         fieldName.Pos,
+			Name:    fieldName.Lexeme,
+			Private: private,
+			Type:    fieldType,
+			Pos:     fieldName.Pos,
 		})
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
@@ -197,7 +195,7 @@ func (p *Parser) parseEnumConstructorParams() []ast.Param {
 		name := p.consume(lexer.Ident, "expected enum constructor parameter name")
 		p.consume(lexer.Colon, "expected ':' after enum constructor parameter name")
 		typ := p.parseTypeName()
-		params = append(params, ast.Param{Name: name.Lexeme, Type: typ.canonical, TypeDisplay: typ.display, Pos: name.Pos})
+		params = append(params, ast.Param{Name: name.Lexeme, Type: typ, Pos: name.Pos})
 		p.skipNewlines()
 		if !p.match(lexer.Comma) {
 			break
@@ -248,15 +246,14 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string, private bool) *a
 	if !p.check(lexer.RParen) {
 		for {
 			paramName := p.consume(lexer.Ident, "expected parameter name")
-			paramType := parsedType{}
+			paramType := ast.Type{}
 			if p.match(lexer.Colon) {
 				paramType = p.parseTypeName()
 			}
 			fn.Params = append(fn.Params, ast.Param{
-				Name:        paramName.Lexeme,
-				Type:        paramType.canonical,
-				TypeDisplay: paramType.display,
-				Pos:         paramName.Pos,
+				Name: paramName.Lexeme,
+				Type: paramType,
+				Pos:  paramName.Pos,
 			})
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
@@ -270,8 +267,7 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string, private bool) *a
 	if p.match(lexer.Arrow) {
 		p.skipNewlines()
 		ret := p.parseTypeName()
-		fn.ReturnType = ret.canonical
-		fn.ReturnDisplay = ret.display
+		fn.ReturnType = ret
 		p.skipNewlines()
 	}
 	p.consume(lexer.FatArrow, "expected '=>' after function signature")
@@ -298,20 +294,13 @@ func (p *Parser) parseGenericNames() []string {
 	return names
 }
 
-type parsedType struct {
-	canonical string
-	display   string
-}
-
-func (p *Parser) parseTypeName() parsedType {
+func (p *Parser) parseTypeName() ast.Type {
 	p.skipNewlines()
 	if p.match(lexer.LParen) {
-		var canonicalArgs []string
-		var displayArgs []string
+		var params []ast.TypeParam
 		for !p.check(lexer.RParen) && !p.check(lexer.EOF) {
 			arg := p.parseFunctionTypeParam()
-			canonicalArgs = append(canonicalArgs, arg.canonical)
-			displayArgs = append(displayArgs, arg.display)
+			params = append(params, arg)
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
@@ -323,27 +312,19 @@ func (p *Parser) parseTypeName() parsedType {
 		if p.match(lexer.Arrow) {
 			p.skipNewlines()
 			ret := p.parseTypeName()
-			return parsedType{
-				canonical: "Func[" + strings.Join(append(canonicalArgs, ret.canonical), ",") + "]",
-				display:   "(" + strings.Join(displayArgs, ", ") + ") -> " + ret.display,
-			}
+			return ast.FunctionType(params, ret)
 		}
-		if len(canonicalArgs) == 1 {
-			return parsedType{canonical: canonicalArgs[0], display: "(" + displayArgs[0] + ")"}
+		if len(params) == 1 && params[0].Name == "" && !params[0].Optional {
+			return ast.GroupedType(params[0].Type)
 		}
-		return parsedType{
-			canonical: "Tuple[" + strings.Join(canonicalArgs, ",") + "]",
-			display:   "(" + strings.Join(displayArgs, ", ") + ")",
-		}
+		return ast.TupleType(params)
 	}
-	typ, display := p.parseSimpleTypeName()
+	typ := p.parseSimpleTypeName()
 	if p.match(lexer.LBracket) {
-		var canonicalArgs []string
-		var displayArgs []string
+		var args []ast.Type
 		for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
 			arg := p.parseTypeName()
-			canonicalArgs = append(canonicalArgs, arg.canonical)
-			displayArgs = append(displayArgs, arg.display)
+			args = append(args, arg)
 			p.skipNewlines()
 			if !p.match(lexer.Comma) {
 				break
@@ -351,29 +332,26 @@ func (p *Parser) parseTypeName() parsedType {
 			p.skipNewlines()
 		}
 		p.consume(lexer.RBracket, "expected ']' after type arguments")
-		typ += "[" + strings.Join(canonicalArgs, ",") + "]"
-		display += "[" + strings.Join(displayArgs, ", ") + "]"
+		typ = typ.WithArgs(args)
 	}
 	if p.match(lexer.Question) {
-		typ += "?"
-		display += "?"
+		typ = typ.WithNullable()
 	}
-	return parsedType{canonical: typ, display: display}
+	return typ
 }
 
-func (p *Parser) parseSimpleTypeName() (string, string) {
+func (p *Parser) parseSimpleTypeName() ast.Type {
 	if p.match(lexer.At) {
 		module := p.consume(lexer.Ident, "expected module name after '@'")
 		p.consume(lexer.Dot, "expected '.' after module name")
 		name := p.consume(lexer.Ident, "expected type name after module qualifier")
-		display := "@" + module.Lexeme + "." + name.Lexeme
-		return name.Lexeme, display
+		return ast.QualifiedType(module.Lexeme, name.Lexeme)
 	}
 	name := p.consume(lexer.Ident, "expected type name")
-	return name.Lexeme, name.Lexeme
+	return ast.NamedType(name.Lexeme)
 }
 
-func (p *Parser) parseFunctionTypeParam() parsedType {
+func (p *Parser) parseFunctionTypeParam() ast.TypeParam {
 	p.skipNewlines()
 	name := ""
 	optional := false
@@ -385,14 +363,9 @@ func (p *Parser) parseFunctionTypeParam() parsedType {
 	}
 	typ := p.parseTypeName()
 	if name == "" {
-		return typ
+		return ast.TypeParam{Type: typ}
 	}
-	suffix := ": "
-	if optional {
-		suffix = "?: "
-	}
-	typ.display = name + suffix + typ.display
-	return typ
+	return ast.TypeParam{Name: name, Optional: optional, Type: typ}
 }
 
 func (p *Parser) typeParamHasName() bool {

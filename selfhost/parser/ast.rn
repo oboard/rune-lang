@@ -1,0 +1,258 @@
+@"../lexer/lexer.rn"
+
+ParsedTypeParam: {
+  name: String
+  optional: Bool
+  typeRef: ParsedTypeRef
+}
+
+ParsedTypeRef: {
+  kind: String
+  name: String
+  module: String
+  nullable: Bool
+  args: Array[ParsedTypeRef]
+  params: Array[ParsedTypeParam]
+  returnTypes: Array[ParsedTypeRef]
+  line: Int
+  column: Int
+}
+
+ParseError: {
+  message: String
+  line: Int
+  column: Int
+}
+
+ParsedImport: {
+  path: String
+  go: Bool
+  line: Int
+  column: Int
+}
+
+ParsedParam: {
+  name: String
+  typeRef: ParsedTypeRef
+  line: Int
+  column: Int
+}
+
+ParsedExpr: {
+  kind: String
+  text: String
+  name: String
+  value: String
+  op: String
+  params: Array[ParsedParam]
+  children: Array[ParsedExpr]
+  line: Int
+  column: Int
+}
+
+ParsedField: {
+  name: String
+  private: Bool
+  typeRef: ParsedTypeRef
+  line: Int
+  column: Int
+}
+
+ParsedEnumMember: {
+  name: String
+  private: Bool
+  value: String
+  line: Int
+  column: Int
+}
+
+ParsedFunction: {
+  name: String
+  private: Bool
+  routine: Bool
+  receiverType: String
+  generics: Array[String]
+  params: Array[ParsedParam]
+  returnType: ParsedTypeRef
+  body: ParsedExpr
+  line: Int
+  column: Int
+}
+
+ParsedType: {
+  name: String
+  private: Bool
+  enum: Bool
+  generics: Array[String]
+  fields: Array[ParsedField]
+  methods: Array[ParsedFunction]
+  members: Array[ParsedEnumMember]
+  line: Int
+  column: Int
+}
+
+ParsedTest: {
+  name: String
+  body: ParsedExpr
+  line: Int
+  column: Int
+}
+
+ParsedFile: {
+  imports: Array[ParsedImport]
+  types: Array[ParsedType]
+  functions: Array[ParsedFunction]
+  tests: Array[ParsedTest]
+  errors: Array[ParseError]
+}
+
+emptyParsedTypeRef() -> ParsedTypeRef => ParsedTypeRef {
+  kind: ""
+  name: ""
+  module: ""
+  nullable: false
+  args: []
+  params: []
+  returnTypes: []
+  line: 0
+  column: 0
+}
+
+emptyParsedTypeParam() -> ParsedTypeParam => ParsedTypeParam {
+  name: ""
+  optional: false
+  typeRef: emptyParsedTypeRef()
+}
+
+namedParsedTypeRef(token: Token) -> ParsedTypeRef => ParsedTypeRef {
+  kind: "name"
+  name: token.lexeme
+  module: ""
+  nullable: false
+  args: []
+  params: []
+  returnTypes: []
+  line: token.line
+  column: token.column
+}
+
+qualifiedParsedTypeRef(module: Token, name: Token) -> ParsedTypeRef => ParsedTypeRef {
+  kind: "name"
+  name: name.lexeme
+  module: module.lexeme
+  nullable: false
+  args: []
+  params: []
+  returnTypes: []
+  line: module.line
+  column: module.column
+}
+
+typeRefWithArgs(
+  typeRef: ParsedTypeRef,
+  args: Array[ParsedTypeRef]
+) -> ParsedTypeRef => ParsedTypeRef {
+  kind: typeRef.kind
+  name: typeRef.name
+  module: typeRef.module
+  nullable: typeRef.nullable
+  args: args
+  params: typeRef.params
+  returnTypes: typeRef.returnTypes
+  line: typeRef.line
+  column: typeRef.column
+}
+
+nullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => ParsedTypeRef {
+  kind: typeRef.kind
+  name: typeRef.name
+  module: typeRef.module
+  nullable: true
+  args: typeRef.args
+  params: typeRef.params
+  returnTypes: typeRef.returnTypes
+  line: typeRef.line
+  column: typeRef.column
+}
+
+groupedTypeRef(typeRef: ParsedTypeRef, token: Token) -> ParsedTypeRef => ParsedTypeRef {
+  kind: "group"
+  name: ""
+  module: ""
+  nullable: false
+  args: [typeRef]
+  params: []
+  returnTypes: []
+  line: token.line
+  column: token.column
+}
+
+tupleTypeRef(
+  params: Array[ParsedTypeParam],
+  token: Token
+) -> ParsedTypeRef => ParsedTypeRef {
+  kind: "tuple"
+  name: ""
+  module: ""
+  nullable: false
+  args: []
+  params: params
+  returnTypes: []
+  line: token.line
+  column: token.column
+}
+
+functionTypeRef(
+  params: Array[ParsedTypeParam],
+  returnType: ParsedTypeRef,
+  token: Token
+) -> ParsedTypeRef => ParsedTypeRef {
+  kind: "function"
+  name: ""
+  module: ""
+  nullable: false
+  args: []
+  params: params
+  returnTypes: [returnType]
+  line: token.line
+  column: token.column
+}
+
+typeRefToString(typeRef: ParsedTypeRef) -> String => typeRef.kind {
+  "name" => typeNameToString(typeRef)
+  "group" => typeRef.args.length() == 0 ? "()" : ("(" + typeRefToString(typeRef.args[0])) + ")"
+  "tuple" => "(" + typeParamsToString(typeRef.params, 0, "") + ")"
+  "function" => functionTypeToString(typeRef)
+  _ => ""
+}
+
+typeNameToString(typeRef: ParsedTypeRef) -> String => {
+  prefix := typeRef.module == "" ? "" : ("@" + typeRef.module) + "."
+  args := typeRef.args.length() == 0 ? "" : "[" + typeRefsToString(typeRef.args, 0, "") + "]"
+  nullable := typeRef.nullable ? "?" : ""
+  ((prefix + typeRef.name) + args) + nullable
+}
+
+functionTypeToString(typeRef: ParsedTypeRef) -> String => {
+  ret := typeRef.returnTypes.length() == 0 ? "" : typeRefToString(typeRef.returnTypes[0])
+  (("(" + typeParamsToString(typeRef.params, 0, "")) + ")->") + ret
+}
+
+typeParamToString(param: ParsedTypeParam) -> String => {
+  prefix := param.name == "" ? "" : param.name + (param.optional ? "?:" : ":")
+  prefix + typeRefToString(param.typeRef)
+}
+
+typeRefsToString(
+  refs: Array[ParsedTypeRef],
+  index: Int,
+  out: String
+) -> String =>
+  index >= refs.length() ? out : typeRefsToString(refs, index + 1, out + (index == 0 ? "" : ",") + typeRefToString(refs[index]))
+
+typeParamsToString(
+  params: Array[ParsedTypeParam],
+  index: Int,
+  out: String
+) -> String =>
+  index >= params.length() ? out : typeParamsToString(params, index + 1, out + (index == 0 ? "" : ",") + typeParamToString(params[index]))

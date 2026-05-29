@@ -1,92 +1,5 @@
 @"../lexer/lexer.rn"
-
-ParseError: {
-  message: String
-  line: Int
-  column: Int
-}
-
-ParsedImport: {
-  path: String
-  go: Bool
-  line: Int
-  column: Int
-}
-
-ParsedParam: {
-  name: String
-  typeName: String
-  line: Int
-  column: Int
-}
-
-ParsedExpr: {
-  kind: String
-  text: String
-  name: String
-  value: String
-  op: String
-  params: Array[ParsedParam]
-  children: Array[ParsedExpr]
-  line: Int
-  column: Int
-}
-
-ParsedField: {
-  name: String
-  private: Bool
-  typeName: String
-  line: Int
-  column: Int
-}
-
-ParsedEnumMember: {
-  name: String
-  private: Bool
-  value: String
-  line: Int
-  column: Int
-}
-
-ParsedFunction: {
-  name: String
-  private: Bool
-  routine: Bool
-  receiverType: String
-  generics: Array[String]
-  params: Array[ParsedParam]
-  returnType: String
-  body: ParsedExpr
-  line: Int
-  column: Int
-}
-
-ParsedType: {
-  name: String
-  private: Bool
-  enum: Bool
-  generics: Array[String]
-  fields: Array[ParsedField]
-  methods: Array[ParsedFunction]
-  members: Array[ParsedEnumMember]
-  line: Int
-  column: Int
-}
-
-ParsedTest: {
-  name: String
-  body: ParsedExpr
-  line: Int
-  column: Int
-}
-
-ParsedFile: {
-  imports: Array[ParsedImport]
-  types: Array[ParsedType]
-  functions: Array[ParsedFunction]
-  tests: Array[ParsedTest]
-  errors: Array[ParseError]
-}
+@"ast.rn"
 
 ParserState: {
   tokens: Array[Token]
@@ -107,6 +20,26 @@ BoolStep: {
 StringStep: {
   state: ParserState
   value: String
+}
+
+TypeRefStep: {
+  state: ParserState
+  typeRef: ParsedTypeRef
+}
+
+TypeRefListStep: {
+  state: ParserState
+  refs: Array[ParsedTypeRef]
+}
+
+TypeParamStep: {
+  state: ParserState
+  param: ParsedTypeParam
+}
+
+TypeParamListStep: {
+  state: ParserState
+  params: Array[ParsedTypeParam]
 }
 
 StringListStep: {
@@ -215,7 +148,7 @@ emptyFunction() -> ParsedFunction => ParsedFunction {
   receiverType: ""
   generics: []
   params: []
-  returnType: ""
+  returnType: emptyParsedTypeRef()
   body: emptyExpr()
   line: 0
   column: 0
@@ -250,7 +183,7 @@ emptyTest() -> ParsedTest => ParsedTest {
 emptyField() -> ParsedField => ParsedField {
   name: ""
   private: false
-  typeName: ""
+  typeRef: emptyParsedTypeRef()
   line: 0
   column: 0
 }
@@ -671,13 +604,13 @@ parseFieldDecl(
 ) -> FieldStep => {
   name := parserConsume(state, "Ident", "expected field name")
   colon := parserConsume(name.state, "Colon", "expected ':' after field name")
-  typeName := parseTypeUntil(colon.state, "Newline", "Comma", "RBrace", "EOF")
+  typeRef := parseTypeRef(colon.state)
   FieldStep {
-    state: typeName.state
+    state: typeRef.state
     field: ParsedField {
       name: name.token.lexeme
       private: private
-      typeName: typeName.value
+      typeRef: typeRef.typeRef
       line: name.token.line
       column: name.token.column
     }
@@ -788,9 +721,9 @@ parseFunctionWithReceiver(
   close := parserConsume(params.state, "RParen", "expected ')' after parameter list")
   afterClose := parserSkipNewlines(close.state)
   ret := parserMatch(afterClose, "Arrow")
-  returnType := ret.ok ? parseTypeUntil(parserSkipNewlines(ret.state), "FatArrow", "EOF", "", "") : StringStep {
+  returnType := ret.ok ? parseTypeRef(parserSkipNewlines(ret.state)) : TypeRefStep {
     state: afterClose
-    value: ""
+    typeRef: emptyParsedTypeRef()
   }
   arrow := parserConsume(parserSkipNewlines(returnType.state), "FatArrow", "expected '=>' after function signature")
   body := parseBody(parserSkipNewlines(arrow.state))
@@ -803,7 +736,7 @@ parseFunctionWithReceiver(
       receiverType: receiverType
       generics: generics.values
       params: params.params
-      returnType: returnType.value
+      returnType: returnType.typeRef
       body: body.expr
       line: name.token.line
       column: name.token.column
@@ -833,18 +766,18 @@ parseOneParam(
   name := parserConsume(state, "Ident", "expected parameter name")
   optional := parserMatch(name.state, "Question")
   colon := parserMatch(optional.state, "Colon")
-  typeName := colon.ok ? parseTypeUntil(colon.state, "Comma", "RParen", "EOF", "") : StringStep {
+  typeRef := colon.ok ? parseTypeRef(colon.state) : TypeRefStep {
     state: optional.state
-    value: ""
+    typeRef: emptyParsedTypeRef()
   }
   paramName := optional.ok ? name.token.lexeme + "?" : name.token.lexeme
   params.push(ParsedParam {
     name: paramName
-    typeName: typeName.value
+    typeRef: typeRef.typeRef
     line: name.token.line
     column: name.token.column
   })
-  comma := parserMatch(parserSkipNewlines(typeName.state), "Comma")
+  comma := parserMatch(parserSkipNewlines(typeRef.state), "Comma")
   parseParamListLoop(comma.state, params)
 }
 
@@ -895,63 +828,199 @@ appendGenericName(
   step.state
 }
 
-parseTypeUntil(
-  state: ParserState,
-  stopA: String,
-  stopB: String,
-  stopC: String,
-  stopD: String
-) -> StringStep => parseTypeUntilLoop(parserSkipNewlines(state), stopA, stopB, stopC, stopD, 0, "", false)
+parseTypeRef(
+  state: ParserState
+) -> TypeRefStep => parseTypeRefPostfix(parseTypeRefAtom(parserSkipNewlines(state)))
 
-parseTypeUntilLoop(
-  state: ParserState,
-  stopA: String,
-  stopB: String,
-  stopC: String,
-  stopD: String,
-  depth: Int,
-  text: String,
-  consumed: Bool
-) -> StringStep => typeShouldStop(state, depth, stopA, stopB, stopC, stopD) ? finishTypeName(state, text, consumed) : parseTypeToken(state, stopA, stopB, stopC, stopD, depth, text, consumed)
+parseTypeRefAtom(
+  state: ParserState
+) -> TypeRefStep =>
+  parserCheck(state, "LParen") ? parseParenTypeRef(state)
+  : parserCheck(state, "At") ? parseQualifiedTypeRef(state)
+  : parserCheck(state, "Ident") ? parseNamedTypeRef(state)
+  : parseTypeRefError(state)
 
-finishTypeName(
-  state: ParserState,
-  text: String,
-  consumed: Bool
-) -> StringStep => StringStep {
-  state: consumed ? state : parserErrorAt(state, parserPeek(state), "expected type name")
-  value: text
+parseNamedTypeRef(
+  state: ParserState
+) -> TypeRefStep => {
+  name := parserConsume(state, "Ident", "expected type name")
+  TypeRefStep {
+    state: name.state
+    typeRef: namedParsedTypeRef(name.token)
+  }
 }
 
-parseTypeToken(
-  state: ParserState,
-  stopA: String,
-  stopB: String,
-  stopC: String,
-  stopD: String,
-  depth: Int,
-  text: String,
-  consumed: Bool
-) -> StringStep => {
-  token := parserPeek(state)
-  step := parserAdvance(state)
-  nextDepth := typeNextDepth(depth, token.kind)
-  parseTypeUntilLoop(step.state, stopA, stopB, stopC, stopD, nextDepth, text + token.lexeme, true)
+parseQualifiedTypeRef(
+  state: ParserState
+) -> TypeRefStep => {
+  at := parserConsume(state, "At", "expected '@'")
+  module := parserConsume(at.state, "Ident", "expected module name after '@'")
+  dot := parserConsume(module.state, "Dot", "expected '.' after module name")
+  name := parserConsume(dot.state, "Ident", "expected type name after module qualifier")
+  TypeRefStep {
+    state: name.state
+    typeRef: qualifiedParsedTypeRef(module.token, name.token)
+  }
 }
 
-typeNextDepth(
-  depth: Int,
-  kind: String
-) -> Int => (kind == "LParen") || (kind == "LBracket") ? depth + 1 : ((kind == "RParen") || (kind == "RBracket")) && (depth > 0) ? depth - 1 : depth
+parseParenTypeRef(
+  state: ParserState
+) -> TypeRefStep => {
+  open := parserConsume(state, "LParen", "expected '(' before type")
+  params := parseTypeParamList(parserSkipNewlines(open.state), [])
+  close := parserConsume(params.state, "RParen", "expected ')' after type")
+  afterClose := parserSkipNewlines(close.state)
+  arrow := parserMatch(afterClose, "Arrow")
+  arrow.ok ? finishFunctionTypeRef(parserSkipNewlines(arrow.state), open.token, params.params) : finishParenTypeRef(close.state, open.token, params.params)
+}
 
-typeShouldStop(
+finishFunctionTypeRef(
   state: ParserState,
-  depth: Int,
-  stopA: String,
-  stopB: String,
-  stopC: String,
-  stopD: String
-) -> Bool => (depth == 0) && ((((parserCheck(state, "EOF") || ((stopA != "") && parserCheck(state, stopA))) || ((stopB != "") && parserCheck(state, stopB))) || ((stopC != "") && parserCheck(state, stopC))) || ((stopD != "") && parserCheck(state, stopD)))
+  token: Token,
+  params: Array[ParsedTypeParam]
+) -> TypeRefStep => {
+  ret := parseTypeRef(state)
+  TypeRefStep {
+    state: ret.state
+    typeRef: functionTypeRef(params, ret.typeRef, token)
+  }
+}
+
+finishParenTypeRef(
+  state: ParserState,
+  token: Token,
+  params: Array[ParsedTypeParam]
+) -> TypeRefStep => TypeRefStep {
+  state: state
+  typeRef: (params.length() == 1) && (params[0].name == "") ? groupedTypeRef(params[0].typeRef, token) : tupleTypeRef(params, token)
+}
+
+parseTypeRefPostfix(
+  step: TypeRefStep
+) -> TypeRefStep => {
+  current := parserSkipNewlines(step.state)
+  parserCheck(current, "LBracket") ? parseTypeRefPostfix(parseTypeRefArgs(current, step.typeRef))
+  : parserCheck(current, "Question") ? parseTypeRefPostfix(parseNullableTypeRef(current, step.typeRef))
+  : TypeRefStep {
+      state: step.state
+      typeRef: step.typeRef
+    }
+}
+
+parseTypeRefArgs(
+  state: ParserState,
+  typeRef: ParsedTypeRef
+) -> TypeRefStep => {
+  open := parserConsume(state, "LBracket", "expected '[' after type name")
+  args := parseTypeRefList(parserSkipNewlines(open.state), [])
+  close := parserConsume(args.state, "RBracket", "expected ']' after type arguments")
+  TypeRefStep {
+    state: close.state
+    typeRef: typeRefWithArgs(typeRef, args.refs)
+  }
+}
+
+parseNullableTypeRef(
+  state: ParserState,
+  typeRef: ParsedTypeRef
+) -> TypeRefStep => {
+  question := parserConsume(state, "Question", "expected '?' after type")
+  TypeRefStep {
+    state: question.state
+    typeRef: nullableTypeRef(typeRef)
+  }
+}
+
+parseTypeRefList(
+  state: ParserState,
+  refs: Array[ParsedTypeRef]
+) -> TypeRefListStep => {
+  current := parserSkipNewlines(state)
+  parserCheck(current, "RBracket") || parserCheck(current, "EOF") ? TypeRefListStep {
+    state: current
+    refs: refs
+  } : parseOneTypeRefListValue(current, refs)
+}
+
+parseOneTypeRefListValue(
+  state: ParserState,
+  refs: Array[ParsedTypeRef]
+) -> TypeRefListStep => {
+  typeRef := parseTypeRef(state)
+  refs.push(typeRef.typeRef)
+  comma := parserMatch(parserSkipNewlines(typeRef.state), "Comma")
+  parseTypeRefList(comma.state, refs)
+}
+
+parseTypeParamList(
+  state: ParserState,
+  params: Array[ParsedTypeParam]
+) -> TypeParamListStep => {
+  current := parserSkipNewlines(state)
+  parserCheck(current, "RParen") || parserCheck(current, "EOF") ? TypeParamListStep {
+    state: current
+    params: params
+  } : parseOneTypeParam(current, params)
+}
+
+parseOneTypeParam(
+  state: ParserState,
+  params: Array[ParsedTypeParam]
+) -> TypeParamListStep => {
+  param := parseTypeParam(state)
+  params.push(param.param)
+  comma := parserMatch(parserSkipNewlines(param.state), "Comma")
+  parseTypeParamList(comma.state, params)
+}
+
+parseTypeParam(
+  state: ParserState
+) -> TypeParamStep => {
+  named := parserCheck(state, "Ident") && typeParamHasName(state)
+  named ? parseNamedTypeParam(state) : parseUnnamedTypeParam(state)
+}
+
+parseNamedTypeParam(
+  state: ParserState
+) -> TypeParamStep => {
+  name := parserConsume(state, "Ident", "expected type parameter name")
+  optional := parserMatch(name.state, "Question")
+  colon := parserConsume(optional.state, "Colon", "expected ':' after type parameter name")
+  typeRef := parseTypeRef(parserSkipNewlines(colon.state))
+  TypeParamStep {
+    state: typeRef.state
+    param: ParsedTypeParam {
+      name: name.token.lexeme
+      optional: optional.ok
+      typeRef: typeRef.typeRef
+    }
+  }
+}
+
+parseUnnamedTypeParam(
+  state: ParserState
+) -> TypeParamStep => {
+  typeRef := parseTypeRef(state)
+  TypeParamStep {
+    state: typeRef.state
+    param: ParsedTypeParam {
+      name: ""
+      optional: false
+      typeRef: typeRef.typeRef
+    }
+  }
+}
+
+typeParamHasName(
+  state: ParserState
+) -> Bool => parserKindAt(state, state.current + 1) == "Colon" || ((parserKindAt(state, state.current + 1) == "Question") && (parserKindAt(state, state.current + 2) == "Colon"))
+
+parseTypeRefError(
+  state: ParserState
+) -> TypeRefStep => TypeRefStep {
+  state: parserErrorAt(state, parserPeek(state), "expected type name")
+  typeRef: emptyParsedTypeRef()
+}
 
 parseBody(
   state: ParserState
@@ -1051,7 +1120,7 @@ parseOneObjectBinding(
   name := aliasStart.ok ? parserConsume(parserSkipNewlines(aliasStart.state), "Ident", "expected binding name after ':'") : field
   fields.push(ParsedParam {
     name: name.token.lexeme
-    typeName: field.token.lexeme
+    typeRef: namedParsedTypeRef(field.token)
     line: name.token.line
     column: name.token.column
   })
@@ -1578,15 +1647,15 @@ parseLambda(
   close := parserConsume(params.state, "RParen", "expected ')' after lambda parameters")
   afterParams := parserSkipNewlines(close.state)
   ret := parserMatch(afterParams, "Arrow")
-  returnType := ret.ok ? parseTypeUntil(parserSkipNewlines(ret.state), "FatArrow", "EOF", "", "") : StringStep {
+  returnType := ret.ok ? parseTypeRef(parserSkipNewlines(ret.state)) : TypeRefStep {
     state: afterParams
-    value: ""
+    typeRef: emptyParsedTypeRef()
   }
   arrow := parserConsume(parserSkipNewlines(returnType.state), "FatArrow", "expected '=>' after lambda parameter")
   body := parseBody(parserSkipNewlines(arrow.state))
   ExprStep {
     state: body.state
-    expr: withChildren(withParams(withText(node("lambda", open.token), returnType.value), params.params), [body.expr])
+    expr: withChildren(withParams(withText(node("lambda", open.token), typeRefToString(returnType.typeRef)), params.params), [body.expr])
   }
 }
 
@@ -1663,7 +1732,7 @@ patternNextDepth(
 
 functionToExpr(
   fn: ParsedFunction
-) -> ParsedExpr => makeExpr(fn.private ? "privateMethod" : "method", fn.returnType, fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
+) -> ParsedExpr => makeExpr(fn.private ? "privateMethod" : "method", typeRefToString(fn.returnType), fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
 
 calleeText(expr: ParsedExpr) -> String => expr.name != "" ? expr.name : expr.value != "" ? expr.value : expr.text
 

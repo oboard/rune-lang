@@ -214,15 +214,13 @@ func (e *CallExpr) Position() lexer.Position {
 }
 
 type LambdaExpr struct {
-	Params            []string
-	ParamPos          []lexer.Position
-	ParamTypes        []string
-	ParamTypeDisplays []string
-	ReturnType        string
-	ReturnDisplay     string
-	Implicit          bool
-	Body              Expr
-	Pos               lexer.Position
+	Params     []string
+	ParamPos   []lexer.Position
+	ParamTypes []Type
+	ReturnType Type
+	Implicit   bool
+	Body       Expr
+	Pos        lexer.Position
 }
 
 func (*LambdaExpr) exprNode() {}

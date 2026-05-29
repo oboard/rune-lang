@@ -74,7 +74,7 @@ func (s *server) hover(uri string, pos position) any {
 		fnInfo := prog.Info.FunctionDecls[fn]
 		for i, param := range fn.Params {
 			if param.Name == word {
-				typ := param.Type
+				typ := param.Type.Display()
 				if fnInfo != nil && i < len(fnInfo.Params) && fnInfo.Params[i].Type != "" && fnInfo.Params[i].Type != checker.Unknown {
 					typ = displayCheckerType(prog.Info, fnInfo.Params[i].Type)
 				}
@@ -419,7 +419,7 @@ func localValueTypeBeforePosition(prog *compiler.Program, name string, pos posit
 				if param.Name != name {
 					continue
 				}
-				typ := checker.Type(param.Type)
+				typ := checker.Type(param.Type.Canonical())
 				if methodInfo != nil && i < len(methodInfo.Params) {
 					typ = methodInfo.Params[i].Type
 				}
@@ -433,7 +433,7 @@ func localValueTypeBeforePosition(prog *compiler.Program, name string, pos posit
 			if param.Name != name {
 				continue
 			}
-			typ := checker.Type(param.Type)
+			typ := checker.Type(param.Type.Canonical())
 			if fnInfo != nil && i < len(fnInfo.Params) {
 				typ = fnInfo.Params[i].Type
 			}
@@ -915,7 +915,7 @@ func (s *server) inlayHints(uri string) any {
 			continue
 		}
 		for i, param := range fn.Params {
-			if param.Type != "" || i >= len(fnInfo.Params) {
+			if !param.Type.IsZero() || i >= len(fnInfo.Params) {
 				continue
 			}
 			typ := fnInfo.Params[i].Type
@@ -933,7 +933,7 @@ func (s *server) inlayHints(uri string) any {
 				"tooltip":  functionSignature(prog.Info, fn),
 			})
 		}
-		if fn.ReturnType != "" || fnInfo.Return == "" || fnInfo.Return == checker.Unknown {
+		if !fn.ReturnType.IsZero() || fnInfo.Return == "" || fnInfo.Return == checker.Unknown {
 			continue
 		}
 		if pos, ok := fatArrowPosition(text, fn); ok {
@@ -958,7 +958,7 @@ func (s *server) inlayHints(uri string) any {
 			if i >= len(lambda.ParamPos) || i >= len(params) {
 				continue
 			}
-			if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+			if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
 				continue
 			}
 			typ := checker.Type(params[i])
@@ -976,7 +976,7 @@ func (s *server) inlayHints(uri string) any {
 				"tooltip":  displayCheckerType(prog.Info, prog.Info.ExprTypes[lambda]),
 			})
 		}
-		if lambda.Implicit || lambda.ReturnType != "" || ret == "" || ret == string(checker.Unknown) {
+		if lambda.Implicit || !lambda.ReturnType.IsZero() || ret == "" || ret == string(checker.Unknown) {
 			return
 		}
 		if pos, ok := fatArrowPositionFromOffset(text, lambda.Pos.Offset); ok {
@@ -1563,7 +1563,7 @@ func structTypeSignature(info *checker.Info, typ *ast.StructType) string {
 		structInfo = info.Types[typ.Name]
 	}
 	for _, field := range typ.Fields {
-		fieldType := field.Type
+		fieldType := field.Type.Display()
 		if structInfo != nil {
 			if inferred, ok := structInfo.ByName[field.Name]; ok && inferred.Type != "" && inferred.Type != checker.Unknown {
 				fieldType = displayCheckerType(info, inferred.Type)
@@ -1590,7 +1590,7 @@ func methodSignature(info *checker.Info, typeName string, fn *ast.Function) stri
 		}
 	}
 	for i, param := range fn.Params {
-		typ := param.Type
+		typ := param.Type.Display()
 		if methodInfo != nil && i < len(methodInfo.Params) && methodInfo.Params[i].Type != "" && methodInfo.Params[i].Type != checker.Unknown {
 			typ = displayCheckerType(info, methodInfo.Params[i].Type)
 		}
@@ -1599,7 +1599,7 @@ func methodSignature(info *checker.Info, typeName string, fn *ast.Function) stri
 		}
 		params = append(params, fmt.Sprintf("%s: %s", param.Name, typ))
 	}
-	ret := fn.ReturnType
+	ret := fn.ReturnType.Display()
 	if methodInfo != nil && methodInfo.Return != "" && methodInfo.Return != checker.Unknown {
 		ret = displayCheckerType(info, methodInfo.Return)
 	}
@@ -1628,7 +1628,7 @@ func functionSignature(info *checker.Info, fn *ast.Function) string {
 	}
 	params := make([]string, 0, len(fn.Params))
 	for i, param := range fn.Params {
-		typ := param.Type
+		typ := param.Type.Display()
 		if i < len(fnInfo.Params) && fnInfo.Params[i].Type != "" && fnInfo.Params[i].Type != checker.Unknown {
 			typ = displayCheckerType(info, fnInfo.Params[i].Type)
 		}
@@ -1637,7 +1637,7 @@ func functionSignature(info *checker.Info, fn *ast.Function) string {
 		}
 		params = append(params, fmt.Sprintf("%s: %s", param.Name, typ))
 	}
-	ret := fn.ReturnType
+	ret := fn.ReturnType.Display()
 	if fnInfo.Return != "" && fnInfo.Return != checker.Unknown {
 		ret = displayCheckerType(info, fnInfo.Return)
 	}

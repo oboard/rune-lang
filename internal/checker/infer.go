@@ -985,10 +985,11 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	}
 	for i, name := range lambda.Params {
 		paramType := Unknown
-		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
-			paramType = c.resolveTypeWithGenerics(lambda.ParamTypes[i], c.genericTypes)
-			if paramType == Unknown && !isDynamicTypeName(lambda.ParamTypes[i]) {
-				c.reportUnknownOrPrivateType(lambda.Pos, lambda.ParamTypes[i])
+		if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
+			paramName := lambda.ParamTypes[i].Canonical()
+			paramType = c.resolveTypeWithGenerics(paramName, c.genericTypes)
+			if paramType == Unknown && !isDynamicTypeName(paramName) {
+				c.reportUnknownOrPrivateType(lambda.Pos, paramName)
 			}
 		} else if i < len(expectedParams) {
 			paramType = Type(expectedParams[i])
@@ -1000,13 +1001,14 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 	}
 	ret := c.inferExpr(lambda.Body, local)
 	c.finishInferredLambdaParams(params, lambda.Params, lambda.Body, local)
-	if lambda.ReturnType != "" {
-		declared := c.resolveTypeWithGenerics(lambda.ReturnType, c.genericTypes)
-		if declared == Unknown && !isDynamicTypeName(lambda.ReturnType) {
-			if privateName, ok := c.inaccessibleTypeName(lambda.ReturnType); ok {
+	returnName := lambda.ReturnType.Canonical()
+	if returnName != "" {
+		declared := c.resolveTypeWithGenerics(returnName, c.genericTypes)
+		if declared == Unknown && !isDynamicTypeName(returnName) {
+			if privateName, ok := c.inaccessibleTypeName(returnName); ok {
 				c.errorf(lambda.Pos, "return type %q is private", privateName)
 			} else {
-				c.errorf(lambda.Pos, "unknown return type %q", lambda.ReturnType)
+				c.errorf(lambda.Pos, "unknown return type %q", returnName)
 			}
 		}
 		if !typesCompatible(declared, ret, nil) {

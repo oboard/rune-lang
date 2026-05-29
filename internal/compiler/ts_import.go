@@ -70,7 +70,7 @@ func scanTypeScriptExportFunctions(path string, src string, importPos lexer.Posi
 		fn := ast.TSFunction{
 			Name:       name,
 			Routine:    match[2] >= 0,
-			ReturnType: typeScriptTextType(src, match[8], match[9], "Dynamic"),
+			ReturnType: ast.RawType(typeScriptTextType(src, match[8], match[9], "Dynamic")),
 			Pos:        positionFromOffset(src, match[0]),
 			NamePos:    positionFromOffset(src, match[4]),
 			SourcePath: path,
@@ -82,7 +82,7 @@ func scanTypeScriptExportFunctions(path string, src string, importPos lexer.Posi
 			}
 			paramOffset := strings.Index(src[match[6]:match[7]], param)
 			pos := positionFromOffset(src, match[6]+max(paramOffset, 0))
-			fn.Params = append(fn.Params, ast.Param{Name: name, Type: typ, Pos: pos})
+			fn.Params = append(fn.Params, ast.Param{Name: name, Type: ast.RawType(typ), Pos: pos})
 		}
 		imp.Functions = append(imp.Functions, fn)
 	}
@@ -94,7 +94,7 @@ func scanTypeScriptExportFunctions(path string, src string, importPos lexer.Posi
 		name := src[match[2]:match[3]]
 		imp.Values = append(imp.Values, ast.TSValue{
 			Name:       name,
-			Type:       typeScriptTextType(src, match[4], match[5], "Dynamic"),
+			Type:       ast.RawType(typeScriptTextType(src, match[4], match[5], "Dynamic")),
 			Pos:        positionFromOffset(src, match[0]),
 			NamePos:    positionFromOffset(src, match[2]),
 			SourcePath: path,
@@ -187,7 +187,7 @@ func exportedTypeScriptFunction(path string, src string, stmt map[string]any) (a
 	fn := ast.TSFunction{
 		Name:       name,
 		Routine:    boolField(decl, "async"),
-		ReturnType: typeScriptReturnType(decl),
+		ReturnType: ast.RawType(typeScriptReturnType(decl)),
 		Pos:        positionFromOffset(src, rangeStart(decl)),
 		NamePos:    positionFromOffset(src, rangeStart(id)),
 		SourcePath: path,
@@ -234,7 +234,7 @@ func exportedTypeScriptValues(path string, src string, stmt map[string]any) ([]a
 		}
 		values = append(values, ast.TSValue{
 			Name:       name,
-			Type:       typeScriptAnnotatedType(id, "Dynamic"),
+			Type:       ast.RawType(typeScriptAnnotatedType(id, "Dynamic")),
 			Pos:        positionFromOffset(src, rangeStart(declarator)),
 			NamePos:    positionFromOffset(src, rangeStart(id)),
 			SourcePath: path,
@@ -267,7 +267,7 @@ func typeScriptParams(path string, src string, fnName string, decl map[string]an
 		}
 		params = append(params, ast.Param{
 			Name: name,
-			Type: typeScriptAnnotatedType(param, "Dynamic"),
+			Type: ast.RawType(typeScriptAnnotatedType(param, "Dynamic")),
 			Pos:  positionFromOffset(src, rangeStart(param)),
 		})
 	}

@@ -15,8 +15,10 @@
   @assert.eq(file.functions[0].routine, true)
   @assert.eq(file.functions[0].name, "readFile")
   @assert.eq(file.functions[0].params[0].name, "path")
-  @assert.eq(file.functions[0].params[0].typeName, "String")
-  @assert.eq(file.functions[0].returnType, "Result[@io.Data,Error]")
+  @assert.eq(file.functions[0].params[0].typeRef.name, "String")
+  @assert.eq(file.functions[0].returnType.name, "Result")
+  @assert.eq(file.functions[0].returnType.args[0].module, "io")
+  @assert.eq(file.functions[0].returnType.args[0].name, "Data")
   @assert.eq(file.functions[0].body.kind, "block")
   @assert.eq(file.functions[0].body.children[0].kind, "let")
   @assert.eq(file.functions[0].body.children[0].children[0].kind, "unwrap")
@@ -76,9 +78,9 @@ Status: {
   stmt := file.functions[0].body.children[0]
   @assert.eq(file.errors.length(), 0)
   @assert.eq(stmt.kind, "objectDestructure")
-  @assert.eq(stmt.params[0].typeName, "state")
+  @assert.eq(stmt.params[0].typeRef.name, "state")
   @assert.eq(stmt.params[0].name, "nextState")
-  @assert.eq(stmt.params[1].typeName, "ch")
+  @assert.eq(stmt.params[1].typeRef.name, "ch")
   @assert.eq(stmt.params[1].name, "ch")
 }
 
@@ -147,7 +149,6 @@ Status: {
   @assert.eq(file.errors.length(), 0)
   @assert.eq(body.kind, "template")
   @assert.eq(body.value, "`hello, ${name}`")
-
   multiline := parse(`message() -> String => \`hello
 name\`
 `)
@@ -202,5 +203,5 @@ name\``)
   @assert.eq(file.tests[0].name, "works")
   @assert.eq(lambda.kind, "lambda")
   @assert.eq(lambda.params[0].name, "value")
-  @assert.eq(lambda.params[0].typeName, "Int")
+  @assert.eq(lambda.params[0].typeRef.name, "Int")
 }

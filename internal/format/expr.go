@@ -369,7 +369,7 @@ func (f *formatter) lambdaExpr(lambda *ast.LambdaExpr) string {
 func (f *formatter) lambdaParams(lambda *ast.LambdaExpr) []string {
 	params := make([]string, 0, len(lambda.Params))
 	for i, param := range lambda.Params {
-		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+		if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
 			params = append(params, fmt.Sprintf("%s: %s", param, f.lambdaParamType(lambda, i)))
 		} else {
 			params = append(params, param)
@@ -379,11 +379,7 @@ func (f *formatter) lambdaParams(lambda *ast.LambdaExpr) []string {
 }
 
 func (f *formatter) lambdaParamType(lambda *ast.LambdaExpr, index int) string {
-	display := ""
-	if index < len(lambda.ParamTypeDisplays) {
-		display = lambda.ParamTypeDisplays[index]
-	}
-	return formatType(lambda.ParamTypes[index], display)
+	return formatType(lambda.ParamTypes[index])
 }
 
 func (f *formatter) watchExpr(watch *ast.WatchExpr) string {
@@ -539,13 +535,13 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 func (f *formatter) anonymousObjectMethod(name string, lambda *ast.LambdaExpr) string {
 	params := make([]string, 0, len(lambda.Params))
 	for i, param := range lambda.Params {
-		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
+		if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
 			params = append(params, fmt.Sprintf("%s: %s", param, f.lambdaParamType(lambda, i)))
 		} else {
 			params = append(params, param)
 		}
 	}
-	ret := formatReturnType(lambda.ReturnType, lambda.ReturnDisplay)
+	ret := formatReturnType(lambda.ReturnType)
 	return fmt.Sprintf("%s(%s)%s => %s", name, strings.Join(params, ", "), ret, f.exprWithIndent(lambda.Body, f.indent+1))
 }
 

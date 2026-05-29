@@ -185,14 +185,14 @@ func (c *checker) lambdaSignaturePlaceholder(lambda *ast.LambdaExpr) Type {
 	params := make([]Type, 0, len(lambda.Params))
 	for i := range lambda.Params {
 		paramType := Unknown
-		if i < len(lambda.ParamTypes) && lambda.ParamTypes[i] != "" {
-			paramType = c.resolveTypeWithGenerics(lambda.ParamTypes[i], c.genericTypes)
+		if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
+			paramType = c.resolveTypeWithGenerics(lambda.ParamTypes[i].Canonical(), c.genericTypes)
 		}
 		params = append(params, paramType)
 	}
 	ret := Unknown
-	if lambda.ReturnType != "" {
-		ret = c.resolveTypeWithGenerics(lambda.ReturnType, c.genericTypes)
+	if !lambda.ReturnType.IsZero() {
+		ret = c.resolveTypeWithGenerics(lambda.ReturnType.Canonical(), c.genericTypes)
 	}
 	return FuncOfTypes(params, ret)
 }
