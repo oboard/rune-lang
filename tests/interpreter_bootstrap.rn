@@ -1,27 +1,57 @@
 @"../selfhost/interpreter/interpreter.rn"
 
 ? "selfhost interpreter runs functions" {
-  result := interpret("add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n")
+  result := interpret(`add(a: Int, b: Int) -> Int => a + b
+main() -> Int => add(20, 22)
+`)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "42")
 }
 
 ? "selfhost interpreter runs blocks and lambdas" {
-  source := "main() -> Int => {\n  values := [1, 2, 3, 4]\n  total ~= 0\n  values.each((value) => total = total + value)\n  total\n}\n"
+  source := `main() -> Int => {
+  values := [1, 2, 3, 4]
+  total ~= 0
+  values.each((value) => total = total + value)
+  total
+}
+`
   result := interpret(source)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "10")
 }
 
 ? "selfhost interpreter runs maps structs and matches" {
-  source := "Point: {\n  x: Int\n  y: Int\n  score() -> Int => .x + .y\n}\nbonus(value: Int) -> Int => value {\n  1 => 10\n  _ => 0\n}\nmain() -> Int => {\n  point := Point { x: 20, y: 22 }\n  scores := { \"base\": point.score() }\n  scores[\"base\"] = scores[\"base\"] + bonus(1)\n  scores[\"base\"]\n}\n"
+  source := `Point: {
+  x: Int
+  y: Int
+  score() -> Int => .x + .y
+}
+bonus(value: Int) -> Int => value {
+  1 => 10
+  _ => 0
+}
+main() -> Int => {
+  point := Point { x: 20, y: 22 }
+  scores := { "base": point.score() }
+  scores["base"] = scores["base"] + bonus(1)
+  scores["base"]
+}
+`
   result := interpret(source)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "52")
 }
 
 ? "selfhost interpreter runs modules and predicate bodies" {
-  source := "isDigit(ch: Char) -> Bool => ('0'..='9')\nisSpace(ch) => ' ' | '\\t'\nmain() -> Bool => {\n  @io.println(\"answer\", 42)\n  @assert.eq(isDigit('5'), true)\n  (isDigit('5') && !isDigit('x')) && isSpace(' ')\n}\n"
+  source := `isDigit(ch: Char) -> Bool => ('0'..='9')
+isSpace(ch) => ' ' | '\\t'
+main() -> Bool => {
+  @io.println("answer", 42)
+  @assert.eq(isDigit('5'), true)
+  (isDigit('5') && !isDigit('x')) && isSpace(' ')
+}
+`
   result := interpret(source)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "true")
@@ -30,7 +60,13 @@
 }
 
 ? "selfhost interpreter runs or pattern branches" {
-  source := "kind(typeName: String) -> String => typeName {\n  \"\" | \"Void\" => \"void\"\n  \"Int\" | \"Double\" => \"number\"\n  _ => \"other\"\n}\nmain() -> String => kind(\"Double\")\n"
+  source := `kind(typeName: String) -> String => typeName {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => "other"
+}
+main() -> String => kind("Double")
+`
   result := interpret(source)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "number")

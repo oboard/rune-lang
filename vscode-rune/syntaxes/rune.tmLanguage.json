@@ -33,6 +33,26 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.template.rune",
+          "begin": "`",
+          "beginCaptures": {
+            "0": { "name": "punctuation.definition.string.begin.rune" }
+          },
+          "end": "`",
+          "endCaptures": {
+            "0": { "name": "punctuation.definition.string.end.rune" }
+          },
+          "patterns": [
+            {
+              "name": "constant.character.escape.rune",
+              "match": "\\\\."
+            },
+            {
+              "include": "#templateInterpolation"
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.rune",
           "begin": "\"",
           "end": "\"",
@@ -40,6 +60,26 @@
             {
               "name": "constant.character.escape.rune",
               "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "templateInterpolation": {
+      "patterns": [
+        {
+          "name": "meta.interpolation.rune",
+          "begin": "\\$\\{",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.interpolation.begin.rune" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.interpolation.end.rune" }
+          },
+          "patterns": [
+            {
+              "include": "$self"
             }
           ]
         }

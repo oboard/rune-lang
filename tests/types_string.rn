@@ -120,4 +120,8 @@
   @assert.eq(`count ${count}, char ${ch}, ok ${ok}`, "count 3, char x, ok true")
   @assert.eq(`sum ${1 + 2}`, "sum 3")
   @assert.eq(`plain`, "plain")
+  @assert.eq(`first
+second`, "first\nsecond")
+  @assert.eq(`hello
+${name}`, "hello\nRune")
 }

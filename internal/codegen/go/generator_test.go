@@ -168,6 +168,22 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 	if _, err := goparser.ParseFile(token.NewFileSet(), "template_literal.go", got, 0); err != nil {
 		t.Fatalf("generated Go does not parse: %v\n%s", err, got)
 	}
+
+	file, parseErrs = parser.Parse("message(name: String) -> String => `hello\n${name}`\n")
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags = checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err = Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	if want := `return "hello\n" + __name`; !strings.Contains(got, want) {
+		t.Fatalf("generated Go missing multiline template %q:\n%s", want, got)
+	}
 }
 
 func TestGenerateDestructuringPatterns(t *testing.T) {

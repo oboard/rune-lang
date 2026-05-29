@@ -1,7 +1,8 @@
 @"../selfhost/lexer/lexer.rn"
 
 ? "selfhost lexer tokenizes declarations" {
-  tokens := lex("main() => 1\n")
+  tokens := lex(`main() => 1
+`)
   @assert.eq(tokens[0].kind, "Ident")
   @assert.eq(tokens[0].lexeme, "main")
   @assert.eq(tokens[0].line, 1)
@@ -15,7 +16,8 @@
 }
 
 ? "selfhost lexer skips comments and reads strings" {
-  tokens := lex("// comment\nname := \"Rune\\nLang\"")
+  tokens := lex(`// comment
+name := "Rune\\nLang"`)
   @assert.eq(tokens[0].kind, "Newline")
   @assert.eq(tokens[1].kind, "Ident")
   @assert.eq(tokens[1].lexeme, "name")
@@ -30,6 +32,12 @@
   @assert.eq(tokens[1].kind, "Declare")
   @assert.eq(tokens[2].kind, "TemplateString")
   @assert.eq(tokens[2].lexeme, "`hello, ${user}`")
+
+  multiline := lex(`name := \`hello
+user\``)
+  @assert.eq(multiline[2].kind, "TemplateString")
+  @assert.eq(multiline[2].lexeme, `\`hello
+user\``)
 }
 
 ? "selfhost lexer separates regex from slash" {
@@ -51,7 +59,8 @@
 }
 
 ? "selfhost lexer reads char literals" {
-  tokens := lex("ch := 'x'\nnewline := '\\n'")
+  tokens := lex(`ch := 'x'
+newline := '\\n'`)
   @assert.eq(tokens[0].kind, "Ident")
   @assert.eq(tokens[1].kind, "Declare")
   @assert.eq(tokens[2].kind, "Char")
@@ -71,7 +80,9 @@
 }
 
 ? "selfhost lexer reads unicode identifiers" {
-  tokens := lex("变量💡 := 1\n用户👩‍💻 := 2\n姓名·字段 := 4")
+  tokens := lex(`变量💡 := 1
+用户👩‍💻 := 2
+姓名·字段 := 4`)
   @assert.eq(tokens[0].kind, "Ident")
   @assert.eq(tokens[0].lexeme, "变量💡")
   @assert.eq(tokens[1].kind, "Declare")

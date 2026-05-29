@@ -100,6 +100,12 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
+
+	got = generateForTest(t, "message(name: String) -> String => `hello\n${name}`\n")
+	want = "return `hello\\n${__name}`;"
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing multiline template %q:\n%s", want, got)
+	}
 }
 
 func TestGenerateDestructuringPatterns(t *testing.T) {

@@ -35,4 +35,12 @@ func TestLexTemplateString(t *testing.T) {
 	if tokens[2].Kind != TemplateString || tokens[2].Lexeme != "`hello, ${name}`" {
 		t.Fatalf("tokens[2] = %s, want TemplateString; tokens = %#v", tokens[2], tokens)
 	}
+
+	tokens = Lex("value := `hello\nworld`\nnext := 1\n")
+	if tokens[2].Kind != TemplateString || tokens[2].Lexeme != "`hello\nworld`" {
+		t.Fatalf("tokens[2] = %s, want multiline TemplateString; tokens = %#v", tokens[2], tokens)
+	}
+	if tokens[3].Kind != Newline || tokens[3].Pos.Line != 2 {
+		t.Fatalf("tokens[3] = %#v, want newline after multiline template on line 2", tokens[3])
+	}
 }

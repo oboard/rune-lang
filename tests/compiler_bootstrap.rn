@@ -1,7 +1,9 @@
 @"../selfhost/compiler/compiler.rn"
 
 ? "selfhost compiler emits typescript functions" {
-  source := "add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n"
+  source := `add(a: Int, b: Int) -> Int => a + b
+main() -> Int => add(20, 22)
+`
   result := compileTypeScript(source)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
@@ -11,7 +13,9 @@
 }
 
 ? "selfhost compiler emits go functions" {
-  source := "add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n"
+  source := `add(a: Int, b: Int) -> Int => a + b
+main() -> Int => add(20, 22)
+`
   result := compileGo(source)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
@@ -22,7 +26,17 @@
 }
 
 ? "selfhost compiler emits declarations and println" {
-  source := "Status: {\n  Ready = 1\n}\nUser: {\n  name: String\n}\nmain() => {\n  user := User { name: \"Rune\" }\n  @io.println(user.name, Status.Ready)\n}\n"
+  source := `Status: {
+  Ready = 1
+}
+User: {
+  name: String
+}
+main() => {
+  user := User { name: "Rune" }
+  @io.println(user.name, Status.Ready)
+}
+`
   ts := compileTypeScript(source)
   go := compileGo(source)
   @assert.eq(ts.ok, true)

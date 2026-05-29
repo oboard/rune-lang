@@ -401,6 +401,20 @@ func TestTemplateLiteral(t *testing.T) {
 	}
 }
 
+func TestMultilineTemplateLiteral(t *testing.T) {
+	file, errs := Parse("message() -> String => `Hello\nRune`\n")
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	lit, ok := file.Functions[0].Body.(*ast.TemplateLiteral)
+	if !ok {
+		t.Fatalf("body = %T, want TemplateLiteral", file.Functions[0].Body)
+	}
+	if len(lit.Parts) != 1 || lit.Parts[0].Text != "Hello\nRune" {
+		t.Fatalf("parts = %#v, want multiline text", lit.Parts)
+	}
+}
+
 func TestRegexLiteral(t *testing.T) {
 	file, errs := Parse(`main() => {
     re := /rune\s+(\d+)/ig

@@ -186,6 +186,8 @@ func escapeTemplateText(text string) string {
 			b.WriteString(`\\`)
 		case '`':
 			b.WriteString("\\`")
+		case '\n':
+			b.WriteString(`\n`)
 		case '\r':
 			b.WriteString(`\r`)
 		case '$':
