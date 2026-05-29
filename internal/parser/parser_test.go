@@ -300,6 +300,26 @@ func TestRangePatternMatch(t *testing.T) {
 	}
 }
 
+func TestOrPatternMatch(t *testing.T) {
+	file, errs := Parse(`typeLabel(name: String) -> String => name {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => "other"
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 3 {
+		t.Fatalf("body = %#v, want or pattern match", file.Functions[0].Body)
+	}
+	pattern, ok := match.Branches[0].Pattern.(*ast.OrPattern)
+	if !ok || len(pattern.Alternatives) != 2 {
+		t.Fatalf("first pattern = %#v, want two-way OrPattern", match.Branches[0].Pattern)
+	}
+}
+
 func TestObjectAndMapPatternMatch(t *testing.T) {
 	file, errs := Parse(`pointScore(point) => point {
   { x, y: yy, .. } => x + yy

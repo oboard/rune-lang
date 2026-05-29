@@ -126,6 +126,16 @@
   @assert.eq(body.children[1].children[0].text, "{x,..}")
 }
 
+? "selfhost parser reads or pattern branches" {
+  source := "kind(typeName: String) -> String => typeName {\n  \"\" | \"Void\" => \"void\"\n  \"Int\" | \"Double\" => \"number\"\n  _ => \"other\"\n}\n"
+  file := parse(source)
+  body := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(body.kind, "match")
+  @assert.eq(body.children[1].children[0].text, "\"\"|\"Void\"")
+  @assert.eq(body.children[2].children[0].text, "\"Int\"|\"Double\"")
+}
+
 ? "selfhost parser reads lambdas and tests" {
   source := "? \"works\" {\n  values := [1, 2, 3]\n  values.each((value: Int) => @io.println(value))\n}\n"
   file := parse(source)

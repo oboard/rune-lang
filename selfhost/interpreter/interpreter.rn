@@ -1159,6 +1159,7 @@ matchPatternValue(subject: RuntimeValue, pattern: RuntimeValue) -> Bool => patte
 
 matchPatternText(subject: RuntimeValue, text: String) -> Bool =>
   text == "_" ? true :
+  text.includes("|") ? matchOrPatternText(subject, text.split("|"), 0) :
   text.includes("..=") ? matchRangeText(subject, text) :
   text.startsWith("\"") ? runtimeEqual(subject, stringValue(decodeQuoted(text))) :
   text.startsWith("'") ? runtimeEqual(subject, charValue(decodeCharLiteral(text))) :
@@ -1166,6 +1167,12 @@ matchPatternText(subject: RuntimeValue, text: String) -> Bool =>
   text == "false" ? runtimeEqual(subject, boolValue(false)) :
   text == "null" ? subject.kind == "null" :
   runtimeEqual(subject, intValue(parseIntText(text)))
+
+matchOrPatternText(
+  subject: RuntimeValue,
+  parts: Array[String],
+  index: Int
+) -> Bool => index >= parts.length() ? false : matchPatternText(subject, parts[index].trim()) ? true : matchOrPatternText(subject, parts, index + 1)
 
 matchRangeText(subject: RuntimeValue, text: String) -> Bool => {
   parts := text.split("..=")

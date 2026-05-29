@@ -68,6 +68,16 @@ func (p *RangePattern) Position() lexer.Position {
 	return p.Pos
 }
 
+type OrPattern struct {
+	Alternatives []Pattern
+	Pos          lexer.Position
+}
+
+func (*OrPattern) patternNode() {}
+func (p *OrPattern) Position() lexer.Position {
+	return p.Pos
+}
+
 type TuplePattern struct {
 	Elements []Pattern
 	Pos      lexer.Position

@@ -1813,6 +1813,16 @@ tokensLookLikePatternBranch(
 skipPatternLookahead(
   state: ParserState,
   index: Int
+) -> Int => skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index))
+
+skipOrPatternLookahead(
+  state: ParserState,
+  index: Int
+) -> Int => (index >= 0) && (parserKindAt(state, index) == "BitOr") ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index + 1)) : index
+
+skipSinglePatternLookahead(
+  state: ParserState,
+  index: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
   after := (((((kind == "Underscore") || (kind == "Int")) || (kind == "Double")) || (kind == "BigInt")) || (kind == "String")) || (kind == "Char") ? index + 1 : kind == "Ident" ? skipIdentifierPatternLookahead(state, index) : (((kind == "Less") || (kind == "LessEqual")) || (kind == "Greater")) || (kind == "GreaterEqual") ? skipComparePatternLookahead(state, index + 1) : kind == "LParen" ? skipBalancedAt(state, index, "LParen", "RParen") : kind == "LBrace" ? skipBalancedAt(state, index, "LBrace", "RBrace") : -1

@@ -89,9 +89,10 @@ Rune files can import other Rune files with Dart-like file imports:
 main() => @io.println(helper())
 ```
 
-The self-hosted lexer lives at `selfhost/lexer/lexer.rn`; see
-`examples/lexer_bootstrap.rn` and `tests/lexer_bootstrap.rn` for the current
-bootstrap entry points.
+The self-hosted lexer, parser, IR, interpreter, and first compiler emitter
+live under `selfhost/`; see `examples/lexer_bootstrap.rn`,
+`examples/parser_bootstrap.rn`, `examples/compiler_bootstrap.rn`, and the
+`tests/*_bootstrap.rn` files for the current bootstrap entry points.
 
 ## Language Snapshot
 

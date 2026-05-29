@@ -114,6 +114,11 @@ func WalkPattern(pattern Pattern, visit func(Pattern)) {
 			WalkPattern(elem, visit)
 		}
 	}
+	if or, ok := pattern.(*OrPattern); ok {
+		for _, alternative := range or.Alternatives {
+			WalkPattern(alternative, visit)
+		}
+	}
 	if mapPattern, ok := pattern.(*MapPattern); ok {
 		for _, entry := range mapPattern.Entries {
 			WalkPattern(entry.Pattern, visit)
@@ -135,6 +140,10 @@ func WalkPatternExprs(pattern Pattern, visit func(Expr)) {
 	case *RangePattern:
 		WalkExpr(p.Start, visit)
 		WalkExpr(p.End, visit)
+	case *OrPattern:
+		for _, alternative := range p.Alternatives {
+			WalkPatternExprs(alternative, visit)
+		}
 	case *TuplePattern:
 		for _, elem := range p.Elements {
 			WalkPatternExprs(elem, visit)

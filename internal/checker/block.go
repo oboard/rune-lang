@@ -427,6 +427,22 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 			return Unknown
 		}
 		return start
+	case *ast.OrPattern:
+		result := Unknown
+		for _, alternative := range p.Alternatives {
+			typ := c.patternLiteralType(alternative)
+			if typ == Unknown {
+				continue
+			}
+			if result == Unknown {
+				result = typ
+				continue
+			}
+			if result != typ {
+				return Unknown
+			}
+		}
+		return result
 	case *ast.MapPattern:
 		keyType := Unknown
 		valueType := Unknown
@@ -620,6 +636,10 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 		}
 		if start != Unknown && end != Unknown && start != end {
 			c.errorf(p.Pos, "range pattern bounds must have matching types, got %s and %s", start, end)
+		}
+	case *ast.OrPattern:
+		for _, alternative := range p.Alternatives {
+			c.checkPatternWithSubject(alternative, subject, cloneEnv(env), optional)
 		}
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {

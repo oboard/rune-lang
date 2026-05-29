@@ -206,6 +206,20 @@ func (p *Parser) tokensLookLikePatternBranch(i int) bool {
 }
 
 func (p *Parser) skipPatternLookahead(i int) int {
+	i = p.skipSinglePatternLookahead(i)
+	if i < 0 {
+		return -1
+	}
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.BitOr {
+		i = p.skipSinglePatternLookahead(i + 1)
+		if i < 0 {
+			return -1
+		}
+	}
+	return i
+}
+
+func (p *Parser) skipSinglePatternLookahead(i int) int {
 	if i >= len(p.tokens) {
 		return -1
 	}

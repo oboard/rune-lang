@@ -1,0 +1,42 @@
+@"../selfhost/compiler/compiler.rn"
+
+? "selfhost compiler emits typescript functions" {
+  source := "add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n"
+  result := compileTypeScript(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("function __add(__a: number, __b: number): number"), true)
+  @assert.eq(result.output.includes("return __a + __b;"), true)
+  @assert.eq(result.output.includes("export { __add as add, __main as main };"), true)
+}
+
+? "selfhost compiler emits go functions" {
+  source := "add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n"
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("package main"), true)
+  @assert.eq(result.output.includes("func __add(__a int, __b int) int"), true)
+  @assert.eq(result.output.includes("return __add(20, 22)"), true)
+  @assert.eq(result.output.includes("func main()"), true)
+}
+
+? "selfhost compiler emits declarations and println" {
+  source := "Status: {\n  Ready = 1\n}\nUser: {\n  name: String\n}\nmain() => {\n  user := User { name: \"Rune\" }\n  @io.println(user.name, Status.Ready)\n}\n"
+  ts := compileTypeScript(source)
+  go := compileGo(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(go.ok, true)
+  @assert.eq(ts.output.includes("type __User = {"), true)
+  @assert.eq(ts.output.includes("const __Status = {"), true)
+  @assert.eq(ts.output.includes("console.log(__user.name, __Status.Ready);"), true)
+  @assert.eq(go.output.includes("import \"fmt\""), true)
+  @assert.eq(go.output.includes("type __User struct"), true)
+  @assert.eq(go.output.includes("fmt.Println(__user.__name, __Status_Ready)"), true)
+}
+
+? "selfhost compiler reports parser errors" {
+  result := compileGo("main( => 1\n")
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length() > 0, true)
+}

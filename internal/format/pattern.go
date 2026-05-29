@@ -18,6 +18,12 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 		return p.Op.String() + f.expr(p.Value)
 	case *ast.RangePattern:
 		return f.expr(p.Start) + "..=" + f.expr(p.End)
+	case *ast.OrPattern:
+		parts := make([]string, 0, len(p.Alternatives))
+		for _, alternative := range p.Alternatives {
+			parts = append(parts, f.pattern(alternative))
+		}
+		return strings.Join(parts, " | ")
 	case *ast.TuplePattern:
 		parts := make([]string, 0, len(p.Elements))
 		for _, elem := range p.Elements {

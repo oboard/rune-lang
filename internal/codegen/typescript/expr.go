@@ -639,6 +639,12 @@ func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
 	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern:
 		return true
+	case *ir.OrPattern:
+		for _, alternative := range p.Alternatives {
+			if patternNeedsSubjectTemp(alternative) {
+				return true
+			}
+		}
 	case *ir.TuplePattern:
 		for _, elem := range p.Elements {
 			if patternNeedsSubjectTemp(elem) {
@@ -663,6 +669,7 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 		for idx, elem := range p.Elements {
 			g.appendPatternBindings(parts, fmt.Sprintf("%s[%d]", subject, idx), elem)
 		}
+	case *ir.OrPattern:
 	case *ir.ConstructorPattern:
 		if p.Binding == "" {
 			return

@@ -75,6 +75,70 @@ isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 	}
 }
 
+func TestFunctionOrPatternBlockChecksAsPattern(t *testing.T) {
+	src := `tsType(typeName: String) -> String => {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => typeName
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["tsType"]
+	if fn == nil {
+		t.Fatalf("tsType info missing")
+	}
+	if got := fn.Return; got != String {
+		t.Fatalf("tsType return = %s, want String", got)
+	}
+	block, ok := file.Functions[0].Body.(*ast.PatternBlock)
+	if !ok || len(block.Branches) != 3 {
+		t.Fatalf("body = %T, want PatternBlock with three branches", file.Functions[0].Body)
+	}
+	pattern, ok := block.Branches[0].Pattern.(*ast.OrPattern)
+	if !ok || len(pattern.Alternatives) != 2 {
+		t.Fatalf("first pattern = %#v, want two-way OrPattern", block.Branches[0].Pattern)
+	}
+}
+
+func TestMatchOrPatternChecksAsPattern(t *testing.T) {
+	src := `tsType(typeName: String) -> String => typeName {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => typeName
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["tsType"]
+	if fn == nil {
+		t.Fatalf("tsType info missing")
+	}
+	if got := fn.Return; got != String {
+		t.Fatalf("tsType return = %s, want String", got)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 3 {
+		t.Fatalf("body = %T, want MatchExpr with three branches", file.Functions[0].Body)
+	}
+	pattern, ok := match.Branches[0].Pattern.(*ast.OrPattern)
+	if !ok || len(pattern.Alternatives) != 2 {
+		t.Fatalf("first pattern = %#v, want two-way OrPattern", match.Branches[0].Pattern)
+	}
+}
+
 func TestPatternPredicateDoesNotStealValidBitwise(t *testing.T) {
 	src := `mask() => 1 | 2
 `

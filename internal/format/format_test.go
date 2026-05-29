@@ -86,6 +86,30 @@ mask() => (1 | 2) | 4
 	}
 }
 
+func TestPatternBranchArrowSpacingBeforeParenthesizedExpr(t *testing.T) {
+	src := `select(flag: Bool) -> Int => flag {
+true=>1
+_=>(flag ? 2 : 3)
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `select(flag: Bool) -> Int => flag {
+  true => 1
+  _ => (
+    flag ? 2
+      : 3
+  )
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestPrivateDeclarationFormatting(t *testing.T) {
 	src := `- Secret:{
 - value:Int

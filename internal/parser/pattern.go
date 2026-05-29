@@ -6,6 +6,23 @@ import (
 )
 
 func (p *Parser) parsePattern() ast.Pattern {
+	pattern := p.parseRangePattern()
+	if !p.match(lexer.BitOr) {
+		return pattern
+	}
+	out := &ast.OrPattern{Alternatives: []ast.Pattern{pattern}, Pos: pattern.Position()}
+	for {
+		p.skipNewlines()
+		out.Alternatives = append(out.Alternatives, p.parseRangePattern())
+		p.skipNewlines()
+		if !p.match(lexer.BitOr) {
+			break
+		}
+	}
+	return out
+}
+
+func (p *Parser) parseRangePattern() ast.Pattern {
 	pattern := p.parsePatternAtom()
 	if p.match(lexer.DotDotEqual) {
 		literal, ok := pattern.(*ast.LiteralPattern)

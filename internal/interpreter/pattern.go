@@ -78,6 +78,15 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 			return false, fmt.Errorf("range pattern expects matching ordered values: %w", err)
 		}
 		return lower >= 0 && upper <= 0, nil
+	case *ir.OrPattern:
+		for _, alternative := range p.Alternatives {
+			branchEnv := NewEnv(env)
+			matched, err := i.matchPattern(alternative, subject, branchEnv)
+			if err != nil || matched {
+				return matched, err
+			}
+		}
+		return false, nil
 	case *ir.TuplePattern:
 		array, ok := subject.(*Array)
 		if !ok || len(array.Elements) != len(p.Elements) {

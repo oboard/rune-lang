@@ -75,6 +75,38 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateOrPatternBlock(t *testing.T) {
+	src := `tsType(typeName: String) -> String => {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => typeName
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`case (__typeName == "") || (__typeName == "Void"):`,
+		`return "void"`,
+		`case (__typeName == "Int") || (__typeName == "Double"):`,
+		`return "number"`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateUnicodeIdentifiers(t *testing.T) {
 	src := `计算✅(数值🐉: Int) -> Int => {
   增量📈 := 1

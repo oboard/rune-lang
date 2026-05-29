@@ -52,6 +52,27 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateOrPatternBlock(t *testing.T) {
+	src := `tsType(typeName: String) -> String => {
+  "" | "Void" => "void"
+  "Int" | "Double" => "number"
+  _ => typeName
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`if ((__typeName === "") || (__typeName === "Void")) {`,
+		`return "void";`,
+		`else if ((__typeName === "Int") || (__typeName === "Double")) {`,
+		`return "number";`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateUnicodeIdentifiers(t *testing.T) {
 	src := `计算✅(数值🐉: Int) -> Int => {
   增量📈 := 1

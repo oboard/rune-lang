@@ -1,0 +1,11 @@
+@"../selfhost/compiler/compiler.rn"
+
+main() => {
+  source := "add(a: Int, b: Int) -> Int => a + b\nmain() -> Int => add(20, 22)\n"
+  ts := compileTypeScript(source)
+  go := compileGo(source)
+  @io.println("typescript")
+  @io.println(ts.output)
+  @io.println("go")
+  @io.println(go.output)
+}

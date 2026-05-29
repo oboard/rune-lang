@@ -28,3 +28,10 @@
   @assert.eq(result.output.length(), 1)
   @assert.eq(result.output[0], "answer 42")
 }
+
+? "selfhost interpreter runs or pattern branches" {
+  source := "kind(typeName: String) -> String => typeName {\n  \"\" | \"Void\" => \"void\"\n  \"Int\" | \"Double\" => \"number\"\n  _ => \"other\"\n}\nmain() -> String => kind(\"Double\")\n"
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "number")
+}
