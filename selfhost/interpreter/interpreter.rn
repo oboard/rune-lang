@@ -709,7 +709,7 @@ stringReplaceMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: Runtime
 stringSplitMethod(interpreter: Interpreter, env: RuntimeEnv, receiver: RuntimeValue, children: Array[IRExpr]) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   parts := receiver.text.split(args[0].text)
-  out := [emptyValue()].slice(0, 0)
+  out := []
   parts.each((part) => out.push(stringValue(part)))
   okResult(arrayValue(out))
 }

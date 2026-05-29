@@ -1,0 +1,358 @@
+@"../ir/ir.rn"
+@"./common.rn"
+
+generateGo(file: IRFile) -> String => {
+  out ~= "package main\n\n"
+  (
+    usesPrintFile(file) ? out = out + "import \"fmt\"\n\n"
+  )
+  file.enums.each((enumDecl) => out = (out + emitGoEnum(enumDecl)) + "\n")
+  file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
+  file.structs.each((typeDecl) => out = out + emitGoMethods(typeDecl))
+  file.functions.each((fn) => out = (out + emitGoFunction(fn, "")) + "\n")
+  (
+    hasMain(file) ? out = ((out + "func main() {\n\t") + mangleIdent("main")) + "()\n}\n"
+  )
+  out
+}
+
+emitGoEnum(
+  enumDecl: IREnumType
+) -> String => {
+  out ~= ("type " + mangleIdent(enumDecl.name)) + " int\n\n"
+  out = out + "const (\n"
+  out = out + emitGoEnumMembers(enumDecl.name, enumDecl.members, 0, "")
+  out + ")\n"
+}
+
+emitGoEnumMembers(
+  enumName: String,
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitGoEnumMembers(enumName, members, index + 1, ((((((out + "\t") + mangleIdent((enumName + "_") + members[index].name)) + " ") + mangleIdent(enumName)) + " = ") + enumValue(members[index], index)) + "\n")
+)
+
+emitGoStruct(
+  typeDecl: IRStructType
+) -> String => {
+  out ~= ("type " + mangleIdent(typeDecl.name)) + " struct {\n"
+  typeDecl.fields.each((field) => out = ((((out + "\t") + mangleIdent(field.name)) + " ") + goType(field.typeName)) + "\n")
+  out + "}\n"
+}
+
+emitGoMethods(
+  typeDecl: IRStructType
+) -> String => {
+  out ~= ""
+  typeDecl.methods.each((method) => out = (out + emitGoFunction(method, typeDecl.name)) + "\n")
+  out
+}
+
+emitGoFunction(
+  fn: IRFunction,
+  receiverType: String
+) -> String => {
+  params := emitGoParams(fn.params, 0, "")
+  ret := (
+    returnsValue(fn.returnType) ? " " + goType(fn.returnType)
+      : ""
+  )
+  receiver := (
+    receiverType == "" ? ""
+      : ((("(" + mangleIdent("this")) + " ") + mangleIdent(receiverType)) + ") "
+  )
+  name := (
+    receiverType == "" ? mangleIdent(fn.name)
+      : mangleIdent(fn.name)
+  )
+  out ~= (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
+  out = out + emitGoBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
+  out + "}\n"
+}
+
+emitGoBody(
+  expr: IRExpr,
+  returns: Bool,
+  returnType: String,
+  level: Int
+) -> String => expr.kind {
+  "block" => emitGoBlock(expr.children, 0, returns, returnType, level, "")
+  _ => line(level, (
+    returns ? "return " + emitGoExpr(expr)
+      : emitGoExpr(expr)
+  ))
+}
+
+emitGoBlock(
+  statements: Array[IRExpr],
+  index: Int,
+  returns: Bool,
+  returnType: String,
+  level: Int,
+  out: String
+) -> String => (
+  index >= statements.length() ? (
+    returns && (statements.length() == 0) ? out + line(level, "return " + goZero(returnType))
+      : out
+  )
+    : emitGoBlock(statements, index + 1, returns, returnType, level, out + emitGoStatement(statements[index], index == (statements.length() - 1), returns, level))
+)
+
+emitGoStatement(
+  expr: IRExpr,
+  last: Bool,
+  returns: Bool,
+  level: Int
+) -> String => expr.kind {
+  "let" => emitGoLet(expr, level)
+  "objectDestructure" => emitGoObjectDestructure(expr, level)
+  _ => (
+    last && returns ? line(level, "return " + emitGoExpr(expr))
+      : line(level, emitGoExpr(expr))
+  )
+}
+
+emitGoLet(
+  expr: IRExpr,
+  level: Int
+) -> String => line(level, (mangleIdent(expr.name) + " := ") + emitGoExpr(expr.children[0])) + line(level, "_ = " + mangleIdent(expr.name))
+
+emitGoObjectDestructure(
+  expr: IRExpr,
+  level: Int
+) -> String => {
+  source := emitGoExpr(expr.children[0])
+  out ~= ""
+  expr.params.each((param) => out = (out + line(level, (((mangleIdent(param.name) + " := ") + source) + ".") + mangleIdent(param.typeName))) + line(level, "_ = " + mangleIdent(param.name)))
+  out
+}
+
+emitGoParams(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitGoParams(params, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(params[index].name)) + " ") + goType(params[index].typeName))
+)
+
+emitGoExpr(expr: IRExpr) -> String => expr.kind {
+  "identifier" => mangleIdent(expr.name)
+  "at" => expr.name
+  "this" => mangleIdent("this")
+  "int" => expr.value
+  "double" => expr.value
+  "bigint" => "0"
+  "string" => expr.value
+  "template" => "\"\""
+  "char" => expr.value
+  "regex" => expr.value
+  "bool" => expr.value
+  "null" => "nil"
+  "unary" => expr.op + emitGoExpr(expr.children[0])
+  "postfix" => emitGoExpr(expr.children[0]) + expr.op
+  "binary" => emitGoBinary(expr)
+  "ternary" => emitGoTernary(expr)
+  "assign" => emitGoAssign(expr)
+  "call" => emitGoCall(expr)
+  "lambda" => emitGoLambda(expr)
+  "selector" => emitGoSelector(expr)
+  "index" => ((emitGoExpr(expr.children[0]) + "[") + emitGoExpr(expr.children[1])) + "]"
+  "array" => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
+  "tuple" => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
+  "map" => ("map[any]any{" + emitGoMapEntries(expr.children, 0, "")) + "}"
+  "spread" => emitGoExpr(expr.children[0])
+  "reactive" => emitGoExpr(expr.children[0])
+  "struct" => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
+  "object" => "struct{}{}"
+  "block" => ("func() any {\n" + emitGoBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
+  _ => "nil"
+}
+
+emitGoBinary(expr: IRExpr) -> String => (((emitGoExpr(expr.children[0]) + " ") + goBinaryOp(expr.op)) + " ") + emitGoExpr(expr.children[1])
+
+emitGoTernary(expr: IRExpr) -> String => ((((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
+  expr.children.length() > 2 ? emitGoExpr(expr.children[2])
+    : "nil"
+)) + " }()"
+
+emitGoAssign(expr: IRExpr) -> String => (
+  expr.children.length() == 2 ? (emitGoExpr(expr.children[0]) + " = ") + emitGoExpr(expr.children[1])
+    : (mangleIdent(expr.name) + " = ") + emitGoExpr(expr.children[0])
+)
+
+emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
+  "io.println" => ("fmt.Println(" + emitGoExprListFrom(expr.children, 1, "")) + ")"
+  "map.new" => "map[any]any{}"
+  "set.new" => "map[any]struct{}{}"
+  _ => ((emitGoExpr(expr.children[0]) + "(") + emitGoExprListFrom(expr.children, 1, "")) + ")"
+}
+
+emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
+
+emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
+  "at" => (expr.children[0].name + ".") + expr.name
+  "identifier" => (
+    looksLikeTypeName(expr.children[0].name) ? mangleIdent((expr.children[0].name + "_") + expr.name)
+      : (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+  )
+  _ => (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+}
+
+emitGoExprList(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => emitGoExprListFrom(exprs, index, out)
+
+emitGoExprListFrom(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= exprs.length() ? out
+    : emitGoExprListFrom(exprs, index + 1, (out + (
+      out == "" ? ""
+        : ", "
+    )) + emitGoExpr(exprs[index]))
+)
+
+emitGoMapEntries(
+  entries: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= entries.length() ? out
+    : emitGoMapEntries(entries, index + 1, (((out + (
+      out == "" ? ""
+        : ", "
+    )) + emitGoExpr(entries[index].children[0])) + ": ") + emitGoExpr(entries[index].children[1]))
+)
+
+emitGoFields(
+  fields: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= fields.length() ? out
+    : emitGoFields(fields, index + 1, (((out + (
+      out == "" ? ""
+        : ", "
+    )) + mangleIdent(fields[index].name)) + ": ") + emitGoExpr(fields[index].children[0]))
+)
+
+goBinaryOp(op: String) -> String => op
+
+hasMain(file: IRFile) -> Bool => hasFunction(file.functions, "main", 0)
+
+hasFunction(
+  functions: Array[IRFunction],
+  name: String,
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : (
+      functions[index].name == name ? true
+        : hasFunction(functions, name, index + 1)
+    )
+)
+
+usesPrintFile(file: IRFile) -> Bool => functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0)
+
+functionsUsePrint(
+  functions: Array[IRFunction],
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : (
+      exprUsesPrint(functions[index].body) ? true
+        : functionsUsePrint(functions, index + 1)
+    )
+)
+
+structsUsePrint(
+  structs: Array[IRStructType],
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : (
+      functionsUsePrint(structs[index].methods, 0) ? true
+        : structsUsePrint(structs, index + 1)
+    )
+)
+
+exprUsesPrint(expr: IRExpr) -> Bool => moduleCallKey(expr) {
+  "io.println" => true
+  _ => exprChildrenUsePrint(expr.children, 0)
+}
+
+exprChildrenUsePrint(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : (
+      exprUsesPrint(children[index]) ? true
+        : exprChildrenUsePrint(children, index + 1)
+    )
+)
+
+goType(typeName: String) -> String => typeName {
+  "" => "any"
+  "Void" => "struct{}"
+  "Int" => "int"
+  "Int4" | "Int8" => "int8"
+  "Int16" => "int16"
+  "Int64" => "int64"
+  "UInt" => "uint"
+  "UInt8" => "uint8"
+  "UInt16" => "uint16"
+  "UInt64" => "uint64"
+  "Double" => "float64"
+  "Float" => "float32"
+  "String" => "string"
+  "Char" => "rune"
+  "Bool" => "bool"
+  "Dynamic" => "any"
+  "Data" | "@io.Data" => "[]byte"
+  _ => goTypeFallback(typeName)
+}
+
+goTypeFallback(
+  typeName: String
+) -> String => (
+  typeName.endsWith("?") ? "any"
+    : (
+      genericInner(typeName, "Array") != "" ? "[]" + goType(genericInner(typeName, "Array"))
+        : (
+          genericInner(typeName, "ReadonlyArray") != "" ? "[]" + goType(genericInner(typeName, "ReadonlyArray"))
+            : (
+              genericInner(typeName, "Map") != "" ? (("map[" + goType(typeArg(genericInner(typeName, "Map"), 0))) + "]") + goType(typeArg(genericInner(typeName, "Map"), 1))
+                : (
+                  genericInner(typeName, "Set") != "" ? ("map[" + goType(genericInner(typeName, "Set"))) + "]struct{}"
+                    : mangleIdent(typeName)
+                )
+            )
+        )
+    )
+)
+
+goZero(typeName: String) -> String => typeName {
+  "Int" | "Int4" | "Int8" | "Int16" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt64" => "0"
+  "Double" | "Float" => "0.0"
+  "String" => "\"\""
+  "Char" => "'\\x00'"
+  "Bool" => "false"
+  _ => "nil"
+}
+
+looksLikeTypeName(name: String) -> Bool => (
+  name.length() > 0 ? (name.at(0) >= 'A') && (name.at(0) <= 'Z')
+    : false
+)

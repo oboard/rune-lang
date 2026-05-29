@@ -1,0 +1,90 @@
+@"../ir/ir.rn"
+
+enumValue(
+  member: IREnumMember,
+  index: Int
+) -> String => (
+  member.value == "" ? compilerIntToString(index)
+    : member.value
+)
+
+returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
+
+moduleCallKey(expr: IRExpr) -> String => (
+  (expr.kind == "call") && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
+    : ""
+)
+
+moduleSelectorKey(
+  expr: IRExpr
+) -> String => (
+  (expr.kind == "selector") && (expr.children.length() > 0) ? (
+    expr.children[0].kind == "at" ? (expr.children[0].name + ".") + expr.name
+      : ""
+  )
+    : ""
+)
+
+genericInner(
+  typeName: String,
+  base: String
+) -> String => {
+  prefix := base + "["
+  (
+    typeName.startsWith(prefix) && typeName.endsWith("]") ? typeName.slice(prefix.length(), typeName.length() - 1)
+      : ""
+  )
+}
+
+typeArg(
+  args: String,
+  index: Int
+) -> String => {
+  parts := args.split(",")
+  (
+    index < parts.length() ? parts[index].trim()
+      : "Dynamic"
+  )
+}
+
+mangleIdent(name: String) -> String => "__" + name.replaceAll(".", "_").replaceAll("-", "_").replaceAll("@", "_")
+
+indent(level: Int) -> String => (
+  level <= 0 ? ""
+    : "  " + indent(level - 1)
+)
+
+line(level: Int, text: String) -> String => (indent(level) + text) + "\n"
+
+compilerIntToString(
+  value: Int
+) -> String => (
+  value == 0 ? "0"
+    : (
+      value < 0 ? "-" + compilerUnsignedIntToString(0 - value, "")
+        : compilerUnsignedIntToString(value, "")
+    )
+)
+
+compilerUnsignedIntToString(
+  value: Int,
+  out: String
+) -> String => (
+  value <= 0 ? out
+    : compilerUnsignedIntToString(value / 10, compilerDigitString(value % 10) + out)
+)
+
+compilerDigitString(
+  value: Int
+) -> String => value {
+  0 => "0"
+  1 => "1"
+  2 => "2"
+  3 => "3"
+  4 => "4"
+  5 => "5"
+  6 => "6"
+  7 => "7"
+  8 => "8"
+  _ => "9"
+}

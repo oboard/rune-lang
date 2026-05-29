@@ -1,0 +1,345 @@
+@"../ir/ir.rn"
+@"./common.rn"
+
+generateTypeScript(
+  file: IRFile
+) -> String => {
+  out ~= ""
+  file.enums.each((enumDecl) => out = (out + emitTSEnum(enumDecl)) + "\n")
+  file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
+  file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
+  file.functions.each((fn) => out = (out + emitTSFunction(fn)) + "\n")
+  out + emitTSExports(file)
+}
+
+emitTSEnum(
+  enumDecl: IREnumType
+) -> String => {
+  out ~= ("type " + mangleIdent(enumDecl.name)) + " = number;\n"
+  out = ((out + "const ") + mangleIdent(enumDecl.name)) + " = {\n"
+  out = out + emitTSEnumMembers(enumDecl.members, 0, "")
+  out + "} as const;\n"
+}
+
+emitTSEnumMembers(
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitTSEnumMembers(members, index + 1, ((((out + indent(1)) + tsPropertyName(members[index].name)) + ": ") + enumValue(members[index], index)) + ",\n")
+)
+
+emitTSStruct(
+  typeDecl: IRStructType
+) -> String => {
+  generics := emitTSGenerics(typeDecl.generics)
+  out ~= (("type " + mangleIdent(typeDecl.name)) + generics) + " = {\n"
+  typeDecl.fields.each((field) => out = ((((out + indent(1)) + tsPropertyName(field.name)) + ": ") + tsType(field.typeName)) + ";\n")
+  out + "};\n"
+}
+
+emitTSMethods(
+  typeDecl: IRStructType
+) -> String => {
+  out ~= ""
+  typeDecl.methods.each((method) => out = (out + emitTSFunction(methodWithReceiver(typeDecl.name, method))) + "\n")
+  out
+}
+
+methodWithReceiver(
+  typeName: String,
+  method: IRFunction
+) -> IRFunction => IRFunction {
+  name: (typeName + "_") + method.name
+  private: method.private
+  routine: method.routine
+  receiverType: method.receiverType
+  generics: method.generics
+  params: prependThisParam(typeName, method.params)
+  returnType: method.returnType
+  body: method.body
+  line: method.line
+  column: method.column
+}
+
+prependThisParam(
+  typeName: String,
+  params: Array[IRParam]
+) -> Array[IRParam] => {
+  out := [IRParam {
+    name: "this"
+    typeName: typeName
+    line: 0
+    column: 0
+  }]
+  params.each((param) => out.push(param))
+  out
+}
+
+emitTSFunction(fn: IRFunction) -> String => {
+  ret := tsType(fn.returnType)
+  out ~= (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
+  out = out + emitTSBody(fn.body, returnsValue(fn.returnType), 1)
+  out + "}\n"
+}
+
+emitTSBody(
+  expr: IRExpr,
+  returns: Bool,
+  level: Int
+) -> String => expr.kind {
+  "block" => emitTSBlock(expr.children, 0, returns, level, "")
+  _ => line(level, (
+    returns ? ("return " + emitTSExpr(expr)) + ";"
+      : emitTSExpr(expr) + ";"
+  ))
+}
+
+emitTSBlock(
+  statements: Array[IRExpr],
+  index: Int,
+  returns: Bool,
+  level: Int,
+  out: String
+) -> String => (
+  index >= statements.length() ? (
+    returns && (statements.length() == 0) ? out + line(level, "return undefined;")
+      : out
+  )
+    : emitTSBlock(statements, index + 1, returns, level, out + emitTSStatement(statements[index], index == (statements.length() - 1), returns, level))
+)
+
+emitTSStatement(
+  expr: IRExpr,
+  last: Bool,
+  returns: Bool,
+  level: Int
+) -> String => expr.kind {
+  "let" => emitTSLet(expr, level)
+  "objectDestructure" => emitTSObjectDestructure(expr, level)
+  _ => (
+    last && returns ? line(level, ("return " + emitTSExpr(expr)) + ";")
+      : line(level, emitTSExpr(expr) + ";")
+  )
+}
+
+emitTSLet(
+  expr: IRExpr,
+  level: Int
+) -> String => line(level, (((tsLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitTSExpr(expr.children[0])) + ";")
+
+tsLetKeyword(op: String) -> String => op {
+  "~=" => "let "
+  _ => "const "
+}
+
+emitTSObjectDestructure(
+  expr: IRExpr,
+  level: Int
+) -> String => line(level, ((("const { " + emitTSObjectDestructureFields(expr.params, 0, "")) + " } = ") + emitTSExpr(expr.children[0])) + ";")
+
+emitTSObjectDestructureFields(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitTSObjectDestructureFields(params, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + tsPropertyName(params[index].typeName)) + ": ") + mangleIdent(params[index].name))
+)
+
+emitTSParams(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitTSParams(params, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(params[index].name)) + ": ") + tsType(params[index].typeName))
+)
+
+emitTSGenerics(
+  generics: Array[String]
+) -> String => (
+  generics.length() == 0 ? ""
+    : ("[" + joinStrings(generics, 0, "")) + "]"
+)
+
+emitTSExports(file: IRFile) -> String => {
+  exports := emitTSExportNames(file.functions, 0, "")
+  (
+    exports == "" ? ""
+      : ("export { " + exports) + " };\n"
+  )
+}
+
+emitTSExportNames(
+  functions: Array[IRFunction],
+  index: Int,
+  out: String
+) -> String => (
+  index >= functions.length() ? out
+    : (
+      functions[index].private ? emitTSExportNames(functions, index + 1, out)
+        : emitTSExportNames(functions, index + 1, (((out + (
+          out == "" ? ""
+            : ", "
+        )) + mangleIdent(functions[index].name)) + " as ") + functions[index].name)
+    )
+)
+
+emitTSExpr(expr: IRExpr) -> String => expr.kind {
+  "identifier" => mangleIdent(expr.name)
+  "at" => "@" + expr.name
+  "this" => mangleIdent("this")
+  "int" => expr.value
+  "double" => expr.value
+  "bigint" => expr.value + "n"
+  "string" => expr.value
+  "template" => expr.value
+  "char" => expr.value
+  "regex" => expr.value
+  "bool" => expr.value
+  "null" => "null"
+  "unary" => expr.op + emitTSExpr(expr.children[0])
+  "postfix" => emitTSExpr(expr.children[0]) + expr.op
+  "binary" => emitTSBinary(expr)
+  "ternary" => emitTSTernary(expr)
+  "assign" => emitTSAssign(expr)
+  "call" => emitTSCall(expr)
+  "lambda" => emitTSLambda(expr)
+  "selector" => emitTSSelector(expr)
+  "index" => ((emitTSExpr(expr.children[0]) + "[") + emitTSExpr(expr.children[1])) + "]"
+  "array" => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
+  "tuple" => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
+  "map" => ("new Map([" + emitTSMapEntries(expr.children, 0, "")) + "])"
+  "spread" => "..." + emitTSExpr(expr.children[0])
+  "reactive" => emitTSExpr(expr.children[0])
+  "struct" => ("{" + emitTSFields(expr.children, 0, "")) + "}"
+  "object" => ("{" + emitTSFields(expr.children, 0, "")) + "}"
+  "block" => ("(() => {\n" + emitTSBlock(expr.children, 0, true, 1, "")) + "})()"
+  _ => "undefined"
+}
+
+emitTSBinary(expr: IRExpr) -> String => (((emitTSExpr(expr.children[0]) + " ") + tsBinaryOp(expr.op)) + " ") + emitTSExpr(expr.children[1])
+
+emitTSTernary(expr: IRExpr) -> String => (((emitTSExpr(expr.children[0]) + " ? ") + emitTSExpr(expr.children[1])) + " : ") + (
+  expr.children.length() > 2 ? emitTSExpr(expr.children[2])
+    : "undefined"
+)
+
+emitTSAssign(expr: IRExpr) -> String => (
+  expr.children.length() == 2 ? (emitTSExpr(expr.children[0]) + " = ") + emitTSExpr(expr.children[1])
+    : (mangleIdent(expr.name) + " = ") + emitTSExpr(expr.children[0])
+)
+
+emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
+  "io.println" => ("console.log(" + emitTSExprListFrom(expr.children, 1, "")) + ")"
+  "map.new" => "new Map()"
+  "set.new" => "new Set()"
+  _ => ((emitTSExpr(expr.children[0]) + "(") + emitTSExprListFrom(expr.children, 1, "")) + ")"
+}
+
+emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
+
+emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
+  "at" => (("@" + expr.children[0].name) + ".") + expr.name
+  _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
+}
+
+emitTSExprList(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => emitTSExprListFrom(exprs, index, out)
+
+emitTSExprListFrom(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= exprs.length() ? out
+    : emitTSExprListFrom(exprs, index + 1, (out + (
+      out == "" ? ""
+        : ", "
+    )) + emitTSExpr(exprs[index]))
+)
+
+emitTSMapEntries(
+  entries: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= entries.length() ? out
+    : emitTSMapEntries(entries, index + 1, (((((out + (
+      out == "" ? ""
+        : ", "
+    )) + "[") + emitTSExpr(entries[index].children[0])) + ", ") + emitTSExpr(entries[index].children[1])) + "]")
+)
+
+emitTSFields(
+  fields: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= fields.length() ? out
+    : emitTSFields(fields, index + 1, (((out + (
+      out == "" ? ""
+        : ", "
+    )) + tsPropertyName(fields[index].name)) + ": ") + emitTSExpr(fields[index].children[0]))
+)
+
+tsBinaryOp(op: String) -> String => op {
+  "==" => "==="
+  "!=" => "!=="
+  _ => op
+}
+
+tsType(typeName: String) -> String => {
+  "" | "Void" => "void"
+  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Double" | "Float" => "number"
+  "BigInt" | "Int64" | "UInt64" => "bigint"
+  "String" | "Char" => "string"
+  "Bool" => "boolean"
+  "Dynamic" => "any"
+  "Data" | "@io.Data" => "Uint8Array"
+  _ => tsTypeFallback(typeName)
+}
+
+tsTypeFallback(
+  typeName: String
+) -> String => (
+  typeName.endsWith("?") ? tsType(typeName.slice(0, typeName.length() - 1)) + " | null"
+    : (
+      genericInner(typeName, "Array") != "" ? tsType(genericInner(typeName, "Array")) + "[]"
+        : (
+          genericInner(typeName, "ReadonlyArray") != "" ? ("ReadonlyArray<" + tsType(genericInner(typeName, "ReadonlyArray"))) + ">"
+            : (
+              genericInner(typeName, "Map") != "" ? ((("Map<" + tsType(typeArg(genericInner(typeName, "Map"), 0))) + ", ") + tsType(typeArg(genericInner(typeName, "Map"), 1))) + ">"
+                : (
+                  genericInner(typeName, "Set") != "" ? ("Set<" + tsType(genericInner(typeName, "Set"))) + ">"
+                    : mangleIdent(typeName)
+                )
+            )
+        )
+    )
+)
+
+tsPropertyName(name: String) -> String => name
+
+joinStrings(
+  values: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= values.length() ? out
+    : joinStrings(values, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + values[index])
+)
