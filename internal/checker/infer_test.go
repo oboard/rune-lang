@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
@@ -109,4 +110,52 @@ func TestLambdaArgumentToNonFunctionStdlibParamIsRejected(t *testing.T) {
 		}
 	}
 	t.Fatalf("diagnostics = %#v, want lambda argument mismatch", diags)
+}
+
+func TestArrayPushRefinesEmptyArrayReceiver(t *testing.T) {
+	src := `RuntimeValue: {
+  text: String
+}
+
+stringValue(value: String) -> RuntimeValue => RuntimeValue {
+  text: value
+}
+
+arrayValue(values: Array[RuntimeValue]) -> RuntimeValue => RuntimeValue {
+  text: ""
+}
+
+main() => {
+  out := []
+  out.push(stringValue("x"))
+  arrayValue(out)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+
+	var arrayValueArg ast.Expr
+	ast.WalkExpr(file.Functions[len(file.Functions)-1].Body, func(expr ast.Expr) {
+		call, ok := expr.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 {
+			return
+		}
+		ident, ok := call.Callee.(*ast.Identifier)
+		if !ok || ident.Name != "arrayValue" {
+			return
+		}
+		arrayValueArg = call.Args[0]
+	})
+	if arrayValueArg == nil {
+		t.Fatalf("missing arrayValue(out) call")
+	}
+	if got, want := info.ExprTypes[arrayValueArg], ArrayOf(Type("RuntimeValue")); got != want {
+		t.Fatalf("arrayValue argument type = %s, want %s", got, want)
+	}
 }

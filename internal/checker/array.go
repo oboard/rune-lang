@@ -154,7 +154,30 @@ func (c *checker) inferArrayMethodCall(elem Type, sel *ast.SelectorExpr, call *a
 	}
 	bindings := c.arrayTypeBindings(fn, elem)
 	c.checkDeclaredReceiverArgs("array", sel.Name, fn, call.Args, argTypes, bindings, env, sel.Pos)
+	if elem == Unknown {
+		c.refineArrayReceiver(sel.Receiver, bindings["T"], env)
+	}
 	return c.finishRoutineCall(call, fn.Routine, c.resolveDeclaredType(fn.Return, bindings))
+}
+
+func (c *checker) refineArrayReceiver(receiver ast.Expr, elem Type, env map[string]Type) {
+	if elem == "" || elem == Unknown {
+		return
+	}
+	refined := ArrayOf(elem)
+	c.applyExpectedType(receiver, refined)
+	ident, ok := receiver.(*ast.Identifier)
+	if !ok {
+		return
+	}
+	current, ok := env[ident.Name]
+	if !ok || !shouldApplyExpectedType(current, refined) {
+		return
+	}
+	env[ident.Name] = refined
+	if binding := c.bindings[ident.Name]; binding != nil {
+		c.applyExpectedType(binding, refined)
+	}
 }
 
 func (c *checker) inferStdlibReceiverMethodCall(receiver Type, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
