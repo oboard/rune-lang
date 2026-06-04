@@ -79,7 +79,7 @@ emitGoBody(
   returnType: String,
   level: Int
 ) -> String => expr.kind {
-  "block" => emitGoBlock(expr.children, 0, returns, returnType, level, "")
+  ExprKind.Block => emitGoBlock(expr.children, 0, returns, returnType, level, "")
   _ => line(level, (
     returns ? "return " + emitGoExpr(expr)
       : emitGoExpr(expr)
@@ -107,8 +107,8 @@ emitGoStatement(
   returns: Bool,
   level: Int
 ) -> String => expr.kind {
-  "let" => emitGoLet(expr, level)
-  "objectDestructure" => emitGoObjectDestructure(expr, level)
+  ExprKind.Let => emitGoLet(expr, level)
+  ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
   _ => (
     last && returns ? line(level, "return " + emitGoExpr(expr))
       : line(level, emitGoExpr(expr))
@@ -143,35 +143,35 @@ emitGoParams(
 )
 
 emitGoExpr(expr: IRExpr) -> String => expr.kind {
-  "identifier" => mangleIdent(expr.name)
-  "at" => expr.name
-  "this" => mangleIdent("this")
-  "int" => expr.value
-  "double" => expr.value
-  "bigint" => "0"
-  "string" => expr.value
-  "template" => "\"\""
-  "char" => expr.value
-  "regex" => expr.value
-  "bool" => expr.value
-  "null" => "nil"
-  "unary" => expr.op + emitGoExpr(expr.children[0])
-  "postfix" => emitGoExpr(expr.children[0]) + expr.op
-  "binary" => emitGoBinary(expr)
-  "ternary" => emitGoTernary(expr)
-  "assign" => emitGoAssign(expr)
-  "call" => emitGoCall(expr)
-  "lambda" => emitGoLambda(expr)
-  "selector" => emitGoSelector(expr)
-  "index" => ((emitGoExpr(expr.children[0]) + "[") + emitGoExpr(expr.children[1])) + "]"
-  "array" => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
-  "tuple" => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
-  "map" => ("map[any]any{" + emitGoMapEntries(expr.children, 0, "")) + "}"
-  "spread" => emitGoExpr(expr.children[0])
-  "reactive" => emitGoExpr(expr.children[0])
-  "struct" => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
-  "object" => "struct{}{}"
-  "block" => ("func() any {\n" + emitGoBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
+  ExprKind.Identifier => mangleIdent(expr.name)
+  ExprKind.At => expr.name
+  ExprKind.This => mangleIdent("this")
+  ExprKind.Int => expr.value
+  ExprKind.Double => expr.value
+  ExprKind.BigInt => "0"
+  ExprKind.String => expr.value
+  ExprKind.Template => "\"\""
+  ExprKind.Char => expr.value
+  ExprKind.Regex => expr.value
+  ExprKind.Bool => expr.value
+  ExprKind.Null => "nil"
+  ExprKind.Unary => expr.op + emitGoExpr(expr.children[0])
+  ExprKind.Postfix => emitGoExpr(expr.children[0]) + expr.op
+  ExprKind.Binary => emitGoBinary(expr)
+  ExprKind.Ternary => emitGoTernary(expr)
+  ExprKind.Assign => emitGoAssign(expr)
+  ExprKind.Call => emitGoCall(expr)
+  ExprKind.Lambda => emitGoLambda(expr)
+  ExprKind.Selector => emitGoSelector(expr)
+  ExprKind.Index => ((emitGoExpr(expr.children[0]) + "[") + emitGoExpr(expr.children[1])) + "]"
+  ExprKind.Array => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
+  ExprKind.Tuple => ("[]any{" + emitGoExprList(expr.children, 0, "")) + "}"
+  ExprKind.Map => ("map[any]any{" + emitGoMapEntries(expr.children, 0, "")) + "}"
+  ExprKind.Spread => emitGoExpr(expr.children[0])
+  ExprKind.Reactive => emitGoExpr(expr.children[0])
+  ExprKind.Struct => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
+  ExprKind.Object => "struct{}{}"
+  ExprKind.Block => ("func() any {\n" + emitGoBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
   _ => "nil"
 }
 
@@ -197,8 +197,8 @@ emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
 emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
 
 emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
-  "at" => (expr.children[0].name + ".") + expr.name
-  "identifier" => (
+  ExprKind.At => (expr.children[0].name + ".") + expr.name
+  ExprKind.Identifier => (
     looksLikeTypeName(expr.children[0].name) ? mangleIdent((expr.children[0].name + "_") + expr.name)
       : (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
   )

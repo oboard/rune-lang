@@ -89,7 +89,7 @@ emitTSBody(
   returns: Bool,
   level: Int
 ) -> String => expr.kind {
-  "block" => emitTSBlock(expr.children, 0, returns, level, "")
+  ExprKind.Block => emitTSBlock(expr.children, 0, returns, level, "")
   _ => line(level, (
     returns ? ("return " + emitTSExpr(expr)) + ";"
       : emitTSExpr(expr) + ";"
@@ -116,8 +116,8 @@ emitTSStatement(
   returns: Bool,
   level: Int
 ) -> String => expr.kind {
-  "let" => emitTSLet(expr, level)
-  "objectDestructure" => emitTSObjectDestructure(expr, level)
+  ExprKind.Let => emitTSLet(expr, level)
+  ExprKind.ObjectDestructure => emitTSObjectDestructure(expr, level)
   _ => (
     last && returns ? line(level, ("return " + emitTSExpr(expr)) + ";")
       : line(level, emitTSExpr(expr) + ";")
@@ -194,35 +194,35 @@ emitTSExportNames(
 )
 
 emitTSExpr(expr: IRExpr) -> String => expr.kind {
-  "identifier" => mangleIdent(expr.name)
-  "at" => "@" + expr.name
-  "this" => mangleIdent("this")
-  "int" => expr.value
-  "double" => expr.value
-  "bigint" => expr.value + "n"
-  "string" => expr.value
-  "template" => expr.value
-  "char" => expr.value
-  "regex" => expr.value
-  "bool" => expr.value
-  "null" => "null"
-  "unary" => expr.op + emitTSExpr(expr.children[0])
-  "postfix" => emitTSExpr(expr.children[0]) + expr.op
-  "binary" => emitTSBinary(expr)
-  "ternary" => emitTSTernary(expr)
-  "assign" => emitTSAssign(expr)
-  "call" => emitTSCall(expr)
-  "lambda" => emitTSLambda(expr)
-  "selector" => emitTSSelector(expr)
-  "index" => ((emitTSExpr(expr.children[0]) + "[") + emitTSExpr(expr.children[1])) + "]"
-  "array" => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
-  "tuple" => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
-  "map" => ("new Map([" + emitTSMapEntries(expr.children, 0, "")) + "])"
-  "spread" => "..." + emitTSExpr(expr.children[0])
-  "reactive" => emitTSExpr(expr.children[0])
-  "struct" => ("{" + emitTSFields(expr.children, 0, "")) + "}"
-  "object" => ("{" + emitTSFields(expr.children, 0, "")) + "}"
-  "block" => ("(() => {\n" + emitTSBlock(expr.children, 0, true, 1, "")) + "})()"
+  ExprKind.Identifier => mangleIdent(expr.name)
+  ExprKind.At => "@" + expr.name
+  ExprKind.This => mangleIdent("this")
+  ExprKind.Int => expr.value
+  ExprKind.Double => expr.value
+  ExprKind.BigInt => expr.value + "n"
+  ExprKind.String => expr.value
+  ExprKind.Template => expr.value
+  ExprKind.Char => expr.value
+  ExprKind.Regex => expr.value
+  ExprKind.Bool => expr.value
+  ExprKind.Null => "null"
+  ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
+  ExprKind.Postfix => emitTSExpr(expr.children[0]) + expr.op
+  ExprKind.Binary => emitTSBinary(expr)
+  ExprKind.Ternary => emitTSTernary(expr)
+  ExprKind.Assign => emitTSAssign(expr)
+  ExprKind.Call => emitTSCall(expr)
+  ExprKind.Lambda => emitTSLambda(expr)
+  ExprKind.Selector => emitTSSelector(expr)
+  ExprKind.Index => ((emitTSExpr(expr.children[0]) + "[") + emitTSExpr(expr.children[1])) + "]"
+  ExprKind.Array => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
+  ExprKind.Tuple => ("[" + emitTSExprList(expr.children, 0, "")) + "]"
+  ExprKind.Map => ("new Map([" + emitTSMapEntries(expr.children, 0, "")) + "])"
+  ExprKind.Spread => "..." + emitTSExpr(expr.children[0])
+  ExprKind.Reactive => emitTSExpr(expr.children[0])
+  ExprKind.Struct => ("{" + emitTSFields(expr.children, 0, "")) + "}"
+  ExprKind.Object => ("{" + emitTSFields(expr.children, 0, "")) + "}"
+  ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, 1, "")) + "})()"
   _ => "undefined"
 }
 
@@ -248,7 +248,7 @@ emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
 emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
 
 emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
-  "at" => (("@" + expr.children[0].name) + ".") + expr.name
+  ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
   _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
 }
 

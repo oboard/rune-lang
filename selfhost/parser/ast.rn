@@ -1,5 +1,62 @@
 @"../lexer/lexer.rn"
 
+TypeRefKind: {
+  Unknown = 0
+  Name = 1
+  Group = 2
+  Tuple = 3
+  Function = 4
+}
+
+ExprKind: {
+  Unknown = 0
+  Identifier = 1
+  At = 2
+  This = 3
+  Int = 4
+  Double = 5
+  BigInt = 6
+  String = 7
+  Template = 8
+  Char = 9
+  Regex = 10
+  XMLText = 11
+  Bool = 12
+  Null = 13
+  Unary = 14
+  Postfix = 15
+  Unwrap = 16
+  Binary = 17
+  Ternary = 18
+  Assign = 19
+  Call = 20
+  Args = 21
+  Lambda = 22
+  Selector = 23
+  Index = 24
+  Array = 25
+  Tuple = 26
+  Map = 27
+  Entry = 28
+  Spread = 29
+  Reactive = 30
+  Struct = 31
+  Object = 32
+  Field = 33
+  PrivateField = 34
+  Method = 35
+  PrivateMethod = 36
+  Block = 37
+  PatternBlock = 38
+  Match = 39
+  Branch = 40
+  Pattern = 41
+  Let = 42
+  ObjectDestructure = 43
+  Error = 44
+  Watch = 45
+}
+
 ParsedTypeParam: {
   name: String
   optional: Bool
@@ -7,7 +64,7 @@ ParsedTypeParam: {
 }
 
 ParsedTypeRef: {
-  kind: String
+  kind: TypeRefKind
   name: String
   module: String
   nullable: Bool
@@ -39,7 +96,7 @@ ParsedParam: {
 }
 
 ParsedExpr: {
-  kind: String
+  kind: ExprKind
   text: String
   name: String
   value: String
@@ -107,7 +164,7 @@ ParsedFile: {
 }
 
 emptyParsedTypeRef() -> ParsedTypeRef => ParsedTypeRef {
-  kind: ""
+  kind: TypeRefKind.Unknown
   name: ""
   module: ""
   nullable: false
@@ -125,7 +182,7 @@ emptyParsedTypeParam() -> ParsedTypeParam => ParsedTypeParam {
 }
 
 namedParsedTypeRef(token: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: "name"
+  kind: TypeRefKind.Name
   name: token.lexeme
   module: ""
   nullable: false
@@ -137,7 +194,7 @@ namedParsedTypeRef(token: Token) -> ParsedTypeRef => ParsedTypeRef {
 }
 
 qualifiedParsedTypeRef(module: Token, name: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: "name"
+  kind: TypeRefKind.Name
   name: name.lexeme
   module: module.lexeme
   nullable: false
@@ -176,7 +233,7 @@ nullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => ParsedTypeRef {
 }
 
 groupedTypeRef(typeRef: ParsedTypeRef, token: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: "group"
+  kind: TypeRefKind.Group
   name: ""
   module: ""
   nullable: false
@@ -191,7 +248,7 @@ tupleTypeRef(
   params: Array[ParsedTypeParam],
   token: Token
 ) -> ParsedTypeRef => ParsedTypeRef {
-  kind: "tuple"
+  kind: TypeRefKind.Tuple
   name: ""
   module: ""
   nullable: false
@@ -207,7 +264,7 @@ functionTypeRef(
   returnType: ParsedTypeRef,
   token: Token
 ) -> ParsedTypeRef => ParsedTypeRef {
-  kind: "function"
+  kind: TypeRefKind.Function
   name: ""
   module: ""
   nullable: false
@@ -219,10 +276,10 @@ functionTypeRef(
 }
 
 typeRefToString(typeRef: ParsedTypeRef) -> String => typeRef.kind {
-  "name" => typeNameToString(typeRef)
-  "group" => typeRef.args.length() == 0 ? "()" : ("(" + typeRefToString(typeRef.args[0])) + ")"
-  "tuple" => "(" + typeParamsToString(typeRef.params, 0, "") + ")"
-  "function" => functionTypeToString(typeRef)
+  TypeRefKind.Name => typeNameToString(typeRef)
+  TypeRefKind.Group => typeRef.args.length() == 0 ? "()" : ("(" + typeRefToString(typeRef.args[0])) + ")"
+  TypeRefKind.Tuple => "(" + typeParamsToString(typeRef.params, 0, "") + ")"
+  TypeRefKind.Function => functionTypeToString(typeRef)
   _ => ""
 }
 
@@ -256,3 +313,52 @@ typeParamsToString(
   out: String
 ) -> String =>
   index >= params.length() ? out : typeParamsToString(params, index + 1, out + (index == 0 ? "" : ",") + typeParamToString(params[index]))
+
+exprKindName(kind: ExprKind) -> String => kind {
+  ExprKind.Identifier => "identifier"
+  ExprKind.At => "at"
+  ExprKind.This => "this"
+  ExprKind.Int => "int"
+  ExprKind.Double => "double"
+  ExprKind.BigInt => "bigint"
+  ExprKind.String => "string"
+  ExprKind.Template => "template"
+  ExprKind.Char => "char"
+  ExprKind.Regex => "regex"
+  ExprKind.XMLText => "xmlText"
+  ExprKind.Bool => "bool"
+  ExprKind.Null => "null"
+  ExprKind.Unary => "unary"
+  ExprKind.Postfix => "postfix"
+  ExprKind.Unwrap => "unwrap"
+  ExprKind.Binary => "binary"
+  ExprKind.Ternary => "ternary"
+  ExprKind.Assign => "assign"
+  ExprKind.Call => "call"
+  ExprKind.Args => "args"
+  ExprKind.Lambda => "lambda"
+  ExprKind.Selector => "selector"
+  ExprKind.Index => "index"
+  ExprKind.Array => "array"
+  ExprKind.Tuple => "tuple"
+  ExprKind.Map => "map"
+  ExprKind.Entry => "entry"
+  ExprKind.Spread => "spread"
+  ExprKind.Reactive => "reactive"
+  ExprKind.Struct => "struct"
+  ExprKind.Object => "object"
+  ExprKind.Field => "field"
+  ExprKind.PrivateField => "privateField"
+  ExprKind.Method => "method"
+  ExprKind.PrivateMethod => "privateMethod"
+  ExprKind.Block => "block"
+  ExprKind.PatternBlock => "patternBlock"
+  ExprKind.Match => "match"
+  ExprKind.Branch => "branch"
+  ExprKind.Pattern => "pattern"
+  ExprKind.Let => "let"
+  ExprKind.ObjectDestructure => "objectDestructure"
+  ExprKind.Error => "error"
+  ExprKind.Watch => "watch"
+  _ => "unknown"
+}

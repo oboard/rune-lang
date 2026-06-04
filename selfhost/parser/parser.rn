@@ -130,7 +130,7 @@ emptyToken() -> Token => Token {
 }
 
 emptyExpr() -> ParsedExpr => ParsedExpr {
-  kind: ""
+  kind: ExprKind.Unknown
   text: ""
   name: ""
   value: ""
@@ -197,7 +197,7 @@ emptyMember() -> ParsedEnumMember => ParsedEnumMember {
 }
 
 makeExpr(
-  kind: String,
+  kind: ExprKind,
   text: String,
   name: String,
   value: String,
@@ -219,24 +219,24 @@ makeExpr(
 }
 
 node(
-  kind: String,
+  kind: ExprKind,
   token: Token
 ) -> ParsedExpr => makeExpr(kind, token.lexeme, "", "", "", [], [], token.line, token.column)
 
 namedNode(
-  kind: String,
+  kind: ExprKind,
   name: String,
   token: Token
 ) -> ParsedExpr => makeExpr(kind, token.lexeme, name, "", "", [], [], token.line, token.column)
 
 valueNode(
-  kind: String,
+  kind: ExprKind,
   value: String,
   token: Token
 ) -> ParsedExpr => makeExpr(kind, token.lexeme, "", value, "", [], [], token.line, token.column)
 
 opNode(
-  kind: String,
+  kind: ExprKind,
   op: String,
   token: Token,
   children: Array[ParsedExpr]
@@ -1035,7 +1035,7 @@ parseBlock(
 ) -> ExprStep => {
   open := parserConsume(state, "LBrace", "expected '{'")
   bodyStart := parserSkipNewlines(open.state)
-  parserCheck(bodyStart, "RBrace") ? finishBlock(bodyStart, node("block", open.token)) : looksLikePatternBranch(bodyStart) ? parsePatternBlock(bodyStart, node("patternBlock", open.token)) : parseBlockLoop(bodyStart, node("block", open.token))
+  parserCheck(bodyStart, "RBrace") ? finishBlock(bodyStart, node(ExprKind.Block, open.token)) : looksLikePatternBranch(bodyStart) ? parsePatternBlock(bodyStart, node(ExprKind.PatternBlock, open.token)) : parseBlockLoop(bodyStart, node(ExprKind.Block, open.token))
 }
 
 finishBlock(
@@ -1078,7 +1078,7 @@ parseLetStatement(
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
     state: value.state
-    expr: makeExpr("let", name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+    expr: makeExpr(ExprKind.Let, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1092,7 +1092,7 @@ parseObjectDestructureStatement(
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
     state: value.state
-    expr: makeExpr("objectDestructure", "", "", "", op.token.lexeme, fields.params, [value.expr], open.token.line, open.token.column)
+    expr: makeExpr(ExprKind.ObjectDestructure, "", "", "", op.token.lexeme, fields.params, [value.expr], open.token.line, open.token.column)
   }
 }
 
@@ -1139,7 +1139,7 @@ parseAssignStatement(
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
     state: value.state
-    expr: makeExpr("assign", name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+    expr: makeExpr(ExprKind.Assign, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1161,7 +1161,7 @@ parseAfterBraceExpression(
   state: ParserState,
   expr: ParsedExpr,
   minPrec: Int
-) -> ExprStep => looksLikePatternBlockAfterSubject(state) ? parseExpressionLoop(parseMatchExpression(state, expr), minPrec) : expr.kind == "identifier" ? parseExpressionLoop(parseStructLiteral(state, expr), minPrec) : ExprStep {
+) -> ExprStep => looksLikePatternBlockAfterSubject(state) ? parseExpressionLoop(parseMatchExpression(state, expr), minPrec) : expr.kind == ExprKind.Identifier ? parseExpressionLoop(parseStructLiteral(state, expr), minPrec) : ExprStep {
   state: state
   expr: expr
 }
@@ -1174,7 +1174,7 @@ parseCallExpression(
   open := parserConsume(state, "LParen", "expected '(' after callee")
   args := parseArgumentList(parserSkipNewlines(open.state), [callee], "RParen")
   close := parserConsume(args.state, "RParen", "expected ')' after arguments")
-  call := makeExpr("call", calleeText(callee), "", "", "", [], args.expr.children, callee.line, callee.column)
+  call := makeExpr(ExprKind.Call, calleeText(callee), "", "", "", [], args.expr.children, callee.line, callee.column)
   parseExpressionLoop(ExprStep {
     state: close.state
     expr: call
@@ -1186,7 +1186,7 @@ parseArgumentList(
   holderChildren: Array[ParsedExpr],
   endKind: String
 ) -> ExprStep => {
-  holder := makeExpr("args", "", "", "", "", [], holderChildren, 0, 0)
+  holder := makeExpr(ExprKind.Args, "", "", "", "", [], holderChildren, 0, 0)
   parseArgumentListLoop(state, holder, endKind)
 }
 
@@ -1209,7 +1209,7 @@ parseOneArgument(
 ) -> ExprStep => {
   spread := parserMatch(state, "DotDotDot")
   value := parseExpression(spread.ok ? spread.state : state, 1)
-  arg := spread.ok ? opNode("spread", "...", parserPrevious(spread.state), [value.expr]) : value.expr
+  arg := spread.ok ? opNode(ExprKind.Spread, "...", parserPrevious(spread.state), [value.expr]) : value.expr
   nextHolder := appendChild(holder, arg)
   comma := parserMatch(parserSkipNewlines(value.state), "Comma")
   parseArgumentListLoop(comma.state, nextHolder, endKind)
@@ -1225,7 +1225,7 @@ parseIndexExpression(
   close := parserConsume(index.state, "RBracket", "expected ']' after index")
   parseExpressionLoop(ExprStep {
     state: close.state
-    expr: makeExpr("index", receiver.text, "", "", "", [], [receiver, index.expr], receiver.line, receiver.column)
+    expr: makeExpr(ExprKind.Index, receiver.text, "", "", "", [], [receiver, index.expr], receiver.line, receiver.column)
   }, minPrec)
 }
 
@@ -1238,7 +1238,7 @@ parseSelectorExpression(
   name := parserConsume(dot.state, "Ident", "expected selector name after '.'")
   parseExpressionLoop(ExprStep {
     state: name.state
-    expr: makeExpr("selector", name.token.lexeme, name.token.lexeme, "", ".", [], [receiver], dot.token.line, dot.token.column)
+    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [receiver], dot.token.line, dot.token.column)
   }, minPrec)
 }
 
@@ -1250,7 +1250,7 @@ parsePostfixExpression(
   op := parserAdvance(state)
   parseExpressionLoop(ExprStep {
     state: op.state
-    expr: opNode("postfix", op.token.lexeme, op.token, [expr])
+    expr: opNode(ExprKind.Postfix, op.token.lexeme, op.token, [expr])
   }, minPrec)
 }
 
@@ -1263,7 +1263,7 @@ parseWatchExpression(
   handler := parseWatchHandler(parserSkipNewlines(arrow.state))
   parseExpressionLoop(ExprStep {
     state: handler.state
-    expr: opNode("watch", arrow.token.lexeme, arrow.token, [expr, handler.expr])
+    expr: opNode(ExprKind.Watch, arrow.token.lexeme, arrow.token, [expr, handler.expr])
   }, minPrec)
 }
 
@@ -1280,7 +1280,7 @@ parseAssignmentExpression(
   value := parseExpression(parserSkipNewlines(op.state), 1)
   parseExpressionLoop(ExprStep {
     state: value.state
-    expr: opNode("assign", op.token.lexeme, op.token, [target, value.expr])
+    expr: opNode(ExprKind.Assign, op.token.lexeme, op.token, [target, value.expr])
   }, minPrec)
 }
 
@@ -1297,7 +1297,7 @@ parseResultUnwrapExpression(
   question := parserAdvance(state)
   ExprStep {
     state: question.state
-    expr: opNode("unwrap", "?", question.token, [expr])
+    expr: opNode(ExprKind.Unwrap, "?", question.token, [expr])
   }
 }
 
@@ -1312,7 +1312,7 @@ parseTernaryExpression(
   colon := parserMatch(afterConsequence, "Colon")
   colon.ok ? parseTernaryAlternative(colon.state, question.token, condition, consequence.expr, minPrec) : parseExpressionLoop(ExprStep {
     state: afterConsequence
-    expr: opNode("ternary", "?:", question.token, [condition, consequence.expr])
+    expr: opNode(ExprKind.Ternary, "?:", question.token, [condition, consequence.expr])
   }, minPrec)
 }
 
@@ -1326,7 +1326,7 @@ parseTernaryAlternative(
   alternative := parseExpression(parserSkipNewlines(state), 1)
   parseExpressionLoop(ExprStep {
     state: alternative.state
-    expr: opNode("ternary", "?:", token, [condition, consequence, alternative.expr])
+    expr: opNode(ExprKind.Ternary, "?:", token, [condition, consequence, alternative.expr])
   }, minPrec)
 }
 
@@ -1352,7 +1352,7 @@ parseBinaryExpressionAtPrec(
   right := parseExpression(op.state, prec + 1)
   parseExpressionLoop(ExprStep {
     state: right.state
-    expr: opNode("binary", op.token.lexeme, op.token, [expr, right.expr])
+    expr: opNode(ExprKind.Binary, op.token.lexeme, op.token, [expr, right.expr])
   }, minPrec)
 }
 
@@ -1367,7 +1367,7 @@ parseUnaryOperator(
   right := parseExpression(op.state, 11)
   ExprStep {
     state: right.state
-    expr: opNode("unary", op.token.lexeme, op.token, [right.expr])
+    expr: opNode(ExprKind.Unary, op.token.lexeme, op.token, [right.expr])
   }
 }
 
@@ -1375,12 +1375,12 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  token.kind == "Int" ? parseLiteral(state, "int") : token.kind == "Double" ? parseLiteral(state, "double") : token.kind == "BigInt" ? parseLiteral(state, "bigint") : token.kind == "String" ? parseLiteral(state, "string") : token.kind == "TemplateString" ? parseLiteral(state, "template") : token.kind == "Char" ? parseLiteral(state, "char") : token.kind == "Regex" ? parseLiteral(state, "regex") : token.kind == "XMLText" ? parseLiteral(state, "xmlText") : token.kind == "Ident" ? parseIdentifierPrimary(state) : token.kind == "At" ? parseAtExpression(state) : token.kind == "Dot" ? parseThisSelector(state) : token.kind == "LBracket" ? parseArrayLiteral(state) : token.kind == "Dollar" ? parseReactiveLiteral(state) : token.kind == "LBrace" ? parseBraceLiteral(state) : token.kind == "LParen" ? parseParenOrTuple(state) : parsePrimaryError(state)
+  token.kind == "Int" ? parseLiteral(state, ExprKind.Int) : token.kind == "Double" ? parseLiteral(state, ExprKind.Double) : token.kind == "BigInt" ? parseLiteral(state, ExprKind.BigInt) : token.kind == "String" ? parseLiteral(state, ExprKind.String) : token.kind == "TemplateString" ? parseLiteral(state, ExprKind.Template) : token.kind == "Char" ? parseLiteral(state, ExprKind.Char) : token.kind == "Regex" ? parseLiteral(state, ExprKind.Regex) : token.kind == "XMLText" ? parseLiteral(state, ExprKind.XMLText) : token.kind == "Ident" ? parseIdentifierPrimary(state) : token.kind == "At" ? parseAtExpression(state) : token.kind == "Dot" ? parseThisSelector(state) : token.kind == "LBracket" ? parseArrayLiteral(state) : token.kind == "Dollar" ? parseReactiveLiteral(state) : token.kind == "LBrace" ? parseBraceLiteral(state) : token.kind == "LParen" ? parseParenOrTuple(state) : parsePrimaryError(state)
 }
 
 parseLiteral(
   state: ParserState,
-  kind: String
+  kind: ExprKind
 ) -> ExprStep => {
   step := parserAdvance(state)
   ExprStep {
@@ -1393,10 +1393,10 @@ parseIdentifierPrimary(
   state: ParserState
 ) -> ExprStep => {
   step := parserAdvance(state)
-  kind := (step.token.lexeme == "true") || (step.token.lexeme == "false") ? "bool" : step.token.lexeme == "null" ? "null" : "identifier"
+  kind := (step.token.lexeme == "true") || (step.token.lexeme == "false") ? ExprKind.Bool : step.token.lexeme == "null" ? ExprKind.Null : ExprKind.Identifier
   ExprStep {
     state: step.state
-    expr: kind == "identifier" ? namedNode(kind, step.token.lexeme, step.token) : valueNode(kind, step.token.lexeme, step.token)
+    expr: kind == ExprKind.Identifier ? namedNode(kind, step.token.lexeme, step.token) : valueNode(kind, step.token.lexeme, step.token)
   }
 }
 
@@ -1407,7 +1407,7 @@ parseAtExpression(
   name := parserConsume(at.state, "Ident", "expected module name after '@'")
   ExprStep {
     state: name.state
-    expr: namedNode("at", name.token.lexeme, at.token)
+    expr: namedNode(ExprKind.At, name.token.lexeme, at.token)
   }
 }
 
@@ -1418,7 +1418,7 @@ parseThisSelector(
   name := parserConsume(dot.state, "Ident", "expected field name after '.'")
   ExprStep {
     state: name.state
-    expr: makeExpr("selector", name.token.lexeme, name.token.lexeme, "", ".", [], [node("this", dot.token)], dot.token.line, dot.token.column)
+    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [node(ExprKind.This, dot.token)], dot.token.line, dot.token.column)
   }
 }
 
@@ -1430,7 +1430,7 @@ parseArrayLiteral(
   close := parserConsume(args.state, "RBracket", "expected ']' after array literal")
   ExprStep {
     state: close.state
-    expr: makeExpr("array", "[]", "", "", "", [], args.expr.children, open.token.line, open.token.column)
+    expr: makeExpr(ExprKind.Array, "[]", "", "", "", [], args.expr.children, open.token.line, open.token.column)
   }
 }
 
@@ -1444,7 +1444,7 @@ parseReactiveLiteral(
   }
   ExprStep {
     state: value.state
-    expr: opNode("reactive", "$", start.token, [value.expr])
+    expr: opNode(ExprKind.Reactive, "$", start.token, [value.expr])
   }
 }
 
@@ -1456,7 +1456,7 @@ parseMapLiteral(
   state: ParserState
 ) -> ExprStep => {
   open := parserConsume(state, "LBrace", "expected '{'")
-  parseMapLiteralLoop(parserSkipNewlines(open.state), node("map", open.token))
+  parseMapLiteralLoop(parserSkipNewlines(open.state), node(ExprKind.Map, open.token))
 }
 
 parseMapLiteralLoop(
@@ -1474,7 +1474,7 @@ parseMapLiteralEntry(
   key := parseExpression(state, 1)
   colon := parserConsume(key.state, "Colon", "expected ':' after map key")
   value := parseExpression(parserSkipNewlines(colon.state), 1)
-  entry := makeExpr("entry", "", "", "", ":", [], [key.expr, value.expr], key.expr.line, key.expr.column)
+  entry := makeExpr(ExprKind.Entry, "", "", "", ":", [], [key.expr, value.expr], key.expr.line, key.expr.column)
   nextMap := appendChild(mapExpr, entry)
   comma := parserMatch(parserSkipNewlines(consumeStatementEnd(value.state)), "Comma")
   parseMapLiteralLoop(comma.state, nextMap)
@@ -1495,7 +1495,7 @@ parseObjectLiteral(
   state: ParserState
 ) -> ExprStep => {
   open := parserConsume(state, "LBrace", "expected '{'")
-  parseObjectLiteralLoop(parserSkipNewlines(open.state), node("object", open.token))
+  parseObjectLiteralLoop(parserSkipNewlines(open.state), node(ExprKind.Object, open.token))
 }
 
 parseObjectLiteralLoop(
@@ -1538,7 +1538,7 @@ parseObjectField(
   value := parseExpression(parserSkipNewlines(colon.state), 1)
   ExprStep {
     state: value.state
-    expr: makeExpr(private ? "privateField" : "field", name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
+    expr: makeExpr(private ? ExprKind.PrivateField : ExprKind.Field, name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1558,7 +1558,7 @@ parseStructLiteral(
   typeExpr: ParsedExpr
 ) -> ExprStep => {
   open := parserConsume(state, "LBrace", "expected '{' after type name")
-  parseStructLiteralLoop(parserSkipNewlines(open.state), namedNode("struct", typeExpr.name, open.token))
+  parseStructLiteralLoop(parserSkipNewlines(open.state), namedNode(ExprKind.Struct, typeExpr.name, open.token))
 }
 
 parseStructLiteralLoop(
@@ -1576,7 +1576,7 @@ parseStructLiteralField(
   name := parserConsume(state, "Ident", "expected field name")
   colon := parserConsume(name.state, "Colon", "expected ':' after field name")
   value := parseExpression(parserSkipNewlines(colon.state), 1)
-  field := makeExpr("field", name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
+  field := makeExpr(ExprKind.Field, name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
   nextStruct := appendChild(structExpr, field)
   comma := parserMatch(parserSkipNewlines(consumeStatementEnd(value.state)), "Comma")
   parseStructLiteralLoop(comma.state, nextStruct)
@@ -1619,7 +1619,7 @@ parseTupleAfterFirst(
   first: ParsedExpr
 ) -> ExprStep => {
   comma := parserConsume(state, "Comma", "expected ','")
-  holder := appendChild(node("tuple", open), first)
+  holder := appendChild(node(ExprKind.Tuple, open), first)
   values := parseArgumentListLoop(parserSkipNewlines(comma.state), holder, "RParen")
   close := parserConsume(values.state, "RParen", "expected ')' after tuple literal")
   ExprStep {
@@ -1635,7 +1635,7 @@ parsePrimaryError(
   step := parserAdvance(parserErrorAt(state, token, "expected expression, got " + token.kind))
   ExprStep {
     state: step.state
-    expr: namedNode("error", "<error>", token)
+    expr: namedNode(ExprKind.Error, "<error>", token)
   }
 }
 
@@ -1655,7 +1655,7 @@ parseLambda(
   body := parseBody(parserSkipNewlines(arrow.state))
   ExprStep {
     state: body.state
-    expr: withChildren(withParams(withText(node("lambda", open.token), typeRefToString(returnType.typeRef)), params.params), [body.expr])
+    expr: withChildren(withParams(withText(node(ExprKind.Lambda, open.token), typeRefToString(returnType.typeRef)), params.params), [body.expr])
   }
 }
 
@@ -1664,7 +1664,7 @@ parseMatchExpression(
   subject: ParsedExpr
 ) -> ExprStep => {
   open := parserConsume(state, "LBrace", "expected '{' after match subject")
-  block := appendChild(node("match", open.token), subject)
+  block := appendChild(node(ExprKind.Match, open.token), subject)
   parsePatternBlock(parserSkipNewlines(open.state), block)
 }
 
@@ -1683,7 +1683,7 @@ parsePatternBranch(
   pattern := parsePatternText(state)
   arrow := parserConsume(pattern.state, "FatArrow", "expected '=>' after pattern")
   value := parseExpression(parserSkipNewlines(arrow.state), 1)
-  branch := makeExpr("branch", pattern.expr.text, "", "", "=>", [], [pattern.expr, value.expr], pattern.expr.line, pattern.expr.column)
+  branch := makeExpr(ExprKind.Branch, pattern.expr.text, "", "", "=>", [], [pattern.expr, value.expr], pattern.expr.line, pattern.expr.column)
   nextBlock := appendChild(block, branch)
   parsePatternBlock(consumeStatementEnd(value.state), nextBlock)
 }
@@ -1711,7 +1711,7 @@ parsePatternTextLoop(
   consumed: Bool
 ) -> ExprStep => (depth == 0) && (parserCheck(state, "FatArrow") || parserCheck(state, "EOF")) ? ExprStep {
   state: consumed ? state : parserErrorAt(state, parserPeek(state), "expected pattern")
-  expr: withText(node("pattern", start), text)
+  expr: withText(node(ExprKind.Pattern, start), text)
 } : parsePatternTextToken(state, text, start, depth)
 
 parsePatternTextToken(
@@ -1732,7 +1732,7 @@ patternNextDepth(
 
 functionToExpr(
   fn: ParsedFunction
-) -> ParsedExpr => makeExpr(fn.private ? "privateMethod" : "method", typeRefToString(fn.returnType), fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
+) -> ParsedExpr => makeExpr(fn.private ? ExprKind.PrivateMethod : ExprKind.Method, typeRefToString(fn.returnType), fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
 
 calleeText(expr: ParsedExpr) -> String => expr.name != "" ? expr.name : expr.value != "" ? expr.value : expr.text
 

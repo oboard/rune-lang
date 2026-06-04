@@ -22,7 +22,7 @@ main() -> Int => Box { value: 41 }.get() + Status.Ready
   @assert.eq(file.enums.length(), 1)
   @assert.eq(file.enums[0].members[0].name, "Ready")
   @assert.eq(file.functions.length(), 1)
-  @assert.eq(file.functions[0].body.kind, "binary")
+  @assert.eq(file.functions[0].body.kind, ExprKind.Binary)
 }
 
 ? "selfhost ir lowers nested expressions" {
@@ -36,11 +36,11 @@ main() -> Int => Box { value: 41 }.get() + Status.Ready
   assign := block.children[1]
   call := block.children[2]
   @assert.eq(file.errors.length(), 0)
-  @assert.eq(block.kind, "block")
-  @assert.eq(block.children[0].kind, "let")
-  @assert.eq(assign.kind, "assign")
-  @assert.eq(assign.children[0].kind, "index")
-  @assert.eq(assign.children[1].kind, "binary")
-  @assert.eq(call.kind, "call")
-  @assert.eq(call.children[1].kind, "lambda")
+  @assert.eq(block.kind, ExprKind.Block)
+  @assert.eq(block.children[0].kind, ExprKind.Let)
+  @assert.eq(assign.kind, ExprKind.Assign)
+  @assert.eq(assign.children[0].kind, ExprKind.Index)
+  @assert.eq(assign.children[1].kind, ExprKind.Binary)
+  @assert.eq(call.kind, ExprKind.Call)
+  @assert.eq(call.children[1].kind, ExprKind.Lambda)
 }

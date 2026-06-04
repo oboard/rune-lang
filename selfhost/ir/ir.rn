@@ -15,7 +15,7 @@ IRParam: {
 }
 
 IRExpr: {
-  kind: String
+  kind: ExprKind
   text: String
   name: String
   value: String
@@ -131,7 +131,7 @@ pushEnumType(
 }
 
 emptyIRExpr() -> IRExpr => IRExpr {
-  kind: ""
+  kind: ExprKind.Unknown
   text: ""
   name: ""
   value: ""

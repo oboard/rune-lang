@@ -11,15 +11,15 @@ enumValue(
 returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
 
 moduleCallKey(expr: IRExpr) -> String => (
-  (expr.kind == "call") && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
+  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
     : ""
 )
 
 moduleSelectorKey(
   expr: IRExpr
 ) -> String => (
-  (expr.kind == "selector") && (expr.children.length() > 0) ? (
-    expr.children[0].kind == "at" ? (expr.children[0].name + ".") + expr.name
+  (expr.kind == ExprKind.Selector) && (expr.children.length() > 0) ? (
+    expr.children[0].kind == ExprKind.At ? (expr.children[0].name + ".") + expr.name
       : ""
   )
     : ""
