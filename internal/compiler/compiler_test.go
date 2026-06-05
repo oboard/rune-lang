@@ -40,7 +40,7 @@ func TestAnalyzeCoreCompressSource(t *testing.T) {
 
 func TestAnalyzeFileLoadsRuneImports(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `inc(value: Int) -> Int => value + 1
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `+ inc(value: Int) -> Int => value + 1
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -202,11 +202,11 @@ main() => {
 
 func TestAnalyzeFileLoadsTransitiveRuneImports(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "base.rn"), `base() -> Int => 40
+	writeRuneFile(t, filepath.Join(dir, "base.rn"), `+ base() -> Int => 40
 `)
 	writeRuneFile(t, filepath.Join(dir, "math.rn"), `@"base.rn"
 
-inc2(value: Int) -> Int => value + 2
++ inc2(value: Int) -> Int => value + 2
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -224,9 +224,9 @@ main() => @io.println(inc2(base()))
 
 func TestAnalyzeFileKeepsPrivateImportsAvailableToOwner(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `- add(a: Int, b: Int) -> Int => a + b
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int, b: Int) -> Int => a + b
 
-sum(a: Int, b: Int) -> Int => add(a, b)
++ sum(a: Int, b: Int) -> Int => add(a, b)
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -253,7 +253,7 @@ main() => @io.println(sum(20, 22))
 
 func TestAnalyzeFileRejectsPrivateImportedFunctionUse(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `- add(a: Int, b: Int) -> Int => a + b
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int, b: Int) -> Int => a + b
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -271,7 +271,7 @@ main() => add(20, 22)
 
 func TestAnalyzeFileAllowsLocalFunctionToShadowImportedPrivate(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "helper.rn"), `- private() => "this is private function"
+	writeRuneFile(t, filepath.Join(dir, "helper.rn"), `private() => "this is private function"
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"helper.rn"
 
@@ -296,16 +296,16 @@ main() => @io.println(private())
 
 func TestAnalyzeFileRejectsPrivateImportedMembers(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "user.rn"), `User: {
-  name: String
-  - token: String
+	writeRuneFile(t, filepath.Join(dir, "user.rn"), `+ User: {
+  + name: String
+  token: String
 
-  - secret() -> String => .token
+  secret() -> String => .token
 }
 
-Status: {
-  Ready = 0
-  - Hidden = 1
++ Status: {
+  + Ready = 0
+  Hidden = 1
 }
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"user.rn"

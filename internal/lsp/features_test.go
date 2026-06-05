@@ -50,7 +50,7 @@ main() => {
 func TestImportDefinitionJumpsToFile(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "helper.rn")
-	writeLSPFile(t, helperPath, `helper() -> Int => 1
+	writeLSPFile(t, helperPath, `+ helper() -> Int => 1
 `)
 	mainPath := filepath.Join(dir, "main.rn")
 	uri := fileURI(mainPath)
@@ -73,7 +73,7 @@ main() => helper()
 func TestImportedFunctionDefinitionJumpsToSourceFile(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "helper.rn")
-	writeLSPFile(t, helperPath, `helper() -> Int => 1
+	writeLSPFile(t, helperPath, `+ helper() -> Int => 1
 `)
 	mainPath := filepath.Join(dir, "main.rn")
 	uri := fileURI(mainPath)
@@ -88,7 +88,7 @@ main() => helper()
 		t.Fatalf("definition uri = %s, want %s", got, fileURI(helperPath))
 	}
 	start := def["range"].(map[string]any)["start"].(position)
-	if start.Line != 0 || start.Character != 0 {
+	if start.Line != 0 || start.Character != 2 {
 		t.Fatalf("definition start = %+v, want helper declaration", start)
 	}
 }
@@ -642,9 +642,9 @@ func TestSignalWatchInlayHintsReturnOnce(t *testing.T) {
 func TestInlayHintsIgnoreImportedDeclarations(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "import_helper.rn")
-	writeLSPFile(t, helperPath, `greeting(name) => private(name)
+	writeLSPFile(t, helperPath, `+ greeting(name) => private(name)
 
-- private(name) => "hello, " + name
+private(name) => "hello, " + name
 `)
 	mainPath := filepath.Join(dir, "import_main.rn")
 	src := `@"import_helper.rn"
@@ -678,7 +678,7 @@ func TestInlayHintsInferParamFromBinaryOperands(t *testing.T) {
 	uri := "file:///tmp/binary_param.rn"
 	src := `message(name) => "hello, " + name
 forward(name) => helper(name)
-- helper(name) => "hello, " + name
+helper(name) => "hello, " + name
 increment(value) => value + 1
 `
 	s := &server{docs: map[string]string{uri: src}}

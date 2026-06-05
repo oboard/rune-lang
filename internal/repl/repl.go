@@ -128,6 +128,7 @@ func (s *Session) source() string {
 		b.WriteString(decl)
 		b.WriteString("\n\n")
 	}
+	b.WriteString("+ ")
 	b.WriteString(replFunctionName)
 	b.WriteString("() => {\n")
 	for _, stmt := range s.stmts {

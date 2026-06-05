@@ -1,3 +1,3 @@
-greeting(name) => private(name)
++ greeting(name) => private(name)
 
-- private(name: String) => `hello, ${name}`
+private(name: String) => `hello, ${name}`

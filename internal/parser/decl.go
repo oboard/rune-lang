@@ -40,7 +40,15 @@ func (p *Parser) parseImportDecl() *ast.Import {
 	return &ast.Import{Path: value, Pos: at.Pos}
 }
 
-func (p *Parser) parsePrivateModifier() bool {
+func (p *Parser) parsePublicModifier() bool {
+	if !p.match(lexer.Plus) {
+		return false
+	}
+	p.skipNewlines()
+	return true
+}
+
+func (p *Parser) parseObjectPrivateModifier() bool {
 	if !p.match(lexer.Minus) {
 		return false
 	}
@@ -84,7 +92,7 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
-		private := p.parsePrivateModifier()
+		private := !p.parsePublicModifier()
 		if p.looksLikeFunctionDecl() {
 			method := p.parseFunctionWithReceiver(typ.Name, private)
 			if method != nil {
@@ -120,14 +128,20 @@ func (p *Parser) parseStructType() *ast.StructType {
 func (p *Parser) looksLikeEnumMember() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
-	p.match(lexer.Minus)
+	p.match(lexer.Plus)
 	p.skipNewlines()
 	if !p.match(lexer.Ident) {
 		return false
 	}
+	if p.check(lexer.Newline) || p.check(lexer.Comma) || p.check(lexer.RBrace) || p.check(lexer.EOF) {
+		return true
+	}
 	p.skipNewlines()
 	if p.check(lexer.Assign) {
 		return true
+	}
+	if p.check(lexer.Colon) {
+		return false
 	}
 	if !p.match(lexer.LParen) {
 		return false
@@ -149,7 +163,7 @@ func (p *Parser) looksLikeEnumMember() bool {
 func (p *Parser) looksLikeEnumValueMember() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
-	p.match(lexer.Minus)
+	p.match(lexer.Plus)
 	p.skipNewlines()
 	if !p.match(lexer.Ident) {
 		return false
@@ -161,10 +175,17 @@ func (p *Parser) looksLikeEnumValueMember() bool {
 func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string) *ast.EnumType {
 	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
-		memberPrivate := p.parsePrivateModifier()
+		memberPrivate := !p.parsePublicModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
-		p.skipNewlines()
 		member := ast.EnumMember{Name: memberName.Lexeme, Private: memberPrivate, Pos: memberName.Pos}
+		if p.check(lexer.Newline) || p.check(lexer.Comma) || p.check(lexer.RBrace) || p.check(lexer.EOF) {
+			enum.Members = append(enum.Members, member)
+			p.consumeStatementEnd()
+			p.match(lexer.Comma)
+			p.skipNewlines()
+			continue
+		}
+		p.skipNewlines()
 		if p.match(lexer.Assign) {
 			p.skipNewlines()
 			value, _ := p.parseEnumValue()
@@ -175,7 +196,7 @@ func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string
 			member.Params = p.parseEnumConstructorParams()
 			p.consume(lexer.RParen, "expected ')' after enum constructor parameters")
 		} else {
-			p.errorAt(memberName, "expected '=' or '(' after enum member name")
+			p.errorAt(memberName, "expected enum member separator, '=' or '(' after enum member name")
 		}
 		enum.Members = append(enum.Members, member)
 		p.consumeStatementEnd()

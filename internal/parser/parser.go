@@ -34,11 +34,12 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 	file := &ast.File{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
-		private := p.parsePrivateModifier()
-		if private && (p.check(lexer.At) || p.check(lexer.Question)) {
-			p.errorAt(p.peek(), "expected private declaration after '-'")
+		public := p.parsePublicModifier()
+		private := !public
+		if public && (p.check(lexer.At) || p.check(lexer.Question)) {
+			p.errorAt(p.peek(), "expected public declaration after '+'")
 		}
-		if !private && p.check(lexer.At) {
+		if !public && p.check(lexer.At) {
 			if p.checkNext(lexer.String) {
 				if imp := p.parseImportDecl(); imp != nil {
 					file.Imports = append(file.Imports, *imp)
@@ -46,7 +47,7 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			} else if imp := p.parseGoImportDecl(); imp != nil {
 				file.GoImports = append(file.GoImports, *imp)
 			}
-		} else if !private && p.check(lexer.Question) {
+		} else if !public && p.check(lexer.Question) {
 			test := p.parseTest()
 			if test != nil {
 				file.Tests = append(file.Tests, test)

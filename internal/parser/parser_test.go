@@ -55,19 +55,19 @@ main() => helper()
 	}
 }
 
-func TestPrivateDeclarations(t *testing.T) {
-	file, errs := Parse(`- Secret: {
-  - value: Int
+func TestDeclarationVisibility(t *testing.T) {
+	file, errs := Parse(`Secret: {
+  value: Int
 
-  - reveal() -> Int => .value
+  reveal() -> Int => .value
 }
 
-- Status: {
++ Status: {
   Ready = 0
-  - Hidden = 1
+  + Hidden = 1
 }
 
-- add(a: Int, b: Int) -> Int => a + b
++ add(a: Int, b: Int) -> Int => a + b
 `)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -81,14 +81,14 @@ func TestPrivateDeclarations(t *testing.T) {
 	if len(file.Types[0].Methods) != 1 || !file.Types[0].Methods[0].Private {
 		t.Fatalf("methods = %#v, want private reveal", file.Types[0].Methods)
 	}
-	if len(file.Enums) != 1 || !file.Enums[0].Private {
-		t.Fatalf("enums = %#v, want one private enum", file.Enums)
+	if len(file.Enums) != 1 || file.Enums[0].Private {
+		t.Fatalf("enums = %#v, want one public enum", file.Enums)
 	}
-	if len(file.Enums[0].Members) != 2 || !file.Enums[0].Members[1].Private {
-		t.Fatalf("members = %#v, want private Hidden", file.Enums[0].Members)
+	if len(file.Enums[0].Members) != 2 || !file.Enums[0].Members[0].Private || file.Enums[0].Members[1].Private {
+		t.Fatalf("members = %#v, want private Ready and public Hidden", file.Enums[0].Members)
 	}
-	if len(file.Functions) != 1 || !file.Functions[0].Private {
-		t.Fatalf("functions = %#v, want private add", file.Functions)
+	if len(file.Functions) != 1 || file.Functions[0].Private {
+		t.Fatalf("functions = %#v, want public add", file.Functions)
 	}
 }
 
@@ -113,6 +113,31 @@ func TestEnumDeclWithIntegerMembers(t *testing.T) {
 	}
 	if enum.Members[1].Name != "Fail" || enum.Members[1].Value != 1 {
 		t.Fatalf("second enum member = %#v, want Fail = 1", enum.Members[1])
+	}
+}
+
+func TestEnumDeclWithBareMembers(t *testing.T) {
+	file, errs := Parse(`TokenKind: {
+  EOF
+  Ident
+  Int
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Enums) != 1 {
+		t.Fatalf("Parse() produced %d enums, want 1", len(file.Enums))
+	}
+	enum := file.Enums[0]
+	if enum.Name != "TokenKind" || len(enum.Members) != 3 {
+		t.Fatalf("enum = %#v, want TokenKind with three members", enum)
+	}
+	if enum.Members[0].Name != "EOF" || enum.Members[0].HasValue {
+		t.Fatalf("first enum member = %#v, want bare EOF", enum.Members[0])
+	}
+	if enum.Members[2].Name != "Int" || enum.Members[2].HasValue {
+		t.Fatalf("third enum member = %#v, want bare Int", enum.Members[2])
 	}
 }
 

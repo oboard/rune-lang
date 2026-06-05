@@ -1,19 +1,20 @@
-- add(a: Int, b: Int) -> Int => a + b
-
 Secret: {
-  - value: Int
+  value: Int
 
   reveal() -> Int => .value
 }
 
 Status: {
   Ready = 0
-  - Hidden = 1
+  Hidden = 1
 }
 
-? "private declarations work inside source" {
-  secret := Secret { value: 42 }
+add(a: Int, b: Int) -> Int => a + b
 
+? "private declarations work inside source" {
+  secret := Secret {
+    value: 42
+  }
   @assert.eq(add(20, 22), 42)
   @assert.eq(secret.reveal(), 42)
   @assert.eq(Status.Ready == Status.Ready, true)

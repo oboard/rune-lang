@@ -12,7 +12,7 @@ func TestBinaryOperandsInferUnknownParameterTypes(t *testing.T) {
 	src := `message(name) => "hello, " + name
 suffix(text) => text + "!"
 forward(name) => helper(name)
-- helper(name) => "hello, " + name
+helper(name) => "hello, " + name
 increment(value) => value + 1
 decrement(value) => value - 1
 scale(value) => 2 * value

@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerateCounterDOMProgram(t *testing.T) {
-	src := `render() -> HTMLElement => {
+	src := `+ render() -> HTMLElement => {
   count $= 0
 
   <div>
@@ -74,7 +74,7 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 }
 
 func TestGenerateUnicodeIdentifiers(t *testing.T) {
-	src := `计算✅(数值🐉: Int) -> Int => {
+	src := `+ 计算✅(数值🐉: Int) -> Int => {
   增量📈 := 1
   数值🐉 + 增量📈
 }

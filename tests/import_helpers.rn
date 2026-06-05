@@ -1,7 +1,9 @@
-ImportedUser: {
-  name: String
++ ImportedUser: {
+  + name: String
 }
 
-importedAnswer() -> Int => 42
++ importedAnswer() -> Int => 42
 
-importedLabel(user: ImportedUser) -> String => "user:" + user.name
++ importedLabel(
+  user: ImportedUser
+) -> String => "user:" + user.name

@@ -158,7 +158,7 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 	generics = append(generics, fn.Generics...)
 	genericTypes := genericSet(generics...)
 	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown, Pos: fn.Pos, NamePos: fn.NamePos}
-	if fn.Private {
+	if fn.Private && fn.SourcePath != "" && fn.ReceiverType == "" && fn.Name != "main" {
 		info.LinkName = privateLinkName(fn.SourcePath, fn.Name)
 	}
 	seenParams := map[string]bool{}

@@ -110,34 +110,34 @@ _=>(flag ? 2 : 3)
 	}
 }
 
-func TestPrivateDeclarationFormatting(t *testing.T) {
-	src := `- Secret:{
-- value:Int
-- reveal()->Int=>.value
+func TestDeclarationVisibilityFormatting(t *testing.T) {
+	src := `Secret:{
+value:Int
+reveal()->Int=>.value
 }
-- Status:{
++ Status:{
 Ready=0
-- Hidden=1
++ Hidden=1
 }
-- add(a:Int,b:Int)->Int=>a+b`
++ add(a:Int,b:Int)->Int=>a+b`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
 	}
 
 	got := File(file)
-	want := `- Secret: {
-  - value: Int
+	want := `Secret: {
+  value: Int
 
-  - reveal() -> Int => .value
+  reveal() -> Int => .value
 }
 
-- Status: {
++ Status: {
   Ready = 0
-  - Hidden = 1
+  + Hidden = 1
 }
 
-- add(a: Int, b: Int) -> Int => a + b
++ add(a: Int, b: Int) -> Int => a + b
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)

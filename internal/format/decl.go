@@ -7,10 +7,10 @@ import (
 )
 
 func (f *formatter) structType(typ *ast.StructType) {
-	f.linef("%s%s%s: {", privatePrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
+	f.linef("%s%s%s: {", publicPrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
-		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type))
+		f.linef("%s%s: %s", publicPrefix(field.Private), field.Name, formatType(field.Type))
 	}
 	if len(typ.Fields) > 0 && len(typ.Methods) > 0 {
 		f.line("")
@@ -26,14 +26,14 @@ func (f *formatter) structType(typ *ast.StructType) {
 }
 
 func (f *formatter) enumType(enum *ast.EnumType) {
-	f.linef("%s%s%s: {", privatePrefix(enum.Private), enum.Name, formatGenerics(enum.Generics))
+	f.linef("%s%s%s: {", publicPrefix(enum.Private), enum.Name, formatGenerics(enum.Generics))
 	f.indent++
 	for _, member := range enum.Members {
 		if member.HasValue {
-			f.linef("%s%s = %d", privatePrefix(member.Private), member.Name, member.Value)
+			f.linef("%s%s = %d", publicPrefix(member.Private), member.Name, member.Value)
 			continue
 		}
-		f.linef("%s%s(%s)", privatePrefix(member.Private), member.Name, formatParams(member.Params))
+		f.linef("%s%s(%s)", publicPrefix(member.Private), member.Name, formatParams(member.Params))
 	}
 	f.indent--
 	f.line("}")
@@ -130,8 +130,8 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	if fn.Routine {
 		single = "~ " + single
 	}
-	if fn.Private {
-		single = "- " + single
+	if !fn.Private {
+		single = "+ " + single
 	}
 	if len(f.indentString(f.indent)+single) <= maxLineLength {
 		return []string{single}
@@ -141,8 +141,8 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	if fn.Routine {
 		prefix = "~ " + prefix
 	}
-	if fn.Private {
-		prefix = "- " + prefix
+	if !fn.Private {
+		prefix = "+ " + prefix
 	}
 	lines := []string{prefix + formatGenerics(fn.Generics) + "("}
 	for i, param := range fn.Params {
@@ -178,6 +178,13 @@ func formatParams(params []ast.Param) string {
 		out = append(out, formatParam(param))
 	}
 	return strings.Join(out, ", ")
+}
+
+func publicPrefix(private bool) string {
+	if !private {
+		return "+ "
+	}
+	return ""
 }
 
 func privatePrefix(private bool) string {

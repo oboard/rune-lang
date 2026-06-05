@@ -10,7 +10,10 @@ module.exports = grammar({
   rules: {
     source_file: ($) => repeat(choice($.type_definition, $.function_definition)),
 
+    visibility: () => "+",
+
     type_definition: ($) => seq(
+      optional($.visibility),
       field("name", $.identifier),
       optional(field("type_parameters", $.type_parameter_list)),
       ":",
@@ -26,18 +29,21 @@ module.exports = grammar({
     ),
 
     type_field: ($) => seq(
+      optional($.visibility),
       field("name", $.identifier),
       ":",
       field("type", $.type_name)
     ),
 
     enum_member: ($) => seq(
+      optional($.visibility),
       field("name", $.identifier),
       "=",
       field("value", choice($.number, seq("-", $.number)))
     ),
 
     function_definition: ($) => seq(
+      optional($.visibility),
       field("name", $.identifier),
       field("parameters", $.parameter_list),
       optional(field("return_type", $.return_type)),

@@ -89,6 +89,13 @@ Rune files can import other Rune files with Dart-like file imports:
 main() => @io.println(helper())
 ```
 
+Imported Rune declarations are private by default. Add `+` before a helper
+declaration in `helper.rn` when callers in other files should use it:
+
+```rune
++ helper() -> Int => 42
+```
+
 The self-hosted lexer, parser, IR, interpreter, and first compiler emitter
 live under `selfhost/`; see `examples/lexer_bootstrap.rn`,
 `examples/parser_bootstrap.rn`, `examples/compiler_bootstrap.rn`, and the
@@ -105,6 +112,9 @@ main() => {
   @io.println(add(1, 2))
 }
 ```
+
+Declarations are private by default. Prefix a function, type, field, method,
+or enum member with `+` to make it visible to other Rune files.
 
 Blocks return their final expression:
 

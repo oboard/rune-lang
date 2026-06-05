@@ -112,8 +112,8 @@ type Function struct {
 
 func (f *Function) Signature() string {
 	var b strings.Builder
-	if f.Private {
-		b.WriteString("- ")
+	if !f.Private {
+		b.WriteString("+ ")
 	}
 	if f.Routine {
 		b.WriteString("~ ")

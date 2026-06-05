@@ -218,6 +218,9 @@ Functions map parameters to a body expression:
 add(a: Int, b: Int) -> Int => a + b
 ```
 
+Declarations are private by default. Prefix a function, type, field, method,
+or enum member with `+` to make it visible to other Rune files.
+
 Parameter and return annotations are optional when inference has enough
 information:
 
@@ -555,6 +558,13 @@ Rune source files can import sibling files with `@"path"`:
 @"./helper.rn"
 
 main() => @io.println(helper())
+```
+
+Imported declarations are private by default, so `helper.rn` must mark helper
+APIs with `+` when other files should use them:
+
+```rune
++ helper() -> Int => 42
 ```
 
 Relative paths are resolved from the importing file. Import paths must include

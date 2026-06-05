@@ -571,7 +571,7 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 	lit := &ast.AnonymousObjectLiteral{Pos: start.Pos}
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
-		private := p.parsePrivateModifier()
+		private := p.parseObjectPrivateModifier()
 		if p.looksLikeFunctionDecl() {
 			lit.Fields = append(lit.Fields, p.parseAnonymousObjectMethod(private))
 			p.consumeStatementEnd()
