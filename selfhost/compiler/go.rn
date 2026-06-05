@@ -1,7 +1,7 @@
 @"../ir/ir.rn"
 @"./common.rn"
 
-generateGo(file: IRFile) -> String => {
++ generateGo(file: IRFile) -> String => {
   out ~= "package main\n\n"
   (
     usesPrintFile(file) ? out = out + "import \"fmt\"\n\n"

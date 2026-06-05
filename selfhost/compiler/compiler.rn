@@ -3,21 +3,21 @@
 @"./go.rn"
 @"./ts.rn"
 
-CompileResult: {
-  ok: Bool
-  output: String
-  errors: Array[String]
++ CompileResult: {
+  + ok: Bool
+  + output: String
+  + errors: Array[String]
 }
 
-compileTypeScript(
++ compileTypeScript(
   source: String
 ) -> CompileResult => compile(source, "ts")
 
-compileGo(
++ compileGo(
   source: String
 ) -> CompileResult => compile(source, "go")
 
-compile(
++ compile(
   source: String,
   target: String
 ) -> CompileResult => {

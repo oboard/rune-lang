@@ -26,12 +26,12 @@
 
 ? "selfhost parser reads structs and enums" {
   source := `Box[T]: {
-  - value: T
+  value: T
   get() -> T => .value
 }
 Status: {
-  Ready = 0
-  - Hidden = 1
+  Ready
+  Hidden
 }
 `
   file := parse(source)

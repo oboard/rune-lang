@@ -1,6 +1,6 @@
 @"../ir/ir.rn"
 
-enumValue(
++ enumValue(
   member: IREnumMember,
   index: Int
 ) -> String => (
@@ -8,14 +8,14 @@ enumValue(
     : member.value
 )
 
-returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
++ returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
 
-moduleCallKey(expr: IRExpr) -> String => (
++ moduleCallKey(expr: IRExpr) -> String => (
   (expr.kind == ExprKind.Call) && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
     : ""
 )
 
-moduleSelectorKey(
++ moduleSelectorKey(
   expr: IRExpr
 ) -> String => (
   (expr.kind == ExprKind.Selector) && (expr.children.length() > 0) ? (
@@ -25,7 +25,7 @@ moduleSelectorKey(
     : ""
 )
 
-genericInner(
++ genericInner(
   typeName: String,
   base: String
 ) -> String => {
@@ -36,7 +36,7 @@ genericInner(
   )
 }
 
-typeArg(
++ typeArg(
   args: String,
   index: Int
 ) -> String => {
@@ -47,16 +47,19 @@ typeArg(
   )
 }
 
-mangleIdent(name: String) -> String => "__" + name.replaceAll(".", "_").replaceAll("-", "_").replaceAll("@", "_")
++ mangleIdent(name: String) -> String => "__" + name.replaceAll(".", "_").replaceAll("-", "_").replaceAll("@", "_")
 
-indent(level: Int) -> String => (
++ indent(level: Int) -> String => (
   level <= 0 ? ""
     : "  " + indent(level - 1)
 )
 
-line(level: Int, text: String) -> String => (indent(level) + text) + "\n"
++ line(
+  level: Int,
+  text: String
+) -> String => (indent(level) + text) + "\n"
 
-compilerIntToString(
++ compilerIntToString(
   value: Int
 ) -> String => (
   value == 0 ? "0"

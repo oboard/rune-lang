@@ -1,9 +1,69 @@
-Token: {
-  kind: String
-  lexeme: String
-  offset: Int
-  line: Int
-  column: Int
++ TokenKind: {
+  + EOF
+  + Illegal
+  + Newline
+  + Ident
+  + Int
+  + Double
+  + BigInt
+  + String
+  + TemplateString
+  + Char
+  + Regex
+  + XMLText
+  + At
+  + Dollar
+  + Dot
+  + DotDot
+  + DotDotEqual
+  + DotDotDot
+  + Comma
+  + Colon
+  + LParen
+  + RParen
+  + LBracket
+  + RBracket
+  + LBrace
+  + RBrace
+  + Question
+  + QuestionQuestion
+  + FatArrow
+  + Assign
+  + Declare
+  + MutDeclare
+  + SignalDeclare
+  + Arrow
+  + Plus
+  + PlusPlus
+  + Minus
+  + Star
+  + Slash
+  + Percent
+  + Bang
+  + Tilde
+  + BitAnd
+  + BitOr
+  + BitXor
+  + ShiftLeft
+  + ShiftRight
+  + UnsignedShiftRight
+  + AndAnd
+  + OrOr
+  + EqualEqual
+  + BangEqual
+  + Less
+  + LessEqual
+  + Greater
+  + GreaterEqual
+  + Underscore
+}
+
++ Token: {
+  + kind: TokenKind
+  + lexeme: String
+  + offset: Int
+  + line: Int
+  + column: Int
 }
 
 LexState: {
@@ -24,7 +84,7 @@ Advanced: {
 
 Lexed: {
   state: LexState
-  kind: String
+  kind: TokenKind
 }
 
 ScannedString: {
@@ -32,7 +92,7 @@ ScannedString: {
   ok: Bool
 }
 
-lex(source: String) -> Array[Token] => scan(LexState {
++ lex(source: String) -> Array[Token] => scan(LexState {
   source: source
   start: 0
   current: 0
@@ -44,7 +104,7 @@ lex(source: String) -> Array[Token] => scan(LexState {
 }, emptyTokens())
 
 emptyTokens() -> Array[Token] => [Token {
-  kind: ""
+  kind: TokenKind.EOF
   lexeme: ""
   offset: 0
   line: 0
@@ -57,7 +117,7 @@ scan(
 ) -> Array[Token] => {
   skipped := skipIgnored(state)
   started := markStart(skipped)
-  atEnd(started) ? appendToken(tokens, makeToken(started, "EOF")) : scanLexed(scanToken(advance(started)), tokens)
+  atEnd(started) ? appendToken(tokens, makeToken(started, TokenKind.EOF)) : scanLexed(scanToken(advance(started)), tokens)
 }
 
 scanLexed(
@@ -78,7 +138,7 @@ appendToken(
 
 makeToken(
   state: LexState,
-  kind: String
+  kind: TokenKind
 ) -> Token => Token {
   kind: kind
   lexeme: state.source.slice(state.start, state.current)
@@ -89,7 +149,7 @@ makeToken(
 
 finishToken(
   state: LexState,
-  kind: String
+  kind: TokenKind
 ) -> LexState => LexState {
   source: state.source
   start: state.start
@@ -101,7 +161,68 @@ finishToken(
   canStartRegex: !canEndExpression(kind)
 }
 
-canEndExpression(kind) => "Ident" | "Int" | "Double" | "BigInt" | "String" | "TemplateString" | "Char" | "Regex" | "XMLText" | "Less" | "RParen" | "RBracket" | "RBrace"
+canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind.Double | TokenKind.BigInt | TokenKind.String | TokenKind.TemplateString | TokenKind.Char | TokenKind.Regex | TokenKind.XMLText | TokenKind.Less | TokenKind.RParen | TokenKind.RBracket | TokenKind.RBrace
+
++ tokenKindName(kind: TokenKind) -> String => kind {
+  TokenKind.EOF => "EOF"
+  TokenKind.Illegal => "Illegal"
+  TokenKind.Newline => "Newline"
+  TokenKind.Ident => "Ident"
+  TokenKind.Int => "Int"
+  TokenKind.Double => "Double"
+  TokenKind.BigInt => "BigInt"
+  TokenKind.String => "String"
+  TokenKind.TemplateString => "TemplateString"
+  TokenKind.Char => "Char"
+  TokenKind.Regex => "Regex"
+  TokenKind.XMLText => "XMLText"
+  TokenKind.At => "At"
+  TokenKind.Dollar => "Dollar"
+  TokenKind.Dot => "Dot"
+  TokenKind.DotDot => "DotDot"
+  TokenKind.DotDotEqual => "DotDotEqual"
+  TokenKind.DotDotDot => "DotDotDot"
+  TokenKind.Comma => "Comma"
+  TokenKind.Colon => "Colon"
+  TokenKind.LParen => "LParen"
+  TokenKind.RParen => "RParen"
+  TokenKind.LBracket => "LBracket"
+  TokenKind.RBracket => "RBracket"
+  TokenKind.LBrace => "LBrace"
+  TokenKind.RBrace => "RBrace"
+  TokenKind.Question => "Question"
+  TokenKind.QuestionQuestion => "QuestionQuestion"
+  TokenKind.FatArrow => "FatArrow"
+  TokenKind.Assign => "Assign"
+  TokenKind.Declare => "Declare"
+  TokenKind.MutDeclare => "MutDeclare"
+  TokenKind.SignalDeclare => "SignalDeclare"
+  TokenKind.Arrow => "Arrow"
+  TokenKind.Plus => "Plus"
+  TokenKind.PlusPlus => "PlusPlus"
+  TokenKind.Minus => "Minus"
+  TokenKind.Star => "Star"
+  TokenKind.Slash => "Slash"
+  TokenKind.Percent => "Percent"
+  TokenKind.Bang => "Bang"
+  TokenKind.Tilde => "Tilde"
+  TokenKind.BitAnd => "BitAnd"
+  TokenKind.BitOr => "BitOr"
+  TokenKind.BitXor => "BitXor"
+  TokenKind.ShiftLeft => "ShiftLeft"
+  TokenKind.ShiftRight => "ShiftRight"
+  TokenKind.UnsignedShiftRight => "UnsignedShiftRight"
+  TokenKind.AndAnd => "AndAnd"
+  TokenKind.OrOr => "OrOr"
+  TokenKind.EqualEqual => "EqualEqual"
+  TokenKind.BangEqual => "BangEqual"
+  TokenKind.Less => "Less"
+  TokenKind.LessEqual => "LessEqual"
+  TokenKind.Greater => "Greater"
+  TokenKind.GreaterEqual => "GreaterEqual"
+  TokenKind.Underscore => "Underscore"
+  _ => "Unknown"
+}
 
 markStart(state: LexState) -> LexState => LexState {
   source: state.source
@@ -173,43 +294,43 @@ isSpace(ch) => ' ' | '\t' | '\r'
 scanToken(step) => {
   { state, ch } := step
   ch {
-    '\n' => lexed(state, "Newline")
-    '@' => lexed(state, "At")
+    '\n' => lexed(state, TokenKind.Newline)
+    '@' => lexed(state, TokenKind.At)
     '$' => lexDollar(state)
     '.' => lexDot(state)
-    ',' => lexed(state, "Comma")
+    ',' => lexed(state, TokenKind.Comma)
     ':' => lexColon(state)
-    '(' => lexed(state, "LParen")
-    ')' => lexed(state, "RParen")
-    '[' => lexed(state, "LBracket")
-    ']' => lexed(state, "RBracket")
-    '{' => lexed(state, "LBrace")
-    '}' => lexed(state, "RBrace")
+    '(' => lexed(state, TokenKind.LParen)
+    ')' => lexed(state, TokenKind.RParen)
+    '[' => lexed(state, TokenKind.LBracket)
+    ']' => lexed(state, TokenKind.RBracket)
+    '{' => lexed(state, TokenKind.LBrace)
+    '}' => lexed(state, TokenKind.RBrace)
     '?' => lexQuestion(state)
     '+' => lexPlus(state)
     '-' => lexMinus(state)
-    '*' => lexed(state, "Star")
-    '/' => state.canStartRegex ? lexRegexToken(state) : lexed(state, "Slash")
-    '%' => lexed(state, "Percent")
+    '*' => lexed(state, TokenKind.Star)
+    '/' => state.canStartRegex ? lexRegexToken(state) : lexed(state, TokenKind.Slash)
+    '%' => lexed(state, TokenKind.Percent)
     '!' => lexBang(state)
     '~' => lexTilde(state)
     '&' => lexAmp(state)
     '|' => lexPipe(state)
-    '^' => lexed(state, "BitXor")
+    '^' => lexed(state, TokenKind.BitXor)
     '=' => lexEqual(state)
     '<' => lexLess(state)
     '>' => lexGreater(state)
     '"' => lexStringToken(state)
     '`' => lexTemplateStringToken(state)
     '\'' => lexCharToken(state)
-    '_' => isIdentContinue(peek(state)) ? lexIdentifierToken(state) : lexed(state, "Underscore")
-    _ => isDigit(ch) ? lexNumberToken(state) : isIdentStart(ch) ? lexIdentifierToken(state) : lexed(state, "Illegal")
+    '_' => isIdentContinue(peek(state)) ? lexIdentifierToken(state) : lexed(state, TokenKind.Underscore)
+    _ => isDigit(ch) ? lexNumberToken(state) : isIdentStart(ch) ? lexIdentifierToken(state) : lexed(state, TokenKind.Illegal)
   }
 }
 
 lexed(
   state: LexState,
-  kind: String
+  kind: TokenKind
 ) -> Lexed => Lexed {
   state: state
   kind: kind
@@ -217,86 +338,86 @@ lexed(
 
 lexDot(state: LexState) -> Lexed => peek(state) {
   '.' => lexDotDot(advanceState(state))
-  _ => lexed(state, "Dot")
+  _ => lexed(state, TokenKind.Dot)
 }
 
 lexDotDot(state: LexState) -> Lexed => peek(state) {
-  '.' => lexed(advanceState(state), "DotDotDot")
-  '=' => lexed(advanceState(state), "DotDotEqual")
-  _ => lexed(state, "DotDot")
+  '.' => lexed(advanceState(state), TokenKind.DotDotDot)
+  '=' => lexed(advanceState(state), TokenKind.DotDotEqual)
+  _ => lexed(state, TokenKind.DotDot)
 }
 
 lexColon(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "Declare")
-  _ => lexed(state, "Colon")
+  '=' => lexed(advanceState(state), TokenKind.Declare)
+  _ => lexed(state, TokenKind.Colon)
 }
 
 lexQuestion(state: LexState) -> Lexed => peek(state) {
-  '?' => lexed(advanceState(state), "QuestionQuestion")
-  _ => lexed(state, "Question")
+  '?' => lexed(advanceState(state), TokenKind.QuestionQuestion)
+  _ => lexed(state, TokenKind.Question)
 }
 
 lexPlus(state: LexState) -> Lexed => peek(state) {
-  '+' => lexed(advanceState(state), "PlusPlus")
-  _ => lexed(state, "Plus")
+  '+' => lexed(advanceState(state), TokenKind.PlusPlus)
+  _ => lexed(state, TokenKind.Plus)
 }
 
 lexMinus(state: LexState) -> Lexed => peek(state) {
-  '>' => lexed(advanceState(state), "Arrow")
-  _ => lexed(state, "Minus")
+  '>' => lexed(advanceState(state), TokenKind.Arrow)
+  _ => lexed(state, TokenKind.Minus)
 }
 
 lexBang(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "BangEqual")
-  _ => lexed(state, "Bang")
+  '=' => lexed(advanceState(state), TokenKind.BangEqual)
+  _ => lexed(state, TokenKind.Bang)
 }
 
 lexTilde(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "MutDeclare")
-  _ => lexed(state, "Tilde")
+  '=' => lexed(advanceState(state), TokenKind.MutDeclare)
+  _ => lexed(state, TokenKind.Tilde)
 }
 
 lexDollar(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "SignalDeclare")
-  _ => lexed(state, "Dollar")
+  '=' => lexed(advanceState(state), TokenKind.SignalDeclare)
+  _ => lexed(state, TokenKind.Dollar)
 }
 
 lexAmp(state: LexState) -> Lexed => peek(state) {
-  '&' => lexed(advanceState(state), "AndAnd")
-  _ => lexed(state, "BitAnd")
+  '&' => lexed(advanceState(state), TokenKind.AndAnd)
+  _ => lexed(state, TokenKind.BitAnd)
 }
 
 lexPipe(state: LexState) -> Lexed => peek(state) {
-  '|' => lexed(advanceState(state), "OrOr")
-  _ => lexed(state, "BitOr")
+  '|' => lexed(advanceState(state), TokenKind.OrOr)
+  _ => lexed(state, TokenKind.BitOr)
 }
 
 lexEqual(state: LexState) -> Lexed => peek(state) {
-  '>' => lexed(advanceState(state), "FatArrow")
-  '=' => lexed(advanceState(state), "EqualEqual")
-  _ => lexed(state, "Assign")
+  '>' => lexed(advanceState(state), TokenKind.FatArrow)
+  '=' => lexed(advanceState(state), TokenKind.EqualEqual)
+  _ => lexed(state, TokenKind.Assign)
 }
 
 lexLess(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "LessEqual")
-  '<' => lexed(advanceState(state), "ShiftLeft")
-  _ => lexed(state, "Less")
+  '=' => lexed(advanceState(state), TokenKind.LessEqual)
+  '<' => lexed(advanceState(state), TokenKind.ShiftLeft)
+  _ => lexed(state, TokenKind.Less)
 }
 
 lexGreater(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), "GreaterEqual")
-  '>' => startsWith(state, '>', '>') ? lexed(advanceState(advanceState(state)), "UnsignedShiftRight") : lexed(advanceState(state), "ShiftRight")
-  _ => lexed(state, "Greater")
+  '=' => lexed(advanceState(state), TokenKind.GreaterEqual)
+  '>' => startsWith(state, '>', '>') ? lexed(advanceState(advanceState(state)), TokenKind.UnsignedShiftRight) : lexed(advanceState(state), TokenKind.ShiftRight)
+  _ => lexed(state, TokenKind.Greater)
 }
 
 lexStringToken(state: LexState) -> Lexed => {
   scanned := scanString(state, false)
-  lexed(scanned.state, scanned.ok ? "String" : "Illegal")
+  lexed(scanned.state, scanned.ok ? TokenKind.String : TokenKind.Illegal)
 }
 
 lexTemplateStringToken(state: LexState) -> Lexed => {
   scanned := scanTemplateString(state, false)
-  lexed(scanned.state, scanned.ok ? "TemplateString" : "Illegal")
+  lexed(scanned.state, scanned.ok ? TokenKind.TemplateString : TokenKind.Illegal)
 }
 
 scanString(
@@ -337,7 +458,7 @@ scanTemplateStringStep(
 
 lexCharToken(state: LexState) -> Lexed => {
   scanned := scanChar(state, false)
-  lexed(scanned.state, scanned.ok ? "Char" : "Illegal")
+  lexed(scanned.state, scanned.ok ? TokenKind.Char : TokenKind.Illegal)
 }
 
 scanChar(
@@ -359,7 +480,7 @@ scanCharStep(
 
 lexRegexToken(state: LexState) -> Lexed => {
   scanned := scanRegex(state, false, false)
-  lexed(scanned.state, scanned.ok ? "Regex" : "Illegal")
+  lexed(scanned.state, scanned.ok ? TokenKind.Regex : TokenKind.Illegal)
 }
 
 scanRegex(
@@ -395,9 +516,9 @@ lexNumberAfterDigits(
   state: LexState,
   isDouble: Bool
 ) -> Lexed => peek(state) {
-  'n' => lexed(advanceState(state), "BigInt")
-  '.' => isDigit(peekNext(state)) ? lexNumberAfterDot(advanceState(state)) : lexed(state, isDouble ? "Double" : "Int")
-  _ => isExponentMarker(peek(state)) ? lexNumberAfterExponent(advanceState(state)) : lexed(state, isDouble ? "Double" : "Int")
+  'n' => lexed(advanceState(state), TokenKind.BigInt)
+  '.' => isDigit(peekNext(state)) ? lexNumberAfterDot(advanceState(state)) : lexed(state, isDouble ? TokenKind.Double : TokenKind.Int)
+  _ => isExponentMarker(peek(state)) ? lexNumberAfterExponent(advanceState(state)) : lexed(state, isDouble ? TokenKind.Double : TokenKind.Int)
 }
 
 lexNumberAfterDot(
@@ -410,11 +531,11 @@ lexNumberAfterExponent(
 
 lexNumberExponentDigits(
   state: LexState
-) -> Lexed => lexed(scanDigits(state), "Double")
+) -> Lexed => lexed(scanDigits(state), TokenKind.Double)
 
 lexIdentifierToken(
   state: LexState
-) -> Lexed => lexed(scanIdentifier(state), "Ident")
+) -> Lexed => lexed(scanIdentifier(state), TokenKind.Ident)
 
 scanIdentifier(
   state: LexState

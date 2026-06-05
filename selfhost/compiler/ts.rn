@@ -1,7 +1,7 @@
 @"../ir/ir.rn"
 @"./common.rn"
 
-generateTypeScript(
++ generateTypeScript(
   file: IRFile
 ) -> String => {
   out ~= ""

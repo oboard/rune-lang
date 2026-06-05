@@ -1,97 +1,97 @@
 @"../parser/parser.rn"
 
-IRImport: {
-  path: String
-  go: Bool
-  line: Int
-  column: Int
++ IRImport: {
+  + path: String
+  + go: Bool
+  + line: Int
+  + column: Int
 }
 
-IRParam: {
-  name: String
-  typeName: String
-  line: Int
-  column: Int
++ IRParam: {
+  + name: String
+  + typeName: String
+  + line: Int
+  + column: Int
 }
 
-IRExpr: {
-  kind: ExprKind
-  text: String
-  name: String
-  value: String
-  op: String
-  params: Array[IRParam]
-  children: Array[IRExpr]
-  line: Int
-  column: Int
++ IRExpr: {
+  + kind: ExprKind
+  + text: String
+  + name: String
+  + value: String
+  + op: String
+  + params: Array[IRParam]
+  + children: Array[IRExpr]
+  + line: Int
+  + column: Int
 }
 
-IRField: {
-  name: String
-  private: Bool
-  typeName: String
-  line: Int
-  column: Int
++ IRField: {
+  + name: String
+  + private: Bool
+  + typeName: String
+  + line: Int
+  + column: Int
 }
 
-IREnumMember: {
-  name: String
-  private: Bool
-  value: String
-  line: Int
-  column: Int
++ IREnumMember: {
+  + name: String
+  + private: Bool
+  + value: String
+  + line: Int
+  + column: Int
 }
 
-IRFunction: {
-  name: String
-  private: Bool
-  routine: Bool
-  receiverType: String
-  generics: Array[String]
-  params: Array[IRParam]
-  returnType: String
-  body: IRExpr
-  line: Int
-  column: Int
++ IRFunction: {
+  + name: String
+  + private: Bool
+  + routine: Bool
+  + receiverType: String
+  + generics: Array[String]
+  + params: Array[IRParam]
+  + returnType: String
+  + body: IRExpr
+  + line: Int
+  + column: Int
 }
 
-IRStructType: {
-  name: String
-  private: Bool
-  generics: Array[String]
-  fields: Array[IRField]
-  methods: Array[IRFunction]
-  line: Int
-  column: Int
++ IRStructType: {
+  + name: String
+  + private: Bool
+  + generics: Array[String]
+  + fields: Array[IRField]
+  + methods: Array[IRFunction]
+  + line: Int
+  + column: Int
 }
 
-IREnumType: {
-  name: String
-  private: Bool
-  members: Array[IREnumMember]
-  line: Int
-  column: Int
++ IREnumType: {
+  + name: String
+  + private: Bool
+  + members: Array[IREnumMember]
+  + line: Int
+  + column: Int
 }
 
-IRTest: {
-  name: String
-  body: IRExpr
-  line: Int
-  column: Int
++ IRTest: {
+  + name: String
+  + body: IRExpr
+  + line: Int
+  + column: Int
 }
 
-IRFile: {
-  imports: Array[IRImport]
-  structs: Array[IRStructType]
-  enums: Array[IREnumType]
-  functions: Array[IRFunction]
-  tests: Array[IRTest]
-  errors: Array[ParseError]
++ IRFile: {
+  + imports: Array[IRImport]
+  + structs: Array[IRStructType]
+  + enums: Array[IREnumType]
+  + functions: Array[IRFunction]
+  + tests: Array[IRTest]
+  + errors: Array[ParseError]
 }
 
-lower(source: String) -> IRFile => lowerParsed(parse(source))
++ lower(source: String) -> IRFile => lowerParsed(parse(source))
 
-lowerParsed(
++ lowerParsed(
   file: ParsedFile
 ) -> IRFile => {
   out ~= IRFile {
@@ -112,7 +112,10 @@ lowerParsed(
 lowerTypeInto(
   file: IRFile,
   typeDecl: ParsedType
-) -> IRFile => typeDecl.enum ? pushEnumType(file, typeDecl) : pushStructType(file, typeDecl)
+) -> IRFile => (
+  typeDecl.enum ? pushEnumType(file, typeDecl)
+    : pushStructType(file, typeDecl)
+)
 
 pushStructType(
   file: IRFile,
@@ -142,7 +145,7 @@ emptyIRExpr() -> IRExpr => IRExpr {
   column: 0
 }
 
-emptyIRFunction() -> IRFunction => IRFunction {
++ emptyIRFunction() -> IRFunction => IRFunction {
   name: ""
   private: false
   routine: false
@@ -239,9 +242,7 @@ lowerTest(
   column: testDecl.column
 }
 
-lowerExpr(
-  expr: ParsedExpr
-) -> IRExpr => IRExpr {
+lowerExpr(expr: ParsedExpr) -> IRExpr => IRExpr {
   kind: expr.kind
   text: expr.text
   name: expr.name

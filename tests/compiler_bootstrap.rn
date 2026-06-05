@@ -1,8 +1,8 @@
 @"../selfhost/compiler/compiler.rn"
 
 ? "selfhost compiler emits typescript functions" {
-  source := `add(a: Int, b: Int) -> Int => a + b
-main() -> Int => add(20, 22)
+  source := `+ add(a: Int, b: Int) -> Int => a + b
++ main() -> Int => add(20, 22)
 `
   result := compileTypeScript(source)
   @assert.eq(result.ok, true)
@@ -13,8 +13,8 @@ main() -> Int => add(20, 22)
 }
 
 ? "selfhost compiler emits go functions" {
-  source := `add(a: Int, b: Int) -> Int => a + b
-main() -> Int => add(20, 22)
+  source := `+ add(a: Int, b: Int) -> Int => a + b
++ main() -> Int => add(20, 22)
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)

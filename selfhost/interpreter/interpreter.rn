@@ -28,7 +28,7 @@ RuntimeValueKind: {
   Enum = 14
 }
 
-RuntimeValue: {
++ RuntimeValue: {
   kind: RuntimeValueKind
   text: String
   intValue: Int
@@ -82,15 +82,15 @@ Interpreter: {
   output: Array[String]
 }
 
-InterpretResult: {
-  ok: Bool
-  error: String
-  value: RuntimeValue
-  output: Array[String]
-  interpreter: Interpreter
++ InterpretResult: {
+  + ok: Bool
+  + error: String
+  + value: RuntimeValue
+  + output: Array[String]
+  + interpreter: Interpreter
 }
 
-interpret(source: String) -> InterpretResult => {
++ interpret(source: String) -> InterpretResult => {
   file := lower(source)
   interpreter := newInterpreter(file)
   result := file.errors.length() > 0 ? errorResult(file.errors[0].message) : runMain(interpreter)
@@ -1098,7 +1098,7 @@ runtimeValueKindName(kind: RuntimeValueKind) -> String => kind {
   _ => "unknown"
 }
 
-formatRuntimeValue(value: RuntimeValue) -> String =>
++ formatRuntimeValue(value: RuntimeValue) -> String =>
   value.kind == RuntimeValueKind.Void ? "" :
   value.kind == RuntimeValueKind.Null ? "null" :
   value.kind == RuntimeValueKind.Bool ? (value.boolValue ? "true" : "false") :
