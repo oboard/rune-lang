@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
@@ -2036,11 +2037,29 @@ func offsetFromPosition(text string, pos position) (int, bool) {
 	lineStart := 0
 	for i, ch := range text {
 		if line == pos.Line {
-			offset := lineStart + pos.Character
-			if offset > len(text) {
+			lineBytes := text[lineStart:]
+			if idx := strings.Index(lineBytes, "\n"); idx >= 0 {
+				lineBytes = lineBytes[:idx]
+			}
+			runes := []rune(lineBytes)
+			maxUTF16Chars := len(utf16.Encode(runes))
+			if pos.Character >= maxUTF16Chars {
+				return lineStart + len(lineBytes), true
+			}
+			var byteOffset int
+			utf16Count := 0
+			for _, r := range runes {
+				if utf16Count >= pos.Character {
+					break
+				}
+				encoded := utf16.Encode([]rune{r})
+				utf16Count += len(encoded)
+				byteOffset += len(string([]rune{r}))
+			}
+			if lineStart+byteOffset > len(text) {
 				return len(text), true
 			}
-			return offset, true
+			return lineStart + byteOffset, true
 		}
 		if ch == '\n' {
 			line++
@@ -2048,11 +2067,26 @@ func offsetFromPosition(text string, pos position) (int, bool) {
 		}
 	}
 	if line == pos.Line {
-		offset := lineStart + pos.Character
-		if offset > len(text) {
-			offset = len(text)
+		lineBytes := text[lineStart:]
+		runes := []rune(lineBytes)
+		maxUTF16Chars := len(utf16.Encode(runes))
+		if pos.Character >= maxUTF16Chars {
+			return lineStart + len(lineBytes), true
 		}
-		return offset, true
+		var byteOffset int
+		utf16Count := 0
+		for _, r := range runes {
+			if utf16Count >= pos.Character {
+				break
+			}
+			encoded := utf16.Encode([]rune{r})
+			utf16Count += len(encoded)
+			byteOffset += len(string([]rune{r}))
+		}
+		if lineStart+byteOffset > len(text) {
+			return len(text), true
+		}
+		return lineStart + byteOffset, true
 	}
 	return len(text), false
 }

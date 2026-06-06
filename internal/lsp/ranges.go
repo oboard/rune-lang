@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"strings"
+	"unicode/utf16"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -45,11 +46,11 @@ func fatArrowPositionFromOffset(text string, offset int) (position, bool) {
 	return positionAtOffset(text, start+idx), true
 }
 
-func positionAtOffset(text string, offset int) position {
+func positionAtOffset(text string, byteOffset int) position {
 	line := 0
 	lineStart := 0
 	for i, ch := range text {
-		if i >= offset {
+		if i >= byteOffset {
 			break
 		}
 		if ch == '\n' {
@@ -57,7 +58,13 @@ func positionAtOffset(text string, offset int) position {
 			lineStart = i + 1
 		}
 	}
-	return position{Line: line, Character: offset - lineStart}
+	lineText := text[lineStart:]
+	if idx := strings.Index(lineText, "\n"); idx >= 0 {
+		lineText = lineText[:idx]
+	}
+	runes := []rune(lineText[:byteOffset-lineStart])
+	charOffset := len(utf16.Encode(runes))
+	return position{Line: line, Character: charOffset}
 }
 
 func wordAt(text string, pos position) string {
@@ -65,26 +72,31 @@ func wordAt(text string, pos position) string {
 	if pos.Line < 0 || pos.Line >= len(lines) {
 		return ""
 	}
-	line := []rune(lines[pos.Line])
-	if len(line) == 0 {
+	line := lines[pos.Line]
+	utf16Chars := utf16.Encode([]rune(line))
+	if len(utf16Chars) == 0 {
 		return ""
 	}
-	idx := min(max(pos.Character, 0), len(line)-1)
-	if !isWord(line[idx]) && idx > 0 {
+	idx := min(max(pos.Character, 0), len(utf16Chars)-1)
+	runes := utf16.Decode(utf16Chars)
+	if len(runes) == 0 {
+		return ""
+	}
+	if !isWord(runes[idx]) && idx > 0 {
 		idx--
 	}
-	if !isWord(line[idx]) {
+	if idx >= len(runes) || !isWord(runes[idx]) {
 		return ""
 	}
 	start := idx
-	for start > 0 && isWord(line[start-1]) {
+	for start > 0 && isWord(runes[start-1]) {
 		start--
 	}
 	end := idx + 1
-	for end < len(line) && isWord(line[end]) {
+	for end < len(runes) && isWord(runes[end]) {
 		end++
 	}
-	return string(line[start:end])
+	return string(runes[start:end])
 }
 
 func isWord(ch rune) bool {
@@ -104,3 +116,4 @@ func max(a, b int) int {
 	}
 	return b
 }
+

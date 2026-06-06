@@ -104,7 +104,7 @@
       "patterns": [
         {
           "name": "string.regexp.rune",
-          "begin": "(/)(?=([^/\\\\\\n\\[]|\\\\.|\\[([^\\]\\\\\\n]|\\\\.)*\\])+/[A-Za-z]*)",
+          "begin": "(/)(?=([^/\\\\\\n\\[]|\\\\.|\\[([^\\\\\\n\\]]|\\\\.)*\\])+/[A-Za-z]*)",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.string.begin.rune" }
           },
@@ -179,7 +179,7 @@
       "patterns": [
         {
           "name": "meta.type.rune",
-          "match": "(\\+)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\]\\r\\n]*\\])?\\s*(:)\\s*(\\{)",
+          "match": "(\\+)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[[^\\r\\n\\]]*\\])?\\s*(:)\\s*(\\{)",
           "captures": {
             "1": { "name": "storage.modifier.public.rune" },
             "2": { "name": "entity.name.type.rune" },
