@@ -9,6 +9,7 @@
     { "include": "#regex" },
     { "include": "#numbers" },
     { "include": "#modules" },
+    { "include": "#xml" },
     { "include": "#typeDefinition" },
     { "include": "#typeReferences" },
     { "include": "#structLiteral" },
@@ -175,6 +176,64 @@
         }
       ]
     },
+    "xml": {
+      "patterns": [
+        {
+          "name": "meta.xml.element.rune",
+          "begin": "(?<![A-Za-z0-9_\\)\\]\\}])(<)([A-Za-z][A-Za-z0-9_-]*)(?=[\\s>/])",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.rune" },
+            "2": { "name": "entity.name.tag.rune" }
+          },
+          "end": "(</)(\\2)(>)",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.tag.rune" },
+            "2": { "name": "entity.name.tag.rune" },
+            "3": { "name": "punctuation.definition.tag.rune" }
+          },
+          "patterns": [
+            { "include": "#xmlAttribute" },
+            { "include": "#xmlExpression" },
+            { "include": "#xml" },
+            {
+              "name": "punctuation.definition.tag.rune",
+              "match": "/?>"
+            }
+          ]
+        }
+      ]
+    },
+    "xmlAttribute": {
+      "patterns": [
+        {
+          "name": "entity.other.attribute-name.rune",
+          "match": "@?[A-Za-z_][A-Za-z0-9_-]*(?=\\s*=)"
+        },
+        {
+          "name": "keyword.operator.assignment.rune",
+          "match": "="
+        },
+        { "include": "#strings" }
+      ]
+    },
+    "xmlExpression": {
+      "patterns": [
+        {
+          "name": "meta.embedded.expression.rune",
+          "begin": "\\{",
+          "beginCaptures": {
+            "0": { "name": "punctuation.section.embedded.begin.rune" }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": { "name": "punctuation.section.embedded.end.rune" }
+          },
+          "patterns": [
+            { "include": "$self" }
+          ]
+        }
+      ]
+    },
     "typeDefinition": {
       "patterns": [
         {
@@ -190,7 +249,7 @@
         },
         {
           "name": "meta.type-field.rune",
-          "match": "(-)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(:)",
+          "match": "(-)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(:)(?!=)",
           "captures": {
             "1": { "name": "storage.modifier.private.rune" },
             "2": { "name": "variable.other.member.rune" },
