@@ -574,9 +574,9 @@ parseStructTypeMember(
   typeDecl: ParsedType
 ) -> TypeStep => {
   current := skipAnnotations(state)
-  publicStep := parsePublicModifier(current)
-  memberState := publicStep.state
-  private := publicStep.ok == false
+  privateStep := parseObjectPrivateModifier(current)
+  memberState := privateStep.state
+  private := privateStep.ok
   parsed := looksLikeFunctionDecl(memberState) ? parseStructMethod(memberState, typeDecl, private) : parseStructField(memberState, typeDecl, private)
   next := parserSkipNewlines(parserMatch(consumeStatementEnd(parsed.state), TokenKind.Comma).state)
   parseStructTypeLoop(next, parsed.typeDecl)

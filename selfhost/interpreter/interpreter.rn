@@ -83,11 +83,11 @@ Interpreter: {
 }
 
 + InterpretResult: {
-  + ok: Bool
-  + error: String
-  + value: RuntimeValue
-  + output: Array[String]
-  + interpreter: Interpreter
+  ok: Bool
+  error: String
+  value: RuntimeValue
+  output: Array[String]
+  interpreter: Interpreter
 }
 
 + interpret(source: String) -> InterpretResult => {

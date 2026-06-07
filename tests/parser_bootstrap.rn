@@ -27,11 +27,13 @@
 ? "selfhost parser reads structs and enums" {
   source := `Box[T]: {
   value: T
+  - hidden: T
   get() -> T => .value
+  - secret() -> T => .hidden
 }
 Status: {
   Ready
-  Hidden
+  + Hidden
 }
 `
   file := parse(source)
@@ -40,11 +42,15 @@ Status: {
   @assert.eq(file.types[0].name, "Box")
   @assert.eq(file.types[0].generics[0], "T")
   @assert.eq(file.types[0].fields[0].name, "value")
-  @assert.eq(file.types[0].fields[0].private, true)
+  @assert.eq(file.types[0].fields[0].private, false)
+  @assert.eq(file.types[0].fields[1].private, true)
   @assert.eq(file.types[0].methods[0].receiverType, "Box")
+  @assert.eq(file.types[0].methods[0].private, false)
+  @assert.eq(file.types[0].methods[1].private, true)
   @assert.eq(file.types[1].enum, true)
   @assert.eq(file.types[1].members[0].name, "Ready")
-  @assert.eq(file.types[1].members[1].private, true)
+  @assert.eq(file.types[1].members[0].private, true)
+  @assert.eq(file.types[1].members[1].private, false)
 }
 
 ? "selfhost parser reads map literals and index assignment" {

@@ -57,9 +57,11 @@ main() => helper()
 
 func TestDeclarationVisibility(t *testing.T) {
 	file, errs := Parse(`Secret: {
-  value: Int
+  exposed: Int
+  - value: Int
 
-  reveal() -> Int => .value
+  get() -> Int => .exposed
+  - reveal() -> Int => .value
 }
 
 + Status: {
@@ -75,11 +77,11 @@ func TestDeclarationVisibility(t *testing.T) {
 	if len(file.Types) != 1 || !file.Types[0].Private {
 		t.Fatalf("types = %#v, want one private type", file.Types)
 	}
-	if len(file.Types[0].Fields) != 1 || !file.Types[0].Fields[0].Private {
-		t.Fatalf("fields = %#v, want private value", file.Types[0].Fields)
+	if len(file.Types[0].Fields) != 2 || file.Types[0].Fields[0].Private || !file.Types[0].Fields[1].Private {
+		t.Fatalf("fields = %#v, want public exposed and private value", file.Types[0].Fields)
 	}
-	if len(file.Types[0].Methods) != 1 || !file.Types[0].Methods[0].Private {
-		t.Fatalf("methods = %#v, want private reveal", file.Types[0].Methods)
+	if len(file.Types[0].Methods) != 2 || file.Types[0].Methods[0].Private || !file.Types[0].Methods[1].Private {
+		t.Fatalf("methods = %#v, want public get and private reveal", file.Types[0].Methods)
 	}
 	if len(file.Enums) != 1 || file.Enums[0].Private {
 		t.Fatalf("enums = %#v, want one public enum", file.Enums)

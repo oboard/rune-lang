@@ -218,8 +218,10 @@ Functions map parameters to a body expression:
 add(a: Int, b: Int) -> Int => a + b
 ```
 
-Declarations are private by default. Prefix a function, type, field, method,
-or enum member with `+` to make it visible to other Rune files.
+Top-level declarations and enum members are private by default. Prefix a
+function, type, or enum member with `+` to make it visible to other Rune
+files. Struct and object fields and methods are public by default; prefix a
+member with `-` when it should stay private.
 
 Parameter and return annotations are optional when inference has enough
 information:

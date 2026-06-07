@@ -1553,7 +1553,7 @@ func classMethodSignature(typeName string, fn *checker.FuncInfo) string {
 	if ret == "" {
 		ret = checker.Void
 	}
-	sig := fn.Node.Signature()
+	sig := methodNodeSignature(fn.Node)
 	return fmt.Sprintf("%s.%s -> %s", typeName, sig, ret)
 }
 
@@ -1607,7 +1607,26 @@ func methodSignature(info *checker.Info, typeName string, fn *ast.Function) stri
 	if ret == "" {
 		ret = string(checker.Void)
 	}
-	return fmt.Sprintf("%s%s(%s) -> %s", fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+	return fmt.Sprintf("%s%s%s(%s) -> %s", methodPrefix(fn), fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+}
+
+func methodNodeSignature(fn *ast.Function) string {
+	sig := fn.Signature()
+	if fn.Private {
+		return "- " + sig
+	}
+	return strings.TrimPrefix(sig, "+ ")
+}
+
+func methodPrefix(fn *ast.Function) string {
+	prefix := ""
+	if fn.Private {
+		prefix += "- "
+	}
+	if fn.Routine {
+		prefix += "~ "
+	}
+	return prefix
 }
 
 func enumTypeSignature(enum *ast.EnumType) string {

@@ -4,9 +4,9 @@
 @"./ts.rn"
 
 + CompileResult: {
-  + ok: Bool
-  + output: String
-  + errors: Array[String]
+  ok: Bool
+  output: String
+  errors: Array[String]
 }
 
 + compileTypeScript(

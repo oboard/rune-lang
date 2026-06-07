@@ -10,7 +10,7 @@ func (f *formatter) structType(typ *ast.StructType) {
 	f.linef("%s%s%s: {", publicPrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
-		f.linef("%s%s: %s", publicPrefix(field.Private), field.Name, formatType(field.Type))
+		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type))
 	}
 	if len(typ.Fields) > 0 && len(typ.Methods) > 0 {
 		f.line("")
@@ -130,9 +130,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	if fn.Routine {
 		single = "~ " + single
 	}
-	if !fn.Private {
-		single = "+ " + single
-	}
+	single = f.visibilityPrefix(fn) + single
 	if len(f.indentString(f.indent)+single) <= maxLineLength {
 		return []string{single}
 	}
@@ -141,9 +139,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	if fn.Routine {
 		prefix = "~ " + prefix
 	}
-	if !fn.Private {
-		prefix = "+ " + prefix
-	}
+	prefix = f.visibilityPrefix(fn) + prefix
 	lines := []string{prefix + formatGenerics(fn.Generics) + "("}
 	for i, param := range fn.Params {
 		paramLines := f.formatParamLines(param)
@@ -156,6 +152,13 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 	}
 	lines = append(lines, ")"+ret)
 	return lines
+}
+
+func (f *formatter) visibilityPrefix(fn *ast.Function) string {
+	if fn.ReceiverType != "" {
+		return privatePrefix(fn.Private)
+	}
+	return publicPrefix(fn.Private)
 }
 
 func (f *formatter) lineSignature(lines []string, suffix string) {

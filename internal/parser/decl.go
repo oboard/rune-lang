@@ -92,7 +92,7 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
-		private := !p.parsePublicModifier()
+		private := p.parseObjectPrivateModifier()
 		if p.looksLikeFunctionDecl() {
 			method := p.parseFunctionWithReceiver(typ.Name, private)
 			if method != nil {

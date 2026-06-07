@@ -297,10 +297,10 @@ main() => @io.println(private())
 func TestAnalyzeFileRejectsPrivateImportedMembers(t *testing.T) {
 	dir := t.TempDir()
 	writeRuneFile(t, filepath.Join(dir, "user.rn"), `+ User: {
-  + name: String
-  token: String
+  name: String
+  - token: String
 
-  secret() -> String => .token
+  - secret() -> String => .token
 }
 
 + Status: {

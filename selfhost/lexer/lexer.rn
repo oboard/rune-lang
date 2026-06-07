@@ -59,11 +59,11 @@
 }
 
 + Token: {
-  + kind: TokenKind
-  + lexeme: String
-  + offset: Int
-  + line: Int
-  + column: Int
+  kind: TokenKind
+  lexeme: String
+  offset: Int
+  line: Int
+  column: Int
 }
 
 LexState: {

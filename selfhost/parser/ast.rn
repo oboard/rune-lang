@@ -58,109 +58,109 @@
 }
 
 + ParsedTypeParam: {
-  + name: String
-  + optional: Bool
-  + typeRef: ParsedTypeRef
+  name: String
+  optional: Bool
+  typeRef: ParsedTypeRef
 }
 
 + ParsedTypeRef: {
-  + kind: TypeRefKind
-  + name: String
-  + module: String
-  + nullable: Bool
-  + args: Array[ParsedTypeRef]
-  + params: Array[ParsedTypeParam]
-  + returnTypes: Array[ParsedTypeRef]
-  + line: Int
-  + column: Int
+  kind: TypeRefKind
+  name: String
+  module: String
+  nullable: Bool
+  args: Array[ParsedTypeRef]
+  params: Array[ParsedTypeParam]
+  returnTypes: Array[ParsedTypeRef]
+  line: Int
+  column: Int
 }
 
 + ParseError: {
-  + message: String
-  + line: Int
-  + column: Int
+  message: String
+  line: Int
+  column: Int
 }
 
 + ParsedImport: {
-  + path: String
-  + go: Bool
-  + line: Int
-  + column: Int
+  path: String
+  go: Bool
+  line: Int
+  column: Int
 }
 
 + ParsedParam: {
-  + name: String
-  + typeRef: ParsedTypeRef
-  + line: Int
-  + column: Int
+  name: String
+  typeRef: ParsedTypeRef
+  line: Int
+  column: Int
 }
 
 + ParsedExpr: {
-  + kind: ExprKind
-  + text: String
-  + name: String
-  + value: String
-  + op: String
-  + params: Array[ParsedParam]
-  + children: Array[ParsedExpr]
-  + line: Int
-  + column: Int
+  kind: ExprKind
+  text: String
+  name: String
+  value: String
+  op: String
+  params: Array[ParsedParam]
+  children: Array[ParsedExpr]
+  line: Int
+  column: Int
 }
 
 + ParsedField: {
-  + name: String
-  + private: Bool
-  + typeRef: ParsedTypeRef
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  typeRef: ParsedTypeRef
+  line: Int
+  column: Int
 }
 
 + ParsedEnumMember: {
-  + name: String
-  + private: Bool
-  + value: String
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  value: String
+  line: Int
+  column: Int
 }
 
 + ParsedFunction: {
-  + name: String
-  + private: Bool
-  + routine: Bool
-  + receiverType: String
-  + generics: Array[String]
-  + params: Array[ParsedParam]
-  + returnType: ParsedTypeRef
-  + body: ParsedExpr
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  routine: Bool
+  receiverType: String
+  generics: Array[String]
+  params: Array[ParsedParam]
+  returnType: ParsedTypeRef
+  body: ParsedExpr
+  line: Int
+  column: Int
 }
 
 + ParsedType: {
-  + name: String
-  + private: Bool
-  + enum: Bool
-  + generics: Array[String]
-  + fields: Array[ParsedField]
-  + methods: Array[ParsedFunction]
-  + members: Array[ParsedEnumMember]
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  enum: Bool
+  generics: Array[String]
+  fields: Array[ParsedField]
+  methods: Array[ParsedFunction]
+  members: Array[ParsedEnumMember]
+  line: Int
+  column: Int
 }
 
 + ParsedTest: {
-  + name: String
-  + body: ParsedExpr
-  + line: Int
-  + column: Int
+  name: String
+  body: ParsedExpr
+  line: Int
+  column: Int
 }
 
 + ParsedFile: {
-  + imports: Array[ParsedImport]
-  + types: Array[ParsedType]
-  + functions: Array[ParsedFunction]
-  + tests: Array[ParsedTest]
-  + errors: Array[ParseError]
+  imports: Array[ParsedImport]
+  types: Array[ParsedType]
+  functions: Array[ParsedFunction]
+  tests: Array[ParsedTest]
+  errors: Array[ParseError]
 }
 
 + emptyParsedTypeRef() -> ParsedTypeRef => ParsedTypeRef {

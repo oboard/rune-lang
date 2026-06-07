@@ -10,15 +10,16 @@ module.exports = grammar({
   rules: {
     source_file: ($) => repeat(choice($.type_definition, $.function_definition)),
 
-    visibility: () => "+",
+    public_visibility: () => "+",
+    private_visibility: () => "-",
 
     type_definition: ($) => seq(
-      optional($.visibility),
+      optional($.public_visibility),
       field("name", $.identifier),
       optional(field("type_parameters", $.type_parameter_list)),
       ":",
       "{",
-      repeat(choice($.enum_member, $.type_field, $.function_definition)),
+      repeat(choice($.enum_member, $.type_field, $.method_definition)),
       "}"
     ),
 
@@ -29,21 +30,30 @@ module.exports = grammar({
     ),
 
     type_field: ($) => seq(
-      optional($.visibility),
+      optional($.private_visibility),
       field("name", $.identifier),
       ":",
       field("type", $.type_name)
     ),
 
     enum_member: ($) => seq(
-      optional($.visibility),
+      optional($.public_visibility),
       field("name", $.identifier),
       "=",
       field("value", choice($.number, seq("-", $.number)))
     ),
 
     function_definition: ($) => seq(
-      optional($.visibility),
+      optional($.public_visibility),
+      field("name", $.identifier),
+      field("parameters", $.parameter_list),
+      optional(field("return_type", $.return_type)),
+      "=>",
+      field("body", choice($.expression, $.block))
+    ),
+
+    method_definition: ($) => seq(
+      optional($.private_visibility),
       field("name", $.identifier),
       field("parameters", $.parameter_list),
       optional(field("return_type", $.return_type)),

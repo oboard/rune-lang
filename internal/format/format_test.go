@@ -112,8 +112,10 @@ _=>(flag ? 2 : 3)
 
 func TestDeclarationVisibilityFormatting(t *testing.T) {
 	src := `Secret:{
-value:Int
-reveal()->Int=>.value
+exposed:Int
+- value:Int
+get()->Int=>.exposed
+- reveal()->Int=>.value
 }
 + Status:{
 Ready=0
@@ -127,9 +129,12 @@ Ready=0
 
 	got := File(file)
 	want := `Secret: {
-  value: Int
+  exposed: Int
+  - value: Int
 
-  reveal() -> Int => .value
+  get() -> Int => .exposed
+
+  - reveal() -> Int => .value
 }
 
 + Status: {

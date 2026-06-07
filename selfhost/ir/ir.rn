@@ -1,92 +1,92 @@
 @"../parser/parser.rn"
 
 + IRImport: {
-  + path: String
-  + go: Bool
-  + line: Int
-  + column: Int
+  path: String
+  go: Bool
+  line: Int
+  column: Int
 }
 
 + IRParam: {
-  + name: String
-  + typeName: String
-  + line: Int
-  + column: Int
+  name: String
+  typeName: String
+  line: Int
+  column: Int
 }
 
 + IRExpr: {
-  + kind: ExprKind
-  + text: String
-  + name: String
-  + value: String
-  + op: String
-  + params: Array[IRParam]
-  + children: Array[IRExpr]
-  + line: Int
-  + column: Int
+  kind: ExprKind
+  text: String
+  name: String
+  value: String
+  op: String
+  params: Array[IRParam]
+  children: Array[IRExpr]
+  line: Int
+  column: Int
 }
 
 + IRField: {
-  + name: String
-  + private: Bool
-  + typeName: String
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  typeName: String
+  line: Int
+  column: Int
 }
 
 + IREnumMember: {
-  + name: String
-  + private: Bool
-  + value: String
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  value: String
+  line: Int
+  column: Int
 }
 
 + IRFunction: {
-  + name: String
-  + private: Bool
-  + routine: Bool
-  + receiverType: String
-  + generics: Array[String]
-  + params: Array[IRParam]
-  + returnType: String
-  + body: IRExpr
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  routine: Bool
+  receiverType: String
+  generics: Array[String]
+  params: Array[IRParam]
+  returnType: String
+  body: IRExpr
+  line: Int
+  column: Int
 }
 
 + IRStructType: {
-  + name: String
-  + private: Bool
-  + generics: Array[String]
-  + fields: Array[IRField]
-  + methods: Array[IRFunction]
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  generics: Array[String]
+  fields: Array[IRField]
+  methods: Array[IRFunction]
+  line: Int
+  column: Int
 }
 
 + IREnumType: {
-  + name: String
-  + private: Bool
-  + members: Array[IREnumMember]
-  + line: Int
-  + column: Int
+  name: String
+  private: Bool
+  members: Array[IREnumMember]
+  line: Int
+  column: Int
 }
 
 + IRTest: {
-  + name: String
-  + body: IRExpr
-  + line: Int
-  + column: Int
+  name: String
+  body: IRExpr
+  line: Int
+  column: Int
 }
 
 + IRFile: {
-  + imports: Array[IRImport]
-  + structs: Array[IRStructType]
-  + enums: Array[IREnumType]
-  + functions: Array[IRFunction]
-  + tests: Array[IRTest]
-  + errors: Array[ParseError]
+  imports: Array[IRImport]
+  structs: Array[IRStructType]
+  enums: Array[IREnumType]
+  functions: Array[IRFunction]
+  tests: Array[IRTest]
+  errors: Array[ParseError]
 }
 
 + lower(source: String) -> IRFile => lowerParsed(parse(source))

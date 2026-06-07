@@ -1,5 +1,5 @@
 + ImportedUser: {
-  + name: String
+  name: String
 }
 
 + importedAnswer() -> Int => 42
