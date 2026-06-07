@@ -150,6 +150,8 @@ func tsType(typ checker.Type) string {
 		return "void"
 	case checker.HTMLElement:
 		return "HTMLElement"
+	case checker.WebComponent:
+		return "CustomElementConstructor"
 	case checker.Unknown:
 		return "any"
 	default:
@@ -324,6 +326,8 @@ func zeroValue(typ checker.Type) string {
 		return "undefined"
 	case checker.HTMLElement:
 		return "document.createElement(\"div\")"
+	case checker.WebComponent:
+		return "class extends HTMLElement {}"
 	default:
 		return "{} as " + tsType(typ)
 	}

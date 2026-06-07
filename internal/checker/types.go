@@ -74,6 +74,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Void
 	case "HTMLElement":
 		return HTMLElement
+	case "WebComponent":
+		return WebComponent
 	default:
 		if isDynamicTypeName(name) {
 			return Unknown

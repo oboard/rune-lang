@@ -57,7 +57,11 @@ func (e *xmlEmitter) lineExpr(prefix string, expr string, suffix string) {
 
 func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 	name := e.g.nextTemp("__el")
-	e.linef("const %s = document.createElement(%s);", name, strconv.Quote(elem.Tag))
+	if factory := e.g.webComponentFactory(elem.Tag); factory != "" {
+		e.linef("const %s = document.createElement(runeDefineWebComponent(%s, %s));", name, strconv.Quote(elem.Tag), factory)
+	} else {
+		e.linef("const %s = document.createElement(%s);", name, strconv.Quote(elem.Tag))
+	}
 	for _, attr := range elem.Attrs {
 		e.attr(name, attr)
 	}
@@ -88,6 +92,18 @@ func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
 	for _, dep := range e.g.exprSignalDeps(attr.Value) {
 		e.linef("runeWatch(%s, () => { %s.setAttribute(%s, String(%s)); });", mangleIdent(dep), elemName, strconv.Quote(attr.Name), e.g.expr(attr.Value))
 	}
+}
+
+func (g *generator) webComponentFactory(tag string) string {
+	if g.file == nil {
+		return ""
+	}
+	for _, fn := range g.file.Functions {
+		if fn.Name == tag && fn.Return == checker.WebComponent && len(fn.Params) == 0 {
+			return mangleIdent(fn.Name)
+		}
+	}
+	return ""
 }
 
 func (e *xmlEmitter) child(parent string, child ir.XMLChild) {

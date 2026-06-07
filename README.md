@@ -157,6 +157,7 @@ Char
 Bool
 Void
 HTMLElement
+WebComponent
 ```
 
 Struct types use symbolic object syntax:
@@ -363,7 +364,9 @@ Go structs. Function values are emitted as Go function values.
 The TypeScript backend emits DOM-oriented TypeScript from the shared IR. It
 does not support `@go` FFI. XML elements are Rune expressions and embedded
 `{expr}` children become text nodes unless the expression returns
-`HTMLElement`.
+`HTMLElement`. A function declared as returning `WebComponent` can return an
+XML literal; the TypeScript backend emits a `CustomElementConstructor`, and
+matching XML tags create registered custom elements.
 
 ```rune
 render() -> HTMLElement => {

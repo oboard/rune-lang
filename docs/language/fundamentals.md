@@ -92,6 +92,7 @@ Void
 Object
 Symbol
 HTMLElement
+WebComponent
 Dynamic
 Data
 Error
@@ -604,7 +605,7 @@ The TypeScript backend emits helper wrappers for signals and reactive arrays.
 
 ## XML and DOM Expressions
 
-XML-like elements are expressions that return `HTMLElement`:
+XML-like elements are expressions that return `HTMLElement` by default:
 
 ```rune
 render() -> HTMLElement => {
@@ -628,9 +629,13 @@ Supported XML syntax includes:
 - Text children.
 - Embedded expressions: `{expr}`.
 - Nested elements.
+- Component tags: `<HelloWorld />` when `HelloWorld` is a zero-parameter
+  function returning `WebComponent`.
 
 XML is intended for the TypeScript backend. The Go backend currently emits a
-placeholder comment for XML expressions.
+placeholder comment for XML expressions. In the TypeScript backend, an XML
+literal returned from a `WebComponent` function becomes a
+`CustomElementConstructor` for use from other frameworks.
 
 ## Inline Go FFI
 

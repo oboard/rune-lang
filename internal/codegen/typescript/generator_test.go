@@ -42,6 +42,40 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateWebComponentFromXMLLiteral(t *testing.T) {
+	src := `+ HelloWorld() -> WebComponent => {
+  <div>hello world</div>
+}
+
++ render() -> HTMLElement => {
+  <div>
+    <HelloWorld />
+  </div>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function runeDefineWebComponent(name: string, factory: () => CustomElementConstructor): string`,
+		`function __HelloWorld(): CustomElementConstructor`,
+		`return class extends HTMLElement`,
+		`connectedCallback(): void`,
+		`const __root`,
+		`document.createElement("div")`,
+		`document.createTextNode("hello world")`,
+		`function __render(): HTMLElement`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", __HelloWorld))`,
+		`export { __HelloWorld as HelloWorld, __render as render };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "function __HelloWorld(): HTMLElement") {
+		t.Fatalf("generated TypeScript should return a WebComponent constructor:\n%s", got)
+	}
+}
+
 func TestGeneratePatternPredicateRange(t *testing.T) {
 	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
 `

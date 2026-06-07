@@ -182,6 +182,9 @@ func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, unwrapErr Type,
 		}
 	}
 	if info.ReturnDeclared {
+		if info.Return == WebComponent && ret == HTMLElement && exprCanBuildWebComponent(fn.Body) {
+			return
+		}
 		if !typesCompatible(info.Return, ret, info.Generics) {
 			c.errorf(fn.Body.Position(), "function %q returns %s, expected %s", fn.Name, ret, info.Return)
 		}
@@ -191,6 +194,45 @@ func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, unwrapErr Type,
 		ret = Void
 	}
 	info.Return = ret
+}
+
+func exprCanBuildWebComponent(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.XMLElement:
+		return true
+	case *ast.BlockExpr:
+		if len(e.Statements) == 0 {
+			return false
+		}
+		last, ok := e.Statements[len(e.Statements)-1].(*ast.ExprStmt)
+		return ok && exprCanBuildWebComponent(last.Expr)
+	case *ast.TernaryExpr:
+		return e.Alternative != nil &&
+			exprCanBuildWebComponent(e.Consequence) &&
+			exprCanBuildWebComponent(e.Alternative)
+	case *ast.MatchExpr:
+		if len(e.Branches) == 0 {
+			return false
+		}
+		for _, branch := range e.Branches {
+			if !exprCanBuildWebComponent(branch.Expr) {
+				return false
+			}
+		}
+		return true
+	case *ast.PatternBlock:
+		if len(e.Branches) == 0 {
+			return false
+		}
+		for _, branch := range e.Branches {
+			if !exprCanBuildWebComponent(branch.Expr) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func (c *checker) inferExpr(expr ast.Expr, env map[string]Type) Type {

@@ -49,6 +49,9 @@ func (g *generator) function(fn *ir.Function) error {
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
+	if fn.Return == checker.WebComponent && !fn.Routine {
+		return g.webComponentFunction(mangleIdent(fn.Name), params, fn)
+	}
 	if fn.Routine {
 		return g.routineFunction(fn, params)
 	}
@@ -93,6 +96,9 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
+	if fn.Return == checker.WebComponent && !fn.Routine {
+		return g.webComponentFunction(mangleMethod(typ.Name, fn.Name), params, fn)
+	}
 	if fn.Routine {
 		return g.routineMethod(typ, fn, params)
 	}
@@ -134,6 +140,44 @@ func (g *generator) routineMethod(typ *ir.StructType, fn *ir.Function, params []
 	g.indent--
 	g.line("}")
 	_ = typ
+	return nil
+}
+
+func (g *generator) webComponentFunction(name string, params []string, fn *ir.Function) error {
+	g.linef("function %s(%s): %s {", name, strings.Join(params, ", "), tsType(fn.Return))
+	g.indent++
+	g.line("return class extends HTMLElement {")
+	g.indent++
+	g.line("connectedCallback(): void {")
+	g.indent++
+	self := g.nextTemp("__self")
+	g.linef("const %s = this as HTMLElement & { __runeMounted?: boolean };", self)
+	g.linef("if (%s.__runeMounted) {", self)
+	g.indent++
+	g.line("return;")
+	g.indent--
+	g.line("}")
+	g.linef("%s.__runeMounted = true;", self)
+	root := g.nextTemp("__root")
+	g.linef("const %s = ((): HTMLElement => {", root)
+	g.indent++
+	g.pushSignalScope()
+	g.pushReactiveScope()
+	err := g.body(fn, fn.Body, checker.HTMLElement)
+	g.popReactiveScope()
+	g.popSignalScope()
+	if err != nil {
+		return err
+	}
+	g.indent--
+	g.line("})();")
+	g.linef("this.appendChild(%s);", root)
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("};")
+	g.indent--
+	g.line("}")
 	return nil
 }
 

@@ -129,6 +129,8 @@ func goType(typ checker.Type) string {
 		return "struct{}"
 	case checker.HTMLElement:
 		return "any"
+	case checker.WebComponent:
+		return "any"
 	case checker.Unknown:
 		return "any"
 	default:
@@ -296,6 +298,8 @@ func zeroValue(typ checker.Type) string {
 	case checker.Void:
 		return "struct{}{}"
 	case checker.HTMLElement:
+		return "nil"
+	case checker.WebComponent:
 		return "nil"
 	default:
 		return fmt.Sprintf("%s{}", goType(typ))

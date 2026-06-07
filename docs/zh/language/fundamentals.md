@@ -89,6 +89,7 @@ Void
 Object
 Symbol
 HTMLElement
+WebComponent
 Dynamic
 Data
 Error
@@ -590,7 +591,7 @@ TypeScript 后端会为 signal 和响应式数组生成辅助封装。
 
 ## XML 与 DOM 表达式
 
-类 XML 元素是表达式，返回 `HTMLElement`：
+类 XML 元素默认是返回 `HTMLElement` 的表达式：
 
 ```rune
 render() -> HTMLElement => {
@@ -614,8 +615,12 @@ render() -> HTMLElement => {
 - 文本子节点。
 - 嵌入表达式：`{expr}`。
 - 嵌套元素。
+- 组件标签：当 `HelloWorld` 是零参数且返回 `WebComponent` 的函数时，
+  可以使用 `<HelloWorld />`。
 
 XML 面向 TypeScript 后端。Go 后端目前会为 XML 表达式生成占位注释。
+TypeScript 后端会把 `WebComponent` 函数返回的 XML literal 生成为
+`CustomElementConstructor`，方便其他框架调用。
 
 ## 内联 Go FFI
 

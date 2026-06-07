@@ -57,6 +57,48 @@ half(value) => value / 2
 	}
 }
 
+func TestWebComponentReturnAcceptsXMLLiteral(t *testing.T) {
+	src := `HelloWorld() -> WebComponent => {
+  <div>hello world</div>
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["HelloWorld"]
+	if fn == nil {
+		t.Fatalf("missing function HelloWorld")
+	}
+	if got := fn.Return; got != WebComponent {
+		t.Fatalf("HelloWorld return = %s, want %s", got, WebComponent)
+	}
+}
+
+func TestWebComponentReturnRejectsHTMLElementValue(t *testing.T) {
+	src := `makeElement() -> HTMLElement => {
+  <div>hello world</div>
+}
+
+BadComponent() -> WebComponent => makeElement()
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	_, diags := Check(file)
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, `function "BadComponent" returns HTMLElement, expected WebComponent`) {
+			return
+		}
+	}
+	t.Fatalf("diagnostics = %#v, want HTMLElement/WebComponent mismatch", diags)
+}
+
 func TestArrayEachLambdaUsesExpectedElementTypeBeforeFieldInference(t *testing.T) {
 	src := `LocalOption: {
   name: String

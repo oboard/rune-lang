@@ -45,6 +45,7 @@ const (
 	Regex         Type = "Regex"
 	Void          Type = "Void"
 	HTMLElement   Type = "HTMLElement"
+	WebComponent  Type = "WebComponent"
 )
 
 type Diagnostic struct {

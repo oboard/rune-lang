@@ -83,6 +83,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.signalRuntime()
 		g.line("")
 	}
+	if fileUsesWebComponentRuntime(usage) {
+		g.webComponentRuntime()
+		g.line("")
+	}
 	for i, enum := range file.Enums {
 		if i > 0 {
 			g.line("")
@@ -180,6 +184,10 @@ func usesGoFFI(usage codeusage.Usage) bool {
 	return usage.GoFFI
 }
 
+func fileUsesWebComponentRuntime(usage codeusage.Usage) bool {
+	return usage.HasType(checker.WebComponent)
+}
+
 func (g *generator) taskRuntime() {
 	g.line("const runeTasks: Promise<unknown>[] = [];")
 	g.line("")
@@ -208,6 +216,40 @@ func (g *generator) taskRuntime() {
 	g.line("await Promise.allSettled([...runeTasks]);")
 	g.indent--
 	g.line("}")
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) webComponentRuntime() {
+	g.line("const runeWebComponentTags = new WeakMap<() => CustomElementConstructor, string>();")
+	g.line("let runeWebComponentID = 0;")
+	g.line("")
+	g.line("function runeWebComponentName(name: string): string {")
+	g.indent++
+	g.line("const kebab = name.replace(/([a-z0-9])([A-Z])/g, \"$1-$2\").replace(/_/g, \"-\").toLowerCase();")
+	g.line("return kebab.includes(\"-\") ? kebab : `rune-${kebab}`;")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeDefineWebComponent(name: string, factory: () => CustomElementConstructor): string {")
+	g.indent++
+	g.line("const cached = runeWebComponentTags.get(factory);")
+	g.line("if (cached) {")
+	g.indent++
+	g.line("return cached;")
+	g.indent--
+	g.line("}")
+	g.line("const base = runeWebComponentName(name);")
+	g.line("let tag = base;")
+	g.line("while (customElements.get(tag)) {")
+	g.indent++
+	g.line("runeWebComponentID++;")
+	g.line("tag = `${base}-${runeWebComponentID}`;")
+	g.indent--
+	g.line("}")
+	g.line("customElements.define(tag, factory());")
+	g.line("runeWebComponentTags.set(factory, tag);")
+	g.line("return tag;")
 	g.indent--
 	g.line("}")
 }
