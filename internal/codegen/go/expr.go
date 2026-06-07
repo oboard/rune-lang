@@ -122,6 +122,14 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 				return fn.Go.Symbol
 			}
 		}
+		if moduleName, ok := checker.ModuleNamespaceName(e.Receiver.ResultType()); ok {
+			if fn, ok := g.file.Stdlib.Function(moduleName, e.Name); ok && fn.Go != nil && fn.Go.Symbol != "" {
+				return fn.Go.Symbol
+			}
+		}
+		if _, ok := checker.ImportNamespacePath(e.Receiver.ResultType()); ok {
+			return mangleIdent(selectorResolvedName(e))
+		}
 		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
 	case *ir.ArrayLiteral:
 		elemType := checker.Unknown
@@ -182,7 +190,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.WatchExpr:
 		return g.watchExpr(e)
 	case *ir.AtExpr:
-		return e.Name
+		return "struct{}{}"
 	case *ir.ThisExpr:
 		if name := g.currentThisName(); name != "" {
 			return name
@@ -191,6 +199,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return "/* unsupported */"
 	}
+}
+
+func selectorResolvedName(sel *ir.SelectorExpr) string {
+	if sel.ResolvedName != "" {
+		return sel.ResolvedName
+	}
+	return sel.Name
 }
 
 func (g *generator) templateLiteral(lit *ir.TemplateLiteral) string {

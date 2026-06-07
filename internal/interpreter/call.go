@@ -15,13 +15,15 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	}
 	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 		if at, ok := sel.Receiver.(*ir.AtExpr); ok {
-			return i.callModuleFunction(at.Name, sel.Name, call.Args, env)
+			return i.callAtSelector(at, sel, call.Args, env)
 		}
 		receiver, err := i.eval(sel.Receiver, env)
 		if err != nil {
 			return nil, err
 		}
 		switch value := receiver.(type) {
+		case *ir.AtExpr:
+			return i.callAtSelector(value, sel, call.Args, env)
 		case *Array:
 			return i.callArrayMethod(value, sel.Name, call.Args, env)
 		case *Map:
@@ -69,6 +71,24 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	default:
 		return i.callCallable(fn, call.Args, env)
 	}
+}
+
+func (i *Interpreter) callAtSelector(at *ir.AtExpr, sel *ir.SelectorExpr, args []ir.Expr, env *Env) (Value, error) {
+	if at.Name != "" {
+		return i.callModuleFunction(at.Name, sel.Name, args, env)
+	}
+	name := selectorResolvedName(sel)
+	if fn := i.functions[name]; fn != nil {
+		return i.callFunction(fn, args, env)
+	}
+	return nil, fmt.Errorf("import has no function %q", sel.Name)
+}
+
+func selectorResolvedName(sel *ir.SelectorExpr) string {
+	if sel.ResolvedName != "" {
+		return sel.ResolvedName
+	}
+	return sel.Name
 }
 
 func (i *Interpreter) callCallable(callee Value, args []ir.Expr, env *Env) (Value, error) {

@@ -22,7 +22,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return mangleIdent(e.Name)
 	case *ir.AtExpr:
-		return "@" + e.Name
+		return "{}"
 	case *ir.ThisExpr:
 		if name := g.currentThisName(); name != "" {
 			return name
@@ -101,6 +101,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.SelectorExpr:
 		if member, ok := g.enumMemberSelector(e); ok {
 			return member
+		}
+		if _, ok := checker.ImportNamespacePath(e.Receiver.ResultType()); ok {
+			return mangleIdent(selectorResolvedName(e))
 		}
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
@@ -240,6 +243,13 @@ func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func selectorResolvedName(sel *ir.SelectorExpr) string {
+	if sel.ResolvedName != "" {
+		return sel.ResolvedName
+	}
+	return sel.Name
 }
 
 func (g *generator) callExpr(e *ir.CallExpr) string {

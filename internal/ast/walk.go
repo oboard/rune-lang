@@ -1,6 +1,9 @@
 package ast
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 func WalkExpr(expr Expr, visit func(Expr)) {
 	if expr == nil {
@@ -165,6 +168,9 @@ func ExprName(expr Expr) string {
 	case *Identifier:
 		return e.Name
 	case *AtExpr:
+		if e.Path != "" {
+			return "@" + strconv.Quote(e.Path)
+		}
 		return "@" + e.Name
 	case *ThisExpr:
 		return "this"

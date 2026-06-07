@@ -432,6 +432,9 @@ func TestTemplateLiteral(t *testing.T) {
 	if !ok || ident.Name != "name" {
 		t.Fatalf("second part = %#v, want name identifier", lit.Parts[1])
 	}
+	if ident.Pos.Line != 1 || ident.Pos.Column != 44 {
+		t.Fatalf("template identifier position = %s, want 1:44", ident.Pos)
+	}
 }
 
 func TestMultilineTemplateLiteral(t *testing.T) {
@@ -445,6 +448,24 @@ func TestMultilineTemplateLiteral(t *testing.T) {
 	}
 	if len(lit.Parts) != 1 || lit.Parts[0].Text != "Hello\nRune" {
 		t.Fatalf("parts = %#v, want multiline text", lit.Parts)
+	}
+}
+
+func TestTemplateLiteralExpressionPositionsAcrossLines(t *testing.T) {
+	file, errs := Parse("greet(name: String) -> String => `Hello\n${name}`\n")
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	lit, ok := file.Functions[0].Body.(*ast.TemplateLiteral)
+	if !ok || len(lit.Parts) != 2 {
+		t.Fatalf("body = %#v, want template with expression", file.Functions[0].Body)
+	}
+	ident, ok := lit.Parts[1].Expr.(*ast.Identifier)
+	if !ok || ident.Name != "name" {
+		t.Fatalf("second part = %#v, want name identifier", lit.Parts[1])
+	}
+	if ident.Pos.Line != 2 || ident.Pos.Column != 3 {
+		t.Fatalf("multiline template identifier position = %s, want 2:3", ident.Pos)
 	}
 }
 

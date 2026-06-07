@@ -24,6 +24,19 @@
   @assert.eq(file.functions[0].body.children[0].children[0].kind, ExprKind.Unwrap)
 }
 
+? "selfhost parser reads import expressions" {
+  source := `main() => {
+  helper := @"./import_helper.rn"
+  @io.println(helper.greeting("Alice"))
+}
+`
+  file := parse(source)
+  helper := file.functions[0].body.children[0].children[0]
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(helper.kind, ExprKind.At)
+  @assert.eq(helper.value, "\"./import_helper.rn\"")
+}
+
 ? "selfhost parser reads structs and enums" {
   source := `Box[T]: {
   value: T

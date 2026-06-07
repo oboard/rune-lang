@@ -208,6 +208,24 @@ func TaskOf(result Type) Type {
 	return genericTypeOf("Task", []Type{result})
 }
 
+func ModuleNamespaceOf(name string) Type {
+	return Type("@module:" + name)
+}
+
+func ModuleNamespaceName(typ Type) (string, bool) {
+	name := strings.TrimPrefix(string(typ), "@module:")
+	return name, name != string(typ) && name != ""
+}
+
+func ImportNamespaceOf(path string) Type {
+	return Type("@import:" + path)
+}
+
+func ImportNamespacePath(typ Type) (string, bool) {
+	path := strings.TrimPrefix(string(typ), "@import:")
+	return path, path != string(typ) && path != ""
+}
+
 func DisplayType(typ Type) string {
 	return displayTypeName(string(typ))
 }

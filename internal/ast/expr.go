@@ -18,8 +18,10 @@ func (e *Identifier) Position() lexer.Position {
 }
 
 type AtExpr struct {
-	Name string
-	Pos  lexer.Position
+	Name       string
+	Path       string
+	SourcePath string
+	Pos        lexer.Position
 }
 
 func (*AtExpr) exprNode() {}

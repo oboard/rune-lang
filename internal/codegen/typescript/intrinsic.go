@@ -684,11 +684,16 @@ func (g *generator) stdlibFunctionFromCall(call *ir.CallExpr) (*stdlib.Function,
 	if !ok {
 		return nil, false
 	}
-	at, ok := sel.Receiver.(*ir.AtExpr)
-	if !ok || g.file.Stdlib == nil {
+	if g.file.Stdlib == nil {
 		return nil, false
 	}
-	return g.file.Stdlib.Function(at.Name, sel.Name)
+	if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name != "" {
+		return g.file.Stdlib.Function(at.Name, sel.Name)
+	}
+	if moduleName, ok := checker.ModuleNamespaceName(sel.Receiver.ResultType()); ok {
+		return g.file.Stdlib.Function(moduleName, sel.Name)
+	}
+	return nil, false
 }
 
 func (g *generator) stdlibReceiverFunctionFromCall(call *ir.CallExpr) (*ir.SelectorExpr, *stdlib.Function, bool) {

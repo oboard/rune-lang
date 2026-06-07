@@ -342,6 +342,84 @@ main() => {
 	}
 }
 
+func TestTemplateExpressionLSPFeatures(t *testing.T) {
+	uri := "file:///tmp/template.rn"
+	src := "helper(name: String) -> String => name\n\nmain() => {\n  name := \"Rune\"\n  message := `Hello, ${helper(name)}`\n  @io.println(message)\n}\n"
+	s := &server{docs: map[string]string{uri: src}}
+
+	helperPos := positionOf(src, "`Hello, ${helper(name)}`", "helper")
+	def := s.definition(uri, helperPos).(map[string]any)
+	if got := def["uri"]; got != uri {
+		t.Fatalf("definition uri = %v, want %s", got, uri)
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start != (position{Line: 0, Character: 0}) {
+		t.Fatalf("helper definition start = %+v, want line 0 char 0", start)
+	}
+
+	refs := s.references(uri, helperPos, true).([]map[string]any)
+	if len(refs) != 2 {
+		t.Fatalf("helper references = %d, want declaration and template call: %#v", len(refs), refs)
+	}
+	if refStart(refs[1]) != helperPos {
+		t.Fatalf("template helper reference = %+v, want %+v", refStart(refs[1]), helperPos)
+	}
+
+	namePos := positionOf(src, "`Hello, ${helper(name)}`", "name")
+	nameDef := s.definition(uri, namePos).(map[string]any)
+	nameStart := nameDef["range"].(map[string]any)["start"].(position)
+	if nameStart != (position{Line: 3, Character: 2}) {
+		t.Fatalf("name definition start = %+v, want local let", nameStart)
+	}
+
+	resp := s.semanticTokens(uri).(map[string]any)
+	tokens := decodeSemanticTokenTypes(resp["data"].([]int))
+	if tokens[helperPos] != semanticTokenTypeFunction {
+		t.Fatalf("helper semantic token = %d, want function; all tokens %#v", tokens[helperPos], tokens)
+	}
+	if tokens[namePos] != semanticTokenTypeVariable {
+		t.Fatalf("name semantic token = %d, want variable; all tokens %#v", tokens[namePos], tokens)
+	}
+}
+
+func TestTemplateExpressionLocalReferencesUseContainingFunction(t *testing.T) {
+	uri := "file:///tmp/import_helper.rn"
+	src := "+ greeting(name) => private(name)\n\nprivate(name: String) => `hello, ${name}`\n"
+	s := &server{docs: map[string]string{uri: src}}
+
+	templateName := positionOf(src, "`hello, ${name}`", "name")
+	privateParam := positionOf(src, "private(name: String)", "name")
+	greetingParam := positionOf(src, "greeting(name)", "name")
+
+	def := s.definition(uri, templateName).(map[string]any)
+	start := def["range"].(map[string]any)["start"].(position)
+	if start != privateParam {
+		t.Fatalf("template name definition start = %+v, want private param %+v", start, privateParam)
+	}
+	if start == greetingParam {
+		t.Fatalf("template name jumped to greeting param %+v", greetingParam)
+	}
+
+	refs := s.references(uri, privateParam, true).([]map[string]any)
+	if len(refs) != 2 {
+		t.Fatalf("private param references = %d, want declaration and template usage: %#v", len(refs), refs)
+	}
+	if !refsContain(refs, privateParam) {
+		t.Fatalf("private param references missing declaration %+v: %#v", privateParam, refs)
+	}
+	if !refsContain(refs, templateName) {
+		t.Fatalf("private param references missing template usage %+v: %#v", templateName, refs)
+	}
+	if refsContain(refs, greetingParam) {
+		t.Fatalf("private param references included greeting param %+v: %#v", greetingParam, refs)
+	}
+
+	refs = s.references(uri, templateName, true).([]map[string]any)
+	if !refsContain(refs, privateParam) || !refsContain(refs, templateName) {
+		t.Fatalf("template name references = %#v, want private param and template usage", refs)
+	}
+}
+
 func TestMethodReferencesFilterByReceiverType(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
@@ -1050,6 +1128,15 @@ func hoverValue(hover map[string]any) string {
 
 func refStart(ref map[string]any) position {
 	return ref["range"].(map[string]any)["start"].(position)
+}
+
+func refsContain(refs []map[string]any, pos position) bool {
+	for _, ref := range refs {
+		if refStart(ref) == pos {
+			return true
+		}
+	}
+	return false
 }
 
 func writeLSPFile(t *testing.T, path string, src string) {

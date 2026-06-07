@@ -65,6 +65,57 @@ main() => @io.println(inc(41))
 	}
 }
 
+func TestAnalyzeFileLoadsRuneImportNamespaces(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "helper.rn"), `+ greeting(name: String) -> String => privateGreeting(name)
+
+privateGreeting(name: String) -> String => "hello, " + name
+`)
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  io := @io
+  helper := @"helper.rn"
+  io.println(helper.greeting("Alice"))
+}
+`)
+
+	prog, diags := AnalyzeFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+
+	var out bytes.Buffer
+	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := runner.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "hello, Alice" {
+		t.Fatalf("output = %q, want hello, Alice", got)
+	}
+}
+
+func TestGenerateGoFileImportsRuneNamespaceReferences(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "helper.rn"), `+ greeting(name: String) -> String => "hello, " + name
+`)
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  io := @io
+  helper := @"helper.rn"
+  io.println(helper.greeting("Alice"))
+}
+`)
+
+	got, diags := GenerateGoFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateGoFile() diagnostics = %#v", diags)
+	}
+	if !strings.Contains(got, `fmt.Println(__greeting("Alice"))`) {
+		t.Fatalf("generated Go does not call imported namespace function:\n%s", got)
+	}
+	if !strings.Contains(got, `_ = __io`) || !strings.Contains(got, `_ = __helper`) {
+		t.Fatalf("generated Go does not mark namespace placeholders as used:\n%s", got)
+	}
+}
+
 func TestAnalyzeFileLoadsTypeScriptImports(t *testing.T) {
 	dir := t.TempDir()
 	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport function score(value: number): number { return value }\n\nexport function flag(value: boolean): boolean { return value }\n\nexport function size(value: bigint): bigint { return value }\n\nexport function noop(): void {}\n\nexport function mystery(value: any): unknown { return value }\n\nexport const version: string = \"1.0.0\"\n")
@@ -147,6 +198,33 @@ main() => {
 	}
 	if strings.Contains(got, "function __greet") {
 		t.Fatalf("generated TypeScript should not emit imported function body:\n%s", got)
+	}
+}
+
+func TestGenerateTypeScriptFileImportsNamespaceReferences(t *testing.T) {
+	dir := t.TempDir()
+	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport const version: string = \"1.0.0\"\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  io := @io
+  helper := @"greet.ts"
+  io.println(helper.greet("Rune"))
+  io.println(helper.version)
+}
+`)
+
+	got, diags := GenerateTypeScriptFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v", diags)
+	}
+	wantImport := `import { greet as __greet, version as __version } from "greet.ts";`
+	if !strings.Contains(got, wantImport) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", wantImport, got)
+	}
+	if !strings.Contains(got, `console.log(__greet("Rune"));`) {
+		t.Fatalf("generated TypeScript does not call imported namespace alias:\n%s", got)
+	}
+	if !strings.Contains(got, `console.log(__version);`) {
+		t.Fatalf("generated TypeScript does not read imported namespace alias:\n%s", got)
 	}
 }
 

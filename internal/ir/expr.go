@@ -33,7 +33,9 @@ func (*Identifier) exprNode() {}
 
 type AtExpr struct {
 	ExprBase
-	Name string
+	Name       string
+	Path       string
+	SourcePath string
 }
 
 func (*AtExpr) exprNode() {}
@@ -185,8 +187,9 @@ func (*LambdaExpr) exprNode() {}
 
 type SelectorExpr struct {
 	ExprBase
-	Receiver Expr
-	Name     string
+	Receiver     Expr
+	Name         string
+	ResolvedName string
 }
 
 func (*SelectorExpr) exprNode() {}

@@ -103,10 +103,19 @@ func (s *server) methodHover(uri string, prog *compiler.Program, pos position) a
 	if sel == nil {
 		return nil
 	}
-	if at, ok := sel.Receiver.(*ast.AtExpr); ok {
+	if at, ok := sel.Receiver.(*ast.AtExpr); ok && at.Name != "" {
 		return stdlibHover(prog.Info.Stdlib, at.Name, sel.Name, sel.NamePos)
 	}
 	receiver := prog.Info.ExprTypes[sel.Receiver]
+	if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+		return stdlibHover(prog.Info.Stdlib, moduleName, sel.Name, sel.NamePos)
+	}
+	if fn := prog.Info.ResolvedSelectorFunctions[sel]; fn != nil {
+		return hoverResult(functionValueSignature(prog.Info, fn), sel.NamePos, sel.Name)
+	}
+	if value := prog.Info.ResolvedSelectorValues[sel]; value != nil {
+		return hoverResult(fmt.Sprintf("%s: %s", value.Name, displayCheckerType(prog.Info, value.Type)), sel.NamePos, sel.Name)
+	}
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibReceiverHover(prog.Info.Stdlib, moduleName, receiverName, sel.Name, sel.NamePos)
 	}
@@ -319,6 +328,12 @@ func (s *server) memberCompletion(uri string, prog *compiler.Program, pos positi
 	if !ok || receiver == "" || receiver == checker.Unknown {
 		return nil, false
 	}
+	if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+		return stdlibModuleCompletion(prog.Info, moduleName), true
+	}
+	if importPath, ok := checker.ImportNamespacePath(receiver); ok {
+		return importNamespaceCompletion(prog.Info, importPath), true
+	}
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibMemberCompletion(prog.Info, receiver, moduleName, receiverName), true
 	}
@@ -468,6 +483,77 @@ func tokenBeforePosition(tok lexer.Position, pos position) bool {
 	return line < pos.Line || (line == pos.Line && char <= pos.Character)
 }
 
+func stdlibModuleCompletion(info *checker.Info, moduleName string) []map[string]any {
+	if info == nil || info.Stdlib == nil {
+		return nil
+	}
+	module := info.Stdlib.Modules[moduleName]
+	if module == nil {
+		return nil
+	}
+	items := make([]map[string]any, 0)
+	for i := range module.Functions {
+		fn := &module.Functions[i]
+		if fn.Receiver != "" || fn.TopLevelOnly {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   3,
+			"detail": stdlibSignature(moduleName, fn),
+		})
+	}
+	return items
+}
+
+func importNamespaceCompletion(info *checker.Info, sourcePath string) []map[string]any {
+	if info == nil {
+		return nil
+	}
+	items := make([]map[string]any, 0)
+	for _, fn := range info.Functions {
+		if fn.Private || !sameLSPSourcePath(fn.SourcePath, sourcePath) {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   3,
+			"detail": functionValueSignature(info, fn),
+		})
+	}
+	for _, value := range info.ExternalValues {
+		if !sameLSPSourcePath(value.SourcePath, sourcePath) {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  value.Name,
+			"kind":   6,
+			"detail": fmt.Sprintf("%s: %s", value.Name, displayCheckerType(info, value.Type)),
+		})
+	}
+	return items
+}
+
+func sameLSPSourcePath(a string, b string) bool {
+	return cleanLSPSourcePath(a) == cleanLSPSourcePath(b)
+}
+
+func cleanLSPSourcePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "file://") {
+		if uri, err := url.Parse(path); err == nil {
+			path = uri.Path
+		}
+	}
+	clean := filepath.Clean(path)
+	if abs, err := filepath.Abs(clean); err == nil {
+		return abs
+	}
+	return clean
+}
+
 func stdlibMemberCompletion(info *checker.Info, receiver checker.Type, moduleName string, receiverName string) []map[string]any {
 	if info == nil || info.Stdlib == nil {
 		return nil
@@ -592,6 +678,9 @@ func (s *server) references(uri string, pos position, includeDeclaration bool) a
 	if target := s.methodTarget(uri, prog, pos); target != nil && target.structName != "" {
 		return methodReferences(prog, target, includeDeclaration)
 	}
+	if target := localTarget(uri, prog, pos); target != nil && target.scope != nil {
+		return localReferences(uri, prog, target, includeDeclaration)
+	}
 	return []map[string]any{}
 }
 
@@ -686,6 +775,43 @@ func methodReferences(prog *compiler.Program, target *methodTarget, includeDecla
 	return refs
 }
 
+func localReferences(uri string, prog *compiler.Program, target *methodTarget, includeDeclaration bool) []map[string]any {
+	refs := []map[string]any{}
+	if includeDeclaration {
+		refs = append(refs, target.location())
+	}
+	ast.WalkExpr(target.scope, func(expr ast.Expr) {
+		ident, ok := expr.(*ast.Identifier)
+		if !ok || ident.Name != target.name {
+			return
+		}
+		resolved := localTarget(uri, prog, positionFromLexer(ident.Pos))
+		if !sameLocalTarget(resolved, target) {
+			return
+		}
+		refs = append(refs, referenceLocation(target.uri, ident.Pos, ident.Name))
+	})
+	return refs
+}
+
+func sameLocalTarget(a *methodTarget, b *methodTarget) bool {
+	if a == nil || b == nil || a.scope == nil || b.scope == nil {
+		return false
+	}
+	return a.uri == b.uri && a.name == b.name && sameLexerPosition(a.pos, b.pos)
+}
+
+func sameLexerPosition(a lexer.Position, b lexer.Position) bool {
+	return a.Offset == b.Offset && a.Line == b.Line && a.Column == b.Column
+}
+
+func positionFromLexer(pos lexer.Position) position {
+	return position{
+		Line:      max(pos.Line-1, 0),
+		Character: max(pos.Column-1, 0),
+	}
+}
+
 func referenceLocation(uri string, pos lexer.Position, name string) map[string]any {
 	return map[string]any{
 		"uri":   uri,
@@ -694,18 +820,262 @@ func referenceLocation(uri string, pos lexer.Position, name string) map[string]a
 }
 
 func localTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
-	name := identifierNameAt(prog.File, pos)
-	if name == "" {
-		name = letNameAt(prog.File, pos)
+	if target := localDeclarationTarget(uri, prog.File, pos); target != nil {
+		return target
 	}
+	if ident := identifierAt(prog.File, pos); ident != nil {
+		return localTargetForIdentifier(uri, prog.File, ident)
+	}
+	name := letNameAt(prog.File, pos)
 	if name == "" {
 		return nil
 	}
 	if target := letTarget(uri, prog.File, name); target != nil {
 		return target
 	}
-	if target := paramTarget(uri, prog.File, name); target != nil {
+	return nil
+}
+
+type localParam struct {
+	name string
+	pos  lexer.Position
+}
+
+type localScope struct {
+	uri    string
+	body   ast.Expr
+	params []localParam
+	parent *localScope
+}
+
+func localDeclarationTarget(uri string, file *ast.File, pos position) *methodTarget {
+	if target := paramDeclarationTarget(uri, file, pos); target != nil {
 		return target
+	}
+	return nil
+}
+
+func paramDeclarationTarget(uri string, file *ast.File, pos position) *methodTarget {
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			scopeURI := sourceURI(uri, method.SourcePath)
+			for _, param := range method.Params {
+				if containsSymbol(pos, param.Pos, param.Name) {
+					return &methodTarget{uri: scopeURI, name: param.Name, pos: param.Pos, scope: method.Body}
+				}
+			}
+		}
+	}
+	for _, fn := range file.Functions {
+		scopeURI := sourceURI(uri, fn.SourcePath)
+		for _, param := range fn.Params {
+			if containsSymbol(pos, param.Pos, param.Name) {
+				return &methodTarget{uri: scopeURI, name: param.Name, pos: param.Pos, scope: fn.Body}
+			}
+		}
+	}
+	var found *methodTarget
+	walkFileExprs(file, func(expr ast.Expr) {
+		if found != nil {
+			return
+		}
+		lambda, ok := expr.(*ast.LambdaExpr)
+		if !ok {
+			return
+		}
+		for i, name := range lambda.Params {
+			if i >= len(lambda.ParamPos) || !containsSymbol(pos, lambda.ParamPos[i], name) {
+				continue
+			}
+			found = &methodTarget{uri: uri, name: name, pos: lambda.ParamPos[i], scope: lambda.Body}
+			return
+		}
+	})
+	return found
+}
+
+func localTargetForIdentifier(uri string, file *ast.File, ident *ast.Identifier) *methodTarget {
+	for scope := localScopeForExpr(uri, file, ident); scope != nil; scope = scope.parent {
+		if target := letTargetInScope(scope, ident.Name, ident.Pos); target != nil {
+			return target
+		}
+		if target := paramTargetInScope(scope, ident.Name); target != nil {
+			return target
+		}
+	}
+	return nil
+}
+
+func localScopeForExpr(uri string, file *ast.File, target ast.Expr) *localScope {
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if !exprTreeContains(method.Body, target) {
+				continue
+			}
+			scope := &localScope{
+				uri:    sourceURI(uri, method.SourcePath),
+				body:   method.Body,
+				params: functionLocalParams(method.Params),
+			}
+			return innermostLocalScope(scope, target)
+		}
+	}
+	for _, fn := range file.Functions {
+		if !exprTreeContains(fn.Body, target) {
+			continue
+		}
+		scope := &localScope{
+			uri:    sourceURI(uri, fn.SourcePath),
+			body:   fn.Body,
+			params: functionLocalParams(fn.Params),
+		}
+		return innermostLocalScope(scope, target)
+	}
+	for _, test := range file.Tests {
+		if !exprTreeContains(test.Body, target) {
+			continue
+		}
+		scope := &localScope{
+			uri:  sourceURI(uri, test.SourcePath),
+			body: test.Body,
+		}
+		return innermostLocalScope(scope, target)
+	}
+	return nil
+}
+
+func innermostLocalScope(scope *localScope, target ast.Expr) *localScope {
+	var child *localScope
+	ast.WalkExpr(scope.body, func(expr ast.Expr) {
+		if child != nil {
+			return
+		}
+		lambda, ok := expr.(*ast.LambdaExpr)
+		if !ok || !exprTreeContains(lambda.Body, target) {
+			return
+		}
+		child = &localScope{
+			uri:    scope.uri,
+			body:   lambda.Body,
+			params: lambdaLocalParams(lambda),
+			parent: scope,
+		}
+	})
+	if child != nil {
+		return innermostLocalScope(child, target)
+	}
+	return scope
+}
+
+func exprTreeContains(root ast.Expr, target ast.Expr) bool {
+	found := false
+	ast.WalkExpr(root, func(expr ast.Expr) {
+		if expr == target {
+			found = true
+		}
+	})
+	return found
+}
+
+func functionLocalParams(params []ast.Param) []localParam {
+	out := make([]localParam, 0, len(params))
+	for _, param := range params {
+		out = append(out, localParam{name: param.Name, pos: param.Pos})
+	}
+	return out
+}
+
+func lambdaLocalParams(lambda *ast.LambdaExpr) []localParam {
+	out := make([]localParam, 0, len(lambda.Params))
+	for i, name := range lambda.Params {
+		if i >= len(lambda.ParamPos) {
+			continue
+		}
+		out = append(out, localParam{name: name, pos: lambda.ParamPos[i]})
+	}
+	return out
+}
+
+func letTargetInScope(scope *localScope, name string, before lexer.Position) *methodTarget {
+	var found *methodTarget
+	bestOffset := -1
+	walkExprStatements(scope.body, func(stmt ast.Stmt) {
+		switch stmt := stmt.(type) {
+		case *ast.LetStmt:
+			if stmt.Name != name || !lexerPositionBeforeOrEqual(stmt.Pos, before) {
+				return
+			}
+			if offset := lexerPositionOffset(stmt.Pos); offset > bestOffset {
+				bestOffset = offset
+				found = &methodTarget{uri: scope.uri, name: stmt.Name, pos: stmt.Pos, scope: scope.body}
+			}
+		case *ast.ObjectDestructureStmt:
+			for _, field := range stmt.Fields {
+				if field.Name != name || !lexerPositionBeforeOrEqual(field.NamePos, before) {
+					continue
+				}
+				if offset := lexerPositionOffset(field.NamePos); offset > bestOffset {
+					bestOffset = offset
+					found = &methodTarget{uri: scope.uri, name: field.Name, pos: field.NamePos, scope: scope.body}
+				}
+			}
+		}
+	})
+	return found
+}
+
+func walkExprStatements(expr ast.Expr, visit func(ast.Stmt)) {
+	ast.WalkExpr(expr, func(candidate ast.Expr) {
+		block, ok := candidate.(*ast.BlockExpr)
+		if !ok {
+			return
+		}
+		if candidate != expr && nestedLambdaContainsExpr(expr, candidate) {
+			return
+		}
+		for _, stmt := range block.Statements {
+			visit(stmt)
+		}
+	})
+}
+
+func nestedLambdaContainsExpr(root ast.Expr, target ast.Expr) bool {
+	found := false
+	ast.WalkExpr(root, func(expr ast.Expr) {
+		if found {
+			return
+		}
+		lambda, ok := expr.(*ast.LambdaExpr)
+		if !ok {
+			return
+		}
+		found = exprTreeContains(lambda.Body, target)
+	})
+	return found
+}
+
+func lexerPositionBeforeOrEqual(a lexer.Position, b lexer.Position) bool {
+	if a.Offset > 0 && b.Offset > 0 {
+		return a.Offset <= b.Offset
+	}
+	if a.Line != b.Line {
+		return a.Line < b.Line
+	}
+	return a.Column <= b.Column
+}
+
+func lexerPositionOffset(pos lexer.Position) int {
+	if pos.Offset > 0 {
+		return pos.Offset
+	}
+	return (pos.Line * 1_000_000) + pos.Column
+}
+
+func paramTargetInScope(scope *localScope, name string) *methodTarget {
+	for _, param := range scope.params {
+		if param.name == name {
+			return &methodTarget{uri: scope.uri, name: param.name, pos: param.pos, scope: scope.body}
+		}
 	}
 	return nil
 }
@@ -726,13 +1096,6 @@ func typeTarget(uri string, prog *compiler.Program, pos position) *methodTarget 
 		}
 	}
 	return nil
-}
-
-func identifierNameAt(file *ast.File, pos position) string {
-	if ident := identifierAt(file, pos); ident != nil {
-		return ident.Name
-	}
-	return ""
 }
 
 func identifierAt(file *ast.File, pos position) *ast.Identifier {
@@ -790,26 +1153,6 @@ func letTarget(uri string, file *ast.File, name string) *methodTarget {
 		}
 	})
 	return found
-}
-
-func paramTarget(uri string, file *ast.File, name string) *methodTarget {
-	for _, typ := range file.Types {
-		for _, method := range typ.Methods {
-			for _, param := range method.Params {
-				if param.Name == name {
-					return &methodTarget{uri: uri, name: param.Name, pos: param.Pos}
-				}
-			}
-		}
-	}
-	for _, fn := range file.Functions {
-		for _, param := range fn.Params {
-			if param.Name == name {
-				return &methodTarget{uri: uri, name: param.Name, pos: param.Pos}
-			}
-		}
-	}
-	return nil
 }
 
 func fieldTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
@@ -1036,7 +1379,7 @@ func callParameterInfo(prog *compiler.Program, call *ast.CallExpr) ([]checker.Pa
 		}
 		return fn.Params, functionValueSignature(prog.Info, fn), true
 	case *ast.SelectorExpr:
-		if at, ok := callee.Receiver.(*ast.AtExpr); ok {
+		if at, ok := callee.Receiver.(*ast.AtExpr); ok && at.Name != "" {
 			fn, ok := prog.Info.Stdlib.Function(at.Name, callee.Name)
 			if !ok {
 				return nil, "", false
@@ -1044,6 +1387,16 @@ func callParameterInfo(prog *compiler.Program, call *ast.CallExpr) ([]checker.Pa
 			return stdlibParamInfos(fn), stdlibSignature(at.Name, fn), true
 		}
 		receiver := prog.Info.ExprTypes[callee.Receiver]
+		if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+			fn, ok := prog.Info.Stdlib.Function(moduleName, callee.Name)
+			if !ok {
+				return nil, "", false
+			}
+			return stdlibParamInfos(fn), stdlibSignature(moduleName, fn), true
+		}
+		if fn := prog.Info.ResolvedSelectorFunctions[callee]; fn != nil {
+			return fn.Params, functionValueSignature(prog.Info, fn), true
+		}
 		if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 			fn, ok := prog.Info.Stdlib.ReceiverFunction(moduleName, receiverName, callee.Name)
 			if !ok {
@@ -1183,6 +1536,7 @@ func (s *server) semanticTokens(uri string) any {
 			})
 		}
 	})
+	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
 	sort.Slice(tokens, func(i, j int) bool {
 		if tokens[i].line != tokens[j].line {
 			return tokens[i].line < tokens[j].line
@@ -1190,6 +1544,100 @@ func (s *server) semanticTokens(uri string) any {
 		return tokens[i].character < tokens[j].character
 	})
 	return map[string]any{"data": encodeSemanticTokens(tokens)}
+}
+
+func templateExpressionSemanticTokens(prog *compiler.Program, signals map[string][]string) []semanticToken {
+	var tokens []semanticToken
+	walkTemplateExprs(prog.File, func(expr ast.Expr) {
+		switch expr := expr.(type) {
+		case *ast.CallExpr:
+			if token, ok := templateCallSemanticToken(prog, expr); ok {
+				tokens = append(tokens, token)
+			}
+		case *ast.Identifier:
+			if token, ok := templateIdentifierSemanticToken(prog, signals, expr); ok {
+				tokens = append(tokens, token)
+			}
+		}
+	})
+	return tokens
+}
+
+func templateCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {
+	if _, ok := asyncCallSemanticToken(prog, call); ok {
+		return semanticToken{}, false
+	}
+	switch callee := call.Callee.(type) {
+	case *ast.Identifier:
+		return semanticToken{}, false
+	case *ast.SelectorExpr:
+		if !selectorCallResolves(prog, callee) {
+			return semanticToken{}, false
+		}
+		return semanticTokenFor(callee.NamePos, callee.Name, semanticTokenTypeFunction, 0), true
+	default:
+		return semanticToken{}, false
+	}
+}
+
+func selectorCallResolves(prog *compiler.Program, sel *ast.SelectorExpr) bool {
+	if at, ok := sel.Receiver.(*ast.AtExpr); ok && at.Name != "" {
+		_, ok := prog.Info.Stdlib.Function(at.Name, sel.Name)
+		return ok
+	}
+	receiver := prog.Info.ExprTypes[sel.Receiver]
+	if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+		_, ok := prog.Info.Stdlib.Function(moduleName, sel.Name)
+		return ok
+	}
+	if prog.Info.ResolvedSelectorFunctions[sel] != nil {
+		return true
+	}
+	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
+		_, ok := prog.Info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
+		return ok
+	}
+	structInfo := prog.Info.Types[baseType(receiver)]
+	return structInfo != nil && structInfo.Methods[sel.Name] != nil
+}
+
+func templateIdentifierSemanticToken(prog *compiler.Program, signals map[string][]string, ident *ast.Identifier) (semanticToken, bool) {
+	if ident.Name == "" || ident.Name == "<error>" {
+		return semanticToken{}, false
+	}
+	if _, signal := signals[ident.Name]; signal {
+		return semanticToken{}, false
+	}
+	if fn := prog.Info.ResolvedFunctions[ident]; fn != nil {
+		if fn.Routine {
+			return semanticToken{}, false
+		}
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeFunction, 0), true
+	}
+	if _, ok := prog.Info.Types[ident.Name]; ok {
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeType, 0), true
+	}
+	if _, ok := prog.Info.Enums[ident.Name]; ok {
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeType, 0), true
+	}
+	if prog.Info.ResolvedValues[ident] != nil {
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeVariable, 0), true
+	}
+	typ := prog.Info.ExprTypes[ident]
+	if typ == "" || typ == checker.Unknown {
+		return semanticToken{}, false
+	}
+	return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeVariable, 0), true
+}
+
+func semanticTokenFor(pos lexer.Position, name string, tokenType int, modifiers int) semanticToken {
+	return semanticToken{
+		line:      max(pos.Line-1, 0),
+		character: max(pos.Column-1, 0),
+		length:    len(name),
+		tokenType: tokenType,
+		modifiers: modifiers,
+	}
 }
 
 func signalGraph(file *ast.File) map[string][]string {
@@ -1242,11 +1690,18 @@ func asyncCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanti
 }
 
 func asyncSelectorCall(prog *compiler.Program, sel *ast.SelectorExpr) bool {
-	if at, ok := sel.Receiver.(*ast.AtExpr); ok {
+	if at, ok := sel.Receiver.(*ast.AtExpr); ok && at.Name != "" {
 		fn, ok := prog.Info.Stdlib.Function(at.Name, sel.Name)
 		return ok && fn.Routine
 	}
 	receiver := prog.Info.ExprTypes[sel.Receiver]
+	if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+		fn, ok := prog.Info.Stdlib.Function(moduleName, sel.Name)
+		return ok && fn.Routine
+	}
+	if fn := prog.Info.ResolvedSelectorFunctions[sel]; fn != nil {
+		return fn.Routine
+	}
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		fn, ok := prog.Info.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name)
 		return ok && fn.Routine
@@ -1396,6 +1851,7 @@ type methodTarget struct {
 	pos        lexer.Position
 	structName string
 	external   bool
+	scope      ast.Expr
 }
 
 func (t *methodTarget) location() map[string]any {
@@ -1413,10 +1869,19 @@ func (s *server) methodTarget(uri string, prog *compiler.Program, pos position) 
 	if sel == nil {
 		return nil
 	}
-	if at, ok := sel.Receiver.(*ast.AtExpr); ok {
+	if at, ok := sel.Receiver.(*ast.AtExpr); ok && at.Name != "" {
 		return stdlibTarget(prog.Info.Stdlib, at.Name, sel.Name)
 	}
 	receiver := prog.Info.ExprTypes[sel.Receiver]
+	if moduleName, ok := checker.ModuleNamespaceName(receiver); ok {
+		return stdlibTarget(prog.Info.Stdlib, moduleName, sel.Name)
+	}
+	if fn := prog.Info.ResolvedSelectorFunctions[sel]; fn != nil {
+		return functionInfoTarget(uri, fn)
+	}
+	if value := prog.Info.ResolvedSelectorValues[sel]; value != nil {
+		return &methodTarget{uri: sourceURI(uri, value.SourcePath), name: value.Name, pos: value.NamePos, external: true}
+	}
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibReceiverTarget(prog.Info.Stdlib, moduleName, receiverName, sel.Name)
 	}
@@ -1999,6 +2464,18 @@ func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
 	for _, test := range file.Tests {
 		ast.WalkExpr(test.Body, visit)
 	}
+}
+
+func walkTemplateExprs(file *ast.File, visit func(ast.Expr)) {
+	walkFileExprs(file, func(expr ast.Expr) {
+		lit, ok := expr.(*ast.TemplateLiteral)
+		if !ok {
+			return
+		}
+		for _, part := range lit.Parts {
+			ast.WalkExpr(part.Expr, visit)
+		}
+	})
 }
 
 func walkDocumentExprs(uri string, file *ast.File, visit func(ast.Expr)) {

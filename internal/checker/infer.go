@@ -7,6 +7,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func (c *checker) inferMethods(typ *ast.StructType) {
@@ -248,7 +249,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 		return Unknown
 	case *ast.AtExpr:
-		return Unknown
+		return c.inferAtExpr(e)
 	case *ast.ThisExpr:
 		typ, ok := env["this"]
 		if !ok {
@@ -261,6 +262,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return typ
 		}
 		receiver := c.inferExpr(e.Receiver, env)
+		if typ, ok := c.inferNamespaceSelector(e, receiver); ok {
+			return typ
+		}
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
 			if receiver != Unknown {
@@ -515,6 +519,107 @@ func (c *checker) inferEnumMemberSelector(sel *ast.SelectorExpr, env map[string]
 	return Type(enum.Name), true
 }
 
+func (c *checker) inferAtExpr(expr *ast.AtExpr) Type {
+	if expr.Path != "" {
+		if expr.SourcePath == "" {
+			c.errorf(expr.Pos, "unresolved import %q", expr.Path)
+			return ImportNamespaceOf(expr.Path)
+		}
+		return ImportNamespaceOf(expr.SourcePath)
+	}
+	if expr.Name == "" {
+		return Unknown
+	}
+	if c.info.Stdlib == nil || c.info.Stdlib.Modules[expr.Name] == nil {
+		c.errorf(expr.Pos, "unknown module @%s", expr.Name)
+		return Unknown
+	}
+	return ModuleNamespaceOf(expr.Name)
+}
+
+func (c *checker) inferNamespaceSelector(sel *ast.SelectorExpr, receiver Type) (Type, bool) {
+	if moduleName, ok := ModuleNamespaceName(receiver); ok {
+		fn, ok := c.info.Stdlib.Function(moduleName, sel.Name)
+		if !ok || fn.Receiver != "" || fn.TopLevelOnly {
+			c.errorf(sel.Pos, "unknown module function @%s.%s", moduleName, sel.Name)
+			return Unknown, true
+		}
+		return c.stdlibFunctionValueType(fn), true
+	}
+	if importPath, ok := ImportNamespacePath(receiver); ok {
+		if fn := c.functionInSource(importPath, sel.Name); fn != nil {
+			if !c.checkPrivateAccess("function", sel.Name, fn.Private, fn.SourcePath, sel.NamePos) {
+				return Unknown, true
+			}
+			if fn.Node != nil {
+				c.inferFunction(fn.Node)
+			}
+			c.info.ResolvedSelectorFunctions[sel] = fn
+			return functionType(fn), true
+		}
+		if value := c.externalValueInSource(importPath, sel.Name); value != nil {
+			c.info.ResolvedSelectorValues[sel] = value
+			return value.Type, true
+		}
+		c.errorf(sel.Pos, "import %q has no member %q", importPath, sel.Name)
+		return Unknown, true
+	}
+	return Unknown, false
+}
+
+func (c *checker) stdlibFunctionValueType(fn *stdlib.Function) Type {
+	bindings := c.stdlibTypeBindings(fn)
+	params := make([]Type, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		params = append(params, c.resolveDeclaredType(param, bindings))
+	}
+	ret := c.resolveDeclaredType(fn.Return, bindings)
+	if fn.Routine {
+		return AsyncFuncOfTypes(params, ret)
+	}
+	return FuncOfTypes(params, ret)
+}
+
+func (c *checker) inferImportedNamespaceCall(importPath string, sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) Type {
+	fn := c.functionInSource(importPath, sel.Name)
+	if fn == nil {
+		if c.externalValueInSource(importPath, sel.Name) != nil {
+			c.errorf(sel.Pos, "import member %q is not callable", sel.Name)
+			return Unknown
+		}
+		c.errorf(sel.Pos, "import %q has no function %q", importPath, sel.Name)
+		return Unknown
+	}
+	if !c.checkPrivateAccess("function", sel.Name, fn.Private, fn.SourcePath, sel.NamePos) {
+		return Unknown
+	}
+	if fn.Node != nil {
+		c.inferFunction(fn.Node)
+	}
+	c.refineCallArgsFromParams(fn.Params, call.Args, argTypes, env)
+	c.info.ResolvedSelectorFunctions[sel] = fn
+	c.info.ExprTypes[sel] = functionType(fn)
+	c.checkArgs(sel.Name, fn.Params, call.Args, argTypes, sel.Pos)
+	return c.finishRoutineCall(call, fn.Routine, fn.Return)
+}
+
+func (c *checker) functionInSource(sourcePath string, name string) *FuncInfo {
+	for _, fn := range c.info.functionsByName[name] {
+		if sameSourcePath(fn.SourcePath, sourcePath) {
+			return fn
+		}
+	}
+	return nil
+}
+
+func (c *checker) externalValueInSource(sourcePath string, name string) *ExternalValueInfo {
+	value := c.info.valuesByName[name]
+	if value == nil || !sameSourcePath(value.SourcePath, sourcePath) {
+		return nil
+	}
+	return value
+}
+
 func validateRegexFlags(flags string) string {
 	seen := map[rune]bool{}
 	for _, flag := range flags {
@@ -544,14 +649,17 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		argTypes = append(argTypes, c.inferExpr(arg, env))
 	}
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
-		if at, ok := sel.Receiver.(*ast.AtExpr); ok {
-			if fn, ok := c.info.Stdlib.Function(at.Name, sel.Name); ok {
-				return c.inferStdlibCall(at.Name, sel, call, argTypes, fn, env)
+		receiver := c.inferExpr(sel.Receiver, env)
+		if moduleName, ok := ModuleNamespaceName(receiver); ok {
+			if fn, ok := c.info.Stdlib.Function(moduleName, sel.Name); ok {
+				return c.inferStdlibCall(moduleName, sel, call, argTypes, fn, env)
 			}
-			c.errorf(sel.Pos, "unknown module function @%s.%s", at.Name, sel.Name)
+			c.errorf(sel.Pos, "unknown module function @%s.%s", moduleName, sel.Name)
 			return Unknown
 		}
-		receiver := c.inferExpr(sel.Receiver, env)
+		if importPath, ok := ImportNamespacePath(receiver); ok {
+			return c.inferImportedNamespaceCall(importPath, sel, call, argTypes, env)
+		}
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
 		}

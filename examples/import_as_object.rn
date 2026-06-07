@@ -1,10 +1,9 @@
-
 main() => {
-    // normal println
-    @io.println("Hello, world!")
-    // import @io as io
-    io := @io
-    // import @"./import_helper.rn" as helper
-    helper := @"./import_helper.rn"
-    io.println(helper.greeting("Alice"))
+  // normal println
+  @io.println("Hello, world!")
+  // import @io as io
+  io := @io
+  // import @"./import_helper.rn" as helper
+  helper := @"./import_helper.rn"
+  io.println(helper.greeting("Alice"))
 }

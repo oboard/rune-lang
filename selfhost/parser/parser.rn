@@ -1418,6 +1418,22 @@ parseAtExpression(
   state: ParserState
 ) -> ExprStep => {
   at := parserConsume(state, TokenKind.At, "expected '@'")
+  parserCheck(at.state, TokenKind.String) ? parseAtImportExpression(at) : parseAtModuleExpression(at)
+}
+
+parseAtImportExpression(
+  at: TokenStep
+) -> ExprStep => {
+  path := parserAdvance(at.state)
+  ExprStep {
+    state: path.state
+    expr: valueNode(ExprKind.At, path.token.lexeme, at.token)
+  }
+}
+
+parseAtModuleExpression(
+  at: TokenStep
+) -> ExprStep => {
   name := parserConsume(at.state, TokenKind.Ident, "expected module name after '@'")
   ExprStep {
     state: name.state

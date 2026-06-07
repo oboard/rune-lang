@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -312,7 +313,15 @@ func (p *Parser) parsePrimary() ast.Expr {
 		return &ast.Identifier{Name: tok.Lexeme, Pos: tok.Pos}
 	case lexer.At:
 		at := p.advance()
-		name := p.consume(lexer.Ident, "expected module name after '@'")
+		if p.check(lexer.String) {
+			path := p.advance()
+			value, err := strconv.Unquote(path.Lexeme)
+			if err != nil {
+				p.errorAt(path, "invalid import path string")
+			}
+			return &ast.AtExpr{Path: value, Pos: at.Pos}
+		}
+		name := p.consume(lexer.Ident, "expected module name or import path after '@'")
 		return &ast.AtExpr{Name: name.Lexeme, Pos: at.Pos}
 	case lexer.Dot:
 		dot := p.advance()
@@ -390,17 +399,18 @@ func (p *Parser) parseTemplateLiteral(tok lexer.Token) ast.Expr {
 				p.errorAt(tok, "unterminated template expression")
 				return lit
 			}
-			exprSrc := strings.TrimSpace(string(inner[exprStart:exprEnd]))
+			exprSrc, leading := trimTemplateExprSource(string(inner[exprStart:exprEnd]))
+			exprPos := templateInnerPosition(tok.Pos, inner, exprStart+leading)
 			if exprSrc == "" {
 				p.errorAt(tok, "empty template expression")
 				lit.Parts = append(lit.Parts, ast.TemplatePart{
-					Expr: &ast.Identifier{Name: "<error>", Pos: tok.Pos},
-					Pos:  tok.Pos,
+					Expr: &ast.Identifier{Name: "<error>", Pos: exprPos},
+					Pos:  exprPos,
 				})
 			} else {
 				lit.Parts = append(lit.Parts, ast.TemplatePart{
-					Expr: p.parseTemplateExpr(tok, exprSrc),
-					Pos:  tok.Pos,
+					Expr: p.parseTemplateExpr(tok, exprSrc, exprPos),
+					Pos:  exprPos,
 				})
 			}
 			i = exprEnd + 1
@@ -448,8 +458,55 @@ func scanTemplateExprEnd(input []rune, start int) (int, bool) {
 	return 0, false
 }
 
-func (p *Parser) parseTemplateExpr(tok lexer.Token, src string) ast.Expr {
-	nested := New(lexer.Lex(src))
+func trimTemplateExprSource(src string) (string, int) {
+	left := strings.TrimLeftFunc(src, unicode.IsSpace)
+	leading := len([]rune(src)) - len([]rune(left))
+	return strings.TrimRightFunc(left, unicode.IsSpace), leading
+}
+
+func templateInnerPosition(start lexer.Position, inner []rune, innerOffset int) lexer.Position {
+	pos := advanceTemplatePosition(start, '`')
+	for i := 0; i < innerOffset && i < len(inner); i++ {
+		pos = advanceTemplatePosition(pos, inner[i])
+	}
+	return pos
+}
+
+func advanceTemplatePosition(pos lexer.Position, ch rune) lexer.Position {
+	pos.Offset++
+	if ch == '\n' {
+		pos.Line++
+		pos.Column = 1
+		return pos
+	}
+	pos.Column++
+	return pos
+}
+
+func rebaseTemplateTokens(tokens []lexer.Token, base lexer.Position) []lexer.Token {
+	for i := range tokens {
+		tokens[i].Pos = rebaseTemplatePosition(tokens[i].Pos, base)
+	}
+	return tokens
+}
+
+func rebaseTemplatePosition(pos lexer.Position, base lexer.Position) lexer.Position {
+	if pos.Line <= 0 {
+		return pos
+	}
+	out := lexer.Position{
+		Offset: base.Offset + pos.Offset,
+		Line:   base.Line + pos.Line - 1,
+		Column: pos.Column,
+	}
+	if pos.Line == 1 {
+		out.Column = base.Column + pos.Column - 1
+	}
+	return out
+}
+
+func (p *Parser) parseTemplateExpr(tok lexer.Token, src string, base lexer.Position) ast.Expr {
+	nested := New(rebaseTemplateTokens(lexer.Lex(src), base))
 	expr := nested.parseExpression(1)
 	nested.skipNewlines()
 	if !nested.check(lexer.EOF) {

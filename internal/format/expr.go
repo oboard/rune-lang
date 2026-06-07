@@ -16,6 +16,9 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.Identifier:
 		return e.Name
 	case *ast.AtExpr:
+		if e.Path != "" {
+			return "@" + strconv.Quote(e.Path)
+		}
 		return "@" + e.Name
 	case *ast.IntegerLiteral:
 		return strconv.Itoa(e.Value)

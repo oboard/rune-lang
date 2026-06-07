@@ -870,6 +870,14 @@ func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, erro
 		return nil, err
 	}
 	switch value := receiver.(type) {
+	case *ir.AtExpr:
+		if value.Name != "" {
+			return nil, fmt.Errorf("cannot select %q from module @%s", expr.Name, value.Name)
+		}
+		if fn := i.functions[selectorResolvedName(expr)]; fn != nil {
+			return fn, nil
+		}
+		return nil, fmt.Errorf("import has no member %q", expr.Name)
 	case *Struct:
 		field, ok := value.Fields[expr.Name]
 		if !ok {

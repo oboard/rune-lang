@@ -128,14 +128,17 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	annotateSourcePath(file, normalized)
 	var diags []Diagnostic
 	merged := &ast.File{}
-	for _, imp := range file.Imports {
-		importPath, err := ResolveRuneImport(normalized, imp.Path)
+	for _, imp := range fileImportRefs(file) {
+		importPath, err := ResolveRuneImport(normalized, imp.path)
 		if err != nil {
-			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.Pos, Path: normalized})
+			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.pos, Path: normalized})
 			continue
 		}
+		if imp.expr != nil {
+			imp.expr.SourcePath = importPath
+		}
 		if filepath.Ext(importPath) == ".ts" {
-			tsImport, importedDiags := l.loadTypeScript(importPath, imp.Path, imp.Pos)
+			tsImport, importedDiags := l.loadTypeScript(importPath, imp.path, imp.pos)
 			diags = append(diags, importedDiags...)
 			if tsImport != nil {
 				merged.TSImports = append(merged.TSImports, *tsImport)
@@ -150,6 +153,47 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	mergeFile(merged, file, true)
 	l.files[normalized] = true
 	return merged, parseErrs, diags
+}
+
+type importRef struct {
+	path string
+	pos  lexer.Position
+	expr *ast.AtExpr
+}
+
+func fileImportRefs(file *ast.File) []importRef {
+	if file == nil {
+		return nil
+	}
+	refs := make([]importRef, 0, len(file.Imports))
+	for _, imp := range file.Imports {
+		refs = append(refs, importRef{path: imp.Path, pos: imp.Pos})
+	}
+	for _, expr := range importExpressionRefs(file) {
+		refs = append(refs, importRef{path: expr.Path, pos: expr.Pos, expr: expr})
+	}
+	return refs
+}
+
+func importExpressionRefs(file *ast.File) []*ast.AtExpr {
+	var refs []*ast.AtExpr
+	visit := func(expr ast.Expr) {
+		if at, ok := expr.(*ast.AtExpr); ok && at.Path != "" {
+			refs = append(refs, at)
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			ast.WalkExpr(method.Body, visit)
+		}
+	}
+	for _, fn := range file.Functions {
+		ast.WalkExpr(fn.Body, visit)
+	}
+	for _, test := range file.Tests {
+		ast.WalkExpr(test.Body, visit)
+	}
+	return refs
 }
 
 func (l *importLoader) loadTypeScript(path string, specifier string, pos lexer.Position) (*ast.TSImport, []Diagnostic) {

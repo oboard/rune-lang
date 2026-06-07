@@ -196,7 +196,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		}
 		return &Identifier{ExprBase: l.base(e), Name: name}
 	case *ast.AtExpr:
-		return &AtExpr{ExprBase: l.base(e), Name: e.Name}
+		return &AtExpr{ExprBase: l.base(e), Name: e.Name, Path: e.Path, SourcePath: e.SourcePath}
 	case *ast.ThisExpr:
 		return &ThisExpr{ExprBase: l.base(e)}
 	case *ast.IntegerLiteral:
@@ -250,7 +250,15 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.LambdaExpr:
 		return &LambdaExpr{ExprBase: l.base(e), Params: append([]string(nil), e.Params...), Body: l.expr(e.Body)}
 	case *ast.SelectorExpr:
-		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name}
+		resolved := ""
+		if l.info != nil {
+			if fn := l.info.ResolvedSelectorFunctions[e]; fn != nil && fn.LinkName != "" {
+				resolved = fn.LinkName
+			} else if value := l.info.ResolvedSelectorValues[e]; value != nil && value.LinkName != "" {
+				resolved = value.LinkName
+			}
+		}
+		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name, ResolvedName: resolved}
 	case *ast.IndexExpr:
 		return &IndexExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Index: l.expr(e.Index)}
 	case *ast.ArrayLiteral:

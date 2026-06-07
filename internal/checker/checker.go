@@ -127,19 +127,21 @@ type EnumInfo struct {
 }
 
 type Info struct {
-	Functions         map[string]*FuncInfo
-	FunctionDecls     map[*ast.Function]*FuncInfo
-	ExternalFunctions []*FuncInfo
-	ExternalValues    []*ExternalValueInfo
-	ResolvedFunctions map[*ast.Identifier]*FuncInfo
-	ResolvedValues    map[*ast.Identifier]*ExternalValueInfo
-	Types             map[string]*StructInfo
-	Enums             map[string]*EnumInfo
-	Constructors      map[string][]EnumConstructorInfo
-	Stdlib            *stdlib.Registry
-	ExprTypes         map[ast.Expr]Type
-	AsyncCalls        map[*ast.CallExpr]bool
-	AwaitCalls        map[*ast.CallExpr]bool
+	Functions                 map[string]*FuncInfo
+	FunctionDecls             map[*ast.Function]*FuncInfo
+	ExternalFunctions         []*FuncInfo
+	ExternalValues            []*ExternalValueInfo
+	ResolvedFunctions         map[*ast.Identifier]*FuncInfo
+	ResolvedValues            map[*ast.Identifier]*ExternalValueInfo
+	ResolvedSelectorFunctions map[*ast.SelectorExpr]*FuncInfo
+	ResolvedSelectorValues    map[*ast.SelectorExpr]*ExternalValueInfo
+	Types                     map[string]*StructInfo
+	Enums                     map[string]*EnumInfo
+	Constructors              map[string][]EnumConstructorInfo
+	Stdlib                    *stdlib.Registry
+	ExprTypes                 map[ast.Expr]Type
+	AsyncCalls                map[*ast.CallExpr]bool
+	AwaitCalls                map[*ast.CallExpr]bool
 
 	functionsByName map[string][]*FuncInfo
 	valuesByName    map[string]*ExternalValueInfo

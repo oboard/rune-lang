@@ -63,7 +63,7 @@ func (u *Usage) collectExpr(file *ir.File, expr ir.Expr) {
 		case *ir.TemplateLiteral:
 			u.Template = true
 		case *ir.SelectorExpr:
-			if at, ok := e.Receiver.(*ir.AtExpr); ok && at.Name == "go" {
+			if moduleName, ok := selectorModuleName(e); ok && moduleName == "go" {
 				u.GoFFI = true
 			}
 		case *ir.WatchExpr, *ir.ReactiveLiteral:
@@ -86,8 +86,8 @@ func (u *Usage) collectCallIntrinsic(file *ir.File, call *ir.CallExpr) {
 	if !ok {
 		return
 	}
-	if at, ok := sel.Receiver.(*ir.AtExpr); ok {
-		if fn, ok := file.Stdlib.Function(at.Name, sel.Name); ok {
+	if moduleName, ok := selectorModuleName(sel); ok {
+		if fn, ok := file.Stdlib.Function(moduleName, sel.Name); ok {
 			u.addIntrinsic(fn.Intrinsic)
 		}
 		return
@@ -99,6 +99,13 @@ func (u *Usage) collectCallIntrinsic(file *ir.File, call *ir.CallExpr) {
 	if fn, ok := file.Stdlib.ReceiverFunction(moduleName, receiverName, sel.Name); ok {
 		u.addIntrinsic(fn.Intrinsic)
 	}
+}
+
+func selectorModuleName(sel *ir.SelectorExpr) (string, bool) {
+	if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name != "" {
+		return at.Name, true
+	}
+	return checker.ModuleNamespaceName(sel.Receiver.ResultType())
 }
 
 func (u *Usage) addType(typ checker.Type) {
