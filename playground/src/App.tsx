@@ -69,8 +69,14 @@ type BridgeResponse = {
   lsp?: unknown;
   tests?: RuneTestResult[];
   typescript?: string;
+  entries?: RuntimeEntries;
   formatted?: string;
   elapsedMs?: number;
+};
+
+type RuntimeEntries = {
+  main?: string;
+  render?: string;
 };
 
 type RuneTestResult = {
@@ -599,7 +605,7 @@ function App() {
             text: entryMode === "render" ? "Rendering preview." : "Running generated JavaScript.",
           },
         ]);
-        await executeTypeScript(result.typescript, iframeRef.current, entryMode, (entry) => {
+        await executeTypeScript(result.typescript, result.entries, iframeRef.current, entryMode, (entry) => {
           setConsoleEntries((entries) => [...entries, entry]);
         });
         if (entryMode === "render") {
@@ -996,6 +1002,7 @@ async function ensureEsbuild() {
 
 async function executeTypeScript(
   typescript: string,
+  entries: RuntimeEntries | undefined,
   frame: HTMLIFrameElement | null,
   entryMode: RuntimeEntryMode,
   appendConsoleEntry: (entry: ConsoleEntry) => void,
@@ -1005,7 +1012,7 @@ async function executeTypeScript(
   }
   await ensureEsbuild();
   const previewMountId = "rune-preview-root";
-  const transformed = await esbuild.transform(`${typescript}\n\n${runtimeFooter(previewMountId, entryMode)}`, {
+  const transformed = await esbuild.transform(`${typescript}\n\n${runtimeFooter(previewMountId, entryMode, entries)}`, {
     format: "esm",
     loader: "ts",
     sourcemap: "inline",
@@ -1036,13 +1043,16 @@ async function executeTypeScript(
   frame.srcdoc = runtimeDocument(transformed.code, token, previewMountId);
 }
 
-function runtimeFooter(previewMountId: string, entryMode: RuntimeEntryMode) {
+function runtimeFooter(previewMountId: string, entryMode: RuntimeEntryMode, entries?: RuntimeEntries) {
+  const mainRef = runtimeEntryReference(entries?.main);
+  const renderRef = runtimeEntryReference(entries?.render);
   return `
 async function __runeRunMain() {
-  if (typeof __main !== "function") {
+  const __runeMain = ${mainRef};
+  if (typeof __runeMain !== "function") {
     return false;
   }
-  const __runeMainResult = __main();
+  const __runeMainResult = __runeMain();
   if (__runeMainResult && typeof __runeMainResult.then === "function") {
     await __runeMainResult;
   }
@@ -1050,10 +1060,11 @@ async function __runeRunMain() {
 }
 
 async function __runeRunRender(__runePreview) {
-  if (typeof __render !== "function" || !__runePreview) {
+  const __runeRender = ${renderRef};
+  if (typeof __runeRender !== "function" || !__runePreview) {
     return false;
   }
-  const __runeRenderResult = __render();
+  const __runeRenderResult = __runeRender();
   const __runeRendered =
     __runeRenderResult && typeof __runeRenderResult.then === "function"
       ? await __runeRenderResult
@@ -1089,6 +1100,10 @@ try {
   console.error(error);
 }
 `;
+}
+
+function runtimeEntryReference(name?: string) {
+  return typeof name === "string" && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) ? name : "undefined";
 }
 
 function runtimeDocument(code: string, token: string, previewMountId: string) {

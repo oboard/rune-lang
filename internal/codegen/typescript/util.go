@@ -371,6 +371,10 @@ func mangleIdent(name string) string {
 	return b.String()
 }
 
+func FunctionSymbolName(fn *ir.Function) string {
+	return mangleIdent(fn.Name)
+}
+
 func isSafeMangledIdentRune(ch rune) bool {
 	return ch == '_' || ch == '$' ||
 		('a' <= ch && ch <= 'z') ||

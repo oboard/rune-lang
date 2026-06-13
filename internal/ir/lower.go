@@ -133,6 +133,7 @@ func paramsFromInfo(infos []checker.ParamInfo, params []ast.Param) []Param {
 func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 	out := &Function{
 		Name:         fn.Name,
+		SourceName:   fn.Name,
 		Private:      fn.Private,
 		Routine:      fn.Routine,
 		Generics:     append([]string(nil), fn.Generics...),

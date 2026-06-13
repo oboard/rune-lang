@@ -57,7 +57,8 @@ func (e *xmlEmitter) lineExpr(prefix string, expr string, suffix string) {
 
 func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 	name := e.g.nextTemp("__el")
-	if factory := e.g.webComponentFactory(elem.Tag); factory != "" {
+	if component := e.g.lookupWebComponentFunction(elem.Tag); component != nil {
+		factory := e.webComponentFactory(component, elem)
 		e.linef("const %s = document.createElement(runeDefineWebComponent(%s, %s));", name, strconv.Quote(elem.Tag), factory)
 	} else {
 		e.linef("const %s = document.createElement(%s);", name, strconv.Quote(elem.Tag))
@@ -69,6 +70,28 @@ func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 		e.child(name, child)
 	}
 	return name
+}
+
+func (e *xmlEmitter) webComponentFactory(fn *ir.Function, elem *ir.XMLElement) string {
+	name := mangleIdent(fn.Name)
+	if len(fn.Params) == 0 {
+		return name
+	}
+	attrByName := map[string]ir.XMLAttr{}
+	for _, attr := range elem.Attrs {
+		if !attr.Event {
+			attrByName[attr.Name] = attr
+		}
+	}
+	args := make([]string, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		if attr, ok := attrByName[param.Name]; ok && attr.Value != nil {
+			args = append(args, e.g.expr(attr.Value))
+			continue
+		}
+		args = append(args, e.g.zeroValue(param.Type))
+	}
+	return fmt.Sprintf("() => %s(%s)", name, strings.Join(args, ", "))
 }
 
 func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
@@ -94,16 +117,16 @@ func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
 	}
 }
 
-func (g *generator) webComponentFactory(tag string) string {
+func (g *generator) lookupWebComponentFunction(tag string) *ir.Function {
 	if g.file == nil {
-		return ""
+		return nil
 	}
 	for _, fn := range g.file.Functions {
-		if fn.Name == tag && fn.Return == checker.WebComponent && len(fn.Params) == 0 {
-			return mangleIdent(fn.Name)
+		if (fn.SourceName == tag || fn.Name == tag) && fn.Return == checker.WebComponent {
+			return fn
 		}
 	}
-	return ""
+	return nil
 }
 
 func (e *xmlEmitter) child(parent string, child ir.XMLChild) {

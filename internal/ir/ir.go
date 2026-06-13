@@ -84,6 +84,7 @@ type EnumMember struct {
 
 type Function struct {
 	Name         string
+	SourceName   string
 	Private      bool
 	Routine      bool
 	Generics     []string

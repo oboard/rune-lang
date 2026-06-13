@@ -10,9 +10,11 @@ import (
 	"syscall/js"
 	"time"
 
+	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
 	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/interpreter"
+	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/stdlib"
@@ -24,14 +26,20 @@ type bridge struct {
 }
 
 type response struct {
-	OK          bool         `json:"ok"`
-	Error       string       `json:"error,omitempty"`
-	Diagnostics []diagnostic `json:"diagnostics,omitempty"`
-	TypeScript  string       `json:"typescript,omitempty"`
-	Formatted   string       `json:"formatted,omitempty"`
-	Tests       []testResult `json:"tests,omitempty"`
-	LSP         any          `json:"lsp,omitempty"`
-	ElapsedMS   float64      `json:"elapsedMs,omitempty"`
+	OK          bool           `json:"ok"`
+	Error       string         `json:"error,omitempty"`
+	Diagnostics []diagnostic   `json:"diagnostics,omitempty"`
+	TypeScript  string         `json:"typescript,omitempty"`
+	Formatted   string         `json:"formatted,omitempty"`
+	Tests       []testResult   `json:"tests,omitempty"`
+	LSP         any            `json:"lsp,omitempty"`
+	Entries     runtimeEntries `json:"entries,omitempty"`
+	ElapsedMS   float64        `json:"elapsedMs,omitempty"`
+}
+
+type runtimeEntries struct {
+	Main   string `json:"main,omitempty"`
+	Render string `json:"render,omitempty"`
 }
 
 type diagnostic struct {
@@ -106,18 +114,42 @@ func (b *bridge) compile(_ js.Value, args []js.Value) any {
 			return response{OK: false, Error: "runeCompile expects source text"}
 		}
 		src := args[0].String()
-		ts, diags := compiler.GenerateTypeScriptSource("playground.rn", src, b.registry)
+		prog, diags := compiler.AnalyzeSourceWithStdlib("playground.rn", src, b.registry)
 		out := response{
 			OK:          len(diags) == 0,
 			Diagnostics: convertDiagnostics(diags),
-			TypeScript:  ts,
 			ElapsedMS:   float64(time.Since(start).Microseconds()) / 1000,
 		}
 		if len(diags) > 0 {
 			out.Error = "compile failed"
+			return out
 		}
+		ts, err := tscodegen.GenerateIR(prog.IR)
+		if err != nil {
+			out.OK = false
+			out.Error = err.Error()
+			return out
+		}
+		out.TypeScript = ts
+		out.Entries = runtimeEntrySymbols(prog.IR)
 		return out
 	})
+}
+
+func runtimeEntrySymbols(file *ir.File) runtimeEntries {
+	var entries runtimeEntries
+	if file == nil {
+		return entries
+	}
+	for _, fn := range file.Functions {
+		switch fn.SourceName {
+		case "main":
+			entries.Main = tscodegen.FunctionSymbolName(fn)
+		case "render":
+			entries.Render = tscodegen.FunctionSymbolName(fn)
+		}
+	}
+	return entries
 }
 
 func (b *bridge) format(_ js.Value, args []js.Value) any {

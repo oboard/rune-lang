@@ -76,6 +76,60 @@ func TestGenerateWebComponentFromXMLLiteral(t *testing.T) {
 	}
 }
 
+func TestGenerateWebComponentTagPassesAttributeParams(t *testing.T) {
+	src := `+ HelloWorld(text: String) -> WebComponent => {
+  <div>{text}</div>
+}
+
++ render() -> HTMLElement => {
+  <div>
+    <HelloWorld text="hello" />
+  </div>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function __HelloWorld(__text: string): CustomElementConstructor`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", () => __HelloWorld("hello")))`,
+		`.setAttribute("text", String("hello"));`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `document.createElement("HelloWorld")`) {
+		t.Fatalf("generated TypeScript created an unregistered component tag:\n%s", got)
+	}
+}
+
+func TestGeneratePrivateWebComponentTagUsesSourceName(t *testing.T) {
+	src := `HelloWorld() -> WebComponent => {
+  <div>hello world</div>
+}
+
+render() -> HTMLElement => {
+  <div>
+    <HelloWorld />
+  </div>
+}
+`
+	got := generateForTestWithSourcePath(t, "playground.rn", src)
+	wantParts := []string{
+		`function ____rune_private_`,
+		`(): CustomElementConstructor`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", ____rune_private_`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `runeDefineWebComponent("HelloWorld", __HelloWorld)`) {
+		t.Fatalf("generated TypeScript used public component symbol for private component:\n%s", got)
+	}
+}
+
 func TestGeneratePatternPredicateRange(t *testing.T) {
 	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
 `
@@ -636,6 +690,26 @@ func generateForTest(t *testing.T, src string) string {
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
 		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	return got
+}
+
+func generateForTestWithSourcePath(t *testing.T, path string, src string) string {
+	t.Helper()
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	for _, fn := range file.Functions {
+		fn.SourcePath = path
 	}
 	info, diags := checker.Check(file)
 	if len(diags) > 0 {
