@@ -133,6 +133,21 @@ func (r *Registry) Function(moduleName string, functionName string) (*Function, 
 		return nil, false
 	}
 	fn := mod.byName[functionName]
+	if fn == nil {
+		fn = mod.byMacro[functionName]
+	}
+	return fn, fn != nil
+}
+
+func (r *Registry) MacroFunction(moduleName string, functionName string) (*Function, bool) {
+	if r == nil {
+		return nil, false
+	}
+	mod := r.Modules[moduleName]
+	if mod == nil {
+		return nil, false
+	}
+	fn := mod.byMacro[functionName]
 	return fn, fn != nil
 }
 

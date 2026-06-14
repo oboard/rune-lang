@@ -91,6 +91,17 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	}
 	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		if p.looksLikeMacroFunctionDecl() {
+			p.advance()
+			method := p.parseFunctionWithReceiver(typ.Name, true)
+			if method != nil {
+				method.Macro = true
+				typ.Methods = append(typ.Methods, method)
+			}
+			p.consumeStatementEnd()
+			p.skipNewlines()
+			continue
+		}
 		annotations := p.parseAnnotations()
 		private := p.parseObjectPrivateModifier()
 		if p.looksLikeFunctionDecl() {
@@ -107,10 +118,11 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		p.consume(lexer.Colon, "expected ':' after field name")
 		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
-			Name:    fieldName.Lexeme,
-			Private: private,
-			Type:    fieldType,
-			Pos:     fieldName.Pos,
+			Name:        fieldName.Lexeme,
+			Private:     private,
+			Annotations: annotations,
+			Type:        fieldType,
+			Pos:         fieldName.Pos,
 		})
 		p.consumeStatementEnd()
 		p.match(lexer.Comma)
@@ -128,6 +140,7 @@ func (p *Parser) parseStructType() *ast.StructType {
 func (p *Parser) looksLikeEnumMember() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
+	p.skipAnnotationTokens()
 	p.match(lexer.Plus)
 	p.skipNewlines()
 	if !p.match(lexer.Ident) {
@@ -175,9 +188,10 @@ func (p *Parser) looksLikeEnumValueMember() bool {
 func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string) *ast.EnumType {
 	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		annotations := p.parseAnnotations()
 		memberPrivate := !p.parsePublicModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
-		member := ast.EnumMember{Name: memberName.Lexeme, Private: memberPrivate, Pos: memberName.Pos}
+		member := ast.EnumMember{Name: memberName.Lexeme, Private: memberPrivate, Annotations: annotations, Pos: memberName.Pos}
 		if p.check(lexer.Newline) || p.check(lexer.Comma) || p.check(lexer.RBrace) || p.check(lexer.EOF) {
 			enum.Members = append(enum.Members, member)
 			p.consumeStatementEnd()
@@ -405,24 +419,51 @@ func (p *Parser) typeParamHasName() bool {
 
 func (p *Parser) parseAnnotations() []ast.Annotation {
 	var annotations []ast.Annotation
-	for p.match(lexer.At) {
-		at := p.previous()
-		name := p.consume(lexer.Ident, "expected annotation name")
-		annotation := ast.Annotation{Name: name.Lexeme, Pos: at.Pos}
+	for p.match(lexer.Hash) {
+		hash := p.previous()
+		first := p.consume(lexer.Ident, "expected annotation name")
+		annotation := ast.Annotation{Name: first.Lexeme, Pos: hash.Pos, NamePos: first.Pos}
+		if p.match(lexer.Dot) {
+			name := p.consume(lexer.Ident, "expected annotation function name after '.'")
+			annotation.Module = first.Lexeme
+			annotation.Name = name.Lexeme
+			annotation.NamePos = name.Pos
+		}
 		if p.match(lexer.LParen) {
-			if p.check(lexer.String) {
-				value := p.advance()
-				unquoted, err := strconv.Unquote(value.Lexeme)
-				if err != nil {
-					p.errorAt(value, "invalid annotation string")
-				} else {
-					annotation.Value = unquoted
+			annotation.HasParens = true
+			p.skipNewlines()
+			if !p.check(lexer.RParen) {
+				for {
+					annotation.Args = append(annotation.Args, p.parseExpression(1))
+					p.skipNewlines()
+					if !p.match(lexer.Comma) {
+						break
+					}
+					p.skipNewlines()
 				}
 			}
+			p.consume(lexer.RParen, "expected ')' after annotation arguments")
+		}
+		annotations = append(annotations, annotation)
+		p.skipNewlines()
+	}
+	return annotations
+}
+
+func (p *Parser) skipAnnotationTokens() {
+	for p.match(lexer.Hash) {
+		if !p.match(lexer.Ident) {
+			return
+		}
+		if p.match(lexer.Dot) {
+			if !p.match(lexer.Ident) {
+				return
+			}
+		}
+		if p.match(lexer.LParen) {
 			depth := 1
 			for !p.check(lexer.EOF) && depth > 0 {
-				tok := p.advance()
-				switch tok.Kind {
+				switch p.advance().Kind {
 				case lexer.LParen:
 					depth++
 				case lexer.RParen:
@@ -430,10 +471,8 @@ func (p *Parser) parseAnnotations() []ast.Annotation {
 				}
 			}
 		}
-		annotations = append(annotations, annotation)
 		p.skipNewlines()
 	}
-	return annotations
 }
 
 func (p *Parser) parseBody() ast.Expr {

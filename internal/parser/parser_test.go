@@ -55,6 +55,73 @@ main() => helper()
 	}
 }
 
+func TestDeclarationAnnotationsPreserveCalls(t *testing.T) {
+	file, errs := Parse(`#cli.command("ship")
+Args: {
+  #cli.flag("v", "show verbose output")
+  verbose: Bool
+}
+
+#derive() => null
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Types) != 1 || len(file.Types[0].Annotations) != 1 {
+		t.Fatalf("type annotations = %#v, want one annotation", file.Types)
+	}
+	command := file.Types[0].Annotations[0]
+	if command.Module != "cli" || command.Name != "command" || len(command.Args) != 1 {
+		t.Fatalf("command annotation = %#v", command)
+	}
+	if len(file.Types[0].Fields) != 1 || len(file.Types[0].Fields[0].Annotations) != 1 {
+		t.Fatalf("field annotations = %#v, want one annotation", file.Types[0].Fields)
+	}
+	flag := file.Types[0].Fields[0].Annotations[0]
+	if flag.Module != "cli" || flag.Name != "flag" || len(flag.Args) != 2 {
+		t.Fatalf("flag annotation = %#v", flag)
+	}
+	if len(file.Functions) != 1 || !file.Functions[0].Macro {
+		t.Fatalf("functions = %#v, want one macro function", file.Functions)
+	}
+	if len(file.Functions[0].Annotations) != 0 {
+		t.Fatalf("macro bootstrap marker leaked into annotations: %#v", file.Functions[0].Annotations)
+	}
+}
+
+func TestMacroDefinitionRequiresParameterList(t *testing.T) {
+	file, errs := Parse(`#derive => null
+`)
+	if len(errs) == 0 {
+		t.Fatal("Parse() accepted a macro definition without parameter parentheses")
+	}
+	if len(file.Functions) != 0 {
+		t.Fatalf("functions = %#v, want no parsed macro definition", file.Functions)
+	}
+}
+
+func TestAnnotatedEnumMembersRemainEnum(t *testing.T) {
+	file, errs := Parse(`#cli.subcommands
+Command: {
+  #cli.command("clone")
+  Clone(options: CloneOptions)
+  #cli.command("status")
+  Status
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Enums) != 1 || len(file.Enums[0].Members) != 2 {
+		t.Fatalf("enums = %#v, want annotated Command enum", file.Enums)
+	}
+	for _, member := range file.Enums[0].Members {
+		if len(member.Annotations) != 1 || member.Annotations[0].Module != "cli" {
+			t.Fatalf("member annotation = %#v", member.Annotations)
+		}
+	}
+}
+
 func TestDeclarationVisibility(t *testing.T) {
 	file, errs := Parse(`Secret: {
   exposed: Int

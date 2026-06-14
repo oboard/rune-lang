@@ -2,6 +2,7 @@ package stdlib
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -167,5 +168,57 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	}
 	if fn.Return != "Void" {
 		t.Fatalf("each return = %s, want Void", fn.Return)
+	}
+}
+
+func TestParseRuneMacroDeclaration(t *testing.T) {
+	mod, err := parseModule("cli", "cli.rn", `#flag(tree: SyntaxFile, context: MacroContext, short: String, help: String) -> SyntaxFile => tree
+`)
+	if err != nil {
+		t.Fatalf("parseModule() error = %v", err)
+	}
+	fn := mod.byMacro["flag"]
+	if fn == nil {
+		t.Fatal("missing flag declaration")
+	}
+	if !fn.Macro || fn.Body == nil || fn.Intrinsic != "" {
+		t.Fatalf("flag = %#v, want pure Rune macro", fn)
+	}
+	if len(fn.ParamNames) != 4 || fn.ParamNames[2] != "short" || fn.ParamNames[3] != "help" {
+		t.Fatalf("parameter names = %v", fn.ParamNames)
+	}
+}
+
+func TestMacroDeclarationRejectsIntrinsicBody(t *testing.T) {
+	_, err := parseModule("cli", "cli.rn", `#flag(tree: SyntaxFile, context: MacroContext, short: String) -> SyntaxFile => "%cli.flag"
+`)
+	if err == nil {
+		t.Fatal("parseModule() accepted intrinsic macro body")
+	}
+}
+
+func TestMacroDeclarationRejectsLegacySignature(t *testing.T) {
+	_, err := parseModule("cli", "cli.rn", `#flag(short: String) -> String => short
+`)
+	if err == nil || !strings.Contains(err.Error(), "must accept SyntaxFile and MacroContext first") {
+		t.Fatalf("parseModule() error = %v, want macro signature error", err)
+	}
+}
+
+func TestMacroAndRuntimeFunctionMayShareName(t *testing.T) {
+	mod, err := parseModule("cli", "cli.rn", `flag(short: String) -> String => short
+
+#flag(tree: SyntaxFile, context: MacroContext, short: String, help: String) -> SyntaxFile => tree
+`)
+	if err != nil {
+		t.Fatalf("parseModule() error = %v", err)
+	}
+	runtimeFn := mod.byName["flag"]
+	macroFn := mod.byMacro["flag"]
+	if runtimeFn == nil || runtimeFn.Macro {
+		t.Fatalf("runtime flag = %#v", runtimeFn)
+	}
+	if macroFn == nil || !macroFn.Macro || len(macroFn.Params) != 4 {
+		t.Fatalf("macro flag = %#v", macroFn)
 	}
 }

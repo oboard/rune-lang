@@ -12,13 +12,20 @@ func (p *stubParser) parseAnnotations() ([]annotation, error) {
 	var annotations []annotation
 	for p.match(lexer.At) {
 		name := p.consume(lexer.Ident, "expected annotation name")
-		p.consume(lexer.LParen, "expected '(' after annotation name")
-		value := p.consume(lexer.String, "expected annotation string")
-		p.consume(lexer.RParen, "expected ')' after annotation")
-		if p.hasErrorToken(name) || p.hasErrorToken(value) {
+		ann := annotation{Name: name.Lexeme}
+		if p.match(lexer.LParen) {
+			ann.HasParens = true
+			value := p.consume(lexer.String, "expected annotation string")
+			p.consume(lexer.RParen, "expected ')' after annotation")
+			ann.Value = unquote(value.Lexeme)
+			if p.hasErrorToken(value) {
+				return nil, p.errorf(p.peek(), "invalid annotation")
+			}
+		}
+		if p.hasErrorToken(name) {
 			return nil, p.errorf(p.peek(), "invalid annotation")
 		}
-		annotations = append(annotations, annotation{Name: name.Lexeme, Value: unquote(value.Lexeme)})
+		annotations = append(annotations, ann)
 		p.skipNewlines()
 	}
 	return annotations, nil
@@ -185,11 +192,20 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 		Body:       body,
 	}
 	for _, ann := range annotations {
-		if ann.Name == "alias" {
+		switch ann.Name {
+		case "alias":
+			if !ann.HasParens {
+				return Function{}, fmt.Errorf("%s.%s @alias requires a string argument", p.moduleName, fn.Name)
+			}
 			fn.Alias = ann.Value
+		default:
+			return Function{}, fmt.Errorf("%s.%s unknown core annotation @%s", p.moduleName, fn.Name, ann.Name)
 		}
 	}
 	if lit, ok := body.(*ast.StringLiteral); ok {
+		if fn.Macro {
+			return Function{}, fmt.Errorf("%s.%s macro body must be written in Rune", p.moduleName, fn.Name)
+		}
 		spec := lit.Value
 		if !strings.HasPrefix(spec, "%") {
 			return Function{}, fmt.Errorf("%s.%s intrinsic must start with %%", p.moduleName, fn.Name)

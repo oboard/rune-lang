@@ -782,6 +782,10 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if fn == nil {
 			return Unknown
 		}
+		if fn.Macro {
+			c.errorf(ident.Pos, "%s is a macro and can only be used with '#'", ident.Name)
+			return Unknown
+		}
 		if fn.Node != nil {
 			c.inferFunction(fn.Node)
 		}

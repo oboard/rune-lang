@@ -7,9 +7,11 @@ import (
 )
 
 func (f *formatter) structType(typ *ast.StructType) {
+	f.annotations(typ.Annotations)
 	f.linef("%s%s%s: {", publicPrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
 	f.indent++
 	for _, field := range typ.Fields {
+		f.annotations(field.Annotations)
 		f.linef("%s%s: %s", privatePrefix(field.Private), field.Name, formatType(field.Type))
 	}
 	if len(typ.Fields) > 0 && len(typ.Methods) > 0 {
@@ -26,9 +28,11 @@ func (f *formatter) structType(typ *ast.StructType) {
 }
 
 func (f *formatter) enumType(enum *ast.EnumType) {
+	f.annotations(enum.Annotations)
 	f.linef("%s%s%s: {", publicPrefix(enum.Private), enum.Name, formatGenerics(enum.Generics))
 	f.indent++
 	for _, member := range enum.Members {
+		f.annotations(member.Annotations)
 		if member.HasValue {
 			f.linef("%s%s = %d", publicPrefix(member.Private), member.Name, member.Value)
 			continue
@@ -40,14 +44,11 @@ func (f *formatter) enumType(enum *ast.EnumType) {
 }
 
 func (f *formatter) function(fn *ast.Function) {
-	for _, ann := range fn.Annotations {
-		if ann.Value == "" {
-			f.linef("@%s", ann.Name)
-		} else {
-			f.linef("@%s(%q)", ann.Name, ann.Value)
-		}
-	}
+	f.annotations(fn.Annotations)
 	signature := f.functionSignature(fn)
+	if fn.Macro && len(signature) > 0 {
+		signature[0] = "#" + signature[0]
+	}
 	switch body := fn.Body.(type) {
 	case *ast.PatternBlock:
 		if predicate, ok := f.patternPredicate(body); ok {
@@ -73,6 +74,24 @@ func (f *formatter) function(fn *ast.Function) {
 			bodyText = "(" + bodyText + ")"
 		}
 		f.lineSignature(signature, " => "+bodyText)
+	}
+}
+
+func (f *formatter) annotations(annotations []ast.Annotation) {
+	for _, annotation := range annotations {
+		name := annotation.Name
+		if annotation.Module != "" {
+			name = annotation.Module + "." + name
+		}
+		if !annotation.HasParens {
+			f.linef("#%s", name)
+			continue
+		}
+		args := make([]string, 0, len(annotation.Args))
+		for _, arg := range annotation.Args {
+			args = append(args, f.expr(arg))
+		}
+		f.linef("#%s(%s)", name, strings.Join(args, ", "))
 	}
 }
 

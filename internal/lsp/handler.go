@@ -91,6 +91,12 @@ func (s *server) handle(req request) error {
 			return err
 		}
 		return s.respond(req.ID, s.codeLenses(params.TextDocument.URI))
+	case "rune/expandedMacro":
+		var params expandedMacroParams
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return s.respond(req.ID, s.expandedMacro(params.TextDocument.URI))
 	case "textDocument/documentSymbol":
 		var params documentSymbolParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

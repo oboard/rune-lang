@@ -153,6 +153,21 @@ func stdlibTarget(reg *stdlib.Registry, moduleName string, functionName string) 
 	}
 }
 
+func stdlibMacroTarget(reg *stdlib.Registry, moduleName string, functionName string) *methodTarget {
+	if reg == nil {
+		return nil
+	}
+	fn, ok := reg.MacroFunction(moduleName, functionName)
+	if !ok || fn.SourcePath == "" {
+		return nil
+	}
+	return &methodTarget{
+		uri:  fileURI(fn.SourcePath),
+		name: fn.Name,
+		pos:  fn.Pos,
+	}
+}
+
 func stdlibReceiverTarget(reg *stdlib.Registry, moduleName string, receiverName string, functionName string) *methodTarget {
 	if reg == nil {
 		return nil

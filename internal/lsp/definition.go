@@ -18,6 +18,9 @@ func (s *server) definition(uri string, pos position) any {
 	if word == "" || prog == nil {
 		return nil
 	}
+	if target := annotationTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
 	if target := s.methodTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
@@ -35,6 +38,20 @@ func (s *server) definition(uri string, pos position) any {
 	}
 	if target := functionTarget(uri, prog, pos); target != nil {
 		return target.location()
+	}
+	return nil
+}
+
+func annotationTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	annotation := annotationAt(prog.File, pos)
+	if annotation == nil {
+		return nil
+	}
+	if fn := prog.Info.ResolvedMacros[annotation]; fn != nil {
+		return stdlibMacroTarget(prog.Info.Stdlib, annotation.Module, fn.Name)
+	}
+	if fn := prog.Info.ResolvedMacroFunctions[annotation]; fn != nil {
+		return functionInfoTarget(uri, fn)
 	}
 	return nil
 }

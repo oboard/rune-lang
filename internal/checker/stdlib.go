@@ -11,6 +11,10 @@ func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call
 		c.errorf(sel.Pos, "unknown module function @%s.%s", moduleName, sel.Name)
 		return Unknown
 	}
+	if fn.Macro {
+		c.errorf(sel.Pos, "@%s.%s is a macro and can only be used with '#'", moduleName, sel.Name)
+		return Unknown
+	}
 	if fn.TopLevelOnly {
 		c.errorf(sel.Pos, "@%s.%s must be a top-level declaration", moduleName, sel.Name)
 		return Void

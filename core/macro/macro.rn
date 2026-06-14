@@ -1,0 +1,97 @@
+renameField(
+  field: SyntaxField,
+  targetID: String,
+  name: String
+) -> SyntaxField => SyntaxField {
+  id: field.id
+  name: (
+    field.id == targetID ? name
+      : field.name
+  )
+  private: field.private
+  annotations: field.annotations
+  type: field.type
+}
+
+renameFunction(
+  function: SyntaxFunction,
+  targetID: String,
+  name: String
+) -> SyntaxFunction => SyntaxFunction {
+  id: function.id
+  name: (
+    function.id == targetID ? name
+      : function.name
+  )
+  private: function.private
+  routine: function.routine
+  generics: function.generics
+  annotations: function.annotations
+  receiverType: function.receiverType
+  params: function.params
+  returnType: function.returnType
+  bodyID: function.bodyID
+  sourcePath: function.sourcePath
+}
+
+renameStruct(
+  structure: SyntaxStruct,
+  targetID: String,
+  name: String
+) -> SyntaxStruct => SyntaxStruct {
+  id: structure.id
+  name: (
+    structure.id == targetID ? name
+      : structure.name
+  )
+  private: structure.private
+  generics: structure.generics
+  annotations: structure.annotations
+  fields: structure.fields.map((field) => @macro.renameField(field, targetID, name))
+  methods: structure.methods.map((method) => @macro.renameFunction(method, targetID, name))
+  sourcePath: structure.sourcePath
+}
+
+renameEnumMember(
+  member: SyntaxEnumMember,
+  targetID: String,
+  name: String
+) -> SyntaxEnumMember => SyntaxEnumMember {
+  id: member.id
+  name: (
+    member.id == targetID ? name
+      : member.name
+  )
+  private: member.private
+  annotations: member.annotations
+  value: member.value
+  hasValue: member.hasValue
+  params: member.params
+}
+
+renameEnum(
+  enumeration: SyntaxEnum,
+  targetID: String,
+  name: String
+) -> SyntaxEnum => SyntaxEnum {
+  id: enumeration.id
+  name: (
+    enumeration.id == targetID ? name
+      : enumeration.name
+  )
+  private: enumeration.private
+  generics: enumeration.generics
+  annotations: enumeration.annotations
+  members: enumeration.members.map((member) => @macro.renameEnumMember(member, targetID, name))
+  sourcePath: enumeration.sourcePath
+}
+
+#renameDeclaration(
+  tree: SyntaxFile,
+  context: MacroContext,
+  name: String
+) -> SyntaxFile => SyntaxFile {
+  types: tree.types.map((structure) => @macro.renameStruct(structure, context.targetID, name))
+  enums: tree.enums.map((enumeration) => @macro.renameEnum(enumeration, context.targetID, name))
+  functions: tree.functions.map((function) => @macro.renameFunction(function, context.targetID, name))
+}

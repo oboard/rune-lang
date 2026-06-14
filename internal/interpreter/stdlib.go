@@ -28,6 +28,9 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 	if err != nil {
 		return nil, err
 	}
+	if i.compileTime && fn.Body == nil {
+		return nil, fmt.Errorf("compile-time macro cannot call @%s.%s", module, name)
+	}
 	if fn.Body != nil {
 		local := NewEnv(i.globals)
 		for idx, param := range fn.ParamNames {

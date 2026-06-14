@@ -7,8 +7,9 @@ import (
 )
 
 type annotation struct {
-	Name  string
-	Value string
+	Name      string
+	Value     string
+	HasParens bool
 }
 
 type stubParser struct {
@@ -30,12 +31,14 @@ func (p *stubParser) parse() (*Module, error) {
 	mod := &Module{
 		Name:       p.moduleName,
 		byName:     map[string]*Function{},
+		byMacro:    map[string]*Function{},
 		byReceiver: map[string]map[string]*Function{},
 		byAlias:    map[string]*Function{},
 	}
 	seen := map[string]bool{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
+		macro := p.match(lexer.Hash)
 		annotations, err := p.parseAnnotations()
 		if err != nil {
 			return nil, err
@@ -65,6 +68,17 @@ func (p *stubParser) parse() (*Module, error) {
 			if err != nil {
 				return nil, err
 			}
+			fn.Macro = macro
+			if fn.Macro && fn.Intrinsic != "" {
+				return nil, fmt.Errorf("%s.%s macro body must be written in Rune", p.moduleName, fn.Name)
+			}
+			if fn.Macro && !hasSyntaxMacroSignature(fn) {
+				return nil, fmt.Errorf(
+					"%s.%s macro must accept SyntaxFile and MacroContext first and return SyntaxFile",
+					p.moduleName,
+					fn.Name,
+				)
+			}
 			if err := addFunction(mod, seen, fn); err != nil {
 				return nil, err
 			}
@@ -73,7 +87,9 @@ func (p *stubParser) parse() (*Module, error) {
 	}
 	for i := range mod.Functions {
 		fn := &mod.Functions[i]
-		if fn.Receiver == "" {
+		if fn.Macro {
+			mod.byMacro[fn.Name] = fn
+		} else if fn.Receiver == "" {
 			mod.byName[fn.Name] = fn
 		} else {
 			if _, exists := mod.byName[fn.Name]; !exists {
@@ -93,8 +109,18 @@ func (p *stubParser) parse() (*Module, error) {
 	return mod, nil
 }
 
+func hasSyntaxMacroSignature(fn Function) bool {
+	return len(fn.Params) >= 2 &&
+		fn.Params[0] == "SyntaxFile" &&
+		fn.Params[1] == "MacroContext" &&
+		fn.Return == "SyntaxFile"
+}
+
 func addFunction(mod *Module, seen map[string]bool, fn Function) error {
 	key := fn.Receiver + "." + fn.Name
+	if fn.Macro {
+		key = "macro:" + key
+	}
 	if seen[key] {
 		return fmt.Errorf("duplicate function %s.%s", mod.Name, key)
 	}

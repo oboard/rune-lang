@@ -13,6 +13,7 @@ import (
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/macro"
 	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
@@ -29,6 +30,7 @@ type Program struct {
 	File   *ast.File
 	Info   *checker.Info
 	IR     *ir.File
+	Macros []macro.Invocation
 }
 
 func AnalyzeFile(path string) (*Program, []Diagnostic) {
@@ -38,7 +40,7 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 	}
 	file, src, parseErrs, loadDiags := loadImportGraph(path, string(data), true)
 	reg, err := stdlib.LoadDefault()
-	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
+	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
@@ -48,7 +50,7 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
 	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
 	reg, err := stdlib.LoadDefault()
-	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
+	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
@@ -57,8 +59,21 @@ func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
 
 func AnalyzeSourceWithStdlib(path string, src string, reg *stdlib.Registry) (*Program, []Diagnostic) {
 	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
-	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
+	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	return analyzedProgram(path, src, file, info, parseErrs, checkDiags, loadDiags)
+}
+
+func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs []parser.Error) (*checker.Info, []checker.Diagnostic) {
+	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
+	if len(parseErrs) > 0 || len(checkDiags) > 0 {
+		return info, checkDiags
+	}
+	changed, macroDiags := macro.Expand(file, info)
+	checkDiags = append(checkDiags, macroDiags...)
+	if len(macroDiags) > 0 || !changed {
+		return info, checkDiags
+	}
+	return checker.CheckWithStdlibForPath(file, reg, path)
 }
 
 func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, parseErrs []parser.Error, checkDiags []checker.Diagnostic, diags []Diagnostic) (*Program, []Diagnostic) {
@@ -68,7 +83,14 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 	for _, diag := range checkDiags {
 		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path})
 	}
-	return &Program{Path: path, Source: src, File: file, Info: info, IR: ir.LowerFile(file, info)}, diags
+	return &Program{
+		Path:   path,
+		Source: src,
+		File:   file,
+		Info:   info,
+		IR:     ir.LowerFile(file, info),
+		Macros: macro.Plan(file, info),
+	}, diags
 }
 
 func loadImportGraph(entryPath string, entrySource string, hasEntrySource bool) (*ast.File, string, []parser.Error, []Diagnostic) {

@@ -31,6 +31,11 @@ func walkFileCalls(file *ast.File, visit func(*ast.CallExpr)) {
 }
 
 func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
+	walkFileAnnotations(file, func(annotation *ast.Annotation) {
+		for _, arg := range annotation.Args {
+			ast.WalkExpr(arg, visit)
+		}
+	})
 	for _, typ := range file.Types {
 		for _, method := range typ.Methods {
 			ast.WalkExpr(method.Body, visit)
@@ -42,6 +47,72 @@ func walkFileExprs(file *ast.File, visit func(ast.Expr)) {
 	for _, test := range file.Tests {
 		ast.WalkExpr(test.Body, visit)
 	}
+}
+
+func walkFileAnnotations(file *ast.File, visit func(*ast.Annotation)) {
+	for _, typ := range file.Types {
+		walkAnnotations(typ.Annotations, visit)
+		for i := range typ.Fields {
+			walkAnnotations(typ.Fields[i].Annotations, visit)
+		}
+		for _, method := range typ.Methods {
+			walkAnnotations(method.Annotations, visit)
+		}
+	}
+	for _, enum := range file.Enums {
+		walkAnnotations(enum.Annotations, visit)
+		for i := range enum.Members {
+			walkAnnotations(enum.Members[i].Annotations, visit)
+		}
+	}
+	for _, fn := range file.Functions {
+		walkAnnotations(fn.Annotations, visit)
+	}
+}
+
+func walkDocumentAnnotations(uri string, file *ast.File, visit func(*ast.Annotation)) {
+	for _, typ := range file.Types {
+		if !sourceMatchesDocument(uri, typ.SourcePath) {
+			continue
+		}
+		walkAnnotations(typ.Annotations, visit)
+		for i := range typ.Fields {
+			walkAnnotations(typ.Fields[i].Annotations, visit)
+		}
+		for _, method := range typ.Methods {
+			walkAnnotations(method.Annotations, visit)
+		}
+	}
+	for _, enum := range file.Enums {
+		if !sourceMatchesDocument(uri, enum.SourcePath) {
+			continue
+		}
+		walkAnnotations(enum.Annotations, visit)
+		for i := range enum.Members {
+			walkAnnotations(enum.Members[i].Annotations, visit)
+		}
+	}
+	for _, fn := range file.Functions {
+		if sourceMatchesDocument(uri, fn.SourcePath) {
+			walkAnnotations(fn.Annotations, visit)
+		}
+	}
+}
+
+func walkAnnotations(annotations []ast.Annotation, visit func(*ast.Annotation)) {
+	for i := range annotations {
+		visit(&annotations[i])
+	}
+}
+
+func annotationAt(file *ast.File, pos position) *ast.Annotation {
+	var found *ast.Annotation
+	walkFileAnnotations(file, func(annotation *ast.Annotation) {
+		if found == nil && containsSymbol(pos, annotation.NamePos, annotation.Name) {
+			found = annotation
+		}
+	})
+	return found
 }
 
 func walkTemplateExprs(file *ast.File, visit func(ast.Expr)) {
@@ -57,6 +128,11 @@ func walkTemplateExprs(file *ast.File, visit func(ast.Expr)) {
 }
 
 func walkDocumentExprs(uri string, file *ast.File, visit func(ast.Expr)) {
+	walkDocumentAnnotations(uri, file, func(annotation *ast.Annotation) {
+		for _, arg := range annotation.Args {
+			ast.WalkExpr(arg, visit)
+		}
+	})
 	for _, typ := range file.Types {
 		if !sourceMatchesDocument(uri, typ.SourcePath) {
 			continue

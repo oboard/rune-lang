@@ -20,6 +20,7 @@ const (
 	XMLText
 
 	At
+	Hash
 	Dollar
 	Dot
 	DotDot
@@ -124,6 +125,8 @@ func (k Kind) String() string {
 		return "XMLText"
 	case At:
 		return "@"
+	case Hash:
+		return "#"
 	case Dollar:
 		return "$"
 	case Dot:

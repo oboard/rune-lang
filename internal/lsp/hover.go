@@ -16,6 +16,9 @@ func (s *server) hover(uri string, pos position) any {
 	if word == "" || prog == nil {
 		return nil
 	}
+	if h := annotationHover(prog, pos); h != nil {
+		return h
+	}
 	if h := s.methodHover(uri, prog, pos); h != nil {
 		return h
 	}
@@ -60,6 +63,20 @@ func (s *server) hover(uri string, pos position) any {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func annotationHover(prog *compiler.Program, pos position) any {
+	annotation := annotationAt(prog.File, pos)
+	if annotation == nil {
+		return nil
+	}
+	if fn := prog.Info.ResolvedMacros[annotation]; fn != nil {
+		return stdlibFunctionHover(annotation.Module, fn, annotation.NamePos)
+	}
+	if fn := prog.Info.ResolvedMacroFunctions[annotation]; fn != nil {
+		return hoverResult(functionValueSignature(prog.Info, fn), annotation.NamePos, annotation.Name)
 	}
 	return nil
 }

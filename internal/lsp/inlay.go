@@ -105,6 +105,49 @@ func (s *server) inlayHints(uri string) any {
 		}
 		hints = append(hints, callArgumentNameHints(prog, call)...)
 	})
+	walkDocumentAnnotations(uri, prog.File, func(annotation *ast.Annotation) {
+		hints = append(hints, annotationArgumentNameHints(prog, annotation)...)
+	})
+	return hints
+}
+
+func annotationArgumentNameHints(prog *compiler.Program, annotation *ast.Annotation) []map[string]any {
+	var params []checker.ParamInfo
+	var tooltip string
+	if fn := prog.Info.ResolvedMacros[annotation]; fn != nil {
+		params = stdlibParamInfos(fn)
+		if len(params) >= 2 {
+			params = params[2:]
+		}
+		tooltip = stdlibSignature(annotation.Module, fn)
+	} else if fn := prog.Info.ResolvedMacroFunctions[annotation]; fn != nil {
+		params = fn.Params
+		if len(params) >= 2 {
+			params = params[2:]
+		}
+		tooltip = functionValueSignature(prog.Info, fn)
+	} else {
+		return nil
+	}
+	hints := make([]map[string]any, 0, min(len(annotation.Args), len(params)))
+	for i, arg := range annotation.Args {
+		if i >= len(params) {
+			break
+		}
+		name := params[i].Name
+		if name == "" || name == "_" {
+			continue
+		}
+		hints = append(hints, map[string]any{
+			"position": position{
+				Line:      max(arg.Position().Line-1, 0),
+				Character: max(arg.Position().Column-1, 0),
+			},
+			"label":   name + "=",
+			"kind":    2,
+			"tooltip": tooltip,
+		})
+	}
 	return hints
 }
 

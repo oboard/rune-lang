@@ -31,6 +31,8 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 			ResolvedValues:            map[*ast.Identifier]*ExternalValueInfo{},
 			ResolvedSelectorFunctions: map[*ast.SelectorExpr]*FuncInfo{},
 			ResolvedSelectorValues:    map[*ast.SelectorExpr]*ExternalValueInfo{},
+			ResolvedMacros:            map[*ast.Annotation]*stdlib.Function{},
+			ResolvedMacroFunctions:    map[*ast.Annotation]*FuncInfo{},
 			Types:                     map[string]*StructInfo{},
 			Enums:                     map[string]*EnumInfo{},
 			Constructors:              map[string][]EnumConstructorInfo{},
@@ -50,6 +52,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	c.collectCoreTypes()
 	c.checkGoImports(file)
 	c.collect(file)
+	c.checkMacros(file)
 	for _, typ := range file.Types {
 		c.inferMethods(typ)
 	}
@@ -59,6 +62,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	for _, test := range file.Tests {
 		c.inferTest(test)
 	}
+	c.checkMacroPurity(file)
 	return c.info, c.diags
 }
 
@@ -73,6 +77,7 @@ type checker struct {
 	currentSourcePath  string
 	routineDepth       int
 	unwrapErrors       []Type
+	stdlibMacroPurity  map[*stdlib.Function]string
 }
 
 func (c *checker) collectCoreTypes() {

@@ -51,6 +51,31 @@ main() => helper()
 	}
 }
 
+func TestMacroFormattingUsesHashSyntax(t *testing.T) {
+	src := `#transform(tree:SyntaxFile,context:MacroContext)->SyntaxFile=>tree
+#transform
+Args:{value:Int}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `#transform
+Args: {
+  value: Int
+}
+
+#transform(
+  tree: SyntaxFile,
+  context: MacroContext
+) -> SyntaxFile => tree
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestObjectDestructureFormatting(t *testing.T) {
 	src := `main()=>{{state:nextState,ch}:=step}`
 	file, errs := parser.Parse(src)

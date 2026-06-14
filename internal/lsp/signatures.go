@@ -129,8 +129,12 @@ func functionSignature(info *checker.Info, fn *ast.Function) string {
 }
 
 func functionValueSignature(info *checker.Info, fn *checker.FuncInfo) string {
-	params := make([]string, 0, len(fn.Params))
-	for _, param := range fn.Params {
+	fnParams := fn.Params
+	if fn.Macro && len(fnParams) >= 2 {
+		fnParams = fnParams[2:]
+	}
+	params := make([]string, 0, len(fnParams))
+	for _, param := range fnParams {
 		typ := param.Type
 		if typ == "" || typ == checker.Unknown {
 			typ = checker.Unknown
@@ -145,7 +149,11 @@ func functionValueSignature(info *checker.Info, fn *checker.FuncInfo) string {
 	if fn.Routine {
 		prefix = "~ "
 	}
-	return fmt.Sprintf("%s: %s%s(%s) -> %s", fn.Name, prefix, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), displayCheckerType(info, ret))
+	name := fn.Name
+	if fn.Macro {
+		name = "#" + name
+	}
+	return fmt.Sprintf("%s: %s%s(%s) -> %s", name, prefix, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), displayCheckerType(info, ret))
 }
 
 func formatSignatureGenerics(names []string) string {
@@ -164,11 +172,18 @@ func stdlibSignature(moduleName string, fn *stdlib.Function) string {
 	if len(fn.Generics) > 0 {
 		generics = "[" + strings.Join(fn.Generics, ", ") + "]"
 	}
-	params := make([]string, 0, len(fn.Params))
-	for i, typ := range fn.Params {
+	paramTypes := fn.Params
+	paramNames := fn.ParamNames
+	if fn.Macro && len(paramTypes) >= 2 {
+		owner = "#" + moduleName
+		paramTypes = paramTypes[2:]
+		paramNames = paramNames[2:]
+	}
+	params := make([]string, 0, len(paramTypes))
+	for i, typ := range paramTypes {
 		name := fmt.Sprintf("arg%d", i+1)
-		if i < len(fn.ParamNames) && fn.ParamNames[i] != "" {
-			name = fn.ParamNames[i]
+		if i < len(paramNames) && paramNames[i] != "" {
+			name = paramNames[i]
 		}
 		params = append(params, fmt.Sprintf("%s: %s", name, displayType(typ)))
 	}

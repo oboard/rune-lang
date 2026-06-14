@@ -49,6 +49,8 @@ func (l *Lexer) nextCode() Token {
 		return l.token(Newline)
 	case '@':
 		return l.token(At)
+	case '#':
+		return l.token(Hash)
 	case '.':
 		if l.match('.') {
 			if l.match('.') {

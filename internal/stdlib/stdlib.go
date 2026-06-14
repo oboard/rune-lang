@@ -16,6 +16,7 @@ type Module struct {
 	Types     []Type
 
 	byName     map[string]*Function
+	byMacro    map[string]*Function
 	byReceiver map[string]map[string]*Function
 	byAlias    map[string]*Function
 }
@@ -44,6 +45,7 @@ type Constructor struct {
 
 type Function struct {
 	Name         string
+	Macro        bool
 	Routine      bool
 	SourcePath   string
 	Pos          lexer.Position

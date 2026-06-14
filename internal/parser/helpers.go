@@ -43,6 +43,12 @@ func (p *Parser) looksLikeFunctionDecl() bool {
 	return p.check(lexer.FatArrow)
 }
 
+func (p *Parser) looksLikeMacroFunctionDecl() bool {
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	return p.match(lexer.Hash) && p.looksLikeFunctionDecl()
+}
+
 func (p *Parser) looksLikeLambda() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()

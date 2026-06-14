@@ -10,13 +10,14 @@ import (
 )
 
 type Interpreter struct {
-	file      *ir.File
-	functions map[string]*ir.Function
-	types     map[string]*ir.StructType
-	enums     map[string]*ir.EnumType
-	globals   *Env
-	in        *bufio.Reader
-	out       io.Writer
+	file        *ir.File
+	functions   map[string]*ir.Function
+	types       map[string]*ir.StructType
+	enums       map[string]*ir.EnumType
+	globals     *Env
+	in          *bufio.Reader
+	out         io.Writer
+	compileTime bool
 }
 
 func New(file *ir.File, opts ...Option) *Interpreter {
@@ -46,6 +47,12 @@ func WithOutput(out io.Writer) Option {
 func WithInput(in io.Reader) Option {
 	return func(i *Interpreter) {
 		i.in = bufio.NewReader(in)
+	}
+}
+
+func WithCompileTime() Option {
+	return func(i *Interpreter) {
+		i.compileTime = true
 	}
 }
 
@@ -81,6 +88,14 @@ func (i *Interpreter) RunTest(test *ir.Test) error {
 
 func (i *Interpreter) Eval(expr ir.Expr) (Value, error) {
 	return i.eval(expr, i.globals)
+}
+
+func (i *Interpreter) EvalWithBindings(expr ir.Expr, bindings map[string]Value) (Value, error) {
+	env := NewEnv(i.globals)
+	for name, value := range bindings {
+		env.Define(name, value)
+	}
+	return i.eval(expr, env)
 }
 
 func (i *Interpreter) Exec(stmt ir.Stmt) (Value, bool, error) {

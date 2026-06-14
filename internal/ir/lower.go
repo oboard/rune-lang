@@ -37,6 +37,9 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 		out.Enums = append(out.Enums, l.enumType(enum))
 	}
 	for _, fn := range file.Functions {
+		if fn.Macro {
+			continue
+		}
 		out.Functions = append(out.Functions, l.function(fn, ""))
 	}
 	for _, test := range file.Tests {

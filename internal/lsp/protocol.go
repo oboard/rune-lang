@@ -54,6 +54,10 @@ type codeLensParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }
 
+type expandedMacroParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type formattingParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 	Options      *formattingOptions     `json:"options,omitempty"`

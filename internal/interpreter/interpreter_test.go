@@ -1,4 +1,4 @@
-package interpreter
+package interpreter_test
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/interpreter"
 )
 
 func TestInterpreterRunsNestedVoidMatch(t *testing.T) {
@@ -31,7 +32,7 @@ main() => {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -59,7 +60,7 @@ func TestInterpreterRunsMapLiteral(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -76,7 +77,7 @@ func TestInterpreterRunsTemplateLiteral(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -98,7 +99,11 @@ func TestInterpreterReadsInputIntrinsics(t *testing.T) {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithInput(strings.NewReader("alpha beta gamma\nrest")), WithOutput(&out))
+	interp := interpreter.New(
+		prog.IR,
+		interpreter.WithInput(strings.NewReader("alpha beta gamma\nrest")),
+		interpreter.WithOutput(&out),
+	)
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -128,7 +133,7 @@ main() => {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -157,7 +162,7 @@ main() => {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}
@@ -204,7 +209,7 @@ main() => {
 	}
 
 	var out bytes.Buffer
-	interp := New(prog.IR, WithOutput(&out))
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
 	if err := interp.RunMain(); err != nil {
 		t.Fatalf("RunMain() error = %v", err)
 	}

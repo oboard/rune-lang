@@ -8,6 +8,7 @@
     { "include": "#chars" },
     { "include": "#regex" },
     { "include": "#numbers" },
+    { "include": "#macros" },
     { "include": "#modules" },
     { "include": "#xml" },
     { "include": "#typeDefinition" },
@@ -18,6 +19,19 @@
     { "include": "#bindings" }
   ],
   "repository": {
+    "macros": {
+      "patterns": [
+        {
+          "name": "meta.macro.rune",
+          "match": "(#)([A-Za-z_][A-Za-z0-9_]*)(?:\\.([A-Za-z_][A-Za-z0-9_]*))?",
+          "captures": {
+            "1": { "name": "punctuation.definition.macro.rune" },
+            "2": { "name": "entity.name.function.macro.rune" },
+            "3": { "name": "entity.name.function.macro.rune" }
+          }
+        }
+      ]
+    },
     "comments": {
       "patterns": [
         {

@@ -53,52 +53,60 @@ type TSValue struct {
 }
 
 type Annotation struct {
-	Name  string
-	Value string
-	Pos   lexer.Position
+	Module    string
+	Name      string
+	Args      []Expr
+	HasParens bool
+	Pos       lexer.Position
+	NamePos   lexer.Position
 }
 
 type StructType struct {
-	Name       string
-	Private    bool
-	Generics   []string
-	Fields     []Field
-	Methods    []*Function
-	Pos        lexer.Position
-	NamePos    lexer.Position
-	SourcePath string
+	Name        string
+	Private     bool
+	Generics    []string
+	Annotations []Annotation
+	Fields      []Field
+	Methods     []*Function
+	Pos         lexer.Position
+	NamePos     lexer.Position
+	SourcePath  string
 }
 
 type Field struct {
-	Name    string
-	Private bool
-	Type    Type
-	Pos     lexer.Position
+	Name        string
+	Private     bool
+	Annotations []Annotation
+	Type        Type
+	Pos         lexer.Position
 }
 
 type EnumType struct {
-	Name       string
-	Private    bool
-	Generics   []string
-	Members    []EnumMember
-	Pos        lexer.Position
-	NamePos    lexer.Position
-	SourcePath string
+	Name        string
+	Private     bool
+	Generics    []string
+	Annotations []Annotation
+	Members     []EnumMember
+	Pos         lexer.Position
+	NamePos     lexer.Position
+	SourcePath  string
 }
 
 type EnumMember struct {
-	Name     string
-	Private  bool
-	Value    int
-	HasValue bool
-	Params   []Param
-	Pos      lexer.Position
+	Name        string
+	Private     bool
+	Annotations []Annotation
+	Value       int
+	HasValue    bool
+	Params      []Param
+	Pos         lexer.Position
 }
 
 type Function struct {
 	Name         string
 	Private      bool
 	Routine      bool
+	Macro        bool
 	Generics     []string
 	Annotations  []Annotation
 	ReceiverType string

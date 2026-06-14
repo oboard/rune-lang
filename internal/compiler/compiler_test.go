@@ -434,6 +434,86 @@ main() => inc(1)
 	t.Fatalf("AnalyzeFile() diagnostics = %#v, want missing extension diagnostic", diags)
 }
 
+func TestAnalyzeSourceExpandsRuneMacroBeforeLowering(t *testing.T) {
+	prog, diags := AnalyzeSource("macro_expand.rn", `#macro.renameDeclaration("FinalArgs")
+Args: {
+  verbose: Bool
+}
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	if len(prog.File.Types) != 1 || prog.File.Types[0].Name != "FinalArgs" {
+		t.Fatalf("expanded AST types = %#v", prog.File.Types)
+	}
+	if len(prog.IR.Types) != 1 || prog.IR.Types[0].Name != "FinalArgs" {
+		t.Fatalf("expanded IR types = %#v", prog.IR.Types)
+	}
+	if len(prog.Macros) != 1 || prog.Macros[0].Annotation.Name != "renameDeclaration" {
+		t.Fatalf("macro plan = %#v", prog.Macros)
+	}
+}
+
+func TestAnalyzeSourceReportsCompileTimeSideEffects(t *testing.T) {
+	_, diags := AnalyzeSource("macro_io.rn", `#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
+  @io.println("side effect")
+  tree
+}
+
+#bad
+Args: {
+  verbose: Bool
+}
+	`)
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, "not pure") && strings.Contains(diag.Message, "@io.println") {
+			return
+		}
+	}
+	t.Fatalf("AnalyzeSource() diagnostics = %#v, want compile-time side-effect error", diags)
+}
+
+func TestAnalyzeSourceLowersReturnedSyntaxTree(t *testing.T) {
+	prog, diags := AnalyzeSource("syntax_macro.rn", `#renameFirst(
+  tree: SyntaxFile,
+  context: MacroContext,
+  name: String
+) -> SyntaxFile => {
+  current := tree.types[0]
+  selectedName := context.targetID == current.id ? name : current.name
+  renamed := SyntaxStruct {
+    id: current.id
+    name: selectedName
+    private: current.private
+    generics: current.generics
+    annotations: current.annotations
+    fields: current.fields
+    methods: current.methods
+    sourcePath: current.sourcePath
+  }
+  SyntaxFile {
+    types: [renamed]
+    enums: tree.enums
+    functions: tree.functions
+  }
+}
+
+#renameFirst("Generated")
+Original: {
+  value: Int
+}
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	if len(prog.File.Types) != 1 || prog.File.Types[0].Name != "Generated" {
+		t.Fatalf("expanded AST types = %#v", prog.File.Types)
+	}
+	if len(prog.IR.Types) != 1 || prog.IR.Types[0].Name != "Generated" {
+		t.Fatalf("expanded IR types = %#v", prog.IR.Types)
+	}
+}
+
 func writeRuneFile(t *testing.T, path string, src string) {
 	t.Helper()
 	writeTextFile(t, path, src)

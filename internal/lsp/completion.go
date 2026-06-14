@@ -18,10 +18,57 @@ func (s *server) completion(uri string, pos position) any {
 	if prog == nil {
 		return []map[string]any{}
 	}
+	if moduleName, ok := annotationCompletionModule(s.docs[uri], pos); ok {
+		return stdlibMacroCompletion(prog.Info, moduleName)
+	}
+	if looksLikeAnnotationCompletion(s.docs[uri], pos) {
+		return macroCompletion(prog)
+	}
 	if items, ok := s.memberCompletion(uri, prog, pos); ok {
 		return items
 	}
 	return globalCompletion(prog)
+}
+
+func looksLikeAnnotationCompletion(text string, pos position) bool {
+	offset, ok := offsetFromPosition(text, pos)
+	if !ok {
+		return false
+	}
+	lineStart := strings.LastIndexByte(text[:offset], '\n') + 1
+	prefix := strings.TrimSpace(text[lineStart:offset])
+	if !strings.HasPrefix(prefix, "#") || strings.Contains(prefix, ".") {
+		return false
+	}
+	for i := 1; i < len(prefix); i++ {
+		if !isIdentByte(prefix[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func annotationCompletionModule(text string, pos position) (string, bool) {
+	offset, ok := offsetFromPosition(text, pos)
+	if !ok {
+		return "", false
+	}
+	lineStart := strings.LastIndexByte(text[:offset], '\n') + 1
+	prefix := strings.TrimSpace(text[lineStart:offset])
+	if !strings.HasPrefix(prefix, "#") {
+		return "", false
+	}
+	dot := strings.IndexByte(prefix, '.')
+	if dot <= 1 {
+		return "", false
+	}
+	moduleName := prefix[1:dot]
+	for i := range moduleName {
+		if !isIdentByte(moduleName[i]) {
+			return "", false
+		}
+	}
+	return moduleName, true
 }
 
 func globalCompletion(prog *compiler.Program) []map[string]any {
@@ -39,6 +86,9 @@ func globalCompletion(prog *compiler.Program) []map[string]any {
 		}
 	}
 	for _, fn := range prog.File.Functions {
+		if fn.Macro {
+			continue
+		}
 		items = append(items, map[string]any{
 			"label":  fn.Name,
 			"kind":   3,
@@ -236,7 +286,7 @@ func stdlibModuleCompletion(info *checker.Info, moduleName string) []map[string]
 	items := make([]map[string]any, 0)
 	for i := range module.Functions {
 		fn := &module.Functions[i]
-		if fn.Receiver != "" || fn.TopLevelOnly {
+		if fn.Macro || fn.Receiver != "" || fn.TopLevelOnly {
 			continue
 		}
 		items = append(items, map[string]any{
@@ -244,6 +294,61 @@ func stdlibModuleCompletion(info *checker.Info, moduleName string) []map[string]
 			"kind":   3,
 			"detail": stdlibSignature(moduleName, fn),
 		})
+	}
+	return items
+}
+
+func stdlibMacroCompletion(info *checker.Info, moduleName string) []map[string]any {
+	if info == nil || info.Stdlib == nil {
+		return nil
+	}
+	module := info.Stdlib.Modules[moduleName]
+	if module == nil {
+		return nil
+	}
+	items := make([]map[string]any, 0)
+	for i := range module.Functions {
+		fn := &module.Functions[i]
+		if !fn.Macro || fn.Receiver != "" {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   3,
+			"detail": stdlibSignature(moduleName, fn),
+		})
+	}
+	return items
+}
+
+func macroCompletion(prog *compiler.Program) []map[string]any {
+	items := make([]map[string]any, 0)
+	for _, fn := range prog.File.Functions {
+		if !fn.Macro {
+			continue
+		}
+		items = append(items, map[string]any{
+			"label":  fn.Name,
+			"kind":   3,
+			"detail": functionSignature(prog.Info, fn),
+		})
+	}
+	if prog.Info.Stdlib == nil {
+		return items
+	}
+	for _, moduleName := range prog.Info.Stdlib.ModuleNames() {
+		module := prog.Info.Stdlib.Modules[moduleName]
+		for i := range module.Functions {
+			fn := &module.Functions[i]
+			if !fn.Macro || fn.Receiver != "" {
+				continue
+			}
+			items = append(items, map[string]any{
+				"label":  moduleName + "." + fn.Name,
+				"kind":   3,
+				"detail": stdlibSignature(moduleName, fn),
+			})
+		}
 	}
 	return items
 }

@@ -17,6 +17,7 @@
     "onCommand:rune.runFile",
     "onCommand:rune.runTest",
     "onCommand:rune.debugFile",
+    "onCommand:rune.showMacroExpansion",
     "onCommand:rune.restartLanguageServer",
     "onCommand:rune.showLanguageServerOutput"
   ],
@@ -64,6 +65,10 @@
       {
         "command": "rune.debugFile",
         "title": "Rune: Debug File"
+      },
+      {
+        "command": "rune.showMacroExpansion",
+        "title": "Rune: Show Macro Expansion"
       },
       {
         "command": "rune.restartLanguageServer",

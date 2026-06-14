@@ -72,6 +72,7 @@ type FuncInfo struct {
 	LinkName       string
 	Private        bool
 	External       bool
+	Macro          bool
 	SourcePath     string
 	Routine        bool
 	Generics       []string
@@ -136,6 +137,8 @@ type Info struct {
 	ResolvedValues            map[*ast.Identifier]*ExternalValueInfo
 	ResolvedSelectorFunctions map[*ast.SelectorExpr]*FuncInfo
 	ResolvedSelectorValues    map[*ast.SelectorExpr]*ExternalValueInfo
+	ResolvedMacros            map[*ast.Annotation]*stdlib.Function
+	ResolvedMacroFunctions    map[*ast.Annotation]*FuncInfo
 	Types                     map[string]*StructInfo
 	Enums                     map[string]*EnumInfo
 	Constructors              map[string][]EnumConstructorInfo

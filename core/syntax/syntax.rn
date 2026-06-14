@@ -1,0 +1,95 @@
+SyntaxFile: {
+  types: Array[SyntaxStruct]
+  enums: Array[SyntaxEnum]
+  functions: Array[SyntaxFunction]
+}
+
+MacroContext: {
+  targetID: String
+  sourcePath: String
+}
+
+SyntaxAnnotation: {
+  id: String
+  module: String
+  name: String
+  hasParens: Bool
+}
+
+SyntaxType: {
+  kind: Int
+  name: String
+  module: String
+  nullable: Bool
+  args: Array[SyntaxType]
+  params: Array[SyntaxTypeParam]
+  returnType: SyntaxType?
+  element: SyntaxType?
+  raw: String
+  displayText: String
+}
+
+SyntaxTypeParam: {
+  name: String
+  optional: Bool
+  type: SyntaxType
+}
+
+SyntaxParam: {
+  id: String
+  name: String
+  type: SyntaxType
+}
+
+SyntaxField: {
+  id: String
+  name: String
+  private: Bool
+  annotations: Array[SyntaxAnnotation]
+  type: SyntaxType
+}
+
+SyntaxStruct: {
+  id: String
+  name: String
+  private: Bool
+  generics: Array[String]
+  annotations: Array[SyntaxAnnotation]
+  fields: Array[SyntaxField]
+  methods: Array[SyntaxFunction]
+  sourcePath: String
+}
+
+SyntaxEnumMember: {
+  id: String
+  name: String
+  private: Bool
+  annotations: Array[SyntaxAnnotation]
+  value: Int
+  hasValue: Bool
+  params: Array[SyntaxParam]
+}
+
+SyntaxEnum: {
+  id: String
+  name: String
+  private: Bool
+  generics: Array[String]
+  annotations: Array[SyntaxAnnotation]
+  members: Array[SyntaxEnumMember]
+  sourcePath: String
+}
+
+SyntaxFunction: {
+  id: String
+  name: String
+  private: Bool
+  routine: Bool
+  generics: Array[String]
+  annotations: Array[SyntaxAnnotation]
+  receiverType: String
+  params: Array[SyntaxParam]
+  returnType: SyntaxType
+  bodyID: String
+  sourcePath: String
+}

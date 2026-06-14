@@ -11,6 +11,7 @@ let outputChannel;
 let testOutputChannel;
 let runTerminal;
 let testController;
+let macroExpansionProvider;
 const testItemData = new Map();
 const revealOutputChannelOnError = 3;
 const maxProcessOutputBytes = 4 * 1024 * 1024;
@@ -33,10 +34,17 @@ function activate(context) {
     true
   );
   const testFileWatcher = vscode.workspace.createFileSystemWatcher("**/*.rn");
+  macroExpansionProvider = new MacroExpansionContentProvider();
   context.subscriptions.push(outputChannel);
   context.subscriptions.push(testOutputChannel);
   context.subscriptions.push(testController);
   context.subscriptions.push(testFileWatcher);
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(
+      "rune-macro-expansion",
+      macroExpansionProvider
+    )
+  );
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(
       { scheme: "file", language: "rune" },
@@ -53,6 +61,7 @@ function activate(context) {
     vscode.commands.registerCommand("rune.runFile", runFile),
     vscode.commands.registerCommand("rune.runTest", runTest),
     vscode.commands.registerCommand("rune.debugFile", debugFile),
+    vscode.commands.registerCommand("rune.showMacroExpansion", showMacroExpansion),
     vscode.commands.registerCommand("rune.restartLanguageServer", async () => {
       await stopClient();
       await startClient().catch(reportClientStartError);
@@ -110,6 +119,63 @@ class RuneCodeLensProvider {
     }
     return lenses;
   }
+}
+
+class MacroExpansionContentProvider {
+  constructor() {
+    this.documents = new Map();
+    this.emitter = new vscode.EventEmitter();
+    this.onDidChange = this.emitter.event;
+  }
+
+  set(uri, source) {
+    this.documents.set(uri.toString(), source);
+    this.emitter.fire(uri);
+  }
+
+  provideTextDocumentContent(uri) {
+    return this.documents.get(uri.toString()) || "";
+  }
+}
+
+async function showMacroExpansion(input) {
+  const sourceUri = resolveDocumentUri(input?.uri || input);
+  if (!sourceUri || sourceUri.scheme !== "file") {
+    vscode.window.showWarningMessage("Open a Rune file first.");
+    return;
+  }
+  try {
+    await startClient();
+    const result = await client.sendRequest("rune/expandedMacro", {
+      textDocument: { uri: sourceUri.toString() }
+    });
+    if (!result || result.error) {
+      vscode.window.showErrorMessage(result?.error || "Macro expansion is unavailable.");
+      return;
+    }
+    const virtualUri = macroExpansionUri(sourceUri);
+    macroExpansionProvider.set(virtualUri, result.source || "");
+    let document = await vscode.workspace.openTextDocument(virtualUri);
+    if (document.languageId !== "rune") {
+      document = await vscode.languages.setTextDocumentLanguage(document, "rune");
+    }
+    await vscode.window.showTextDocument(document, {
+      viewColumn: vscode.ViewColumn.Beside,
+      preserveFocus: false,
+      preview: true
+    });
+  } catch (error) {
+    vscode.window.showErrorMessage(`Failed to expand Rune macros: ${error?.message || error}`);
+  }
+}
+
+function macroExpansionUri(sourceUri) {
+  const name = `${path.basename(sourceUri.fsPath, path.extname(sourceUri.fsPath))}.expanded.rn`;
+  return vscode.Uri.from({
+    scheme: "rune-macro-expansion",
+    path: `/${name}`,
+    query: sourceUri.toString()
+  });
 }
 
 async function runFile(uri) {
@@ -517,6 +583,9 @@ class RuneDebugAdapter {
 
 async function startClient() {
   if (client) {
+    if (clientStartPromise) {
+      await clientStartPromise;
+    }
     return;
   }
   const runeRoot = resolveRuneRoot();

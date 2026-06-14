@@ -8,7 +8,37 @@ module.exports = grammar({
   ],
 
   rules: {
-    source_file: ($) => repeat(choice($.type_definition, $.function_definition)),
+    source_file: ($) => repeat(choice(
+      $.macro_definition,
+      $.macro_attributed_declaration,
+      $.type_definition,
+      $.function_definition
+    )),
+
+    macro_definition: ($) => seq(
+      "#",
+      field("name", $.identifier),
+      field("parameters", $.parameter_list),
+      optional(field("return_type", $.return_type)),
+      "=>",
+      field("body", choice($.expression, $.block))
+    ),
+
+    macro_attributed_declaration: ($) => seq(
+      repeat1($.macro_invocation),
+      choice($.type_definition, $.function_definition)
+    ),
+
+    macro_invocation: ($) => seq(
+      "#",
+      optional(seq(field("module", $.identifier), ".")),
+      field("name", $.identifier),
+      optional(seq(
+        "(",
+        optional(seq($.expression, repeat(seq(",", $.expression)), optional(","))),
+        ")"
+      ))
+    ),
 
     public_visibility: () => "+",
     private_visibility: () => "-",
