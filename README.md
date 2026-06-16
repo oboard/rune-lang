@@ -466,5 +466,5 @@ Rune currently prioritizes:
 * closed record types without row polymorphism
 
 Rune intentionally does not yet implement LLVM, a custom VM, GC, JIT, package
-manager, package imports, traits, or classes. Those can come after the language
-core and LSP are stable.
+manager, package imports, nominal interfaces, or classes. Rune traits use
+structural matching and do not require explicit `impl` declarations.

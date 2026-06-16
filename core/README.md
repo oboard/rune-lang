@@ -14,6 +14,7 @@ Current modules:
 * `fs` - async filesystem helpers returning `Result`
 * `map` - map construction and receiver APIs
 * `net` - async TCP connection/listener declarations
+* `number` - arithmetic traits `&Add`, `&Sub`, `&Mul`, `&Div`, and `&Number`
 * `path` - path manipulation helpers
 * `process` - argv/cwd/env/platform helpers
 * `reader` - sequential binary readers
@@ -22,7 +23,7 @@ Current modules:
 * `iter` - tuple-returning iterator helpers
 * `writer` - sequential binary writers
 * `io` - print helpers and stdin scanning declarations
-* `json` - JSON serialization helpers
+* `json` - JSON serialization and `&FromJson` deserialization helpers
 * `go` - inline Go FFI declarations
 
 Each module directory contains a `<module>.rn` stub file. A stub is still Rune

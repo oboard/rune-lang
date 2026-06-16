@@ -1,1 +1,119 @@
+&FromJson: {
+  static fromJson(text: String) -> Self
+}
+
+syntaxGenericType(
+  name: String,
+  args: Array[SyntaxType]
+) -> SyntaxType => SyntaxType {
+  kind: 1
+  name: name
+  module: ""
+  nullable: false
+  args: args
+  params: []
+  returnType: null
+  element: null
+  raw: ""
+  displayText: ""
+}
+
+syntaxType(name: String) -> SyntaxType => @json.syntaxGenericType(name, [])
+
+syntaxExpr(
+  kind: String,
+  name: String,
+  args: Array[SyntaxExpr]
+) -> SyntaxExpr => SyntaxExpr {
+  kind: kind
+  name: name
+  stringValue: ""
+  boolValue: false
+  args: args
+  fields: []
+  statements: []
+}
+
+identifierExpr(name: String) -> SyntaxExpr =>
+  @json.syntaxExpr("identifier", name, [])
+
+moduleExpr(name: String) -> SyntaxExpr =>
+  @json.syntaxExpr("module", name, [])
+
+selectorExpr(receiver: SyntaxExpr, name: String) -> SyntaxExpr =>
+  @json.syntaxExpr("selector", name, [receiver])
+
+callExpr(callee: SyntaxExpr, args: Array[SyntaxExpr]) -> SyntaxExpr =>
+  @json.syntaxExpr("call", "", [callee, ...args])
+
+fromJsonMethod(structure: SyntaxStruct) -> SyntaxFunction => SyntaxFunction {
+  id: ""
+  name: "fromJson"
+  private: false
+  static: true
+  routine: false
+  generics: []
+  annotations: []
+  receiverType: structure.name
+  params: [
+    SyntaxParam {
+      id: ""
+      name: "text"
+      type: @json.syntaxType("String")
+    }
+  ]
+  returnType: @json.syntaxGenericType(
+    structure.name,
+    structure.generics.map((name) => @json.syntaxType(name))
+  )
+  bodyID: ""
+  generatedBody: @json.callExpr(
+    @json.selectorExpr(@json.moduleExpr("json"), "parse"),
+    [@json.identifierExpr("text")]
+  )
+  sourcePath: structure.sourcePath
+}
+
+hasFromJson(structure: SyntaxStruct) -> Bool => structure.methods.foldl(
+  false,
+  (found, method) => found || (method.name == "fromJson")
+)
+
+#object(
+  tree: SyntaxFile,
+  context: MacroContext
+) -> SyntaxFile => SyntaxFile {
+  types: tree.types.map((structure) => SyntaxStruct {
+    id: structure.id
+    name: structure.name
+    private: structure.private
+    generics: structure.generics
+    annotations: structure.annotations
+    fields: structure.fields
+    methods: (
+      (structure.id == context.targetID) && !@json.hasFromJson(structure) ? [
+        ...structure.methods,
+        @json.fromJsonMethod(structure)
+      ]
+        : structure.methods
+    )
+    sourcePath: structure.sourcePath
+  })
+  enums: tree.enums
+  functions: tree.functions
+}
+
+#name(
+  tree: SyntaxFile,
+  context: MacroContext,
+  value: String
+) -> SyntaxFile => tree
+
+#ignore(
+  tree: SyntaxFile,
+  context: MacroContext
+) -> SyntaxFile => tree
+
 stringify(object: Object) -> String => "%json.stringify"
+
+parse(text: String) -> Dynamic => "%json.parse"

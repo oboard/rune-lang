@@ -3,10 +3,22 @@ JsonUser: {
   age: Int
 }
 
+#json.object
+JsonAccount: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+
 main() => {
   user := JsonUser {
     name: "Ada"
     age: 36
+  }
+  account := JsonAccount {
+    name: "Ada"
+    password: "secret"
   }
   value := {
     name: "Rune",
@@ -17,5 +29,11 @@ main() => {
   }
 
   @io.println(@json.stringify(user))
+  @io.println(@json.stringify(account))
   @io.println(@json.stringify(value))
+
+  parsed := JsonAccount::fromJson(
+    "{\"display_name\":\"Grace\",\"password\":\"ignored\"}"
+  )
+  @io.println(parsed.name)
 }

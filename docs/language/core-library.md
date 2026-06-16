@@ -406,9 +406,19 @@ JsonUser: {
   age: Int
 }
 
+#json.object
+JsonAccount: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+
 main() => {
   user := JsonUser { name: "Ada", age: 36 }
+  account := JsonAccount { name: "Ada", password: "secret" }
   @io.println(@json.stringify(user))
+  @io.println(@json.stringify(account))
   @io.println(@json.stringify({
     name: "Rune"
     user: user
@@ -419,7 +429,24 @@ main() => {
 ```
 
 `@json.stringify` serializes object-like values and arrays. Function-valued
-object fields are omitted.
+object fields are omitted. A struct marked with `#json.object` can use
+`#json.name("field_name")` to rename a serialized field and `#json.ignore` to
+omit one.
+
+`#json.object` also generates `static fromJson(text: String) -> Self`, which
+structurally implements the standard `&FromJson` trait:
+
+```rune
+account := @json.parse(
+  "{\"display_name\":\"Ada\",\"password\":\"ignored\"}"
+) : JsonAccount
+same := JsonAccount::fromJson("{\"display_name\":\"Grace\"}")
+```
+
+The binding annotation supplies the concrete return type. Fields marked with
+`#json.ignore` keep their zero values during parsing. A type without
+`#json.object` must provide a compatible static `fromJson(String) -> Self`
+method before it can be used as the target of `@json.parse`.
 
 ## symbol
 

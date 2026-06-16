@@ -398,9 +398,19 @@ JsonUser: {
   age: Int
 }
 
+#json.object
+JsonAccount: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+
 main() => {
   user := JsonUser { name: "Ada", age: 36 }
+  account := JsonAccount { name: "Ada", password: "secret" }
   @io.println(@json.stringify(user))
+  @io.println(@json.stringify(account))
   @io.println(@json.stringify({
     name: "Rune"
     user: user
@@ -411,6 +421,22 @@ main() => {
 ```
 
 `@json.stringify` 会序列化 object-like 值和数组。函数值对象字段会被忽略。
+使用 `#json.object` 标记的结构体可以通过 `#json.name("field_name")`
+重命名序列化字段，并通过 `#json.ignore` 忽略字段。
+
+`#json.object` 还会生成 `static fromJson(text: String) -> Self`，从而以结构化方式
+实现标准 `&FromJson` trait：
+
+```rune
+account := @json.parse(
+  "{\"display_name\":\"Ada\",\"password\":\"忽略\"}"
+) : JsonAccount
+same := JsonAccount::fromJson("{\"display_name\":\"Grace\"}")
+```
+
+绑定后的类型标注用于确定具体返回类型。解析时，标记了 `#json.ignore` 的字段
+保持类型零值。没有使用 `#json.object` 的类型，必须自行提供兼容的静态
+`fromJson(String) -> Self` 方法，才能作为 `@json.parse` 的目标类型。
 
 ## symbol
 
