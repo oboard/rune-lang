@@ -57,7 +57,7 @@ func (g *generator) function(fn *ir.Function) error {
 	}
 	prefix := "function"
 	ret := tsType(fn.Return)
-	g.linef("%s %s(%s): %s {", prefix, mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	g.linef("%s %s%s(%s): %s {", prefix, mangleIdent(fn.Name), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
@@ -92,7 +92,10 @@ func (g *generator) routineFunction(fn *ir.Function, params []string) error {
 }
 
 func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
-	params := []string{fmt.Sprintf("%s: %s", mangleIdent("this"), mangleIdent(typ.Name))}
+	params := []string{}
+	if !fn.Static {
+		params = append(params, fmt.Sprintf("%s: %s", mangleIdent("this"), mangleIdent(typ.Name)))
+	}
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
@@ -104,15 +107,19 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	}
 	prefix := "function"
 	ret := tsType(fn.Return)
-	g.linef("%s %s(%s): %s {", prefix, mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
+	g.linef("%s %s%s(%s): %s {", prefix, mangleMethod(typ.Name, fn.Name), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
-	g.thisNames = append(g.thisNames, mangleIdent("this"))
+	if !fn.Static {
+		g.thisNames = append(g.thisNames, mangleIdent("this"))
+	}
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
 		return err
 	}
-	g.thisNames = g.thisNames[:len(g.thisNames)-1]
+	if !fn.Static {
+		g.thisNames = g.thisNames[:len(g.thisNames)-1]
+	}
 	g.popReactiveScope()
 	g.popSignalScope()
 	g.indent--

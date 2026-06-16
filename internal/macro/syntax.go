@@ -13,6 +13,7 @@ type syntaxRefs struct {
 	annotations map[string]ast.Annotation
 	bodies      map[string]ast.Expr
 	positions   map[string]lexer.Position
+	generated   int
 }
 
 func newSyntaxRefs() *syntaxRefs {
@@ -137,6 +138,7 @@ func syntaxFunctionValue(fn *ast.Function, refs *syntaxRefs) interpreter.Value {
 		"id", id,
 		"name", fn.Name,
 		"private", fn.Private,
+		"static", fn.Static,
 		"routine", fn.Routine,
 		"generics", stringArray(fn.Generics),
 		"annotations", syntaxAnnotationsValue(fn.Annotations, fn.SourcePath, refs),
@@ -144,6 +146,7 @@ func syntaxFunctionValue(fn *ast.Function, refs *syntaxRefs) interpreter.Value {
 		"params", params,
 		"returnType", syntaxTypeValue(fn.ReturnType),
 		"bodyID", bodyID,
+		"generatedBody", interpreter.NullValue,
 		"sourcePath", fn.SourcePath,
 	)
 }
@@ -170,6 +173,37 @@ func syntaxAnnotationsValue(annotations []ast.Annotation, sourcePath string, ref
 			"module", annotation.Module,
 			"name", annotation.Name,
 			"hasParens", annotation.HasParens,
+			"args", syntaxAnnotationArgsValue(annotation.Args),
+		))
+	}
+	return out
+}
+
+func syntaxAnnotationArgsValue(args []ast.Expr) interpreter.Value {
+	out := &interpreter.Array{}
+	for _, arg := range args {
+		kind := "unsupported"
+		text := ""
+		number := 0
+		flag := false
+		switch value := arg.(type) {
+		case *ast.StringLiteral:
+			kind = "string"
+			text = value.Value
+		case *ast.IntegerLiteral:
+			kind = "int"
+			number = value.Value
+		case *ast.BoolLiteral:
+			kind = "bool"
+			flag = value.Value
+		case *ast.NullLiteral:
+			kind = "null"
+		}
+		out.Elements = append(out.Elements, structValue("SyntaxValue",
+			"kind", kind,
+			"stringValue", text,
+			"intValue", number,
+			"boolValue", flag,
 		))
 	}
 	return out
@@ -219,6 +253,7 @@ func decodeSyntaxFile(value interpreter.Value, original *ast.File, refs *syntaxR
 		Imports:   append([]ast.Import(nil), original.Imports...),
 		GoImports: append([]ast.GoImport(nil), original.GoImports...),
 		TSImports: append([]ast.TSImport(nil), original.TSImports...),
+		Traits:    append([]*ast.TraitDecl(nil), original.Traits...),
 		Tests:     append([]*ast.Test(nil), original.Tests...),
 	}
 	for _, fn := range original.Functions {
@@ -445,6 +480,10 @@ func decodeSyntaxFunction(value interpreter.Value, refs *syntaxRefs, seen map[st
 	if err != nil {
 		return nil, err
 	}
+	static, err := boolField(node, "static")
+	if err != nil {
+		return nil, err
+	}
 	routine, err := boolField(node, "routine")
 	if err != nil {
 		return nil, err
@@ -469,16 +508,25 @@ func decodeSyntaxFunction(value interpreter.Value, refs *syntaxRefs, seen map[st
 	if err != nil {
 		return nil, err
 	}
-	body, ok := refs.bodies[bodyID]
-	if !ok {
-		return nil, fmt.Errorf("SyntaxFunction.bodyID %q does not reference an existing function body", bodyID)
+	var body ast.Expr
+	if generated := node.Fields["generatedBody"]; !isNull(generated) {
+		body, err = decodeSyntaxExpr(generated)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var ok bool
+		body, ok = refs.bodies[bodyID]
+		if !ok {
+			return nil, fmt.Errorf("SyntaxFunction.bodyID %q does not reference an existing function body", bodyID)
+		}
 	}
 	sourcePath, err := stringField(node, "sourcePath")
 	if err != nil {
 		return nil, err
 	}
 	out := &ast.Function{
-		Name: name, Private: private, Routine: routine, Generics: generics,
+		Name: name, Private: private, Static: static, Routine: routine, Generics: generics,
 		Annotations: annotations, ReceiverType: receiverType, ReturnType: returnType,
 		Body: body, Pos: pos, NamePos: pos, SourcePath: sourcePath,
 	}
@@ -494,6 +542,137 @@ func decodeSyntaxFunction(value interpreter.Value, refs *syntaxRefs, seen map[st
 		out.Params = append(out.Params, param)
 	}
 	return out, nil
+}
+
+func decodeSyntaxExpr(value interpreter.Value) (ast.Expr, error) {
+	node, err := expectStruct(value, "SyntaxExpr")
+	if err != nil {
+		return nil, err
+	}
+	kind, err := stringField(node, "kind")
+	if err != nil {
+		return nil, err
+	}
+	name, err := stringField(node, "name")
+	if err != nil {
+		return nil, err
+	}
+	text, err := stringField(node, "stringValue")
+	if err != nil {
+		return nil, err
+	}
+	flag, err := boolField(node, "boolValue")
+	if err != nil {
+		return nil, err
+	}
+	args, err := structArrayField(node, "args")
+	if err != nil {
+		return nil, err
+	}
+	switch kind {
+	case "identifier":
+		return &ast.Identifier{Name: name}, nil
+	case "module":
+		return &ast.AtExpr{Name: name}, nil
+	case "string":
+		return &ast.StringLiteral{Value: text}, nil
+	case "bool":
+		return &ast.BoolLiteral{Value: flag}, nil
+	case "null":
+		return &ast.NullLiteral{}, nil
+	case "selector":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("selector SyntaxExpr expects one receiver")
+		}
+		receiver, err := decodeSyntaxExpr(args[0])
+		if err != nil {
+			return nil, err
+		}
+		return &ast.SelectorExpr{Receiver: receiver, Name: name}, nil
+	case "staticSelector":
+		if len(args) != 1 {
+			return nil, fmt.Errorf("static selector SyntaxExpr expects one receiver")
+		}
+		receiver, err := decodeSyntaxExpr(args[0])
+		if err != nil {
+			return nil, err
+		}
+		return &ast.SelectorExpr{Receiver: receiver, Name: name, Static: true}, nil
+	case "call":
+		if len(args) == 0 {
+			return nil, fmt.Errorf("call SyntaxExpr expects a callee")
+		}
+		callee, err := decodeSyntaxExpr(args[0])
+		if err != nil {
+			return nil, err
+		}
+		call := &ast.CallExpr{Callee: callee}
+		for _, value := range args[1:] {
+			arg, err := decodeSyntaxExpr(value)
+			if err != nil {
+				return nil, err
+			}
+			call.Args = append(call.Args, arg)
+		}
+		return call, nil
+	case "struct":
+		lit := &ast.StructLiteral{TypeName: name}
+		fields, err := structArrayField(node, "fields")
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range fields {
+			field, err := expectStruct(value, "SyntaxExprField")
+			if err != nil {
+				return nil, err
+			}
+			fieldName, err := nonEmptyStringField(field, "name")
+			if err != nil {
+				return nil, err
+			}
+			fieldValue, err := decodeSyntaxExpr(field.Fields["value"])
+			if err != nil {
+				return nil, err
+			}
+			lit.Fields = append(lit.Fields, ast.FieldValue{Name: fieldName, Value: fieldValue})
+		}
+		return lit, nil
+	case "block":
+		block := &ast.BlockExpr{}
+		statements, err := structArrayField(node, "statements")
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range statements {
+			statement, err := expectStruct(value, "SyntaxStatement")
+			if err != nil {
+				return nil, err
+			}
+			statementKind, err := stringField(statement, "kind")
+			if err != nil {
+				return nil, err
+			}
+			statementName, err := stringField(statement, "name")
+			if err != nil {
+				return nil, err
+			}
+			statementValue, err := decodeSyntaxExpr(statement.Fields["value"])
+			if err != nil {
+				return nil, err
+			}
+			switch statementKind {
+			case "let":
+				block.Statements = append(block.Statements, &ast.LetStmt{Name: statementName, Value: statementValue})
+			case "expr":
+				block.Statements = append(block.Statements, &ast.ExprStmt{Expr: statementValue})
+			default:
+				return nil, fmt.Errorf("unsupported SyntaxStatement kind %q", statementKind)
+			}
+		}
+		return block, nil
+	default:
+		return nil, fmt.Errorf("unsupported SyntaxExpr kind %q", kind)
+	}
 }
 
 func decodeSyntaxParam(value interpreter.Value, refs *syntaxRefs, seen map[string]bool) (ast.Param, error) {
@@ -650,7 +829,17 @@ func decodeIdentity(node *interpreter.Struct, refs *syntaxRefs, seen map[string]
 		return "", lexer.Position{}, err
 	}
 	if id == "" {
-		return "", lexer.Position{}, nil
+		if refs.generated == 0 {
+			refs.generated = -1
+			for _, pos := range refs.positions {
+				if pos.Offset <= refs.generated {
+					refs.generated = pos.Offset - 1
+				}
+			}
+		} else {
+			refs.generated--
+		}
+		return "", lexer.Position{Offset: refs.generated}, nil
 	}
 	if seen[id] {
 		return "", lexer.Position{}, fmt.Errorf("duplicate syntax id %q", id)

@@ -64,7 +64,14 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 		if public && p.check(lexer.Question) {
 			p.errorAt(p.peek(), "expected public declaration after '+'")
 		}
-		if !public && p.check(lexer.Question) {
+		if p.check(lexer.BitAnd) {
+			if len(annotations) > 0 {
+				p.errorAt(p.peek(), "annotations cannot be applied to traits")
+			}
+			if trait := p.parseTraitDecl(); trait != nil {
+				file.Traits = append(file.Traits, trait)
+			}
+		} else if !public && p.check(lexer.Question) {
 			if len(annotations) > 0 {
 				p.errorAt(p.peek(), "annotations cannot be applied to tests")
 			}

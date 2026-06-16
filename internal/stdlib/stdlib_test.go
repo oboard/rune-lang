@@ -39,6 +39,33 @@ func TestLoadCoreStubs(t *testing.T) {
 	if stringify.Intrinsic != "json.stringify" || stringify.Return != "String" || len(stringify.Params) != 1 || stringify.Params[0] != "Object" {
 		t.Fatalf("unexpected json.stringify declaration: %#v", stringify)
 	}
+	parse, ok := reg.Function("json", "parse")
+	if !ok {
+		t.Fatal("missing core/json parse declaration")
+	}
+	if parse.Intrinsic != "json.parse" || parse.Return != "Dynamic" || len(parse.Generics) != 0 || len(parse.Params) != 1 || parse.Params[0] != "String" {
+		t.Fatalf("unexpected json.parse declaration: %#v", parse)
+	}
+	fromJSON := reg.Traits["FromJson"]
+	if fromJSON == nil || len(fromJSON.Methods) != 1 || fromJSON.Methods[0].Name != "fromJson" || !fromJSON.Methods[0].Static || fromJSON.Methods[0].Return != "Self" {
+		t.Fatalf("unexpected FromJson trait: %#v", fromJSON)
+	}
+	number := reg.Traits["Number"]
+	if number == nil || len(number.Methods) != 4 {
+		t.Fatalf("unexpected Number trait: %#v", number)
+	}
+	for _, name := range []string{"Add", "Sub", "Mul", "Div"} {
+		trait := reg.Traits[name]
+		if trait == nil || len(trait.Methods) != 1 {
+			t.Fatalf("unexpected %s trait: %#v", name, trait)
+		}
+	}
+	for _, name := range []string{"object", "name", "ignore"} {
+		fn, ok := reg.MacroFunction("json", name)
+		if !ok || !fn.Macro || fn.Body == nil {
+			t.Fatalf("missing core/json %s macro: %#v", name, fn)
+		}
+	}
 
 	lenFn, ok := reg.Function("array", "length")
 	if !ok {
@@ -46,6 +73,14 @@ func TestLoadCoreStubs(t *testing.T) {
 	}
 	if lenFn.Receiver != "Array" || lenFn.Intrinsic != "array.len" || lenFn.Return != "Int" {
 		t.Fatalf("unexpected array.length declaration: %#v", lenFn)
+	}
+	intAdd, ok := reg.ReceiverFunction("int", "Int", "add")
+	if !ok || intAdd.Return != "Int" || len(intAdd.Params) != 1 || intAdd.Params[0] != "Int" {
+		t.Fatalf("unexpected Int.add declaration: %#v", intAdd)
+	}
+	doubleDiv, ok := reg.ReceiverFunction("double", "Double", "div")
+	if !ok || doubleDiv.Return != "Double" || len(doubleDiv.Params) != 1 || doubleDiv.Params[0] != "Double" {
+		t.Fatalf("unexpected Double.div declaration: %#v", doubleDiv)
 	}
 
 	atFn, ok := reg.FunctionByAlias("array", "_[_]")

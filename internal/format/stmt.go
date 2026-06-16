@@ -17,7 +17,11 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 		if s.Signal {
 			op = "$="
 		}
-		return fmt.Sprintf("%s %s %s", s.Name, op, f.expr(s.Value))
+		out := fmt.Sprintf("%s %s %s", s.Name, op, f.expr(s.Value))
+		if !s.Type.IsZero() {
+			out += " : " + formatType(s.Type)
+		}
+		return out
 	case *ast.ObjectDestructureStmt:
 		op := ":="
 		if s.Mutable {

@@ -247,6 +247,7 @@ func mergeFile(dst *ast.File, src *ast.File, includeTests bool) {
 	}
 	dst.GoImports = append(dst.GoImports, src.GoImports...)
 	dst.TSImports = append(dst.TSImports, src.TSImports...)
+	dst.Traits = append(dst.Traits, src.Traits...)
 	dst.Types = append(dst.Types, src.Types...)
 	dst.Enums = append(dst.Enums, src.Enums...)
 	dst.Functions = append(dst.Functions, src.Functions...)
@@ -258,6 +259,9 @@ func mergeFile(dst *ast.File, src *ast.File, includeTests bool) {
 func annotateSourcePath(file *ast.File, sourcePath string) {
 	if file == nil {
 		return
+	}
+	for _, trait := range file.Traits {
+		trait.SourcePath = sourcePath
 	}
 	for _, typ := range file.Types {
 		typ.SourcePath = sourcePath

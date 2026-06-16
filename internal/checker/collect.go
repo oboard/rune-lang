@@ -15,8 +15,22 @@ func (c *checker) checkGoImports(file *ast.File) {
 }
 
 func (c *checker) collect(file *ast.File) {
+	for _, trait := range file.Traits {
+		if c.info.Traits[trait.Name] != nil || c.info.Types[trait.Name] != nil || c.info.Enums[trait.Name] != nil {
+			c.errorf(trait.NamePos, "duplicate type %q", trait.Name)
+			continue
+		}
+		c.info.Traits[trait.Name] = &TraitInfo{
+			Name:          trait.Name,
+			SourcePath:    trait.SourcePath,
+			ByName:        map[string]FieldInfo{},
+			Methods:       map[string]*FuncInfo{},
+			StaticMethods: map[string]*FuncInfo{},
+			Node:          trait,
+		}
+	}
 	for _, typ := range file.Types {
-		if _, exists := c.info.Types[typ.Name]; exists {
+		if _, exists := c.info.Types[typ.Name]; exists || c.info.Traits[typ.Name] != nil {
 			c.errorf(typ.NamePos, "duplicate type %q", typ.Name)
 			continue
 		}
@@ -25,17 +39,19 @@ func (c *checker) collect(file *ast.File) {
 			continue
 		}
 		c.info.Types[typ.Name] = &StructInfo{
-			Name:       typ.Name,
-			Private:    typ.Private,
-			SourcePath: typ.SourcePath,
-			Generics:   append([]string(nil), typ.Generics...),
-			ByName:     map[string]FieldInfo{},
-			Methods:    map[string]*FuncInfo{},
-			Node:       typ,
+			Name:               typ.Name,
+			Private:            typ.Private,
+			SourcePath:         typ.SourcePath,
+			Generics:           append([]string(nil), typ.Generics...),
+			GenericConstraints: c.collectGenericConstraints(typ.GenericConstraints, genericSet(typ.Generics...), typ.NamePos),
+			ByName:             map[string]FieldInfo{},
+			Methods:            map[string]*FuncInfo{},
+			StaticMethods:      map[string]*FuncInfo{},
+			Node:               typ,
 		}
 	}
 	for _, enum := range file.Enums {
-		if _, exists := c.info.Types[enum.Name]; exists {
+		if _, exists := c.info.Types[enum.Name]; exists || c.info.Traits[enum.Name] != nil {
 			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
 			continue
 		}
@@ -43,7 +59,45 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
 			continue
 		}
-		c.info.Enums[enum.Name] = &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, Generics: append([]string(nil), enum.Generics...), ByName: map[string]EnumMemberInfo{}, Node: enum}
+		c.info.Enums[enum.Name] = &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, Generics: append([]string(nil), enum.Generics...), GenericConstraints: c.collectGenericConstraints(enum.GenericConstraints, genericSet(enum.Generics...), enum.NamePos), ByName: map[string]EnumMemberInfo{}, Node: enum}
+	}
+	for _, trait := range file.Traits {
+		info := c.info.Traits[trait.Name]
+		if info == nil || info.Node != trait {
+			continue
+		}
+		self := genericSet("Self")
+		for _, field := range trait.Fields {
+			if info.ByName[field.Name].Name != "" || info.Methods[field.Name] != nil {
+				c.errorf(field.Pos, "duplicate trait member %s.%s", trait.Name, field.Name)
+				continue
+			}
+			typ := c.resolveTypeWithGenerics(field.Type.Canonical(), self)
+			if typ == Unknown {
+				c.reportUnknownOrPrivateType(field.Pos, field.Type.Canonical())
+			}
+			member := FieldInfo{Name: field.Name, Type: typ, SourcePath: trait.SourcePath}
+			info.Fields = append(info.Fields, member)
+			info.ByName[field.Name] = member
+		}
+		for _, method := range trait.Methods {
+			if info.ByName[method.Name].Name != "" || info.Methods[method.Name] != nil || info.StaticMethods[method.Name] != nil {
+				c.errorf(method.NamePos, "duplicate trait member %s.%s", trait.Name, method.Name)
+				continue
+			}
+			method.SourcePath = trait.SourcePath
+			member := c.collectFunction(method, []string{"Self"}, nil)
+			if method.ReturnType.IsZero() {
+				member.Return = Void
+				member.ReturnDeclared = true
+			}
+			member.ReceiverType = Type("&" + trait.Name)
+			if method.Static {
+				info.StaticMethods[method.Name] = member
+			} else {
+				info.Methods[method.Name] = member
+			}
+		}
 	}
 	for _, enum := range file.Enums {
 		info := c.info.Enums[enum.Name]
@@ -99,17 +153,21 @@ func (c *checker) collect(file *ast.File) {
 			info.ByName[field.Name] = fieldInfo
 		}
 		for _, method := range typ.Methods {
-			if _, exists := info.Methods[method.Name]; exists {
+			if _, exists := info.Methods[method.Name]; exists || info.StaticMethods[method.Name] != nil {
 				c.errorf(method.NamePos, "duplicate method %s.%s", typ.Name, method.Name)
 				continue
 			}
-			methodInfo := c.collectFunction(method, typ.Generics)
+			methodInfo := c.collectFunction(method, typ.Generics, info.GenericConstraints)
 			methodInfo.ReceiverType = receiverType(typ)
-			info.Methods[method.Name] = methodInfo
+			if method.Static {
+				info.StaticMethods[method.Name] = methodInfo
+			} else {
+				info.Methods[method.Name] = methodInfo
+			}
 		}
 	}
 	for _, fn := range file.Functions {
-		info := c.collectFunction(fn, nil)
+		info := c.collectFunction(fn, nil, nil)
 		if !c.addFunction(fn, info) {
 			continue
 		}
@@ -153,11 +211,15 @@ func (c *checker) addFunctionInfo(pos lexer.Position, fn *ast.Function, info *Fu
 	return true
 }
 
-func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) *FuncInfo {
+func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string, inheritedConstraints map[string]string) *FuncInfo {
 	generics := append([]string(nil), inheritedGenerics...)
 	generics = append(generics, fn.Generics...)
 	genericTypes := genericSet(generics...)
-	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, Macro: fn.Macro, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, Node: fn, Return: Unknown, Pos: fn.Pos, NamePos: fn.NamePos}
+	constraints := cloneStringMap(inheritedConstraints)
+	for name, constraint := range c.collectGenericConstraints(fn.GenericConstraints, genericSet(fn.Generics...), fn.NamePos) {
+		constraints[name] = constraint
+	}
+	info := &FuncInfo{Name: fn.Name, LinkName: fn.Name, Private: fn.Private, Static: fn.Static, Macro: fn.Macro, SourcePath: fn.SourcePath, Routine: fn.Routine, Generics: generics, GenericConstraints: constraints, Node: fn, Return: Unknown, Pos: fn.Pos, NamePos: fn.NamePos}
 	if fn.Private && fn.SourcePath != "" && fn.ReceiverType == "" && fn.Name != "main" {
 		info.LinkName = privateLinkName(fn.SourcePath, fn.Name)
 	}
@@ -194,6 +256,42 @@ func (c *checker) collectFunction(fn *ast.Function, inheritedGenerics []string) 
 		}
 	})
 	return info
+}
+
+func (c *checker) collectGenericConstraints(raw map[string]ast.Type, generics map[string]bool, pos lexer.Position) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for name, constraintType := range raw {
+		if !generics[name] {
+			continue
+		}
+		constraint := genericConstraintName(constraintType)
+		if constraint == "" {
+			continue
+		}
+		if !c.genericConstraintExists(constraint) {
+			c.errorf(pos, "unknown generic constraint %q", constraintType.Display())
+			continue
+		}
+		out[name] = constraint
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	out := make(map[string]string, len(in))
+	if len(in) == 0 {
+		return out
+	}
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func (c *checker) collectTypeScriptFunction(fn ast.TSFunction) *FuncInfo {

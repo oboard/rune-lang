@@ -2,10 +2,12 @@ package lsp
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
@@ -17,7 +19,7 @@ func (s *server) inlayHints(uri string) any {
 	}
 	var hints []map[string]any
 	for _, fn := range prog.File.Functions {
-		if !sourceMatchesDocument(uri, fn.SourcePath) {
+		if !sourceMatchesDocument(uri, fn.SourcePath) || !hasSourcePosition(fn.NamePos) {
 			continue
 		}
 		fnInfo := prog.Info.FunctionDecls[fn]
@@ -25,7 +27,7 @@ func (s *server) inlayHints(uri string) any {
 			continue
 		}
 		for i, param := range fn.Params {
-			if !param.Type.IsZero() || i >= len(fnInfo.Params) {
+			if !hasSourcePosition(param.Pos) || !param.Type.IsZero() || i >= len(fnInfo.Params) {
 				continue
 			}
 			typ := fnInfo.Params[i].Type
@@ -57,7 +59,7 @@ func (s *server) inlayHints(uri string) any {
 	}
 	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
 		lambda, ok := expr.(*ast.LambdaExpr)
-		if !ok {
+		if !ok || !hasSourcePosition(lambda.Pos) {
 			return
 		}
 		params, ret, ok := parseRawDisplayFuncType(string(prog.Info.ExprTypes[lambda]))
@@ -66,6 +68,9 @@ func (s *server) inlayHints(uri string) any {
 		}
 		for i, name := range lambda.Params {
 			if i >= len(lambda.ParamPos) || i >= len(params) {
+				continue
+			}
+			if !hasSourcePosition(lambda.ParamPos[i]) {
 				continue
 			}
 			if i < len(lambda.ParamTypes) && !lambda.ParamTypes[i].IsZero() {
@@ -100,15 +105,18 @@ func (s *server) inlayHints(uri string) any {
 	})
 	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
 		call, ok := expr.(*ast.CallExpr)
-		if !ok {
+		if !ok || !hasSourcePosition(call.Position()) {
 			return
 		}
 		hints = append(hints, callArgumentNameHints(prog, call)...)
 	})
 	walkDocumentAnnotations(uri, prog.File, func(annotation *ast.Annotation) {
+		if !hasSourcePosition(annotation.Pos) {
+			return
+		}
 		hints = append(hints, annotationArgumentNameHints(prog, annotation)...)
 	})
-	return hints
+	return normalizeInlayHints(hints)
 }
 
 func annotationArgumentNameHints(prog *compiler.Program, annotation *ast.Annotation) []map[string]any {
@@ -133,6 +141,9 @@ func annotationArgumentNameHints(prog *compiler.Program, annotation *ast.Annotat
 	for i, arg := range annotation.Args {
 		if i >= len(params) {
 			break
+		}
+		if !hasSourcePosition(arg.Position()) {
+			continue
 		}
 		name := params[i].Name
 		if name == "" || name == "_" {
@@ -160,6 +171,9 @@ func callArgumentNameHints(prog *compiler.Program, call *ast.CallExpr) []map[str
 	for i, arg := range call.Args {
 		if i >= len(params) {
 			break
+		}
+		if !hasSourcePosition(arg.Position()) {
+			continue
 		}
 		name := params[i].Name
 		if name == "" || name == "_" {
@@ -214,10 +228,18 @@ func callParameterInfo(prog *compiler.Program, call *ast.CallExpr) ([]checker.Pa
 			return stdlibParamInfos(fn), stdlibSignature(moduleName, fn), true
 		}
 		structInfo := prog.Info.Types[baseType(receiver)]
+		if callee.Static {
+			if ident, ok := callee.Receiver.(*ast.Identifier); ok {
+				structInfo = prog.Info.Types[ident.Name]
+			}
+		}
 		if structInfo == nil {
 			return nil, "", false
 		}
 		method := structInfo.Methods[callee.Name]
+		if callee.Static {
+			method = structInfo.StaticMethods[callee.Name]
+		}
 		if method == nil {
 			return nil, "", false
 		}
@@ -237,4 +259,35 @@ func stdlibParamInfos(fn *stdlib.Function) []checker.ParamInfo {
 		params = append(params, checker.ParamInfo{Name: name})
 	}
 	return params
+}
+
+func hasSourcePosition(pos lexer.Position) bool {
+	return pos.Line > 0 && pos.Column > 0
+}
+
+func normalizeInlayHints(hints []map[string]any) []map[string]any {
+	sort.SliceStable(hints, func(i, j int) bool {
+		left := hints[i]["position"].(position)
+		right := hints[j]["position"].(position)
+		if left.Line != right.Line {
+			return left.Line < right.Line
+		}
+		if left.Character != right.Character {
+			return left.Character < right.Character
+		}
+		return fmt.Sprint(hints[i]["label"]) < fmt.Sprint(hints[j]["label"])
+	})
+
+	normalized := hints[:0]
+	var previous string
+	for _, hint := range hints {
+		pos := hint["position"].(position)
+		key := fmt.Sprintf("%d:%d:%v:%v", pos.Line, pos.Character, hint["kind"], hint["label"])
+		if len(normalized) > 0 && key == previous {
+			continue
+		}
+		normalized = append(normalized, hint)
+		previous = key
+	}
+	return normalized
 }

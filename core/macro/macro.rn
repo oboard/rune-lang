@@ -24,6 +24,7 @@ renameFunction(
       : function.name
   )
   private: function.private
+  static: function.static
   routine: function.routine
   generics: function.generics
   annotations: function.annotations
@@ -31,6 +32,7 @@ renameFunction(
   params: function.params
   returnType: function.returnType
   bodyID: function.bodyID
+  generatedBody: function.generatedBody
   sourcePath: function.sourcePath
 }
 

@@ -50,7 +50,7 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		if expectedType != Unknown && shouldApplyExpectedType(valueType, expectedType) {
 			c.applyExpectedType(field.Value, expectedType)
 		}
-		if valueType != Unknown && expectedType != Unknown && !typesCompatible(expectedType, valueType, nil) {
+		if valueType != Unknown && expectedType != Unknown && !c.typesCompatible(expectedType, valueType, nil) {
 			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", lit.TypeName, field.Name, valueType, expectedType)
 		}
 	}
@@ -208,19 +208,40 @@ func (c *checker) registerAnonymousObjectType(typ Type, fields []FieldInfo, byNa
 func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 	local := cloneEnv(env)
 	result := Void
-	for _, stmt := range block.Statements {
+	blockExpected := c.expectedType
+	c.expectedType = Unknown
+	defer func() {
+		c.expectedType = blockExpected
+	}()
+	for index, stmt := range block.Statements {
+		isLast := index == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ast.LetStmt:
 			if _, exists := local[s.Name]; exists {
 				c.errorf(s.Pos, "name %q is already defined", s.Name)
 			}
 			c.bindings[s.Name] = s.Value
-			if lit, ok := s.Value.(*ast.AnonymousObjectLiteral); ok {
+			declared := Unknown
+			if !s.Type.IsZero() {
+				declared = c.resolveTypeWithGenerics(s.Type.Canonical(), c.genericTypes)
+				if declared == Unknown {
+					c.reportUnknownOrPrivateType(s.Pos, s.Type.Canonical())
+				}
+			}
+			if lit, ok := s.Value.(*ast.AnonymousObjectLiteral); ok && declared == Unknown {
 				typ := c.inferAnonymousObjectLiteralWithSelf(lit, local, s.Name)
 				c.info.ExprTypes[lit] = typ
 				local[s.Name] = typ
 			} else {
-				local[s.Name] = c.inferExpr(s.Value, local)
+				valueType := c.inferExprExpected(s.Value, local, declared)
+				if declared != Unknown && valueType != Unknown && !c.typesCompatible(declared, valueType, nil) {
+					c.errorf(s.Value.Position(), "binding %q has type %s, expected %s", s.Name, valueType, declared)
+				}
+				if declared != Unknown {
+					local[s.Name] = declared
+				} else {
+					local[s.Name] = valueType
+				}
 			}
 			result = Void
 		case *ast.ObjectDestructureStmt:
@@ -233,7 +254,11 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 			c.inferExpr(s.Value, local)
 			result = Void
 		case *ast.ExprStmt:
-			result = c.inferExpr(s.Expr, local)
+			expected := Unknown
+			if isLast {
+				expected = blockExpected
+			}
+			result = c.inferExprExpected(s.Expr, local, expected)
 		}
 	}
 	return result
@@ -734,7 +759,7 @@ func (c *checker) checkMapPattern(pattern *ast.MapPattern, subject Type, env map
 	seen := map[string]lexer.Position{}
 	for _, entry := range pattern.Entries {
 		key := c.inferExpr(entry.Key, env)
-		if keyType != Unknown && key != Unknown && !typesCompatible(keyType, key, nil) {
+		if keyType != Unknown && key != Unknown && !c.typesCompatible(keyType, key, nil) {
 			c.errorf(entry.Key.Position(), "map pattern key has type %s, expected %s", key, keyType)
 		}
 		if prev, exists := seen[patternKeyText(entry.Key)]; exists {

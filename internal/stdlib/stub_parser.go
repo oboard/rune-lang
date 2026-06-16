@@ -46,6 +46,15 @@ func (p *stubParser) parse() (*Module, error) {
 		if p.check(lexer.EOF) {
 			break
 		}
+		if p.check(lexer.BitAnd) {
+			trait, err := p.parseTrait()
+			if err != nil {
+				return nil, err
+			}
+			mod.Traits = append(mod.Traits, trait)
+			p.skipNewlines()
+			continue
+		}
 		if !p.check(lexer.Ident) && !p.check(lexer.Tilde) {
 			return nil, p.errorf(p.peek(), "expected core declaration")
 		}

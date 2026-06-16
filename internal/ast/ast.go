@@ -10,10 +10,20 @@ type File struct {
 	Imports   []Import
 	GoImports []GoImport
 	TSImports []TSImport
+	Traits    []*TraitDecl
 	Types     []*StructType
 	Enums     []*EnumType
 	Functions []*Function
 	Tests     []*Test
+}
+
+type TraitDecl struct {
+	Name       string
+	Fields     []Field
+	Methods    []*Function
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }
 
 type Import struct {
@@ -62,15 +72,16 @@ type Annotation struct {
 }
 
 type StructType struct {
-	Name        string
-	Private     bool
-	Generics    []string
-	Annotations []Annotation
-	Fields      []Field
-	Methods     []*Function
-	Pos         lexer.Position
-	NamePos     lexer.Position
-	SourcePath  string
+	Name               string
+	Private            bool
+	Generics           []string
+	GenericConstraints map[string]Type
+	Annotations        []Annotation
+	Fields             []Field
+	Methods            []*Function
+	Pos                lexer.Position
+	NamePos            lexer.Position
+	SourcePath         string
 }
 
 type Field struct {
@@ -82,14 +93,15 @@ type Field struct {
 }
 
 type EnumType struct {
-	Name        string
-	Private     bool
-	Generics    []string
-	Annotations []Annotation
-	Members     []EnumMember
-	Pos         lexer.Position
-	NamePos     lexer.Position
-	SourcePath  string
+	Name               string
+	Private            bool
+	Generics           []string
+	GenericConstraints map[string]Type
+	Annotations        []Annotation
+	Members            []EnumMember
+	Pos                lexer.Position
+	NamePos            lexer.Position
+	SourcePath         string
 }
 
 type EnumMember struct {
@@ -103,19 +115,21 @@ type EnumMember struct {
 }
 
 type Function struct {
-	Name         string
-	Private      bool
-	Routine      bool
-	Macro        bool
-	Generics     []string
-	Annotations  []Annotation
-	ReceiverType string
-	Params       []Param
-	ReturnType   Type
-	Body         Expr
-	Pos          lexer.Position
-	NamePos      lexer.Position
-	SourcePath   string
+	Name               string
+	Private            bool
+	Static             bool
+	Routine            bool
+	Macro              bool
+	Generics           []string
+	GenericConstraints map[string]Type
+	Annotations        []Annotation
+	ReceiverType       string
+	Params             []Param
+	ReturnType         Type
+	Body               Expr
+	Pos                lexer.Position
+	NamePos            lexer.Position
+	SourcePath         string
 }
 
 func (f *Function) Signature() string {
@@ -126,10 +140,13 @@ func (f *Function) Signature() string {
 	if f.Routine {
 		b.WriteString("~ ")
 	}
+	if f.Static {
+		b.WriteString("static ")
+	}
 	b.WriteString(f.Name)
 	if len(f.Generics) > 0 {
 		b.WriteByte('[')
-		b.WriteString(strings.Join(f.Generics, ", "))
+		b.WriteString(formatGenericSignature(f.Generics, f.GenericConstraints))
 		b.WriteByte(']')
 	}
 	b.WriteByte('(')
@@ -143,6 +160,18 @@ func (f *Function) Signature() string {
 	}
 	b.WriteByte(')')
 	return b.String()
+}
+
+func formatGenericSignature(names []string, constraints map[string]Type) string {
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		part := name
+		if constraint, ok := constraints[name]; ok && !constraint.IsZero() {
+			part += ": " + constraint.Display()
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, ", ")
 }
 
 type Param struct {

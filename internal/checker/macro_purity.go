@@ -103,7 +103,7 @@ func (c *checker) exprPurityError(expr ast.Expr, localVisiting map[*ast.Function
 
 func pureMacroMethod(name string) bool {
 	switch name {
-	case "map":
+	case "map", "foldl", "length", "isEmpty":
 		return true
 	default:
 		return false

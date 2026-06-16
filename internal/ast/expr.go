@@ -233,6 +233,7 @@ func (e *LambdaExpr) Position() lexer.Position {
 type SelectorExpr struct {
 	Receiver Expr
 	Name     string
+	Static   bool
 	Pos      lexer.Position
 	NamePos  lexer.Position
 }

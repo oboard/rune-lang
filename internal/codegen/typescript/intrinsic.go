@@ -81,6 +81,8 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return "undefined", true
 		}
 		return "JSON.stringify(" + g.jsonValueExpr(call.Args[0]) + ")", true
+	case "json.parse":
+		return g.jsonParseCall(call)
 	case "regex.new":
 		if len(args) != 2 {
 			return "undefined", true

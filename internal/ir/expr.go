@@ -189,6 +189,7 @@ type SelectorExpr struct {
 	ExprBase
 	Receiver     Expr
 	Name         string
+	Static       bool
 	ResolvedName string
 }
 

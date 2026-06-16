@@ -29,6 +29,11 @@ func expandedDocumentFile(uri string, file *ast.File) *ast.File {
 		GoImports: append([]ast.GoImport(nil), file.GoImports...),
 		TSImports: append([]ast.TSImport(nil), file.TSImports...),
 	}
+	for _, trait := range file.Traits {
+		if sourceMatchesDocument(uri, trait.SourcePath) {
+			out.Traits = append(out.Traits, trait)
+		}
+	}
 	for _, typ := range file.Types {
 		if !sourceMatchesDocument(uri, typ.SourcePath) {
 			continue

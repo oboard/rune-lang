@@ -19,6 +19,7 @@
   + DotDotDot
   + Comma
   + Colon
+  + DoubleColon
   + LParen
   + RParen
   + LBracket
@@ -184,6 +185,7 @@ canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind
   TokenKind.DotDotDot => "DotDotDot"
   TokenKind.Comma => "Comma"
   TokenKind.Colon => "Colon"
+  TokenKind.DoubleColon => "DoubleColon"
   TokenKind.LParen => "LParen"
   TokenKind.RParen => "RParen"
   TokenKind.LBracket => "LBracket"
@@ -349,6 +351,7 @@ lexDotDot(state: LexState) -> Lexed => peek(state) {
 
 lexColon(state: LexState) -> Lexed => peek(state) {
   '=' => lexed(advanceState(state), TokenKind.Declare)
+  ':' => lexed(advanceState(state), TokenKind.DoubleColon)
   _ => lexed(state, TokenKind.Colon)
 }
 

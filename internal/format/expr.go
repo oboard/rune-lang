@@ -79,7 +79,11 @@ func (f *formatter) expr(expr ast.Expr) string {
 		if _, ok := e.Receiver.(*ast.ThisExpr); ok {
 			return "." + e.Name
 		}
-		return f.postfixReceiverExpr(e.Receiver) + "." + e.Name
+		operator := "."
+		if e.Static {
+			operator = "::"
+		}
+		return f.postfixReceiverExpr(e.Receiver) + operator + e.Name
 	case *ast.ArrayLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {
@@ -174,7 +178,11 @@ func (f *formatter) callChainParts(expr ast.Expr) []string {
 			if len(parts) == 0 {
 				parts = []string{f.chainReceiverExpr(sel.Receiver)}
 			}
-			parts = append(parts, "."+sel.Name+f.formatCallArgs(call.Args))
+			operator := "."
+			if sel.Static {
+				operator = "::"
+			}
+			parts = append(parts, operator+sel.Name+f.formatCallArgs(call.Args))
 			return parts
 		}
 	}

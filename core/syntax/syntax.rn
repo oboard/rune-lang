@@ -14,6 +14,35 @@ SyntaxAnnotation: {
   module: String
   name: String
   hasParens: Bool
+  args: Array[SyntaxValue]
+}
+
+SyntaxValue: {
+  kind: String
+  stringValue: String
+  intValue: Int
+  boolValue: Bool
+}
+
+SyntaxExprField: {
+  name: String
+  value: SyntaxExpr
+}
+
+SyntaxStatement: {
+  kind: String
+  name: String
+  value: SyntaxExpr
+}
+
+SyntaxExpr: {
+  kind: String
+  name: String
+  stringValue: String
+  boolValue: Bool
+  args: Array[SyntaxExpr]
+  fields: Array[SyntaxExprField]
+  statements: Array[SyntaxStatement]
 }
 
 SyntaxType: {
@@ -84,6 +113,7 @@ SyntaxFunction: {
   id: String
   name: String
   private: Bool
+  static: Bool
   routine: Bool
   generics: Array[String]
   annotations: Array[SyntaxAnnotation]
@@ -91,5 +121,6 @@ SyntaxFunction: {
   params: Array[SyntaxParam]
   returnType: SyntaxType
   bodyID: String
+  generatedBody: SyntaxExpr?
   sourcePath: String
 }

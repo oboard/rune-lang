@@ -38,6 +38,18 @@ func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call
 			c.errorf(call.Args[0].Position(), "@go.expr body must be a string literal")
 		}
 		return c.resolveDeclaredReturn(fn.Return)
+	case "json.parse":
+		c.checkStdlibArgs(moduleName, sel.Name, fn, call.Args, argTypes, sel.Pos)
+		target := c.expectedType
+		if target == Unknown {
+			c.errorf(sel.Pos, "@json.parse target type cannot be inferred; add ': Type' to the binding")
+			return Unknown
+		}
+		if !c.typeImplementsTrait(target, "FromJson") {
+			c.errorf(sel.Pos, "@json.parse target type %s does not implement &FromJson", target)
+			return Unknown
+		}
+		return target
 	}
 
 	bindings := c.stdlibTypeBindings(fn)
@@ -105,7 +117,7 @@ func (c *checker) checkDeclaredArg(moduleName string, functionName string, index
 	if expectedType == Unknown {
 		return
 	}
-	if !typesCompatible(expectedType, actual, nil) {
+	if !c.typesCompatible(expectedType, actual, nil) {
 		c.errorf(arg.Position(), "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
 	}
 }
@@ -116,7 +128,7 @@ func (c *checker) checkArgs(name string, params []ParamInfo, args []ast.Expr, ar
 	}
 	limit := min(len(params), len(argTypes))
 	for i := 0; i < limit; i++ {
-		if !typesCompatible(params[i].Type, argTypes[i], nil) {
+		if !c.typesCompatible(params[i].Type, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], params[i].Type)
 		}
 	}

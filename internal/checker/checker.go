@@ -68,21 +68,23 @@ type ExternalValueInfo struct {
 }
 
 type FuncInfo struct {
-	Name           string
-	LinkName       string
-	Private        bool
-	External       bool
-	Macro          bool
-	SourcePath     string
-	Routine        bool
-	Generics       []string
-	ReceiverType   Type
-	Params         []ParamInfo
-	Return         Type
-	ReturnDeclared bool
-	Pos            lexer.Position
-	NamePos        lexer.Position
-	Node           *ast.Function
+	Name               string
+	LinkName           string
+	Private            bool
+	Static             bool
+	External           bool
+	Macro              bool
+	SourcePath         string
+	Routine            bool
+	Generics           []string
+	GenericConstraints map[string]string
+	ReceiverType       Type
+	Params             []ParamInfo
+	Return             Type
+	ReturnDeclared     bool
+	Pos                lexer.Position
+	NamePos            lexer.Position
+	Node               *ast.Function
 }
 
 type FieldInfo struct {
@@ -93,14 +95,26 @@ type FieldInfo struct {
 }
 
 type StructInfo struct {
-	Name       string
-	Private    bool
-	SourcePath string
-	Generics   []string
-	Fields     []FieldInfo
-	ByName     map[string]FieldInfo
-	Methods    map[string]*FuncInfo
-	Node       *ast.StructType
+	Name               string
+	Private            bool
+	SourcePath         string
+	Generics           []string
+	GenericConstraints map[string]string
+	Fields             []FieldInfo
+	ByName             map[string]FieldInfo
+	Methods            map[string]*FuncInfo
+	StaticMethods      map[string]*FuncInfo
+	Node               *ast.StructType
+}
+
+type TraitInfo struct {
+	Name          string
+	SourcePath    string
+	Fields        []FieldInfo
+	ByName        map[string]FieldInfo
+	Methods       map[string]*FuncInfo
+	StaticMethods map[string]*FuncInfo
+	Node          *ast.TraitDecl
 }
 
 type EnumMemberInfo struct {
@@ -119,13 +133,14 @@ type EnumConstructorInfo struct {
 }
 
 type EnumInfo struct {
-	Name       string
-	Private    bool
-	SourcePath string
-	Generics   []string
-	Members    []EnumMemberInfo
-	ByName     map[string]EnumMemberInfo
-	Node       *ast.EnumType
+	Name               string
+	Private            bool
+	SourcePath         string
+	Generics           []string
+	GenericConstraints map[string]string
+	Members            []EnumMemberInfo
+	ByName             map[string]EnumMemberInfo
+	Node               *ast.EnumType
 }
 
 type Info struct {
@@ -140,6 +155,7 @@ type Info struct {
 	ResolvedMacros            map[*ast.Annotation]*stdlib.Function
 	ResolvedMacroFunctions    map[*ast.Annotation]*FuncInfo
 	Types                     map[string]*StructInfo
+	Traits                    map[string]*TraitInfo
 	Enums                     map[string]*EnumInfo
 	Constructors              map[string][]EnumConstructorInfo
 	Stdlib                    *stdlib.Registry

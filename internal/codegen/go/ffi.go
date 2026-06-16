@@ -14,7 +14,7 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Go != nil && fn.Go.Import != "" {
 		g.imports[fn.Go.Import] = true
 	}
-	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "json.stringify" {
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && (fn.Intrinsic == "json.stringify" || fn.Intrinsic == "json.parse") {
 		g.imports["encoding/json"] = true
 	}
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && (fn.Intrinsic == "regex.new" || fn.Intrinsic == "regex.escape") {

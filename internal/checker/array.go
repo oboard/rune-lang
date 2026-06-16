@@ -107,7 +107,7 @@ func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type 
 		return elem
 	}
 	if key, value, ok := MapKeyValue(receiver); ok {
-		if !typesCompatible(key, index, nil) {
+		if !c.typesCompatible(key, index, nil) {
 			c.errorf(expr.Index.Position(), "map index has type %s, expected %s", index, key)
 		}
 		return NullableOf(value)
@@ -123,10 +123,10 @@ func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env ma
 	index := c.inferExpr(target.Index, env)
 	actual := c.inferExpr(value, env)
 	if key, expected, ok := MapKeyValue(receiver); ok {
-		if !typesCompatible(key, index, nil) {
+		if !c.typesCompatible(key, index, nil) {
 			c.errorf(target.Index.Position(), "map index has type %s, expected %s", index, key)
 		}
-		if !typesCompatible(expected, actual, nil) {
+		if !c.typesCompatible(expected, actual, nil) {
 			c.errorf(value.Position(), "map assignment has type %s, expected %s", actual, expected)
 		}
 		return Void
@@ -338,7 +338,7 @@ func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[st
 			bindings[expected] = unified
 			return
 		}
-		if !typesCompatible(bindings[expected], actual, nil) {
+		if !c.typesCompatible(bindings[expected], actual, nil) {
 			c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, bindings[expected])
 		}
 		return
@@ -376,7 +376,7 @@ func (c *checker) bindDeclaredType(expected string, actual Type, bindings map[st
 		return
 	}
 	expectedType := c.resolveDeclaredType(expected, bindings)
-	if actual != Unknown && expectedType != Unknown && !typesCompatible(expectedType, actual, nil) {
+	if actual != Unknown && expectedType != Unknown && !c.typesCompatible(expectedType, actual, nil) {
 		c.errorf(pos, "argument %d to @%s.%s has type %s, expected %s", index+1, moduleName, functionName, actual, expectedType)
 	}
 }

@@ -60,7 +60,7 @@ func (p *stubParser) skipTypeNameTokens() {
 	depth := 0
 	for !p.check(lexer.EOF) {
 		switch p.peek().Kind {
-		case lexer.Ident, lexer.Comma, lexer.Colon, lexer.Question, lexer.Arrow, lexer.At, lexer.Dot:
+		case lexer.Ident, lexer.Comma, lexer.Colon, lexer.Question, lexer.Arrow, lexer.At, lexer.Dot, lexer.BitAnd:
 			p.advance()
 		case lexer.LBracket, lexer.LParen:
 			depth++

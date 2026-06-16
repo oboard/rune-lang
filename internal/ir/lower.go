@@ -75,7 +75,8 @@ func (l lowerer) base(expr ast.Expr) ExprBase {
 }
 
 func (l lowerer) structType(typ *ast.StructType) *StructType {
-	out := &StructType{Name: typ.Name, Private: typ.Private, Generics: append([]string(nil), typ.Generics...), Pos: typ.Pos, NamePos: typ.NamePos}
+	jsonObject := hasAnnotation(typ.Annotations, "json", "object")
+	out := &StructType{Name: typ.Name, Private: typ.Private, Generics: append([]string(nil), typ.Generics...), JSONObject: jsonObject, Pos: typ.Pos, NamePos: typ.NamePos}
 	if l.info != nil {
 		if info := l.info.Types[typ.Name]; info != nil {
 			for _, field := range typ.Fields {
@@ -83,7 +84,7 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 				if fieldInfo, ok := info.ByName[field.Name]; ok {
 					fieldType = fieldInfo.Type
 				}
-				out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: fieldType, Pos: field.Pos})
+				out.Fields = append(out.Fields, lowerField(field, fieldType, jsonObject))
 			}
 			for _, method := range typ.Methods {
 				out.Methods = append(out.Methods, l.function(method, typ.Name))
@@ -92,12 +93,40 @@ func (l lowerer) structType(typ *ast.StructType) *StructType {
 		}
 	}
 	for _, field := range typ.Fields {
-		out.Fields = append(out.Fields, Field{Name: field.Name, Private: field.Private, Type: checker.Type(field.Type.Canonical()), Pos: field.Pos})
+		out.Fields = append(out.Fields, lowerField(field, checker.Type(field.Type.Canonical()), jsonObject))
 	}
 	for _, method := range typ.Methods {
 		out.Methods = append(out.Methods, l.function(method, typ.Name))
 	}
 	return out
+}
+
+func lowerField(field ast.Field, typ checker.Type, jsonObject bool) Field {
+	out := Field{Name: field.Name, Private: field.Private, Type: typ, JSONName: field.Name, Pos: field.Pos}
+	if !jsonObject {
+		return out
+	}
+	out.JSONIgnore = hasAnnotation(field.Annotations, "json", "ignore")
+	if annotation := findAnnotation(field.Annotations, "json", "name"); annotation != nil && len(annotation.Args) > 0 {
+		if value, ok := annotation.Args[0].(*ast.StringLiteral); ok {
+			out.JSONName = value.Value
+		}
+	}
+	return out
+}
+
+func hasAnnotation(annotations []ast.Annotation, module string, name string) bool {
+	return findAnnotation(annotations, module, name) != nil
+}
+
+func findAnnotation(annotations []ast.Annotation, module string, name string) *ast.Annotation {
+	for idx := range annotations {
+		annotation := &annotations[idx]
+		if annotation.Module == module && annotation.Name == name {
+			return annotation
+		}
+	}
+	return nil
 }
 
 func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
@@ -138,6 +167,7 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 		Name:         fn.Name,
 		SourceName:   fn.Name,
 		Private:      fn.Private,
+		Static:       fn.Static,
 		Routine:      fn.Routine,
 		Generics:     append([]string(nil), fn.Generics...),
 		ReceiverType: checker.Type(receiver),
@@ -181,6 +211,13 @@ func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {
 		fn.Name = info.LinkName
 	}
 	fn.ReceiverType = info.ReceiverType
+	fn.Generics = append([]string(nil), info.Generics...)
+	if len(info.GenericConstraints) > 0 {
+		fn.GenericConstraints = map[string]string{}
+		for name, constraint := range info.GenericConstraints {
+			fn.GenericConstraints[name] = constraint
+		}
+	}
 	fn.Return = info.Return
 	for _, param := range info.Params {
 		fn.Params = append(fn.Params, Param{Name: param.Name, Type: param.Type})
@@ -262,7 +299,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 				resolved = value.LinkName
 			}
 		}
-		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name, ResolvedName: resolved}
+		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name, Static: e.Static, ResolvedName: resolved}
 	case *ast.IndexExpr:
 		return &IndexExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Index: l.expr(e.Index)}
 	case *ast.ArrayLiteral:
@@ -344,7 +381,11 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 	switch s := stmt.(type) {
 	case *ast.LetStmt:
-		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.expr(s.Value), Pos: s.Pos}
+		typ := checker.Unknown
+		if !s.Type.IsZero() {
+			typ = checker.Type(s.Type.Canonical())
+		}
+		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.expr(s.Value), Type: typ, Pos: s.Pos}
 	case *ast.ObjectDestructureStmt:
 		value := l.expr(s.Value)
 		out := &ObjectDestructureStmt{Mutable: s.Mutable, Signal: s.Signal, Value: value, Pos: s.Pos}

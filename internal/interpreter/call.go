@@ -15,7 +15,19 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	}
 	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 		if at, ok := sel.Receiver.(*ir.AtExpr); ok {
-			return i.callAtSelector(at, sel, call.Args, env)
+			return i.callAtSelector(at, sel, call.Args, call.ResultType(), env)
+		}
+		if sel.Static {
+			ident, ok := sel.Receiver.(*ir.Identifier)
+			if !ok {
+				return nil, fmt.Errorf("static selector receiver must be a type")
+			}
+			if _, shadowed := env.Get(ident.Name); !shadowed {
+				if typ := i.types[ident.Name]; typ != nil {
+					return i.callStaticMethod(typ, sel.Name, call.Args, env)
+				}
+			}
+			return nil, fmt.Errorf("unknown type %q", ident.Name)
 		}
 		receiver, err := i.eval(sel.Receiver, env)
 		if err != nil {
@@ -23,7 +35,7 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		}
 		switch value := receiver.(type) {
 		case *ir.AtExpr:
-			return i.callAtSelector(value, sel, call.Args, env)
+			return i.callAtSelector(value, sel, call.Args, call.ResultType(), env)
 		case *Array:
 			return i.callArrayMethod(value, sel.Name, call.Args, env)
 		case *Map:
@@ -73,9 +85,9 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	}
 }
 
-func (i *Interpreter) callAtSelector(at *ir.AtExpr, sel *ir.SelectorExpr, args []ir.Expr, env *Env) (Value, error) {
+func (i *Interpreter) callAtSelector(at *ir.AtExpr, sel *ir.SelectorExpr, args []ir.Expr, resultType checker.Type, env *Env) (Value, error) {
 	if at.Name != "" {
-		return i.callModuleFunction(at.Name, sel.Name, args, env)
+		return i.callModuleFunction(at.Name, sel.Name, args, resultType, env)
 	}
 	name := selectorResolvedName(sel)
 	if fn := i.functions[name]; fn != nil {
@@ -158,6 +170,31 @@ func (i *Interpreter) callMethod(receiver *Struct, name string, args []ir.Expr, 
 	}
 	local := NewEnv(i.globals)
 	local.Define("this", receiver)
+	for idx, param := range method.Params {
+		local.Define(param.Name, values[idx])
+	}
+	return i.evalFunctionBody(method.Body, method.Return, local)
+}
+
+func (i *Interpreter) callStaticMethod(typ *ir.StructType, name string, args []ir.Expr, env *Env) (Value, error) {
+	var method *ir.Function
+	for _, candidate := range typ.Methods {
+		if candidate.Name == name && candidate.Static {
+			method = candidate
+			break
+		}
+	}
+	if method == nil {
+		return nil, fmt.Errorf("type %s has no static method %q", typ.Name, name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	if len(values) != len(method.Params) {
+		return nil, fmt.Errorf("static method %s::%s expects %d args, got %d", typ.Name, name, len(method.Params), len(values))
+	}
+	local := NewEnv(i.globals)
 	for idx, param := range method.Params {
 		local.Define(param.Name, values[idx])
 	}

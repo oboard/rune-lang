@@ -77,6 +77,13 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 	case "WebComponent":
 		return WebComponent
 	default:
+		if strings.HasPrefix(name, "&") {
+			traitName := strings.TrimPrefix(name, "&")
+			if c.info.Traits[traitName] != nil {
+				return Type(name)
+			}
+			return Unknown
+		}
 		if isDynamicTypeName(name) {
 			return Unknown
 		}
@@ -141,6 +148,185 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 
 func (c *checker) coreTypeExists(name string) bool {
 	return c != nil && c.info != nil && c.info.Types[name] != nil
+}
+
+func (c *checker) typesCompatible(expected Type, actual Type, generics []string) bool {
+	if expected == Unknown || actual == Unknown || expected == actual {
+		return true
+	}
+	if actual == Never {
+		return true
+	}
+	if expectedInner, ok := parseNullableType(string(expected)); ok {
+		if actual == Null {
+			return true
+		}
+		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
+			return c.typesCompatible(Type(expectedInner), Type(actualInner), generics)
+		}
+		return c.typesCompatible(Type(expectedInner), actual, generics)
+	}
+	if _, ok := parseNullableType(string(actual)); ok {
+		return false
+	}
+	if expected == Object {
+		return isObjectLike(actual)
+	}
+	genericTypes := genericSet(generics...)
+	if genericTypes[string(expected)] || genericTypes[string(actual)] {
+		return true
+	}
+	if expectedElem, ok := parseArrayType(string(expected)); ok {
+		actualElem, actualArray := parseArrayType(string(actual))
+		if !actualArray {
+			return false
+		}
+		return c.typesCompatible(Type(expectedElem), Type(actualElem), generics)
+	}
+	if expectedBase, expectedArgs, ok := parseGenericType(string(expected)); ok && isBuiltinGenericType(expectedBase) {
+		actualBase, actualArgs, actualGeneric := parseGenericType(string(actual))
+		if !actualGeneric || expectedBase != actualBase || len(expectedArgs) != len(actualArgs) {
+			return false
+		}
+		for i, expectedArg := range expectedArgs {
+			if !c.typesCompatible(Type(expectedArg), Type(actualArgs[i]), generics) {
+				return false
+			}
+		}
+		return true
+	}
+	if expectedParams, expectedRet, ok := parseCallableType(string(expected)); ok {
+		actualParams, actualRet, actualFunc := parseCallableType(string(actual))
+		if !actualFunc || len(expectedParams) != len(actualParams) {
+			return false
+		}
+		for i, expectedParam := range expectedParams {
+			if !c.typesCompatible(Type(expectedParam), Type(actualParams[i]), generics) {
+				return false
+			}
+		}
+		return c.typesCompatible(Type(expectedRet), Type(actualRet), generics)
+	}
+	if strings.HasPrefix(string(expected), "&") {
+		return c.typeImplementsTrait(actual, strings.TrimPrefix(string(expected), "&"))
+	}
+	if isObjectType(expected) && isObjectType(actual) {
+		return objectTypesCompatible(expected, actual)
+	}
+	return false
+}
+
+func (c *checker) typeImplementsTrait(actual Type, traitName string) bool {
+	if actual == Unknown {
+		return true
+	}
+	trait := c.info.Traits[traitName]
+	if trait == nil {
+		return false
+	}
+	if actual == Type("&"+traitName) {
+		return true
+	}
+	object := c.info.Types[baseTypeName(actual)]
+	if object == nil {
+		return false
+	}
+	if traitName == "FromJson" && object.Node != nil &&
+		hasJSONAnnotation(object.Node.Annotations, "object") &&
+		object.Methods["fromJson"] == nil &&
+		object.StaticMethods["fromJson"] == nil {
+		return true
+	}
+	for _, required := range trait.Fields {
+		field, ok := object.ByName[required.Name]
+		if !ok || field.Private {
+			return false
+		}
+		expected := substituteSelfType(required.Type, actual)
+		if !c.typesCompatible(expected, structFieldType(object, actual, field), nil) {
+			return false
+		}
+	}
+	for name, required := range trait.Methods {
+		actualMethod := object.Methods[name]
+		if actualMethod == nil {
+			if field, ok := object.ByName[name]; ok && !field.Private {
+				expected := traitMethodType(required, actual)
+				if !c.typesCompatible(expected, structFieldType(object, actual, field), nil) {
+					return false
+				}
+				continue
+			}
+			return false
+		}
+		if actualMethod.Private || actualMethod.Routine != required.Routine || len(actualMethod.Params) != len(required.Params) {
+			return false
+		}
+		for idx, param := range required.Params {
+			if !c.typesCompatible(substituteSelfType(param.Type, actual), actualMethod.Params[idx].Type, nil) {
+				return false
+			}
+		}
+		if !c.typesCompatible(substituteSelfType(required.Return, actual), actualMethod.Return, nil) {
+			return false
+		}
+	}
+	for name, required := range trait.StaticMethods {
+		actualMethod := object.StaticMethods[name]
+		if actualMethod == nil || actualMethod.Private || actualMethod.Routine != required.Routine || len(actualMethod.Params) != len(required.Params) {
+			return false
+		}
+		for idx, param := range required.Params {
+			if !c.typesCompatible(substituteSelfType(param.Type, actual), actualMethod.Params[idx].Type, nil) {
+				return false
+			}
+		}
+		if !c.typesCompatible(substituteSelfType(required.Return, actual), actualMethod.Return, nil) {
+			return false
+		}
+	}
+	return true
+}
+
+func genericConstraintName(typ ast.Type) string {
+	name := typ.Canonical()
+	name = strings.TrimPrefix(name, "&")
+	return name
+}
+
+func (c *checker) genericConstraintExists(name string) bool {
+	if name == "" {
+		return false
+	}
+	return c.info != nil && c.info.Traits[name] != nil
+}
+
+func (c *checker) genericConstraintSatisfied(actual Type, constraint string) bool {
+	if actual == Unknown || constraint == "" {
+		return true
+	}
+	return c.typeImplementsTrait(actual, constraint)
+}
+
+func hasJSONAnnotation(annotations []ast.Annotation, name string) bool {
+	for _, annotation := range annotations {
+		if annotation.Module == "json" && annotation.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func traitMethodType(method *FuncInfo, self Type) Type {
+	params := make([]Type, 0, len(method.Params))
+	for _, param := range method.Params {
+		params = append(params, substituteSelfType(param.Type, self))
+	}
+	return FuncOfTypes(params, substituteSelfType(method.Return, self))
+}
+
+func substituteSelfType(typ Type, self Type) Type {
+	return substituteTypeParams(typ, map[string]Type{"Self": self})
 }
 
 func (c *checker) coreEnumExists(name string) bool {

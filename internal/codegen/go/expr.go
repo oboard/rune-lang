@@ -114,6 +114,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.SelectorExpr:
+		if e.Static {
+			if ident, ok := e.Receiver.(*ir.Identifier); ok {
+				return mangleIdent(ident.Name + "_" + e.Name)
+			}
+		}
 		if member, ok := g.enumMemberSelector(e); ok {
 			return member
 		}
@@ -305,6 +310,9 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 	if primitiveCall, ok := g.primitiveMethodCall(e); ok {
 		return primitiveCall
 	}
+	if methodCall, ok := g.userMethodCall(e); ok {
+		return methodCall
+	}
 	args := make([]string, 0, len(e.Args))
 	params, _, hasFuncType := parseGoFuncType(string(e.Callee.ResultType()))
 	for i, arg := range e.Args {
@@ -315,6 +323,36 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 		}
 	}
 	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) userMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok || !sel.Static {
+		return "", false
+	}
+	typeName := string(sel.Receiver.ResultType())
+	if base, _, ok := parseGoGenericType(typeName); ok {
+		typeName = base
+	}
+	for _, typ := range g.file.Types {
+		if typ.Name != typeName {
+			continue
+		}
+		for _, method := range typ.Methods {
+			if method.Name != sel.Name {
+				continue
+			}
+			args := make([]string, 0, len(call.Args)+1)
+			if !method.Static {
+				continue
+			}
+			for _, arg := range call.Args {
+				args = append(args, g.expr(arg))
+			}
+			return fmt.Sprintf("%s(%s)", mangleIdent(typeName+"_"+sel.Name), strings.Join(args, ", ")), true
+		}
+	}
+	return "", false
 }
 
 func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {

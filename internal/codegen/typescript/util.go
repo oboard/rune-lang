@@ -9,6 +9,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 type generator struct {
@@ -57,6 +58,9 @@ func (g *generator) nextTemp(prefix string) string {
 }
 
 func tsType(typ checker.Type) string {
+	if strings.HasPrefix(string(typ), "&") {
+		return "any"
+	}
 	if inner, ok := parseTSNullableType(string(typ)); ok {
 		return tsType(checker.Type(inner)) + " | null"
 	}
@@ -156,6 +160,53 @@ func tsType(typ checker.Type) string {
 		return "any"
 	default:
 		return mangleIdent(string(typ))
+	}
+}
+
+func tsGenerics(names []string, constraints map[string]string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, mangleIdent(name)+" extends "+tsGenericConstraint(constraints[name]))
+	}
+	return "<" + strings.Join(parts, ", ") + ">"
+}
+
+func tsGenericConstraint(name string) string {
+	switch name {
+	case "Add", "Sub", "Mul", "Div", "Number":
+		return "number"
+	default:
+		return "unknown"
+	}
+}
+
+func isTSGenericResultType(typ checker.Type) bool {
+	name := string(typ)
+	if name == "" || strings.HasPrefix(name, "&") || strings.ContainsAny(name, "[]{}(),?") {
+		return false
+	}
+	switch typ {
+	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16,
+		checker.Double, checker.Float, checker.BigInt, checker.Int64, checker.UInt64, checker.String, checker.Char,
+		checker.Bool, checker.Null, checker.Object, checker.Bytes, checker.Buffer, checker.Reader, checker.Writer,
+		checker.StringBuffer, checker.FileStat, checker.TCPConnection, checker.TCPListener, checker.Data,
+		checker.Error, checker.Never, checker.Symbol, checker.Regex, checker.Void, checker.HTMLElement,
+		checker.WebComponent, checker.Unknown:
+		return false
+	default:
+		return true
+	}
+}
+
+func tsArithmeticOp(op lexer.Kind) bool {
+	switch op {
+	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent:
+		return true
+	default:
+		return false
 	}
 }
 

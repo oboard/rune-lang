@@ -28,6 +28,7 @@ const (
 	DotDotDot
 	Comma
 	Colon
+	DoubleColon
 	LParen
 	RParen
 	LBracket
@@ -141,6 +142,8 @@ func (k Kind) String() string {
 		return ","
 	case Colon:
 		return ":"
+	case DoubleColon:
+		return "::"
 	case LParen:
 		return "("
 	case RParen:

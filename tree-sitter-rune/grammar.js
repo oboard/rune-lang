@@ -11,6 +11,7 @@ module.exports = grammar({
     source_file: ($) => repeat(choice(
       $.macro_definition,
       $.macro_attributed_declaration,
+      $.trait_definition,
       $.type_definition,
       $.function_definition
     )),
@@ -43,6 +44,28 @@ module.exports = grammar({
     public_visibility: () => "+",
     private_visibility: () => "-",
 
+    trait_definition: ($) => seq(
+      "&",
+      field("name", $.identifier),
+      ":",
+      "{",
+      repeat(choice($.trait_field, $.trait_method)),
+      "}"
+    ),
+
+    trait_field: ($) => seq(
+      field("name", $.identifier),
+      ":",
+      field("type", $.type_name)
+    ),
+
+    trait_method: ($) => seq(
+      optional("static"),
+      field("name", $.identifier),
+      field("parameters", $.parameter_list),
+      optional(field("return_type", $.return_type))
+    ),
+
     type_definition: ($) => seq(
       optional($.public_visibility),
       field("name", $.identifier),
@@ -55,8 +78,13 @@ module.exports = grammar({
 
     type_parameter_list: ($) => seq(
       "[",
-      optional(seq($.identifier, repeat(seq(",", $.identifier)), optional(","))),
+      optional(seq($.type_parameter, repeat(seq(",", $.type_parameter)), optional(","))),
       "]"
+    ),
+
+    type_parameter: ($) => seq(
+      field("name", $.identifier),
+      optional(seq(":", field("constraint", $.type_name)))
     ),
 
     type_field: ($) => seq(
@@ -84,6 +112,7 @@ module.exports = grammar({
 
     method_definition: ($) => seq(
       optional($.private_visibility),
+      optional("static"),
       field("name", $.identifier),
       field("parameters", $.parameter_list),
       optional(field("return_type", $.return_type)),
@@ -106,6 +135,7 @@ module.exports = grammar({
     return_type: ($) => seq("->", $.type_name),
 
     type_name: ($) => seq(
+      optional("&"),
       $.identifier,
       optional($.type_argument_list)
     ),
@@ -154,7 +184,7 @@ module.exports = grammar({
 
     selector_expression: ($) => prec(4, seq(
       field("receiver", choice($.identifier, $.module_identifier)),
-      ".",
+      field("operator", choice(".", "::")),
       field("name", $.identifier)
     )),
 

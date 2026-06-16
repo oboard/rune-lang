@@ -1,0 +1,22 @@
+&Add: {
+  add(other: Self) -> Self
+}
+
+&Sub: {
+  sub(other: Self) -> Self
+}
+
+&Mul: {
+  mul(other: Self) -> Self
+}
+
+&Div: {
+  div(other: Self) -> Self
+}
+
+&Number: {
+  add(other: Self) -> Self
+  sub(other: Self) -> Self
+  mul(other: Self) -> Self
+  div(other: Self) -> Self
+}

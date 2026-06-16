@@ -77,7 +77,7 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	if name.Kind == lexer.EOF {
 		return nil, nil
 	}
-	generics := p.parseGenericNames()
+	generics, constraints := p.parseGenericParams()
 	p.consume(lexer.Colon, "expected ':' after type name")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after type declaration")
@@ -86,10 +86,10 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		if len(generics) > 0 && p.looksLikeEnumValueMember() {
 			p.errorAt(name, "enum declarations cannot have generic parameters")
 		}
-		enum := p.parseEnumBody(name, private, generics)
+		enum := p.parseEnumBody(name, private, generics, constraints)
 		return nil, enum
 	}
-	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
+	typ := &ast.StructType{Name: name.Lexeme, Private: private, Generics: generics, GenericConstraints: constraints, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		if p.looksLikeMacroFunctionDecl() {
 			p.advance()
@@ -104,9 +104,16 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		}
 		annotations := p.parseAnnotations()
 		private := p.parseObjectPrivateModifier()
+		static := false
+		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+			p.advance()
+			p.skipNewlines()
+			static = true
+		}
 		if p.looksLikeFunctionDecl() {
 			method := p.parseFunctionWithReceiver(typ.Name, private)
 			if method != nil {
+				method.Static = static
 				method.Annotations = annotations
 				typ.Methods = append(typ.Methods, method)
 			}
@@ -115,6 +122,9 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 			continue
 		}
 		fieldName := p.consume(lexer.Ident, "expected field name")
+		if static {
+			p.errorAt(fieldName, "struct fields cannot be static")
+		}
 		p.consume(lexer.Colon, "expected ':' after field name")
 		fieldType := p.parseTypeName()
 		typ.Fields = append(typ.Fields, ast.Field{
@@ -135,6 +145,67 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 func (p *Parser) parseStructType() *ast.StructType {
 	typ, _ := p.parseTypeDecl(false)
 	return typ
+}
+
+func (p *Parser) parseTraitDecl() *ast.TraitDecl {
+	start := p.consume(lexer.BitAnd, "expected '&'")
+	name := p.consume(lexer.Ident, "expected trait name after '&'")
+	p.consume(lexer.Colon, "expected ':' after trait name")
+	p.skipNewlines()
+	p.consume(lexer.LBrace, "expected '{' after trait declaration")
+	p.skipNewlines()
+	trait := &ast.TraitDecl{Name: name.Lexeme, Pos: start.Pos, NamePos: name.Pos}
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		static := false
+		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+			p.advance()
+			p.skipNewlines()
+			static = true
+		}
+		member := p.consume(lexer.Ident, "expected trait member name")
+		if p.match(lexer.LParen) {
+			method := &ast.Function{Name: member.Lexeme, Static: static, Pos: member.Pos, NamePos: member.Pos}
+			p.skipNewlines()
+			if !p.check(lexer.RParen) {
+				for {
+					param := p.consume(lexer.Ident, "expected trait method parameter")
+					p.consume(lexer.Colon, "expected ':' after trait method parameter")
+					method.Params = append(method.Params, ast.Param{
+						Name: param.Lexeme,
+						Type: p.parseTypeName(),
+						Pos:  param.Pos,
+					})
+					p.skipNewlines()
+					if !p.match(lexer.Comma) {
+						break
+					}
+					p.skipNewlines()
+				}
+			}
+			p.consume(lexer.RParen, "expected ')' after trait method parameters")
+			p.skipNewlines()
+			if p.match(lexer.Arrow) {
+				p.skipNewlines()
+				method.ReturnType = p.parseTypeName()
+			}
+			trait.Methods = append(trait.Methods, method)
+		} else {
+			if static {
+				p.errorAt(member, "trait fields cannot be static")
+			}
+			p.consume(lexer.Colon, "expected ':' after trait field name")
+			trait.Fields = append(trait.Fields, ast.Field{
+				Name: member.Lexeme,
+				Type: p.parseTypeName(),
+				Pos:  member.Pos,
+			})
+		}
+		p.consumeStatementEnd()
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after trait declaration")
+	return trait
 }
 
 func (p *Parser) looksLikeEnumMember() bool {
@@ -185,8 +256,8 @@ func (p *Parser) looksLikeEnumValueMember() bool {
 	return p.check(lexer.Assign)
 }
 
-func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string) *ast.EnumType {
-	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, Pos: name.Pos, NamePos: name.Pos}
+func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string, constraints map[string]ast.Type) *ast.EnumType {
+	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, GenericConstraints: constraints, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
 		memberPrivate := !p.parsePublicModifier()
@@ -275,7 +346,7 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string, private bool) *a
 	}
 
 	fn := &ast.Function{Name: name.Lexeme, Private: private, Routine: routine, ReceiverType: receiverType, Pos: name.Pos, NamePos: name.Pos}
-	fn.Generics = p.parseGenericNames()
+	fn.Generics, fn.GenericConstraints = p.parseGenericParams()
 	p.consume(lexer.LParen, "expected '(' after function name")
 	p.skipNewlines()
 	if !p.check(lexer.RParen) {
@@ -312,13 +383,24 @@ func (p *Parser) parseFunctionWithReceiver(receiverType string, private bool) *a
 }
 
 func (p *Parser) parseGenericNames() []string {
+	names, _ := p.parseGenericParams()
+	return names
+}
+
+func (p *Parser) parseGenericParams() ([]string, map[string]ast.Type) {
 	if !p.match(lexer.LBracket) {
-		return nil
+		return nil, nil
 	}
 	var names []string
+	constraints := map[string]ast.Type{}
 	for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
 		if p.check(lexer.Ident) {
-			names = append(names, p.advance().Lexeme)
+			name := p.advance()
+			names = append(names, name.Lexeme)
+			if p.match(lexer.Colon) {
+				p.skipNewlines()
+				constraints[name.Lexeme] = p.parseTypeName()
+			}
 		} else {
 			p.advance()
 		}
@@ -326,7 +408,10 @@ func (p *Parser) parseGenericNames() []string {
 		p.skipNewlines()
 	}
 	p.consume(lexer.RBracket, "expected ']' after generic parameters")
-	return names
+	if len(constraints) == 0 {
+		constraints = nil
+	}
+	return names, constraints
 }
 
 func (p *Parser) parseTypeName() ast.Type {
@@ -376,6 +461,10 @@ func (p *Parser) parseTypeName() ast.Type {
 }
 
 func (p *Parser) parseSimpleTypeName() ast.Type {
+	if p.match(lexer.BitAnd) {
+		name := p.consume(lexer.Ident, "expected trait name after '&'")
+		return ast.NamedType("&" + name.Lexeme)
+	}
 	if p.match(lexer.At) {
 		module := p.consume(lexer.Ident, "expected module name after '@'")
 		p.consume(lexer.Dot, "expected '.' after module name")

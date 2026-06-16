@@ -79,6 +79,14 @@ newline := '\\n'`)
   @assert.eq(tokens[5].kind, TokenKind.QuestionQuestion)
 }
 
+? "selfhost lexer reads static selector" {
+  tokens := lex("User::fromJson(text)")
+  @assert.eq(tokens[0].kind, TokenKind.Ident)
+  @assert.eq(tokens[1].kind, TokenKind.DoubleColon)
+  @assert.eq(tokens[1].lexeme, "::")
+  @assert.eq(tokens[2].kind, TokenKind.Ident)
+}
+
 ? "selfhost lexer reads unicode identifiers" {
   tokens := lex(`变量💡 := 1
 用户👩‍💻 := 2

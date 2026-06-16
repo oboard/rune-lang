@@ -1,3 +1,10 @@
+Double: {
+  add(other: Double) -> Double => "%double.add"
+  sub(other: Double) -> Double => "%double.sub"
+  mul(other: Double) -> Double => "%double.mul"
+  div(other: Double) -> Double => "%double.div"
+}
+
 trunc(value: Double) -> Int => "%double.trunc"
 
 floor(value: Double) -> Int => "%double.floor"

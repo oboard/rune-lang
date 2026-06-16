@@ -1,3 +1,10 @@
+Float: {
+  add(other: Float) -> Float => "%float.add"
+  sub(other: Float) -> Float => "%float.sub"
+  mul(other: Float) -> Float => "%float.mul"
+  div(other: Float) -> Float => "%float.div"
+}
+
 fromDouble(value: Double) -> Float => "%float.fromDouble"
 
 toDouble(value: Float) -> Double => "%float.toDouble"

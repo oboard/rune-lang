@@ -13,10 +13,11 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
-func (i *Interpreter) callModuleFunction(module string, name string, args []ir.Expr, env *Env) (Value, error) {
+func (i *Interpreter) callModuleFunction(module string, name string, args []ir.Expr, resultType checker.Type, env *Env) (Value, error) {
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
@@ -284,7 +285,16 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		if len(values) != 1 {
 			return nil, fmt.Errorf("@json.stringify expects 1 arg, got %d", len(values))
 		}
-		return jsonStringify(values[0])
+		return i.jsonStringify(values[0])
+	case "json.parse":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@json.parse expects 1 arg, got %d", len(values))
+		}
+		text, ok := values[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("@json.parse argument 1 expects String")
+		}
+		return i.jsonParse(text, resultType)
 	case "regex.new":
 		if len(values) != 2 {
 			return nil, fmt.Errorf("@regex.new expects 2 args, got %d", len(values))

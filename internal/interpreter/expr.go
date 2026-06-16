@@ -853,6 +853,25 @@ func (i *Interpreter) evalBlock(block *ir.BlockExpr, env *Env) (Value, error) {
 }
 
 func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, error) {
+	if expr.Static {
+		ident, ok := expr.Receiver.(*ir.Identifier)
+		if !ok {
+			return nil, fmt.Errorf("static selector receiver must be a type")
+		}
+		if _, shadowed := env.Get(ident.Name); shadowed {
+			return nil, fmt.Errorf("static selector receiver %q is a value, not a type", ident.Name)
+		}
+		typ := i.types[ident.Name]
+		if typ == nil {
+			return nil, fmt.Errorf("unknown type %q", ident.Name)
+		}
+		for _, method := range typ.Methods {
+			if method.Name == expr.Name && method.Static {
+				return method, nil
+			}
+		}
+		return nil, fmt.Errorf("type %s has no static method %q", typ.Name, expr.Name)
+	}
 	if ident, ok := expr.Receiver.(*ir.Identifier); ok {
 		if _, exists := env.Get(ident.Name); !exists {
 			if enum := i.enums[ident.Name]; enum != nil {

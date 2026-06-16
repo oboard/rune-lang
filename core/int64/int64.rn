@@ -1,3 +1,10 @@
+Int64: {
+  add(other: Int64) -> Int64 => "%int64.add"
+  sub(other: Int64) -> Int64 => "%int64.sub"
+  mul(other: Int64) -> Int64 => "%int64.mul"
+  div(other: Int64) -> Int64 => "%int64.div"
+}
+
 fromInt(value: Int) -> Int64 => "%int64.fromInt"
 
 toInt(value: Int64) -> Int => "%int64.toInt"

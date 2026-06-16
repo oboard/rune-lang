@@ -21,6 +21,9 @@ func (g *generator) linef(format string, args ...any) {
 }
 
 func goType(typ checker.Type) string {
+	if strings.HasPrefix(string(typ), "&") {
+		return "any"
+	}
 	if _, ok := parseGoNullableType(string(typ)); ok {
 		return "any"
 	}
@@ -135,6 +138,26 @@ func goType(typ checker.Type) string {
 		return "any"
 	default:
 		return mangleIdent(string(typ))
+	}
+}
+
+func goGenerics(names []string, constraints map[string]string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		parts = append(parts, mangleIdent(name)+" "+goGenericConstraint(constraints[name]))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func goGenericConstraint(name string) string {
+	switch name {
+	case "Add", "Sub", "Mul", "Div", "Number":
+		return "runeNumber"
+	default:
+		return "any"
 	}
 }
 

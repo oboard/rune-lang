@@ -79,6 +79,135 @@ func TestWebComponentReturnAcceptsXMLLiteral(t *testing.T) {
 	}
 }
 
+func TestGenericNumberConstraintAllowsNumericBinaryOps(t *testing.T) {
+	src := `add[T: Number](a: T, b: T) -> T => a + b
+
+main() => {
+  intValue := add(1, 2)
+  doubleValue := add(1.0, 2.0)
+  intValue
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["add"]
+	if fn == nil {
+		t.Fatalf("missing add function")
+	}
+	if got := fn.GenericConstraints["T"]; got != "Number" {
+		t.Fatalf("add T constraint = %q, want Number", got)
+	}
+
+	var callTypes []Type
+	ast.WalkExpr(file.Functions[len(file.Functions)-1].Body, func(expr ast.Expr) {
+		call, ok := expr.(*ast.CallExpr)
+		if !ok {
+			return
+		}
+		if ident, ok := call.Callee.(*ast.Identifier); ok && ident.Name == "add" {
+			callTypes = append(callTypes, info.ExprTypes[call])
+		}
+	})
+	if len(callTypes) != 2 {
+		t.Fatalf("add calls = %d, want 2", len(callTypes))
+	}
+	if callTypes[0] != Int || callTypes[1] != Double {
+		t.Fatalf("add call types = %v, want [Int Double]", callTypes)
+	}
+}
+
+func TestGenericNumberConstraintRejectsNonNumericCall(t *testing.T) {
+	src := `add[T: Number](a: T, b: T) -> T => a + b
+
+main() => add("a", "b")
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	_, diags := Check(file)
+	if !hasDiagnostic(diags, "does not satisfy generic constraint Number") {
+		t.Fatalf("diagnostics = %#v, want generic Number constraint error", diags)
+	}
+}
+
+func TestGenericAddConstraintAllowsPlus(t *testing.T) {
+	src := `add[T: Add](a: T, b: T) -> T => a + b
+
+main() => add(1, 2)
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got := info.Functions["add"].GenericConstraints["T"]; got != "Add" {
+		t.Fatalf("add T constraint = %q, want Add", got)
+	}
+}
+
+func TestGenericTraitConstraintAllowsMembers(t *testing.T) {
+	src := `&Named: {
+  name: String
+}
+
+User: {
+  name: String
+}
+
+Plain: {
+  id: Int
+}
+
+nameOf[T: &Named](value: T) -> String => value.name
+
+main() => nameOf(User { name: "Rune" })
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got := info.Functions["nameOf"].GenericConstraints["T"]; got != "Named" {
+		t.Fatalf("nameOf T constraint = %q, want Named", got)
+	}
+}
+
+func TestGenericTraitConstraintRejectsMissingMembers(t *testing.T) {
+	src := `&Named: {
+  name: String
+}
+
+Plain: {
+  id: Int
+}
+
+nameOf[T: &Named](value: T) -> String => value.name
+
+main() => nameOf(Plain { id: 1 })
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	_, diags := Check(file)
+	if !hasDiagnostic(diags, "does not satisfy generic constraint Named") {
+		t.Fatalf("diagnostics = %#v, want generic trait constraint error", diags)
+	}
+}
+
 func TestWebComponentReturnRejectsHTMLElementValue(t *testing.T) {
 	src := `makeElement() -> HTMLElement => {
   <div>hello world</div>

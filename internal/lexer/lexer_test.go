@@ -44,3 +44,10 @@ func TestLexTemplateString(t *testing.T) {
 		t.Fatalf("tokens[3] = %#v, want newline after multiline template on line 2", tokens[3])
 	}
 }
+
+func TestLexStaticSelector(t *testing.T) {
+	tokens := Lex("User::fromJson(text)")
+	if tokens[1].Kind != DoubleColon || tokens[1].Lexeme != "::" {
+		t.Fatalf("tokens[1] = %s, want DoubleColon; tokens = %#v", tokens[1], tokens)
+	}
+}

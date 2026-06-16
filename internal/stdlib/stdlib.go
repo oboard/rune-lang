@@ -8,12 +8,14 @@ import (
 type Registry struct {
 	Modules map[string]*Module
 	Types   map[string]*Type
+	Traits  map[string]*Trait
 }
 
 type Module struct {
 	Name      string
 	Functions []Function
 	Types     []Type
+	Traits    []Trait
 
 	byName     map[string]*Function
 	byMacro    map[string]*Function
@@ -22,12 +24,21 @@ type Module struct {
 }
 
 type Type struct {
-	Name         string
-	SourcePath   string
-	Pos          lexer.Position
-	Generics     []string
-	Fields       []Field
-	Constructors []Constructor
+	Name               string
+	SourcePath         string
+	Pos                lexer.Position
+	Generics           []string
+	GenericConstraints map[string]string
+	Fields             []Field
+	Constructors       []Constructor
+}
+
+type Trait struct {
+	Name       string
+	SourcePath string
+	Pos        lexer.Position
+	Fields     []Field
+	Methods    []Function
 }
 
 type Field struct {
@@ -44,22 +55,24 @@ type Constructor struct {
 }
 
 type Function struct {
-	Name         string
-	Macro        bool
-	Routine      bool
-	SourcePath   string
-	Pos          lexer.Position
-	Receiver     string
-	Generics     []string
-	ParamNames   []string
-	Params       []string
-	Return       string
-	Alias        string
-	Variadic     bool
-	TopLevelOnly bool
-	Intrinsic    string
-	Body         ast.Expr
-	Go           *GoBinding
+	Name               string
+	Macro              bool
+	Static             bool
+	Routine            bool
+	SourcePath         string
+	Pos                lexer.Position
+	Receiver           string
+	Generics           []string
+	GenericConstraints map[string]string
+	ParamNames         []string
+	Params             []string
+	Return             string
+	Alias              string
+	Variadic           bool
+	TopLevelOnly       bool
+	Intrinsic          string
+	Body               ast.Expr
+	Go                 *GoBinding
 }
 
 type GoBinding struct {

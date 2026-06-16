@@ -12,6 +12,7 @@ type LetStmt struct {
 	Mutable bool
 	Signal  bool
 	Value   Expr
+	Type    Type
 	Pos     lexer.Position
 }
 

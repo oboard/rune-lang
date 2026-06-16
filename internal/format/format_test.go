@@ -33,6 +33,78 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
 	}
 }
 
+func TestTraitFormatting(t *testing.T) {
+	src := `&ToJson:{name:String toJson(pretty:Bool)->Self}
+encode(value:&ToJson)->&ToJson=>value`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	got := File(file)
+	want := `&ToJson: {
+  name: String
+
+  toJson(pretty: Bool) -> Self
+}
+
+encode(value: &ToJson) -> &ToJson => value
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestStaticMethodAndTypedBindingFormatting(t *testing.T) {
+	src := `&FromJson:{static fromJson(text:String)->Self}
+User:{name:String static fromJson(text:String)->User=>User{name:text}}
+main()=>{user:=@json.parse(text):User parsed:=User::fromJson(text) parsed}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	got := File(file)
+	want := `&FromJson: {
+  static fromJson(text: String) -> Self
+}
+
+User: {
+  name: String
+
+  static fromJson(text: String) -> User => User {
+    name: text
+  }
+}
+
+main() => {
+  user := @json.parse(text) : User
+  parsed := User::fromJson(text)
+  parsed
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestGenericConstraintFormatting(t *testing.T) {
+	src := `Box[T:&Named]:{value:T}
+add[T:Number](a:T,b:T)->T=>a+b`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	got := File(file)
+	want := `Box[T: &Named]: {
+  value: T
+}
+
+add[T: Number](a: T, b: T) -> T => a + b
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestImportFormatting(t *testing.T) {
 	src := `@"helper.rn"
 main()=>helper()`

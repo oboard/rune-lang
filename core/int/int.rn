@@ -1,5 +1,9 @@
 Int: {
   toString() -> String => "%int.toString"
+  add(other: Int) -> Int => "%int.add"
+  sub(other: Int) -> Int => "%int.sub"
+  mul(other: Int) -> Int => "%int.mul"
+  div(other: Int) -> Int => "%int.div"
 }
 
 toDouble(value: Int) -> Double => "%int.toDouble"

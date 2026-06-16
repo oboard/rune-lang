@@ -66,6 +66,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		prec := tsPrecedence(e.Op)
 		op := tsBinaryOp(e.Op)
 		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), op, g.exprPrec(e.Right, prec+1))
+		if tsArithmeticOp(e.Op) && isTSGenericResultType(e.ResultType()) {
+			s = fmt.Sprintf("(%s) as %s", s, tsType(e.ResultType()))
+		}
 		if prec < parentPrec {
 			return "(" + s + ")"
 		}
@@ -99,6 +102,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.SelectorExpr:
+		if e.Static {
+			if ident, ok := e.Receiver.(*ir.Identifier); ok {
+				return mangleMethod(ident.Name, e.Name)
+			}
+		}
 		if member, ok := g.enumMemberSelector(e); ok {
 			return member
 		}
@@ -574,10 +582,13 @@ func (g *generator) methodCall(call *ir.CallExpr) (string, bool) {
 		return "", false
 	}
 	for _, method := range typ.Methods {
-		if method.Name != sel.Name {
+		if method.Name != sel.Name || method.Static != sel.Static {
 			continue
 		}
-		args := []string{g.expr(sel.Receiver)}
+		args := []string{}
+		if !method.Static {
+			args = append(args, g.expr(sel.Receiver))
+		}
 		for _, arg := range call.Args {
 			args = append(args, g.expr(arg))
 		}

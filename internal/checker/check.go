@@ -34,6 +34,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 			ResolvedMacros:            map[*ast.Annotation]*stdlib.Function{},
 			ResolvedMacroFunctions:    map[*ast.Annotation]*FuncInfo{},
 			Types:                     map[string]*StructInfo{},
+			Traits:                    map[string]*TraitInfo{},
 			Enums:                     map[string]*EnumInfo{},
 			Constructors:              map[string][]EnumConstructorInfo{},
 			Stdlib:                    reg,
@@ -46,9 +47,11 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 		bindings:           map[string]ast.Expr{},
 		inferredFunctions:  map[*ast.Function]bool{},
 		inferringFunctions: map[*ast.Function]bool{},
+		expectedType:       Unknown,
 		sourcePath:         normalizeSourcePath(sourcePath),
 		currentSourcePath:  normalizeSourcePath(sourcePath),
 	}
+	c.collectCoreTraits()
 	c.collectCoreTypes()
 	c.checkGoImports(file)
 	c.collect(file)
@@ -73,11 +76,75 @@ type checker struct {
 	inferredFunctions  map[*ast.Function]bool
 	inferringFunctions map[*ast.Function]bool
 	genericTypes       map[string]bool
+	genericConstraints map[string]string
+	expectedType       Type
 	sourcePath         string
 	currentSourcePath  string
 	routineDepth       int
 	unwrapErrors       []Type
 	stdlibMacroPurity  map[*stdlib.Function]string
+}
+
+func (c *checker) collectCoreTraits() {
+	if c.info.Stdlib == nil {
+		return
+	}
+	for _, trait := range c.info.Stdlib.Traits {
+		if c.isSourceType(trait.SourcePath) {
+			continue
+		}
+		c.info.Traits[trait.Name] = &TraitInfo{
+			Name:          trait.Name,
+			SourcePath:    trait.SourcePath,
+			ByName:        map[string]FieldInfo{},
+			Methods:       map[string]*FuncInfo{},
+			StaticMethods: map[string]*FuncInfo{},
+		}
+	}
+	for _, trait := range c.info.Stdlib.Traits {
+		if c.isSourceType(trait.SourcePath) {
+			continue
+		}
+		info := c.info.Traits[trait.Name]
+		if info == nil {
+			continue
+		}
+		generics := genericSet("Self")
+		for _, field := range trait.Fields {
+			fieldType := c.resolveTypeWithGenerics(field.Type, generics)
+			member := FieldInfo{Name: field.Name, SourcePath: trait.SourcePath, Type: fieldType}
+			info.Fields = append(info.Fields, member)
+			info.ByName[field.Name] = member
+		}
+		for _, method := range trait.Methods {
+			member := &FuncInfo{
+				Name:           method.Name,
+				LinkName:       method.Name,
+				Static:         method.Static,
+				SourcePath:     trait.SourcePath,
+				Return:         c.resolveTypeWithGenerics(method.Return, generics),
+				ReturnDeclared: true,
+				ReceiverType:   Type("&" + trait.Name),
+				Pos:            method.Pos,
+				NamePos:        method.Pos,
+			}
+			for idx, paramType := range method.Params {
+				name := ""
+				if idx < len(method.ParamNames) {
+					name = method.ParamNames[idx]
+				}
+				member.Params = append(member.Params, ParamInfo{
+					Name: name,
+					Type: c.resolveTypeWithGenerics(paramType, generics),
+				})
+			}
+			if method.Static {
+				info.StaticMethods[method.Name] = member
+			} else {
+				info.Methods[method.Name] = member
+			}
+		}
+	}
 }
 
 func (c *checker) collectCoreTypes() {
@@ -89,12 +156,14 @@ func (c *checker) collectCoreTypes() {
 			continue
 		}
 		c.info.Types[typ.Name] = &StructInfo{
-			Name:       typ.Name,
-			Private:    false,
-			SourcePath: typ.SourcePath,
-			Generics:   append([]string(nil), typ.Generics...),
-			ByName:     map[string]FieldInfo{},
-			Methods:    map[string]*FuncInfo{},
+			Name:               typ.Name,
+			Private:            false,
+			SourcePath:         typ.SourcePath,
+			Generics:           append([]string(nil), typ.Generics...),
+			GenericConstraints: cloneStringMap(typ.GenericConstraints),
+			ByName:             map[string]FieldInfo{},
+			Methods:            map[string]*FuncInfo{},
+			StaticMethods:      map[string]*FuncInfo{},
 		}
 	}
 	for _, typ := range c.info.Stdlib.Types {
@@ -103,12 +172,14 @@ func (c *checker) collectCoreTypes() {
 		}
 		typeGenerics := genericSet(typ.Generics...)
 		info := &StructInfo{
-			Name:       typ.Name,
-			Private:    false,
-			SourcePath: typ.SourcePath,
-			Generics:   append([]string(nil), typ.Generics...),
-			ByName:     map[string]FieldInfo{},
-			Methods:    map[string]*FuncInfo{},
+			Name:               typ.Name,
+			Private:            false,
+			SourcePath:         typ.SourcePath,
+			Generics:           append([]string(nil), typ.Generics...),
+			GenericConstraints: cloneStringMap(typ.GenericConstraints),
+			ByName:             map[string]FieldInfo{},
+			Methods:            map[string]*FuncInfo{},
+			StaticMethods:      map[string]*FuncInfo{},
 		}
 		for _, field := range typ.Fields {
 			fieldType := c.resolveTypeWithGenerics(field.Type, typeGenerics)
@@ -118,6 +189,64 @@ func (c *checker) collectCoreTypes() {
 		}
 		c.info.Types[typ.Name] = info
 	}
+	for _, mod := range c.info.Stdlib.Modules {
+		for i := range mod.Functions {
+			fn := &mod.Functions[i]
+			if fn.Receiver == "" {
+				continue
+			}
+			typeInfo := c.info.Types[fn.Receiver]
+			if typeInfo == nil {
+				continue
+			}
+			method := c.coreFunctionInfo(fn, typeInfo)
+			typeInfo.Methods[fn.Name] = method
+		}
+	}
+}
+
+func (c *checker) coreFunctionInfo(fn *stdlib.Function, receiver *StructInfo) *FuncInfo {
+	generics := append([]string(nil), receiver.Generics...)
+	generics = append(generics, fn.Generics...)
+	constraints := cloneStringMap(receiver.GenericConstraints)
+	for name, constraint := range fn.GenericConstraints {
+		constraints[name] = constraint
+	}
+	genericTypes := genericSet(generics...)
+	info := &FuncInfo{
+		Name:               fn.Name,
+		LinkName:           fn.Name,
+		SourcePath:         fn.SourcePath,
+		Routine:            fn.Routine,
+		Generics:           generics,
+		GenericConstraints: constraints,
+		ReceiverType:       coreReceiverType(receiver),
+		Return:             c.resolveTypeWithGenerics(fn.Return, genericTypes),
+		ReturnDeclared:     true,
+		Pos:                fn.Pos,
+		NamePos:            fn.Pos,
+	}
+	for idx, paramType := range fn.Params {
+		name := ""
+		if idx < len(fn.ParamNames) {
+			name = fn.ParamNames[idx]
+		}
+		info.Params = append(info.Params, ParamInfo{
+			Name: name,
+			Type: c.resolveTypeWithGenerics(paramType, genericTypes),
+		})
+	}
+	return info
+}
+
+func coreReceiverType(info *StructInfo) Type {
+	if info == nil || len(info.Generics) == 0 {
+		if info == nil {
+			return Unknown
+		}
+		return Type(info.Name)
+	}
+	return Type(info.Name + "[" + strings.Join(info.Generics, ",") + "]")
 }
 
 func (c *checker) isSourceType(sourcePath string) bool {

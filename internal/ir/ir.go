@@ -48,20 +48,23 @@ type TSValue struct {
 }
 
 type StructType struct {
-	Name     string
-	Private  bool
-	Generics []string
-	Fields   []Field
-	Methods  []*Function
-	Pos      lexer.Position
-	NamePos  lexer.Position
+	Name       string
+	Private    bool
+	Generics   []string
+	JSONObject bool
+	Fields     []Field
+	Methods    []*Function
+	Pos        lexer.Position
+	NamePos    lexer.Position
 }
 
 type Field struct {
-	Name    string
-	Private bool
-	Type    checker.Type
-	Pos     lexer.Position
+	Name       string
+	Private    bool
+	Type       checker.Type
+	JSONName   string
+	JSONIgnore bool
+	Pos        lexer.Position
 }
 
 type EnumType struct {
@@ -83,17 +86,19 @@ type EnumMember struct {
 }
 
 type Function struct {
-	Name         string
-	SourceName   string
-	Private      bool
-	Routine      bool
-	Generics     []string
-	ReceiverType checker.Type
-	Params       []Param
-	Return       checker.Type
-	Body         Expr
-	Pos          lexer.Position
-	NamePos      lexer.Position
+	Name               string
+	SourceName         string
+	Private            bool
+	Static             bool
+	Routine            bool
+	Generics           []string
+	GenericConstraints map[string]string
+	ReceiverType       checker.Type
+	Params             []Param
+	Return             checker.Type
+	Body               Expr
+	Pos                lexer.Position
+	NamePos            lexer.Position
 }
 
 type Param struct {

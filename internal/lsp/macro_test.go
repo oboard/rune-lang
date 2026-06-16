@@ -45,6 +45,50 @@ Args: {
 	}
 }
 
+func TestCLIMacroInlayHintsIgnoreGeneratedNodes(t *testing.T) {
+	src := `#cli.command("ship", "Ship a build artifact", "1.0.0")
+Args: {
+  #cli.flag("v", "enable verbose output")
+  verbose: Bool
+  #cli.option("o", "FILE", "write output file", "dist/app")
+  output: String
+  #cli.arg("target name")
+  target: String
+}
+
+#cli.main
+main(args: Args) => {
+  @io.println("target: " + args.target)
+}
+`
+	uri := "file:///tmp/cli_macro_inlay.rn"
+	session := NewSession()
+	session.SetDocument(uri, src)
+
+	hints := session.InlayHints(uri).([]map[string]any)
+	for _, hint := range hints {
+		if hint["position"] == (position{Line: 0, Character: 0}) {
+			t.Fatalf("generated hint leaked at document origin: %#v", hints)
+		}
+	}
+	for _, label := range []string{
+		"name=", "about=", "version=", "short=", "valueName=",
+		"help=", "defaultValue=",
+	} {
+		if !containsHintLabel(hints, label) {
+			t.Fatalf("inlay hints = %#v, want %q", hints, label)
+		}
+	}
+	for i := 1; i < len(hints); i++ {
+		previous := hints[i-1]["position"].(position)
+		current := hints[i]["position"].(position)
+		if current.Line < previous.Line ||
+			(current.Line == previous.Line && current.Character < previous.Character) {
+			t.Fatalf("inlay hints are not ordered: %#v", hints)
+		}
+	}
+}
+
 func TestMacroCompletionOnlyIncludesMacros(t *testing.T) {
 	reg, err := stdlib.LoadSources(map[string]string{
 		"cli/cli.rn": `#flag(tree: SyntaxFile, context: MacroContext, short: String) -> SyntaxFile => tree

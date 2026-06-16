@@ -10,8 +10,9 @@ import (
 )
 
 type jsonObjectField struct {
-	name string
-	typ  checker.Type
+	sourceName string
+	jsonName   string
+	typ        checker.Type
 }
 
 type jsonGoEmitter struct {
@@ -32,6 +33,34 @@ func (g *generator) jsonStringifyCall(call *ir.CallExpr) (string, bool) {
 	emitter := newJSONGoEmitter(g)
 	value := emitter.valueExpr(call.Args[0])
 	return fmt.Sprintf("func() string { %sb, _ := json.Marshal(%s); return string(b) }()", emitter.declarationText(), value), true
+}
+
+func (g *generator) jsonParseCall(call *ir.CallExpr) (string, bool) {
+	fn, ok := g.stdlibFunctionFromCall(call)
+	if !ok || fn.Intrinsic != "json.parse" {
+		return "", false
+	}
+	if len(call.Args) != 1 {
+		return "/* invalid @json.parse */", true
+	}
+	emitter := newJSONGoEmitter(g)
+	targetType := call.ResultType()
+	wireType := emitter.decodeGoType(targetType)
+	raw := "raw"
+	seed := g.zeroValue(targetType)
+	value := emitter.decodedValue(raw, seed, targetType)
+	return fmt.Sprintf(
+		"func() %s { %stype %sAlias = %s; var %s %sAlias; if err := json.Unmarshal([]byte(%s), &%s); err != nil { panic(err) }; return %s }()",
+		goType(targetType),
+		emitter.declarationText(),
+		wireType,
+		wireType,
+		raw,
+		wireType,
+		g.expr(call.Args[0]),
+		raw,
+		value,
+	), true
 }
 
 func newJSONGoEmitter(g *generator) *jsonGoEmitter {
@@ -96,7 +125,7 @@ func (e *jsonGoEmitter) jsonGoType(typ checker.Type) string {
 		e.names[key] = name
 		parts := make([]string, 0, len(fields))
 		for idx, field := range fields {
-			parts = append(parts, fmt.Sprintf("F%d %s `json:%s`", idx, e.jsonGoType(field.typ), strconv.Quote(field.name)))
+			parts = append(parts, fmt.Sprintf("F%d %s `json:%s`", idx, e.jsonGoType(field.typ), strconv.Quote(field.jsonName)))
 		}
 		e.decls = append(e.decls, fmt.Sprintf("type %s struct{%s}", name, strings.Join(parts, "; ")))
 		return name
@@ -107,10 +136,138 @@ func (e *jsonGoEmitter) jsonGoType(typ checker.Type) string {
 	return goType(typ)
 }
 
+func (e *jsonGoEmitter) decodeGoType(typ checker.Type) string {
+	if inner, ok := parseGoNullableType(string(typ)); ok {
+		return "*" + e.decodeGoType(checker.Type(inner))
+	}
+	if fields, ok := e.g.jsonObjectFields(typ); ok {
+		key := "decode:" + string(typ)
+		if name, ok := e.names[key]; ok {
+			return name
+		}
+		name := fmt.Sprintf("json%d", e.next)
+		e.next++
+		e.names[key] = name
+		parts := make([]string, 0, len(fields))
+		for idx, field := range fields {
+			parts = append(parts, fmt.Sprintf("F%d %s `json:%s`", idx, e.decodeGoType(field.typ), strconv.Quote(field.jsonName)))
+		}
+		e.decls = append(e.decls, fmt.Sprintf("type %s struct{%s}", name, strings.Join(parts, "; ")))
+		return name
+	}
+	if elem, ok := checker.ArrayElement(typ); ok {
+		return "[]" + e.decodeGoType(elem)
+	}
+	if typ == checker.Char {
+		return "string"
+	}
+	return goType(typ)
+}
+
+func (e *jsonGoEmitter) decodedValue(source string, seed string, typ checker.Type) string {
+	if inner, ok := parseGoNullableType(string(typ)); ok {
+		innerType := checker.Type(inner)
+		return fmt.Sprintf(
+			"func() any { if %s == nil { return nil }; return %s }()",
+			source,
+			e.decodedValue("*"+source, e.g.zeroValue(innerType), innerType),
+		)
+	}
+	if fields, ok := e.g.jsonObjectFields(typ); ok {
+		out := "out"
+		assignments := make([]string, 0, len(fields))
+		for idx, field := range fields {
+			fieldName := mangleIdent(field.sourceName)
+			assignments = append(assignments, fmt.Sprintf(
+				"%s.%s = %s",
+				out,
+				fieldName,
+				e.decodedValue(
+					fmt.Sprintf("%s.F%d", source, idx),
+					seed+"."+fieldName,
+					field.typ,
+				),
+			))
+		}
+		body := ""
+		if len(assignments) > 0 {
+			body = strings.Join(assignments, "; ") + "; "
+		}
+		return fmt.Sprintf(
+			"func() %s { %s := %s; %sreturn %s }()",
+			goType(typ),
+			out,
+			seed,
+			body,
+			out,
+		)
+	}
+	if elem, ok := checker.ArrayElement(typ); ok {
+		index := "idx"
+		item := "item"
+		out := "out"
+		if !e.decodeUsesSeed(elem) {
+			return fmt.Sprintf(
+				"func() %s { %s := make(%s, len(%s)); for %s, %s := range %s { %s[%s] = %s }; return %s }()",
+				goType(typ),
+				out,
+				goType(typ),
+				source,
+				index,
+				item,
+				source,
+				out,
+				index,
+				e.decodedValue(item, e.g.zeroValue(elem), elem),
+				out,
+			)
+		}
+		itemSeed := "itemSeed"
+		return fmt.Sprintf(
+			"func() %s { %s := make(%s, len(%s)); for %s, %s := range %s { var %s %s; if %s < len(%s) { %s = %s[%s] }; %s[%s] = %s }; return %s }()",
+			goType(typ),
+			out,
+			goType(typ),
+			source,
+			index,
+			item,
+			source,
+			itemSeed,
+			goType(elem),
+			index,
+			seed,
+			itemSeed,
+			seed,
+			index,
+			out,
+			index,
+			e.decodedValue(item, itemSeed, elem),
+			out,
+		)
+	}
+	if typ == checker.Char {
+		return "[]rune(" + source + ")[0]"
+	}
+	return source
+}
+
+func (e *jsonGoEmitter) decodeUsesSeed(typ checker.Type) bool {
+	if inner, ok := parseGoNullableType(string(typ)); ok {
+		return e.decodeUsesSeed(checker.Type(inner))
+	}
+	if _, ok := e.g.jsonObjectFields(typ); ok {
+		return true
+	}
+	if elem, ok := checker.ArrayElement(typ); ok {
+		return e.decodeUsesSeed(elem)
+	}
+	return false
+}
+
 func (e *jsonGoEmitter) jsonObjectValues(source string, fields []jsonObjectField) string {
 	values := make([]string, 0, len(fields))
 	for idx, field := range fields {
-		fieldSource := source + "." + mangleIdent(field.name)
+		fieldSource := source + "." + mangleIdent(field.sourceName)
 		values = append(values, fmt.Sprintf("F%d: %s", idx, e.jsonValueFromSource(fieldSource, field.typ)))
 	}
 	return strings.Join(values, ", ")
@@ -132,7 +289,7 @@ func (e *jsonGoEmitter) jsonObjectLiteralValues(fields []ir.FieldValue, typ chec
 	}
 	values := make([]string, 0, len(objectFields))
 	for idx, field := range objectFields {
-		value := byName[field.name]
+		value := byName[field.sourceName]
 		if value == nil {
 			continue
 		}
@@ -160,7 +317,7 @@ func (g *generator) jsonObjectFields(typ checker.Type) ([]jsonObjectField, bool)
 			if jsonOmitType(fieldType) {
 				continue
 			}
-			out = append(out, jsonObjectField{name: field.name, typ: fieldType})
+			out = append(out, jsonObjectField{sourceName: field.name, jsonName: field.name, typ: fieldType})
 		}
 		return out, true
 	}
@@ -170,10 +327,14 @@ func (g *generator) jsonObjectFields(typ checker.Type) ([]jsonObjectField, bool)
 		}
 		out := make([]jsonObjectField, 0, len(candidate.Fields))
 		for _, field := range candidate.Fields {
-			if jsonOmitType(field.Type) {
+			if jsonOmitType(field.Type) || (candidate.JSONObject && field.JSONIgnore) {
 				continue
 			}
-			out = append(out, jsonObjectField{name: field.Name, typ: field.Type})
+			jsonName := field.Name
+			if candidate.JSONObject {
+				jsonName = field.JSONName
+			}
+			out = append(out, jsonObjectField{sourceName: field.Name, jsonName: jsonName, typ: field.Type})
 		}
 		return out, true
 	}

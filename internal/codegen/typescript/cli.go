@@ -61,6 +61,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliHelp(%s)", args[0])
+	case "parseOrExit":
+		if len(args) != 1 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("runeCliParseOrExit(%s)", args[0])
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}
@@ -297,6 +302,20 @@ function runeCliHelp(command: __CliCommand): string {
   }
   lines.push("  -h, --help\tShow help");
   return lines.join("\n") + "\n";
+}
+
+function runeCliParseOrExit(command: __CliCommand): __CliParseResult {
+  const result = runeCliParse(command);
+  if (result.help) {
+    console.log(runeCliHelp(command).trimEnd());
+    process.exit(0);
+  }
+  if (result.error) {
+    console.error(result.error);
+    console.error(runeCliHelp(command).trimEnd());
+    process.exit(2);
+  }
+  return result;
 }
 `
 	for _, line := range strings.Split(strings.Trim(src, "\n"), "\n") {

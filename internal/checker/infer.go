@@ -18,18 +18,24 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 	c.withSourcePath(typ.SourcePath, func() {
 		for _, method := range typ.Methods {
 			info := structInfo.Methods[method.Name]
+			if method.Static {
+				info = structInfo.StaticMethods[method.Name]
+			}
 			if info == nil {
 				continue
 			}
 			c.withSourcePath(method.SourcePath, func() {
-				c.withGenericTypes(info.Generics, func() {
+				c.withGenericTypes(info.Generics, info.GenericConstraints, func() {
 					if isIntrinsicStub(method) {
 						if !info.ReturnDeclared {
 							info.Return = Void
 						}
 						return
 					}
-					env := map[string]Type{"this": info.ReceiverType}
+					env := map[string]Type{}
+					if !info.Static {
+						env["this"] = info.ReceiverType
+					}
 					for _, param := range info.Params {
 						env[param.Name] = param.Type
 					}
@@ -57,7 +63,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 	c.inferringFunctions[fn] = true
 	defer delete(c.inferringFunctions, fn)
 	c.withSourcePath(fn.SourcePath, func() {
-		c.withGenericTypes(info.Generics, func() {
+		c.withGenericTypes(info.Generics, info.GenericConstraints, func() {
 			if isIntrinsicStub(fn) {
 				if !info.ReturnDeclared {
 					info.Return = Void
@@ -94,15 +100,18 @@ func (c *checker) inferFunction(fn *ast.Function) {
 	})
 }
 
-func (c *checker) withGenericTypes(names []string, fn func()) {
+func (c *checker) withGenericTypes(names []string, constraints map[string]string, fn func()) {
 	prev := c.genericTypes
+	prevConstraints := c.genericConstraints
 	if len(names) > 0 {
 		c.genericTypes = genericSet(names...)
 	} else {
 		c.genericTypes = nil
 	}
+	c.genericConstraints = constraints
 	fn()
 	c.genericTypes = prev
+	c.genericConstraints = prevConstraints
 }
 
 func (c *checker) finishInferredParams(info *FuncInfo, body ast.Expr, env map[string]Type) {
@@ -114,7 +123,7 @@ func (c *checker) finishInferredParams(info *FuncInfo, body ast.Expr, env map[st
 			info.Params[idx].Type = inferred
 			continue
 		}
-		if inferred := c.inferredParamUseType(body, param.Name); inferred != Unknown {
+		if inferred := c.inferredParamUseType(body, param.Name, info.Name); inferred != Unknown {
 			info.Params[idx].Type = inferred
 		}
 	}
@@ -132,11 +141,28 @@ func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[st
 		}
 		return ret
 	}
-	ret := c.inferExpr(fn.Body, env)
+	ret := Unknown
+	if info != nil && info.ReturnDeclared {
+		ret = c.inferExprExpected(fn.Body, env, info.Return)
+	} else {
+		ret = c.inferExpr(fn.Body, env)
+	}
 	if info == nil || !info.Routine {
 		c.unwrapErrors = append(c.unwrapErrors, Unknown)
 	}
 	return ret
+}
+
+func (c *checker) inferExprExpected(expr ast.Expr, env map[string]Type, expected Type) Type {
+	previous := c.expectedType
+	c.expectedType = expected
+	typ := c.inferExpr(expr, env)
+	c.expectedType = previous
+	if typ == Unknown && expected != Unknown {
+		c.info.ExprTypes[expr] = expected
+		return expected
+	}
+	return typ
 }
 
 func (c *checker) popRoutineErrors() Type {
@@ -160,18 +186,57 @@ func (c *checker) inferTest(test *ast.Test) {
 	})
 }
 
-func (c *checker) inferredParamUseType(body ast.Expr, name string) Type {
+func (c *checker) inferredParamUseType(body ast.Expr, name string, selfFunction string) Type {
 	result := Unknown
-	ast.WalkExpr(body, func(expr ast.Expr) {
+	var walk func(ast.Expr, Type)
+	walk = func(expr ast.Expr, expected Type) {
 		if result != Unknown {
 			return
 		}
-		if ident, ok := expr.(*ast.Identifier); ok && ident.Name == name {
-			if typ := c.info.ExprTypes[ident]; typ != "" && typ != Unknown {
+		switch e := expr.(type) {
+		case *ast.Identifier:
+			if e.Name != name {
+				return
+			}
+			if expected != Unknown {
+				result = expected
+				return
+			}
+			if typ := c.info.ExprTypes[e]; typ != "" && typ != Unknown {
 				result = typ
 			}
+		case *ast.BinaryExpr:
+			switch e.Op {
+			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent, lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+				walk(e.Left, Int)
+				walk(e.Right, Int)
+			case lexer.AndAnd, lexer.OrOr:
+				walk(e.Left, Bool)
+				walk(e.Right, Bool)
+			default:
+				walk(e.Left, Unknown)
+				walk(e.Right, Unknown)
+			}
+		case *ast.CallExpr:
+			if ident, ok := e.Callee.(*ast.Identifier); ok && selfFunction != "" && ident.Name == selfFunction && expected != Unknown {
+				for _, arg := range e.Args {
+					walk(arg, expected)
+				}
+				return
+			}
+			walk(e.Callee, Unknown)
+			for _, arg := range e.Args {
+				walk(arg, Unknown)
+			}
+		default:
+			ast.WalkExpr(expr, func(child ast.Expr) {
+				if child != expr {
+					walk(child, Unknown)
+				}
+			})
 		}
-	})
+	}
+	walk(body, Unknown)
 	return result
 }
 
@@ -185,7 +250,7 @@ func (c *checker) finishFunctionReturn(info *FuncInfo, ret Type, unwrapErr Type,
 		if info.Return == WebComponent && ret == HTMLElement && exprCanBuildWebComponent(fn.Body) {
 			return
 		}
-		if !typesCompatible(info.Return, ret, info.Generics) {
+		if !c.typesCompatible(info.Return, ret, info.Generics) {
 			c.errorf(fn.Body.Position(), "function %q returns %s, expected %s", fn.Name, ret, info.Return)
 		}
 		return
@@ -300,12 +365,23 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 		return typ
 	case *ast.SelectorExpr:
+		if e.Static {
+			return c.inferStaticSelector(e, env)
+		}
 		if typ, ok := c.inferEnumMemberSelector(e, env); ok {
 			return typ
 		}
 		receiver := c.inferExpr(e.Receiver, env)
 		if typ, ok := c.inferNamespaceSelector(e, receiver); ok {
 			return typ
+		}
+		if trait := c.traitView(receiver); trait != nil {
+			field, ok := trait.ByName[e.Name]
+			if !ok {
+				c.errorf(e.Pos, "trait %s has no field %q", trait.Name, e.Name)
+				return Unknown
+			}
+			return substituteSelfType(field.Type, receiver)
 		}
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
@@ -561,6 +637,41 @@ func (c *checker) inferEnumMemberSelector(sel *ast.SelectorExpr, env map[string]
 	return Type(enum.Name), true
 }
 
+func (c *checker) inferStaticSelector(sel *ast.SelectorExpr, env map[string]Type) Type {
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok {
+		c.errorf(sel.Pos, "static selector receiver must be a type")
+		return Unknown
+	}
+	if _, shadowed := env[ident.Name]; shadowed {
+		c.errorf(sel.Pos, "static selector receiver %q is a value, not a type", ident.Name)
+		return Unknown
+	}
+	structInfo := c.info.Types[ident.Name]
+	if structInfo == nil {
+		c.errorf(sel.Pos, "unknown type %q", ident.Name)
+		return Unknown
+	}
+	method := structInfo.StaticMethods[sel.Name]
+	if method == nil {
+		if sel.Name == "fromJson" &&
+			structInfo.Methods[sel.Name] == nil &&
+			structInfo.Node != nil &&
+			hasJSONAnnotation(structInfo.Node.Annotations, "object") {
+			c.info.ExprTypes[ident] = Type(ident.Name)
+			return FuncOfTypes([]Type{String}, Type(ident.Name))
+		}
+		c.errorf(sel.Pos, "type %s has no static method %q", ident.Name, sel.Name)
+		return Unknown
+	}
+	if !c.checkPrivateAccess("static method", structInfo.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
+		return Unknown
+	}
+	c.info.ExprTypes[ident] = Type(ident.Name)
+	c.info.ResolvedSelectorFunctions[sel] = method
+	return functionType(method)
+}
+
 func (c *checker) inferAtExpr(expr *ast.AtExpr) Type {
 	if expr.Path != "" {
 		if expr.SourcePath == "" {
@@ -682,6 +793,8 @@ func validateRegexFlags(flags string) string {
 }
 
 func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
+	callExpected := c.expectedType
+	c.expectedType = Unknown
 	argTypes := make([]Type, 0, len(call.Args))
 	for _, arg := range call.Args {
 		if _, ok := arg.(*ast.LambdaExpr); ok {
@@ -690,7 +803,56 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		argTypes = append(argTypes, c.inferExpr(arg, env))
 	}
+	c.expectedType = callExpected
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
+		if sel.Static {
+			ident, ok := sel.Receiver.(*ast.Identifier)
+			if !ok {
+				c.errorf(sel.Pos, "static selector receiver must be a type")
+				return Unknown
+			}
+			if _, shadowed := env[ident.Name]; shadowed {
+				c.errorf(sel.Pos, "static selector receiver %q is a value, not a type", ident.Name)
+				return Unknown
+			}
+			structInfo := c.info.Types[ident.Name]
+			if structInfo == nil {
+				c.errorf(sel.Pos, "unknown type %q", ident.Name)
+				return Unknown
+			}
+			method := structInfo.StaticMethods[sel.Name]
+			if method == nil {
+				if sel.Name == "fromJson" &&
+					structInfo.Methods[sel.Name] == nil &&
+					structInfo.Node != nil &&
+					hasJSONAnnotation(structInfo.Node.Annotations, "object") {
+					params := []ParamInfo{{Name: "text", Type: String}}
+					c.info.ExprTypes[ident] = Type(ident.Name)
+					c.refineCallArgsFromParams(params, call.Args, argTypes, env)
+					c.checkArgs(sel.Name, params, call.Args, argTypes, sel.Pos)
+					return Type(ident.Name)
+				}
+				c.errorf(sel.Pos, "type %s has no static method %q", ident.Name, sel.Name)
+				return Unknown
+			}
+			if !c.checkPrivateAccess("static method", structInfo.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
+				return Unknown
+			}
+			c.info.ExprTypes[ident] = Type(ident.Name)
+			c.info.ExprTypes[sel] = functionType(method)
+			c.info.ResolvedSelectorFunctions[sel] = method
+			c.refineCallArgsFromParams(method.Params, call.Args, argTypes, env)
+			c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
+			return c.finishRoutineCall(call, method.Routine, method.Return)
+		}
+		if ident, ok := sel.Receiver.(*ast.Identifier); ok {
+			if _, shadowed := env[ident.Name]; !shadowed {
+				if structInfo := c.info.Types[ident.Name]; structInfo != nil && structInfo.StaticMethods[sel.Name] != nil {
+					c.errorf(sel.Pos, "static method %s::%s must be called with '::'", ident.Name, sel.Name)
+					return Unknown
+				}
+			}
+		}
 		receiver := c.inferExpr(sel.Receiver, env)
 		if moduleName, ok := ModuleNamespaceName(receiver); ok {
 			if fn, ok := c.info.Stdlib.Function(moduleName, sel.Name); ok {
@@ -704,6 +866,31 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)
+		}
+		if trait := c.traitView(receiver); trait != nil {
+			if field, ok := trait.ByName[sel.Name]; ok {
+				ret, _ := c.inferFunctionValueCall(
+					sel.Name,
+					substituteSelfType(field.Type, receiver),
+					call.Args,
+					argTypes,
+					env,
+					sel.Pos,
+				)
+				return ret
+			}
+			method := trait.Methods[sel.Name]
+			if method == nil {
+				c.errorf(sel.Pos, "trait %s has no method %q", trait.Name, sel.Name)
+				return Unknown
+			}
+			params := make([]ParamInfo, 0, len(method.Params))
+			for _, param := range method.Params {
+				params = append(params, ParamInfo{Name: param.Name, Type: substituteSelfType(param.Type, receiver)})
+			}
+			c.refineCallArgsFromParams(params, call.Args, argTypes, env)
+			c.checkArgs(sel.Name, params, call.Args, argTypes, sel.Pos)
+			return c.finishRoutineCall(call, method.Routine, substituteSelfType(method.Return, receiver))
 		}
 		if structInfo := c.info.Types[baseTypeName(receiver)]; structInfo != nil {
 			if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, sel.Pos) {
@@ -789,21 +976,14 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if fn.Node != nil {
 			c.inferFunction(fn.Node)
 		}
-		for i, argType := range argTypes {
-			if i < len(fn.Params) && fn.Params[i].Type == Unknown && argType != Unknown {
-				fn.Params[i].Type = argType
-			}
-		}
-		c.refineCallArgsFromParams(fn.Params, call.Args, argTypes, env)
-		for i, argType := range argTypes {
-			if i < len(fn.Params) && fn.Params[i].Type == Unknown && argType != Unknown {
-				fn.Params[i].Type = argType
-			}
-		}
+		bindings := c.genericFunctionBindings(fn, argTypes)
+		c.checkGenericCallConstraints(fn, bindings, ident.Pos)
+		params := substituteParamInfos(fn.Params, bindings)
+		c.refineCallArgsFromParams(params, call.Args, argTypes, env)
 		c.info.ResolvedFunctions[ident] = fn
 		c.info.ExprTypes[ident] = functionType(fn)
-		c.checkArgs(ident.Name, fn.Params, call.Args, argTypes, ident.Pos)
-		return c.finishRoutineCall(call, fn.Routine, fn.Return)
+		c.checkArgs(ident.Name, params, call.Args, argTypes, ident.Pos)
+		return c.finishRoutineCall(call, fn.Routine, substituteTypeParams(fn.Return, bindings))
 	}
 	calleeType := c.inferExpr(call.Callee, env)
 	ret, refined := c.inferFunctionValueCall("<expr>", calleeType, call.Args, argTypes, env, call.Callee.Position())
@@ -814,11 +994,72 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	return ret
 }
 
+func (c *checker) traitInfo(typ Type) *TraitInfo {
+	name := string(typ)
+	if !strings.HasPrefix(name, "&") {
+		return nil
+	}
+	return c.info.Traits[strings.TrimPrefix(name, "&")]
+}
+
+func (c *checker) traitView(typ Type) *TraitInfo {
+	if trait := c.traitInfo(typ); trait != nil {
+		return trait
+	}
+	if c.genericTypes == nil || !c.genericTypes[string(typ)] {
+		return nil
+	}
+	constraint := c.genericConstraints[string(typ)]
+	if constraint == "" || c.info == nil {
+		return nil
+	}
+	return c.info.Traits[constraint]
+}
+
 func functionType(fn *FuncInfo) Type {
 	if fn.Routine {
 		return AsyncFuncOfTypes(paramTypes(fn.Params), fn.Return)
 	}
 	return FuncOfTypes(paramTypes(fn.Params), fn.Return)
+}
+
+func (c *checker) genericFunctionBindings(fn *FuncInfo, argTypes []Type) map[string]Type {
+	if len(fn.Generics) == 0 {
+		return nil
+	}
+	bindings := make(map[string]Type, len(fn.Generics))
+	generics := genericSet(fn.Generics...)
+	for _, name := range fn.Generics {
+		bindings[name] = Unknown
+	}
+	limit := min(len(fn.Params), len(argTypes))
+	for i := 0; i < limit; i++ {
+		bindTypeParams(fn.Params[i].Type, argTypes[i], generics, bindings)
+	}
+	return bindings
+}
+
+func (c *checker) checkGenericCallConstraints(fn *FuncInfo, bindings map[string]Type, pos lexer.Position) {
+	for name, constraint := range fn.GenericConstraints {
+		actual := bindings[name]
+		if actual == "" || actual == Unknown {
+			continue
+		}
+		if !c.genericConstraintSatisfied(actual, constraint) {
+			c.errorf(pos, "type %s does not satisfy generic constraint %s", actual, constraint)
+		}
+	}
+}
+
+func substituteParamInfos(params []ParamInfo, bindings map[string]Type) []ParamInfo {
+	if len(bindings) == 0 {
+		return params
+	}
+	out := make([]ParamInfo, 0, len(params))
+	for _, param := range params {
+		out = append(out, ParamInfo{Name: param.Name, Type: substituteTypeParams(param.Type, bindings)})
+	}
+	return out
 }
 
 func (c *checker) inferResultConstructor(name string, call *ast.CallExpr, argTypes []Type) Type {
@@ -912,7 +1153,7 @@ func (c *checker) inferEnumConstructor(name string, call *ast.CallExpr, argTypes
 	bindings := enumConstructorBindings(constructor.Enum.Generics, constructor.Member.Params, argTypes)
 	for idx, param := range constructor.Member.Params {
 		expected := substituteTypeParams(param.Type, bindings)
-		if idx < len(argTypes) && !typesCompatible(expected, argTypes[idx], nil) {
+		if idx < len(argTypes) && !c.typesCompatible(expected, argTypes[idx], nil) {
 			c.errorf(call.Args[idx].Position(), "argument %d to %q has type %s, expected %s", idx+1, name, argTypes[idx], expected)
 		}
 	}
@@ -988,10 +1229,10 @@ func bindTypeParams(pattern Type, actual Type, generics map[string]bool, binding
 }
 
 func (c *checker) refineNumericBinaryOperands(expr *ast.BinaryExpr, left Type, right Type, env map[string]Type) (Type, Type) {
-	if left == Unknown && isNumericType(right) {
+	if left == Unknown && c.isArithmeticLikeType(right, expr.Op) {
 		left = c.refineUnknownIdentifierType(expr.Left, left, right, env)
 	}
-	if right == Unknown && isNumericType(left) {
+	if right == Unknown && c.isArithmeticLikeType(left, expr.Op) {
 		right = c.refineUnknownIdentifierType(expr.Right, right, left, env)
 	}
 	return left, right
@@ -1018,30 +1259,106 @@ func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type)
 	if left == Unknown && right == Unknown {
 		return Int
 	}
-	if left == Unknown && isNumericType(right) {
+	if left == Unknown && c.isArithmeticLikeType(right, expr.Op) {
 		return right
 	}
-	if right == Unknown && isNumericType(left) {
+	if right == Unknown && c.isArithmeticLikeType(left, expr.Op) {
 		return left
 	}
-	if !isNumericType(left) {
+	leftNumeric := c.isArithmeticLikeType(left, expr.Op)
+	rightNumeric := c.isArithmeticLikeType(right, expr.Op)
+	if !leftNumeric {
 		c.errorf(expr.Left.Position(), "arithmetic expects numeric operands, got %s", left)
 	}
-	if !isNumericType(right) {
+	if !rightNumeric {
 		c.errorf(expr.Right.Position(), "arithmetic expects numeric operands, got %s", right)
 	}
-	if isNumericType(left) && isNumericType(right) && left != right {
+	if leftNumeric && rightNumeric && left != right {
 		c.errorf(expr.Pos, "arithmetic requires matching numeric types, got %s and %s", left, right)
+		return Unknown
+	}
+	if expr.Op == lexer.Percent && (c.isGenericArithmeticType(left) || c.isGenericArithmeticType(right)) {
+		c.errorf(expr.Pos, "operator '%%' cannot be used with generic arithmetic operands")
 		return Unknown
 	}
 	if expr.Op == lexer.Percent && isFloatType(left) && isFloatType(right) {
 		c.errorf(expr.Pos, "operator '%%' expects integer operands, got %s", left)
 		return Unknown
 	}
-	if isNumericType(left) {
+	if leftNumeric {
 		return left
 	}
 	return Unknown
+}
+
+func (c *checker) isNumericLikeType(typ Type) bool {
+	return isNumericType(typ) || c.isGenericArithmeticType(typ)
+}
+
+func (c *checker) isArithmeticLikeType(typ Type, op lexer.Kind) bool {
+	if isNumericType(typ) {
+		return true
+	}
+	if op == lexer.Percent {
+		return false
+	}
+	return c.genericSupportsBinaryOp(typ, op)
+}
+
+func (c *checker) isGenericArithmeticType(typ Type) bool {
+	if c.genericTypes == nil || !c.genericTypes[string(typ)] {
+		return false
+	}
+	constraint := c.genericConstraints[string(typ)]
+	if constraint == "" || c.info == nil {
+		return false
+	}
+	trait := c.info.Traits[constraint]
+	return traitHasSelfBinaryMethod(trait, "add") ||
+		traitHasSelfBinaryMethod(trait, "sub") ||
+		traitHasSelfBinaryMethod(trait, "mul") ||
+		traitHasSelfBinaryMethod(trait, "div")
+}
+
+func (c *checker) genericSupportsBinaryOp(typ Type, op lexer.Kind) bool {
+	if c.genericTypes == nil || !c.genericTypes[string(typ)] {
+		return false
+	}
+	method := arithmeticTraitMethod(op)
+	if method == "" {
+		return false
+	}
+	constraint := c.genericConstraints[string(typ)]
+	if constraint == "" || c.info == nil {
+		return false
+	}
+	return traitHasSelfBinaryMethod(c.info.Traits[constraint], method)
+}
+
+func arithmeticTraitMethod(op lexer.Kind) string {
+	switch op {
+	case lexer.Plus:
+		return "add"
+	case lexer.Minus:
+		return "sub"
+	case lexer.Star:
+		return "mul"
+	case lexer.Slash:
+		return "div"
+	default:
+		return ""
+	}
+}
+
+func traitHasSelfBinaryMethod(trait *TraitInfo, name string) bool {
+	if trait == nil {
+		return false
+	}
+	method := trait.Methods[name]
+	if method == nil || method.Routine || len(method.Params) != 1 {
+		return false
+	}
+	return method.Params[0].Type == Type("Self") && method.Return == Type("Self")
 }
 
 func (c *checker) bitwiseBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
@@ -1165,7 +1482,7 @@ func (c *checker) inferLambda(lambda *ast.LambdaExpr, env map[string]Type) Type 
 				c.errorf(lambda.Pos, "unknown return type %q", returnName)
 			}
 		}
-		if !typesCompatible(declared, ret, nil) {
+		if !c.typesCompatible(declared, ret, nil) {
 			c.errorf(lambda.Body.Position(), "lambda returns %s, expected %s", ret, declared)
 		}
 		return FuncOfTypes(params, declared)
@@ -1185,7 +1502,7 @@ func (c *checker) finishInferredLambdaParams(params []Type, names []string, body
 			params[idx] = inferred
 			continue
 		}
-		if inferred := c.inferredParamUseType(body, name); inferred != Unknown {
+		if inferred := c.inferredParamUseType(body, name, ""); inferred != Unknown {
 			params[idx] = inferred
 		}
 	}
@@ -1338,7 +1655,7 @@ func (c *checker) inferFunctionValueCall(name string, typ Type, args []ast.Expr,
 			}
 			continue
 		}
-		if !typesCompatible(expected, argTypes[i], nil) {
+		if !c.typesCompatible(expected, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], expected)
 		}
 	}

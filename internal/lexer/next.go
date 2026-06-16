@@ -68,6 +68,9 @@ func (l *Lexer) nextCode() Token {
 		if l.match('=') {
 			return l.token(Declare)
 		}
+		if l.match(':') {
+			return l.token(DoubleColon)
+		}
 		return l.token(Colon)
 	case '(':
 		return l.token(LParen)
@@ -300,6 +303,9 @@ func (l *Lexer) nextXMLExpr() Token {
 	case ':':
 		if l.match('=') {
 			return l.token(Declare)
+		}
+		if l.match(':') {
+			return l.token(DoubleColon)
 		}
 		return l.token(Colon)
 	case '(':

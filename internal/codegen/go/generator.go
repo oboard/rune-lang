@@ -55,6 +55,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.imports["runtime"] = true
 	}
 	if fileUsesCLIRuntime(usage) {
+		g.imports["fmt"] = true
 		g.imports["os"] = true
 		g.imports["strings"] = true
 	}
@@ -95,6 +96,10 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.linef("\t%q", name)
 		}
 		g.line(")")
+		g.line("")
+	}
+	if fileUsesGenericArithmeticConstraint(file) {
+		g.numberConstraintRuntime()
 		g.line("")
 	}
 	for i, enum := range file.Enums {
@@ -331,6 +336,32 @@ func fileUsesFSRuntime(usage codeusage.Usage) bool {
 	return fileUsesType(usage, checker.FileStat) || usage.HasIntrinsicPrefix("fs.")
 }
 
+func fileUsesGenericArithmeticConstraint(file *ir.File) bool {
+	for _, fn := range file.Functions {
+		if functionUsesGenericArithmeticConstraint(fn) {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if functionUsesGenericArithmeticConstraint(method) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func functionUsesGenericArithmeticConstraint(fn *ir.Function) bool {
+	for _, constraint := range fn.GenericConstraints {
+		switch constraint {
+		case "Add", "Sub", "Mul", "Div", "Number":
+			return true
+		}
+	}
+	return false
+}
+
 func (g *generator) bigIntRuntime() {
 	g.line("func runeBigInt(src string) *big.Int {")
 	g.indent++
@@ -341,6 +372,14 @@ func (g *generator) bigIntRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("return value")
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) numberConstraintRuntime() {
+	g.line("type runeNumber interface {")
+	g.indent++
+	g.line("~int | ~int8 | ~int16 | ~int64 | ~uint | ~uint8 | ~uint16 | ~uint64 | ~float32 | ~float64")
 	g.indent--
 	g.line("}")
 }

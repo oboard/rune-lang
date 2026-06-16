@@ -23,13 +23,18 @@ func (p *Parser) parseStatement() ast.Stmt {
 				p.consume(lexer.Declare, "expected ':=' after binding name")
 			}
 			p.skipNewlines()
-			return &ast.LetStmt{
+			stmt := &ast.LetStmt{
 				Name:    name.Lexeme,
 				Mutable: mutable,
 				Signal:  signal,
 				Value:   p.parseExpression(1),
 				Pos:     name.Pos,
 			}
+			if p.match(lexer.Colon) {
+				p.skipNewlines()
+				stmt.Type = p.parseTypeName()
+			}
+			return stmt
 		}
 		if p.checkNext(lexer.Assign) {
 			name := p.advance()

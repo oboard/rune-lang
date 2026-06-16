@@ -54,6 +54,39 @@ main() => {
 	}
 }
 
+func TestGenerateGenericTraitConstraintFunction(t *testing.T) {
+	src := `add[T: Number](a: T, b: T) -> T => a + b
+
+main() => @io.println(add(1, 2))
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`type runeNumber interface`,
+		`func __add[__T runeNumber](__a __T, __b __T) __T`,
+		`return __a + __b`,
+		`fmt.Println(__add(1, 2))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "main.go", got, 0); err != nil {
+		t.Fatalf("generated Go parse error: %v\n%s", err, got)
+	}
+}
+
 func TestGeneratePatternPredicateRange(t *testing.T) {
 	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
 `
@@ -813,13 +846,17 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 }
 
 func TestGenerateJSONStringifyObject(t *testing.T) {
-	src := `User: {
+	src := `#json.object
+User: {
+  #json.name("display_name")
   name: String
+  #json.ignore
+  password: String
   age: Int
 }
 
 main() => {
-  user := User { name: "Ada", age: 36 }
+  user := User { name: "Ada", password: "secret", age: 36 }
   obj := {
     name: "Rune"
     user: user
@@ -851,7 +888,7 @@ main() => {
 		`"encoding/json"`,
 		"type json1 struct",
 		"type json0 struct",
-		"F0 string `json:\"name\"`",
+		"F0 string `json:\"display_name\"`",
 		"F1 json1",
 		"`json:\"user\"`",
 		"F2 []string",
@@ -868,6 +905,9 @@ main() => {
 			t.Fatalf("generated Go missing %q:\n%s", want, got)
 		}
 	}
+	if strings.Contains(got, "`json:\"password\"`") {
+		t.Fatalf("generated Go should omit ignored JSON field:\n%s", got)
+	}
 	if strings.Contains(got, `json:"greet"`) {
 		t.Fatalf("generated Go should omit function fields:\n%s", got)
 	}
@@ -876,6 +916,52 @@ main() => {
 	}
 	if strings.Contains(got, "__rune_json") {
 		t.Fatalf("generated Go should use short json temporaries:\n%s", got)
+	}
+}
+
+func TestGenerateJSONParseObject(t *testing.T) {
+	src := `#json.object
+User: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+  scores: Array[Int]
+}
+
+main() => {
+  user := @json.parse("{\"display_name\":\"Ada\",\"password\":\"drop\",\"scores\":[3,5]}") : User
+  @io.println(user.name)
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`"encoding/json"`,
+		`json.Unmarshal([]byte(`,
+		`F0 string ` + "`json:\"display_name\"`",
+		`F1 []int`,
+		"`json:\"scores\"`",
+		`out.__name = raw.F0`,
+		`out.__scores =`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `json:"password"`) || strings.Contains(got, `out.__password =`) {
+		t.Fatalf("generated Go should leave ignored fields at their zero value:\n%s", got)
 	}
 }
 

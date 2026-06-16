@@ -79,6 +79,8 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.netModuleCall(fn, args, call.ResultType()), true
 	case "json.stringify":
 		return g.jsonStringifyCall(call)
+	case "json.parse":
+		return g.jsonParseCall(call)
 	case "regex.new", "regex.escape":
 		return g.regexModuleCall(call)
 	case "map.new", "set.new":

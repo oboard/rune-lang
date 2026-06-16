@@ -60,7 +60,7 @@ func (g *generator) function(fn *ir.Function) error {
 	if fn.Return != checker.Void {
 		ret = " " + goType(fn.Return)
 	}
-	g.linef("func %s(%s)%s {", mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	g.linef("func %s%s(%s)%s {", mangleIdent(fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	if err := g.body(fn, fn.Body, fn.Return); err != nil {
@@ -112,7 +112,11 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 			ret = " runeTask[" + goType(fn.Return) + "]"
 		}
 	}
-	g.linef("func (%s %s) %s(%s)%s {", mangleIdent("this"), mangleIdent(typ.Name), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	if fn.Static {
+		g.linef("func %s%s(%s)%s {", mangleIdent(typ.Name+"_"+fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+	} else {
+		g.linef("func (%s %s) %s%s(%s)%s {", mangleIdent("this"), mangleIdent(typ.Name), mangleIdent(fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+	}
 	g.indent++
 	g.pushSignalScope()
 	if fn.Routine {

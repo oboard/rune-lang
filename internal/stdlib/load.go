@@ -55,7 +55,7 @@ func Load(root string) (*Registry, error) {
 	}
 
 	sources := map[string]string{}
-	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}}
+	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}, Traits: map[string]*Trait{}}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -75,7 +75,7 @@ func Load(root string) (*Registry, error) {
 }
 
 func LoadSources(sources map[string]string) (*Registry, error) {
-	return loadSources(&Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}}, sources)
+	return loadSources(&Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}, Traits: map[string]*Trait{}}, sources)
 }
 
 func loadSources(reg *Registry, sources map[string]string) (*Registry, error) {
@@ -97,6 +97,10 @@ func loadSources(reg *Registry, sources map[string]string) (*Registry, error) {
 		for i := range mod.Types {
 			typ := &mod.Types[i]
 			reg.Types[typ.Name] = typ
+		}
+		for i := range mod.Traits {
+			trait := &mod.Traits[i]
+			reg.Traits[trait.Name] = trait
 		}
 	}
 	return reg, nil

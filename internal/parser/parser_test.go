@@ -9,7 +9,7 @@ import (
 
 func TestGenericTypeDeclRequiresColon(t *testing.T) {
 	file, errs := Parse(`Array[T] {
-    length[T]() -> Int => "%array.len"
+	    length[T]() -> Int => "%array.len"
 }
 `)
 	if len(errs) == 0 {
@@ -17,6 +17,72 @@ func TestGenericTypeDeclRequiresColon(t *testing.T) {
 	}
 	if len(file.Types) != 0 {
 		t.Fatalf("Parse() produced %d types for invalid declaration", len(file.Types))
+	}
+}
+
+func TestParseTraitDeclarationAndReference(t *testing.T) {
+	file, errs := Parse(`&ToJson: {
+  name: String
+  toJson(pretty: Bool) -> Self
+}
+
+encode(value: &ToJson) -> &ToJson => value
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Traits) != 1 {
+		t.Fatalf("traits = %#v, want one trait", file.Traits)
+	}
+	trait := file.Traits[0]
+	if trait.Name != "ToJson" || len(trait.Fields) != 1 || len(trait.Methods) != 1 {
+		t.Fatalf("trait = %#v", trait)
+	}
+	if got := file.Functions[0].Params[0].Type.Canonical(); got != "&ToJson" {
+		t.Fatalf("parameter type = %q, want &ToJson", got)
+	}
+}
+
+func TestParseStaticTraitAndStructMethods(t *testing.T) {
+	file, errs := Parse(`&FromJson: {
+  static fromJson(text: String) -> Self
+}
+
+User: {
+  name: String
+  static fromJson(text: String) -> User => User { name: text }
+}
+
+main() => User::fromJson("{}")
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if !file.Traits[0].Methods[0].Static {
+		t.Fatal("trait method should be static")
+	}
+	if !file.Types[0].Methods[0].Static {
+		t.Fatal("struct method should be static")
+	}
+	call := file.Functions[0].Body.(*ast.CallExpr)
+	selector := call.Callee.(*ast.SelectorExpr)
+	if !selector.Static {
+		t.Fatal("static method call selector should use ::")
+	}
+}
+
+func TestParseTypedBinding(t *testing.T) {
+	file, errs := Parse(`main() => {
+  user := @json.parse(text) : User
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	body := file.Functions[0].Body.(*ast.BlockExpr)
+	let := body.Statements[0].(*ast.LetStmt)
+	if got := let.Type.Canonical(); got != "User" {
+		t.Fatalf("binding type = %q, want User", got)
 	}
 }
 
@@ -33,6 +99,33 @@ func TestGenericTypeDeclWithColon(t *testing.T) {
 	}
 	if got := file.Types[0].Generics; len(got) != 1 || got[0] != "T" {
 		t.Fatalf("type generics = %v, want [T]", got)
+	}
+}
+
+func TestParseGenericConstraints(t *testing.T) {
+	file, errs := Parse(`Box[T: &Named]: {
+  value: T
+}
+
+add[T: Number](a: T, b: T) -> T => a + b
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if got := file.Types[0].Generics; len(got) != 1 || got[0] != "T" {
+		t.Fatalf("type generics = %v, want [T]", got)
+	}
+	if got := file.Types[0].GenericConstraints["T"].Canonical(); got != "&Named" {
+		t.Fatalf("type generic constraint = %q, want &Named", got)
+	}
+	if got := file.Functions[0].Generics; len(got) != 1 || got[0] != "T" {
+		t.Fatalf("function generics = %v, want [T]", got)
+	}
+	if got := file.Functions[0].GenericConstraints["T"].Canonical(); got != "Number" {
+		t.Fatalf("function generic constraint = %q, want Number", got)
+	}
+	if got := file.Functions[0].Signature(); got != "add[T: Number](a: T, b: T)" {
+		t.Fatalf("signature = %q, want constrained generic signature", got)
 	}
 }
 

@@ -56,6 +56,11 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position(), NamePos: name.Pos}
 			continue
 		}
+		if p.match(lexer.DoubleColon) {
+			name := p.consume(lexer.Ident, "expected static selector name after '::'")
+			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Static: true, Pos: left.Position(), NamePos: name.Pos}
+			continue
+		}
 		if p.match(lexer.PlusPlus) {
 			left = &ast.PostfixExpr{Expr: left, Op: lexer.PlusPlus, Pos: left.Position()}
 			continue

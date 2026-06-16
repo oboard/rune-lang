@@ -828,7 +828,9 @@ parseGenericNameValue(
   state: ParserState,
   values: Array[String]
 ) -> StringListStep => {
-  current := parserCheck(state, TokenKind.Ident) ? appendGenericName(state, values) : parserAdvance(state).state
+  afterName := parserCheck(state, TokenKind.Ident) ? appendGenericName(state, values) : parserAdvance(state).state
+  colon := parserMatch(parserSkipNewlines(afterName), TokenKind.Colon)
+  current := colon.ok ? parseTypeRef(parserSkipNewlines(colon.state)).state : afterName
   comma := parserMatch(parserSkipNewlines(current), TokenKind.Comma)
   parseGenericNameLoop(comma.state, values)
 }
@@ -1168,7 +1170,7 @@ parseExpressionLoop(
 ) -> ExprStep => {
   state := left.state
   expr := left.expr
-  parserCheck(state, TokenKind.LBrace) ? parseAfterBraceExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LParen) ? parseCallExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LBracket) ? parseIndexExpression(state, expr, minPrec) : parserCheck(state, TokenKind.Dot) ? parseSelectorExpression(state, expr, minPrec) : parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec) : parseBinaryExpression(state, expr, minPrec)
+  parserCheck(state, TokenKind.LBrace) ? parseAfterBraceExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LParen) ? parseCallExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LBracket) ? parseIndexExpression(state, expr, minPrec) : (parserCheck(state, TokenKind.Dot) || parserCheck(state, TokenKind.DoubleColon)) ? parseSelectorExpression(state, expr, minPrec) : parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec) : parseBinaryExpression(state, expr, minPrec)
 }
 
 parseAfterBraceExpression(
@@ -1248,11 +1250,11 @@ parseSelectorExpression(
   receiver: ParsedExpr,
   minPrec: Int
 ) -> ExprStep => {
-  dot := parserConsume(state, TokenKind.Dot, "expected '.'")
-  name := parserConsume(dot.state, TokenKind.Ident, "expected selector name after '.'")
+  operator := parserCheck(state, TokenKind.DoubleColon) ? parserConsume(state, TokenKind.DoubleColon, "expected '::'") : parserConsume(state, TokenKind.Dot, "expected '.'")
+  name := parserConsume(operator.state, TokenKind.Ident, "expected selector name")
   parseExpressionLoop(ExprStep {
     state: name.state
-    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [receiver], dot.token.line, dot.token.column)
+    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", operator.token.lexeme, [], [receiver], operator.token.line, operator.token.column)
   }, minPrec)
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/interpreter"
 )
@@ -454,6 +455,69 @@ Args: {
 	}
 }
 
+func TestAnalyzeSourceExpandsJSONFromJsonMethod(t *testing.T) {
+	src := `#json.object
+Document: {
+  name: String
+}
+
+main() => {
+  document := @json.parse("{\"name\":\"Rune\"}") : Document
+  document
+}
+`
+	prog, diags := AnalyzeSource("main.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %v", diags)
+	}
+	if len(prog.File.Types) != 1 || len(prog.File.Types[0].Methods) != 1 {
+		t.Fatalf("expanded type methods = %#v", prog.File.Types)
+	}
+	method := prog.File.Types[0].Methods[0]
+	if method.Name != "fromJson" || !method.Static || method.ReturnType.Canonical() != "Document" {
+		t.Fatalf("generated method = %#v", method)
+	}
+}
+
+func TestAnalyzeSourceExpandsMultipleJSONFromJsonMethods(t *testing.T) {
+	src := `#json.object
+FirstDocument: {
+  #json.name("first_name")
+  name: String
+}
+
+#json.object
+SecondDocument: {
+  #json.ignore
+  secret: String
+}
+
+main() => null
+`
+	prog, diags := AnalyzeSource("main.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %v", diags)
+	}
+	for _, typ := range prog.File.Types {
+		if len(typ.Methods) != 1 || typ.Methods[0].Name != "fromJson" || !typ.Methods[0].Static {
+			t.Fatalf("expanded %s methods = %#v", typ.Name, typ.Methods)
+		}
+	}
+}
+
+func TestAnalyzeJSONFixtureExpandsFromJsonMethods(t *testing.T) {
+	prog, diags := AnalyzeFile(filepath.Join("..", "..", "tests", "json.rn"))
+	if len(diags) > 0 {
+		methods := map[string][]string{}
+		for _, typ := range prog.File.Types {
+			for _, method := range typ.Methods {
+				methods[typ.Name] = append(methods[typ.Name], method.Name)
+			}
+		}
+		t.Fatalf("AnalyzeFile() diagnostics = %v, methods = %v", diags, methods)
+	}
+}
+
 func TestAnalyzeSourceReportsCompileTimeSideEffects(t *testing.T) {
 	_, diags := AnalyzeSource("macro_io.rn", `#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
   @io.println("side effect")
@@ -511,6 +575,41 @@ Original: {
 	}
 	if len(prog.IR.Types) != 1 || prog.IR.Types[0].Name != "Generated" {
 		t.Fatalf("expanded IR types = %#v", prog.IR.Types)
+	}
+}
+
+func TestAnalyzeSourceGeneratesTypedCliEntry(t *testing.T) {
+	prog, diags := AnalyzeSource("cli_macro.rn", `#cli.command("ship", "Ship an artifact", "1.0.0")
+Args: {
+  #cli.flag("v", "enable verbose output")
+  verbose: Bool
+
+  #cli.option("o", "FILE", "write output", "dist/app")
+  output: String
+
+  #cli.arg("target name")
+  target: String
+}
+
+#cli.main
+main(args: Args) => args.target
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	if len(prog.File.Functions) != 2 {
+		t.Fatalf("expanded functions = %#v, want handler and entry", prog.File.Functions)
+	}
+	handler := prog.File.Functions[0]
+	if handler.Name != "__cliMain" || len(handler.Params) != 1 || handler.Params[0].Type.Name != "Args" {
+		t.Fatalf("handler = %#v, want __cliMain(args: Args)", handler)
+	}
+	entry := prog.File.Functions[1]
+	if entry.Name != "main" || len(entry.Params) != 0 {
+		t.Fatalf("entry = %#v, want main()", entry)
+	}
+	if _, ok := entry.Body.(*ast.BlockExpr); !ok {
+		t.Fatalf("entry body = %T, want generated block", entry.Body)
 	}
 }
 

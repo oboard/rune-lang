@@ -1,3 +1,10 @@
+Int8: {
+  add(other: Int8) -> Int8 => "%int8.add"
+  sub(other: Int8) -> Int8 => "%int8.sub"
+  mul(other: Int8) -> Int8 => "%int8.mul"
+  div(other: Int8) -> Int8 => "%int8.div"
+}
+
 fromInt(value: Int) -> Int8 => "%int8.fromInt"
 
 toInt(value: Int8) -> Int => "%int8.toInt"

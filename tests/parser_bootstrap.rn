@@ -37,6 +37,17 @@
   @assert.eq(helper.value, "\"./import_helper.rn\"")
 }
 
+? "selfhost parser reads static selectors" {
+  file := parse(`main() => User::fromJson("{}")`)
+  call := file.functions[0].body
+  selector := call.children[0]
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(call.kind, ExprKind.Call)
+  @assert.eq(selector.kind, ExprKind.Selector)
+  @assert.eq(selector.op, "::")
+  @assert.eq(selector.name, "fromJson")
+}
+
 ? "selfhost parser reads structs and enums" {
   source := `Box[T]: {
   value: T

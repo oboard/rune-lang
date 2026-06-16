@@ -42,6 +42,24 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateGenericTraitConstraintFunction(t *testing.T) {
+	src := `add[T: Number](a: T, b: T) -> T => a + b
+
+main() => @io.println(add(1, 2))
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function __add<__T extends number>(__a: __T, __b: __T): __T`,
+		`return (__a + __b) as __T`,
+		`console.log(__add(1, 2));`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateWebComponentFromXMLLiteral(t *testing.T) {
 	src := `+ HelloWorld() -> WebComponent => {
   <div>hello world</div>
@@ -517,13 +535,17 @@ func TestGenerateCompressIntrinsicProgram(t *testing.T) {
 }
 
 func TestGenerateJSONStringifyObject(t *testing.T) {
-	src := `User: {
+	src := `#json.object
+User: {
+  #json.name("display_name")
   name: String
+  #json.ignore
+  password: String
   age: Int
 }
 
 main() => {
-  user := User { name: "Ada", age: 36 }
+  user := User { name: "Ada", password: "secret", age: 36 }
   obj := {
     name: "Rune"
     user: user
@@ -541,7 +563,7 @@ main() => {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`JSON.stringify(((__rune_json_value) => ({ name: __rune_json_value.name`,
-		`user: ((__rune_json_value) => ({ name: __rune_json_value.name, age: __rune_json_value.age }))(__rune_json_value.user)`,
+		`user: ((__rune_json_value) => ({ display_name: __rune_json_value.name, age: __rune_json_value.age }))(__rune_json_value.user)`,
 		`tags: __rune_json_value.tags`,
 	}
 	for _, want := range wantParts {
@@ -551,6 +573,41 @@ main() => {
 	}
 	if strings.Contains(got, `"greet"`) {
 		t.Fatalf("generated TypeScript should omit function fields:\n%s", got)
+	}
+	if strings.Contains(got, "password: __rune_json_value.password") {
+		t.Fatalf("generated TypeScript should omit ignored JSON field:\n%s", got)
+	}
+}
+
+func TestGenerateJSONParseObject(t *testing.T) {
+	src := `#json.object
+User: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+  scores: Array[Int]
+}
+
+main() => {
+  user := @json.parse("{\"display_name\":\"Ada\",\"password\":\"drop\",\"scores\":[3,5]}") : User
+  @io.println(user.name)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`JSON.parse("{\"display_name\":\"Ada\",\"password\":\"drop\",\"scores\":[3,5]}")`,
+		`...({ name: "", password: "", scores: [] })`,
+		`name: __rune_json_raw["display_name"]`,
+		`scores: __rune_json_raw["scores"].map`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `password: __rune_json_raw`) {
+		t.Fatalf("generated TypeScript should leave ignored fields at their zero value:\n%s", got)
 	}
 }
 

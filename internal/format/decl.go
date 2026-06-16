@@ -6,9 +6,33 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 )
 
+func (f *formatter) trait(trait *ast.TraitDecl) {
+	f.linef("&%s: {", trait.Name)
+	f.indent++
+	for _, field := range trait.Fields {
+		f.linef("%s: %s", field.Name, formatType(field.Type))
+	}
+	if len(trait.Fields) > 0 && len(trait.Methods) > 0 {
+		f.line("")
+	}
+	for _, method := range trait.Methods {
+		params := make([]string, 0, len(method.Params))
+		for _, param := range method.Params {
+			params = append(params, formatParam(param))
+		}
+		prefix := ""
+		if method.Static {
+			prefix = "static "
+		}
+		f.linef("%s%s(%s)%s", prefix, method.Name, strings.Join(params, ", "), formatReturnType(method.ReturnType))
+	}
+	f.indent--
+	f.line("}")
+}
+
 func (f *formatter) structType(typ *ast.StructType) {
 	f.annotations(typ.Annotations)
-	f.linef("%s%s%s: {", publicPrefix(typ.Private), typ.Name, formatGenerics(typ.Generics))
+	f.linef("%s%s%s: {", publicPrefix(typ.Private), typ.Name, formatGenerics(typ.Generics, typ.GenericConstraints))
 	f.indent++
 	for _, field := range typ.Fields {
 		f.annotations(field.Annotations)
@@ -29,7 +53,7 @@ func (f *formatter) structType(typ *ast.StructType) {
 
 func (f *formatter) enumType(enum *ast.EnumType) {
 	f.annotations(enum.Annotations)
-	f.linef("%s%s%s: {", publicPrefix(enum.Private), enum.Name, formatGenerics(enum.Generics))
+	f.linef("%s%s%s: {", publicPrefix(enum.Private), enum.Name, formatGenerics(enum.Generics, enum.GenericConstraints))
 	f.indent++
 	for _, member := range enum.Members {
 		f.annotations(member.Annotations)
@@ -145,7 +169,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 		params = append(params, formatParam(param))
 	}
 	ret := formatReturnType(fn.ReturnType)
-	single := fn.Name + formatGenerics(fn.Generics) + "(" + strings.Join(params, ", ") + ")" + ret
+	single := fn.Name + formatGenerics(fn.Generics, fn.GenericConstraints) + "(" + strings.Join(params, ", ") + ")" + ret
 	if fn.Routine {
 		single = "~ " + single
 	}
@@ -159,7 +183,7 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 		prefix = "~ " + prefix
 	}
 	prefix = f.visibilityPrefix(fn) + prefix
-	lines := []string{prefix + formatGenerics(fn.Generics) + "("}
+	lines := []string{prefix + formatGenerics(fn.Generics, fn.GenericConstraints) + "("}
 	for i, param := range fn.Params {
 		paramLines := f.formatParamLines(param)
 		if i < len(fn.Params)-1 {
@@ -175,7 +199,11 @@ func (f *formatter) functionSignature(fn *ast.Function) []string {
 
 func (f *formatter) visibilityPrefix(fn *ast.Function) string {
 	if fn.ReceiverType != "" {
-		return privatePrefix(fn.Private)
+		prefix := privatePrefix(fn.Private)
+		if fn.Static {
+			prefix += "static "
+		}
+		return prefix
 	}
 	return publicPrefix(fn.Private)
 }
@@ -346,11 +374,19 @@ func stmtIsXMLExpr(stmt ast.Stmt) bool {
 	return ok
 }
 
-func formatGenerics(names []string) string {
+func formatGenerics(names []string, constraints map[string]ast.Type) string {
 	if len(names) == 0 {
 		return ""
 	}
-	return "[" + strings.Join(names, ", ") + "]"
+	parts := make([]string, 0, len(names))
+	for _, name := range names {
+		part := name
+		if constraint, ok := constraints[name]; ok && !constraint.IsZero() {
+			part += ": " + formatType(constraint)
+		}
+		parts = append(parts, part)
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
 }
 
 func formatType(typ ast.Type) string {

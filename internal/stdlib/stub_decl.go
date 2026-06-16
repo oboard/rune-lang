@@ -31,6 +31,64 @@ func (p *stubParser) parseAnnotations() ([]annotation, error) {
 	return annotations, nil
 }
 
+func (p *stubParser) parseTrait() (Trait, error) {
+	start := p.consume(lexer.BitAnd, "expected '&'")
+	name := p.consume(lexer.Ident, "expected trait name")
+	p.consume(lexer.Colon, "expected ':' after trait name")
+	p.skipNewlines()
+	p.consume(lexer.LBrace, "expected '{' after trait name")
+	p.skipNewlines()
+
+	trait := Trait{Name: name.Lexeme, SourcePath: p.path, Pos: start.Pos}
+	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		static := false
+		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+			p.advance()
+			p.skipNewlines()
+			static = true
+		}
+		member := p.consume(lexer.Ident, "expected trait member")
+		if p.match(lexer.LParen) {
+			paramNames, params, err := p.parseParams()
+			if err != nil {
+				return Trait{}, err
+			}
+			p.consume(lexer.RParen, "expected ')' after trait method parameters")
+			ret := "Void"
+			p.skipNewlines()
+			if p.match(lexer.Arrow) {
+				ret, err = p.parseTypeName()
+				if err != nil {
+					return Trait{}, err
+				}
+			}
+			trait.Methods = append(trait.Methods, Function{
+				Name:       member.Lexeme,
+				Static:     static,
+				SourcePath: p.path,
+				Pos:        member.Pos,
+				ParamNames: paramNames,
+				Params:     params,
+				Return:     ret,
+			})
+		} else {
+			if static {
+				return Trait{}, p.errorf(member, "trait fields cannot be static")
+			}
+			p.consume(lexer.Colon, "expected ':' after trait field")
+			typ, err := p.parseTypeName()
+			if err != nil {
+				return Trait{}, err
+			}
+			trait.Fields = append(trait.Fields, Field{Name: member.Lexeme, Type: typ, Pos: member.Pos})
+		}
+		p.match(lexer.Comma)
+		p.skipNewlines()
+	}
+	p.consume(lexer.RBrace, "expected '}' after trait")
+	return trait, nil
+}
+
 func (p *stubParser) looksLikeReceiverBlock() bool {
 	saved := p.curr
 	defer func() { p.curr = saved }()
@@ -45,14 +103,14 @@ func (p *stubParser) looksLikeReceiverBlock() bool {
 func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
 	name := p.consume(lexer.Ident, "expected receiver name")
 	receiver := name.Lexeme
-	generics := p.parseGenericNames()
+	generics, constraints := p.parseGenericParams()
 	p.skipNewlines()
 	p.consume(lexer.Colon, "expected ':' after receiver declaration")
 	p.skipNewlines()
 	p.consume(lexer.LBrace, "expected '{' after receiver declaration")
 	p.skipNewlines()
 
-	typ := &Type{Name: receiver, SourcePath: p.path, Pos: name.Pos, Generics: generics}
+	typ := &Type{Name: receiver, SourcePath: p.path, Pos: name.Pos, Generics: generics, GenericConstraints: constraints}
 	var functions []Function
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations, err := p.parseAnnotations()
@@ -155,7 +213,7 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 		p.skipNewlines()
 	}
 	name := p.consume(lexer.Ident, "expected function name")
-	generics := p.parseGenericNames()
+	generics, constraints := p.parseGenericParams()
 	p.consume(lexer.LParen, "expected '(' after function name")
 	paramNames, params, err := p.parseParams()
 	if err != nil {
@@ -180,16 +238,17 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 	}
 
 	fn := Function{
-		Name:       name.Lexeme,
-		Routine:    routine,
-		SourcePath: p.path,
-		Pos:        name.Pos,
-		Receiver:   receiver,
-		Generics:   generics,
-		ParamNames: paramNames,
-		Params:     params,
-		Return:     returnType,
-		Body:       body,
+		Name:               name.Lexeme,
+		Routine:            routine,
+		SourcePath:         p.path,
+		Pos:                name.Pos,
+		Receiver:           receiver,
+		Generics:           generics,
+		GenericConstraints: constraints,
+		ParamNames:         paramNames,
+		Params:             params,
+		Return:             returnType,
+		Body:               body,
 	}
 	for _, ann := range annotations {
 		switch ann.Name {
@@ -247,20 +306,40 @@ func (p *stubParser) parseParams() ([]string, []string, error) {
 }
 
 func (p *stubParser) parseGenericNames() []string {
+	names, _ := p.parseGenericParams()
+	return names
+}
+
+func (p *stubParser) parseGenericParams() ([]string, map[string]string) {
 	if !p.match(lexer.LBracket) {
-		return nil
+		return nil, nil
 	}
 	var names []string
+	constraints := map[string]string{}
 	for !p.check(lexer.RBracket) && !p.check(lexer.EOF) {
 		if p.check(lexer.Ident) {
-			names = append(names, p.advance().Lexeme)
+			name := p.advance()
+			names = append(names, name.Lexeme)
+			if p.match(lexer.Colon) {
+				p.skipNewlines()
+				constraint, err := p.parseTypeName()
+				if err != nil {
+					constraints[name.Lexeme] = ""
+				} else {
+					constraints[name.Lexeme] = strings.TrimPrefix(constraint, "&")
+				}
+			}
 		} else {
 			p.advance()
 		}
 		p.match(lexer.Comma)
+		p.skipNewlines()
 	}
 	p.consume(lexer.RBracket, "expected ']' after generic parameters")
-	return names
+	if len(constraints) == 0 {
+		constraints = nil
+	}
+	return names, constraints
 }
 
 func (p *stubParser) parseTypeName() (string, error) {
@@ -326,6 +405,13 @@ func (p *stubParser) parseTypeName() (string, error) {
 }
 
 func (p *stubParser) parseSimpleTypeName() (string, error) {
+	if p.match(lexer.BitAnd) {
+		name := p.consume(lexer.Ident, "expected trait name after '&'")
+		if p.hasErrorToken(name) {
+			return "", p.errorf(name, "expected trait name")
+		}
+		return "&" + name.Lexeme, nil
+	}
 	if p.match(lexer.At) {
 		module := p.consume(lexer.Ident, "expected module name after '@'")
 		p.consume(lexer.Dot, "expected '.' after module name")
