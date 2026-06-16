@@ -236,6 +236,17 @@ fib(n) => n {
 identity[T](value: T) -> T => value
 ```
 
+泛型参数可以使用 `T: Trait` 约束到结构化 trait：
+
+```rune
+add[T: Number](a: T, b: T) -> T => a + b
+```
+
+`Number` 定义在 core 标准库源码中，不是编译器内建的特殊泛型种类。数字类型
+通过提供 trait 要求的算术方法结构化实现 `&Number`。core 还定义了 `&Add`、
+`&Sub`、`&Mul` 和 `&Div`，泛型代码里的 `+`、`-`、`*`、`/` 分别依赖这些
+trait 能力。
+
 `main` 是特殊函数：它总是按返回 `Void` 进行检查。
 
 ## Routine 与 Result
@@ -308,6 +319,40 @@ handle := (value: Int) => {
   next := value + 1
   next
 }
+```
+
+绑定可以在值之后声明期望类型：
+
+```rune
+user := @json.parse(text) : User
+```
+
+## Trait
+
+Trait 在声明和类型位置都使用 `&`：
+
+```rune
+&Named: {
+  name: String
+  rename(value: String) -> Self
+}
+
+renameTwice(value: &Named, name: String) -> &Named =>
+  value.rename(name).rename(name)
+```
+
+只要 object 包含 trait 要求的全部公开属性和方法，并且类型兼容，就会自动实现
+该 trait。object 可以包含额外成员，不需要 `impl` 声明。`Self` 表示具体的
+实现 object 类型。
+
+带有 `static` 前缀的 trait 和 object 方法属于类型本身，而不是实例：
+
+```rune
+&FromJson: {
+  static fromJson(text: String) -> Self
+}
+
+user := User::fromJson(text)
 ```
 
 如果回调类型允许更多参数，而实际 lambda 只声明了更少参数，Rune 会接受较短
@@ -473,8 +518,13 @@ Box[T]: {
 }
 ```
 
-当前最完整的泛型行为集中在内置泛型容器中，例如 `Array[T]`、`Map[K, V]` 和
-`Set[T]`。
+泛型类型参数也可以使用同样的 trait 约束语法：
+
+```rune
+Box[T: Named]: {
+  value: T
+}
+```
 
 ## 枚举类型
 
@@ -657,5 +707,5 @@ Go 字符串里的 `$name` 会被重写为 Rune 绑定对应的生成后 Go 标�
 ## 当前语法边界
 
 Rune 目前刻意保持较小的语法面。当前 parser 中没有 `if`、`for`、`while`、
-`trait`、`impl`、`class`、包导入、异常或宏语法。对应能力请使用已支持的
+显式 `impl`、`class` 或异常语法。对应能力请使用已支持的结构化 trait、
 match 表达式、三元表达式、递归、数组回调和核心模块。

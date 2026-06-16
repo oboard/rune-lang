@@ -241,6 +241,18 @@ Generic functions declare type parameters after the name:
 identity[T](value: T) -> T => value
 ```
 
+Generic parameters can require a structural trait with `T: Trait`:
+
+```rune
+add[T: Number](a: T, b: T) -> T => a + b
+```
+
+`Number` is declared in the core library, not hard-coded as a special generic
+kind. Numeric types implement `&Number` structurally by providing the arithmetic
+methods required by that trait. The core library also declares operation traits
+`&Add`, `&Sub`, `&Mul`, and `&Div`; `+`, `-`, `*`, and `/` in generic code use
+those trait capabilities.
+
 `main` is special: it is always checked as returning `Void`.
 
 ## Routines and Result
@@ -314,6 +326,42 @@ handle := (value: Int) => {
   next := value + 1
   next
 }
+```
+
+Bindings can declare an expected type after the value:
+
+```rune
+user := @json.parse(text) : User
+```
+
+## Traits
+
+Traits use `&` in both declarations and type positions:
+
+```rune
+&Named: {
+  name: String
+  rename(value: String) -> Self
+}
+
+renameTwice(value: &Named, name: String) -> &Named =>
+  value.rename(name).rename(name)
+```
+
+An object implements a trait automatically when it contains every public field
+and method required by the trait with compatible types. Extra members are
+allowed; no `impl` declaration is needed. `Self` resolves to the implementing
+object type.
+
+Trait and object methods prefixed with `static` belong to the type rather than
+an instance:
+
+```rune
+&FromJson: {
+  static fromJson(text: String) -> Self
+}
+
+user := User::fromJson(text)
 ```
 
 When a callback type allows more parameters than a lambda provides, Rune accepts
@@ -482,8 +530,13 @@ Box[T]: {
 }
 ```
 
-The most complete generic behavior today is in built-in generic containers such
-as `Array[T]`, `Map[K, V]`, and `Set[T]`.
+Generic type parameters can use the same trait constraint syntax:
+
+```rune
+Box[T: Named]: {
+  value: T
+}
+```
 
 ## Enum Types
 
@@ -674,6 +727,6 @@ Tests are ordinary Rune blocks. The standard assertion helper is
 ## Current Syntax Boundaries
 
 Rune intentionally has a small surface today. There is no `if`, `for`, `while`,
-`trait`, `impl`, `class`, package import, exception, or macro syntax in the
-current parser. Use match expressions, ternary expressions, recursion, array
+explicit `impl`, `class`, or exception syntax in the current parser. Use
+structural traits, match expressions, ternary expressions, recursion, array
 callbacks, and core modules for the supported equivalents.
