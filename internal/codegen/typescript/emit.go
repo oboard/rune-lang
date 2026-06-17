@@ -258,6 +258,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.linef("%s.set(%s);", mangleIdent(s.Name), g.expr(s.Value))
 				continue
 			}
+			if g.isReactive(s.Name) {
+				g.linef("%s.set(%s);", mangleIdent(s.Name), g.expr(s.Value))
+				continue
+			}
 			g.linef("%s = %s;", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
 			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
@@ -505,6 +509,7 @@ func (g *generator) signalRuntime() {
 	g.indent++
 	g.line("get(): T;")
 	g.line("set(value: T): void;")
+	g.line("mutate<R>(mutator: (value: T) => R): R;")
 	g.line("watch(watcher: (oldValue: T, newValue: T) => void): void;")
 	g.indent--
 	g.line("};")
@@ -524,101 +529,39 @@ func (g *generator) signalRuntime() {
 	g.line("for (const watcher of watchers) watcher(old, next);")
 	g.indent--
 	g.line("},")
+	g.line("mutate: <R>(mutator: (value: T) => R): R => {")
+	g.indent++
+	g.line("const old = value;")
+	g.line("const result = mutator(value);")
+	g.line("for (const watcher of watchers) watcher(old, value);")
+	g.line("return result;")
+	g.indent--
+	g.line("},")
 	g.line("watch: (watcher: (oldValue: T, newValue: T) => void) => { watchers.push(watcher); },")
 	g.indent--
 	g.line("};")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("const runeReactiveWatchers = new WeakMap<object, Array<() => void>>();")
-	g.line("")
 	g.line("function runeWatch(source: any, watcher: () => void): void {")
 	g.indent++
 	g.line("if (source && typeof source.watch === \"function\") {")
 	g.indent++
 	g.line("source.watch(() => watcher());")
-	g.line("return;")
-	g.indent--
-	g.line("}")
-	g.line("if (source && typeof source === \"object\") {")
-	g.indent++
-	g.line("const watchers = runeReactiveWatchers.get(source);")
-	g.line("if (watchers) watchers.push(watcher);")
 	g.indent--
 	g.line("}")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("function runeNotify(source: object): void {")
+	g.line("function runeReactiveArray<T>(initial: T[]): RuneSignal<T[]> {")
 	g.indent++
-	g.line("const watchers = runeReactiveWatchers.get(source);")
-	g.line("if (!watchers) return;")
-	g.line("for (const watcher of watchers) watcher();")
+	g.line("return runeSignal(initial);")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("function runeReactiveArray<T>(initial: T[]): T[] {")
+	g.line("function runeReactiveObject<T extends object>(initial: T): RuneSignal<T> {")
 	g.indent++
-	g.line("let proxy: T[];")
-	g.line("const mutators = new Set([\"copyWithin\", \"fill\", \"pop\", \"push\", \"reverse\", \"shift\", \"sort\", \"splice\", \"unshift\"]);")
-	g.line("proxy = new Proxy(initial, {")
-	g.indent++
-	g.line("get(target, prop, receiver) {")
-	g.indent++
-	g.line("const value = Reflect.get(target, prop, receiver);")
-	g.line("if (typeof prop === \"string\" && mutators.has(prop) && typeof value === \"function\") {")
-	g.indent++
-	g.line("return (...args: unknown[]) => {")
-	g.indent++
-	g.line("const result = value.apply(target, args);")
-	g.line("runeNotify(proxy);")
-	g.line("return result;")
-	g.indent--
-	g.line("};")
-	g.indent--
-	g.line("}")
-	g.line("return value;")
-	g.indent--
-	g.line("},")
-	g.line("set(target, prop, value, receiver) {")
-	g.indent++
-	g.line("const old = Reflect.get(target, prop, receiver);")
-	g.line("const ok = Reflect.set(target, prop, value, receiver);")
-	g.line("if (!Object.is(old, value)) runeNotify(proxy);")
-	g.line("return ok;")
-	g.indent--
-	g.line("},")
-	g.indent--
-	g.line("});")
-	g.line("runeReactiveWatchers.set(proxy, []);")
-	g.line("return proxy;")
-	g.indent--
-	g.line("}")
-	g.line("")
-	g.line("function runeReactiveObject<T extends object>(initial: T): T {")
-	g.indent++
-	g.line("let proxy: T;")
-	g.line("proxy = new Proxy(initial, {")
-	g.indent++
-	g.line("set(target, prop, value, receiver) {")
-	g.indent++
-	g.line("const old = Reflect.get(target, prop, receiver);")
-	g.line("const ok = Reflect.set(target, prop, value, receiver);")
-	g.line("if (!Object.is(old, value)) runeNotify(proxy as object);")
-	g.line("return ok;")
-	g.indent--
-	g.line("},")
-	g.line("deleteProperty(target, prop) {")
-	g.indent++
-	g.line("const ok = Reflect.deleteProperty(target, prop);")
-	g.line("if (ok) runeNotify(proxy as object);")
-	g.line("return ok;")
-	g.indent--
-	g.line("},")
-	g.indent--
-	g.line("});")
-	g.line("runeReactiveWatchers.set(proxy as object, []);")
-	g.line("return proxy;")
+	g.line("return runeSignal(initial);")
 	g.indent--
 	g.line("}")
 }

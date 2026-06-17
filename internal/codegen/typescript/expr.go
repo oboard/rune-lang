@@ -17,7 +17,7 @@ func (g *generator) expr(expr ir.Expr) string {
 func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	switch e := expr.(type) {
 	case *ir.Identifier:
-		if g.isSignal(e.Name) {
+		if g.isSignal(e.Name) || g.isReactive(e.Name) {
 			return mangleIdent(e.Name) + ".get()"
 		}
 		return mangleIdent(e.Name)
@@ -90,7 +90,15 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 				return expr
 			}
 		}
+		if target, ok := e.Target.(*ir.SelectorExpr); ok {
+			if expr, ok := g.selectorAssignExpr(target, e.Value); ok {
+				return expr
+			}
+		}
 		if g.isSignal(e.Name) {
+			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+		}
+		if g.isReactive(e.Name) {
 			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
 		}
 		if e.Target != nil && e.Name == "" {
@@ -215,10 +223,21 @@ func escapeTemplateText(text string) string {
 }
 
 func (g *generator) indexAssignExpr(target *ir.IndexExpr, value ir.Expr) (string, bool) {
+	if name, ok := g.reactiveIdentifier(target.Receiver); ok {
+		return fmt.Sprintf("%s.mutate((__value) => (__value[%s] = %s))", name, g.expr(target.Index), g.expr(value)), true
+	}
 	if _, _, ok := checker.MapKeyValue(target.Receiver.ResultType()); !ok {
 		return "", false
 	}
 	return fmt.Sprintf("%s.set(%s, %s)", g.expr(target.Receiver), g.expr(target.Index), g.expr(value)), true
+}
+
+func (g *generator) selectorAssignExpr(target *ir.SelectorExpr, value ir.Expr) (string, bool) {
+	name, ok := g.reactiveIdentifier(target.Receiver)
+	if !ok {
+		return "", false
+	}
+	return fmt.Sprintf("%s.mutate((__value) => (%s = %s))", name, tsPropertyAccess("__value", target.Name), g.expr(value)), true
 }
 
 func (g *generator) mapLiteral(lit *ir.MapLiteral) string {
@@ -418,6 +437,12 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 	args := make([]string, 0, len(call.Args))
 	for _, arg := range call.Args {
 		args = append(args, g.expr(arg))
+	}
+	if name, ok := g.reactiveIdentifier(sel.Receiver); ok {
+		switch sel.Name {
+		case "push":
+			return fmt.Sprintf("%s.mutate((__value) => __value.push(%s))", name, strings.Join(args, ", ")), true
+		}
 	}
 	switch sel.Name {
 	case "length":
@@ -722,7 +747,7 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 
 func (g *generator) watchExpr(watch *ir.WatchExpr) string {
 	target, ok := watch.Target.(*ir.Identifier)
-	if !ok || !g.isSignal(target.Name) {
+	if !ok || (!g.isSignal(target.Name) && !g.isReactive(target.Name)) {
 		return "undefined"
 	}
 	handler, ok := watch.Handler.(*ir.LambdaExpr)
@@ -739,6 +764,14 @@ func (g *generator) watchExpr(watch *ir.WatchExpr) string {
 		}
 	}
 	return fmt.Sprintf("%s.watch((%s) => { %s; })", mangleIdent(target.Name), strings.Join(tsParams, ", "), g.lambdaBody(handler, checker.Void))
+}
+
+func (g *generator) reactiveIdentifier(expr ir.Expr) (string, bool) {
+	ident, ok := expr.(*ir.Identifier)
+	if !ok || !g.isReactive(ident.Name) {
+		return "", false
+	}
+	return mangleIdent(ident.Name), true
 }
 
 func (g *generator) lambda(lambda *ir.LambdaExpr) string {
@@ -810,6 +843,8 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 			parts = append(parts, fmt.Sprintf("%s %s = %s", kind, mangleIdent(s.Name), value))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
+				parts = append(parts, fmt.Sprintf("%s.set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
+			} else if g.isReactive(s.Name) {
 				parts = append(parts, fmt.Sprintf("%s.set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
 			} else {
 				parts = append(parts, fmt.Sprintf("%s = %s", mangleIdent(s.Name), g.expr(s.Value)))

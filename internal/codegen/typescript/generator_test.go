@@ -288,18 +288,21 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`function runeReactiveArray<T>(initial: T[]): T[]`,
+		`function runeReactiveArray<T>(initial: T[]): RuneSignal<T[]>`,
 		`const __list = runeReactiveArray(["Item 1", "Item 2", "Item 3"]);`,
 		`const __start`,
 		`const __render`,
 		`runeWatch(__list, __render`,
 		`.insertBefore(__child`,
-		`.addEventListener("click", () => { __list.push("New Item"); });`,
+		`.addEventListener("click", () => { __list.mutate((__value) => __value.push("New Item")); });`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "Proxy") {
+		t.Fatalf("generated TypeScript should not use Proxy for reactive arrays:\n%s", got)
 	}
 	if strings.Contains(got, "String(__list.map") {
 		t.Fatalf("generated TypeScript stringifies reactive element array:\n%s", got)

@@ -116,6 +116,9 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		}
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "array."):
+		if name, ok := g.reactiveIdentifier(sel.Receiver); ok {
+			return g.reactiveArrayIntrinsicCall(fn, name, args, call.Args, call.ResultType()), true
+		}
 		return g.arrayIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
 		return g.stringIntrinsicCall(fn, receiver, args, call.ResultType()), true
@@ -149,6 +152,22 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.setIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
+	}
+}
+
+func (g *generator) reactiveArrayIntrinsicCall(fn *stdlib.Function, name string, args []string, rawArgs []ir.Expr, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "array.push":
+		return fmt.Sprintf("%s.mutate((__value) => __value.push(%s))", name, strings.Join(args, ", "))
+	case "array.set":
+		if len(args) != 2 {
+			return "undefined"
+		}
+		return fmt.Sprintf("%s.mutate((__value) => (__value[%s] = %s))", name, args[0], args[1])
+	case "array.pop":
+		return fmt.Sprintf("%s.mutate((__value) => __value.pop() as %s)", name, tsType(resultType))
+	default:
+		return g.arrayIntrinsicCall(fn, name+".get()", args, rawArgs, resultType)
 	}
 }
 
