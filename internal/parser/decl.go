@@ -32,10 +32,18 @@ func (p *Parser) parseGoImportDecl() *ast.GoImport {
 
 func (p *Parser) parseImportDecl() *ast.Import {
 	at := p.consume(lexer.At, "expected '@'")
-	path := p.consume(lexer.String, "expected import path string after '@'")
-	value, err := strconv.Unquote(path.Lexeme)
-	if err != nil {
-		p.errorAt(path, "invalid import path string")
+	if p.check(lexer.Ident) {
+		module := p.advance()
+		return &ast.Import{Path: module.Lexeme, Module: true, Pos: at.Pos}
+	}
+	path := p.consume(lexer.String, "expected import path string or module name after '@'")
+	value := ""
+	if path.Kind == lexer.String {
+		var err error
+		value, err = strconv.Unquote(path.Lexeme)
+		if err != nil {
+			p.errorAt(path, "invalid import path string")
+		}
 	}
 	return &ast.Import{Path: value, Pos: at.Pos}
 }
@@ -105,7 +113,7 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		annotations := p.parseAnnotations()
 		private := p.parseObjectPrivateModifier()
 		static := false
-		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+		if p.looksLikeStaticFunctionDecl() {
 			p.advance()
 			p.skipNewlines()
 			static = true
@@ -140,6 +148,17 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 	}
 	p.consume(lexer.RBrace, "expected '}' after type declaration")
 	return typ, nil
+}
+
+func (p *Parser) looksLikeStaticFunctionDecl() bool {
+	if !p.check(lexer.Ident) || p.peek().Lexeme != "static" {
+		return false
+	}
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	p.advance()
+	p.skipNewlines()
+	return p.looksLikeFunctionDecl()
 }
 
 func (p *Parser) parseStructType() *ast.StructType {
@@ -508,10 +527,10 @@ func (p *Parser) typeParamHasName() bool {
 
 func (p *Parser) parseAnnotations() []ast.Annotation {
 	var annotations []ast.Annotation
-	for p.match(lexer.Hash) {
-		hash := p.previous()
+	for p.match(lexer.Hash) || p.match(lexer.At) {
+		start := p.previous()
 		first := p.consume(lexer.Ident, "expected annotation name")
-		annotation := ast.Annotation{Name: first.Lexeme, Pos: hash.Pos, NamePos: first.Pos}
+		annotation := ast.Annotation{Name: first.Lexeme, Pos: start.Pos, NamePos: first.Pos}
 		if p.match(lexer.Dot) {
 			name := p.consume(lexer.Ident, "expected annotation function name after '.'")
 			annotation.Module = first.Lexeme
@@ -540,7 +559,7 @@ func (p *Parser) parseAnnotations() []ast.Annotation {
 }
 
 func (p *Parser) skipAnnotationTokens() {
-	for p.match(lexer.Hash) {
+	for p.match(lexer.Hash) || p.match(lexer.At) {
 		if !p.match(lexer.Ident) {
 			return
 		}

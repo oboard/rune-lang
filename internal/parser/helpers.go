@@ -369,6 +369,13 @@ func (p *Parser) checkNext(kind lexer.Kind) bool {
 	return p.tokens[p.curr+1].Kind == kind
 }
 
+func (p *Parser) kindAt(index int) lexer.Kind {
+	if index >= len(p.tokens) {
+		return lexer.EOF
+	}
+	return p.tokens[index].Kind
+}
+
 func (p *Parser) advance() lexer.Token {
 	if !p.check(lexer.EOF) {
 		p.curr++

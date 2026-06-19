@@ -180,7 +180,9 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.linef("%s := newRuneSignal(%s)", mangleIdent(s.Name), g.expr(s.Value))
 				g.linef("_ = %s", mangleIdent(s.Name))
 				g.addSignal(s.Name, s.Value.ResultType())
-				for _, dep := range g.exprSignalDeps(s.Value) {
+				deps := g.exprSignalDeps(s.Value)
+				g.setSignalDeps(s.Name, deps)
+				for _, dep := range deps {
 					depName := mangleIdent(dep)
 					name := mangleIdent(s.Name)
 					g.linef("%s.Watch(func(_, _ %s) { %s.Set(%s) })", depName, goType(g.signalType(dep)), name, g.expr(s.Value))
@@ -215,6 +217,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
 				continue
 			}
+			if block, ok := s.Expr.(*ir.BlockExpr); ok && !(last && ret != checker.Void) && g.exprUsesSignal(block) {
+				g.effectScope(block)
+				continue
+			}
 			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok && ternary.Alternative == nil && !(last && ret != checker.Void) {
 				g.conditionalExprStmt(ternary)
 				continue
@@ -242,6 +248,39 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
+}
+
+func (g *generator) effectScope(block *ir.BlockExpr) {
+	name := g.nextTemp("effect")
+	g.linef("%s := func() {", name)
+	g.indent++
+	_ = g.block(block, checker.Void)
+	g.indent--
+	g.line("}")
+	pending := g.nextTemp("effectPending")
+	schedule := g.nextTemp("scheduleEffect")
+	g.linef("%s := false", pending)
+	g.linef("%s := func() {", schedule)
+	g.indent++
+	g.linef("if %s {", pending)
+	g.indent++
+	g.line("return")
+	g.indent--
+	g.line("}")
+	g.linef("%s = true", pending)
+	g.line("runeScheduleEffect(func() {")
+	g.indent++
+	g.linef("%s = false", pending)
+	g.linef("%s()", name)
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.linef("%s()", name)
+	for _, dep := range g.effectSignalDeps(block) {
+		depName := mangleIdent(dep)
+		g.linef("%s.Watch(func(_, _ %s) { %s() })", depName, goType(g.signalType(dep)), schedule)
+	}
 }
 
 func (g *generator) conditionalExprStmt(expr *ir.TernaryExpr) {
@@ -288,6 +327,7 @@ func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source str
 			g.linef("%s := newRuneSignal(%s)", name, value)
 			g.linef("_ = %s", name)
 			g.addSignal(field.Name, field.Type)
+			g.setSignalDeps(field.Name, g.exprSignalDeps(stmt.Value))
 			continue
 		}
 		g.linef("%s := %s", name, value)
@@ -462,6 +502,28 @@ func (g *generator) objectPatternCondition(subject string, pattern *ir.ObjectPat
 }
 
 func (g *generator) signalRuntime() {
+	g.line("var runeSignalDepth int")
+	g.line("var runeEffectQueue []func()")
+	g.line("")
+	g.line("func runeScheduleEffect(effect func()) {")
+	g.indent++
+	g.line("runeEffectQueue = append(runeEffectQueue, effect)")
+	g.line("runeFlushEffects()")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeFlushEffects() {")
+	g.indent++
+	g.line("for len(runeEffectQueue) > 0 {")
+	g.indent++
+	g.line("effect := runeEffectQueue[0]")
+	g.line("runeEffectQueue = runeEffectQueue[1:]")
+	g.line("effect()")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
 	g.line("type runeSignal[T comparable] struct {")
 	g.indent++
 	g.line("value T")
@@ -490,9 +552,16 @@ func (g *generator) signalRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("s.value = value")
+	g.line("runeSignalDepth++")
 	g.line("for _, watcher := range s.watchers {")
 	g.indent++
 	g.line("watcher(old, value)")
+	g.indent--
+	g.line("}")
+	g.line("runeSignalDepth--")
+	g.line("if runeSignalDepth == 0 {")
+	g.indent++
+	g.line("runeFlushEffects()")
 	g.indent--
 	g.line("}")
 	g.indent--

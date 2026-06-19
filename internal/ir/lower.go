@@ -326,7 +326,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &ReactiveLiteral{ExprBase: l.base(e), Value: l.expr(e.Value)}
 	case *ast.StructLiteral:
 		out := &StructLiteral{ExprBase: l.base(e), TypeName: e.TypeName}
-		for _, field := range e.Fields {
+		for _, field := range l.structLiteralFields(e) {
 			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
 		}
 		return out
@@ -376,6 +376,64 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	default:
 		return nil
 	}
+}
+
+func (l lowerer) structLiteralFields(lit *ast.StructLiteral) []ast.FieldValue {
+	hasSpread := false
+	for _, field := range lit.Fields {
+		if field.Spread {
+			hasSpread = true
+			break
+		}
+	}
+	if !hasSpread || l.info == nil {
+		return lit.Fields
+	}
+	structInfo := l.info.Types[lit.TypeName]
+	if structInfo == nil {
+		return lit.Fields
+	}
+	fields := make([]ast.FieldValue, 0, len(lit.Fields)+len(structInfo.Fields))
+	for _, field := range lit.Fields {
+		if !field.Spread {
+			fields = append(fields, field)
+			continue
+		}
+		for _, spreadField := range structInfo.Fields {
+			fields = append(fields, ast.FieldValue{
+				Name:    spreadField.Name,
+				Private: spreadField.Private,
+				Value: &ast.SelectorExpr{
+					Receiver: field.Value,
+					Name:     spreadField.Name,
+					Pos:      field.Value.Position(),
+					NamePos:  field.Pos,
+				},
+				Pos: field.Pos,
+			})
+		}
+	}
+	return dedupeStructLiteralFields(fields)
+}
+
+func dedupeStructLiteralFields(fields []ast.FieldValue) []ast.FieldValue {
+	keep := make([]bool, len(fields))
+	seen := map[string]bool{}
+	for idx := len(fields) - 1; idx >= 0; idx-- {
+		name := fields[idx].Name
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		keep[idx] = true
+	}
+	out := make([]ast.FieldValue, 0, len(seen))
+	for idx, field := range fields {
+		if keep[idx] {
+			out = append(out, field)
+		}
+	}
+	return out
 }
 
 func (l lowerer) stmt(stmt ast.Stmt) Stmt {

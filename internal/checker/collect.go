@@ -116,10 +116,13 @@ func (c *checker) collect(file *ast.File) {
 			memberInfo := EnumMemberInfo{Name: member.Name, Private: member.Private, SourcePath: enum.SourcePath, Value: member.Value, HasValue: member.HasValue, Pos: member.Pos}
 			for _, param := range member.Params {
 				paramName := param.Type.Canonical()
-				paramType := c.resolveTypeWithGenerics(paramName, enumGenerics)
-				if paramType == Unknown && !isDynamicTypeName(paramName) {
-					c.reportUnknownOrPrivateType(param.Pos, paramName)
-				}
+				var paramType Type
+				c.withSourcePath(enum.SourcePath, func() {
+					paramType = c.resolveTypeWithGenerics(paramName, enumGenerics)
+					if paramType == Unknown && !isDynamicTypeName(paramName) {
+						c.reportUnknownOrPrivateType(param.Pos, paramName)
+					}
+				})
 				memberInfo.Params = append(memberInfo.Params, ParamInfo{Name: param.Name, Type: paramType})
 			}
 			info.Members = append(info.Members, memberInfo)
@@ -196,6 +199,9 @@ func (c *checker) addFunction(fn *ast.Function, info *FuncInfo) bool {
 
 func (c *checker) addFunctionInfo(pos lexer.Position, fn *ast.Function, info *FuncInfo) bool {
 	for _, existing := range c.info.functionsByName[info.Name] {
+		if existing.Macro != info.Macro {
+			continue
+		}
 		if sameSourcePath(existing.SourcePath, info.SourcePath) || (!existing.Private && !info.Private) {
 			c.errorf(pos, "duplicate function %q", info.Name)
 			return false
@@ -205,7 +211,7 @@ func (c *checker) addFunctionInfo(pos lexer.Position, fn *ast.Function, info *Fu
 	if fn != nil {
 		c.info.FunctionDecls[fn] = info
 	}
-	if existing := c.info.Functions[info.Name]; existing == nil || (existing.Private && !info.Private) {
+	if existing := c.info.Functions[info.Name]; existing == nil || (existing.Private && !info.Private) || (existing.Macro && !info.Macro) {
 		c.info.Functions[info.Name] = info
 	}
 	return true

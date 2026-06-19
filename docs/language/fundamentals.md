@@ -194,11 +194,11 @@ Bindings are written inside blocks:
 ```rune
 value := 1
 mutable ~= 1
-signal $= 0
+$signal := 0
 ```
 
 `:=` creates an ordinary local binding. `~=` marks a binding as mutable intent.
-`$=` creates a signal binding for reactive code. Assignment uses `=`:
+`$name :=` creates a signal binding for reactive code. Assignment uses `=`:
 
 ```rune
 count ~= 0
@@ -628,21 +628,30 @@ the file extension.
 
 ## Reactivity and Watch
 
-Signal bindings use `$=`:
+Signal bindings use `$name :=`:
 
 ```rune
 render() => {
-  count $= 0
-  double := count * 2
+  $count := 0
+  $double := $count * 2
 
-  count -> (old, new) => {
+  {
+    @io.println(`count: \($count)`)
+    @io.println(`double: \($double)`)
+  }
+
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }
 
-  count = count + 1
+  $count = $count + 1
 }
 ```
+
+An expression block in statement position becomes an effect scope when it reads
+signals. The compiler collects those signal dependencies, runs the block once,
+and reruns it when any dependency changes.
 
 `target -> handler` registers a watcher. A handler can be a zero-argument block
 or a lambda with two parameters `(old, new)`.

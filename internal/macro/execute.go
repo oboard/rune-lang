@@ -52,7 +52,7 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 
 	refs := newSyntaxRefs()
 	bindings := make(map[string]interpreter.Value, len(args)+hiddenParams)
-	bindings[paramNames[0]] = syntaxFileValue(file, refs)
+	bindings[paramNames[0]] = syntaxFileValueForSource(file, refs, invocation.Target.SourcePath)
 	bindings[paramNames[1]] = macroContextValue(invocation.Target)
 	for i, name := range paramNames[hiddenParams:] {
 		bindings[name] = args[i]

@@ -1,3 +1,5 @@
+@syntax
+
 &FromJson: {
   static fromJson(text: String) -> Self
 }
@@ -20,33 +22,9 @@ syntaxGenericType(
 
 syntaxType(name: String) -> SyntaxType => @json.syntaxGenericType(name, [])
 
-syntaxExpr(
-  kind: String,
-  name: String,
-  args: Array[SyntaxExpr]
-) -> SyntaxExpr => SyntaxExpr {
-  kind: kind
-  name: name
-  stringValue: ""
-  boolValue: false
-  args: args
-  fields: []
-  statements: []
-}
-
-identifierExpr(name: String) -> SyntaxExpr =>
-  @json.syntaxExpr("identifier", name, [])
-
-moduleExpr(name: String) -> SyntaxExpr =>
-  @json.syntaxExpr("module", name, [])
-
-selectorExpr(receiver: SyntaxExpr, name: String) -> SyntaxExpr =>
-  @json.syntaxExpr("selector", name, [receiver])
-
-callExpr(callee: SyntaxExpr, args: Array[SyntaxExpr]) -> SyntaxExpr =>
-  @json.syntaxExpr("call", "", [callee, ...args])
-
-fromJsonMethod(structure: SyntaxStruct) -> SyntaxFunction => SyntaxFunction {
+fromJsonMethod(
+  structure: SyntaxStruct
+) -> SyntaxFunction => SyntaxFunction {
   id: ""
   name: "fromJson"
   private: false
@@ -55,29 +33,20 @@ fromJsonMethod(structure: SyntaxStruct) -> SyntaxFunction => SyntaxFunction {
   generics: []
   annotations: []
   receiverType: structure.name
-  params: [
-    SyntaxParam {
-      id: ""
-      name: "text"
-      type: @json.syntaxType("String")
-    }
-  ]
-  returnType: @json.syntaxGenericType(
-    structure.name,
-    structure.generics.map((name) => @json.syntaxType(name))
-  )
+  params: [SyntaxParam {
+    id: ""
+    name: "text"
+    type: @json.syntaxType("String")
+  }]
+  returnType: @json.syntaxGenericType(structure.name, structure.generics.map((name) => @json.syntaxType(name)))
   bodyID: ""
-  generatedBody: @json.callExpr(
-    @json.selectorExpr(@json.moduleExpr("json"), "parse"),
-    [@json.identifierExpr("text")]
-  )
+  generatedBody: CallExpr(SelectorExpr(ModuleExpr("json"), "parse"), [IdentifierExpr("text")])
   sourcePath: structure.sourcePath
 }
 
-hasFromJson(structure: SyntaxStruct) -> Bool => structure.methods.foldl(
-  false,
-  (found, method) => found || (method.name == "fromJson")
-)
+hasFromJson(
+  structure: SyntaxStruct
+) -> Bool => structure.methods.foldl(false, (found, method) => found || (method.name == "fromJson"))
 
 #object(
   tree: SyntaxFile,
@@ -91,10 +60,7 @@ hasFromJson(structure: SyntaxStruct) -> Bool => structure.methods.foldl(
     annotations: structure.annotations
     fields: structure.fields
     methods: (
-      (structure.id == context.targetID) && !@json.hasFromJson(structure) ? [
-        ...structure.methods,
-        @json.fromJsonMethod(structure)
-      ]
+      (structure.id == context.targetID) && !@json.hasFromJson(structure) ? [...structure.methods, @json.fromJsonMethod(structure)]
         : structure.methods
     )
     sourcePath: structure.sourcePath

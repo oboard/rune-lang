@@ -50,14 +50,14 @@ func (g *generator) function(fn *ir.Function) error {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
 	if fn.Return == checker.WebComponent && !fn.Routine {
-		return g.webComponentFunction(mangleIdent(fn.Name), params, fn)
+		return g.webComponentFunction(FunctionSymbolName(fn), params, fn)
 	}
 	if fn.Routine {
 		return g.routineFunction(fn, params)
 	}
 	prefix := "function"
 	ret := tsType(fn.Return)
-	g.linef("%s %s%s(%s): %s {", prefix, mangleIdent(fn.Name), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+	g.linef("%s %s%s(%s): %s {", prefix, FunctionSymbolName(fn), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
@@ -73,7 +73,7 @@ func (g *generator) function(fn *ir.Function) error {
 
 func (g *generator) routineFunction(fn *ir.Function, params []string) error {
 	ret := tsType(fn.Return)
-	g.linef("function %s(%s): Promise<%s> {", mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+	g.linef("function %s(%s): Promise<%s> {", FunctionSymbolName(fn), strings.Join(params, ", "), ret)
 	g.indent++
 	g.linef("return runeGo(async (): Promise<%s> => {", ret)
 	g.indent++
@@ -231,7 +231,9 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			if s.Signal || g.exprUsesSignal(s.Value) {
 				g.linef("const %s = runeSignal(%s);", mangleIdent(s.Name), g.expr(s.Value))
 				g.addSignal(s.Name, s.Value.ResultType())
-				for _, dep := range g.exprSignalDeps(s.Value) {
+				deps := g.exprSignalDeps(s.Value)
+				g.setSignalDeps(s.Name, deps)
+				for _, dep := range deps {
 					g.linef("runeWatch(%s, () => { %s.set(%s); });", mangleIdent(dep), mangleIdent(s.Name), g.expr(s.Value))
 				}
 				continue
@@ -268,6 +270,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
 				continue
 			}
+			if block, ok := s.Expr.(*ir.BlockExpr); ok && !(last && ret != checker.Void) && g.exprUsesSignal(block) {
+				g.effectScope(block)
+				continue
+			}
 			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok && ternary.Alternative == nil && !(last && ret != checker.Void) {
 				g.conditionalExprStmt(ternary)
 				continue
@@ -287,6 +293,29 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 		g.linef("return %s;", g.zeroValue(ret))
 	}
 	return nil
+}
+
+func (g *generator) effectScope(block *ir.BlockExpr) {
+	name := g.nextTemp("__effect")
+	g.linef("const %s = () => {", name)
+	g.indent++
+	_ = g.block(block, checker.Void)
+	g.indent--
+	g.line("};")
+	pending := g.nextTemp("__effectPending")
+	schedule := g.nextTemp("__scheduleEffect")
+	g.linef("let %s = false;", pending)
+	g.linef("const %s = () => {", schedule)
+	g.indent++
+	g.linef("if (%s) return;", pending)
+	g.linef("%s = true;", pending)
+	g.linef("runeScheduleEffect(() => { %s = false; %s(); });", pending, name)
+	g.indent--
+	g.line("};")
+	g.linef("%s();", name)
+	for _, dep := range g.effectSignalDeps(block) {
+		g.linef("runeWatch(%s, %s);", mangleIdent(dep), schedule)
+	}
 }
 
 func (g *generator) conditionalExprStmt(expr *ir.TernaryExpr) {
@@ -340,6 +369,7 @@ func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source str
 	for _, field := range stmt.Fields {
 		g.linef("const %s = runeSignal(%s);", mangleIdent(field.Name), tsPropertyAccess(tmp, field.Field))
 		g.addSignal(field.Name, field.Type)
+		g.setSignalDeps(field.Name, g.exprSignalDeps(stmt.Value))
 	}
 	for _, dep := range g.exprSignalDeps(stmt.Value) {
 		for _, field := range stmt.Fields {
@@ -514,6 +544,26 @@ func (g *generator) signalRuntime() {
 	g.indent--
 	g.line("};")
 	g.line("")
+	g.line("let runeSignalDepth = 0;")
+	g.line("const runeEffectQueue: Array<() => void> = [];")
+	g.line("")
+	g.line("function runeScheduleEffect(effect: () => void): void {")
+	g.indent++
+	g.line("runeEffectQueue.push(effect);")
+	g.line("runeFlushEffects();")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeFlushEffects(): void {")
+	g.indent++
+	g.line("while (runeEffectQueue.length > 0) {")
+	g.indent++
+	g.line("runeEffectQueue.shift()!();")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
 	g.line("function runeSignal<T>(initial: T): RuneSignal<T> {")
 	g.indent++
 	g.line("let value = initial;")
@@ -526,14 +576,34 @@ func (g *generator) signalRuntime() {
 	g.line("const old = value;")
 	g.line("if (Object.is(old, next)) return;")
 	g.line("value = next;")
+	g.line("runeSignalDepth++;")
+	g.line("try {")
+	g.indent++
 	g.line("for (const watcher of watchers) watcher(old, next);")
+	g.indent--
+	g.line("} finally {")
+	g.indent++
+	g.line("runeSignalDepth--;")
+	g.line("runeFlushEffects();")
+	g.indent--
+	g.line("}")
 	g.indent--
 	g.line("},")
 	g.line("mutate: <R>(mutator: (value: T) => R): R => {")
 	g.indent++
 	g.line("const old = value;")
 	g.line("const result = mutator(value);")
+	g.line("runeSignalDepth++;")
+	g.line("try {")
+	g.indent++
 	g.line("for (const watcher of watchers) watcher(old, value);")
+	g.indent--
+	g.line("} finally {")
+	g.indent++
+	g.line("runeSignalDepth--;")
+	g.line("if (runeSignalDepth === 0) runeFlushEffects();")
+	g.indent--
+	g.line("}")
 	g.line("return result;")
 	g.indent--
 	g.line("},")

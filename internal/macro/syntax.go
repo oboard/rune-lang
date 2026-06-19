@@ -2,7 +2,10 @@ package macro
 
 import (
 	"fmt"
+	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/interpreter"
@@ -25,16 +28,29 @@ func newSyntaxRefs() *syntaxRefs {
 }
 
 func syntaxFileValue(file *ast.File, refs *syntaxRefs) interpreter.Value {
+	return syntaxFileValueForSource(file, refs, "")
+}
+
+func syntaxFileValueForSource(file *ast.File, refs *syntaxRefs, sourcePath string) interpreter.Value {
 	types := &interpreter.Array{}
 	for _, typ := range file.Types {
+		if !syntaxSourceMatches(typ.SourcePath, sourcePath) {
+			continue
+		}
 		types.Elements = append(types.Elements, syntaxStructValue(typ, refs))
 	}
 	enums := &interpreter.Array{}
 	for _, enum := range file.Enums {
+		if !syntaxSourceMatches(enum.SourcePath, sourcePath) {
+			continue
+		}
 		enums.Elements = append(enums.Elements, syntaxEnumValue(enum, refs))
 	}
 	functions := &interpreter.Array{}
 	for _, fn := range file.Functions {
+		if !syntaxSourceMatches(fn.SourcePath, sourcePath) {
+			continue
+		}
 		if fn.Macro {
 			continue
 		}
@@ -45,6 +61,30 @@ func syntaxFileValue(file *ast.File, refs *syntaxRefs) interpreter.Value {
 		"enums", enums,
 		"functions", functions,
 	)
+}
+
+func syntaxSourceMatches(declPath string, targetPath string) bool {
+	targetPath = normalizeSyntaxSourcePath(targetPath)
+	if targetPath == "" {
+		return true
+	}
+	return normalizeSyntaxSourcePath(declPath) == targetPath
+}
+
+func normalizeSyntaxSourcePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "file://") {
+		if uri, err := url.Parse(path); err == nil {
+			path = uri.Path
+		}
+	}
+	clean := filepath.Clean(path)
+	if abs, err := filepath.Abs(clean); err == nil {
+		clean = abs
+	}
+	return clean
 }
 
 func macroContextValue(target Target) interpreter.Value {
@@ -545,69 +585,71 @@ func decodeSyntaxFunction(value interpreter.Value, refs *syntaxRefs, seen map[st
 }
 
 func decodeSyntaxExpr(value interpreter.Value) (ast.Expr, error) {
-	node, err := expectStruct(value, "SyntaxExpr")
-	if err != nil {
-		return nil, err
+	expr, ok := value.(interpreter.EnumValue)
+	if !ok || expr.TypeName != "SyntaxExpr" {
+		return nil, fmt.Errorf("expected SyntaxExpr enum, got %s", interpreter.Format(value))
 	}
-	kind, err := stringField(node, "kind")
-	if err != nil {
-		return nil, err
-	}
-	name, err := stringField(node, "name")
-	if err != nil {
-		return nil, err
-	}
-	text, err := stringField(node, "stringValue")
-	if err != nil {
-		return nil, err
-	}
-	flag, err := boolField(node, "boolValue")
-	if err != nil {
-		return nil, err
-	}
-	args, err := structArrayField(node, "args")
-	if err != nil {
-		return nil, err
-	}
-	switch kind {
-	case "identifier":
-		return &ast.Identifier{Name: name}, nil
-	case "module":
-		return &ast.AtExpr{Name: name}, nil
-	case "string":
-		return &ast.StringLiteral{Value: text}, nil
-	case "bool":
-		return &ast.BoolLiteral{Value: flag}, nil
-	case "null":
-		return &ast.NullLiteral{}, nil
-	case "selector":
-		if len(args) != 1 {
-			return nil, fmt.Errorf("selector SyntaxExpr expects one receiver")
+	switch expr.Name {
+	case "IdentifierExpr":
+		name, err := syntaxPayloadString(expr, 0, "name")
+		if err != nil {
+			return nil, err
 		}
-		receiver, err := decodeSyntaxExpr(args[0])
+		return &ast.Identifier{Name: name}, nil
+	case "ModuleExpr":
+		name, err := syntaxPayloadString(expr, 0, "name")
+		if err != nil {
+			return nil, err
+		}
+		return &ast.AtExpr{Name: name}, nil
+	case "StringExpr":
+		text, err := syntaxPayloadString(expr, 0, "value")
+		if err != nil {
+			return nil, err
+		}
+		return &ast.StringLiteral{Value: text}, nil
+	case "BoolExpr":
+		flag, err := syntaxPayloadBool(expr, 0, "value")
+		if err != nil {
+			return nil, err
+		}
+		return &ast.BoolLiteral{Value: flag}, nil
+	case "NullExpr":
+		if err := syntaxPayloadLen(expr, 0); err != nil {
+			return nil, err
+		}
+		return &ast.NullLiteral{}, nil
+	case "SelectorExpr":
+		receiver, err := syntaxPayloadExpr(expr, 0, "receiver")
+		if err != nil {
+			return nil, err
+		}
+		name, err := syntaxPayloadString(expr, 1, "name")
 		if err != nil {
 			return nil, err
 		}
 		return &ast.SelectorExpr{Receiver: receiver, Name: name}, nil
-	case "staticSelector":
-		if len(args) != 1 {
-			return nil, fmt.Errorf("static selector SyntaxExpr expects one receiver")
+	case "StaticSelectorExpr":
+		receiver, err := syntaxPayloadExpr(expr, 0, "receiver")
+		if err != nil {
+			return nil, err
 		}
-		receiver, err := decodeSyntaxExpr(args[0])
+		name, err := syntaxPayloadString(expr, 1, "name")
 		if err != nil {
 			return nil, err
 		}
 		return &ast.SelectorExpr{Receiver: receiver, Name: name, Static: true}, nil
-	case "call":
-		if len(args) == 0 {
-			return nil, fmt.Errorf("call SyntaxExpr expects a callee")
+	case "CallExpr":
+		callee, err := syntaxPayloadExpr(expr, 0, "callee")
+		if err != nil {
+			return nil, err
 		}
-		callee, err := decodeSyntaxExpr(args[0])
+		args, err := syntaxPayloadArray(expr, 1, "args")
 		if err != nil {
 			return nil, err
 		}
 		call := &ast.CallExpr{Callee: callee}
-		for _, value := range args[1:] {
+		for _, value := range args.Elements {
 			arg, err := decodeSyntaxExpr(value)
 			if err != nil {
 				return nil, err
@@ -615,13 +657,17 @@ func decodeSyntaxExpr(value interpreter.Value) (ast.Expr, error) {
 			call.Args = append(call.Args, arg)
 		}
 		return call, nil
-	case "struct":
-		lit := &ast.StructLiteral{TypeName: name}
-		fields, err := structArrayField(node, "fields")
+	case "StructExpr":
+		name, err := syntaxPayloadString(expr, 0, "name")
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range fields {
+		lit := &ast.StructLiteral{TypeName: name}
+		fields, err := syntaxPayloadArray(expr, 1, "fields")
+		if err != nil {
+			return nil, err
+		}
+		for _, value := range fields.Elements {
 			field, err := expectStruct(value, "SyntaxExprField")
 			if err != nil {
 				return nil, err
@@ -637,13 +683,13 @@ func decodeSyntaxExpr(value interpreter.Value) (ast.Expr, error) {
 			lit.Fields = append(lit.Fields, ast.FieldValue{Name: fieldName, Value: fieldValue})
 		}
 		return lit, nil
-	case "block":
+	case "BlockExpr":
 		block := &ast.BlockExpr{}
-		statements, err := structArrayField(node, "statements")
+		statements, err := syntaxPayloadArray(expr, 0, "statements")
 		if err != nil {
 			return nil, err
 		}
-		for _, value := range statements {
+		for _, value := range statements.Elements {
 			statement, err := expectStruct(value, "SyntaxStatement")
 			if err != nil {
 				return nil, err
@@ -671,8 +717,59 @@ func decodeSyntaxExpr(value interpreter.Value) (ast.Expr, error) {
 		}
 		return block, nil
 	default:
-		return nil, fmt.Errorf("unsupported SyntaxExpr kind %q", kind)
+		return nil, fmt.Errorf("unsupported SyntaxExpr member %q", expr.Name)
 	}
+}
+
+func syntaxPayloadLen(expr interpreter.EnumValue, want int) error {
+	if len(expr.Payload) != want {
+		return fmt.Errorf("%s.%s expects %d payload values, got %d", expr.TypeName, expr.Name, want, len(expr.Payload))
+	}
+	return nil
+}
+
+func syntaxPayloadString(expr interpreter.EnumValue, index int, name string) (string, error) {
+	if len(expr.Payload) <= index {
+		return "", fmt.Errorf("%s.%s missing payload %q", expr.TypeName, expr.Name, name)
+	}
+	value, ok := expr.Payload[index].(string)
+	if !ok {
+		return "", fmt.Errorf("%s.%s payload %q must be String", expr.TypeName, expr.Name, name)
+	}
+	return value, nil
+}
+
+func syntaxPayloadBool(expr interpreter.EnumValue, index int, name string) (bool, error) {
+	if len(expr.Payload) <= index {
+		return false, fmt.Errorf("%s.%s missing payload %q", expr.TypeName, expr.Name, name)
+	}
+	value, ok := expr.Payload[index].(bool)
+	if !ok {
+		return false, fmt.Errorf("%s.%s payload %q must be Bool", expr.TypeName, expr.Name, name)
+	}
+	return value, nil
+}
+
+func syntaxPayloadExpr(expr interpreter.EnumValue, index int, name string) (ast.Expr, error) {
+	if len(expr.Payload) <= index {
+		return nil, fmt.Errorf("%s.%s missing payload %q", expr.TypeName, expr.Name, name)
+	}
+	value, err := decodeSyntaxExpr(expr.Payload[index])
+	if err != nil {
+		return nil, fmt.Errorf("%s.%s payload %q: %w", expr.TypeName, expr.Name, name, err)
+	}
+	return value, nil
+}
+
+func syntaxPayloadArray(expr interpreter.EnumValue, index int, name string) (*interpreter.Array, error) {
+	if len(expr.Payload) <= index {
+		return nil, fmt.Errorf("%s.%s missing payload %q", expr.TypeName, expr.Name, name)
+	}
+	value, ok := expr.Payload[index].(*interpreter.Array)
+	if !ok {
+		return nil, fmt.Errorf("%s.%s payload %q must be Array", expr.TypeName, expr.Name, name)
+	}
+	return value, nil
 }
 
 func decodeSyntaxParam(value interpreter.Value, refs *syntaxRefs, seen map[string]bool) (ast.Param, error) {

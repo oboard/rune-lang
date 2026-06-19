@@ -41,7 +41,9 @@ func TestExpandRejectsCompileTimeIO(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadDefault() error = %v", err)
 	}
-	file, parseErrs := parser.Parse(`#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
+	file, parseErrs := parser.Parse(`@syntax
+
+#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
   @io.println("side effect")
   tree
 }
@@ -65,7 +67,9 @@ Args: {
 }
 
 func TestSyntaxFileOmitsMacroFunctions(t *testing.T) {
-	file, parseErrs := parser.Parse(`#transform(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+	file, parseErrs := parser.Parse(`@syntax
+
+#transform(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 
 run() => null
 `)
@@ -98,7 +102,9 @@ func TestExpandSyntaxMacroReplacesDeclarationTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadDefault() error = %v", err)
 	}
-	file, parseErrs := parser.Parse(`#renameFirst(
+	file, parseErrs := parser.Parse(`@syntax
+
+#renameFirst(
   tree: SyntaxFile,
   context: MacroContext,
   name: String

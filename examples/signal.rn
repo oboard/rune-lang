@@ -1,23 +1,21 @@
 main() => {
-    // new signal
-    count $= 0
-
-    // computed，自动推导
-    double := count * 2
-
-    // watch
-    double -> {
-        @io.println(double)
-    }
-
-    // watch with old/new
-    // -> is watch
-    // signal -> function(old, new)
-    count -> (old, new) => {
-        @io.println(old)
-        @io.println(new)
-    }
-
-    // update
-    count = count + 1
+  // new signal
+  $count := 0
+  // computed，自动推导
+  $double := $count * 2
+  // effect scope
+  // 编译期进行依赖收集 -> 监听 $count和$double，发生变化的时候执行 scope
+  {
+    @io.println(`count: \($count)`)
+    @io.println(`double: \($double)`)
+  }
+  // watch with old/new
+  // -> is watch
+  // signal -> function(old, new)
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  // update
+  $count = $count + 1
 }

@@ -13,7 +13,9 @@ func TestPlanUsesLexicalTargetAndAnnotationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadDefault() error = %v", err)
 	}
-	file, parseErrs := parser.Parse(`#first(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+	file, parseErrs := parser.Parse(`@syntax
+
+#first(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 
 #second(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 

@@ -31,6 +31,13 @@ func (p *stubParser) check(kind lexer.Kind) bool {
 	return p.peek().Kind == kind
 }
 
+func (p *stubParser) checkNext(kind lexer.Kind) bool {
+	if p.curr+1 >= len(p.tokens) {
+		return kind == lexer.EOF
+	}
+	return p.tokens[p.curr+1].Kind == kind
+}
+
 func (p *stubParser) advance() lexer.Token {
 	if !p.check(lexer.EOF) {
 		p.curr++

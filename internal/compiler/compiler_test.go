@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bytes"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,6 +38,44 @@ func TestAnalyzeCoreCompressSource(t *testing.T) {
 	if len(diags) > 0 {
 		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
 	}
+}
+
+func TestAnalyzeCoreCliSource(t *testing.T) {
+	_, diags := AnalyzeFile(filepath.Join("..", "..", "core", "cli", "cli.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+}
+
+func TestAnalyzeCoreSources(t *testing.T) {
+	root := filepath.Join("..", "..", "core")
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".rn" {
+			return nil
+		}
+		_, diags := AnalyzeFile(path)
+		if len(diags) > 0 {
+			t.Fatalf("AnalyzeFile(%s) diagnostics = %#v", path, diags)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk core sources: %v", err)
+	}
+}
+
+func TestAnalyzeSourceRequiresSyntaxImport(t *testing.T) {
+	_, diags := AnalyzeSource("syntax_import.rn", `makeExpr(name: String) -> SyntaxExpr => IdentifierExpr(name)
+`)
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, `unknown return type "SyntaxExpr"`) {
+			return
+		}
+	}
+	t.Fatalf("AnalyzeSource() diagnostics = %#v, want missing SyntaxExpr import", diags)
 }
 
 func TestAnalyzeFileLoadsRuneImports(t *testing.T) {
@@ -519,7 +558,9 @@ func TestAnalyzeJSONFixtureExpandsFromJsonMethods(t *testing.T) {
 }
 
 func TestAnalyzeSourceReportsCompileTimeSideEffects(t *testing.T) {
-	_, diags := AnalyzeSource("macro_io.rn", `#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
+	_, diags := AnalyzeSource("macro_io.rn", `@syntax
+
+#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
   @io.println("side effect")
   tree
 }
@@ -538,7 +579,9 @@ Args: {
 }
 
 func TestAnalyzeSourceLowersReturnedSyntaxTree(t *testing.T) {
-	prog, diags := AnalyzeSource("syntax_macro.rn", `#renameFirst(
+	prog, diags := AnalyzeSource("syntax_macro.rn", `@syntax
+
+#renameFirst(
   tree: SyntaxFile,
   context: MacroContext,
   name: String
@@ -575,6 +618,42 @@ Original: {
 	}
 	if len(prog.IR.Types) != 1 || prog.IR.Types[0].Name != "Generated" {
 		t.Fatalf("expanded IR types = %#v", prog.IR.Types)
+	}
+}
+
+func TestAnalyzeSourceExpandsStructLiteralSpreadInMacro(t *testing.T) {
+	prog, diags := AnalyzeSource("syntax_macro_spread.rn", `@syntax
+
+#renameFirst(
+  tree: SyntaxFile,
+  context: MacroContext,
+  name: String
+) -> SyntaxFile => {
+  current := tree.types[0]
+  renamed := SyntaxStruct {
+    ...current
+    name: context.targetID == current.id ? name : current.name
+  }
+  SyntaxFile {
+    types: [renamed]
+    enums: tree.enums
+    functions: tree.functions
+  }
+}
+
+#renameFirst("Generated")
+Original: {
+  value: Int
+}
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	if len(prog.File.Types) != 1 || prog.File.Types[0].Name != "Generated" {
+		t.Fatalf("expanded AST types = %#v", prog.File.Types)
+	}
+	if len(prog.File.Types[0].Fields) != 1 || prog.File.Types[0].Fields[0].Name != "value" {
+		t.Fatalf("expanded AST fields = %#v", prog.File.Types[0].Fields)
 	}
 }
 

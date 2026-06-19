@@ -42,9 +42,10 @@ func (s *ObjectDestructureStmt) Position() lexer.Position {
 }
 
 type AssignStmt struct {
-	Name  string
-	Value Expr
-	Pos   lexer.Position
+	Name         string
+	SignalPrefix bool
+	Value        Expr
+	Pos          lexer.Position
 }
 
 func (*AssignStmt) stmtNode() {}

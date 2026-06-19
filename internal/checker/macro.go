@@ -45,6 +45,9 @@ func (c *checker) checkAnnotationList(annotations []ast.Annotation, sourcePath s
 }
 
 func (c *checker) checkAnnotation(annotation *ast.Annotation) {
+	if annotation.Module == "" && annotation.Name == "alias" {
+		return
+	}
 	if annotation.Module == "" {
 		fn, ok := c.resolveFunction(annotation.Name, annotation.NamePos)
 		if !ok || fn == nil {

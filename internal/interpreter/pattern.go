@@ -103,6 +103,15 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 		return i.matchMapPattern(p, subject, env)
 	case *ir.ObjectPattern:
 		return i.matchObjectPattern(p, subject, env)
+	case *ir.ConstructorPattern:
+		value, ok := subject.(EnumValue)
+		if !ok || value.Name != p.Name {
+			return false, nil
+		}
+		if p.Binding != "" && len(value.Payload) > 0 {
+			env.Define(p.Binding, value.Payload[0])
+		}
+		return true, nil
 	default:
 		return false, fmt.Errorf("unsupported pattern %T", pattern)
 	}

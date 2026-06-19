@@ -73,6 +73,7 @@ type EnumValue struct {
 	TypeName string
 	Name     string
 	Value    int
+	Payload  []Value
 }
 
 type Struct struct {
@@ -148,7 +149,14 @@ func Format(value Value) string {
 	case *Regex:
 		return "/" + v.Source + "/" + v.Flags
 	case EnumValue:
-		return v.TypeName + "." + v.Name
+		if len(v.Payload) == 0 {
+			return v.TypeName + "." + v.Name
+		}
+		parts := make([]string, 0, len(v.Payload))
+		for _, elem := range v.Payload {
+			parts = append(parts, Format(elem))
+		}
+		return v.Name + "(" + strings.Join(parts, ", ") + ")"
 	case *Struct:
 		parts := make([]string, 0, len(v.Fields))
 		for name, value := range v.Fields {

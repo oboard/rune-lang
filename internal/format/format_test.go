@@ -395,7 +395,7 @@ main() => Status.Completed
 }
 
 func TestSignalWatchFormatting(t *testing.T) {
-	src := `main()=>{count $= 0 double:=count*2 double->{@io.println(double)} count->(old,new)=>{@io.println(old) @io.println(new)} count=count+1}`
+	src := `main()=>{$count:=0 $double:=$count*2 {@io.println($count) @io.println($double)} $count->(old,new)=>{@io.println(old) @io.println(new)} $count=$count+1}`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -403,16 +403,17 @@ func TestSignalWatchFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `main() => {
-  count $= 0
-  double := count * 2
-  double -> {
-    @io.println(double)
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println($count)
+    @io.println($double)
   }
-  count -> (old, new) => {
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }
-  count = count + 1
+  $count = $count + 1
 }
 `
 	if got != want {

@@ -17,6 +17,9 @@ func (g *generator) expr(expr ir.Expr) string {
 func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	switch e := expr.(type) {
 	case *ir.Identifier:
+		if fn := g.lookupFunction(e.Name); fn != nil {
+			return FunctionSymbolName(fn)
+		}
 		if g.isSignal(e.Name) || g.isReactive(e.Name) {
 			return mangleIdent(e.Name) + ".get()"
 		}
@@ -622,6 +625,18 @@ func (g *generator) methodCall(call *ir.CallExpr) (string, bool) {
 	return "", false
 }
 
+func (g *generator) lookupFunction(name string) *ir.Function {
+	if g.file == nil {
+		return nil
+	}
+	for _, fn := range g.file.Functions {
+		if fn.Name == name {
+			return fn
+		}
+	}
+	return nil
+}
+
 func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	ret := tsType(match.ResultType())
 	subject := g.expr(match.Subject)
@@ -877,10 +892,12 @@ func (g *generator) currentThisName() string {
 
 func (g *generator) pushSignalScope() {
 	g.signals = append(g.signals, map[string]checker.Type{})
+	g.signalDeps = append(g.signalDeps, map[string][]string{})
 }
 
 func (g *generator) popSignalScope() {
 	g.signals = g.signals[:len(g.signals)-1]
+	g.signalDeps = g.signalDeps[:len(g.signalDeps)-1]
 }
 
 func (g *generator) addSignal(name string, typ checker.Type) {
@@ -888,6 +905,13 @@ func (g *generator) addSignal(name string, typ checker.Type) {
 		g.pushSignalScope()
 	}
 	g.signals[len(g.signals)-1][name] = typ
+}
+
+func (g *generator) setSignalDeps(name string, deps []string) {
+	if len(g.signalDeps) == 0 {
+		g.pushSignalScope()
+	}
+	g.signalDeps[len(g.signalDeps)-1][name] = append([]string(nil), deps...)
 }
 
 func (g *generator) pushReactiveScope() {
@@ -953,6 +977,47 @@ func (g *generator) exprSignalDeps(expr ir.Expr) []string {
 		}
 	})
 	return deps
+}
+
+func (g *generator) effectSignalDeps(expr ir.Expr) []string {
+	deps := g.exprSignalDeps(expr)
+	drop := map[string]bool{}
+	for _, dep := range deps {
+		for _, other := range deps {
+			if dep != other && g.signalDependsOn(other, dep, map[string]bool{}) {
+				drop[dep] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if !drop[dep] {
+			out = append(out, dep)
+		}
+	}
+	return out
+}
+
+func (g *generator) signalDependsOn(name string, target string, seen map[string]bool) bool {
+	if seen[name] {
+		return false
+	}
+	seen[name] = true
+	for _, dep := range g.lookupSignalDeps(name) {
+		if dep == target || g.signalDependsOn(dep, target, seen) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) lookupSignalDeps(name string) []string {
+	for i := len(g.signalDeps) - 1; i >= 0; i-- {
+		if deps, ok := g.signalDeps[i][name]; ok {
+			return deps
+		}
+	}
+	return nil
 }
 
 func tsBinaryOp(op lexer.Kind) string {

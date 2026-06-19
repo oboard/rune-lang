@@ -86,6 +86,35 @@ func TestParseTypedBinding(t *testing.T) {
 	}
 }
 
+func TestParseStructLiteralSpreadField(t *testing.T) {
+	file, errs := Parse(`User: {
+  name: String
+  age: Int
+}
+
+main(existing: User) => User {
+  ...existing
+  age: 42
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	lit := file.Functions[0].Body.(*ast.StructLiteral)
+	if len(lit.Fields) != 2 {
+		t.Fatalf("fields = %#v, want spread and age", lit.Fields)
+	}
+	if !lit.Fields[0].Spread {
+		t.Fatalf("first field = %#v, want spread", lit.Fields[0])
+	}
+	if _, ok := lit.Fields[0].Value.(*ast.Identifier); !ok {
+		t.Fatalf("spread value = %T, want Identifier", lit.Fields[0].Value)
+	}
+	if lit.Fields[1].Name != "age" {
+		t.Fatalf("second field = %#v, want age", lit.Fields[1])
+	}
+}
+
 func TestGenericTypeDeclWithColon(t *testing.T) {
 	file, errs := Parse(`Array[T]: {
     length[T]() -> Int => "%array.len"
@@ -574,7 +603,7 @@ func TestNullCoalesceExpression(t *testing.T) {
 }
 
 func TestTemplateLiteral(t *testing.T) {
-	file, errs := Parse("greet(name: String) -> String => `Hello, ${name}`\n")
+	file, errs := Parse("greet(name: String) -> String => `Hello, \\(name)`\n")
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
 	}
@@ -612,7 +641,7 @@ func TestMultilineTemplateLiteral(t *testing.T) {
 }
 
 func TestTemplateLiteralExpressionPositionsAcrossLines(t *testing.T) {
-	file, errs := Parse("greet(name: String) -> String => `Hello\n${name}`\n")
+	file, errs := Parse("greet(name: String) -> String => `Hello\n\\(name)`\n")
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
 	}
@@ -965,6 +994,53 @@ func TestParseReactiveLiterals(t *testing.T) {
 	}
 	if _, ok := obj.Value.(*ast.ReactiveLiteral); !ok {
 		t.Fatalf("obj value = %T, want ReactiveLiteral", obj.Value)
+	}
+}
+
+func TestParseSignalPrefixSyntax(t *testing.T) {
+	file, errs := Parse(`main() => {
+    $count := 0
+    $double := $count * 2
+    {
+        @io.println($count)
+        @io.println($double)
+    }
+    $count = $count + 1
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block, ok := file.Functions[0].Body.(*ast.BlockExpr)
+	if !ok || len(block.Statements) != 4 {
+		t.Fatalf("main body = %#v, want four statements", file.Functions[0].Body)
+	}
+	count, ok := block.Statements[0].(*ast.LetStmt)
+	if !ok || !count.Signal || count.Name != "count" {
+		t.Fatalf("first statement = %#v, want signal count binding", block.Statements[0])
+	}
+	double, ok := block.Statements[1].(*ast.LetStmt)
+	if !ok || !double.Signal || double.Name != "double" {
+		t.Fatalf("second statement = %#v, want signal double binding", block.Statements[1])
+	}
+	bin, ok := double.Value.(*ast.BinaryExpr)
+	if !ok {
+		t.Fatalf("double value = %T, want BinaryExpr", double.Value)
+	}
+	ref, ok := bin.Left.(*ast.Identifier)
+	if !ok || ref.Name != "count" || !ref.SignalPrefix {
+		t.Fatalf("double dependency = %#v, want $count identifier", bin.Left)
+	}
+	effect, ok := block.Statements[2].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("third statement = %#v, want effect scope expression statement", block.Statements[2])
+	}
+	if _, ok := effect.Expr.(*ast.BlockExpr); !ok {
+		t.Fatalf("third statement expr = %T, want BlockExpr", effect.Expr)
+	}
+	assign, ok := block.Statements[3].(*ast.AssignStmt)
+	if !ok || assign.Name != "count" {
+		t.Fatalf("fourth statement = %#v, want count assignment", block.Statements[3])
 	}
 }
 

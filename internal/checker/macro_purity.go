@@ -69,6 +69,9 @@ func (c *checker) exprPurityError(expr ast.Expr, localVisiting map[*ast.Function
 		}
 		switch callee := call.Callee.(type) {
 		case *ast.Identifier:
+			if c.isPureConstructorCall(callee.Name) {
+				return
+			}
 			fn := c.info.ResolvedFunctions[callee]
 			if fn == nil || fn.Node == nil {
 				message = fmt.Sprintf("cannot prove call %s is pure", callee.Name)
@@ -99,6 +102,36 @@ func (c *checker) exprPurityError(expr ast.Expr, localVisiting map[*ast.Function
 		}
 	})
 	return message
+}
+
+func (c *checker) isPureConstructorCall(name string) bool {
+	if pureSyntaxConstructor(name) {
+		return true
+	}
+	if len(c.info.Constructors[name]) > 0 {
+		return true
+	}
+	if c.info.Stdlib == nil {
+		return false
+	}
+	for _, typ := range c.info.Stdlib.Types {
+		for _, constructor := range typ.Constructors {
+			if constructor.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func pureSyntaxConstructor(name string) bool {
+	switch name {
+	case "IdentifierExpr", "ModuleExpr", "StringExpr", "BoolExpr", "NullExpr",
+		"SelectorExpr", "StaticSelectorExpr", "CallExpr", "StructExpr", "BlockExpr":
+		return true
+	default:
+		return false
+	}
 }
 
 func pureMacroMethod(name string) bool {

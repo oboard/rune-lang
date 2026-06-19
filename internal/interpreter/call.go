@@ -9,6 +9,9 @@ import (
 
 func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	if ident, ok := call.Callee.(*ir.Identifier); ok {
+		if value, ok, err := i.callEnumConstructor(ident.Name, call.Args, env); ok || err != nil {
+			return value, err
+		}
 		if fn := i.functions[ident.Name]; fn != nil {
 			return i.callFunction(fn, call.Args, env)
 		}
@@ -124,6 +127,101 @@ func (i *Interpreter) callFunction(fn *ir.Function, args []ir.Expr, env *Env) (V
 		return nil, err
 	}
 	return i.callFunctionValue(fn, values)
+}
+
+func (i *Interpreter) callEnumConstructor(name string, args []ir.Expr, env *Env) (Value, bool, error) {
+	var enumType *ir.EnumType
+	var enumMember *ir.EnumMember
+	for _, enum := range i.enums {
+		for idx := range enum.Members {
+			member := &enum.Members[idx]
+			if member.Name != name || member.HasValue {
+				continue
+			}
+			if enumMember != nil {
+				return nil, true, fmt.Errorf("ambiguous enum constructor %q", name)
+			}
+			enumType = enum
+			enumMember = member
+		}
+	}
+	if enumMember == nil {
+		if value, ok, err := i.callSyntaxExprConstructor(name, args, env); ok || err != nil {
+			return value, ok, err
+		}
+		return i.callStdlibConstructor(name, args, env)
+	}
+	if len(args) != len(enumMember.Params) {
+		return nil, true, fmt.Errorf("constructor %q expects %d args, got %d", name, len(enumMember.Params), len(args))
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, true, err
+	}
+	return EnumValue{TypeName: enumType.Name, Name: enumMember.Name, Value: enumMember.Value, Payload: values}, true, nil
+}
+
+func (i *Interpreter) callSyntaxExprConstructor(name string, args []ir.Expr, env *Env) (Value, bool, error) {
+	paramCount, ok := syntaxExprConstructorParamCount(name)
+	if !ok {
+		return nil, false, nil
+	}
+	if len(args) != paramCount {
+		return nil, true, fmt.Errorf("constructor %q expects %d args, got %d", name, paramCount, len(args))
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, true, err
+	}
+	return EnumValue{TypeName: "SyntaxExpr", Name: name, Payload: values}, true, nil
+}
+
+func syntaxExprConstructorParamCount(name string) (int, bool) {
+	switch name {
+	case "IdentifierExpr", "ModuleExpr", "StringExpr", "BoolExpr":
+		return 1, true
+	case "NullExpr":
+		return 0, true
+	case "SelectorExpr", "StaticSelectorExpr", "CallExpr", "StructExpr":
+		return 2, true
+	case "BlockExpr":
+		return 1, true
+	default:
+		return 0, false
+	}
+}
+
+func (i *Interpreter) callStdlibConstructor(name string, args []ir.Expr, env *Env) (Value, bool, error) {
+	if i.file == nil || i.file.Stdlib == nil {
+		return nil, false, nil
+	}
+	typeName := ""
+	paramCount := 0
+	found := false
+	for _, typ := range i.file.Stdlib.Types {
+		for _, constructor := range typ.Constructors {
+			if constructor.Name != name {
+				continue
+			}
+			if found {
+				return nil, true, fmt.Errorf("ambiguous constructor %q", name)
+			}
+			typeName = typ.Name
+			paramCount = len(constructor.Params)
+			found = true
+		}
+	}
+	if !found {
+		return nil, false, nil
+	}
+	if len(args) != paramCount {
+		return nil, true, fmt.Errorf("constructor %q expects %d args, got %d", name, paramCount, len(args))
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, true, err
+	}
+	return EnumValue{TypeName: typeName, Name: name, Payload: values}, true, nil
 }
 
 func (i *Interpreter) callFunctionValue(fn *ir.Function, args []Value) (Value, error) {

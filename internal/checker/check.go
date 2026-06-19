@@ -44,13 +44,15 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 			functionsByName:           map[string][]*FuncInfo{},
 			valuesByName:              map[string]*ExternalValueInfo{},
 		},
-		bindings:           map[string]ast.Expr{},
-		inferredFunctions:  map[*ast.Function]bool{},
-		inferringFunctions: map[*ast.Function]bool{},
-		expectedType:       Unknown,
-		sourcePath:         normalizeSourcePath(sourcePath),
-		currentSourcePath:  normalizeSourcePath(sourcePath),
+		bindings:            map[string]ast.Expr{},
+		inferredFunctions:   map[*ast.Function]bool{},
+		inferringFunctions:  map[*ast.Function]bool{},
+		expectedType:        Unknown,
+		sourcePath:          normalizeSourcePath(sourcePath),
+		currentSourcePath:   normalizeSourcePath(sourcePath),
+		importedCoreModules: collectImportedCoreModules(file),
 	}
+	c.sourcePaths = collectSourcePaths(file, c.sourcePath)
 	c.collectCoreTraits()
 	c.collectCoreTypes()
 	c.checkGoImports(file)
@@ -70,19 +72,21 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 }
 
 type checker struct {
-	info               *Info
-	diags              []Diagnostic
-	bindings           map[string]ast.Expr
-	inferredFunctions  map[*ast.Function]bool
-	inferringFunctions map[*ast.Function]bool
-	genericTypes       map[string]bool
-	genericConstraints map[string]string
-	expectedType       Type
-	sourcePath         string
-	currentSourcePath  string
-	routineDepth       int
-	unwrapErrors       []Type
-	stdlibMacroPurity  map[*stdlib.Function]string
+	info                *Info
+	diags               []Diagnostic
+	bindings            map[string]ast.Expr
+	inferredFunctions   map[*ast.Function]bool
+	inferringFunctions  map[*ast.Function]bool
+	genericTypes        map[string]bool
+	genericConstraints  map[string]string
+	expectedType        Type
+	sourcePath          string
+	sourcePaths         map[string]bool
+	importedCoreModules map[string]bool
+	currentSourcePath   string
+	routineDepth        int
+	unwrapErrors        []Type
+	stdlibMacroPurity   map[*stdlib.Function]string
 }
 
 func (c *checker) collectCoreTraits() {
@@ -90,7 +94,7 @@ func (c *checker) collectCoreTraits() {
 		return
 	}
 	for _, trait := range c.info.Stdlib.Traits {
-		if c.isSourceType(trait.SourcePath) {
+		if c.skipCoreSource(trait.SourcePath) {
 			continue
 		}
 		c.info.Traits[trait.Name] = &TraitInfo{
@@ -102,7 +106,7 @@ func (c *checker) collectCoreTraits() {
 		}
 	}
 	for _, trait := range c.info.Stdlib.Traits {
-		if c.isSourceType(trait.SourcePath) {
+		if c.skipCoreSource(trait.SourcePath) {
 			continue
 		}
 		info := c.info.Traits[trait.Name]
@@ -152,7 +156,7 @@ func (c *checker) collectCoreTypes() {
 		return
 	}
 	for _, typ := range c.info.Stdlib.Types {
-		if c.isSourceType(typ.SourcePath) {
+		if c.skipCoreSource(typ.SourcePath) {
 			continue
 		}
 		c.info.Types[typ.Name] = &StructInfo{
@@ -167,7 +171,7 @@ func (c *checker) collectCoreTypes() {
 		}
 	}
 	for _, typ := range c.info.Stdlib.Types {
-		if c.isSourceType(typ.SourcePath) {
+		if c.skipCoreSource(typ.SourcePath) {
 			continue
 		}
 		typeGenerics := genericSet(typ.Generics...)
@@ -188,6 +192,7 @@ func (c *checker) collectCoreTypes() {
 			info.ByName[field.Name] = fieldInfo
 		}
 		c.info.Types[typ.Name] = info
+		c.collectCoreTypeConstructors(typ)
 	}
 	for _, mod := range c.info.Stdlib.Modules {
 		for i := range mod.Functions {
@@ -202,6 +207,36 @@ func (c *checker) collectCoreTypes() {
 			method := c.coreFunctionInfo(fn, typeInfo)
 			typeInfo.Methods[fn.Name] = method
 		}
+	}
+}
+
+func (c *checker) collectCoreTypeConstructors(typ *stdlib.Type) {
+	if typ == nil || len(typ.Constructors) == 0 {
+		return
+	}
+	enumInfo := &EnumInfo{
+		Name:       typ.Name,
+		Private:    false,
+		SourcePath: typ.SourcePath,
+		Generics:   append([]string(nil), typ.Generics...),
+		ByName:     map[string]EnumMemberInfo{},
+	}
+	typeGenerics := genericSet(typ.Generics...)
+	for _, constructor := range typ.Constructors {
+		member := EnumMemberInfo{Name: constructor.Name, SourcePath: typ.SourcePath, Pos: constructor.Pos}
+		for idx, paramType := range constructor.Params {
+			name := ""
+			if idx < len(constructor.ParamNames) {
+				name = constructor.ParamNames[idx]
+			}
+			member.Params = append(member.Params, ParamInfo{
+				Name: name,
+				Type: c.resolveTypeWithGenerics(paramType, typeGenerics),
+			})
+		}
+		enumInfo.Members = append(enumInfo.Members, member)
+		enumInfo.ByName[constructor.Name] = member
+		c.info.Constructors[constructor.Name] = append(c.info.Constructors[constructor.Name], EnumConstructorInfo{Enum: enumInfo, Member: member})
 	}
 }
 
@@ -250,7 +285,73 @@ func coreReceiverType(info *StructInfo) Type {
 }
 
 func (c *checker) isSourceType(sourcePath string) bool {
-	return c.sourcePath != "" && c.sourcePath == normalizeSourcePath(sourcePath)
+	normalized := normalizeSourcePath(sourcePath)
+	return normalized != "" && c.sourcePaths[normalized]
+}
+
+func (c *checker) skipCoreSource(sourcePath string) bool {
+	if c.isSourceType(sourcePath) {
+		return true
+	}
+	module := coreModuleName(sourcePath)
+	return module == "syntax" && !c.importedCoreModules[module]
+}
+
+func coreModuleName(sourcePath string) string {
+	normalized := normalizeSourcePath(sourcePath)
+	if normalized == "" {
+		return ""
+	}
+	dir := filepath.Base(filepath.Dir(normalized))
+	file := strings.TrimSuffix(filepath.Base(normalized), filepath.Ext(normalized))
+	if dir == file {
+		return file
+	}
+	return ""
+}
+
+func collectSourcePaths(file *ast.File, fallback string) map[string]bool {
+	paths := map[string]bool{}
+	if fallback != "" {
+		paths[fallback] = true
+	}
+	if file == nil {
+		return paths
+	}
+	add := func(path string) {
+		if normalized := normalizeSourcePath(path); normalized != "" {
+			paths[normalized] = true
+		}
+	}
+	for _, trait := range file.Traits {
+		add(trait.SourcePath)
+	}
+	for _, typ := range file.Types {
+		add(typ.SourcePath)
+	}
+	for _, enum := range file.Enums {
+		add(enum.SourcePath)
+	}
+	for _, fn := range file.Functions {
+		add(fn.SourcePath)
+	}
+	for _, test := range file.Tests {
+		add(test.SourcePath)
+	}
+	return paths
+}
+
+func collectImportedCoreModules(file *ast.File) map[string]bool {
+	modules := map[string]bool{}
+	if file == nil {
+		return modules
+	}
+	for _, imp := range file.Imports {
+		if imp.Module {
+			modules[imp.Path] = true
+		}
+	}
+	return modules
 }
 
 func normalizeSourcePath(path string) string {

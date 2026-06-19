@@ -175,7 +175,7 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 }
 
 func TestGenerateTemplateLiteral(t *testing.T) {
-	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
+	src := "label(count: Int, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
 		t.Fatalf("parse errors: %v", parseErrs)
@@ -202,7 +202,7 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 		t.Fatalf("generated Go does not parse: %v\n%s", err, got)
 	}
 
-	file, parseErrs = parser.Parse("message(name: String) -> String => `hello\n${name}`\n")
+	file, parseErrs = parser.Parse("message(name: String) -> String => `hello\n\\(name)`\n")
 	if len(parseErrs) > 0 {
 		t.Fatalf("parse errors: %v", parseErrs)
 	}
@@ -529,16 +529,17 @@ func TestGenerateArrayReduce(t *testing.T) {
 
 func TestGenerateSignalProgram(t *testing.T) {
 	src := `main() => {
-  count $= 0
-  double := count * 2
-  double -> {
-    @io.println(double)
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println($count)
+    @io.println($double)
   }
-  count -> (old, new) => {
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }
-  count = count + 1
+  $count = $count + 1
 }
 `
 	file, parseErrs := parser.Parse(src)
@@ -559,7 +560,14 @@ func TestGenerateSignalProgram(t *testing.T) {
 		`__count := newRuneSignal(0)`,
 		`__double := newRuneSignal(__count.Get() * 2)`,
 		`__count.Watch(func(_, _ int) { __double.Set(__count.Get() * 2) })`,
-		`__double.Watch(func(_ int, _ int) { fmt.Println(__double.Get()) })`,
+		`__effect1 := func() {`,
+		`fmt.Println(__count.Get())`,
+		`fmt.Println(__double.Get())`,
+		`__effectPending2 := false`,
+		`__scheduleEffect3 := func() {`,
+		`runeScheduleEffect(func() {`,
+		`__effect1()`,
+		`__double.Watch(func(_, _ int) { __scheduleEffect3() })`,
 		`__count.Watch(func(__old int, __new int) { fmt.Println(__old); fmt.Println(__new) })`,
 		`__count.Set(__count.Get() + 1)`,
 	}

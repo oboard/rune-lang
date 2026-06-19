@@ -73,7 +73,7 @@ func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 }
 
 func (e *xmlEmitter) webComponentFactory(fn *ir.Function, elem *ir.XMLElement) string {
-	name := mangleIdent(fn.Name)
+	name := FunctionSymbolName(fn)
 	if len(fn.Params) == 0 {
 		return name
 	}

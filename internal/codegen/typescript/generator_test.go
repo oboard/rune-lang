@@ -134,17 +134,39 @@ render() -> HTMLElement => {
 `
 	got := generateForTestWithSourcePath(t, "playground.rn", src)
 	wantParts := []string{
-		`function ____rune_private_`,
+		`function __HelloWorld`,
 		`(): CustomElementConstructor`,
-		`document.createElement(runeDefineWebComponent("HelloWorld", ____rune_private_`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", __HelloWorld))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, `runeDefineWebComponent("HelloWorld", __HelloWorld)`) {
-		t.Fatalf("generated TypeScript used public component symbol for private component:\n%s", got)
+	if strings.Contains(got, `__rune_private_`) {
+		t.Fatalf("generated TypeScript leaked private link prefix:\n%s", got)
+	}
+}
+
+func TestGeneratePrivateFunctionUsesSourceName(t *testing.T) {
+	src := `+ greeting(name: String) -> String => privateGreeting(name)
+
+privateGreeting(name: String) -> String => "hello, " + name
+`
+	got := generateForTestWithSourcePath(t, "helper.rn", src)
+	wantParts := []string{
+		`function __greeting(__name: string): string`,
+		`return __privateGreeting(__name);`,
+		`function __privateGreeting(__name: string): string`,
+		`export { __greeting as greeting };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `__rune_private_`) {
+		t.Fatalf("generated TypeScript leaked private link prefix:\n%s", got)
 	}
 }
 
@@ -200,14 +222,14 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 }
 
 func TestGenerateTemplateLiteral(t *testing.T) {
-	src := "label(count: Int, ch: Char) -> String => `count ${count} char ${ch}`\n"
+	src := "label(count: Int, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
 	got := generateForTest(t, src)
 	want := "return `count ${__count} char ${__ch}`;"
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
 
-	got = generateForTest(t, "message(name: String) -> String => `hello\n${name}`\n")
+	got = generateForTest(t, "message(name: String) -> String => `hello\n\\(name)`\n")
 	want = "return `hello\\n${__name}`;"
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing multiline template %q:\n%s", want, got)
@@ -702,14 +724,41 @@ main() => {
 
 func TestGenerateSignalAssignmentExpression(t *testing.T) {
 	src := `render() => {
-  list $= ["Item 1"]
-  <button @click={list = [...list, "New Item"]}>Add Item</button>
+  $list := ["Item 1"]
+  <button @click={$list = [...$list, "New Item"]}>Add Item</button>
 }
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`const __list = runeSignal(["Item 1"]);`,
 		`.addEventListener("click", () => { __list.set([...__list.get(), "New Item"]); });`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateSignalEffectScope(t *testing.T) {
+	src := `main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    $count + $double
+  }
+  $count = $count + 1
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __effect1 = () => {`,
+		`__count.get() + __double.get();`,
+		`let __effectPending2 = false;`,
+		`const __scheduleEffect3 = () => {`,
+		`runeScheduleEffect(() => { __effectPending2 = false; __effect1(); });`,
+		`__effect1();`,
+		`runeWatch(__double, __scheduleEffect3);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

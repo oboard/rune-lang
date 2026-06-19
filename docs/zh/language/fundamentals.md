@@ -191,10 +191,10 @@ sum(a: Int, b: Int) -> Int => {
 ```rune
 value := 1
 mutable ~= 1
-signal $= 0
+$signal := 0
 ```
 
-`:=` 创建普通局部绑定。`~=` 表示可变意图。`$=` 创建用于响应式代码的 signal
+`:=` 创建普通局部绑定。`~=` 表示可变意图。`$name :=` 创建用于响应式代码的 signal
 绑定。赋值使用 `=`：
 
 ```rune
@@ -611,21 +611,29 @@ API，需要给对应声明加 `+`：
 
 ## 响应式与 Watch
 
-Signal 绑定使用 `$=`：
+Signal 绑定使用 `$name :=`：
 
 ```rune
 render() => {
-  count $= 0
-  double := count * 2
+  $count := 0
+  $double := $count * 2
 
-  count -> (old, new) => {
+  {
+    @io.println(`count: \($count)`)
+    @io.println(`double: \($double)`)
+  }
+
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }
 
-  count = count + 1
+  $count = $count + 1
 }
 ```
+
+语句位置的表达式 block 如果读取 signal，就会成为 effect scope。编译器会收集
+这些 signal 依赖，先执行一次 block，并在任意依赖变化时重新执行。
 
 `target -> handler` 注册 watcher。handler 可以是零参数代码块，也可以是接收
 `(old, new)` 两个参数的 lambda。

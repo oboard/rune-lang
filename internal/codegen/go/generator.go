@@ -1059,14 +1059,15 @@ func fileUsesSignals(usage codeusage.Usage) bool {
 }
 
 type generator struct {
-	buf       bytes.Buffer
-	file      *ir.File
-	imports   map[string]bool
-	indent    int
-	temp      int
-	errors    []error
-	thisNames []string
-	signals   []map[string]checker.Type
+	buf        bytes.Buffer
+	file       *ir.File
+	imports    map[string]bool
+	indent     int
+	temp       int
+	errors     []error
+	thisNames  []string
+	signals    []map[string]checker.Type
+	signalDeps []map[string][]string
 }
 
 func (g *generator) nextTemp(prefix string) string {

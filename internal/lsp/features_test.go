@@ -344,10 +344,10 @@ main() => {
 
 func TestTemplateExpressionLSPFeatures(t *testing.T) {
 	uri := "file:///tmp/template.rn"
-	src := "helper(name: String) -> String => name\n\nmain() => {\n  name := \"Rune\"\n  message := `Hello, ${helper(name)}`\n  @io.println(message)\n}\n"
+	src := "helper(name: String) -> String => name\n\nmain() => {\n  name := \"Rune\"\n  message := `Hello, \\(helper(name))`\n  @io.println(message)\n}\n"
 	s := &server{docs: map[string]string{uri: src}}
 
-	helperPos := positionOf(src, "`Hello, ${helper(name)}`", "helper")
+	helperPos := positionOf(src, "`Hello, \\(helper(name))`", "helper")
 	def := s.definition(uri, helperPos).(map[string]any)
 	if got := def["uri"]; got != uri {
 		t.Fatalf("definition uri = %v, want %s", got, uri)
@@ -365,7 +365,7 @@ func TestTemplateExpressionLSPFeatures(t *testing.T) {
 		t.Fatalf("template helper reference = %+v, want %+v", refStart(refs[1]), helperPos)
 	}
 
-	namePos := positionOf(src, "`Hello, ${helper(name)}`", "name")
+	namePos := positionOf(src, "`Hello, \\(helper(name))`", "name")
 	nameDef := s.definition(uri, namePos).(map[string]any)
 	nameStart := nameDef["range"].(map[string]any)["start"].(position)
 	if nameStart != (position{Line: 3, Character: 2}) {
@@ -384,10 +384,10 @@ func TestTemplateExpressionLSPFeatures(t *testing.T) {
 
 func TestTemplateExpressionLocalReferencesUseContainingFunction(t *testing.T) {
 	uri := "file:///tmp/import_helper.rn"
-	src := "+ greeting(name) => private(name)\n\nprivate(name: String) => `hello, ${name}`\n"
+	src := "+ greeting(name) => private(name)\n\nprivate(name: String) => `hello, \\(name)`\n"
 	s := &server{docs: map[string]string{uri: src}}
 
-	templateName := positionOf(src, "`hello, ${name}`", "name")
+	templateName := positionOf(src, "`hello, \\(name)`", "name")
 	privateParam := positionOf(src, "private(name: String)", "name")
 	greetingParam := positionOf(src, "greeting(name)", "name")
 
@@ -647,37 +647,38 @@ main() => {
 func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
-  count $= 0
-  double := count * 2
-  double -> {
-    @io.println(double)
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println($count)
+    @io.println($double)
   }
-  count -> (old, new) => {
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }
-  count = count + 1
+  $count = $count + 1
 }
 `
 	s := &server{docs: map[string]string{uri: src}}
 	resp := s.semanticTokens(uri).(map[string]any)
 	got := decodeSemanticTokenRanges(resp["data"].([]int))
 	want := map[position]int{
-		{Line: 1, Character: 2}:   5,
-		{Line: 2, Character: 2}:   6,
-		{Line: 2, Character: 12}:  5,
-		{Line: 3, Character: 2}:   6,
-		{Line: 4, Character: 16}:  6,
-		{Line: 6, Character: 2}:   5,
-		{Line: 10, Character: 2}:  5,
-		{Line: 10, Character: 10}: 5,
+		{Line: 1, Character: 3}:   5,
+		{Line: 2, Character: 3}:   6,
+		{Line: 2, Character: 14}:  5,
+		{Line: 4, Character: 17}:  5,
+		{Line: 5, Character: 17}:  6,
+		{Line: 7, Character: 3}:   5,
+		{Line: 11, Character: 3}:  5,
+		{Line: 11, Character: 12}: 5,
 	}
 	for pos, length := range want {
 		if got[pos] != length {
 			t.Fatalf("semantic token at %+v = %d, want %d; all tokens %#v", pos, got[pos], length, got)
 		}
 	}
-	if got[position{Line: 6, Character: 12}] != 0 {
+	if got[position{Line: 7, Character: 13}] != 0 {
 		t.Fatalf("old parameter was marked as signal: %#v", got)
 	}
 }
@@ -685,12 +686,12 @@ func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 func TestSignalWatchInlayHintsReturnOnce(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
-  count $= 0
-  double := count * 2
-  double -> {
-    @io.println(double)
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println($double)
   }
-  count -> (old, new) => {
+  $count -> (old, new) => {
     @io.println(old)
     @io.println(new)
   }

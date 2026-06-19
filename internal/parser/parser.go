@@ -34,16 +34,16 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 	file := &ast.File{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
-		if p.check(lexer.At) && p.checkNext(lexer.String) {
-			if imp := p.parseImportDecl(); imp != nil {
-				file.Imports = append(file.Imports, *imp)
+		if p.looksLikeGoImportDecl() {
+			if imp := p.parseGoImportDecl(); imp != nil {
+				file.GoImports = append(file.GoImports, *imp)
 			}
 			p.skipNewlines()
 			continue
 		}
-		if p.looksLikeGoImportDecl() {
-			if imp := p.parseGoImportDecl(); imp != nil {
-				file.GoImports = append(file.GoImports, *imp)
+		if p.check(lexer.At) && (p.checkNext(lexer.String) || p.checkNext(lexer.Ident)) {
+			if imp := p.parseImportDecl(); imp != nil {
+				file.Imports = append(file.Imports, *imp)
 			}
 			p.skipNewlines()
 			continue

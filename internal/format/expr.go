@@ -14,6 +14,9 @@ const maxLineLength = 40
 func (f *formatter) expr(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Identifier:
+		if e.SignalPrefix {
+			return "$" + e.Name
+		}
 		return e.Name
 	case *ast.AtExpr:
 		if e.Path != "" {
@@ -131,9 +134,9 @@ func (f *formatter) templateLiteral(lit *ast.TemplateLiteral) string {
 			b.WriteString(escapeTemplateText(part.Text))
 		}
 		if part.Expr != nil {
-			b.WriteString("${")
+			b.WriteString(`\(`)
 			b.WriteString(f.expr(part.Expr))
-			b.WriteByte('}')
+			b.WriteByte(')')
 		}
 	}
 	b.WriteByte('`')
@@ -441,6 +444,12 @@ func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
 	b.WriteString(" {\n")
 	for _, field := range lit.Fields {
 		b.WriteString(fieldIndent)
+		if field.Spread {
+			b.WriteString("...")
+			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+			b.WriteByte('\n')
+			continue
+		}
 		b.WriteString(field.Name)
 		b.WriteString(": ")
 		b.WriteString(f.exprWithIndent(field.Value, f.indent+1))

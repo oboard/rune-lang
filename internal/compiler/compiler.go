@@ -151,13 +151,16 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	var diags []Diagnostic
 	merged := &ast.File{}
 	for _, imp := range fileImportRefs(file) {
-		importPath, err := ResolveRuneImport(normalized, imp.path)
+		importPath, err := resolveRuneImportRef(normalized, imp)
 		if err != nil {
 			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.pos, Path: normalized})
 			continue
 		}
 		if imp.expr != nil {
 			imp.expr.SourcePath = importPath
+		}
+		if sameImportPath(importPath, normalized) {
+			continue
 		}
 		if filepath.Ext(importPath) == ".ts" {
 			tsImport, importedDiags := l.loadTypeScript(importPath, imp.path, imp.pos)
@@ -177,10 +180,20 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	return merged, parseErrs, diags
 }
 
+func sameImportPath(left string, right string) bool {
+	leftAbs, leftErr := filepath.Abs(filepath.Clean(left))
+	rightAbs, rightErr := filepath.Abs(filepath.Clean(right))
+	if leftErr == nil && rightErr == nil {
+		return leftAbs == rightAbs
+	}
+	return filepath.Clean(left) == filepath.Clean(right)
+}
+
 type importRef struct {
-	path string
-	pos  lexer.Position
-	expr *ast.AtExpr
+	path   string
+	module bool
+	pos    lexer.Position
+	expr   *ast.AtExpr
 }
 
 func fileImportRefs(file *ast.File) []importRef {
@@ -189,12 +202,19 @@ func fileImportRefs(file *ast.File) []importRef {
 	}
 	refs := make([]importRef, 0, len(file.Imports))
 	for _, imp := range file.Imports {
-		refs = append(refs, importRef{path: imp.Path, pos: imp.Pos})
+		refs = append(refs, importRef{path: imp.Path, module: imp.Module, pos: imp.Pos})
 	}
 	for _, expr := range importExpressionRefs(file) {
 		refs = append(refs, importRef{path: expr.Path, pos: expr.Pos, expr: expr})
 	}
 	return refs
+}
+
+func resolveRuneImportRef(fromPath string, imp importRef) (string, error) {
+	if imp.module {
+		return ResolveRuneModuleImport(fromPath, imp.path)
+	}
+	return ResolveRuneImport(fromPath, imp.path)
 }
 
 func importExpressionRefs(file *ast.File) []*ast.AtExpr {
@@ -245,6 +265,7 @@ func mergeFile(dst *ast.File, src *ast.File, includeTests bool) {
 	if src == nil {
 		return
 	}
+	dst.Imports = append(dst.Imports, src.Imports...)
 	dst.GoImports = append(dst.GoImports, src.GoImports...)
 	dst.TSImports = append(dst.TSImports, src.TSImports...)
 	dst.Traits = append(dst.Traits, src.Traits...)
@@ -296,6 +317,49 @@ func ResolveRuneImport(fromPath string, spec string) (string, error) {
 		return filepath.Abs(candidate)
 	}
 	return "", fmt.Errorf("cannot resolve import %q from %s", spec, fromPath)
+}
+
+func ResolveRuneModuleImport(fromPath string, module string) (string, error) {
+	if module == "" {
+		return "", fmt.Errorf("empty import path")
+	}
+	spec := filepath.Join(module, module+".rn")
+	if path, err := ResolveRuneImport(fromPath, spec); err == nil {
+		return path, nil
+	}
+	if filepath.Base(filepath.Dir(fromPath)) == strings.TrimSuffix(filepath.Base(fromPath), filepath.Ext(fromPath)) {
+		if path, err := ResolveRuneImport(fromPath, filepath.Join("..", spec)); err == nil {
+			return path, nil
+		}
+	}
+	if path, ok := resolveCoreModuleImport(fromPath, spec); ok {
+		return path, nil
+	}
+	return ResolveRuneImport(fromPath, spec)
+}
+
+func resolveCoreModuleImport(fromPath string, spec string) (string, bool) {
+	for _, start := range []string{filepath.Dir(fromPath), "."} {
+		dir, err := filepath.Abs(start)
+		if err != nil {
+			continue
+		}
+		for {
+			candidate := filepath.Join(dir, "core", spec)
+			if _, err := os.Stat(candidate); err == nil {
+				if abs, err := filepath.Abs(candidate); err == nil {
+					return abs, true
+				}
+				return candidate, true
+			}
+			parent := filepath.Dir(dir)
+			if parent == dir {
+				break
+			}
+			dir = parent
+		}
+	}
+	return "", false
 }
 
 func normalizeImportPath(path string) (string, bool) {

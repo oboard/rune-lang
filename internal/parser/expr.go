@@ -232,6 +232,18 @@ func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
 	p.consume(lexer.LBrace, "expected '{' after type name")
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
+		if p.match(lexer.DotDotDot) {
+			spread := p.previous()
+			lit.Fields = append(lit.Fields, ast.FieldValue{
+				Spread: true,
+				Value:  p.parseExpression(1),
+				Pos:    spread.Pos,
+			})
+			p.consumeStatementEnd()
+			p.match(lexer.Comma)
+			p.skipNewlines()
+			continue
+		}
 		fieldName := p.consume(lexer.Ident, "expected field name")
 		p.consume(lexer.Colon, "expected ':' after field name")
 		p.skipNewlines()
@@ -340,7 +352,7 @@ func (p *Parser) parsePrimary() ast.Expr {
 	case lexer.LBracket:
 		return p.parseArrayLiteral()
 	case lexer.Dollar:
-		return p.parseReactiveLiteral()
+		return p.parseDollarExpression()
 	case lexer.LBrace:
 		return p.parseBraceLiteral()
 	case lexer.LParen:
@@ -373,6 +385,15 @@ func (p *Parser) parsePrimary() ast.Expr {
 	}
 }
 
+func (p *Parser) parseDollarExpression() ast.Expr {
+	start := p.consume(lexer.Dollar, "expected '$'")
+	if p.check(lexer.Ident) {
+		name := p.advance()
+		return &ast.Identifier{Name: name.Lexeme, SignalPrefix: true, Pos: name.Pos}
+	}
+	return p.parseReactiveLiteralAfterDollar(start)
+}
+
 func (p *Parser) parseTemplateLiteral(tok lexer.Token) ast.Expr {
 	lit := &ast.TemplateLiteral{Pos: tok.Pos}
 	raw := tok.Lexeme
@@ -385,11 +406,8 @@ func (p *Parser) parseTemplateLiteral(tok lexer.Token) ast.Expr {
 	for i := 0; i < len(inner); {
 		switch inner[i] {
 		case '\\':
-			i += 2
-			continue
-		case '$':
-			if i+1 >= len(inner) || inner[i+1] != '{' {
-				i++
+			if i+1 >= len(inner) || inner[i+1] != '(' {
+				i += 2
 				continue
 			}
 			if i > textStart {
@@ -451,9 +469,9 @@ func scanTemplateExprEnd(input []rune, start int) (int, bool) {
 		switch ch {
 		case '"', '\'', '`':
 			quote = ch
-		case '{':
+		case '(':
 			depth++
-		case '}':
+		case ')':
 			depth--
 			if depth == 0 {
 				return i, true
@@ -592,6 +610,10 @@ func splitRegexLiteral(raw string) (string, string, bool) {
 
 func (p *Parser) parseReactiveLiteral() ast.Expr {
 	start := p.consume(lexer.Dollar, "expected '$'")
+	return p.parseReactiveLiteralAfterDollar(start)
+}
+
+func (p *Parser) parseReactiveLiteralAfterDollar(start lexer.Token) ast.Expr {
 	switch p.peek().Kind {
 	case lexer.LBracket:
 		return &ast.ReactiveLiteral{Value: p.parseArrayLiteral(), Pos: start.Pos}

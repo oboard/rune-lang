@@ -25,6 +25,7 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 
 	seen := map[string]bool{}
 	typeBindings := c.structLiteralTypeBindings(structInfo)
+	lit.Fields = c.expandStructLiteralFields(lit, structInfo, typeBindings, env)
 	for _, field := range lit.Fields {
 		fieldInfo, ok := structInfo.ByName[field.Name]
 		if !ok {
@@ -60,6 +61,64 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		}
 	}
 	return c.structLiteralResultType(lit.TypeName, structInfo, typeBindings)
+}
+
+func (c *checker) expandStructLiteralFields(lit *ast.StructLiteral, structInfo *StructInfo, typeBindings map[string]Type, env map[string]Type) []ast.FieldValue {
+	if len(lit.Fields) == 0 {
+		return lit.Fields
+	}
+	var expanded []ast.FieldValue
+	hasSpread := false
+	for _, field := range lit.Fields {
+		if !field.Spread {
+			expanded = append(expanded, field)
+			continue
+		}
+		hasSpread = true
+		spreadType := c.inferExpr(field.Value, env)
+		expectedType := c.structLiteralResultType(lit.TypeName, structInfo, typeBindings)
+		if spreadType != Unknown && expectedType != Unknown && !c.typesCompatible(expectedType, spreadType, nil) {
+			c.errorf(field.Pos, "spread expects %s, got %s", expectedType, spreadType)
+			continue
+		}
+		for _, spreadField := range structInfo.Fields {
+			expanded = append(expanded, ast.FieldValue{
+				Name:    spreadField.Name,
+				Private: spreadField.Private,
+				Value: &ast.SelectorExpr{
+					Receiver: field.Value,
+					Name:     spreadField.Name,
+					Pos:      field.Value.Position(),
+					NamePos:  field.Pos,
+				},
+				Pos: field.Pos,
+			})
+		}
+	}
+	if !hasSpread {
+		return lit.Fields
+	}
+	return dedupeStructLiteralFields(expanded)
+}
+
+func dedupeStructLiteralFields(fields []ast.FieldValue) []ast.FieldValue {
+	keep := make([]bool, len(fields))
+	seen := map[string]bool{}
+	for idx := len(fields) - 1; idx >= 0; idx-- {
+		name := fields[idx].Name
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		keep[idx] = true
+	}
+	out := make([]ast.FieldValue, 0, len(seen))
+	for idx, field := range fields {
+		if keep[idx] {
+			out = append(out, field)
+		}
+	}
+	return out
 }
 
 func (c *checker) structLiteralTypeBindings(info *StructInfo) map[string]Type {

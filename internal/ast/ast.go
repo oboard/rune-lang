@@ -27,8 +27,9 @@ type TraitDecl struct {
 }
 
 type Import struct {
-	Path string
-	Pos  lexer.Position
+	Path   string
+	Module bool
+	Pos    lexer.Position
 }
 
 type GoImport struct {

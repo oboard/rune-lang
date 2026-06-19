@@ -27,11 +27,11 @@ name := "Rune\\nLang"`)
 }
 
 ? "selfhost lexer reads template strings" {
-  tokens := lex("name := `hello, ${user}`")
+  tokens := lex("name := `hello, \\(user)`")
   @assert.eq(tokens[0].kind, TokenKind.Ident)
   @assert.eq(tokens[1].kind, TokenKind.Declare)
   @assert.eq(tokens[2].kind, TokenKind.TemplateString)
-  @assert.eq(tokens[2].lexeme, "`hello, ${user}`")
+  @assert.eq(tokens[2].lexeme, "`hello, \\(user)`")
 
   multiline := lex(`name := \`hello
 user\``)

@@ -1084,7 +1084,24 @@ parseBlockStatement(
 
 parseStatement(
   state: ParserState
-) -> ExprStep => parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state) : parserCheck(state, TokenKind.Ident) && ((parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) || parserCheckNext(state, TokenKind.SignalDeclare)) ? parseLetStatement(state) : parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state) : parseExpression(state, 1)
+) -> ExprStep => parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state) : parserCheck(state, TokenKind.LBrace) ? parseBlock(state) : parserCheck(state, TokenKind.Dollar) && parserCheckNext(state, TokenKind.Ident) ? parseDollarStatement(state) : parserCheck(state, TokenKind.Ident) && ((parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) || parserCheckNext(state, TokenKind.SignalDeclare)) ? parseLetStatement(state) : parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state) : parseExpression(state, 1)
+
+parseDollarStatement(
+  state: ParserState
+) -> ExprStep => parserKindAt(state, state.current + 2) == TokenKind.Declare ? parseSignalPrefixLetStatement(state) : parserKindAt(state, state.current + 2) == TokenKind.Assign ? parseSignalPrefixAssignStatement(state) : parseExpression(state, 1)
+
+parseSignalPrefixLetStatement(
+  state: ParserState
+) -> ExprStep => {
+  dollar := parserAdvance(state)
+  name := parserAdvance(dollar.state)
+  op := parserAdvance(name.state)
+  value := parseExpression(parserSkipNewlines(op.state), 1)
+  ExprStep {
+    state: value.state
+    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, "", "$=", [], [value.expr], name.token.line, name.token.column)
+  }
+}
 
 parseLetStatement(
   state: ParserState
@@ -1156,6 +1173,19 @@ parseAssignStatement(
   ExprStep {
     state: value.state
     expr: makeExpr(ExprKind.Assign, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+  }
+}
+
+parseSignalPrefixAssignStatement(
+  state: ParserState
+) -> ExprStep => {
+  dollar := parserAdvance(state)
+  name := parserAdvance(dollar.state)
+  op := parserAdvance(name.state)
+  value := parseExpression(parserSkipNewlines(op.state), 1)
+  ExprStep {
+    state: value.state
+    expr: makeExpr(ExprKind.Assign, "$" + name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1391,7 +1421,7 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  token.kind == TokenKind.Int ? parseLiteral(state, ExprKind.Int) : token.kind == TokenKind.Double ? parseLiteral(state, ExprKind.Double) : token.kind == TokenKind.BigInt ? parseLiteral(state, ExprKind.BigInt) : token.kind == TokenKind.String ? parseLiteral(state, ExprKind.String) : token.kind == TokenKind.TemplateString ? parseLiteral(state, ExprKind.Template) : token.kind == TokenKind.Char ? parseLiteral(state, ExprKind.Char) : token.kind == TokenKind.Regex ? parseLiteral(state, ExprKind.Regex) : token.kind == TokenKind.XMLText ? parseLiteral(state, ExprKind.XMLText) : token.kind == TokenKind.Ident ? parseIdentifierPrimary(state) : token.kind == TokenKind.At ? parseAtExpression(state) : token.kind == TokenKind.Dot ? parseThisSelector(state) : token.kind == TokenKind.LBracket ? parseArrayLiteral(state) : token.kind == TokenKind.Dollar ? parseReactiveLiteral(state) : token.kind == TokenKind.LBrace ? parseBraceLiteral(state) : token.kind == TokenKind.LParen ? parseParenOrTuple(state) : parsePrimaryError(state)
+  token.kind == TokenKind.Int ? parseLiteral(state, ExprKind.Int) : token.kind == TokenKind.Double ? parseLiteral(state, ExprKind.Double) : token.kind == TokenKind.BigInt ? parseLiteral(state, ExprKind.BigInt) : token.kind == TokenKind.String ? parseLiteral(state, ExprKind.String) : token.kind == TokenKind.TemplateString ? parseLiteral(state, ExprKind.Template) : token.kind == TokenKind.Char ? parseLiteral(state, ExprKind.Char) : token.kind == TokenKind.Regex ? parseLiteral(state, ExprKind.Regex) : token.kind == TokenKind.XMLText ? parseLiteral(state, ExprKind.XMLText) : token.kind == TokenKind.Ident ? parseIdentifierPrimary(state) : token.kind == TokenKind.At ? parseAtExpression(state) : token.kind == TokenKind.Dot ? parseThisSelector(state) : token.kind == TokenKind.LBracket ? parseArrayLiteral(state) : token.kind == TokenKind.Dollar ? parseDollarExpression(state) : token.kind == TokenKind.LBrace ? parseBraceLiteral(state) : token.kind == TokenKind.LParen ? parseParenOrTuple(state) : parsePrimaryError(state)
 }
 
 parseLiteral(
@@ -1470,6 +1500,29 @@ parseReactiveLiteral(
   state: ParserState
 ) -> ExprStep => {
   start := parserConsume(state, TokenKind.Dollar, "expected '$'")
+  parseReactiveLiteralAfterDollar(start)
+}
+
+parseDollarExpression(
+  state: ParserState
+) -> ExprStep => {
+  start := parserConsume(state, TokenKind.Dollar, "expected '$'")
+  parserCheck(start.state, TokenKind.Ident) ? parseSignalPrefixIdentifier(start) : parseReactiveLiteralAfterDollar(start)
+}
+
+parseSignalPrefixIdentifier(
+  start: TokenStep
+) -> ExprStep => {
+  name := parserAdvance(start.state)
+  ExprStep {
+    state: name.state
+    expr: namedNode(ExprKind.Identifier, name.token.lexeme, name.token)
+  }
+}
+
+parseReactiveLiteralAfterDollar(
+  start: TokenStep
+) -> ExprStep => {
   value := parserCheck(start.state, TokenKind.LBracket) ? parseArrayLiteral(start.state) : parserCheck(start.state, TokenKind.LBrace) ? parseBraceLiteral(start.state) : ExprStep {
     state: parserErrorAt(start.state, parserPeek(start.state), "expected '[' or '{' after '$'")
     expr: emptyExpr()

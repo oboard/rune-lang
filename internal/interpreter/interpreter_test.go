@@ -70,7 +70,7 @@ func TestInterpreterRunsMapLiteral(t *testing.T) {
 }
 
 func TestInterpreterRunsTemplateLiteral(t *testing.T) {
-	src := "main() => {\n  count := 3\n  ch := 'x'\n  ok := true\n  @io.println(`count ${count} char ${ch} ok ${ok}`)\n}\n"
+	src := "main() => {\n  count := 3\n  ch := 'x'\n  ok := true\n  @io.println(`count \\(count) char \\(ch) ok \\(ok)`)\n}\n"
 	prog, diags := compiler.AnalyzeSource("template_literal.rn", src)
 	if len(diags) > 0 {
 		t.Fatalf("diagnostics = %#v, want none", diags)
@@ -83,6 +83,35 @@ func TestInterpreterRunsTemplateLiteral(t *testing.T) {
 	}
 	if got := strings.TrimSpace(out.String()); got != "count 3 char x ok true" {
 		t.Fatalf("output = %q, want template output", got)
+	}
+}
+
+func TestInterpreterRunsEnumConstructorPayload(t *testing.T) {
+	src := `Box: {
+  Item(value: String)
+}
+
+unwrap(box: Box) -> String => box {
+  Item(value) => value
+  _ => ""
+}
+
+main() => {
+  @io.println(unwrap(Item("payload")))
+}
+`
+	prog, diags := compiler.AnalyzeSource("enum_constructor_payload.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "payload" {
+		t.Fatalf("output = %q, want enum payload output", got)
 	}
 }
 

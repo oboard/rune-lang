@@ -86,7 +86,7 @@ func (c *checker) inferFunction(fn *ast.Function) {
 			ret := c.inferFunctionBody(fn, info, env)
 			c.finishInferredParams(info, fn.Body, env)
 			unwrapErr := c.popRoutineErrors()
-			if fn.Name == "main" {
+			if fn.Name == "main" && !fn.Macro {
 				if info.ReturnDeclared && info.Return != Void {
 					c.errorf(fn.NamePos, "main must return Void, got %s", info.Return)
 				}

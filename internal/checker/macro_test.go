@@ -80,7 +80,9 @@ func TestResolveLocalMacroAnnotation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadDefault() error = %v", err)
 	}
-	file, parseErrs := parser.Parse(`#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
+	file, parseErrs := parser.Parse(`@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
 
 #tag("command")
 Args: {

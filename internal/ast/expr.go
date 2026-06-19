@@ -8,8 +8,9 @@ type Expr interface {
 }
 
 type Identifier struct {
-	Name string
-	Pos  lexer.Position
+	Name         string
+	SignalPrefix bool
+	Pos          lexer.Position
 }
 
 func (*Identifier) exprNode() {}
@@ -334,6 +335,7 @@ func (e *AnonymousObjectLiteral) Position() lexer.Position {
 type FieldValue struct {
 	Name    string
 	Private bool
+	Spread  bool
 	Value   Expr
 	Pos     lexer.Position
 }

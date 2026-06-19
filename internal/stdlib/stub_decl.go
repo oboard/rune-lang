@@ -117,6 +117,7 @@ func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
 		if err != nil {
 			return nil, nil, err
 		}
+		p.match(lexer.Plus)
 		if p.looksLikeFieldDecl() {
 			field, err := p.parseField()
 			if err != nil {
@@ -197,7 +198,9 @@ func (p *stubParser) parseField() (Field, error) {
 
 func (p *stubParser) parseConstructor() (Constructor, error) {
 	name := p.consume(lexer.Ident, "expected constructor name")
-	p.consume(lexer.LParen, "expected '(' after constructor name")
+	if !p.match(lexer.LParen) {
+		return Constructor{Name: name.Lexeme, Pos: name.Pos}, nil
+	}
 	paramNames, params, err := p.parseParams()
 	if err != nil {
 		return Constructor{}, err

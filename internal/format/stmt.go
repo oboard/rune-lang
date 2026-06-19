@@ -15,7 +15,11 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 			op = "~="
 		}
 		if s.Signal {
-			op = "$="
+			out := fmt.Sprintf("$%s := %s", s.Name, f.expr(s.Value))
+			if !s.Type.IsZero() {
+				out += " : " + formatType(s.Type)
+			}
+			return out
 		}
 		out := fmt.Sprintf("%s %s %s", s.Name, op, f.expr(s.Value))
 		if !s.Type.IsZero() {
@@ -40,7 +44,11 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 		}
 		return fmt.Sprintf("{ %s } %s %s", strings.Join(fields, ", "), op, f.expr(s.Value))
 	case *ast.AssignStmt:
-		return fmt.Sprintf("%s = %s", s.Name, f.expr(s.Value))
+		name := s.Name
+		if s.SignalPrefix {
+			name = "$" + name
+		}
+		return fmt.Sprintf("%s = %s", name, f.expr(s.Value))
 	case *ast.ExprStmt:
 		return f.expr(s.Expr)
 	default:

@@ -10,7 +10,9 @@ import (
 )
 
 func TestLocalMacroAnnotationLanguageFeatures(t *testing.T) {
-	src := `#tag(tree: SyntaxFile, context: MacroContext, name: String, enabled: Bool) -> SyntaxFile => tree
+	src := `@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext, name: String, enabled: Bool) -> SyntaxFile => tree
 
 #tag("command", true)
 Args: {
@@ -32,7 +34,7 @@ Args: {
 	definition := session.Definition(uri, 2, 2).(map[string]any)
 	targetRange := definition["range"].(map[string]any)
 	start := targetRange["start"].(position)
-	if start.Line != 0 || start.Character != 1 {
+	if start.Line != 2 || start.Character != 1 {
 		t.Fatalf("definition start = %#v, want macro function declaration", start)
 	}
 
@@ -110,7 +112,9 @@ parse(value: String) -> String => value
 }
 
 func TestLocalMacroCompletionStaysOutOfRuntimeCompletion(t *testing.T) {
-	src := `#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
+	src := `@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
 
 main() => null
 `
@@ -132,7 +136,9 @@ main() => null
 }
 
 func TestExpandedMacroShowsFinalDocument(t *testing.T) {
-	src := `#rename(
+	src := `@syntax
+
+#rename(
   tree: SyntaxFile,
   context: MacroContext,
   name: String

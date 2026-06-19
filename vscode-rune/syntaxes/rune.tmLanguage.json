@@ -84,11 +84,11 @@
       "patterns": [
         {
           "name": "meta.interpolation.rune",
-          "begin": "\\$\\{",
+          "begin": "\\\\\\(",
           "beginCaptures": {
             "0": { "name": "punctuation.section.interpolation.begin.rune" }
           },
-          "end": "\\}",
+          "end": "\\)",
           "endCaptures": {
             "0": { "name": "punctuation.section.interpolation.end.rune" }
           },

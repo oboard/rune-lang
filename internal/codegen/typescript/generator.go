@@ -126,7 +126,7 @@ func GenerateIR(file *ir.File) (string, error) {
 			if fn.Private {
 				continue
 			}
-			exports = append(exports, fmt.Sprintf("%s as %s", mangleIdent(fn.Name), tsExportName(fn.Name)))
+			exports = append(exports, fmt.Sprintf("%s as %s", FunctionSymbolName(fn), tsExportName(fn.SourceName)))
 		}
 		if len(exports) > 0 {
 			g.linef("export { %s };", join(exports, ", "))

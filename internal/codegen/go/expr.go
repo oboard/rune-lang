@@ -935,10 +935,12 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 
 func (g *generator) pushSignalScope() {
 	g.signals = append(g.signals, map[string]checker.Type{})
+	g.signalDeps = append(g.signalDeps, map[string][]string{})
 }
 
 func (g *generator) popSignalScope() {
 	g.signals = g.signals[:len(g.signals)-1]
+	g.signalDeps = g.signalDeps[:len(g.signalDeps)-1]
 }
 
 func (g *generator) addSignal(name string, typ checker.Type) {
@@ -946,6 +948,13 @@ func (g *generator) addSignal(name string, typ checker.Type) {
 		g.pushSignalScope()
 	}
 	g.signals[len(g.signals)-1][name] = typ
+}
+
+func (g *generator) setSignalDeps(name string, deps []string) {
+	if len(g.signalDeps) == 0 {
+		g.pushSignalScope()
+	}
+	g.signalDeps[len(g.signalDeps)-1][name] = append([]string(nil), deps...)
 }
 
 func (g *generator) isSignal(name string) bool {
@@ -990,6 +999,47 @@ func (g *generator) exprSignalDeps(expr ir.Expr) []string {
 		}
 	})
 	return deps
+}
+
+func (g *generator) effectSignalDeps(expr ir.Expr) []string {
+	deps := g.exprSignalDeps(expr)
+	drop := map[string]bool{}
+	for _, dep := range deps {
+		for _, other := range deps {
+			if dep != other && g.signalDependsOn(other, dep, map[string]bool{}) {
+				drop[dep] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(deps))
+	for _, dep := range deps {
+		if !drop[dep] {
+			out = append(out, dep)
+		}
+	}
+	return out
+}
+
+func (g *generator) signalDependsOn(name string, target string, seen map[string]bool) bool {
+	if seen[name] {
+		return false
+	}
+	seen[name] = true
+	for _, dep := range g.lookupSignalDeps(name) {
+		if dep == target || g.signalDependsOn(dep, target, seen) {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) lookupSignalDeps(name string) []string {
+	for i := len(g.signalDeps) - 1; i >= 0; i-- {
+		if deps, ok := g.signalDeps[i][name]; ok {
+			return deps
+		}
+	}
+	return nil
 }
 
 func anonymousObjectType(obj *ir.AnonymousObjectLiteral) string {

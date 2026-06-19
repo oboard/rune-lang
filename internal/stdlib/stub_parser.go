@@ -38,6 +38,12 @@ func (p *stubParser) parse() (*Module, error) {
 	seen := map[string]bool{}
 	p.skipNewlines()
 	for !p.check(lexer.EOF) {
+		if p.looksLikeImportDecl() {
+			p.skipImportDecl()
+			p.skipNewlines()
+			continue
+		}
+		p.match(lexer.Plus)
 		macro := p.match(lexer.Hash)
 		annotations, err := p.parseAnnotations()
 		if err != nil {
@@ -116,6 +122,17 @@ func (p *stubParser) parse() (*Module, error) {
 		}
 	}
 	return mod, nil
+}
+
+func (p *stubParser) looksLikeImportDecl() bool {
+	return p.check(lexer.At) && (p.checkNext(lexer.Ident) || p.checkNext(lexer.String))
+}
+
+func (p *stubParser) skipImportDecl() {
+	p.advance()
+	if p.check(lexer.Ident) || p.check(lexer.String) {
+		p.advance()
+	}
 }
 
 func hasSyntaxMacroSignature(fn Function) bool {

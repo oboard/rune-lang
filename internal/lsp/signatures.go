@@ -107,11 +107,17 @@ func functionSignature(info *checker.Info, fn *ast.Function) string {
 	if fnInfo == nil {
 		return fn.Signature()
 	}
-	params := make([]string, 0, len(fn.Params))
-	for i, param := range fn.Params {
+	fnParams := fn.Params
+	infoParams := fnInfo.Params
+	if fnInfo.Macro && len(fnParams) >= 2 && len(infoParams) >= 2 {
+		fnParams = fnParams[2:]
+		infoParams = infoParams[2:]
+	}
+	params := make([]string, 0, len(fnParams))
+	for i, param := range fnParams {
 		typ := param.Type.Display()
-		if i < len(fnInfo.Params) && fnInfo.Params[i].Type != "" && fnInfo.Params[i].Type != checker.Unknown {
-			typ = displayCheckerType(info, fnInfo.Params[i].Type)
+		if i < len(infoParams) && infoParams[i].Type != "" && infoParams[i].Type != checker.Unknown {
+			typ = displayCheckerType(info, infoParams[i].Type)
 		}
 		if typ == "" {
 			typ = string(checker.Unknown)

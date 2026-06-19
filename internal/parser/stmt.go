@@ -9,6 +9,42 @@ func (p *Parser) parseStatement() ast.Stmt {
 	if p.check(lexer.LBrace) && p.looksLikeObjectDestructureDecl() {
 		return p.parseObjectDestructureStatement()
 	}
+	if p.check(lexer.LBrace) {
+		expr := p.parseBlock()
+		return &ast.ExprStmt{Expr: expr, Pos: expr.Position()}
+	}
+	if p.check(lexer.Dollar) && p.checkNext(lexer.Ident) {
+		if p.kindAt(p.curr+2) == lexer.Declare {
+			p.advance()
+			name := p.advance()
+			p.advance()
+			p.skipNewlines()
+			stmt := &ast.LetStmt{
+				Name:    name.Lexeme,
+				Mutable: true,
+				Signal:  true,
+				Value:   p.parseExpression(1),
+				Pos:     name.Pos,
+			}
+			if p.match(lexer.Colon) {
+				p.skipNewlines()
+				stmt.Type = p.parseTypeName()
+			}
+			return stmt
+		}
+		if p.kindAt(p.curr+2) == lexer.Assign {
+			p.advance()
+			name := p.advance()
+			p.advance()
+			p.skipNewlines()
+			return &ast.AssignStmt{
+				Name:         name.Lexeme,
+				SignalPrefix: true,
+				Value:        p.parseExpression(1),
+				Pos:          name.Pos,
+			}
+		}
+	}
 	if p.check(lexer.Ident) {
 		if p.checkNext(lexer.Declare) || p.checkNext(lexer.MutDeclare) || p.checkNext(lexer.SignalDeclare) {
 			name := p.advance()

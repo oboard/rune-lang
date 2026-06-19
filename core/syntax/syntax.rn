@@ -1,15 +1,15 @@
-SyntaxFile: {
++ SyntaxFile: {
   types: Array[SyntaxStruct]
   enums: Array[SyntaxEnum]
   functions: Array[SyntaxFunction]
 }
 
-MacroContext: {
++ MacroContext: {
   targetID: String
   sourcePath: String
 }
 
-SyntaxAnnotation: {
++ SyntaxAnnotation: {
   id: String
   module: String
   name: String
@@ -17,35 +17,38 @@ SyntaxAnnotation: {
   args: Array[SyntaxValue]
 }
 
-SyntaxValue: {
++ SyntaxValue: {
   kind: String
   stringValue: String
   intValue: Int
   boolValue: Bool
 }
 
-SyntaxExprField: {
++ SyntaxExprField: {
   name: String
   value: SyntaxExpr
 }
 
-SyntaxStatement: {
++ SyntaxStatement: {
   kind: String
   name: String
   value: SyntaxExpr
 }
 
-SyntaxExpr: {
-  kind: String
-  name: String
-  stringValue: String
-  boolValue: Bool
-  args: Array[SyntaxExpr]
-  fields: Array[SyntaxExprField]
-  statements: Array[SyntaxStatement]
++ SyntaxExpr: {
+  + IdentifierExpr(name: String)
+  + ModuleExpr(name: String)
+  + StringExpr(value: String)
+  + BoolExpr(value: Bool)
+  + NullExpr
+  + SelectorExpr(receiver: SyntaxExpr, name: String)
+  + StaticSelectorExpr(receiver: SyntaxExpr, name: String)
+  + CallExpr(callee: SyntaxExpr, args: Array[SyntaxExpr])
+  + StructExpr(name: String, fields: Array[SyntaxExprField])
+  + BlockExpr(statements: Array[SyntaxStatement])
 }
 
-SyntaxType: {
++ SyntaxType: {
   kind: Int
   name: String
   module: String
@@ -58,19 +61,19 @@ SyntaxType: {
   displayText: String
 }
 
-SyntaxTypeParam: {
++ SyntaxTypeParam: {
   name: String
   optional: Bool
   type: SyntaxType
 }
 
-SyntaxParam: {
++ SyntaxParam: {
   id: String
   name: String
   type: SyntaxType
 }
 
-SyntaxField: {
++ SyntaxField: {
   id: String
   name: String
   private: Bool
@@ -78,7 +81,7 @@ SyntaxField: {
   type: SyntaxType
 }
 
-SyntaxStruct: {
++ SyntaxStruct: {
   id: String
   name: String
   private: Bool
@@ -89,7 +92,7 @@ SyntaxStruct: {
   sourcePath: String
 }
 
-SyntaxEnumMember: {
++ SyntaxEnumMember: {
   id: String
   name: String
   private: Bool
@@ -99,7 +102,7 @@ SyntaxEnumMember: {
   params: Array[SyntaxParam]
 }
 
-SyntaxEnum: {
++ SyntaxEnum: {
   id: String
   name: String
   private: Bool
@@ -109,7 +112,7 @@ SyntaxEnum: {
   sourcePath: String
 }
 
-SyntaxFunction: {
++ SyntaxFunction: {
   id: String
   name: String
   private: Bool
