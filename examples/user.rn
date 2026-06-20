@@ -8,8 +8,8 @@ User: {
 
 main() => {
   user := User {
-    id: 1
-    name: "oboard"
+    id: 1,
+    name: "oboard",
     age: 22
   }
   @io.println(user.name)

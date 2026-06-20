@@ -1,7 +1,3 @@
-new() -> StringBuffer => "%stringbuffer.new"
-
-from(value: String) -> StringBuffer => "%stringbuffer.from"
-
 StringBuffer: {
   length() -> Int => "%stringbuffer.length"
 
@@ -11,7 +7,13 @@ StringBuffer: {
 
   append(value: String) -> StringBuffer => "%stringbuffer.append"
 
-  appendLine(value: String) -> StringBuffer => "%stringbuffer.appendLine"
+  appendLine(
+    value: String
+  ) -> StringBuffer => "%stringbuffer.appendLine"
 
   toString() -> String => "%stringbuffer.toString"
 }
+
+new() -> StringBuffer => "%stringbuffer.new"
+
+from(value: String) -> StringBuffer => "%stringbuffer.from"

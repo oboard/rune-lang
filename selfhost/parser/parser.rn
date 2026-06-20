@@ -99,100 +99,101 @@ EnumMemberStep: {
 ) -> ParsedFile => {
   errors := emptyParseErrors()
   parseFileLoop(parserSkipNewlines(ParserState {
-    tokens: tokens
-    current: 0
+    tokens: tokens,
+    current: 0,
     errors: errors
   }), emptyFile(errors)).file
 }
 
 emptyFile(
   errors: Array[ParseError]
-) -> ParsedFile => ParsedFile {
-  imports: []
-  types: []
-  functions: []
-  tests: []
+) -> ParsedFile => {
+  imports: [],
+  types: [],
+  functions: [],
+  tests: [],
   errors: errors
 }
 
 emptyParseErrors() -> Array[ParseError] => [ParseError {
-  message: ""
-  line: 0
+  message: "",
+  line: 0,
   column: 0
 }].slice(0, 0)
 
-emptyToken() -> Token => Token {
-  kind: TokenKind.EOF
-  lexeme: ""
-  offset: 0
-  line: 0
+emptyToken() -> Token => {
+  kind: TokenKind.EOF,
+  lexeme: "",
+  offset: 0,
+  line: 0,
   column: 0
 }
 
-emptyExpr() -> ParsedExpr => ParsedExpr {
-  kind: ExprKind.Unknown
-  text: ""
-  name: ""
-  value: ""
-  op: ""
-  params: []
-  children: []
-  line: 0
+emptyExpr() -> ParsedExpr => {
+  kind: ExprKind.Unknown,
+  text: "",
+  name: "",
+  value: "",
+  op: "",
+  params: [],
+  children: [],
+  line: 0,
   column: 0
 }
 
-emptyFunction() -> ParsedFunction => ParsedFunction {
-  name: ""
-  private: true
-  routine: false
-  receiverType: ""
-  generics: []
-  params: []
-  returnType: emptyParsedTypeRef()
-  body: emptyExpr()
-  line: 0
+emptyFunction() -> ParsedFunction => {
+  name: "",
+  private: true,
+  static: false,
+  routine: false,
+  receiverType: "",
+  generics: [],
+  params: [],
+  returnType: emptyParsedTypeRef(),
+  body: emptyExpr(),
+  line: 0,
   column: 0
 }
 
-emptyType() -> ParsedType => ParsedType {
-  name: ""
-  private: true
-  enum: false
-  generics: []
-  fields: []
-  methods: []
-  members: []
-  line: 0
+emptyType() -> ParsedType => {
+  name: "",
+  private: true,
+  enum: false,
+  generics: [],
+  fields: [],
+  methods: [],
+  members: [],
+  line: 0,
   column: 0
 }
 
-emptyImport() -> ParsedImport => ParsedImport {
-  path: ""
-  go: false
-  line: 0
+emptyImport() -> ParsedImport => {
+  path: "",
+  go: false,
+  line: 0,
   column: 0
 }
 
-emptyTest() -> ParsedTest => ParsedTest {
-  name: ""
-  body: emptyExpr()
-  line: 0
+emptyTest() -> ParsedTest => {
+  name: "",
+  body: emptyExpr(),
+  line: 0,
   column: 0
 }
 
-emptyField() -> ParsedField => ParsedField {
-  name: ""
-  private: true
-  typeRef: emptyParsedTypeRef()
-  line: 0
+emptyField() -> ParsedField => {
+  name: "",
+  private: true,
+  typeRef: emptyParsedTypeRef(),
+  line: 0,
   column: 0
 }
 
-emptyMember() -> ParsedEnumMember => ParsedEnumMember {
-  name: ""
-  private: true
-  value: ""
-  line: 0
+emptyMember() -> ParsedEnumMember => {
+  name: "",
+  private: true,
+  value: "",
+  line: 0,
   column: 0
 }
 
@@ -206,15 +207,15 @@ makeExpr(
   children: Array[ParsedExpr],
   line: Int,
   column: Int
-) -> ParsedExpr => ParsedExpr {
-  kind: kind
-  text: text
-  name: name
-  value: value
-  op: op
-  params: params
-  children: children
-  line: line
+) -> ParsedExpr => {
+  kind: kind,
+  text: text,
+  name: name,
+  value: value,
+  op: op,
+  params: params,
+  children: children,
+  line: line,
   column: column
 }
 
@@ -281,16 +282,25 @@ appendString(
   values
 }
 
-parserPeek(state: ParserState) -> Token => state.current >= state.tokens.length() ? emptyToken() : state.tokens[state.current]
+parserPeek(state: ParserState) -> Token => (
+  state.current >= state.tokens.length() ? emptyToken()
+    : state.tokens[state.current]
+)
 
 parserPrevious(
   state: ParserState
-) -> Token => state.current <= 0 ? emptyToken() : state.tokens[state.current - 1]
+) -> Token => (
+  state.current <= 0 ? emptyToken()
+    : state.tokens[state.current - 1]
+)
 
 parserTokenAt(
   state: ParserState,
   index: Int
-) -> Token => index >= state.tokens.length() ? emptyToken() : state.tokens[index]
+) -> Token => (
+  index >= state.tokens.length() ? emptyToken()
+    : state.tokens[index]
+)
 
 parserKindAt(
   state: ParserState,
@@ -310,45 +320,57 @@ parserCheckNext(
 stateAt(
   state: ParserState,
   current: Int
-) -> ParserState => ParserState {
-  tokens: state.tokens
-  current: current
+) -> ParserState => {
+  tokens: state.tokens,
+  current: current,
   errors: state.errors
 }
 
 parserAdvance(
   state: ParserState
-) -> TokenStep => parserCheck(state, TokenKind.EOF) ? TokenStep {
-  state: state
-  token: parserPeek(state)
-} : TokenStep {
-  state: stateAt(state, state.current + 1)
-  token: parserPeek(state)
-}
+) -> TokenStep => (
+  parserCheck(state, TokenKind.EOF) ? TokenStep {
+    state: state,
+    token: parserPeek(state)
+  }
+    : TokenStep {
+      state: stateAt(state, state.current + 1),
+      token: parserPeek(state)
+    }
+)
 
 parserMatch(
   state: ParserState,
   kind: TokenKind
-) -> BoolStep => parserCheck(state, kind) ? BoolStep {
-  state: parserAdvance(state).state
-  ok: true
-} : BoolStep {
-  state: state
-  ok: false
-}
+) -> BoolStep => (
+  parserCheck(state, kind) ? BoolStep {
+    state: parserAdvance(state).state,
+    ok: true
+  }
+    : BoolStep {
+      state: state,
+      ok: false
+    }
+)
 
 parserConsume(
   state: ParserState,
   kind: TokenKind,
   message: String
-) -> TokenStep => parserCheck(state, kind) ? parserAdvance(state) : parserConsumeMissing(parserErrorAt(state, parserPeek(state), message))
+) -> TokenStep => (
+  parserCheck(state, kind) ? parserAdvance(state)
+    : parserConsumeMissing(parserErrorAt(state, parserPeek(state), message))
+)
 
 parserConsumeMissing(
   state: ParserState
-) -> TokenStep => parserCheck(state, TokenKind.EOF) ? TokenStep {
-  state: state
-  token: parserPeek(state)
-} : parserAdvance(state)
+) -> TokenStep => (
+  parserCheck(state, TokenKind.EOF) ? TokenStep {
+    state: state,
+    token: parserPeek(state)
+  }
+    : parserAdvance(state)
+)
 
 parserErrorAt(
   state: ParserState,
@@ -356,8 +378,8 @@ parserErrorAt(
   message: String
 ) -> ParserState => {
   state.errors.push(ParseError {
-    message: message
-    line: token.line
+    message: message,
+    line: token.line,
     column: token.column
   })
   state
@@ -365,21 +387,49 @@ parserErrorAt(
 
 parserSkipNewlines(
   state: ParserState
-) -> ParserState => parserCheck(state, TokenKind.Newline) ? parserSkipNewlines(parserAdvance(state).state) : state
+) -> ParserState => (
+  parserCheck(state, TokenKind.Newline) ? parserSkipNewlines(parserAdvance(state).state)
+    : state
+)
 
 consumeStatementEnd(
   state: ParserState
-) -> ParserState => parserMatch(state, TokenKind.Newline).ok ? parserSkipNewlines(parserAdvance(state).state) : state
+) -> ParserState => (
+  parserMatch(state, TokenKind.Newline).ok ? parserSkipNewlines(parserAdvance(state).state)
+    : state
+)
 
-unquote(raw: String) -> String => raw.length() >= 2 ? raw.slice(1, raw.length() - 1) : raw
+consumeFieldSeparator(
+  state: ParserState,
+  close: TokenKind,
+  message: String
+) -> ParserState => {
+  current := consumeStatementEnd(state)
+  comma := parserMatch(current, TokenKind.Comma)
+  (
+    parserCheck(current, close) || parserCheck(current, TokenKind.EOF) ? current
+      : (
+        comma.ok ? parserSkipNewlines(comma.state)
+          : parserErrorAt(current, parserPeek(current), message)
+      )
+  )
+}
+
+unquote(raw: String) -> String => (
+  raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+    : raw
+)
 
 parseFileLoop(
   state: ParserState,
   file: ParsedFile
-) -> FileStep => parserCheck(state, TokenKind.EOF) ? FileStep {
-  state: state
-  file: file
-} : parseTopLevel(state, file)
+) -> FileStep => (
+  parserCheck(state, TokenKind.EOF) ? FileStep {
+    state: state,
+    file: file
+  }
+    : parseTopLevel(state, file)
+)
 
 parseTopLevel(
   state: ParserState,
@@ -388,8 +438,23 @@ parseTopLevel(
   publicStep := parsePublicModifier(state)
   current ~= publicStep.state
   private := publicStep.ok == false
-  current = publicStep.ok && (parserCheck(current, TokenKind.At) || parserCheck(current, TokenKind.Question)) ? parserErrorAt(current, parserPeek(current), "expected public declaration after '+'") : current
-  result := !publicStep.ok && parserCheck(current, TokenKind.At) ? parseTopLevelImport(current, file) : !publicStep.ok && parserCheck(current, TokenKind.Question) ? parseTopLevelTest(current, file) : looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private) : looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private) : parseTopLevelError(current, file)
+  current = (
+    publicStep.ok && (parserCheck(current, TokenKind.At) || parserCheck(current, TokenKind.Question)) ? parserErrorAt(current, parserPeek(current), "expected public declaration after '+'")
+      : current
+  )
+  result := (
+    !publicStep.ok && parserCheck(current, TokenKind.At) ? parseTopLevelImport(current, file)
+      : (
+        !publicStep.ok && parserCheck(current, TokenKind.Question) ? parseTopLevelTest(current, file)
+          : (
+            looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private)
+              : (
+                looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private)
+                  : parseTopLevelError(current, file)
+              )
+          )
+      )
+  )
   parseFileLoop(parserSkipNewlines(result.state), result.file)
 }
 
@@ -397,10 +462,13 @@ parseTopLevelImport(
   state: ParserState,
   file: ParsedFile
 ) -> FileStep => {
-  step := parserCheckNext(state, TokenKind.String) ? parseImportDecl(state) : parseGoImportDecl(state)
+  step := (
+    parserCheckNext(state, TokenKind.String) ? parseImportDecl(state)
+      : parseGoImportDecl(state)
+  )
   file.imports.push(step.importDecl)
   FileStep {
-    state: step.state
+    state: step.state,
     file: file
   }
 }
@@ -412,7 +480,7 @@ parseTopLevelTest(
   step := parseTestDecl(state)
   file.tests.push(step.testDecl)
   FileStep {
-    state: step.state
+    state: step.state,
     file: file
   }
 }
@@ -425,7 +493,7 @@ parseTopLevelType(
   step := parseTypeDecl(state, private)
   file.types.push(step.typeDecl)
   FileStep {
-    state: step.state
+    state: step.state,
     file: file
   }
 }
@@ -435,10 +503,10 @@ parseTopLevelFunction(
   file: ParsedFile,
   private: Bool
 ) -> FileStep => {
-  step := parseFunctionWithReceiver(state, "", private)
+  step := parseFunctionWithReceiver(state, "", private, false)
   file.functions.push(step.function)
   FileStep {
-    state: step.state
+    state: step.state,
     file: file
   }
 }
@@ -446,8 +514,8 @@ parseTopLevelFunction(
 parseTopLevelError(
   state: ParserState,
   file: ParsedFile
-) -> FileStep => FileStep {
-  state: parserAdvance(parserErrorAt(state, parserPeek(state), "expected declaration")).state
+) -> FileStep => {
+  state: parserAdvance(parserErrorAt(state, parserPeek(state), "expected declaration")).state,
   file: file
 }
 
@@ -456,7 +524,10 @@ parsePublicModifier(
 ) -> BoolStep => {
   step := parserMatch(state, TokenKind.Plus)
   BoolStep {
-    state: step.ok ? parserSkipNewlines(step.state) : state
+    state: (
+      step.ok ? parserSkipNewlines(step.state)
+        : state
+    ),
     ok: step.ok
   }
 }
@@ -466,8 +537,36 @@ parseObjectPrivateModifier(
 ) -> BoolStep => {
   step := parserMatch(state, TokenKind.Minus)
   BoolStep {
-    state: step.ok ? parserSkipNewlines(step.state) : state
+    state: (
+      step.ok ? parserSkipNewlines(step.state)
+        : state
+    ),
     ok: step.ok
+  }
+}
+
+parseStaticMethodMarker(
+  state: ParserState
+) -> BoolStep => {
+  marker := (
+    parserCheck(state, TokenKind.DoubleColon) ? parserMatch(state, TokenKind.DoubleColon)
+      : (
+        parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "static") ? BoolStep {
+          state: parserAdvance(state).state,
+          ok: true
+        }
+          : BoolStep {
+            state: state,
+            ok: false
+          }
+      )
+  )
+  BoolStep {
+    state: (
+      marker.ok ? parserSkipNewlines(marker.state)
+        : state
+    ),
+    ok: marker.ok
   }
 }
 
@@ -477,11 +576,11 @@ parseImportDecl(
   at := parserConsume(state, TokenKind.At, "expected '@'")
   path := parserConsume(at.state, TokenKind.String, "expected import path string after '@'")
   ImportStep {
-    state: path.state
+    state: path.state,
     importDecl: ParsedImport {
-      path: unquote(path.token.lexeme)
-      go: false
-      line: at.token.line
+      path: unquote(path.token.lexeme),
+      go: false,
+      line: at.token.line,
       column: at.token.column
     }
   }
@@ -492,19 +591,25 @@ parseGoImportDecl(
 ) -> ImportStep => {
   at := parserConsume(state, TokenKind.At, "expected '@'")
   module := parserConsume(at.state, TokenKind.Ident, "expected module name after '@'")
-  checked := module.token.lexeme == "go" ? module.state : parserErrorAt(module.state, module.token, "only @go.import can appear at the top level")
+  checked := (
+    module.token.lexeme == "go" ? module.state
+      : parserErrorAt(module.state, module.token, "only @go.import can appear at the top level")
+  )
   dot := parserConsume(checked, TokenKind.Dot, "expected '.' after @go")
   name := parserConsume(dot.state, TokenKind.Ident, "expected import after @go.")
-  checkedName := name.token.lexeme == "import" ? name.state : parserErrorAt(name.state, name.token, "only @go.import can appear at the top level")
+  checkedName := (
+    name.token.lexeme == "import" ? name.state
+      : parserErrorAt(name.state, name.token, "only @go.import can appear at the top level")
+  )
   open := parserConsume(checkedName, TokenKind.LParen, "expected '(' after @go.import")
   path := parserConsume(open.state, TokenKind.String, "expected Go import path string")
   close := parserConsume(path.state, TokenKind.RParen, "expected ')' after @go.import")
   ImportStep {
-    state: close.state
+    state: close.state,
     importDecl: ParsedImport {
-      path: unquote(path.token.lexeme)
-      go: true
-      line: at.token.line
+      path: unquote(path.token.lexeme),
+      go: true,
+      line: at.token.line,
       column: at.token.column
     }
   }
@@ -516,16 +621,19 @@ parseTestDecl(
   start := parserConsume(state, TokenKind.Question, "expected '?'")
   name := parserConsume(start.state, TokenKind.String, "expected test name string after '?'")
   bodyStart := parserSkipNewlines(name.state)
-  body := parserCheck(bodyStart, TokenKind.LBrace) ? parseBlock(bodyStart) : ExprStep {
-    state: parserErrorAt(bodyStart, parserPeek(bodyStart), "expected test body block")
-    expr: emptyExpr()
-  }
+  body := (
+    parserCheck(bodyStart, TokenKind.LBrace) ? parseBlock(bodyStart)
+      : ExprStep {
+        state: parserErrorAt(bodyStart, parserPeek(bodyStart), "expected test body block"),
+        expr: emptyExpr()
+      }
+  )
   TestStep {
-    state: body.state
+    state: body.state,
     testDecl: ParsedTest {
-      name: unquote(name.token.lexeme)
-      body: body.expr
-      line: start.token.line
+      name: unquote(name.token.lexeme),
+      body: body.expr,
+      line: start.token.line,
       column: start.token.column
     }
   }
@@ -541,7 +649,10 @@ parseTypeDecl(
   openStart := parserSkipNewlines(colon.state)
   open := parserConsume(openStart, TokenKind.LBrace, "expected '{' after type declaration")
   bodyStart := parserSkipNewlines(open.state)
-  looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private) : parseStructTypeBody(bodyStart, name.token, private, generics.values)
+  (
+    looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private)
+      : parseStructTypeBody(bodyStart, name.token, private, generics.values)
+  )
 }
 
 parseStructTypeBody(
@@ -550,14 +661,14 @@ parseStructTypeBody(
   private: Bool,
   generics: Array[String]
 ) -> TypeStep => parseStructTypeLoop(state, ParsedType {
-  name: name.lexeme
-  private: private
-  enum: false
-  generics: generics
-  fields: []
-  methods: []
-  members: []
-  line: name.line
+  name: name.lexeme,
+  private: private,
+  enum: false,
+  generics: generics,
+  fields: [],
+  methods: [],
+  members: [],
+  line: name.line,
   column: name.column
 })
 
@@ -566,7 +677,10 @@ parseStructTypeLoop(
   typeDecl: ParsedType
 ) -> TypeStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishType(current, typeDecl, "expected '}' after type declaration") : parseStructTypeMember(current, typeDecl)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishType(current, typeDecl, "expected '}' after type declaration")
+      : parseStructTypeMember(current, typeDecl)
+  )
 }
 
 parseStructTypeMember(
@@ -577,7 +691,17 @@ parseStructTypeMember(
   privateStep := parseObjectPrivateModifier(current)
   memberState := privateStep.state
   private := privateStep.ok
-  parsed := looksLikeFunctionDecl(memberState) ? parseStructMethod(memberState, typeDecl, private) : parseStructField(memberState, typeDecl, private)
+  staticStep := (
+    looksLikeStaticFunctionDecl(memberState) ? parseStaticMethodMarker(memberState)
+      : BoolStep {
+        state: memberState,
+        ok: false
+      }
+  )
+  parsed := (
+    looksLikeFunctionDecl(staticStep.state) ? parseStructMethod(staticStep.state, typeDecl, private, staticStep.ok)
+      : parseStructField(staticStep.state, typeDecl, private)
+  )
   next := parserSkipNewlines(parserMatch(consumeStatementEnd(parsed.state), TokenKind.Comma).state)
   parseStructTypeLoop(next, parsed.typeDecl)
 }
@@ -585,12 +709,13 @@ parseStructTypeMember(
 parseStructMethod(
   state: ParserState,
   typeDecl: ParsedType,
-  private: Bool
+  private: Bool,
+  static: Bool
 ) -> TypeStep => {
-  step := parseFunctionWithReceiver(state, typeDecl.name, private)
+  step := parseFunctionWithReceiver(state, typeDecl.name, private, static)
   typeDecl.methods.push(step.function)
   TypeStep {
-    state: step.state
+    state: step.state,
     typeDecl: typeDecl
   }
 }
@@ -603,7 +728,7 @@ parseStructField(
   field := parseFieldDecl(state, private)
   typeDecl.fields.push(field.field)
   TypeStep {
-    state: field.state
+    state: field.state,
     typeDecl: typeDecl
   }
 }
@@ -616,12 +741,12 @@ parseFieldDecl(
   colon := parserConsume(name.state, TokenKind.Colon, "expected ':' after field name")
   typeRef := parseTypeRef(colon.state)
   FieldStep {
-    state: typeRef.state
+    state: typeRef.state,
     field: ParsedField {
-      name: name.token.lexeme
-      private: private
-      typeRef: typeRef.typeRef
-      line: name.token.line
+      name: name.token.lexeme,
+      private: private,
+      typeRef: typeRef.typeRef,
+      line: name.token.line,
       column: name.token.column
     }
   }
@@ -634,7 +759,7 @@ finishType(
 ) -> TypeStep => {
   close := parserConsume(state, TokenKind.RBrace, message)
   TypeStep {
-    state: close.state
+    state: close.state,
     typeDecl: typeDecl
   }
 }
@@ -644,14 +769,14 @@ parseEnumTypeBody(
   name: Token,
   private: Bool
 ) -> TypeStep => parseEnumTypeLoop(state, ParsedType {
-  name: name.lexeme
-  private: private
-  enum: true
-  generics: []
-  fields: []
-  methods: []
-  members: []
-  line: name.line
+  name: name.lexeme,
+  private: private,
+  enum: true,
+  generics: [],
+  fields: [],
+  methods: [],
+  members: [],
+  line: name.line,
   column: name.column
 })
 
@@ -660,7 +785,10 @@ parseEnumTypeLoop(
   typeDecl: ParsedType
 ) -> TypeStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishType(current, typeDecl, "expected '}' after enum declaration") : parseEnumTypeMember(current, typeDecl)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishType(current, typeDecl, "expected '}' after enum declaration")
+      : parseEnumTypeMember(current, typeDecl)
+  )
 }
 
 parseEnumTypeMember(
@@ -680,17 +808,20 @@ parseEnumMember(
   name := parserConsume(publicStep.state, TokenKind.Ident, "expected enum member name")
   current := parserSkipNewlines(name.state)
   assign := parserMatch(current, TokenKind.Assign)
-  value := assign.ok ? parseEnumValue(parserSkipNewlines(assign.state)) : StringStep {
-    state: current
-    value: ""
-  }
+  value := (
+    assign.ok ? parseEnumValue(parserSkipNewlines(assign.state))
+      : StringStep {
+        state: current,
+        value: ""
+      }
+  )
   EnumMemberStep {
-    state: value.state
+    state: value.state,
     member: ParsedEnumMember {
-      name: name.token.lexeme
-      private: publicStep.ok == false
-      value: value.value
-      line: name.token.line
+      name: name.token.lexeme,
+      private: false,
+      value: value.value,
+      line: name.token.line,
       column: name.token.column
     }
   }
@@ -698,7 +829,10 @@ parseEnumMember(
 
 parseEnumValue(
   state: ParserState
-) -> StringStep => parserCheck(state, TokenKind.Minus) ? parseNegativeEnumValue(state) : parsePositiveEnumValue(state)
+) -> StringStep => (
+  parserCheck(state, TokenKind.Minus) ? parseNegativeEnumValue(state)
+    : parsePositiveEnumValue(state)
+)
 
 parseNegativeEnumValue(
   state: ParserState
@@ -706,7 +840,7 @@ parseNegativeEnumValue(
   minus := parserAdvance(state)
   value := parserConsume(minus.state, TokenKind.Int, "expected integer enum value")
   StringStep {
-    state: value.state
+    state: value.state,
     value: "-" + value.token.lexeme
   }
 }
@@ -716,7 +850,7 @@ parsePositiveEnumValue(
 ) -> StringStep => {
   value := parserConsume(state, TokenKind.Int, "expected integer enum value")
   StringStep {
-    state: value.state
+    state: value.state,
     value: value.token.lexeme
   }
 }
@@ -724,10 +858,14 @@ parsePositiveEnumValue(
 parseFunctionWithReceiver(
   state: ParserState,
   receiverType: String,
-  private: Bool
+  private: Bool,
+  static: Bool
 ) -> FunctionStep => {
   routineStep := parserMatch(state, TokenKind.Tilde)
-  afterRoutine := routineStep.ok ? parserSkipNewlines(routineStep.state) : state
+  afterRoutine := (
+    routineStep.ok ? parserSkipNewlines(routineStep.state)
+      : state
+  )
   name := parserConsume(afterRoutine, TokenKind.Ident, "expected function name")
   generics := parseGenericNames(name.state)
   open := parserConsume(generics.state, TokenKind.LParen, "expected '(' after function name")
@@ -735,24 +873,28 @@ parseFunctionWithReceiver(
   close := parserConsume(params.state, TokenKind.RParen, "expected ')' after parameter list")
   afterClose := parserSkipNewlines(close.state)
   ret := parserMatch(afterClose, TokenKind.Arrow)
-  returnType := ret.ok ? parseTypeRef(parserSkipNewlines(ret.state)) : TypeRefStep {
-    state: afterClose
-    typeRef: emptyParsedTypeRef()
-  }
+  returnType := (
+    ret.ok ? parseTypeRef(parserSkipNewlines(ret.state))
+      : TypeRefStep {
+        state: afterClose,
+        typeRef: emptyParsedTypeRef()
+      }
+  )
   arrow := parserConsume(parserSkipNewlines(returnType.state), TokenKind.FatArrow, "expected '=>' after function signature")
   body := parseBody(parserSkipNewlines(arrow.state))
   FunctionStep {
-    state: body.state
+    state: body.state,
     function: ParsedFunction {
-      name: name.token.lexeme
-      private: private
-      routine: routineStep.ok
-      receiverType: receiverType
-      generics: generics.values
-      params: params.params
-      returnType: returnType.typeRef
-      body: body.expr
-      line: name.token.line
+      name: name.token.lexeme,
+      private: private,
+      static: static,
+      routine: routineStep.ok,
+      receiverType: receiverType,
+      generics: generics.values,
+      params: params.params,
+      returnType: returnType.typeRef,
+      body: body.expr,
+      line: name.token.line,
       column: name.token.column
     }
   }
@@ -767,10 +909,13 @@ parseParamListLoop(
   params: Array[ParsedParam]
 ) -> ParamListStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF) ? ParamListStep {
-    state: current
-    params: params
-  } : parseOneParam(current, params)
+  (
+    parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF) ? ParamListStep {
+      state: current,
+      params: params
+    }
+      : parseOneParam(current, params)
+  )
 }
 
 parseOneParam(
@@ -780,15 +925,21 @@ parseOneParam(
   name := parserConsume(state, TokenKind.Ident, "expected parameter name")
   optional := parserMatch(name.state, TokenKind.Question)
   colon := parserMatch(optional.state, TokenKind.Colon)
-  typeRef := colon.ok ? parseTypeRef(colon.state) : TypeRefStep {
-    state: optional.state
-    typeRef: emptyParsedTypeRef()
-  }
-  paramName := optional.ok ? name.token.lexeme + "?" : name.token.lexeme
+  typeRef := (
+    colon.ok ? parseTypeRef(colon.state)
+      : TypeRefStep {
+        state: optional.state,
+        typeRef: emptyParsedTypeRef()
+      }
+  )
+  paramName := (
+    optional.ok ? name.token.lexeme + "?"
+      : name.token.lexeme
+  )
   params.push(ParsedParam {
-    name: paramName
-    typeRef: typeRef.typeRef
-    line: name.token.line
+    name: paramName,
+    typeRef: typeRef.typeRef,
+    line: name.token.line,
     column: name.token.column
   })
   comma := parserMatch(parserSkipNewlines(typeRef.state), TokenKind.Comma)
@@ -799,10 +950,13 @@ parseGenericNames(
   state: ParserState
 ) -> StringListStep => {
   open := parserMatch(state, TokenKind.LBracket)
-  open.ok ? parseGenericNameLoop(parserSkipNewlines(open.state), []) : StringListStep {
-    state: state
-    values: []
-  }
+  (
+    open.ok ? parseGenericNameLoop(parserSkipNewlines(open.state), [])
+      : StringListStep {
+        state: state,
+        values: []
+      }
+  )
 }
 
 parseGenericNameLoop(
@@ -810,7 +964,10 @@ parseGenericNameLoop(
   values: Array[String]
 ) -> StringListStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBracket) || parserCheck(current, TokenKind.EOF) ? finishGenericNames(current, values) : parseGenericNameValue(current, values)
+  (
+    parserCheck(current, TokenKind.RBracket) || parserCheck(current, TokenKind.EOF) ? finishGenericNames(current, values)
+      : parseGenericNameValue(current, values)
+  )
 }
 
 finishGenericNames(
@@ -819,7 +976,7 @@ finishGenericNames(
 ) -> StringListStep => {
   close := parserConsume(state, TokenKind.RBracket, "expected ']' after generic parameters")
   StringListStep {
-    state: close.state
+    state: close.state,
     values: values
   }
 }
@@ -828,9 +985,15 @@ parseGenericNameValue(
   state: ParserState,
   values: Array[String]
 ) -> StringListStep => {
-  afterName := parserCheck(state, TokenKind.Ident) ? appendGenericName(state, values) : parserAdvance(state).state
+  afterName := (
+    parserCheck(state, TokenKind.Ident) ? appendGenericName(state, values)
+      : parserAdvance(state).state
+  )
   colon := parserMatch(parserSkipNewlines(afterName), TokenKind.Colon)
-  current := colon.ok ? parseTypeRef(parserSkipNewlines(colon.state)).state : afterName
+  current := (
+    colon.ok ? parseTypeRef(parserSkipNewlines(colon.state)).state
+      : afterName
+  )
   comma := parserMatch(parserSkipNewlines(current), TokenKind.Comma)
   parseGenericNameLoop(comma.state, values)
 }
@@ -850,18 +1013,23 @@ parseTypeRef(
 
 parseTypeRefAtom(
   state: ParserState
-) -> TypeRefStep =>
+) -> TypeRefStep => (
   parserCheck(state, TokenKind.LParen) ? parseParenTypeRef(state)
-  : parserCheck(state, TokenKind.At) ? parseQualifiedTypeRef(state)
-  : parserCheck(state, TokenKind.Ident) ? parseNamedTypeRef(state)
-  : parseTypeRefError(state)
+    : (
+      parserCheck(state, TokenKind.At) ? parseQualifiedTypeRef(state)
+        : (
+          parserCheck(state, TokenKind.Ident) ? parseNamedTypeRef(state)
+            : parseTypeRefError(state)
+        )
+    )
+)
 
 parseNamedTypeRef(
   state: ParserState
 ) -> TypeRefStep => {
   name := parserConsume(state, TokenKind.Ident, "expected type name")
   TypeRefStep {
-    state: name.state
+    state: name.state,
     typeRef: namedParsedTypeRef(name.token)
   }
 }
@@ -874,7 +1042,7 @@ parseQualifiedTypeRef(
   dot := parserConsume(module.state, TokenKind.Dot, "expected '.' after module name")
   name := parserConsume(dot.state, TokenKind.Ident, "expected type name after module qualifier")
   TypeRefStep {
-    state: name.state
+    state: name.state,
     typeRef: qualifiedParsedTypeRef(module.token, name.token)
   }
 }
@@ -887,7 +1055,10 @@ parseParenTypeRef(
   close := parserConsume(params.state, TokenKind.RParen, "expected ')' after type")
   afterClose := parserSkipNewlines(close.state)
   arrow := parserMatch(afterClose, TokenKind.Arrow)
-  arrow.ok ? finishFunctionTypeRef(parserSkipNewlines(arrow.state), open.token, params.params) : finishParenTypeRef(close.state, open.token, params.params)
+  (
+    arrow.ok ? finishFunctionTypeRef(parserSkipNewlines(arrow.state), open.token, params.params)
+      : finishParenTypeRef(close.state, open.token, params.params)
+  )
 }
 
 finishFunctionTypeRef(
@@ -897,7 +1068,7 @@ finishFunctionTypeRef(
 ) -> TypeRefStep => {
   ret := parseTypeRef(state)
   TypeRefStep {
-    state: ret.state
+    state: ret.state,
     typeRef: functionTypeRef(params, ret.typeRef, token)
   }
 }
@@ -906,21 +1077,28 @@ finishParenTypeRef(
   state: ParserState,
   token: Token,
   params: Array[ParsedTypeParam]
-) -> TypeRefStep => TypeRefStep {
-  state: state
-  typeRef: (params.length() == 1) && (params[0].name == "") ? groupedTypeRef(params[0].typeRef, token) : tupleTypeRef(params, token)
+) -> TypeRefStep => {
+  state: state,
+  typeRef: (
+    (params.length() == 1) && (params[0].name == "") ? groupedTypeRef(params[0].typeRef, token)
+      : tupleTypeRef(params, token)
+  )
 }
 
 parseTypeRefPostfix(
   step: TypeRefStep
 ) -> TypeRefStep => {
   current := parserSkipNewlines(step.state)
-  parserCheck(current, TokenKind.LBracket) ? parseTypeRefPostfix(parseTypeRefArgs(current, step.typeRef))
-  : parserCheck(current, TokenKind.Question) ? parseTypeRefPostfix(parseNullableTypeRef(current, step.typeRef))
-  : TypeRefStep {
-      state: step.state
-      typeRef: step.typeRef
-    }
+  (
+    parserCheck(current, TokenKind.LBracket) ? parseTypeRefPostfix(parseTypeRefArgs(current, step.typeRef))
+      : (
+        parserCheck(current, TokenKind.Question) ? parseTypeRefPostfix(parseNullableTypeRef(current, step.typeRef))
+          : TypeRefStep {
+            state: step.state,
+            typeRef: step.typeRef
+          }
+      )
+  )
 }
 
 parseTypeRefArgs(
@@ -931,7 +1109,7 @@ parseTypeRefArgs(
   args := parseTypeRefList(parserSkipNewlines(open.state), [])
   close := parserConsume(args.state, TokenKind.RBracket, "expected ']' after type arguments")
   TypeRefStep {
-    state: close.state
+    state: close.state,
     typeRef: typeRefWithArgs(typeRef, args.refs)
   }
 }
@@ -942,7 +1120,7 @@ parseNullableTypeRef(
 ) -> TypeRefStep => {
   question := parserConsume(state, TokenKind.Question, "expected '?' after type")
   TypeRefStep {
-    state: question.state
+    state: question.state,
     typeRef: nullableTypeRef(typeRef)
   }
 }
@@ -952,10 +1130,13 @@ parseTypeRefList(
   refs: Array[ParsedTypeRef]
 ) -> TypeRefListStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBracket) || parserCheck(current, TokenKind.EOF) ? TypeRefListStep {
-    state: current
-    refs: refs
-  } : parseOneTypeRefListValue(current, refs)
+  (
+    parserCheck(current, TokenKind.RBracket) || parserCheck(current, TokenKind.EOF) ? TypeRefListStep {
+      state: current,
+      refs: refs
+    }
+      : parseOneTypeRefListValue(current, refs)
+  )
 }
 
 parseOneTypeRefListValue(
@@ -973,10 +1154,13 @@ parseTypeParamList(
   params: Array[ParsedTypeParam]
 ) -> TypeParamListStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF) ? TypeParamListStep {
-    state: current
-    params: params
-  } : parseOneTypeParam(current, params)
+  (
+    parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF) ? TypeParamListStep {
+      state: current,
+      params: params
+    }
+      : parseOneTypeParam(current, params)
+  )
 }
 
 parseOneTypeParam(
@@ -993,7 +1177,10 @@ parseTypeParam(
   state: ParserState
 ) -> TypeParamStep => {
   named := parserCheck(state, TokenKind.Ident) && typeParamHasName(state)
-  named ? parseNamedTypeParam(state) : parseUnnamedTypeParam(state)
+  (
+    named ? parseNamedTypeParam(state)
+      : parseUnnamedTypeParam(state)
+  )
 }
 
 parseNamedTypeParam(
@@ -1004,10 +1191,10 @@ parseNamedTypeParam(
   colon := parserConsume(optional.state, TokenKind.Colon, "expected ':' after type parameter name")
   typeRef := parseTypeRef(parserSkipNewlines(colon.state))
   TypeParamStep {
-    state: typeRef.state
+    state: typeRef.state,
     param: ParsedTypeParam {
-      name: name.token.lexeme
-      optional: optional.ok
+      name: name.token.lexeme,
+      optional: optional.ok,
       typeRef: typeRef.typeRef
     }
   }
@@ -1018,10 +1205,10 @@ parseUnnamedTypeParam(
 ) -> TypeParamStep => {
   typeRef := parseTypeRef(state)
   TypeParamStep {
-    state: typeRef.state
+    state: typeRef.state,
     param: ParsedTypeParam {
-      name: ""
-      optional: false
+      name: "",
+      optional: false,
       typeRef: typeRef.typeRef
     }
   }
@@ -1029,29 +1216,41 @@ parseUnnamedTypeParam(
 
 typeParamHasName(
   state: ParserState
-) -> Bool => parserKindAt(state, state.current + 1) == TokenKind.Colon || ((parserKindAt(state, state.current + 1) == TokenKind.Question) && (parserKindAt(state, state.current + 2) == TokenKind.Colon))
+) -> Bool => (parserKindAt(state, state.current + 1) == TokenKind.Colon) || ((parserKindAt(state, state.current + 1) == TokenKind.Question) && (parserKindAt(state, state.current + 2) == TokenKind.Colon))
 
 parseTypeRefError(
   state: ParserState
-) -> TypeRefStep => TypeRefStep {
-  state: parserErrorAt(state, parserPeek(state), "expected type name")
+) -> TypeRefStep => {
+  state: parserErrorAt(state, parserPeek(state), "expected type name"),
   typeRef: emptyParsedTypeRef()
 }
 
 parseBody(
   state: ParserState
-) -> ExprStep => parserCheck(state, TokenKind.LBrace) ? parseBraceBody(state) : parseExpression(state, 1)
+) -> ExprStep => (
+  parserCheck(state, TokenKind.LBrace) ? parseBraceBody(state)
+    : parseExpression(state, 1)
+)
 
 parseBraceBody(
   state: ParserState
-) -> ExprStep => (looksLikePatternBranch(state) == false) && looksLikeMapLiteralBody(state) ? parseMapLiteral(state) : parseBlock(state)
+) -> ExprStep => (
+  (looksLikePatternBranch(state) == false) && looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
+    : parseBlock(state)
+)
 
 parseBlock(
   state: ParserState
 ) -> ExprStep => {
   open := parserConsume(state, TokenKind.LBrace, "expected '{'")
   bodyStart := parserSkipNewlines(open.state)
-  parserCheck(bodyStart, TokenKind.RBrace) ? finishBlock(bodyStart, node(ExprKind.Block, open.token)) : looksLikePatternBranch(bodyStart) ? parsePatternBlock(bodyStart, node(ExprKind.PatternBlock, open.token)) : parseBlockLoop(bodyStart, node(ExprKind.Block, open.token))
+  (
+    parserCheck(bodyStart, TokenKind.RBrace) ? finishBlock(bodyStart, node(ExprKind.Block, open.token))
+      : (
+        looksLikePatternBranch(bodyStart) ? parsePatternBlock(bodyStart, node(ExprKind.PatternBlock, open.token))
+          : parseBlockLoop(bodyStart, node(ExprKind.Block, open.token))
+      )
+  )
 }
 
 finishBlock(
@@ -1060,7 +1259,7 @@ finishBlock(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RBrace, "expected '}' after block")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: block
   }
 }
@@ -1070,7 +1269,10 @@ parseBlockLoop(
   block: ParsedExpr
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishBlock(current, block) : parseBlockStatement(current, block)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishBlock(current, block)
+      : parseBlockStatement(current, block)
+  )
 }
 
 parseBlockStatement(
@@ -1084,11 +1286,32 @@ parseBlockStatement(
 
 parseStatement(
   state: ParserState
-) -> ExprStep => parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state) : parserCheck(state, TokenKind.LBrace) ? parseBlock(state) : parserCheck(state, TokenKind.Dollar) && parserCheckNext(state, TokenKind.Ident) ? parseDollarStatement(state) : parserCheck(state, TokenKind.Ident) && ((parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) || parserCheckNext(state, TokenKind.SignalDeclare)) ? parseLetStatement(state) : parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state) : parseExpression(state, 1)
+) -> ExprStep => (
+  parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state)
+    : (
+      parserCheck(state, TokenKind.LBrace) ? parseBlock(state)
+        : (
+          parserCheck(state, TokenKind.Dollar) && parserCheckNext(state, TokenKind.Ident) ? parseDollarStatement(state)
+            : (
+              parserCheck(state, TokenKind.Ident) && ((parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) || parserCheckNext(state, TokenKind.SignalDeclare)) ? parseLetStatement(state)
+                : (
+                  parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state)
+                    : parseExpression(state, 1)
+                )
+            )
+        )
+    )
+)
 
 parseDollarStatement(
   state: ParserState
-) -> ExprStep => parserKindAt(state, state.current + 2) == TokenKind.Declare ? parseSignalPrefixLetStatement(state) : parserKindAt(state, state.current + 2) == TokenKind.Assign ? parseSignalPrefixAssignStatement(state) : parseExpression(state, 1)
+) -> ExprStep => (
+  parserKindAt(state, state.current + 2) == TokenKind.Declare ? parseSignalPrefixLetStatement(state)
+    : (
+      parserKindAt(state, state.current + 2) == TokenKind.Assign ? parseSignalPrefixAssignStatement(state)
+        : parseExpression(state, 1)
+    )
+)
 
 parseSignalPrefixLetStatement(
   state: ParserState
@@ -1098,7 +1321,7 @@ parseSignalPrefixLetStatement(
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, "", "$=", [], [value.expr], name.token.line, name.token.column)
   }
 }
@@ -1110,7 +1333,7 @@ parseLetStatement(
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: makeExpr(ExprKind.Let, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
@@ -1124,7 +1347,7 @@ parseObjectDestructureStatement(
   op := parserAdvance(parserSkipNewlines(close.state))
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: makeExpr(ExprKind.ObjectDestructure, "", "", "", op.token.lexeme, fields.params, [value.expr], open.token.line, open.token.column)
   }
 }
@@ -1138,10 +1361,13 @@ parseObjectBindingListLoop(
   fields: Array[ParsedParam]
 ) -> ParamListStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? ParamListStep {
-    state: current
-    params: fields
-  } : parseOneObjectBinding(current, fields)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? ParamListStep {
+      state: current,
+      params: fields
+    }
+      : parseOneObjectBinding(current, fields)
+  )
 }
 
 parseOneObjectBinding(
@@ -1150,18 +1376,24 @@ parseOneObjectBinding(
 ) -> ParamListStep => {
   field := parserConsume(state, TokenKind.Ident, "expected field name in object destructuring")
   aliasStart := parserMatch(field.state, TokenKind.Colon)
-  name := aliasStart.ok ? parserConsume(parserSkipNewlines(aliasStart.state), TokenKind.Ident, "expected binding name after ':'") : field
+  name := (
+    aliasStart.ok ? parserConsume(parserSkipNewlines(aliasStart.state), TokenKind.Ident, "expected binding name after ':'")
+      : field
+  )
   fields.push(ParsedParam {
-    name: name.token.lexeme
-    typeRef: namedParsedTypeRef(field.token)
-    line: name.token.line
+    name: name.token.lexeme,
+    typeRef: namedParsedTypeRef(field.token),
+    line: name.token.line,
     column: name.token.column
   })
   comma := parserMatch(parserSkipNewlines(name.state), TokenKind.Comma)
-  comma.ok ? parseObjectBindingListLoop(comma.state, fields) : ParamListStep {
-    state: name.state
-    params: fields
-  }
+  (
+    comma.ok ? parseObjectBindingListLoop(comma.state, fields)
+      : ParamListStep {
+        state: name.state,
+        params: fields
+      }
+  )
 }
 
 parseAssignStatement(
@@ -1171,7 +1403,7 @@ parseAssignStatement(
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: makeExpr(ExprKind.Assign, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
@@ -1184,7 +1416,7 @@ parseSignalPrefixAssignStatement(
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: makeExpr(ExprKind.Assign, "$" + name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
@@ -1192,7 +1424,10 @@ parseSignalPrefixAssignStatement(
 parseExpression(
   state: ParserState,
   minPrec: Int
-) -> ExprStep => ((minPrec <= 1) && parserCheck(state, TokenKind.LParen)) && looksLikeLambda(state) ? parseLambda(state) : parseExpressionLoop(parseUnary(state), minPrec)
+) -> ExprStep => (
+  ((minPrec <= 1) && parserCheck(state, TokenKind.LParen)) && looksLikeLambda(state) ? parseLambda(state)
+    : parseExpressionLoop(parseUnary(state), minPrec)
+)
 
 parseExpressionLoop(
   left: ExprStep,
@@ -1200,17 +1435,47 @@ parseExpressionLoop(
 ) -> ExprStep => {
   state := left.state
   expr := left.expr
-  parserCheck(state, TokenKind.LBrace) ? parseAfterBraceExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LParen) ? parseCallExpression(state, expr, minPrec) : parserCheck(state, TokenKind.LBracket) ? parseIndexExpression(state, expr, minPrec) : (parserCheck(state, TokenKind.Dot) || parserCheck(state, TokenKind.DoubleColon)) ? parseSelectorExpression(state, expr, minPrec) : parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec) : (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec) : parseBinaryExpression(state, expr, minPrec)
+  (
+    parserCheck(state, TokenKind.LBrace) ? parseAfterBraceExpression(state, expr, minPrec)
+      : (
+        parserCheck(state, TokenKind.LParen) ? parseCallExpression(state, expr, minPrec)
+          : (
+            parserCheck(state, TokenKind.LBracket) ? parseIndexExpression(state, expr, minPrec)
+              : (
+                parserCheck(state, TokenKind.Dot) || parserCheck(state, TokenKind.DoubleColon) ? parseSelectorExpression(state, expr, minPrec)
+                  : (
+                    parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec)
+                      : (
+                        (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec)
+                          : (
+                            (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec)
+                              : (
+                                (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
+                                  : parseBinaryExpression(state, expr, minPrec)
+                              )
+                          )
+                      )
+                  )
+              )
+          )
+      )
+  )
 }
 
 parseAfterBraceExpression(
   state: ParserState,
   expr: ParsedExpr,
   minPrec: Int
-) -> ExprStep => looksLikePatternBlockAfterSubject(state) ? parseExpressionLoop(parseMatchExpression(state, expr), minPrec) : expr.kind == ExprKind.Identifier ? parseExpressionLoop(parseStructLiteral(state, expr), minPrec) : ExprStep {
-  state: state
-  expr: expr
-}
+) -> ExprStep => (
+  looksLikePatternBlockAfterSubject(state) ? parseExpressionLoop(parseMatchExpression(state, expr), minPrec)
+    : (
+      expr.kind == ExprKind.Identifier ? parseExpressionLoop(parseStructLiteral(state, expr), minPrec)
+        : ExprStep {
+          state: state,
+          expr: expr
+        }
+    )
+)
 
 parseCallExpression(
   state: ParserState,
@@ -1222,7 +1487,7 @@ parseCallExpression(
   close := parserConsume(args.state, TokenKind.RParen, "expected ')' after arguments")
   call := makeExpr(ExprKind.Call, calleeText(callee), "", "", "", [], args.expr.children, callee.line, callee.column)
   parseExpressionLoop(ExprStep {
-    state: close.state
+    state: close.state,
     expr: call
   }, minPrec)
 }
@@ -1242,10 +1507,13 @@ parseArgumentListLoop(
   endKind: TokenKind
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, endKind) || parserCheck(current, TokenKind.EOF) ? ExprStep {
-    state: current
-    expr: holder
-  } : parseOneArgument(current, holder, endKind)
+  (
+    parserCheck(current, endKind) || parserCheck(current, TokenKind.EOF) ? ExprStep {
+      state: current,
+      expr: holder
+    }
+      : parseOneArgument(current, holder, endKind)
+  )
 }
 
 parseOneArgument(
@@ -1254,8 +1522,14 @@ parseOneArgument(
   endKind: TokenKind
 ) -> ExprStep => {
   spread := parserMatch(state, TokenKind.DotDotDot)
-  value := parseExpression(spread.ok ? spread.state : state, 1)
-  arg := spread.ok ? opNode(ExprKind.Spread, "...", parserPrevious(spread.state), [value.expr]) : value.expr
+  value := parseExpression((
+    spread.ok ? spread.state
+      : state
+  ), 1)
+  arg := (
+    spread.ok ? opNode(ExprKind.Spread, "...", parserPrevious(spread.state), [value.expr])
+      : value.expr
+  )
   nextHolder := appendChild(holder, arg)
   comma := parserMatch(parserSkipNewlines(value.state), TokenKind.Comma)
   parseArgumentListLoop(comma.state, nextHolder, endKind)
@@ -1270,7 +1544,7 @@ parseIndexExpression(
   index := parseExpression(parserSkipNewlines(open.state), 1)
   close := parserConsume(index.state, TokenKind.RBracket, "expected ']' after index")
   parseExpressionLoop(ExprStep {
-    state: close.state
+    state: close.state,
     expr: makeExpr(ExprKind.Index, receiver.text, "", "", "", [], [receiver, index.expr], receiver.line, receiver.column)
   }, minPrec)
 }
@@ -1280,10 +1554,13 @@ parseSelectorExpression(
   receiver: ParsedExpr,
   minPrec: Int
 ) -> ExprStep => {
-  operator := parserCheck(state, TokenKind.DoubleColon) ? parserConsume(state, TokenKind.DoubleColon, "expected '::'") : parserConsume(state, TokenKind.Dot, "expected '.'")
+  operator := (
+    parserCheck(state, TokenKind.DoubleColon) ? parserConsume(state, TokenKind.DoubleColon, "expected '::'")
+      : parserConsume(state, TokenKind.Dot, "expected '.'")
+  )
   name := parserConsume(operator.state, TokenKind.Ident, "expected selector name")
   parseExpressionLoop(ExprStep {
-    state: name.state
+    state: name.state,
     expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", operator.token.lexeme, [], [receiver], operator.token.line, operator.token.column)
   }, minPrec)
 }
@@ -1295,7 +1572,7 @@ parsePostfixExpression(
 ) -> ExprStep => {
   op := parserAdvance(state)
   parseExpressionLoop(ExprStep {
-    state: op.state
+    state: op.state,
     expr: opNode(ExprKind.Postfix, op.token.lexeme, op.token, [expr])
   }, minPrec)
 }
@@ -1308,14 +1585,20 @@ parseWatchExpression(
   arrow := parserAdvance(state)
   handler := parseWatchHandler(parserSkipNewlines(arrow.state))
   parseExpressionLoop(ExprStep {
-    state: handler.state
+    state: handler.state,
     expr: opNode(ExprKind.Watch, arrow.token.lexeme, arrow.token, [expr, handler.expr])
   }, minPrec)
 }
 
 parseWatchHandler(
   state: ParserState
-) -> ExprStep => parserCheck(state, TokenKind.LParen) && looksLikeLambda(state) ? parseLambda(state) : parserCheck(state, TokenKind.LBrace) ? parseBody(state) : parseExpression(state, 1)
+) -> ExprStep => (
+  parserCheck(state, TokenKind.LParen) && looksLikeLambda(state) ? parseLambda(state)
+    : (
+      parserCheck(state, TokenKind.LBrace) ? parseBody(state)
+        : parseExpression(state, 1)
+    )
+)
 
 parseAssignmentExpression(
   state: ParserState,
@@ -1325,7 +1608,7 @@ parseAssignmentExpression(
   op := parserAdvance(state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   parseExpressionLoop(ExprStep {
-    state: value.state
+    state: value.state,
     expr: opNode(ExprKind.Assign, op.token.lexeme, op.token, [target, value.expr])
   }, minPrec)
 }
@@ -1334,7 +1617,10 @@ parseQuestionExpression(
   state: ParserState,
   expr: ParsedExpr,
   minPrec: Int
-) -> ExprStep => questionIsPostfixUnwrap(state) ? parseExpressionLoop(parseResultUnwrapExpression(state, expr), minPrec) : parseTernaryExpression(state, expr, minPrec)
+) -> ExprStep => (
+  questionIsPostfixUnwrap(state) ? parseExpressionLoop(parseResultUnwrapExpression(state, expr), minPrec)
+    : parseTernaryExpression(state, expr, minPrec)
+)
 
 parseResultUnwrapExpression(
   state: ParserState,
@@ -1342,7 +1628,7 @@ parseResultUnwrapExpression(
 ) -> ExprStep => {
   question := parserAdvance(state)
   ExprStep {
-    state: question.state
+    state: question.state,
     expr: opNode(ExprKind.Unwrap, "?", question.token, [expr])
   }
 }
@@ -1356,10 +1642,13 @@ parseTernaryExpression(
   consequence := parseExpression(parserSkipNewlines(question.state), 1)
   afterConsequence := parserSkipNewlines(consequence.state)
   colon := parserMatch(afterConsequence, TokenKind.Colon)
-  colon.ok ? parseTernaryAlternative(colon.state, question.token, condition, consequence.expr, minPrec) : parseExpressionLoop(ExprStep {
-    state: afterConsequence
-    expr: opNode(ExprKind.Ternary, "?:", question.token, [condition, consequence.expr])
-  }, minPrec)
+  (
+    colon.ok ? parseTernaryAlternative(colon.state, question.token, condition, consequence.expr, minPrec)
+      : parseExpressionLoop(ExprStep {
+        state: afterConsequence,
+        expr: opNode(ExprKind.Ternary, "?:", question.token, [condition, consequence.expr])
+      }, minPrec)
+  )
 }
 
 parseTernaryAlternative(
@@ -1371,7 +1660,7 @@ parseTernaryAlternative(
 ) -> ExprStep => {
   alternative := parseExpression(parserSkipNewlines(state), 1)
   parseExpressionLoop(ExprStep {
-    state: alternative.state
+    state: alternative.state,
     expr: opNode(ExprKind.Ternary, "?:", token, [condition, consequence, alternative.expr])
   }, minPrec)
 }
@@ -1382,10 +1671,13 @@ parseBinaryExpression(
   minPrec: Int
 ) -> ExprStep => {
   prec := precedence(parserPeek(state).kind)
-  prec < minPrec ? ExprStep {
-    state: state
-    expr: expr
-  } : parseBinaryExpressionAtPrec(state, expr, minPrec, prec)
+  (
+    prec < minPrec ? ExprStep {
+      state: state,
+      expr: expr
+    }
+      : parseBinaryExpressionAtPrec(state, expr, minPrec, prec)
+  )
 }
 
 parseBinaryExpressionAtPrec(
@@ -1397,14 +1689,17 @@ parseBinaryExpressionAtPrec(
   op := parserAdvance(state)
   right := parseExpression(op.state, prec + 1)
   parseExpressionLoop(ExprStep {
-    state: right.state
+    state: right.state,
     expr: opNode(ExprKind.Binary, op.token.lexeme, op.token, [expr, right.expr])
   }, minPrec)
 }
 
 parseUnary(
   state: ParserState
-) -> ExprStep => (parserCheck(state, TokenKind.Minus) || parserCheck(state, TokenKind.Bang)) || parserCheck(state, TokenKind.Tilde) ? parseUnaryOperator(state) : parsePrimary(state)
+) -> ExprStep => (
+  (parserCheck(state, TokenKind.Minus) || parserCheck(state, TokenKind.Bang)) || parserCheck(state, TokenKind.Tilde) ? parseUnaryOperator(state)
+    : parsePrimary(state)
+)
 
 parseUnaryOperator(
   state: ParserState
@@ -1412,7 +1707,7 @@ parseUnaryOperator(
   op := parserAdvance(state)
   right := parseExpression(op.state, 11)
   ExprStep {
-    state: right.state
+    state: right.state,
     expr: opNode(ExprKind.Unary, op.token.lexeme, op.token, [right.expr])
   }
 }
@@ -1421,7 +1716,52 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  token.kind == TokenKind.Int ? parseLiteral(state, ExprKind.Int) : token.kind == TokenKind.Double ? parseLiteral(state, ExprKind.Double) : token.kind == TokenKind.BigInt ? parseLiteral(state, ExprKind.BigInt) : token.kind == TokenKind.String ? parseLiteral(state, ExprKind.String) : token.kind == TokenKind.TemplateString ? parseLiteral(state, ExprKind.Template) : token.kind == TokenKind.Char ? parseLiteral(state, ExprKind.Char) : token.kind == TokenKind.Regex ? parseLiteral(state, ExprKind.Regex) : token.kind == TokenKind.XMLText ? parseLiteral(state, ExprKind.XMLText) : token.kind == TokenKind.Ident ? parseIdentifierPrimary(state) : token.kind == TokenKind.At ? parseAtExpression(state) : token.kind == TokenKind.Dot ? parseThisSelector(state) : token.kind == TokenKind.LBracket ? parseArrayLiteral(state) : token.kind == TokenKind.Dollar ? parseDollarExpression(state) : token.kind == TokenKind.LBrace ? parseBraceLiteral(state) : token.kind == TokenKind.LParen ? parseParenOrTuple(state) : parsePrimaryError(state)
+  (
+    token.kind == TokenKind.Int ? parseLiteral(state, ExprKind.Int)
+      : (
+        token.kind == TokenKind.Double ? parseLiteral(state, ExprKind.Double)
+          : (
+            token.kind == TokenKind.BigInt ? parseLiteral(state, ExprKind.BigInt)
+              : (
+                token.kind == TokenKind.String ? parseLiteral(state, ExprKind.String)
+                  : (
+                    token.kind == TokenKind.TemplateString ? parseLiteral(state, ExprKind.Template)
+                      : (
+                        token.kind == TokenKind.Char ? parseLiteral(state, ExprKind.Char)
+                          : (
+                            token.kind == TokenKind.Regex ? parseLiteral(state, ExprKind.Regex)
+                              : (
+                                token.kind == TokenKind.XMLText ? parseLiteral(state, ExprKind.XMLText)
+                                  : (
+                                    token.kind == TokenKind.Ident ? parseIdentifierPrimary(state)
+                                      : (
+                                        token.kind == TokenKind.At ? parseAtExpression(state)
+                                          : (
+                                            token.kind == TokenKind.Dot ? parseThisSelector(state)
+                                              : (
+                                                token.kind == TokenKind.LBracket ? parseArrayLiteral(state)
+                                                  : (
+                                                    token.kind == TokenKind.Dollar ? parseDollarExpression(state)
+                                                      : (
+                                                        token.kind == TokenKind.LBrace ? parseBraceLiteral(state)
+                                                          : (
+                                                            token.kind == TokenKind.LParen ? parseParenOrTuple(state)
+                                                              : parsePrimaryError(state)
+                                                          )
+                                                      )
+                                                  )
+                                              )
+                                          )
+                                      )
+                                  )
+                              )
+                          )
+                      )
+                  )
+              )
+          )
+      )
+  )
 }
 
 parseLiteral(
@@ -1430,7 +1770,7 @@ parseLiteral(
 ) -> ExprStep => {
   step := parserAdvance(state)
   ExprStep {
-    state: step.state
+    state: step.state,
     expr: valueNode(kind, step.token.lexeme, step.token)
   }
 }
@@ -1439,10 +1779,19 @@ parseIdentifierPrimary(
   state: ParserState
 ) -> ExprStep => {
   step := parserAdvance(state)
-  kind := (step.token.lexeme == "true") || (step.token.lexeme == "false") ? ExprKind.Bool : step.token.lexeme == "null" ? ExprKind.Null : ExprKind.Identifier
+  kind := (
+    (step.token.lexeme == "true") || (step.token.lexeme == "false") ? ExprKind.Bool
+      : (
+        step.token.lexeme == "null" ? ExprKind.Null
+          : ExprKind.Identifier
+      )
+  )
   ExprStep {
-    state: step.state
-    expr: kind == ExprKind.Identifier ? namedNode(kind, step.token.lexeme, step.token) : valueNode(kind, step.token.lexeme, step.token)
+    state: step.state,
+    expr: (
+      kind == ExprKind.Identifier ? namedNode(kind, step.token.lexeme, step.token)
+        : valueNode(kind, step.token.lexeme, step.token)
+    )
   }
 }
 
@@ -1450,7 +1799,10 @@ parseAtExpression(
   state: ParserState
 ) -> ExprStep => {
   at := parserConsume(state, TokenKind.At, "expected '@'")
-  parserCheck(at.state, TokenKind.String) ? parseAtImportExpression(at) : parseAtModuleExpression(at)
+  (
+    parserCheck(at.state, TokenKind.String) ? parseAtImportExpression(at)
+      : parseAtModuleExpression(at)
+  )
 }
 
 parseAtImportExpression(
@@ -1458,7 +1810,7 @@ parseAtImportExpression(
 ) -> ExprStep => {
   path := parserAdvance(at.state)
   ExprStep {
-    state: path.state
+    state: path.state,
     expr: valueNode(ExprKind.At, path.token.lexeme, at.token)
   }
 }
@@ -1468,7 +1820,7 @@ parseAtModuleExpression(
 ) -> ExprStep => {
   name := parserConsume(at.state, TokenKind.Ident, "expected module name after '@'")
   ExprStep {
-    state: name.state
+    state: name.state,
     expr: namedNode(ExprKind.At, name.token.lexeme, at.token)
   }
 }
@@ -1479,7 +1831,7 @@ parseThisSelector(
   dot := parserConsume(state, TokenKind.Dot, "expected '.'")
   name := parserConsume(dot.state, TokenKind.Ident, "expected field name after '.'")
   ExprStep {
-    state: name.state
+    state: name.state,
     expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [node(ExprKind.This, dot.token)], dot.token.line, dot.token.column)
   }
 }
@@ -1491,7 +1843,7 @@ parseArrayLiteral(
   args := parseArgumentList(parserSkipNewlines(open.state), [], TokenKind.RBracket)
   close := parserConsume(args.state, TokenKind.RBracket, "expected ']' after array literal")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: makeExpr(ExprKind.Array, "[]", "", "", "", [], args.expr.children, open.token.line, open.token.column)
   }
 }
@@ -1507,7 +1859,10 @@ parseDollarExpression(
   state: ParserState
 ) -> ExprStep => {
   start := parserConsume(state, TokenKind.Dollar, "expected '$'")
-  parserCheck(start.state, TokenKind.Ident) ? parseSignalPrefixIdentifier(start) : parseReactiveLiteralAfterDollar(start)
+  (
+    parserCheck(start.state, TokenKind.Ident) ? parseSignalPrefixIdentifier(start)
+      : parseReactiveLiteralAfterDollar(start)
+  )
 }
 
 parseSignalPrefixIdentifier(
@@ -1515,7 +1870,7 @@ parseSignalPrefixIdentifier(
 ) -> ExprStep => {
   name := parserAdvance(start.state)
   ExprStep {
-    state: name.state
+    state: name.state,
     expr: namedNode(ExprKind.Identifier, name.token.lexeme, name.token)
   }
 }
@@ -1523,19 +1878,28 @@ parseSignalPrefixIdentifier(
 parseReactiveLiteralAfterDollar(
   start: TokenStep
 ) -> ExprStep => {
-  value := parserCheck(start.state, TokenKind.LBracket) ? parseArrayLiteral(start.state) : parserCheck(start.state, TokenKind.LBrace) ? parseBraceLiteral(start.state) : ExprStep {
-    state: parserErrorAt(start.state, parserPeek(start.state), "expected '[' or '{' after '$'")
-    expr: emptyExpr()
-  }
+  value := (
+    parserCheck(start.state, TokenKind.LBracket) ? parseArrayLiteral(start.state)
+      : (
+        parserCheck(start.state, TokenKind.LBrace) ? parseBraceLiteral(start.state)
+          : ExprStep {
+            state: parserErrorAt(start.state, parserPeek(start.state), "expected '[' or '{' after '$'"),
+            expr: emptyExpr()
+          }
+      )
+  )
   ExprStep {
-    state: value.state
+    state: value.state,
     expr: opNode(ExprKind.Reactive, "$", start.token, [value.expr])
   }
 }
 
 parseBraceLiteral(
   state: ParserState
-) -> ExprStep => looksLikeMapLiteralBody(state) ? parseMapLiteral(state) : parseObjectLiteral(state)
+) -> ExprStep => (
+  looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
+    : parseObjectLiteral(state)
+)
 
 parseMapLiteral(
   state: ParserState
@@ -1549,7 +1913,10 @@ parseMapLiteralLoop(
   mapExpr: ParsedExpr
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishMapLiteral(current, mapExpr) : parseMapLiteralEntry(current, mapExpr)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishMapLiteral(current, mapExpr)
+      : parseMapLiteralEntry(current, mapExpr)
+  )
 }
 
 parseMapLiteralEntry(
@@ -1571,7 +1938,7 @@ finishMapLiteral(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RBrace, "expected '}' after map literal")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: mapExpr
   }
 }
@@ -1588,7 +1955,10 @@ parseObjectLiteralLoop(
   object: ParsedExpr
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishObjectLiteral(current, object) : parseObjectLiteralMember(current, object)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishObjectLiteral(current, object)
+      : parseObjectLiteralMember(current, object)
+  )
 }
 
 parseObjectLiteralMember(
@@ -1597,19 +1967,21 @@ parseObjectLiteralMember(
 ) -> ExprStep => {
   privateStep := parseObjectPrivateModifier(state)
   memberState := privateStep.state
-  member := looksLikeFunctionDecl(memberState) ? parseObjectMethod(memberState, privateStep.ok) : parseObjectField(memberState, privateStep.ok)
+  member := (
+    looksLikeFunctionDecl(memberState) ? parseObjectMethod(memberState, privateStep.ok)
+      : parseObjectField(memberState, privateStep.ok)
+  )
   nextObject := appendChild(object, member.expr)
-  comma := parserMatch(parserSkipNewlines(consumeStatementEnd(member.state)), TokenKind.Comma)
-  parseObjectLiteralLoop(comma.state, nextObject)
+  parseObjectLiteralLoop(consumeFieldSeparator(member.state, TokenKind.RBrace, "expected ',' between object literal fields"), nextObject)
 }
 
 parseObjectMethod(
   state: ParserState,
   private: Bool
 ) -> ExprStep => {
-  fn := parseFunctionWithReceiver(state, "", private)
+  fn := parseFunctionWithReceiver(state, "", private, false)
   ExprStep {
-    state: fn.state
+    state: fn.state,
     expr: functionToExpr(fn.function)
   }
 }
@@ -1622,8 +1994,11 @@ parseObjectField(
   colon := parserConsume(name.state, TokenKind.Colon, "expected ':' after field name")
   value := parseExpression(parserSkipNewlines(colon.state), 1)
   ExprStep {
-    state: value.state
-    expr: makeExpr(private ? ExprKind.PrivateField : ExprKind.Field, name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
+    state: value.state,
+    expr: makeExpr((
+      private ? ExprKind.PrivateField
+        : ExprKind.Field
+    ), name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1633,7 +2008,7 @@ finishObjectLiteral(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RBrace, "expected '}' after object literal")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: object
   }
 }
@@ -1651,10 +2026,21 @@ parseStructLiteralLoop(
   structExpr: ParsedExpr
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishStructLiteral(current, structExpr) : parseStructLiteralField(current, structExpr)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishStructLiteral(current, structExpr)
+      : parseStructLiteralField(current, structExpr)
+  )
 }
 
 parseStructLiteralField(
+  state: ParserState,
+  structExpr: ParsedExpr
+) -> ExprStep => (
+  parserCheck(state, TokenKind.DotDotDot) ? parseStructLiteralSpreadField(state, structExpr)
+    : parseStructLiteralNamedField(state, structExpr)
+)
+
+parseStructLiteralNamedField(
   state: ParserState,
   structExpr: ParsedExpr
 ) -> ExprStep => {
@@ -1663,8 +2049,18 @@ parseStructLiteralField(
   value := parseExpression(parserSkipNewlines(colon.state), 1)
   field := makeExpr(ExprKind.Field, name.token.lexeme, name.token.lexeme, "", ":", [], [value.expr], name.token.line, name.token.column)
   nextStruct := appendChild(structExpr, field)
-  comma := parserMatch(parserSkipNewlines(consumeStatementEnd(value.state)), TokenKind.Comma)
-  parseStructLiteralLoop(comma.state, nextStruct)
+  parseStructLiteralLoop(consumeFieldSeparator(value.state, TokenKind.RBrace, "expected ',' between struct literal fields"), nextStruct)
+}
+
+parseStructLiteralSpreadField(
+  state: ParserState,
+  structExpr: ParsedExpr
+) -> ExprStep => {
+  spread := parserConsume(state, TokenKind.DotDotDot, "expected '...'")
+  value := parseExpression(spread.state, 1)
+  field := opNode(ExprKind.Spread, "...", spread.token, [value.expr])
+  nextStruct := appendChild(structExpr, field)
+  parseStructLiteralLoop(consumeFieldSeparator(value.state, TokenKind.RBrace, "expected ',' between struct literal fields"), nextStruct)
 }
 
 finishStructLiteral(
@@ -1673,7 +2069,7 @@ finishStructLiteral(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RBrace, "expected '}' after struct literal")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: structExpr
   }
 }
@@ -1684,7 +2080,10 @@ parseParenOrTuple(
   open := parserConsume(state, TokenKind.LParen, "expected '('")
   expr := parseExpression(parserSkipNewlines(open.state), 1)
   afterExpr := parserSkipNewlines(expr.state)
-  parserCheck(afterExpr, TokenKind.Comma) ? parseTupleAfterFirst(afterExpr, open.token, expr.expr) : finishParenExpression(afterExpr, expr.expr)
+  (
+    parserCheck(afterExpr, TokenKind.Comma) ? parseTupleAfterFirst(afterExpr, open.token, expr.expr)
+      : finishParenExpression(afterExpr, expr.expr)
+  )
 }
 
 finishParenExpression(
@@ -1693,7 +2092,7 @@ finishParenExpression(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RParen, "expected ')' after expression")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: expr
   }
 }
@@ -1708,7 +2107,7 @@ parseTupleAfterFirst(
   values := parseArgumentListLoop(parserSkipNewlines(comma.state), holder, TokenKind.RParen)
   close := parserConsume(values.state, TokenKind.RParen, "expected ')' after tuple literal")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: values.expr
   }
 }
@@ -1719,7 +2118,7 @@ parsePrimaryError(
   token := parserPeek(state)
   step := parserAdvance(parserErrorAt(state, token, "expected expression, got " + tokenKindName(token.kind)))
   ExprStep {
-    state: step.state
+    state: step.state,
     expr: namedNode(ExprKind.Error, "<error>", token)
   }
 }
@@ -1732,14 +2131,17 @@ parseLambda(
   close := parserConsume(params.state, TokenKind.RParen, "expected ')' after lambda parameters")
   afterParams := parserSkipNewlines(close.state)
   ret := parserMatch(afterParams, TokenKind.Arrow)
-  returnType := ret.ok ? parseTypeRef(parserSkipNewlines(ret.state)) : TypeRefStep {
-    state: afterParams
-    typeRef: emptyParsedTypeRef()
-  }
+  returnType := (
+    ret.ok ? parseTypeRef(parserSkipNewlines(ret.state))
+      : TypeRefStep {
+        state: afterParams,
+        typeRef: emptyParsedTypeRef()
+      }
+  )
   arrow := parserConsume(parserSkipNewlines(returnType.state), TokenKind.FatArrow, "expected '=>' after lambda parameter")
   body := parseBody(parserSkipNewlines(arrow.state))
   ExprStep {
-    state: body.state
+    state: body.state,
     expr: withChildren(withParams(withText(node(ExprKind.Lambda, open.token), typeRefToString(returnType.typeRef)), params.params), [body.expr])
   }
 }
@@ -1758,7 +2160,10 @@ parsePatternBlock(
   block: ParsedExpr
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
-  parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishPatternBlock(current, block) : parsePatternBranch(current, block)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? finishPatternBlock(current, block)
+      : parsePatternBranch(current, block)
+  )
 }
 
 parsePatternBranch(
@@ -1779,7 +2184,7 @@ finishPatternBlock(
 ) -> ExprStep => {
   close := parserConsume(state, TokenKind.RBrace, "expected '}' after pattern block")
   ExprStep {
-    state: close.state
+    state: close.state,
     expr: block
   }
 }
@@ -1794,10 +2199,16 @@ parsePatternTextLoop(
   start: Token,
   depth: Int,
   consumed: Bool
-) -> ExprStep => (depth == 0) && (parserCheck(state, TokenKind.FatArrow) || parserCheck(state, TokenKind.EOF)) ? ExprStep {
-  state: consumed ? state : parserErrorAt(state, parserPeek(state), "expected pattern")
-  expr: withText(node(ExprKind.Pattern, start), text)
-} : parsePatternTextToken(state, text, start, depth)
+) -> ExprStep => (
+  (depth == 0) && (parserCheck(state, TokenKind.FatArrow) || parserCheck(state, TokenKind.EOF)) ? ExprStep {
+    state: (
+      consumed ? state
+        : parserErrorAt(state, parserPeek(state), "expected pattern")
+    ),
+    expr: withText(node(ExprKind.Pattern, start), text)
+  }
+    : parsePatternTextToken(state, text, start, depth)
+)
 
 parsePatternTextToken(
   state: ParserState,
@@ -1813,19 +2224,67 @@ parsePatternTextToken(
 patternNextDepth(
   depth: Int,
   kind: TokenKind
-) -> Int => ((kind == TokenKind.LParen) || (kind == TokenKind.LBracket)) || (kind == TokenKind.LBrace) ? depth + 1 : (((kind == TokenKind.RParen) || (kind == TokenKind.RBracket)) || (kind == TokenKind.RBrace)) && (depth > 0) ? depth - 1 : depth
+) -> Int => (
+  ((kind == TokenKind.LParen) || (kind == TokenKind.LBracket)) || (kind == TokenKind.LBrace) ? depth + 1
+    : (
+      (((kind == TokenKind.RParen) || (kind == TokenKind.RBracket)) || (kind == TokenKind.RBrace)) && (depth > 0) ? depth - 1
+        : depth
+    )
+)
 
 functionToExpr(
   fn: ParsedFunction
-) -> ParsedExpr => makeExpr(fn.private ? ExprKind.PrivateMethod : ExprKind.Method, typeRefToString(fn.returnType), fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
+) -> ParsedExpr => makeExpr((
+  fn.private ? ExprKind.PrivateMethod
+    : ExprKind.Method
+), typeRefToString(fn.returnType), fn.name, "", "=>", fn.params, [fn.body], fn.line, fn.column)
 
-calleeText(expr: ParsedExpr) -> String => expr.name != "" ? expr.name : expr.value != "" ? expr.value : expr.text
+calleeText(expr: ParsedExpr) -> String => (
+  expr.name != "" ? expr.name
+    : (
+      expr.value != "" ? expr.value
+        : expr.text
+    )
+)
 
-precedence(kind: TokenKind) -> Int => (kind == TokenKind.QuestionQuestion) || (kind == TokenKind.OrOr) ? 1 : kind == TokenKind.AndAnd ? 2 : kind == TokenKind.BitOr ? 3 : kind == TokenKind.BitXor ? 4 : kind == TokenKind.BitAnd ? 5 : (kind == TokenKind.EqualEqual) || (kind == TokenKind.BangEqual) ? 6 : ((((kind == TokenKind.DotDotEqual) || (kind == TokenKind.Less)) || (kind == TokenKind.LessEqual)) || (kind == TokenKind.Greater)) || (kind == TokenKind.GreaterEqual) ? 7 : ((kind == TokenKind.ShiftLeft) || (kind == TokenKind.ShiftRight)) || (kind == TokenKind.UnsignedShiftRight) ? 8 : (kind == TokenKind.Plus) || (kind == TokenKind.Minus) ? 9 : ((kind == TokenKind.Star) || (kind == TokenKind.Slash)) || (kind == TokenKind.Percent) ? 10 : 0
+precedence(kind: TokenKind) -> Int => (
+  (kind == TokenKind.QuestionQuestion) || (kind == TokenKind.OrOr) ? 1
+    : (
+      kind == TokenKind.AndAnd ? 2
+        : (
+          kind == TokenKind.BitOr ? 3
+            : (
+              kind == TokenKind.BitXor ? 4
+                : (
+                  kind == TokenKind.BitAnd ? 5
+                    : (
+                      (kind == TokenKind.EqualEqual) || (kind == TokenKind.BangEqual) ? 6
+                        : (
+                          ((((kind == TokenKind.DotDotEqual) || (kind == TokenKind.Less)) || (kind == TokenKind.LessEqual)) || (kind == TokenKind.Greater)) || (kind == TokenKind.GreaterEqual) ? 7
+                            : (
+                              ((kind == TokenKind.ShiftLeft) || (kind == TokenKind.ShiftRight)) || (kind == TokenKind.UnsignedShiftRight) ? 8
+                                : (
+                                  (kind == TokenKind.Plus) || (kind == TokenKind.Minus) ? 9
+                                    : (
+                                      ((kind == TokenKind.Star) || (kind == TokenKind.Slash)) || (kind == TokenKind.Percent) ? 10
+                                        : 0
+                                    )
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+    )
+)
 
 skipAnnotations(
   state: ParserState
-) -> ParserState => parserCheck(state, TokenKind.At) ? skipAnnotations(skipAnnotation(state)) : state
+) -> ParserState => (
+  parserCheck(state, TokenKind.At) ? skipAnnotations(skipAnnotation(state))
+    : state
+)
 
 skipAnnotation(
   state: ParserState
@@ -1833,7 +2292,10 @@ skipAnnotation(
   at := parserConsume(state, TokenKind.At, "expected '@'")
   name := parserConsume(at.state, TokenKind.Ident, "expected annotation name")
   withArgs := parserMatch(name.state, TokenKind.LParen)
-  parserSkipNewlines(withArgs.ok ? skipBalanced(withArgs.state, TokenKind.LParen, TokenKind.RParen, 1) : name.state)
+  parserSkipNewlines((
+    withArgs.ok ? skipBalanced(withArgs.state, TokenKind.LParen, TokenKind.RParen, 1)
+      : name.state
+  ))
 }
 
 skipBalanced(
@@ -1841,7 +2303,10 @@ skipBalanced(
   openKind: TokenKind,
   closeKind: TokenKind,
   depth: Int
-) -> ParserState => parserCheck(state, TokenKind.EOF) || (depth <= 0) ? state : skipBalancedStep(state, openKind, closeKind, depth)
+) -> ParserState => (
+  parserCheck(state, TokenKind.EOF) || (depth <= 0) ? state
+    : skipBalancedStep(state, openKind, closeKind, depth)
+)
 
 skipBalancedStep(
   state: ParserState,
@@ -1851,7 +2316,13 @@ skipBalancedStep(
 ) -> ParserState => {
   token := parserPeek(state)
   step := parserAdvance(state)
-  nextDepth := token.kind == openKind ? depth + 1 : token.kind == closeKind ? depth - 1 : depth
+  nextDepth := (
+    token.kind == openKind ? depth + 1
+      : (
+        token.kind == closeKind ? depth - 1
+          : depth
+      )
+  )
   skipBalanced(step.state, openKind, closeKind, nextDepth)
 }
 
@@ -1869,8 +2340,24 @@ looksLikeTypeDecl(
 looksLikeFunctionDecl(
   state: ParserState
 ) -> Bool => {
-  start := parserCheck(state, TokenKind.Tilde) ? skipNewlinesAt(state, state.current + 1) : state.current
+  start := (
+    parserCheck(state, TokenKind.Tilde) ? skipNewlinesAt(state, state.current + 1)
+      : state.current
+  )
   (parserKindAt(state, start) == TokenKind.Ident) && looksLikeFunctionAfterName(state, skipGenericNamesAt(state, start + 1))
+}
+
+looksLikeStaticFunctionDecl(
+  state: ParserState
+) -> Bool => {
+  markerState := (
+    parserCheck(state, TokenKind.DoubleColon) ? stateAt(state, state.current + 1)
+      : (
+        parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "static") ? stateAt(state, state.current + 1)
+          : state
+      )
+  )
+  (markerState.current != state.current) && looksLikeFunctionDecl(parserSkipNewlines(markerState))
 }
 
 looksLikeFunctionAfterName(
@@ -1883,7 +2370,10 @@ looksLikeFunctionAfterParams(
   index: Int
 ) -> Bool => {
   afterParams := skipNewlinesAt(state, index)
-  afterReturn := parserKindAt(state, afterParams) == TokenKind.Arrow ? skipTypeNameTokensAt(state, afterParams + 1) : afterParams
+  afterReturn := (
+    parserKindAt(state, afterParams) == TokenKind.Arrow ? skipTypeNameTokensAt(state, afterParams + 1)
+      : afterParams
+  )
   parserKindAt(state, skipNewlinesAt(state, afterReturn)) == TokenKind.FatArrow
 }
 
@@ -1896,14 +2386,20 @@ looksLikeLambdaAfterParams(
   index: Int
 ) -> Bool => {
   afterParams := skipNewlinesAt(state, index)
-  afterReturn := parserKindAt(state, afterParams) == TokenKind.Arrow ? skipTypeNameTokensAt(state, afterParams + 1) : afterParams
+  afterReturn := (
+    parserKindAt(state, afterParams) == TokenKind.Arrow ? skipTypeNameTokensAt(state, afterParams + 1)
+      : afterParams
+  )
   parserKindAt(state, skipNewlinesAt(state, afterReturn)) == TokenKind.FatArrow
 }
 
 looksLikeEnumMember(
   state: ParserState
 ) -> Bool => {
-  start := parserCheck(state, TokenKind.Plus) ? skipNewlinesAt(state, state.current + 1) : state.current
+  start := (
+    parserCheck(state, TokenKind.Plus) ? skipNewlinesAt(state, state.current + 1)
+      : state.current
+  )
   next := parserKindAt(state, skipNewlinesAt(state, start + 1))
   (parserKindAt(state, start) == TokenKind.Ident) && ((next == TokenKind.Assign) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
 }
@@ -1915,17 +2411,26 @@ looksLikeObjectDestructureDecl(
 scanObjectDestructureDecl(
   state: ParserState,
   index: Int
-) -> Bool => parserKindAt(state, index) == TokenKind.RBrace ? false : scanObjectDestructureField(state, index)
+) -> Bool => (
+  parserKindAt(state, index) == TokenKind.RBrace ? false
+    : scanObjectDestructureField(state, index)
+)
 
 scanObjectDestructureField(
   state: ParserState,
   index: Int
-) -> Bool => parserKindAt(state, index) != TokenKind.Ident ? false : scanObjectDestructureAfterField(state, index + 1)
+) -> Bool => (
+  parserKindAt(state, index) != TokenKind.Ident ? false
+    : scanObjectDestructureAfterField(state, index + 1)
+)
 
 scanObjectDestructureAfterField(
   state: ParserState,
   index: Int
-) -> Bool => parserKindAt(state, index) == TokenKind.Colon ? (parserKindAt(state, skipNewlinesAt(state, index + 1)) == TokenKind.Ident) && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1) : scanObjectDestructureAfterName(state, index)
+) -> Bool => (
+  parserKindAt(state, index) == TokenKind.Colon ? (parserKindAt(state, skipNewlinesAt(state, index + 1)) == TokenKind.Ident) && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1)
+    : scanObjectDestructureAfterName(state, index)
+)
 
 scanObjectDestructureAfterName(
   state: ParserState,
@@ -1933,13 +2438,22 @@ scanObjectDestructureAfterName(
 ) -> Bool => {
   current := skipNewlinesAt(state, index)
   kind := parserKindAt(state, current)
-  kind == TokenKind.Comma ? scanObjectDestructureAfterComma(state, skipNewlinesAt(state, current + 1)) : kind == TokenKind.RBrace ? scanObjectDestructureAfterClose(state, current + 1) : false
+  (
+    kind == TokenKind.Comma ? scanObjectDestructureAfterComma(state, skipNewlinesAt(state, current + 1))
+      : (
+        kind == TokenKind.RBrace ? scanObjectDestructureAfterClose(state, current + 1)
+          : false
+      )
+  )
 }
 
 scanObjectDestructureAfterComma(
   state: ParserState,
   index: Int
-) -> Bool => parserKindAt(state, index) == TokenKind.RBrace ? scanObjectDestructureAfterClose(state, index + 1) : scanObjectDestructureField(state, index)
+) -> Bool => (
+  parserKindAt(state, index) == TokenKind.RBrace ? scanObjectDestructureAfterClose(state, index + 1)
+    : scanObjectDestructureField(state, index)
+)
 
 scanObjectDestructureAfterClose(
   state: ParserState,
@@ -1973,41 +2487,77 @@ skipPatternLookahead(
 skipOrPatternLookahead(
   state: ParserState,
   index: Int
-) -> Int => (index >= 0) && (parserKindAt(state, index) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index + 1)) : index
+) -> Int => (
+  (index >= 0) && (parserKindAt(state, index) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index + 1))
+    : index
+)
 
 skipSinglePatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  after := (((((kind == TokenKind.Underscore) || (kind == TokenKind.Int)) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char) ? index + 1 : kind == TokenKind.Ident ? skipIdentifierPatternLookahead(state, index) : (((kind == TokenKind.Less) || (kind == TokenKind.LessEqual)) || (kind == TokenKind.Greater)) || (kind == TokenKind.GreaterEqual) ? skipComparePatternLookahead(state, index + 1) : kind == TokenKind.LParen ? skipBalancedAt(state, index, TokenKind.LParen, TokenKind.RParen) : kind == TokenKind.LBrace ? skipBalancedAt(state, index, TokenKind.LBrace, TokenKind.RBrace) : -1
+  after := (
+    (((((kind == TokenKind.Underscore) || (kind == TokenKind.Int)) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char) ? index + 1
+      : (
+        kind == TokenKind.Ident ? skipIdentifierPatternLookahead(state, index)
+          : (
+            (((kind == TokenKind.Less) || (kind == TokenKind.LessEqual)) || (kind == TokenKind.Greater)) || (kind == TokenKind.GreaterEqual) ? skipComparePatternLookahead(state, index + 1)
+              : (
+                kind == TokenKind.LParen ? skipBalancedAt(state, index, TokenKind.LParen, TokenKind.RParen)
+                  : (
+                    kind == TokenKind.LBrace ? skipBalancedAt(state, index, TokenKind.LBrace, TokenKind.RBrace)
+                      : -1
+                  )
+              )
+          )
+      )
+  )
   skipRangePatternLookahead(state, after)
 }
 
 skipRangePatternLookahead(
   state: ParserState,
   index: Int
-) -> Int => (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotEqual) ? skipRangePatternEnd(state, index + 1) : index
+) -> Int => (
+  (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotEqual) ? skipRangePatternEnd(state, index + 1)
+    : index
+)
 
 skipRangePatternEnd(
   state: ParserState,
   index: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1 : -1
+  (
+    (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1
+      : -1
+  )
 }
 
 skipIdentifierPatternLookahead(
   state: ParserState,
   index: Int
-) -> Int => parserKindAt(state, index + 1) == TokenKind.LParen ? skipBalancedAt(state, index + 1, TokenKind.LParen, TokenKind.RParen) : (parserKindAt(state, index + 1) == TokenKind.Dot) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3 : isLiteralIdentifier(parserTokenAt(state, index).lexeme) ? index + 1 : -1
+) -> Int => (
+  parserKindAt(state, index + 1) == TokenKind.LParen ? skipBalancedAt(state, index + 1, TokenKind.LParen, TokenKind.RParen)
+    : (
+      (parserKindAt(state, index + 1) == TokenKind.Dot) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
+        : (
+          isLiteralIdentifier(parserTokenAt(state, index).lexeme) ? index + 1
+            : -1
+        )
+    )
+)
 
 skipComparePatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1 : -1
+  (
+    (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1
+      : -1
+  )
 }
 
 looksLikeMapLiteralBody(
@@ -2015,7 +2565,13 @@ looksLikeMapLiteralBody(
 ) -> Bool => {
   start := skipNewlinesAt(state, state.current + 1)
   first := parserTokenAt(state, start)
-  (first.kind == TokenKind.EOF) || (first.kind == TokenKind.RBrace) ? false : (first.kind == TokenKind.Ident) && (isLiteralIdentifier(first.lexeme) == false) ? false : scanMapLiteralColon(state, start, 0)
+  (
+    (first.kind == TokenKind.EOF) || (first.kind == TokenKind.RBrace) ? false
+      : (
+        (first.kind == TokenKind.Ident) && (isLiteralIdentifier(first.lexeme) == false) ? false
+          : scanMapLiteralColon(state, start, 0)
+      )
+  )
 }
 
 scanMapLiteralColon(
@@ -2024,7 +2580,31 @@ scanMapLiteralColon(
   depth: Int
 ) -> Bool => {
   kind := parserKindAt(state, index)
-  kind == TokenKind.EOF ? false : ((kind == TokenKind.LParen) || (kind == TokenKind.LBracket)) || (kind == TokenKind.LBrace) ? scanMapLiteralColon(state, index + 1, depth + 1) : (kind == TokenKind.RParen) || (kind == TokenKind.RBracket) ? scanMapLiteralColon(state, index + 1, depth > 0 ? depth - 1 : depth) : kind == TokenKind.RBrace ? depth == 0 ? false : scanMapLiteralColon(state, index + 1, depth - 1) : (((kind == TokenKind.Newline) || (kind == TokenKind.Question)) || (kind == TokenKind.FatArrow)) && (depth == 0) ? false : (kind == TokenKind.Colon) && (depth == 0) ? true : scanMapLiteralColon(state, index + 1, depth)
+  (
+    kind == TokenKind.EOF ? false
+      : (
+        ((kind == TokenKind.LParen) || (kind == TokenKind.LBracket)) || (kind == TokenKind.LBrace) ? scanMapLiteralColon(state, index + 1, depth + 1)
+          : (
+            (kind == TokenKind.RParen) || (kind == TokenKind.RBracket) ? scanMapLiteralColon(state, index + 1, (
+              depth > 0 ? depth - 1
+                : depth
+            ))
+              : (
+                kind == TokenKind.RBrace ? (
+                  depth == 0 ? false
+                    : scanMapLiteralColon(state, index + 1, depth - 1)
+                )
+                  : (
+                    (((kind == TokenKind.Newline) || (kind == TokenKind.Question)) || (kind == TokenKind.FatArrow)) && (depth == 0) ? false
+                      : (
+                        (kind == TokenKind.Colon) && (depth == 0) ? true
+                          : scanMapLiteralColon(state, index + 1, depth)
+                      )
+                  )
+              )
+          )
+      )
+  )
 }
 
 isLiteralIdentifier(
@@ -2034,12 +2614,18 @@ isLiteralIdentifier(
 skipNewlinesAt(
   state: ParserState,
   index: Int
-) -> Int => parserKindAt(state, index) == TokenKind.Newline ? skipNewlinesAt(state, index + 1) : index
+) -> Int => (
+  parserKindAt(state, index) == TokenKind.Newline ? skipNewlinesAt(state, index + 1)
+    : index
+)
 
 skipGenericNamesAt(
   state: ParserState,
   index: Int
-) -> Int => parserKindAt(state, index) == TokenKind.LBracket ? skipBalancedAt(state, index, TokenKind.LBracket, TokenKind.RBracket) : index
+) -> Int => (
+  parserKindAt(state, index) == TokenKind.LBracket ? skipBalancedAt(state, index, TokenKind.LBracket, TokenKind.RBracket)
+    : index
+)
 
 skipBalancedAt(
   state: ParserState,
@@ -2056,7 +2642,19 @@ skipBalancedAtLoop(
   depth: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  kind == TokenKind.EOF ? index : kind == openKind ? skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth + 1) : kind == closeKind ? depth <= 1 ? index + 1 : skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth - 1) : skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth)
+  (
+    kind == TokenKind.EOF ? index
+      : (
+        kind == openKind ? skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth + 1)
+          : (
+            kind == closeKind ? (
+              depth <= 1 ? index + 1
+                : skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth - 1)
+            )
+              : skipBalancedAtLoop(state, index + 1, openKind, closeKind, depth)
+          )
+      )
+  )
 }
 
 skipTypeNameTokensAt(
@@ -2070,5 +2668,17 @@ skipTypeNameTokensAtLoop(
   depth: Int
 ) -> Int => {
   kind := parserKindAt(state, index)
-  ((((((kind == TokenKind.Ident) || (kind == TokenKind.Comma)) || (kind == TokenKind.Colon)) || (kind == TokenKind.Question)) || (kind == TokenKind.Arrow)) || (kind == TokenKind.At)) || (kind == TokenKind.Dot) ? skipTypeNameTokensAtLoop(state, index + 1, depth) : (kind == TokenKind.LBracket) || (kind == TokenKind.LParen) ? skipTypeNameTokensAtLoop(state, index + 1, depth + 1) : (kind == TokenKind.RBracket) || (kind == TokenKind.RParen) ? depth == 0 ? index : skipTypeNameTokensAtLoop(state, index + 1, depth - 1) : index
+  (
+    ((((((kind == TokenKind.Ident) || (kind == TokenKind.Comma)) || (kind == TokenKind.Colon)) || (kind == TokenKind.Question)) || (kind == TokenKind.Arrow)) || (kind == TokenKind.At)) || (kind == TokenKind.Dot) ? skipTypeNameTokensAtLoop(state, index + 1, depth)
+      : (
+        (kind == TokenKind.LBracket) || (kind == TokenKind.LParen) ? skipTypeNameTokensAtLoop(state, index + 1, depth + 1)
+          : (
+            (kind == TokenKind.RBracket) || (kind == TokenKind.RParen) ? (
+              depth == 0 ? index
+                : skipTypeNameTokensAtLoop(state, index + 1, depth - 1)
+            )
+              : index
+          )
+      )
+  )
 }

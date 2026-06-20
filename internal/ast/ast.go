@@ -142,7 +142,7 @@ func (f *Function) Signature() string {
 		b.WriteString("~ ")
 	}
 	if f.Static {
-		b.WriteString("static ")
+		b.WriteString("::")
 	}
 	b.WriteString(f.Name)
 	if len(f.Generics) > 0 {

@@ -79,6 +79,34 @@ func TestWebComponentReturnAcceptsXMLLiteral(t *testing.T) {
 	}
 }
 
+func TestAnonymousObjectLiteralUsesExpectedStructReturnType(t *testing.T) {
+	src := `User: {
+  name: String
+  age: Int
+}
+
+make() -> User => {
+  name: "Ada",
+  age: 42
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["make"]
+	if fn == nil {
+		t.Fatalf("missing function make")
+	}
+	if got := info.ExprTypes[fn.Node.Body]; got != Type("User") {
+		t.Fatalf("make body type = %s, want User", got)
+	}
+}
+
 func TestGenericNumberConstraintAllowsNumericBinaryOps(t *testing.T) {
 	src := `add[T: Number](a: T, b: T) -> T => a + b
 
@@ -236,13 +264,13 @@ func TestArrayEachLambdaUsesExpectedElementTypeBeforeFieldInference(t *testing.T
 }
 
 main() => {
-  options := [
-    LocalOption {
-      name: "output"
-      valueName: "file"
-      defaultValue: null
-    }
-  ]
+	  options := [
+	    LocalOption {
+	      name: "output",
+	      valueName: "file",
+	      defaultValue: null,
+	    }
+	  ]
   values := @map.new("", "")
   options.each((option) => {
     useDefault := !option.valueName.isEmpty() && (option.defaultValue != null)

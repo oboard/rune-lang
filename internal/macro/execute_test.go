@@ -111,28 +111,28 @@ func TestExpandSyntaxMacroReplacesDeclarationTree(t *testing.T) {
 ) -> SyntaxFile => {
   current := tree.types[0]
   selectedName := context.targetID == current.id ? name : current.name
-  generatedField := SyntaxField {
-    id: ""
-    name: "generated"
-    private: false
-    annotations: []
-    type: current.fields[0].type
-  }
-  renamed := SyntaxStruct {
-    id: current.id
-    name: selectedName
-    private: current.private
-    generics: current.generics
-    annotations: current.annotations
-    fields: [...current.fields, generatedField]
-    methods: current.methods
-    sourcePath: current.sourcePath
-  }
-  SyntaxFile {
-    types: [renamed]
-    enums: tree.enums
-    functions: tree.functions
-  }
+	  generatedField := SyntaxField {
+	    id: "",
+	    name: "generated",
+	    private: false,
+	    annotations: [],
+	    type: current.fields[0].type
+	  }
+	  renamed := SyntaxStruct {
+	    id: current.id,
+	    name: selectedName,
+	    private: current.private,
+	    generics: current.generics,
+	    annotations: current.annotations,
+	    fields: [...current.fields, generatedField],
+	    methods: current.methods,
+	    sourcePath: current.sourcePath
+	  }
+	  SyntaxFile {
+	    types: [renamed],
+	    enums: tree.enums,
+	    functions: tree.functions
+	  }
 }
 
 #renameFirst("FinalArgs")

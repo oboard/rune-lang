@@ -45,12 +45,12 @@ encode(value: &ToJson) -> &ToJson => value
 
 func TestParseStaticTraitAndStructMethods(t *testing.T) {
 	file, errs := Parse(`&FromJson: {
-  static fromJson(text: String) -> Self
+  ::fromJson(text: String) -> Self
 }
 
 User: {
   name: String
-  static fromJson(text: String) -> User => User { name: text }
+  ::fromJson(text: String) -> User => User { name: text }
 }
 
 main() => User::fromJson("{}")
@@ -93,8 +93,8 @@ func TestParseStructLiteralSpreadField(t *testing.T) {
 }
 
 main(existing: User) => User {
-  ...existing
-  age: 42
+  ...existing,
+  age: 42,
 }
 `)
 	if len(errs) > 0 {
@@ -112,6 +112,26 @@ main(existing: User) => User {
 	}
 	if lit.Fields[1].Name != "age" {
 		t.Fatalf("second field = %#v, want age", lit.Fields[1])
+	}
+}
+
+func TestParseStructLiteralRequiresCommaBetweenFields(t *testing.T) {
+	file, errs := Parse(`User: {
+  name: String
+  age: Int
+}
+
+main() => User {
+  name: "oboard"
+  age: 42
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	lit := file.Functions[0].Body.(*ast.StructLiteral)
+	if len(lit.Fields) != 2 || !lit.Fields[0].MissingComma {
+		t.Fatalf("fields = %#v, want first field marked missing comma", lit.Fields)
 	}
 }
 
@@ -275,8 +295,8 @@ func TestDeclarationVisibility(t *testing.T) {
 	if len(file.Enums) != 1 || file.Enums[0].Private {
 		t.Fatalf("enums = %#v, want one public enum", file.Enums)
 	}
-	if len(file.Enums[0].Members) != 2 || !file.Enums[0].Members[0].Private || file.Enums[0].Members[1].Private {
-		t.Fatalf("members = %#v, want private Ready and public Hidden", file.Enums[0].Members)
+	if len(file.Enums[0].Members) != 2 || file.Enums[0].Members[0].Private || file.Enums[0].Members[1].Private {
+		t.Fatalf("members = %#v, want public enum members by default", file.Enums[0].Members)
 	}
 	if len(file.Functions) != 1 || file.Functions[0].Private {
 		t.Fatalf("functions = %#v, want public add", file.Functions)

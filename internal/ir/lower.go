@@ -1,6 +1,8 @@
 package ir
 
 import (
+	"strings"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -52,20 +54,35 @@ func LowerExpr(expr ast.Expr, info *checker.Info) Expr {
 	return lowerer{info: info}.expr(expr)
 }
 
+func LowerExprExpected(expr ast.Expr, info *checker.Info, expected checker.Type) Expr {
+	return lowerer{info: info}.exprExpected(expr, expected)
+}
+
 func LowerStmt(stmt ast.Stmt, info *checker.Info) Stmt {
 	return lowerer{info: info}.stmt(stmt)
 }
 
 type lowerer struct {
-	info *checker.Info
+	info     *checker.Info
+	expected map[ast.Expr]checker.Type
 }
 
 func (l lowerer) exprType(expr ast.Expr) checker.Type {
 	if l.info == nil || expr == nil {
+		if l.expected != nil {
+			if typ, ok := l.expected[expr]; ok {
+				return typ
+			}
+		}
 		return checker.Unknown
 	}
 	if typ, ok := l.info.ExprTypes[expr]; ok {
 		return typ
+	}
+	if l.expected != nil {
+		if typ, ok := l.expected[expr]; ok {
+			return typ
+		}
 	}
 	return checker.Unknown
 }
@@ -172,29 +189,32 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 		Generics:     append([]string(nil), fn.Generics...),
 		ReceiverType: checker.Type(receiver),
 		Return:       checker.Unknown,
-		Body:         l.expr(fn.Body),
 		Pos:          fn.Pos,
 		NamePos:      fn.NamePos,
 	}
+	foundInfo := false
 	if l.info != nil {
 		if receiver != "" {
 			if typ := l.info.Types[receiver]; typ != nil {
 				if info := typ.Methods[fn.Name]; info != nil {
 					l.fillFunctionInfo(out, info)
-					return out
+					foundInfo = true
 				}
 			}
 		} else if info := l.info.FunctionDecls[fn]; info != nil {
 			l.fillFunctionInfo(out, info)
-			return out
+			foundInfo = true
 		}
 	}
-	for _, param := range fn.Params {
-		out.Params = append(out.Params, Param{Name: param.Name, Type: checker.Type(param.Type.Canonical()), Pos: param.Pos})
+	if !foundInfo {
+		for _, param := range fn.Params {
+			out.Params = append(out.Params, Param{Name: param.Name, Type: checker.Type(param.Type.Canonical()), Pos: param.Pos})
+		}
+		if returnName := fn.ReturnType.Canonical(); returnName != "" {
+			out.Return = checker.Type(returnName)
+		}
 	}
-	if returnName := fn.ReturnType.Canonical(); returnName != "" {
-		out.Return = checker.Type(returnName)
-	}
+	out.Body = l.exprExpected(fn.Body, out.Return)
 	return out
 }
 
@@ -222,6 +242,24 @@ func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {
 	for _, param := range info.Params {
 		fn.Params = append(fn.Params, Param{Name: param.Name, Type: param.Type})
 	}
+}
+
+func (l lowerer) exprExpected(expr ast.Expr, expected checker.Type) Expr {
+	if expected == checker.Unknown || expr == nil {
+		return l.expr(expr)
+	}
+	child := l
+	child.expected = copyExpected(l.expected)
+	child.expected[expr] = expected
+	return child.expr(expr)
+}
+
+func copyExpected(in map[ast.Expr]checker.Type) map[ast.Expr]checker.Type {
+	out := make(map[ast.Expr]checker.Type, len(in)+1)
+	for expr, typ := range in {
+		out[expr] = typ
+	}
+	return out
 }
 
 func (l lowerer) expr(expr ast.Expr) Expr {
@@ -331,6 +369,18 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		}
 		return out
 	case *ast.AnonymousObjectLiteral:
+		if typeName, ok := l.namedStructLiteralType(e); ok {
+			out := &StructLiteral{ExprBase: l.base(e), TypeName: typeName}
+			fields := l.structLiteralFields(&ast.StructLiteral{
+				TypeName: typeName,
+				Fields:   e.Fields,
+				Pos:      e.Pos,
+			})
+			for _, field := range fields {
+				out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
+			}
+			return out
+		}
 		out := &AnonymousObjectLiteral{ExprBase: l.base(e)}
 		for _, field := range e.Fields {
 			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
@@ -376,6 +426,24 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	default:
 		return nil
 	}
+}
+
+func (l lowerer) namedStructLiteralType(expr ast.Expr) (string, bool) {
+	if l.info == nil {
+		return "", false
+	}
+	typ := l.exprType(expr)
+	name := string(typ)
+	if typ == checker.Unknown || name == "" || strings.HasPrefix(name, "{") {
+		return "", false
+	}
+	if idx := strings.IndexByte(name, '['); idx >= 0 {
+		name = name[:idx]
+	}
+	if l.info.Types[name] == nil {
+		return "", false
+	}
+	return name, true
 }
 
 func (l lowerer) structLiteralFields(lit *ast.StructLiteral) []ast.FieldValue {

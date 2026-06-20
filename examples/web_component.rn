@@ -1,10 +1,10 @@
 HelloWorld(text: String) -> WebComponent => {
-    <div>{text}</div>
+  <div>{text}</div>
 }
 
 render() => {
-    <div>
-        <h1>Web Component Example</h1>
-        <HelloWorld text="hello" />
-    </div>
+  <div>
+    <h1>Web Component Example</h1>
+    <HelloWorld text={"hello"} />
+  </div>
 }

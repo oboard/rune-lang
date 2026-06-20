@@ -13,7 +13,6 @@
   @assert.eq(@int8.toInt(left & right), 2)
   @assert.eq(@int8.toInt(left | right), 7)
   @assert.eq(@int8.toInt(left ^ right), 5)
-
   value := @uint.fromInt(16)
   shift := @uint.fromInt(2)
   @assert.eq(@uint.toInt(value >>> shift), 4)
@@ -32,12 +31,10 @@
   @assert.eq(@int8.toInt(@int8.fromInt(130)), 0 - 126)
   @assert.eq(@int16.toInt(@int16.fromInt(65535)), 0 - 1)
   @assert.eq(@int64.toInt(@int64.fromInt(123456)), 123456)
-
   @assert.eq(@uint.toInt(@uint.fromInt(123456)), 123456)
   @assert.eq(@uint8.toInt(@uint8.fromInt(255)), 255)
   @assert.eq(@uint16.toInt(@uint16.fromInt(65535)), 65535)
   @assert.eq(@uint64.toInt(@uint64.fromInt(123456)), 123456)
-
   @assert.eq(@float.toDouble(@float.fromDouble(1.5)), 1.5)
 }
 
@@ -45,13 +42,11 @@
   bytes := @bytes.new(4)
   @assert.eq(bytes.length(), 4)
   @assert.eq(bytes.byteLength(), 4)
-
   @assert.eq(@int4.toInt(bytes.setInt4(0, @int4.fromInt(0 - 1))), 0 - 1)
   @assert.eq(@int4.toInt(bytes.setInt4(1, @int4.fromInt(7))), 7)
   @assert.eq(bytes.toInts()[0], 247)
   @assert.eq(@int4.toInt(bytes.getInt4(0)), 0 - 1)
   @assert.eq(@int4.toInt(bytes.getInt4(1)), 7)
-
   @assert.eq(@uint8.toInt(bytes.setUInt8(1, @uint8.fromInt(255))), 255)
   @assert.eq(@uint8.toInt(bytes.getUint8(1)), 255)
   @assert.eq(@int8.toInt(bytes.setInt8(2, @int8.fromInt(0 - 2))), 0 - 2)
@@ -60,22 +55,18 @@
 
 ? "bytes numeric DataView operations" {
   bytes := @bytes.new(40)
-
   @assert.eq(@int16.toInt(bytes.setInt16(0, @int16.fromInt(0 - 1234), true)), 0 - 1234)
   @assert.eq(@int16.toInt(bytes.getInt16(0, true)), 0 - 1234)
   @assert.eq(@uint16.toInt(bytes.setUint16(2, @uint16.fromInt(50000), false)), 50000)
   @assert.eq(@uint16.toInt(bytes.getUInt16(2, false)), 50000)
-
   @assert.eq(bytes.setInt32(4, 0 - 123456, true), 0 - 123456)
   @assert.eq(bytes.getInt(4, true), 0 - 123456)
   @assert.eq(@uint.toInt(bytes.setUint32(8, @uint.fromInt(123456), false)), 123456)
   @assert.eq(@uint.toInt(bytes.getUInt(8, false)), 123456)
-
   @assert.eq(@int64.toInt(bytes.setBigInt64(12, @int64.fromInt(123456), true)), 123456)
   @assert.eq(@int64.toInt(bytes.getInt64(12, true)), 123456)
   @assert.eq(@uint64.toInt(bytes.setBigUint64(20, @uint64.fromInt(123456), false)), 123456)
   @assert.eq(@uint64.toInt(bytes.getUInt64(20, false)), 123456)
-
   @assert.eq(@float.toDouble(bytes.setFloat32(28, @float.fromDouble(1.5), true)), 1.5)
   @assert.eq(@float.toDouble(bytes.getFloat(28, true)), 1.5)
   @assert.eq(bytes.setFloat64(32, 2.25, false), 2.25)
@@ -86,7 +77,6 @@
   bytes := @bytes.fromInts([1, 2, 3, 4])
   cloned := bytes.clone()
   sliced := bytes.slice(1, 3)
-
   @assert.eq(bytes.length(), 4)
   @assert.eq(cloned.toInts()[2], 3)
   @assert.eq(sliced.length(), 2)
@@ -100,12 +90,10 @@
   @assert.eq(buffer.append(@uint8.fromInt(1)).appendInt(2).appendBytes(@bytes.fromInts([3, 4])).length(), 4)
   @assert.eq(buffer.toInts()[0], 1)
   @assert.eq(buffer.toInts()[3], 4)
-
   cloned := buffer.clone()
   buffer.clear()
   @assert.eq(buffer.length(), 0)
   @assert.eq(cloned.toBytes().toInts()[2], 3)
-
   fromBytes := @buffer.fromBytes(@bytes.fromInts([9, 8]))
   @assert.eq(fromBytes.toInts()[1], 8)
 }
@@ -120,7 +108,6 @@
   writer.writeInt64(@int64.fromInt(42), true)
   writer.writeFloat(@float.fromDouble(1.5), true)
   writer.writeDouble(2.25, false)
-
   reader := @reader.new(writer.toBytes())
   @assert.eq(reader.length(), writer.length())
   @assert.eq(reader.position(), 0)
@@ -139,13 +126,11 @@
 ? "reader seek skip and buffer helpers" {
   buffer := @buffer.fromBytes(@bytes.fromInts([10, 20, 30, 40]))
   reader := buffer.reader()
-
   @assert.eq(@uint8.toInt(reader.readUInt8()), 10)
   @assert.eq(reader.skip(1), 2)
   @assert.eq(@uint8.toInt(reader.readUInt8()), 30)
   @assert.eq(reader.seek(1), 1)
   @assert.eq(reader.readBytes(2).toInts()[1], 30)
-
   writer := buffer.writer()
   writer.writeUInt8(@uint8.fromInt(50))
   @assert.eq(writer.toInts()[4], 50)

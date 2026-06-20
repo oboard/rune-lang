@@ -39,7 +39,7 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 				local.Define(param, values[idx])
 			}
 		}
-		return i.eval(ir.LowerExpr(fn.Body, nil), local)
+		return i.eval(ir.LowerExprExpected(fn.Body, nil, checker.Type(fn.Return)), local)
 	}
 	if fn.Go != nil {
 		return i.callGoBackedFunction(fn.Go.Symbol, values)

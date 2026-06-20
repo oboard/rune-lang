@@ -41,7 +41,7 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 		args = append(args, value)
 	}
 
-	body, paramNames, err := invocationBody(invocation)
+	body, paramNames, returnType, err := invocationBody(invocation)
 	if err != nil {
 		return false, err
 	}
@@ -57,7 +57,7 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 	for i, name := range paramNames[hiddenParams:] {
 		bindings[name] = args[i]
 	}
-	result, err := runtime.EvalWithBindings(ir.LowerExpr(body, info), bindings)
+	result, err := runtime.EvalWithBindings(ir.LowerExprExpected(body, info, returnType), bindings)
 	if err != nil {
 		return false, err
 	}
@@ -69,25 +69,25 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 	return true, nil
 }
 
-func invocationBody(invocation Invocation) (ast.Expr, []string, error) {
+func invocationBody(invocation Invocation) (ast.Expr, []string, checker.Type, error) {
 	switch {
 	case invocation.Macro != nil:
 		if invocation.Macro.Body == nil {
-			return nil, nil, fmt.Errorf("macro body is not available")
+			return nil, nil, checker.Unknown, fmt.Errorf("macro body is not available")
 		}
-		return invocation.Macro.Body, invocation.Macro.ParamNames, nil
+		return invocation.Macro.Body, invocation.Macro.ParamNames, checker.Type(invocation.Macro.Return), nil
 	case invocation.LocalMacro != nil && invocation.LocalMacro.Node != nil:
 		fn := invocation.LocalMacro.Node
 		if fn.Body == nil {
-			return nil, nil, fmt.Errorf("macro body is not available")
+			return nil, nil, checker.Unknown, fmt.Errorf("macro body is not available")
 		}
 		names := make([]string, 0, len(fn.Params))
 		for _, param := range fn.Params {
 			names = append(names, param.Name)
 		}
-		return fn.Body, names, nil
+		return fn.Body, names, invocation.LocalMacro.Return, nil
 	default:
-		return nil, nil, fmt.Errorf("resolved macro has no Rune body")
+		return nil, nil, checker.Unknown, fmt.Errorf("resolved macro has no Rune body")
 	}
 }
 

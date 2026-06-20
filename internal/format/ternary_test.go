@@ -45,10 +45,10 @@ func TestMultilineTernaryCalleeFormatting(t *testing.T) {
 	want := `fun(flag) => {
   (
     flag ? (x) => {
-      k: x.a + 1,
+      k: x.a + 1
     }
       : (y) => {
-        k: y.b + 1,
+        k: y.b + 1
       }
   )(value).k
 }

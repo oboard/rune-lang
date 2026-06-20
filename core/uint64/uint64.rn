@@ -1,7 +1,10 @@
 UInt64: {
   add(other: UInt64) -> UInt64 => "%uint64.add"
+
   sub(other: UInt64) -> UInt64 => "%uint64.sub"
+
   mul(other: UInt64) -> UInt64 => "%uint64.mul"
+
   div(other: UInt64) -> UInt64 => "%uint64.div"
 }
 

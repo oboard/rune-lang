@@ -34,31 +34,24 @@ CliParseResult: {
   error: String?
 }
 
-moduleCall(name: String, args: Array[SyntaxExpr]) -> SyntaxExpr =>
-  CallExpr(
-    SelectorExpr(ModuleExpr("cli"), name),
-    args
-  )
+moduleCall(
+  name: String,
+  args: Array[SyntaxExpr]
+) -> SyntaxExpr => CallExpr(SelectorExpr(ModuleExpr("cli"), name), args)
 
 methodCall(
   receiver: SyntaxExpr,
   name: String,
   args: Array[SyntaxExpr]
-) -> SyntaxExpr => CallExpr(
-  SelectorExpr(receiver, name),
-  args
-)
+) -> SyntaxExpr => CallExpr(SelectorExpr(receiver, name), args)
 
 annotationNamed(
   annotations: Array[SyntaxAnnotation],
   name: String
-) -> SyntaxAnnotation => annotations.foldl(
-  annotations[0],
-  (found, annotation) => (
-    annotation.name == name ? annotation
-      : found
-  )
-)
+) -> SyntaxAnnotation => annotations.foldl(annotations[0], (found, annotation) => (
+  annotation.name == name ? annotation
+    : found
+))
 
 annotationString(
   annotation: SyntaxAnnotation,
@@ -69,32 +62,27 @@ annotationString(
     : fallback
 )
 
-commandAnnotation(structure: SyntaxStruct) -> SyntaxAnnotation =>
-  @cli.annotationNamed(structure.annotations, "command")
+commandAnnotation(
+  structure: SyntaxStruct
+) -> SyntaxAnnotation => @cli.annotationNamed(structure.annotations, "command")
 
-fieldAnnotation(field: SyntaxField) -> SyntaxAnnotation =>
-  field.annotations[0]
+fieldAnnotation(
+  field: SyntaxField
+) -> SyntaxAnnotation => field.annotations[0]
 
-commandFromStruct(structure: SyntaxStruct) -> SyntaxExpr => {
+commandFromStruct(
+  structure: SyntaxStruct
+) -> SyntaxExpr => {
   annotation := @cli.commandAnnotation(structure)
   name := @cli.annotationString(annotation, 0, structure.name)
   about := @cli.annotationString(annotation, 1, "")
   version := @cli.annotationString(annotation, 2, "")
-  base := @cli.moduleCall(
-    "command",
-    [StringExpr(name), StringExpr(about)]
-  )
+  base := @cli.moduleCall("command", [StringExpr(name), StringExpr(about)])
   initial := (
     version.isEmpty() ? base
-      : @cli.moduleCall(
-        "withVersion",
-        [base, StringExpr(version)]
-      )
+      : @cli.moduleCall("withVersion", [base, StringExpr(version)])
   )
-  structure.fields.foldl(
-    initial,
-    (current, field) => @cli.commandWithField(current, field)
-  )
+  structure.fields.foldl(initial, (current, field) => @cli.commandWithField(current, field))
 }
 
 commandWithField(
@@ -103,107 +91,46 @@ commandWithField(
 ) -> SyntaxExpr => {
   annotation := @cli.fieldAnnotation(field)
   (
-    annotation.name == "flag" ? @cli.moduleCall(
-      "withOption",
-      [
-        command,
-        @cli.moduleCall(
-          "flag",
-          [
-            StringExpr(field.name),
-            StringExpr(@cli.annotationString(annotation, 0, "")),
-            StringExpr(@cli.annotationString(annotation, 1, ""))
-          ]
-        )
-      ]
-    )
-      : annotation.name == "option" ? @cli.moduleCall(
-        "withOption",
-        [
-          command,
-          @cli.moduleCall(
-            "option",
-            [
-              StringExpr(field.name),
-              StringExpr(@cli.annotationString(annotation, 0, "")),
-              StringExpr(@cli.annotationString(annotation, 1, field.name)),
-              StringExpr(@cli.annotationString(annotation, 2, "")),
-              BoolExpr(false),
-              StringExpr(@cli.annotationString(annotation, 3, ""))
-            ]
-          )
-        ]
+    annotation.name == "flag" ? @cli.moduleCall("withOption", [command, @cli.moduleCall("flag", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, ""))])])
+      : (
+        annotation.name == "option" ? @cli.moduleCall("withOption", [command, @cli.moduleCall("option", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, field.name)), StringExpr(@cli.annotationString(annotation, 2, "")), BoolExpr(false), StringExpr(@cli.annotationString(annotation, 3, ""))])])
+          : @cli.moduleCall("withArgument", [command, @cli.moduleCall("argument", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), BoolExpr(true)])])
       )
-        : @cli.moduleCall(
-          "withArgument",
-          [
-            command,
-            @cli.moduleCall(
-              "argument",
-              [
-                StringExpr(field.name),
-                StringExpr(@cli.annotationString(annotation, 0, "")),
-                BoolExpr(true)
-              ]
-            )
-          ]
-        )
   )
 }
 
-parsedField(field: SyntaxField) -> SyntaxExpr => {
+parsedField(
+  field: SyntaxField
+) -> SyntaxExpr => {
   annotation := @cli.fieldAnnotation(field)
   result := IdentifierExpr("result")
   (
-    annotation.name == "flag" ? @cli.methodCall(
-      SelectorExpr(result, "flags"),
-      "getOr",
-      [StringExpr(field.name), BoolExpr(false)]
-    )
-      : annotation.name == "option" ? @cli.methodCall(
-        SelectorExpr(result, "values"),
-        "getOr",
-        [
-          StringExpr(field.name),
-          StringExpr(@cli.annotationString(annotation, 3, ""))
-        ]
+    annotation.name == "flag" ? @cli.methodCall(SelectorExpr(result, "flags"), "getOr", [StringExpr(field.name), BoolExpr(false)])
+      : (
+        annotation.name == "option" ? @cli.methodCall(SelectorExpr(result, "values"), "getOr", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 3, ""))])
+          : @cli.methodCall(SelectorExpr(result, "positionals"), "getOr", [StringExpr(field.name), StringExpr("")])
       )
-        : @cli.methodCall(
-          SelectorExpr(result, "positionals"),
-          "getOr",
-          [StringExpr(field.name), StringExpr("")]
-        )
   )
 }
 
-argsExpr(structure: SyntaxStruct) -> SyntaxExpr => StructExpr(
-  structure.name,
-  structure.fields.map((field) => SyntaxExprField {
-    name: field.name
-    value: @cli.parsedField(field)
-  })
-)
+argsExpr(
+  structure: SyntaxStruct
+) -> SyntaxExpr => StructExpr(structure.name, structure.fields.map((field) => SyntaxExprField {
+  name: field.name,
+  value: @cli.parsedField(field)
+}))
 
-mainBody(structure: SyntaxStruct) -> SyntaxExpr => BlockExpr(
-  [
-    SyntaxStatement {
-      kind: "let"
-      name: "result"
-      value: @cli.moduleCall(
-        "parseOrExit",
-        [@cli.commandFromStruct(structure)]
-      )
-    },
-    SyntaxStatement {
-      kind: "expr"
-      name: ""
-      value: CallExpr(
-        IdentifierExpr("__cliMain"),
-        [@cli.argsExpr(structure)]
-      )
-    }
-  ]
-)
+mainBody(
+  structure: SyntaxStruct
+) -> SyntaxExpr => BlockExpr([SyntaxStatement {
+  kind: "let",
+  name: "result",
+  value: @cli.moduleCall("parseOrExit", [@cli.commandFromStruct(structure)])
+}, SyntaxStatement {
+  kind: "expr",
+  name: "",
+  value: CallExpr(IdentifierExpr("__cliMain"), [@cli.argsExpr(structure)])
+}])
 
 #command(
   tree: SyntaxFile,
@@ -239,105 +166,96 @@ mainBody(structure: SyntaxStruct) -> SyntaxExpr => BlockExpr(
   tree: SyntaxFile,
   context: MacroContext
 ) -> SyntaxFile => {
-  target := tree.functions.foldl(
-    tree.functions[0],
-    (found, function) => (
-      function.id == context.targetID ? function
-        : found
-    )
-  )
+  target := tree.functions.foldl(tree.functions[0], (found, function) => (
+    function.id == context.targetID ? function
+      : found
+  ))
   argsName := target.params[0].type.name
-  structure := tree.types.foldl(
-    tree.types[0],
-    (found, candidate) => (
-      candidate.name == argsName ? candidate
-        : found
-    )
-  )
+  structure := tree.types.foldl(tree.types[0], (found, candidate) => (
+    candidate.name == argsName ? candidate
+      : found
+  ))
   handler := SyntaxFunction {
-    id: target.id
-    name: "__cliMain"
-    private: true
-    static: false
-    routine: target.routine
-    generics: target.generics
-    annotations: []
-    receiverType: target.receiverType
-    params: target.params
-    returnType: target.returnType
-    bodyID: target.bodyID
-    generatedBody: target.generatedBody
+    id: target.id,
+    name: "__cliMain",
+    private: true,
+    static: false,
+    routine: target.routine,
+    generics: target.generics,
+    annotations: [],
+    receiverType: target.receiverType,
+    params: target.params,
+    returnType: target.returnType,
+    bodyID: target.bodyID,
+    generatedBody: target.generatedBody,
     sourcePath: target.sourcePath
   }
   entry := SyntaxFunction {
-    id: ""
-    name: "main"
-    private: true
-    static: false
-    routine: target.routine
-    generics: []
-    annotations: []
-    receiverType: ""
-    params: []
-    returnType: target.returnType
-    bodyID: ""
-    generatedBody: @cli.mainBody(structure)
+    id: "",
+    name: "main",
+    private: true,
+    static: false,
+    routine: target.routine,
+    generics: [],
+    annotations: [],
+    receiverType: "",
+    params: [],
+    returnType: target.returnType,
+    bodyID: "",
+    generatedBody: @cli.mainBody(structure),
     sourcePath: target.sourcePath
   }
   SyntaxFile {
-    types: tree.types
-    enums: tree.enums
-    functions: [
-      ...tree.functions.map((function) => (
-        function.id == target.id ? handler
-          : function
-      )),
-      entry
-    ]
+    types: tree.types,
+    enums: tree.enums,
+    functions: [...tree.functions.map((function) => (
+      function.id == target.id ? handler
+        : function
+    )), entry]
   }
 }
 
 command(
   name: String,
   about: String
-) -> CliCommand => CliCommand {
-  name: name
-  version: null
-  about: about
-  options: []
+) -> CliCommand => {
+  name: name,
+  version: null,
+  about: about,
+  options: [],
   arguments: []
 }
 
 withVersion(
   command: CliCommand,
   version: String
-) -> CliCommand => CliCommand {
-  name: command.name
-  version: version
-  about: command.about
-  options: command.options
+) -> CliCommand => {
+  name: command.name,
+  version: version,
+  about: command.about,
+  options: command.options,
   arguments: command.arguments
 }
 
 withOption(
   command: CliCommand,
   option: CliOption
-) -> CliCommand => CliCommand {
-  name: command.name
-  version: command.version
-  about: command.about
-  options: [...command.options, option]
+) -> CliCommand => {
+  name: command.name,
+  version: command.version,
+  about: command.about,
+  options: [...command.options, option],
   arguments: command.arguments
 }
 
 withArgument(
   command: CliCommand,
   argument: CliArgument
-) -> CliCommand => CliCommand {
-  name: command.name
-  version: command.version
-  about: command.about
-  options: command.options
+) -> CliCommand => {
+  name: command.name,
+  version: command.version,
+  about: command.about,
+  options: command.options,
   arguments: [...command.arguments, argument]
 }
 
@@ -345,12 +263,12 @@ flag(
   name: String,
   short: String,
   help: String
-) -> CliOption => CliOption {
-  name: name
-  short: short
-  valueName: ""
-  help: help
-  required: false
+) -> CliOption => {
+  name: name,
+  short: short,
+  valueName: "",
+  help: help,
+  required: false,
   defaultValue: null
 }
 
@@ -361,12 +279,12 @@ option(
   help: String,
   required: Bool,
   defaultValue: String?
-) -> CliOption => CliOption {
-  name: name
-  short: short
-  valueName: valueName
-  help: help
-  required: required
+) -> CliOption => {
+  name: name,
+  short: short,
+  valueName: valueName,
+  help: help,
+  required: required,
   defaultValue: defaultValue
 }
 
@@ -374,9 +292,9 @@ argument(
   name: String,
   help: String,
   required: Bool
-) -> CliArgument => CliArgument {
-  name: name
-  help: help
+) -> CliArgument => {
+  name: name,
+  help: help,
   required: required
 }
 
@@ -408,7 +326,9 @@ exitError(
   @process.exit(2)
 }
 
-parseOrExit(command: CliCommand) -> CliParseResult => {
+parseOrExit(
+  command: CliCommand
+) -> CliParseResult => {
   result := @cli.parse(command)
   (
     result.help ? @cli.exitHelp(command)
@@ -702,13 +622,13 @@ parseArgs(
       : parseError = parseError
   )
   CliParseResult {
-    command: command
-    values: values
-    flags: flags
-    positionals: positionals
-    args: args
-    rest: rest
-    help: helpValue
+    command: command,
+    values: values,
+    flags: flags,
+    positionals: positionals,
+    args: args,
+    rest: rest,
+    help: helpValue,
     error: (
       parseError.isEmpty() ? null
         : parseError

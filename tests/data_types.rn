@@ -2,7 +2,6 @@
   @assert.eq(1 + 2, 3)
   @assert.eq(1.5 + 2.5, 4.0)
   @assert.eq(9007199254740993n + 7n, 9007199254741000n)
-
   values := [1, null]
   @assert.eq(values[0], 1)
   @assert.eq(values[1], null)

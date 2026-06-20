@@ -1,14 +1,20 @@
-~ gzipRoundtrip(value: String) -> Result[String, Error] => {
+~ gzipRoundtrip(
+  value: String
+) -> Result[String, Error] => {
   data := @compress.gzipText(value)?
   @compress.gunzipText(data)?
 }
 
-~ brotliRoundtrip(value: String) -> Result[String, Error] => {
+~ brotliRoundtrip(
+  value: String
+) -> Result[String, Error] => {
   data := @compress.brotliText(value)?
   @compress.unbrotliText(data)?
 }
 
-~ zstdRoundtrip(value: String) -> Result[String, Error] => {
+~ zstdRoundtrip(
+  value: String
+) -> Result[String, Error] => {
   data := @compress.zstdText(value)?
   @compress.unzstdText(data)?
 }

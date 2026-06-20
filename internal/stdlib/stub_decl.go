@@ -31,6 +31,32 @@ func (p *stubParser) parseAnnotations() ([]annotation, error) {
 	return annotations, nil
 }
 
+func (p *stubParser) parseReceiverAnnotations() ([]annotation, error) {
+	annotations, err := p.parseAnnotations()
+	if err != nil {
+		return nil, err
+	}
+	for p.match(lexer.Hash) {
+		name := p.consume(lexer.Ident, "expected annotation name")
+		ann := annotation{Name: name.Lexeme}
+		if p.match(lexer.LParen) {
+			ann.HasParens = true
+			value := p.consume(lexer.String, "expected annotation string")
+			p.consume(lexer.RParen, "expected ')' after annotation")
+			ann.Value = unquote(value.Lexeme)
+			if p.hasErrorToken(value) {
+				return nil, p.errorf(p.peek(), "invalid annotation")
+			}
+		}
+		if p.hasErrorToken(name) {
+			return nil, p.errorf(p.peek(), "invalid annotation")
+		}
+		annotations = append(annotations, ann)
+		p.skipNewlines()
+	}
+	return annotations, nil
+}
+
 func (p *stubParser) parseTrait() (Trait, error) {
 	start := p.consume(lexer.BitAnd, "expected '&'")
 	name := p.consume(lexer.Ident, "expected trait name")
@@ -42,8 +68,7 @@ func (p *stubParser) parseTrait() (Trait, error) {
 	trait := Trait{Name: name.Lexeme, SourcePath: p.path, Pos: start.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		static := false
-		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
-			p.advance()
+		if p.matchStaticMethodMarker() {
 			p.skipNewlines()
 			static = true
 		}
@@ -113,7 +138,11 @@ func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
 	typ := &Type{Name: receiver, SourcePath: p.path, Pos: name.Pos, Generics: generics, GenericConstraints: constraints}
 	var functions []Function
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
-		annotations, err := p.parseAnnotations()
+		if p.match(lexer.Comma) {
+			p.skipNewlines()
+			continue
+		}
+		annotations, err := p.parseReceiverAnnotations()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -124,15 +153,20 @@ func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
 				return nil, nil, err
 			}
 			typ.Fields = append(typ.Fields, field)
+			p.match(lexer.Comma)
 			p.skipNewlines()
 			continue
 		}
 		if !p.looksLikeFunctionDecl() {
+			if !p.check(lexer.Ident) {
+				return nil, nil, p.errorf(p.peek(), "expected receiver member")
+			}
 			constructor, err := p.parseConstructor()
 			if err != nil {
 				return nil, nil, err
 			}
 			typ.Constructors = append(typ.Constructors, constructor)
+			p.match(lexer.Comma)
 			p.skipNewlines()
 			continue
 		}
@@ -141,6 +175,7 @@ func (p *stubParser) parseReceiverBlock() (*Type, []Function, error) {
 			return nil, nil, err
 		}
 		functions = append(functions, fn)
+		p.match(lexer.Comma)
 		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after receiver block")

@@ -114,7 +114,7 @@ Iter[T]: {
   }
 }
 
-new[T](next: () -> (T, Bool)) -> Iter[T] => Iter {
+new[T](next: () -> (T, Bool)) -> Iter[T] => {
   next: next
 }
 

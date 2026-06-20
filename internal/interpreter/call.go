@@ -319,7 +319,7 @@ func (i *Interpreter) callStdlibStructMethod(receiver *Struct, name string, args
 	for idx, param := range fn.ParamNames {
 		local.Define(param, values[idx])
 	}
-	value, err := i.eval(ir.LowerExpr(fn.Body, nil), local)
+	value, err := i.eval(ir.LowerExprExpected(fn.Body, nil, checker.Type(fn.Return)), local)
 	return value, true, err
 }
 

@@ -3,6 +3,6 @@
 private() => "this is real function"
 
 main() => {
-    @io.println(greeting("Rune"))
-    @io.println(private())
+  @io.println(greeting("Rune"))
+  @io.println(private())
 }

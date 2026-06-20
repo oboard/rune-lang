@@ -7,7 +7,11 @@ User: {
 }
 
 main() => {
-  user := User { id: 1, name: "oboard", age: 22 }
+  user := User {
+    id: 1,
+    name: "oboard",
+    age: 22
+  }
   @io.println(user.name)
   @io.println(user.isAdult())
 }

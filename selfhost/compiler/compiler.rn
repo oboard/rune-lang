@@ -36,9 +36,9 @@ compileResult(
   ok: Bool,
   output: String,
   errors: Array[String]
-) -> CompileResult => CompileResult {
-  ok: ok
-  output: output
+) -> CompileResult => {
+  ok: ok,
+  output: output,
   errors: errors
 }
 

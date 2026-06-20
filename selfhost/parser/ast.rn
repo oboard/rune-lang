@@ -1,62 +1,5 @@
 @"../lexer/lexer.rn"
 
-+ TypeRefKind: {
-  + Unknown = 0
-  + Name = 1
-  + Group = 2
-  + Tuple = 3
-  + Function = 4
-}
-
-+ ExprKind: {
-  + Unknown = 0
-  + Identifier = 1
-  + At = 2
-  + This = 3
-  + Int = 4
-  + Double = 5
-  + BigInt = 6
-  + String = 7
-  + Template = 8
-  + Char = 9
-  + Regex = 10
-  + XMLText = 11
-  + Bool = 12
-  + Null = 13
-  + Unary = 14
-  + Postfix = 15
-  + Unwrap = 16
-  + Binary = 17
-  + Ternary = 18
-  + Assign = 19
-  + Call = 20
-  + Args = 21
-  + Lambda = 22
-  + Selector = 23
-  + Index = 24
-  + Array = 25
-  + Tuple = 26
-  + Map = 27
-  + Entry = 28
-  + Spread = 29
-  + Reactive = 30
-  + Struct = 31
-  + Object = 32
-  + Field = 33
-  + PrivateField = 34
-  + Method = 35
-  + PrivateMethod = 36
-  + Block = 37
-  + PatternBlock = 38
-  + Match = 39
-  + Branch = 40
-  + Pattern = 41
-  + Let = 42
-  + ObjectDestructure = 43
-  + Error = 44
-  + Watch = 45
-}
-
 + ParsedTypeParam: {
   name: String
   optional: Bool
@@ -126,6 +69,7 @@
 + ParsedFunction: {
   name: String
   private: Bool
+  static: Bool
   routine: Bool
   receiverType: String
   generics: Array[String]
@@ -163,99 +107,167 @@
   errors: Array[ParseError]
 }
 
-+ emptyParsedTypeRef() -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Unknown
-  name: ""
-  module: ""
-  nullable: false
-  args: []
-  params: []
-  returnTypes: []
-  line: 0
++ TypeRefKind: {
+  Unknown = 0
+  Name = 1
+  Group = 2
+  Tuple = 3
+  Function = 4
+}
+
++ ExprKind: {
+  Unknown = 0
+  Identifier = 1
+  At = 2
+  This = 3
+  Int = 4
+  Double = 5
+  BigInt = 6
+  String = 7
+  Template = 8
+  Char = 9
+  Regex = 10
+  XMLText = 11
+  Bool = 12
+  Null = 13
+  Unary = 14
+  Postfix = 15
+  Unwrap = 16
+  Binary = 17
+  Ternary = 18
+  Assign = 19
+  Call = 20
+  Args = 21
+  Lambda = 22
+  Selector = 23
+  Index = 24
+  Array = 25
+  Tuple = 26
+  Map = 27
+  Entry = 28
+  Spread = 29
+  Reactive = 30
+  Struct = 31
+  Object = 32
+  Field = 33
+  PrivateField = 34
+  Method = 35
+  PrivateMethod = 36
+  Block = 37
+  PatternBlock = 38
+  Match = 39
+  Branch = 40
+  Pattern = 41
+  Let = 42
+  ObjectDestructure = 43
+  Error = 44
+  Watch = 45
+}
+
++ emptyParsedTypeRef() -> ParsedTypeRef => {
+  kind: TypeRefKind.Unknown,
+  name: "",
+  module: "",
+  nullable: false,
+  args: [],
+  params: [],
+  returnTypes: [],
+  line: 0,
   column: 0
 }
 
-+ emptyParsedTypeParam() -> ParsedTypeParam => ParsedTypeParam {
-  name: ""
-  optional: false
++ emptyParsedTypeParam(
+) -> ParsedTypeParam => {
+  name: "",
+  optional: false,
   typeRef: emptyParsedTypeRef()
 }
 
-+ namedParsedTypeRef(token: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Name
-  name: token.lexeme
-  module: ""
-  nullable: false
-  args: []
-  params: []
-  returnTypes: []
-  line: token.line
++ namedParsedTypeRef(
+  token: Token
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Name,
+  name: token.lexeme,
+  module: "",
+  nullable: false,
+  args: [],
+  params: [],
+  returnTypes: [],
+  line: token.line,
   column: token.column
 }
 
-+ qualifiedParsedTypeRef(module: Token, name: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Name
-  name: name.lexeme
-  module: module.lexeme
-  nullable: false
-  args: []
-  params: []
-  returnTypes: []
-  line: module.line
++ qualifiedParsedTypeRef(
+  module: Token,
+  name: Token
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Name,
+  name: name.lexeme,
+  module: module.lexeme,
+  nullable: false,
+  args: [],
+  params: [],
+  returnTypes: [],
+  line: module.line,
   column: module.column
 }
 
 + typeRefWithArgs(
   typeRef: ParsedTypeRef,
   args: Array[ParsedTypeRef]
-) -> ParsedTypeRef => ParsedTypeRef {
-  kind: typeRef.kind
-  name: typeRef.name
-  module: typeRef.module
-  nullable: typeRef.nullable
-  args: args
-  params: typeRef.params
-  returnTypes: typeRef.returnTypes
-  line: typeRef.line
+) -> ParsedTypeRef => {
+  kind: typeRef.kind,
+  name: typeRef.name,
+  module: typeRef.module,
+  nullable: typeRef.nullable,
+  args: args,
+  params: typeRef.params,
+  returnTypes: typeRef.returnTypes,
+  line: typeRef.line,
   column: typeRef.column
 }
 
-+ nullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => ParsedTypeRef {
-  kind: typeRef.kind
-  name: typeRef.name
-  module: typeRef.module
-  nullable: true
-  args: typeRef.args
-  params: typeRef.params
-  returnTypes: typeRef.returnTypes
-  line: typeRef.line
++ nullableTypeRef(
+  typeRef: ParsedTypeRef
+) -> ParsedTypeRef => {
+  kind: typeRef.kind,
+  name: typeRef.name,
+  module: typeRef.module,
+  nullable: true,
+  args: typeRef.args,
+  params: typeRef.params,
+  returnTypes: typeRef.returnTypes,
+  line: typeRef.line,
   column: typeRef.column
 }
 
-+ groupedTypeRef(typeRef: ParsedTypeRef, token: Token) -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Group
-  name: ""
-  module: ""
-  nullable: false
-  args: [typeRef]
-  params: []
-  returnTypes: []
-  line: token.line
++ groupedTypeRef(
+  typeRef: ParsedTypeRef,
+  token: Token
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Group,
+  name: "",
+  module: "",
+  nullable: false,
+  args: [typeRef],
+  params: [],
+  returnTypes: [],
+  line: token.line,
   column: token.column
 }
 
 + tupleTypeRef(
   params: Array[ParsedTypeParam],
   token: Token
-) -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Tuple
-  name: ""
-  module: ""
-  nullable: false
-  args: []
-  params: params
-  returnTypes: []
-  line: token.line
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Tuple,
+  name: "",
+  module: "",
+  nullable: false,
+  args: [],
+  params: params,
+  returnTypes: [],
+  line: token.line,
   column: token.column
 }
 
@@ -263,40 +275,69 @@
   params: Array[ParsedTypeParam],
   returnType: ParsedTypeRef,
   token: Token
-) -> ParsedTypeRef => ParsedTypeRef {
-  kind: TypeRefKind.Function
-  name: ""
-  module: ""
-  nullable: false
-  args: []
-  params: params
-  returnTypes: [returnType]
-  line: token.line
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Function,
+  name: "",
+  module: "",
+  nullable: false,
+  args: [],
+  params: params,
+  returnTypes: [returnType],
+  line: token.line,
   column: token.column
 }
 
-+ typeRefToString(typeRef: ParsedTypeRef) -> String => typeRef.kind {
++ typeRefToString(
+  typeRef: ParsedTypeRef
+) -> String => typeRef.kind {
   TypeRefKind.Name => typeNameToString(typeRef)
-  TypeRefKind.Group => typeRef.args.length() == 0 ? "()" : ("(" + typeRefToString(typeRef.args[0])) + ")"
-  TypeRefKind.Tuple => "(" + typeParamsToString(typeRef.params, 0, "") + ")"
+  TypeRefKind.Group => (
+    typeRef.args.length() == 0 ? "()"
+      : ("(" + typeRefToString(typeRef.args[0])) + ")"
+  )
+  TypeRefKind.Tuple => ("(" + typeParamsToString(typeRef.params, 0, "")) + ")"
   TypeRefKind.Function => functionTypeToString(typeRef)
   _ => ""
 }
 
-typeNameToString(typeRef: ParsedTypeRef) -> String => {
-  prefix := typeRef.module == "" ? "" : ("@" + typeRef.module) + "."
-  args := typeRef.args.length() == 0 ? "" : "[" + typeRefsToString(typeRef.args, 0, "") + "]"
-  nullable := typeRef.nullable ? "?" : ""
+typeNameToString(
+  typeRef: ParsedTypeRef
+) -> String => {
+  prefix := (
+    typeRef.module == "" ? ""
+      : ("@" + typeRef.module) + "."
+  )
+  args := (
+    typeRef.args.length() == 0 ? ""
+      : ("[" + typeRefsToString(typeRef.args, 0, "")) + "]"
+  )
+  nullable := (
+    typeRef.nullable ? "?"
+      : ""
+  )
   ((prefix + typeRef.name) + args) + nullable
 }
 
-functionTypeToString(typeRef: ParsedTypeRef) -> String => {
-  ret := typeRef.returnTypes.length() == 0 ? "" : typeRefToString(typeRef.returnTypes[0])
+functionTypeToString(
+  typeRef: ParsedTypeRef
+) -> String => {
+  ret := (
+    typeRef.returnTypes.length() == 0 ? ""
+      : typeRefToString(typeRef.returnTypes[0])
+  )
   (("(" + typeParamsToString(typeRef.params, 0, "")) + ")->") + ret
 }
 
-typeParamToString(param: ParsedTypeParam) -> String => {
-  prefix := param.name == "" ? "" : param.name + (param.optional ? "?:" : ":")
+typeParamToString(
+  param: ParsedTypeParam
+) -> String => {
+  prefix := (
+    param.name == "" ? ""
+      : param.name + (
+        param.optional ? "?:"
+          : ":"
+      )
+  )
   prefix + typeRefToString(param.typeRef)
 }
 
@@ -304,15 +345,25 @@ typeRefsToString(
   refs: Array[ParsedTypeRef],
   index: Int,
   out: String
-) -> String =>
-  index >= refs.length() ? out : typeRefsToString(refs, index + 1, out + (index == 0 ? "" : ",") + typeRefToString(refs[index]))
+) -> String => (
+  index >= refs.length() ? out
+    : typeRefsToString(refs, index + 1, (out + (
+      index == 0 ? ""
+        : ","
+    )) + typeRefToString(refs[index]))
+)
 
 typeParamsToString(
   params: Array[ParsedTypeParam],
   index: Int,
   out: String
-) -> String =>
-  index >= params.length() ? out : typeParamsToString(params, index + 1, out + (index == 0 ? "" : ",") + typeParamToString(params[index]))
+) -> String => (
+  index >= params.length() ? out
+    : typeParamsToString(params, index + 1, (out + (
+      index == 0 ? ""
+        : ","
+    )) + typeParamToString(params[index]))
+)
 
 + exprKindName(kind: ExprKind) -> String => kind {
   ExprKind.Identifier => "identifier"

@@ -1,7 +1,7 @@
 @"greet.ts"
 
 main() => {
-   @io.println(greet("Rune"))
-   @io.println(add(5.0, 3.0))
-   @io.println(version)
+  @io.println(greet("Rune"))
+  @io.println(add(5.0, 3.0))
+  @io.println(version)
 }

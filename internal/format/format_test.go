@@ -20,8 +20,8 @@ func TestAnonymousObjectLiteralFormatting(t *testing.T) {
     name: "Alice",
     age: 30,
 
-    greet() => @io.println(.greetText())
-    nextAge() => .age + 1
+    greet() => @io.println(.greetText()),
+    nextAge() => .age + 1,
     - greetText() => "Hello, my name is " + .name
   }
 
@@ -64,13 +64,13 @@ main()=>{user:=@json.parse(text):User parsed:=User::fromJson(text) parsed}`
 	}
 	got := File(file)
 	want := `&FromJson: {
-  static fromJson(text: String) -> Self
+  ::fromJson(text: String) -> Self
 }
 
 User: {
   name: String
 
-  static fromJson(text: String) -> User => User {
+  ::fromJson(text: String) -> User => {
     name: text
   }
 }
@@ -117,6 +117,24 @@ main()=>helper()`
 	want := `@"helper.rn"
 
 main() => helper()
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestModuleImportFormatting(t *testing.T) {
+	src := `@syntax
+make()=>SyntaxFile{}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `@syntax
+
+make() => SyntaxFile {}
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
@@ -236,7 +254,7 @@ Ready=0
 
 + Status: {
   Ready = 0
-  + Hidden = 1
+  Hidden = 1
 }
 
 + add(a: Int, b: Int) -> Int => a + b
@@ -312,13 +330,43 @@ func TestAnonymousObjectMethodReturnTypeFormatting(t *testing.T) {
 	got := File(file)
 	want := `main() => {
   obj := {
-    nextAge() -> Int => .age + 1
+    nextAge() -> Int => .age + 1,
     title(prefix: String) -> String => prefix + .name
   }
 }
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFunctionReturnStructLiteralUsesInferredObjectBody(t *testing.T) {
+	src := `User: {
+name: String
+age: Int
+}
+make() -> User => User { name: "Ada", age: 42 }`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `User: {
+  name: String
+  age: Int
+}
+
+make() -> User => {
+  name: "Ada",
+  age: 42
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
 	}
 }
 
@@ -360,8 +408,8 @@ func TestStructLiteralFormatting(t *testing.T) {
 
 main() => {
   user := User {
-    id: 1
-    name: "oboard"
+    id: 1,
+    name: "oboard",
     age: 22
   }
 }
@@ -391,6 +439,24 @@ main() => Status.Completed
 	}
 	if _, errs := parser.Parse(got); len(errs) > 0 {
 		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestBareEnumMemberFormatting(t *testing.T) {
+	src := `+ TokenKind:{+ EOF() + Ident()}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `+ TokenKind: {
+  EOF
+  Ident
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
 	}
 }
 
@@ -504,8 +570,8 @@ user:=User { id: 1, name: "oboard", age: 22 } // user literal
 main() => {
   // create user
   user := User {
-    id: 1
-    name: "oboard"
+    id: 1,
+    name: "oboard",
     age: 22
   } // user literal
   @io.println(user.name) // print name

@@ -70,6 +70,6 @@ Array[T]: {
     ) -> U
   ) -> U => "%array.foldr"
 
-  @alias("_[_]")
+  #alias("_[_]")
   at(index: Int) -> T => "%array.at"
 }

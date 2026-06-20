@@ -50,16 +50,16 @@ emitTSMethods(
 methodWithReceiver(
   typeName: String,
   method: IRFunction
-) -> IRFunction => IRFunction {
-  name: (typeName + "_") + method.name
-  private: method.private
-  routine: method.routine
-  receiverType: method.receiverType
-  generics: method.generics
-  params: prependThisParam(typeName, method.params)
-  returnType: method.returnType
-  body: method.body
-  line: method.line
+) -> IRFunction => {
+  name: (typeName + "_") + method.name,
+  private: method.private,
+  routine: method.routine,
+  receiverType: method.receiverType,
+  generics: method.generics,
+  params: prependThisParam(typeName, method.params),
+  returnType: method.returnType,
+  body: method.body,
+  line: method.line,
   column: method.column
 }
 
@@ -68,9 +68,9 @@ prependThisParam(
   params: Array[IRParam]
 ) -> Array[IRParam] => {
   out := [IRParam {
-    name: "this"
-    typeName: typeName
-    line: 0
+    name: "this",
+    typeName: typeName,
+    line: 0,
     column: 0
   }]
   params.each((param) => out.push(param))

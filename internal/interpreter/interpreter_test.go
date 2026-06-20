@@ -148,10 +148,10 @@ func TestInterpreterRunsObjectDestructure(t *testing.T) {
 }
 
 main() => {
-  point := Point {
-    x: 20
-    y: 22
-  }
+	  point := Point {
+	    x: 20,
+	    y: 22
+	  }
   { x, y } := point
   @io.println(x + y)
 }

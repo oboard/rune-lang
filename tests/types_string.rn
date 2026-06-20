@@ -88,13 +88,11 @@
   @assert.eq(parts[1], "u")
   @assert.eq(parts[2], "n")
   @assert.eq(parts[3], "e")
-
   words := "core::string::test".split("::")
   @assert.eq(words.length(), 3)
   @assert.eq(words[0], "core")
   @assert.eq(words[1], "string")
   @assert.eq(words[2], "test")
-
   noMatch := "rune".split(",")
   @assert.eq(noMatch.length(), 1)
   @assert.eq(noMatch[0], "rune")

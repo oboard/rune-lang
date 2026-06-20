@@ -440,7 +440,6 @@ main() => {
 	want := []string{
 		`field "User.token" is private`,
 		`method "User.secret" is private`,
-		`enum member "Status.Hidden" is private`,
 	}
 	for _, msg := range want {
 		found := false
@@ -588,21 +587,21 @@ func TestAnalyzeSourceLowersReturnedSyntaxTree(t *testing.T) {
 ) -> SyntaxFile => {
   current := tree.types[0]
   selectedName := context.targetID == current.id ? name : current.name
-  renamed := SyntaxStruct {
-    id: current.id
-    name: selectedName
-    private: current.private
-    generics: current.generics
-    annotations: current.annotations
-    fields: current.fields
-    methods: current.methods
-    sourcePath: current.sourcePath
-  }
-  SyntaxFile {
-    types: [renamed]
-    enums: tree.enums
-    functions: tree.functions
-  }
+	  renamed := SyntaxStruct {
+	    id: current.id,
+	    name: selectedName,
+	    private: current.private,
+	    generics: current.generics,
+	    annotations: current.annotations,
+	    fields: current.fields,
+	    methods: current.methods,
+	    sourcePath: current.sourcePath
+	  }
+	  SyntaxFile {
+	    types: [renamed],
+	    enums: tree.enums,
+	    functions: tree.functions
+	  }
 }
 
 #renameFirst("Generated")
@@ -630,15 +629,15 @@ func TestAnalyzeSourceExpandsStructLiteralSpreadInMacro(t *testing.T) {
   name: String
 ) -> SyntaxFile => {
   current := tree.types[0]
-  renamed := SyntaxStruct {
-    ...current
-    name: context.targetID == current.id ? name : current.name
-  }
-  SyntaxFile {
-    types: [renamed]
-    enums: tree.enums
-    functions: tree.functions
-  }
+	  renamed := SyntaxStruct {
+	    ...current,
+	    name: context.targetID == current.id ? name : current.name
+	  }
+	  SyntaxFile {
+	    types: [renamed],
+	    enums: tree.enums,
+	    functions: tree.functions
+	  }
 }
 
 #renameFirst("Generated")

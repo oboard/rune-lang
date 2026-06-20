@@ -1,7 +1,10 @@
 Int4: {
   add(other: Int4) -> Int4 => "%int4.add"
+
   sub(other: Int4) -> Int4 => "%int4.sub"
+
   mul(other: Int4) -> Int4 => "%int4.mul"
+
   div(other: Int4) -> Int4 => "%int4.div"
 }
 

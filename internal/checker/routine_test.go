@@ -85,11 +85,11 @@ read() => {
 func TestConstructorPatternBindsResultPayloads(t *testing.T) {
 	src := `read(flag: Bool) -> Result[String, Error] => flag {
   true => Ok("Ada")
-  false => Err(Error {
-    code: 1
-    message: "no"
-    cause: null
-  })
+	  false => Err(Error {
+	    code: 1,
+	    message: "no",
+	    cause: null,
+	  })
 }
 
 message(flag: Bool) => read(flag) {

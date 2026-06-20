@@ -22,7 +22,7 @@ func (f *formatter) trait(trait *ast.TraitDecl) {
 		}
 		prefix := ""
 		if method.Static {
-			prefix = "static "
+			prefix = "::"
 		}
 		f.linef("%s%s(%s)%s", prefix, method.Name, strings.Join(params, ", "), formatReturnType(method.ReturnType))
 	}
@@ -58,10 +58,14 @@ func (f *formatter) enumType(enum *ast.EnumType) {
 	for _, member := range enum.Members {
 		f.annotations(member.Annotations)
 		if member.HasValue {
-			f.linef("%s%s = %d", publicPrefix(member.Private), member.Name, member.Value)
+			f.linef("%s = %d", member.Name, member.Value)
 			continue
 		}
-		f.linef("%s%s(%s)", publicPrefix(member.Private), member.Name, formatParams(member.Params))
+		if len(member.Params) == 0 {
+			f.line(member.Name)
+			continue
+		}
+		f.linef("%s(%s)", member.Name, formatParams(member.Params))
 	}
 	f.indent--
 	f.line("}")
@@ -93,12 +97,29 @@ func (f *formatter) function(fn *ast.Function) {
 		f.indent--
 		f.line("}")
 	default:
-		bodyText := f.expr(fn.Body)
-		if _, ok := fn.Body.(*ast.AnonymousObjectLiteral); ok {
-			bodyText = "(" + bodyText + ")"
+		bodyText, ok := f.inferredStructLiteralBody(fn)
+		if !ok {
+			bodyText = f.expr(fn.Body)
+			if _, ok := fn.Body.(*ast.AnonymousObjectLiteral); ok && fn.ReturnType.IsZero() {
+				bodyText = "(" + bodyText + ")"
+			}
 		}
 		f.lineSignature(signature, " => "+bodyText)
 	}
+}
+
+func (f *formatter) inferredStructLiteralBody(fn *ast.Function) (string, bool) {
+	if fn == nil || fn.ReturnType.IsZero() {
+		return "", false
+	}
+	lit, ok := fn.Body.(*ast.StructLiteral)
+	if !ok || lit.TypeName != typeBaseName(fn.ReturnType.Canonical()) {
+		return "", false
+	}
+	return f.anonymousObjectLiteral(&ast.AnonymousObjectLiteral{
+		Fields: lit.Fields,
+		Pos:    lit.Pos,
+	}), true
 }
 
 func (f *formatter) annotations(annotations []ast.Annotation) {
@@ -201,7 +222,7 @@ func (f *formatter) visibilityPrefix(fn *ast.Function) string {
 	if fn.ReceiverType != "" {
 		prefix := privatePrefix(fn.Private)
 		if fn.Static {
-			prefix += "static "
+			prefix += "::"
 		}
 		return prefix
 	}
@@ -273,6 +294,13 @@ func formatReturnType(typ ast.Type) string {
 		return ""
 	}
 	return " -> " + formatType(typ)
+}
+
+func typeBaseName(name string) string {
+	if idx := strings.IndexByte(name, '['); idx >= 0 {
+		return name[:idx]
+	}
+	return name
 }
 
 func splitFunctionType(typ string) ([]string, string, bool) {

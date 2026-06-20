@@ -158,7 +158,7 @@ func TestJSONParseRejectsWrongGeneratedMethodOverride(t *testing.T) {
 	file, parseErrs := parser.Parse(`#json.object
 Wrong: {
   name: String
-  static fromJson(value: Int) -> Wrong => Wrong { name: "" }
+  ::fromJson(value: Int) -> Wrong => Wrong { name: "" }
 }
 
 main() => {
@@ -198,7 +198,7 @@ main() => {
 
 func TestStaticMethodCallRequiresDoubleColon(t *testing.T) {
 	file, parseErrs := parser.Parse(`User: {
-  static create() -> User => User {}
+  ::create() -> User => User {}
 }
 
 main() => User.create()
@@ -209,5 +209,26 @@ main() => User.create()
 	_, diags := Check(file)
 	if !hasDiagnostic(diags, "must be called with '::'") {
 		t.Fatalf("Check() diagnostics = %v, want static selector diagnostic", diags)
+	}
+}
+
+func TestStructLiteralSpreadStillChecksExplicitDuplicateFields(t *testing.T) {
+	file, parseErrs := parser.Parse(`User: {
+  name: String
+  age: Int
+}
+
+main(existing: User) => User {
+  ...existing,
+  age: 41,
+  age: 42,
+}
+`)
+	if len(parseErrs) > 0 {
+		t.Fatalf("Parse() errors = %v", parseErrs)
+	}
+	_, diags := Check(file)
+	if !hasDiagnostic(diags, `duplicate field value "age"`) {
+		t.Fatalf("Check() diagnostics = %v, want duplicate field diagnostic", diags)
 	}
 }

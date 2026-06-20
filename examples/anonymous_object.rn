@@ -3,14 +3,14 @@ main() => {
     name: "Alice",
     age: 30,
 
-    greet() => @io.println(.greetText())
-    nextAge() => .age + 1
+    greet() => @io.println(.greetText()),
+    nextAge() => .age + 1,
     - greetText() => "Hello, my name is " + .name
   }
 
   obj2 := {
     parent: obj,
-    name: "Bob",
+    name: "Bob"
   }
 
   @io.println(obj.name) // prints "Alice"

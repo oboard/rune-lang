@@ -19,6 +19,10 @@ func File(file *ast.File) string {
 func FileWithOptions(file *ast.File, options Options) string {
 	f := newFormatter(options)
 	for _, imp := range file.Imports {
+		if imp.Module {
+			f.linef("@%s", imp.Path)
+			continue
+		}
 		f.linef("@%s", strconv.Quote(imp.Path))
 	}
 	if len(file.Imports) > 0 && len(file.GoImports) > 0 {

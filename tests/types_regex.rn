@@ -1,6 +1,5 @@
 ? "regex literal metadata and test" {
   re := /rune\s+\d+/ig
-
   @assert.eq(re.source(), "rune\\s+\\d+")
   @assert.eq(re.flags(), "gi")
   @assert.eq(re.global(), true)
@@ -12,7 +11,6 @@
 ? "regex exec captures and miss" {
   re := /(\w+)-(\d+)/
   hit := re.exec("id-42")
-
   @assert.eq(hit.length(), 3)
   @assert.eq(hit[0], "id-42")
   @assert.eq(hit[1], "id")
@@ -24,7 +22,6 @@
   re := /([a-z]+)(\d+)/g
   matches := re.match("a1 b22 c333")
   groups := re.matchAll("a1 b22")
-
   @assert.eq(matches.length(), 3)
   @assert.eq(matches[0], "a1")
   @assert.eq(matches[2], "c333")
@@ -41,7 +38,6 @@
   re := @regex.new("(\\d+)", "g")
   replaced := re.replaceAll("a1 b22", "[$1]")
   parts := /,\s*/.split("a, b,c")
-
   @assert.eq(replaced, "a[1] b[22]")
   @assert.eq(/(\d+)/.replace("a1 b22", "[$1]"), "a[1] b22")
   @assert.eq(/[A-Z]+/.search("abcDEF"), 3)
@@ -53,7 +49,6 @@
 
 ? "regex stateful lastIndex and escape" {
   re := /\d+/g
-
   @assert.eq(re.lastIndex(), 0)
   @assert.eq(re.exec("a1 b22")[0], "1")
   @assert.eq(re.lastIndex(), 2)

@@ -272,11 +272,11 @@ func TestGenerateStructProgram(t *testing.T) {
 }
 
 main() => {
-  user := User {
-    id: 1
-    name: "oboard"
-    age: 22
-  }
+	  user := User {
+	    id: 1,
+	    name: "oboard",
+	    age: 22
+	  }
   @io.println(user.name)
   @io.println(user.isAdult())
 }
@@ -319,10 +319,10 @@ func TestGenerateObjectDestructureProgram(t *testing.T) {
 }
 
 main() => {
-  point := Point {
-    x: 20
-    y: 22
-  }
+	  point := Point {
+	    x: 20,
+	    y: 22
+	  }
   { x, y } := point
   @io.println(x + y)
 }
@@ -795,18 +795,18 @@ func TestGenerateCompressIntrinsicProgram(t *testing.T) {
 
 func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	src := `main() => {
-  obj := {
-    name: "Alice"
-    age: 30
+	  obj := {
+	    name: "Alice",
+	    age: 30,
 
-    greet() => @io.println("Hello, my name is " + obj.name)
-    nextAge() => .age + 1
-  }
+	    greet() => @io.println("Hello, my name is " + obj.name),
+	    nextAge() => .age + 1
+	  }
 
-  obj2 := {
-    parent: obj
-    name: "Bob"
-  }
+	  obj2 := {
+	    parent: obj,
+	    name: "Bob"
+	  }
 
   @io.println(obj.name)
   @io.println(obj2.parent.name)
@@ -865,18 +865,18 @@ User: {
 
 main() => {
   user := User { name: "Ada", password: "secret", age: 36 }
-  obj := {
-    name: "Rune"
-    user: user
-    tags: ["compiler", "json"]
-    greet() => @io.println(.name)
-  }
+	  obj := {
+	    name: "Rune",
+	    user: user,
+	    tags: ["compiler", "json"],
+	    greet() => @io.println(.name)
+	  }
 
-  @io.println(@json.stringify(obj))
-  @io.println(@json.stringify({
-    name: "Direct"
-    greet() => @io.println("skip")
-  }))
+	  @io.println(@json.stringify(obj))
+	  @io.println(@json.stringify({
+	    name: "Direct",
+	    greet() => @io.println("skip")
+	  }))
 }
 `
 	file, parseErrs := parser.Parse(src)

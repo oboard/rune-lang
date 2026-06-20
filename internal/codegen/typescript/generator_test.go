@@ -571,18 +571,18 @@ User: {
 
 main() => {
   user := User { name: "Ada", password: "secret", age: 36 }
-  obj := {
-    name: "Rune"
-    user: user
-    tags: ["compiler", "json"]
-    greet() => @io.println(.name)
-  }
+	  obj := {
+	    name: "Rune",
+	    user: user,
+	    tags: ["compiler", "json"],
+	    greet() => @io.println(.name)
+	  }
 
-  @io.println(@json.stringify(obj))
-  @io.println(@json.stringify({
-    name: "Direct"
-    greet() => @io.println("skip")
-  }))
+	  @io.println(@json.stringify(obj))
+	  @io.println(@json.stringify({
+	    name: "Direct",
+	    greet() => @io.println("skip")
+	  }))
 }
 `
 	got := generateForTest(t, src)
@@ -774,10 +774,10 @@ func TestGenerateObjectDestructureProgram(t *testing.T) {
 }
 
 main() => {
-  point := Point {
-    x: 20
-    y: 22
-  }
+	  point := Point {
+	    x: 20,
+	    y: 22
+	  }
   { x, y } := point
   @io.println(x + y)
 }

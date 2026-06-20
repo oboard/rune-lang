@@ -8,7 +8,7 @@
   brotliRestored := @compress.unbrotliText(brotli)?
   zstd := @compress.zstdText(text)?
   zstdRestored := @compress.unzstdText(zstd)?
-  @io.println(restored + " / " + brotliRestored + " / " + zstdRestored)
+  @io.println((((restored + " / ") + brotliRestored) + " / ") + zstdRestored)
   @fs.remove(path)?
 }
 

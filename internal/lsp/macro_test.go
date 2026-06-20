@@ -143,22 +143,22 @@ func TestExpandedMacroShowsFinalDocument(t *testing.T) {
   context: MacroContext,
   name: String
 ) -> SyntaxFile => {
-  current := tree.types[0]
-  renamed := SyntaxStruct {
-    id: current.id
-    name: name
-    private: current.private
-    generics: current.generics
-    annotations: current.annotations
-    fields: current.fields
-    methods: current.methods
-    sourcePath: current.sourcePath
-  }
-  SyntaxFile {
-    types: [renamed]
-    enums: tree.enums
-    functions: tree.functions
-  }
+	  current := tree.types[0]
+	  renamed := SyntaxStruct {
+	    id: current.id,
+	    name: name,
+	    private: current.private,
+	    generics: current.generics,
+	    annotations: current.annotations,
+	    fields: current.fields,
+	    methods: current.methods,
+	    sourcePath: current.sourcePath,
+	  }
+	  SyntaxFile {
+	    types: [renamed],
+	    enums: tree.enums,
+	    functions: tree.functions,
+	  }
 }
 
 #rename("Generated")

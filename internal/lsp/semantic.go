@@ -36,6 +36,12 @@ func (s *server) semanticTokens(uri string) any {
 			}
 		}
 	}
+	for _, enum := range prog.File.Enums {
+		tokens = append(tokens, semanticTokenFor(enum.NamePos, enum.Name, semanticTokenTypeEnum, 0))
+		for _, member := range enum.Members {
+			tokens = append(tokens, semanticTokenFor(member.Pos, member.Name, semanticTokenTypeEnumMember, 0))
+		}
+	}
 	for _, fn := range prog.File.Functions {
 		if !fn.Routine {
 			continue
@@ -114,6 +120,8 @@ func (s *server) semanticTokens(uri string) any {
 				length:    len(expr.TypeName),
 				tokenType: semanticTokenTypeType,
 			})
+		case *ast.SelectorExpr:
+			tokens = append(tokens, enumSelectorSemanticTokens(prog, expr)...)
 		}
 	})
 	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
@@ -198,7 +206,7 @@ func templateIdentifierSemanticToken(prog *compiler.Program, signals map[string]
 		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeType, 0), true
 	}
 	if _, ok := prog.Info.Enums[ident.Name]; ok {
-		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeType, 0), true
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeEnum, 0), true
 	}
 	if prog.Info.ResolvedValues[ident] != nil {
 		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeVariable, 0), true
@@ -208,6 +216,24 @@ func templateIdentifierSemanticToken(prog *compiler.Program, signals map[string]
 		return semanticToken{}, false
 	}
 	return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeVariable, 0), true
+}
+
+func enumSelectorSemanticTokens(prog *compiler.Program, sel *ast.SelectorExpr) []semanticToken {
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok {
+		return nil
+	}
+	enum := prog.Info.Enums[ident.Name]
+	if enum == nil {
+		return nil
+	}
+	if _, ok := enum.ByName[sel.Name]; !ok {
+		return nil
+	}
+	return []semanticToken{
+		semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeEnum, 0),
+		semanticTokenFor(sel.NamePos, sel.Name, semanticTokenTypeEnumMember, 0),
+	}
 }
 
 func semanticTokenFor(pos lexer.Position, name string, tokenType int, modifiers int) semanticToken {
@@ -343,9 +369,11 @@ type semanticToken struct {
 }
 
 const (
-	semanticTokenTypeVariable = 0
-	semanticTokenTypeType     = 1
-	semanticTokenTypeFunction = 2
+	semanticTokenTypeVariable   = 0
+	semanticTokenTypeType       = 1
+	semanticTokenTypeFunction   = 2
+	semanticTokenTypeEnum       = 3
+	semanticTokenTypeEnumMember = 4
 
 	semanticTokenModifierModification = 1 << 0
 	semanticTokenModifierAsync        = 1 << 1

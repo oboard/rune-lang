@@ -1,7 +1,10 @@
 UInt16: {
   add(other: UInt16) -> UInt16 => "%uint16.add"
+
   sub(other: UInt16) -> UInt16 => "%uint16.sub"
+
   mul(other: UInt16) -> UInt16 => "%uint16.mul"
+
   div(other: UInt16) -> UInt16 => "%uint16.div"
 }
 

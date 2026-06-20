@@ -234,28 +234,27 @@ func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		if p.match(lexer.DotDotDot) {
 			spread := p.previous()
+			value := p.parseExpression(1)
+			missingComma := p.consumeFieldSeparator(lexer.RBrace)
 			lit.Fields = append(lit.Fields, ast.FieldValue{
-				Spread: true,
-				Value:  p.parseExpression(1),
-				Pos:    spread.Pos,
+				Spread:       true,
+				MissingComma: missingComma,
+				Value:        value,
+				Pos:          spread.Pos,
 			})
-			p.consumeStatementEnd()
-			p.match(lexer.Comma)
-			p.skipNewlines()
 			continue
 		}
 		fieldName := p.consume(lexer.Ident, "expected field name")
 		p.consume(lexer.Colon, "expected ':' after field name")
 		p.skipNewlines()
 		value := p.parseExpression(1)
+		missingComma := p.consumeFieldSeparator(lexer.RBrace)
 		lit.Fields = append(lit.Fields, ast.FieldValue{
-			Name:  fieldName.Lexeme,
-			Value: value,
-			Pos:   fieldName.Pos,
+			Name:         fieldName.Lexeme,
+			MissingComma: missingComma,
+			Value:        value,
+			Pos:          fieldName.Pos,
 		})
-		p.consumeStatementEnd()
-		p.match(lexer.Comma)
-		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after struct literal")
 	return lit
@@ -657,25 +656,23 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		private := p.parseObjectPrivateModifier()
 		if p.looksLikeFunctionDecl() {
-			lit.Fields = append(lit.Fields, p.parseAnonymousObjectMethod(private))
-			p.consumeStatementEnd()
-			p.match(lexer.Comma)
-			p.skipNewlines()
+			field := p.parseAnonymousObjectMethod(private)
+			field.MissingComma = p.consumeFieldSeparator(lexer.RBrace)
+			lit.Fields = append(lit.Fields, field)
 			continue
 		}
 		fieldName := p.consume(lexer.Ident, "expected field name")
 		p.consume(lexer.Colon, "expected ':' after field name")
 		p.skipNewlines()
 		value := p.parseExpression(1)
+		missingComma := p.consumeFieldSeparator(lexer.RBrace)
 		lit.Fields = append(lit.Fields, ast.FieldValue{
-			Name:    fieldName.Lexeme,
-			Private: private,
-			Value:   value,
-			Pos:     fieldName.Pos,
+			Name:         fieldName.Lexeme,
+			Private:      private,
+			MissingComma: missingComma,
+			Value:        value,
+			Pos:          fieldName.Pos,
 		})
-		p.consumeStatementEnd()
-		p.match(lexer.Comma)
-		p.skipNewlines()
 	}
 	p.consume(lexer.RBrace, "expected '}' after object literal")
 	return lit

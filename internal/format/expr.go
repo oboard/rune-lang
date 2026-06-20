@@ -442,17 +442,23 @@ func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
 	closeIndent := f.indentString(f.indent)
 	b.WriteString(lit.TypeName)
 	b.WriteString(" {\n")
-	for _, field := range lit.Fields {
+	for i, field := range lit.Fields {
 		b.WriteString(fieldIndent)
 		if field.Spread {
 			b.WriteString("...")
 			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+			if i < len(lit.Fields)-1 {
+				b.WriteByte(',')
+			}
 			b.WriteByte('\n')
 			continue
 		}
 		b.WriteString(field.Name)
 		b.WriteString(": ")
 		b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+		if i < len(lit.Fields)-1 {
+			b.WriteByte(',')
+		}
 		b.WriteByte('\n')
 	}
 	b.WriteString(closeIndent)
@@ -535,7 +541,10 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 		}
 		seenMethod = seenMethod || isMethod
 		b.WriteString(fieldIndent)
-		if isMethod {
+		if field.Spread {
+			b.WriteString("...")
+			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
+		} else if isMethod {
 			b.WriteString(privatePrefix(field.Private))
 			b.WriteString(f.anonymousObjectMethod(field.Name, lambda))
 		} else {
@@ -543,7 +552,9 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 			b.WriteString(field.Name)
 			b.WriteString(": ")
 			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
-			b.WriteString(",")
+		}
+		if i < len(obj.Fields)-1 {
+			b.WriteByte(',')
 		}
 		b.WriteByte('\n')
 	}

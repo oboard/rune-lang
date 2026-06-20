@@ -1,7 +1,10 @@
 Int8: {
   add(other: Int8) -> Int8 => "%int8.add"
+
   sub(other: Int8) -> Int8 => "%int8.sub"
+
   mul(other: Int8) -> Int8 => "%int8.mul"
+
   div(other: Int8) -> Int8 => "%int8.div"
 }
 

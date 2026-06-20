@@ -1,64 +1,3 @@
-+ TokenKind: {
-  + EOF
-  + Illegal
-  + Newline
-  + Ident
-  + Int
-  + Double
-  + BigInt
-  + String
-  + TemplateString
-  + Char
-  + Regex
-  + XMLText
-  + At
-  + Dollar
-  + Dot
-  + DotDot
-  + DotDotEqual
-  + DotDotDot
-  + Comma
-  + Colon
-  + DoubleColon
-  + LParen
-  + RParen
-  + LBracket
-  + RBracket
-  + LBrace
-  + RBrace
-  + Question
-  + QuestionQuestion
-  + FatArrow
-  + Assign
-  + Declare
-  + MutDeclare
-  + SignalDeclare
-  + Arrow
-  + Plus
-  + PlusPlus
-  + Minus
-  + Star
-  + Slash
-  + Percent
-  + Bang
-  + Tilde
-  + BitAnd
-  + BitOr
-  + BitXor
-  + ShiftLeft
-  + ShiftRight
-  + UnsignedShiftRight
-  + AndAnd
-  + OrOr
-  + EqualEqual
-  + BangEqual
-  + Less
-  + LessEqual
-  + Greater
-  + GreaterEqual
-  + Underscore
-}
-
 + Token: {
   kind: TokenKind
   lexeme: String
@@ -93,22 +32,83 @@ ScannedString: {
   ok: Bool
 }
 
++ TokenKind: {
+  EOF
+  Illegal
+  Newline
+  Ident
+  Int
+  Double
+  BigInt
+  String
+  TemplateString
+  Char
+  Regex
+  XMLText
+  At
+  Dollar
+  Dot
+  DotDot
+  DotDotEqual
+  DotDotDot
+  Comma
+  Colon
+  DoubleColon
+  LParen
+  RParen
+  LBracket
+  RBracket
+  LBrace
+  RBrace
+  Question
+  QuestionQuestion
+  FatArrow
+  Assign
+  Declare
+  MutDeclare
+  SignalDeclare
+  Arrow
+  Plus
+  PlusPlus
+  Minus
+  Star
+  Slash
+  Percent
+  Bang
+  Tilde
+  BitAnd
+  BitOr
+  BitXor
+  ShiftLeft
+  ShiftRight
+  UnsignedShiftRight
+  AndAnd
+  OrOr
+  EqualEqual
+  BangEqual
+  Less
+  LessEqual
+  Greater
+  GreaterEqual
+  Underscore
+}
+
 + lex(source: String) -> Array[Token] => scan(LexState {
-  source: source
-  start: 0
-  current: 0
-  line: 1
-  column: 1
-  startLine: 1
-  startColumn: 1
+  source: source,
+  start: 0,
+  current: 0,
+  line: 1,
+  column: 1,
+  startLine: 1,
+  startColumn: 1,
   canStartRegex: true
 }, emptyTokens())
 
 emptyTokens() -> Array[Token] => [Token {
-  kind: TokenKind.EOF
-  lexeme: ""
-  offset: 0
-  line: 0
+  kind: TokenKind.EOF,
+  lexeme: "",
+  offset: 0,
+  line: 0,
   column: 0
 }].slice(0, 0)
 
@@ -118,7 +118,10 @@ scan(
 ) -> Array[Token] => {
   skipped := skipIgnored(state)
   started := markStart(skipped)
-  atEnd(started) ? appendToken(tokens, makeToken(started, TokenKind.EOF)) : scanLexed(scanToken(advance(started)), tokens)
+  (
+    atEnd(started) ? appendToken(tokens, makeToken(started, TokenKind.EOF))
+      : scanLexed(scanToken(advance(started)), tokens)
+  )
 }
 
 scanLexed(
@@ -140,31 +143,33 @@ appendToken(
 makeToken(
   state: LexState,
   kind: TokenKind
-) -> Token => Token {
-  kind: kind
-  lexeme: state.source.slice(state.start, state.current)
-  offset: state.start
-  line: state.startLine
+) -> Token => {
+  kind: kind,
+  lexeme: state.source.slice(state.start, state.current),
+  offset: state.start,
+  line: state.startLine,
   column: state.startColumn
 }
 
 finishToken(
   state: LexState,
   kind: TokenKind
-) -> LexState => LexState {
-  source: state.source
-  start: state.start
-  current: state.current
-  line: state.line
-  column: state.column
-  startLine: state.startLine
-  startColumn: state.startColumn
+) -> LexState => {
+  source: state.source,
+  start: state.start,
+  current: state.current,
+  line: state.line,
+  column: state.column,
+  startLine: state.startLine,
+  startColumn: state.startColumn,
   canStartRegex: !canEndExpression(kind)
 }
 
 canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind.Double | TokenKind.BigInt | TokenKind.String | TokenKind.TemplateString | TokenKind.Char | TokenKind.Regex | TokenKind.XMLText | TokenKind.Less | TokenKind.RParen | TokenKind.RBracket | TokenKind.RBrace
 
-+ tokenKindName(kind: TokenKind) -> String => kind {
++ tokenKindName(
+  kind: TokenKind
+) -> String => kind {
   TokenKind.EOF => "EOF"
   TokenKind.Illegal => "Illegal"
   TokenKind.Newline => "Newline"
@@ -226,14 +231,14 @@ canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind
   _ => "Unknown"
 }
 
-markStart(state: LexState) -> LexState => LexState {
-  source: state.source
-  start: state.current
-  current: state.current
-  line: state.line
-  column: state.column
-  startLine: state.line
-  startColumn: state.column
+markStart(state: LexState) -> LexState => {
+  source: state.source,
+  start: state.current,
+  current: state.current,
+  line: state.line,
+  column: state.column,
+  startLine: state.line,
+  startColumn: state.column,
   canStartRegex: state.canStartRegex
 }
 
@@ -242,7 +247,10 @@ atEnd(state: LexState) -> Bool => state.current >= state.source.length()
 charAt(
   source: String,
   index: Int
-) -> Char => (index < 0) || (index >= source.length()) ? '\x00' : source.at(index)
+) -> Char => (
+  (index < 0) || (index >= source.length()) ? '\x00'
+    : source.at(index)
+)
 
 peek(state: LexState) -> Char => charAt(state.source, state.current)
 
@@ -252,34 +260,55 @@ advanceState(
   state: LexState
 ) -> LexState => advance(state).state
 
-advance(state: LexState) -> Advanced => atEnd(state) ? advanced(state, '\x00') : advanceChar(state, state.source.at(state.current))
+advance(state: LexState) -> Advanced => (
+  atEnd(state) ? advanced(state, '\x00')
+    : advanceChar(state, state.source.at(state.current))
+)
 
 advanced(
   state: LexState,
   ch: Char
-) -> Advanced => Advanced {
-  state: state
+) -> Advanced => {
+  state: state,
   ch: ch
 }
 
 advanceChar(
   state: LexState,
   ch: Char
-) -> Advanced => Advanced {
+) -> Advanced => {
   state: LexState {
-    source: state.source
-    start: state.start
-    current: state.current + 1
-    line: ch == '\n' ? state.line + 1 : state.line
-    column: ch == '\n' ? 1 : state.column + 1
-    startLine: state.startLine
-    startColumn: state.startColumn
+    source: state.source,
+    start: state.start,
+    current: state.current + 1,
+    line: (
+      ch == '\n' ? state.line + 1
+        : state.line
+    ),
+    column: (
+      ch == '\n' ? 1
+        : state.column + 1
+    ),
+    startLine: state.startLine,
+    startColumn: state.startColumn,
     canStartRegex: state.canStartRegex
-  }
+  },
   ch: ch
 }
 
-skipIgnored(state: LexState) -> LexState => atEnd(state) ? state : isSpace(peek(state)) ? skipIgnored(advanceState(state)) : startsWith(state, '/', '/') ? skipIgnored(skipLineComment(advanceState(advanceState(state)))) : startsWith(state, '/', '*') ? skipIgnored(skipBlockComment(advanceState(advanceState(state)))) : state
+skipIgnored(state: LexState) -> LexState => (
+  atEnd(state) ? state
+    : (
+      isSpace(peek(state)) ? skipIgnored(advanceState(state))
+        : (
+          startsWith(state, '/', '/') ? skipIgnored(skipLineComment(advanceState(advanceState(state))))
+            : (
+              startsWith(state, '/', '*') ? skipIgnored(skipBlockComment(advanceState(advanceState(state))))
+                : state
+            )
+        )
+    )
+)
 
 startsWith(
   state: LexState,
@@ -287,9 +316,18 @@ startsWith(
   second: Char
 ) -> Bool => (peek(state) == first) && (peekNext(state) == second)
 
-skipLineComment(state) => atEnd(state) || (peek(state) == '\n') ? state : skipLineComment(advanceState(state))
+skipLineComment(state) => (
+  atEnd(state) || (peek(state) == '\n') ? state
+    : skipLineComment(advanceState(state))
+)
 
-skipBlockComment(state) => atEnd(state) ? state : startsWith(state, '*', '/') ? advanceState(advanceState(state)) : skipBlockComment(advanceState(state))
+skipBlockComment(state) => (
+  atEnd(state) ? state
+    : (
+      startsWith(state, '*', '/') ? advanceState(advanceState(state))
+        : skipBlockComment(advanceState(state))
+    )
+)
 
 isSpace(ch) => ' ' | '\t' | '\r'
 
@@ -312,7 +350,10 @@ scanToken(step) => {
     '+' => lexPlus(state)
     '-' => lexMinus(state)
     '*' => lexed(state, TokenKind.Star)
-    '/' => state.canStartRegex ? lexRegexToken(state) : lexed(state, TokenKind.Slash)
+    '/' => (
+      state.canStartRegex ? lexRegexToken(state)
+        : lexed(state, TokenKind.Slash)
+    )
     '%' => lexed(state, TokenKind.Percent)
     '!' => lexBang(state)
     '~' => lexTilde(state)
@@ -325,16 +366,25 @@ scanToken(step) => {
     '"' => lexStringToken(state)
     '`' => lexTemplateStringToken(state)
     '\'' => lexCharToken(state)
-    '_' => isIdentContinue(peek(state)) ? lexIdentifierToken(state) : lexed(state, TokenKind.Underscore)
-    _ => isDigit(ch) ? lexNumberToken(state) : isIdentStart(ch) ? lexIdentifierToken(state) : lexed(state, TokenKind.Illegal)
+    '_' => (
+      isIdentContinue(peek(state)) ? lexIdentifierToken(state)
+        : lexed(state, TokenKind.Underscore)
+    )
+    _ => (
+      isDigit(ch) ? lexNumberToken(state)
+        : (
+          isIdentStart(ch) ? lexIdentifierToken(state)
+            : lexed(state, TokenKind.Illegal)
+        )
+    )
   }
 }
 
 lexed(
   state: LexState,
   kind: TokenKind
-) -> Lexed => Lexed {
-  state: state
+) -> Lexed => {
+  state: state,
   kind: kind
 }
 
@@ -409,88 +459,126 @@ lexLess(state: LexState) -> Lexed => peek(state) {
 
 lexGreater(state: LexState) -> Lexed => peek(state) {
   '=' => lexed(advanceState(state), TokenKind.GreaterEqual)
-  '>' => startsWith(state, '>', '>') ? lexed(advanceState(advanceState(state)), TokenKind.UnsignedShiftRight) : lexed(advanceState(state), TokenKind.ShiftRight)
+  '>' => (
+    startsWith(state, '>', '>') ? lexed(advanceState(advanceState(state)), TokenKind.UnsignedShiftRight)
+      : lexed(advanceState(state), TokenKind.ShiftRight)
+  )
   _ => lexed(state, TokenKind.Greater)
 }
 
 lexStringToken(state: LexState) -> Lexed => {
   scanned := scanString(state, false)
-  lexed(scanned.state, scanned.ok ? TokenKind.String : TokenKind.Illegal)
+  lexed(scanned.state, (
+    scanned.ok ? TokenKind.String
+      : TokenKind.Illegal
+  ))
 }
 
-lexTemplateStringToken(state: LexState) -> Lexed => {
+lexTemplateStringToken(
+  state: LexState
+) -> Lexed => {
   scanned := scanTemplateString(state, false)
-  lexed(scanned.state, scanned.ok ? TokenKind.TemplateString : TokenKind.Illegal)
+  lexed(scanned.state, (
+    scanned.ok ? TokenKind.TemplateString
+      : TokenKind.Illegal
+  ))
 }
 
 scanString(
   state: LexState,
   escaped: Bool
-) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanStringStep(advance(state), escaped)
+) -> ScannedString => (
+  atEnd(state) ? scannedString(state, false)
+    : scanStringStep(advance(state), escaped)
+)
 
 scanTemplateString(
   state: LexState,
   escaped: Bool
-) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanTemplateStringStep(advance(state), escaped)
+) -> ScannedString => (
+  atEnd(state) ? scannedString(state, false)
+    : scanTemplateStringStep(advance(state), escaped)
+)
 
 scannedString(
   state: LexState,
   ok: Bool
-) -> ScannedString => ScannedString {
-  state: state
+) -> ScannedString => {
+  state: state,
   ok: ok
 }
 
 scanStringStep(
   step: Advanced,
   escaped: Bool
-) -> ScannedString => escaped ? scanString(step.state, false) : step.ch {
-  '\\' => scanString(step.state, true)
-  '"' => scannedString(step.state, true)
-  _ => scanString(step.state, false)
-}
+) -> ScannedString => (
+  escaped ? scanString(step.state, false)
+    : step.ch {
+      '\\' => scanString(step.state, true)
+      '"' => scannedString(step.state, true)
+      _ => scanString(step.state, false)
+    }
+)
 
 scanTemplateStringStep(
   step: Advanced,
   escaped: Bool
-) -> ScannedString => escaped ? scanTemplateString(step.state, false) : step.ch {
-  '\\' => scanTemplateString(step.state, true)
-  '`' => scannedString(step.state, true)
-  _ => scanTemplateString(step.state, false)
-}
+) -> ScannedString => (
+  escaped ? scanTemplateString(step.state, false)
+    : step.ch {
+      '\\' => scanTemplateString(step.state, true)
+      '`' => scannedString(step.state, true)
+      _ => scanTemplateString(step.state, false)
+    }
+)
 
 lexCharToken(state: LexState) -> Lexed => {
   scanned := scanChar(state, false)
-  lexed(scanned.state, scanned.ok ? TokenKind.Char : TokenKind.Illegal)
+  lexed(scanned.state, (
+    scanned.ok ? TokenKind.Char
+      : TokenKind.Illegal
+  ))
 }
 
 scanChar(
   state: LexState,
   escaped: Bool
-) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanCharStep(advance(state), escaped)
+) -> ScannedString => (
+  atEnd(state) ? scannedString(state, false)
+    : scanCharStep(advance(state), escaped)
+)
 
 scanCharStep(
   step: Advanced,
   escaped: Bool
 ) -> ScannedString => step.ch {
   '\n' => scannedString(step.state, false)
-  _ => escaped ? scanChar(step.state, false) : step.ch {
-    '\\' => scanChar(step.state, true)
-    '\'' => scannedString(step.state, true)
-    _ => scanChar(step.state, false)
-  }
+  _ => (
+    escaped ? scanChar(step.state, false)
+      : step.ch {
+        '\\' => scanChar(step.state, true)
+        '\'' => scannedString(step.state, true)
+        _ => scanChar(step.state, false)
+      }
+  )
 }
 
 lexRegexToken(state: LexState) -> Lexed => {
   scanned := scanRegex(state, false, false)
-  lexed(scanned.state, scanned.ok ? TokenKind.Regex : TokenKind.Illegal)
+  lexed(scanned.state, (
+    scanned.ok ? TokenKind.Regex
+      : TokenKind.Illegal
+  ))
 }
 
 scanRegex(
   state: LexState,
   escaped: Bool,
   inClass: Bool
-) -> ScannedString => atEnd(state) ? scannedString(state, false) : scanRegexStep(advance(state), escaped, inClass)
+) -> ScannedString => (
+  atEnd(state) ? scannedString(state, false)
+    : scanRegexStep(advance(state), escaped, inClass)
+)
 
 scanRegexStep(
   step: Advanced,
@@ -498,30 +586,54 @@ scanRegexStep(
   inClass: Bool
 ) -> ScannedString => step.ch {
   '\n' => scannedString(step.state, false)
-  _ => escaped ? scanRegex(step.state, false, inClass) : step.ch {
-    '\\' => scanRegex(step.state, true, inClass)
-    '[' => scanRegex(step.state, false, true)
-    ']' => scanRegex(step.state, false, false)
-    '/' => inClass ? scanRegex(step.state, false, inClass) : scannedString(scanRegexFlags(step.state), true)
-    _ => scanRegex(step.state, false, inClass)
-  }
+  _ => (
+    escaped ? scanRegex(step.state, false, inClass)
+      : step.ch {
+        '\\' => scanRegex(step.state, true, inClass)
+        '[' => scanRegex(step.state, false, true)
+        ']' => scanRegex(step.state, false, false)
+        '/' => (
+          inClass ? scanRegex(step.state, false, inClass)
+            : scannedString(scanRegexFlags(step.state), true)
+        )
+        _ => scanRegex(step.state, false, inClass)
+      }
+  )
 }
 
 scanRegexFlags(
   state: LexState
-) -> LexState => isRegexFlag(peek(state)) ? scanRegexFlags(advanceState(state)) : state
+) -> LexState => (
+  isRegexFlag(peek(state)) ? scanRegexFlags(advanceState(state))
+    : state
+)
 
 lexNumberToken(state: LexState) -> Lexed => lexNumberAfterDigits(scanDigits(state), false)
 
-scanDigits(state: LexState) -> LexState => isDigit(peek(state)) ? scanDigits(advanceState(state)) : state
+scanDigits(state: LexState) -> LexState => (
+  isDigit(peek(state)) ? scanDigits(advanceState(state))
+    : state
+)
 
 lexNumberAfterDigits(
   state: LexState,
   isDouble: Bool
 ) -> Lexed => peek(state) {
   'n' => lexed(advanceState(state), TokenKind.BigInt)
-  '.' => isDigit(peekNext(state)) ? lexNumberAfterDot(advanceState(state)) : lexed(state, isDouble ? TokenKind.Double : TokenKind.Int)
-  _ => isExponentMarker(peek(state)) ? lexNumberAfterExponent(advanceState(state)) : lexed(state, isDouble ? TokenKind.Double : TokenKind.Int)
+  '.' => (
+    isDigit(peekNext(state)) ? lexNumberAfterDot(advanceState(state))
+      : lexed(state, (
+        isDouble ? TokenKind.Double
+          : TokenKind.Int
+      ))
+  )
+  _ => (
+    isExponentMarker(peek(state)) ? lexNumberAfterExponent(advanceState(state))
+      : lexed(state, (
+        isDouble ? TokenKind.Double
+          : TokenKind.Int
+      ))
+  )
 }
 
 lexNumberAfterDot(
@@ -530,7 +642,10 @@ lexNumberAfterDot(
 
 lexNumberAfterExponent(
   state: LexState
-) -> Lexed => isExponentSign(peek(state)) ? lexNumberExponentDigits(advanceState(state)) : lexNumberExponentDigits(state)
+) -> Lexed => (
+  isExponentSign(peek(state)) ? lexNumberExponentDigits(advanceState(state))
+    : lexNumberExponentDigits(state)
+)
 
 lexNumberExponentDigits(
   state: LexState
@@ -542,7 +657,10 @@ lexIdentifierToken(
 
 scanIdentifier(
   state: LexState
-) -> LexState => isIdentContinue(peek(state)) ? scanIdentifier(advanceState(state)) : state
+) -> LexState => (
+  isIdentContinue(peek(state)) ? scanIdentifier(advanceState(state))
+    : state
+)
 
 isDigit(ch: Char) -> Bool => '0'..='9'
 
@@ -555,24 +673,14 @@ isIdentStart(ch: Char) -> Bool => {
 
 isIdentContinue(ch: Char) -> Bool => isIdentStart(ch) || isDigit(ch)
 
-isIdentText(ch: Char) -> Bool => ((isIdentBoundary(ch) == false) && (isAsciiPunctuation(ch) == false))
+isIdentText(ch: Char) -> Bool => (isIdentBoundary(ch) == false) && (isAsciiPunctuation(ch) == false)
 
 isIdentBoundary(ch: Char) -> Bool => {
-  '\x00' => true
-  ' ' => true
-  '\t' => true
-  '\r' => true
-  '\n' => true
-  _ => false
+  '\x00' | ' ' | '\t' | '\r' | '\n'
 }
 
 isAsciiPunctuation(ch: Char) -> Bool => {
-  '!'..='/' => true
-  ':'..='@' => true
-  '['..='^' => true
-  '`' => true
-  '{'..='~' => true
-  _ => false
+  ('!'..='/') | (':'..='@') | ('['..='^') | '`' | ('{'..='~')
 }
 
 isRegexFlag(ch: Char) -> Bool => isAlpha(ch)

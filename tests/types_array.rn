@@ -2,14 +2,12 @@
   empty := []
   @assert.eq(empty.length(), 0)
   @assert.eq(empty.isEmpty(), true)
-
   ints := [1, 2, 3]
   @assert.eq(ints.length(), 3)
   @assert.eq(ints.isEmpty(), false)
   @assert.eq(ints[0], 1)
   @assert.eq(ints[1], 2)
   @assert.eq(ints[2], 3)
-
   words := ["rune", "array", "core"]
   @assert.eq(words.length(), 3)
   @assert.eq(words[0], "rune")
@@ -44,16 +42,13 @@
   @assert.eq(values.last(), 4)
   @assert.eq(values.contains(20), true)
   @assert.eq(values.contains(2), false)
-
   middle := values.slice(1, 3)
   @assert.eq(middle.length(), 2)
   @assert.eq(middle[0], 20)
   @assert.eq(middle[1], 3)
-
   reversed := values.reverse()
   @assert.eq(reversed[0], 4)
   @assert.eq(reversed[3], 1)
-
   cloned := values.clone()
   @assert.eq(cloned.length(), 4)
   @assert.eq(cloned.pop(), 4)
@@ -63,15 +58,12 @@
 
 ? "array each" {
   values := [1, 2, 3, 4]
-
   sum ~= 0
   values.each((value) => sum = sum + value)
   @assert.eq(sum, 10)
-
   indexed ~= 0
-  values.each((value, index) => indexed = indexed + value * index)
+  values.each((value, index) => indexed = indexed + (value * index))
   @assert.eq(indexed, 20)
-
   product ~= 1
   values.each((value) => product = product * value)
   @assert.eq(product, 24)
@@ -84,7 +76,6 @@
   @assert.eq(doubled[0], 2)
   @assert.eq(doubled[1], 4)
   @assert.eq(doubled[2], 6)
-
   words := ["r", "ru", "run", "rune"]
   copied := words.map((word) => word)
   @assert.eq(copied.length(), 4)
@@ -92,7 +83,6 @@
   @assert.eq(copied[1], "ru")
   @assert.eq(copied[2], "run")
   @assert.eq(copied[3], "rune")
-
   shifted := values.map((value, index) => value + index)
   @assert.eq(shifted[0], 1)
   @assert.eq(shifted[1], 3)
@@ -103,17 +93,13 @@
   values := [1, 2, 3, 4]
   sum := values.reduce(0, (accumulator, value) => accumulator + value)
   @assert.eq(sum, 10)
-
   weighted := values.reduce(0, (accumulator, value, index) => accumulator + (value * index))
   @assert.eq(weighted, 20)
-
   fromArrayArg := values.reduce(0, (accumulator, value, index, array) => accumulator + array[index])
   @assert.eq(fromArrayArg, 10)
-
   words := ["a", "b", "c"]
   left := words.foldl("", (accumulator, value) => accumulator + value)
   @assert.eq(left, "abc")
-
   right := words.foldr("", (accumulator, value) => accumulator + value)
   @assert.eq(right, "cba")
 }
@@ -128,12 +114,10 @@
   @assert.eq(matrix[1][0], 3)
   @assert.eq(matrix[1][1], 4)
   @assert.eq(matrix.at(0).at(1), 2)
-
   @assert.eq(matrix.push([5, 6]), 3)
   @assert.eq(matrix.length(), 3)
   @assert.eq(matrix[2][0], 5)
   @assert.eq(matrix[2][1], 6)
-
   rowSums := matrix.map((row) => row[0] + row[1])
   @assert.eq(rowSums.length(), 3)
   @assert.eq(rowSums[0], 3)
@@ -147,13 +131,11 @@
   @assert.eq(maybeInts[0], 1)
   @assert.eq(maybeInts[1], null)
   @assert.eq(maybeInts[2], 3)
-
   maybeWords := ["rune", null, "core"]
   @assert.eq(maybeWords.length(), 3)
   @assert.eq(maybeWords[0], "rune")
   @assert.eq(maybeWords[1], null)
   @assert.eq(maybeWords[2], "core")
-
   nested := [[1, null], [2, 3]]
   @assert.eq(nested.length(), 2)
   @assert.eq(nested[0][0], 1)

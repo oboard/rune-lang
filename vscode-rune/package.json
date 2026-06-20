@@ -49,6 +49,12 @@
           },
           "function.async:rune": {
             "fontStyle": "italic underline"
+          },
+          "enum:rune": {
+            "foreground": "#4EC9B0"
+          },
+          "enumMember:rune": {
+            "foreground": "#4FC1FF"
           }
         }
       }

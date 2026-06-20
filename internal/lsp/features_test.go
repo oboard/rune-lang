@@ -188,6 +188,37 @@ main() => {
 	}
 }
 
+func TestEnumSemanticTokens(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `+ TokenKind: {
+  EOF
+  Ident
+}
+
+main() => TokenKind.EOF
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	resp := s.semanticTokens(uri).(map[string]any)
+	got := decodeSemanticTokenTypes(resp["data"].([]int))
+	enumDecl := positionOf(src, "TokenKind: {", "TokenKind")
+	memberDecl := positionOf(src, "EOF\n", "EOF")
+	enumUse := positionOf(src, "TokenKind.EOF", "TokenKind")
+	memberUse := positionOf(src, "TokenKind.EOF", "EOF")
+	if got[enumDecl] != semanticTokenTypeEnum {
+		t.Fatalf("enum declaration token = %d, want enum; all tokens %#v", got[enumDecl], got)
+	}
+	if got[memberDecl] != semanticTokenTypeEnumMember {
+		t.Fatalf("enum member declaration token = %d, want enumMember; all tokens %#v", got[memberDecl], got)
+	}
+	if got[enumUse] != semanticTokenTypeEnum {
+		t.Fatalf("enum use token = %d, want enum; all tokens %#v", got[enumUse], got)
+	}
+	if got[memberUse] != semanticTokenTypeEnumMember {
+		t.Fatalf("enum member use token = %d, want enumMember; all tokens %#v", got[memberUse], got)
+	}
+}
+
 func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
@@ -928,6 +959,39 @@ main() => {
 		!inlayLabelsContain(hints, ": { b: Int z: Bool a: Int }") ||
 		!inlayLabelsContain(hints, "-> { k: Int } ") {
 		t.Fatalf("inlay hints = %#v, want inferred named and anonymous function hints", hints)
+	}
+}
+
+func TestInferredStructReturnObjectLiteralHover(t *testing.T) {
+	uri := "file:///tmp/inferred_struct_return.rn"
+	src := `User: {
+  name: String
+  age: Int
+}
+
+make() -> User => {
+  name: "Ada",
+  age: 42
+}
+
+main() => {
+  user := make()
+  @io.println(user.name)
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if len(diags) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	userHover := s.hover(uri, positionOf(src, "user.name", "user")).(map[string]any)
+	if got := hoverValue(userHover); !strings.Contains(got, "user: User") {
+		t.Fatalf("user hover = %q, want User", got)
+	}
+	nameHover := s.hover(uri, positionOf(src, "user.name", "name")).(map[string]any)
+	if got := hoverValue(nameHover); !strings.Contains(got, "name: String") {
+		t.Fatalf("name hover = %q, want String", got)
 	}
 }
 

@@ -27,6 +27,17 @@ func (p *stubParser) match(kind lexer.Kind) bool {
 	return false
 }
 
+func (p *stubParser) matchStaticMethodMarker() bool {
+	if p.match(lexer.DoubleColon) {
+		return true
+	}
+	if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+		p.advance()
+		return true
+	}
+	return false
+}
+
 func (p *stubParser) check(kind lexer.Kind) bool {
 	return p.peek().Kind == kind
 }

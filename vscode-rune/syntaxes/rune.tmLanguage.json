@@ -279,6 +279,23 @@
             "3": { "name": "keyword.operator.assignment.rune" },
             "4": { "name": "constant.numeric.integer.rune" }
           }
+        },
+        {
+          "name": "meta.enum-member.rune",
+          "match": "^\\s*(\\+)?\\s*\\b([A-Z][A-Za-z0-9_]*)\\b\\s*(?=$|//)",
+          "captures": {
+            "1": { "name": "storage.modifier.public.rune" },
+            "2": { "name": "constant.other.enum.rune" }
+          }
+        },
+        {
+          "name": "meta.enum-member.rune",
+          "match": "^\\s*(\\+)?\\s*\\b([A-Z][A-Za-z0-9_]*)\\s*(\\()",
+          "captures": {
+            "1": { "name": "storage.modifier.public.rune" },
+            "2": { "name": "constant.other.enum.rune" },
+            "3": { "name": "punctuation.definition.parameters.begin.rune" }
+          }
         }
       ]
     },

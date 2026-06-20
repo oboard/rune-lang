@@ -1,10 +1,16 @@
 nullableInt(value: Int?) -> Int? => value
 
-nullableDouble(value: Double?) -> Double? => value
+nullableDouble(
+  value: Double?
+) -> Double? => value
 
-nullableBigInt(value: BigInt?) -> BigInt? => value
+nullableBigInt(
+  value: BigInt?
+) -> BigInt? => value
 
-nullableString(value: String?) -> String? => value
+nullableString(
+  value: String?
+) -> String? => value
 
 nullableBool(value: Bool?) -> Bool? => value
 
@@ -136,7 +142,6 @@ returnBoolValue() -> Bool? => true
   bigintValue := nullableBigInt(7n)
   stringValue := nullableString("7")
   boolValue := nullableBool(false)
-
   @assert.eq(intValue, 7)
   @assert.eq(doubleValue, 7.5)
   @assert.eq(bigintValue, 7n)

@@ -114,7 +114,7 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 		private := p.parseObjectPrivateModifier()
 		static := false
 		if p.looksLikeStaticFunctionDecl() {
-			p.advance()
+			p.matchStaticMethodMarker()
 			p.skipNewlines()
 			static = true
 		}
@@ -151,14 +151,44 @@ func (p *Parser) parseTypeDecl(private bool) (*ast.StructType, *ast.EnumType) {
 }
 
 func (p *Parser) looksLikeStaticFunctionDecl() bool {
-	if !p.check(lexer.Ident) || p.peek().Lexeme != "static" {
+	if !p.checkStaticMethodMarker() {
 		return false
 	}
 	saved := p.curr
 	defer func() { p.curr = saved }()
-	p.advance()
+	p.matchStaticMethodMarker()
 	p.skipNewlines()
 	return p.looksLikeFunctionDecl()
+}
+
+func (p *Parser) checkStaticMethodMarker() bool {
+	return p.check(lexer.DoubleColon) || (p.check(lexer.Ident) && p.peek().Lexeme == "static")
+}
+
+func (p *Parser) matchStaticMethodMarker() bool {
+	if p.match(lexer.DoubleColon) {
+		return true
+	}
+	if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
+		p.advance()
+		return true
+	}
+	return false
+}
+
+func (p *Parser) looksLikeStaticTraitMethodDecl() bool {
+	if !p.checkStaticMethodMarker() {
+		return false
+	}
+	saved := p.curr
+	defer func() { p.curr = saved }()
+	p.matchStaticMethodMarker()
+	p.skipNewlines()
+	if !p.match(lexer.Ident) {
+		return false
+	}
+	p.parseGenericNames()
+	return p.check(lexer.LParen)
 }
 
 func (p *Parser) parseStructType() *ast.StructType {
@@ -176,8 +206,8 @@ func (p *Parser) parseTraitDecl() *ast.TraitDecl {
 	trait := &ast.TraitDecl{Name: name.Lexeme, Pos: start.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		static := false
-		if p.check(lexer.Ident) && p.peek().Lexeme == "static" {
-			p.advance()
+		if p.looksLikeStaticTraitMethodDecl() {
+			p.matchStaticMethodMarker()
 			p.skipNewlines()
 			static = true
 		}
@@ -279,9 +309,9 @@ func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string
 	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, GenericConstraints: constraints, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
-		memberPrivate := !p.parsePublicModifier()
+		p.parsePublicModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
-		member := ast.EnumMember{Name: memberName.Lexeme, Private: memberPrivate, Annotations: annotations, Pos: memberName.Pos}
+		member := ast.EnumMember{Name: memberName.Lexeme, Annotations: annotations, Pos: memberName.Pos}
 		if p.check(lexer.Newline) || p.check(lexer.Comma) || p.check(lexer.RBrace) || p.check(lexer.EOF) {
 			enum.Members = append(enum.Members, member)
 			p.consumeStatementEnd()

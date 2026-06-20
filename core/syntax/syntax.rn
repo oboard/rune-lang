@@ -35,19 +35,6 @@
   value: SyntaxExpr
 }
 
-+ SyntaxExpr: {
-  + IdentifierExpr(name: String)
-  + ModuleExpr(name: String)
-  + StringExpr(value: String)
-  + BoolExpr(value: Bool)
-  + NullExpr
-  + SelectorExpr(receiver: SyntaxExpr, name: String)
-  + StaticSelectorExpr(receiver: SyntaxExpr, name: String)
-  + CallExpr(callee: SyntaxExpr, args: Array[SyntaxExpr])
-  + StructExpr(name: String, fields: Array[SyntaxExprField])
-  + BlockExpr(statements: Array[SyntaxStatement])
-}
-
 + SyntaxType: {
   kind: Int
   name: String
@@ -126,4 +113,17 @@
   bodyID: String
   generatedBody: SyntaxExpr?
   sourcePath: String
+}
+
++ SyntaxExpr: {
+  IdentifierExpr(name: String)
+  ModuleExpr(name: String)
+  StringExpr(value: String)
+  BoolExpr(value: Bool)
+  NullExpr
+  SelectorExpr(receiver: SyntaxExpr, name: String)
+  StaticSelectorExpr(receiver: SyntaxExpr, name: String)
+  CallExpr(callee: SyntaxExpr, args: Array[SyntaxExpr])
+  StructExpr(name: String, fields: Array[SyntaxExprField])
+  BlockExpr(statements: Array[SyntaxStatement])
 }

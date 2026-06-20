@@ -1,7 +1,10 @@
 UInt: {
   add(other: UInt) -> UInt => "%uint.add"
+
   sub(other: UInt) -> UInt => "%uint.sub"
+
   mul(other: UInt) -> UInt => "%uint.mul"
+
   div(other: UInt) -> UInt => "%uint.div"
 }
 

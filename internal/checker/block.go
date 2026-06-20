@@ -25,8 +25,10 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 
 	seen := map[string]bool{}
 	typeBindings := c.structLiteralTypeBindings(structInfo)
-	lit.Fields = c.expandStructLiteralFields(lit, structInfo, typeBindings, env)
-	for _, field := range lit.Fields {
+	c.checkStructLiteralCommas(lit)
+	c.checkExplicitStructLiteralDuplicateFields(lit)
+	fields := c.expandStructLiteralFields(lit, structInfo, typeBindings, env)
+	for _, field := range fields {
 		fieldInfo, ok := structInfo.ByName[field.Name]
 		if !ok {
 			c.errorf(field.Pos, "type %s has no field %q", lit.TypeName, field.Name)
@@ -37,9 +39,6 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 			c.inferExpr(field.Value, env)
 			seen[field.Name] = true
 			continue
-		}
-		if seen[field.Name] {
-			c.errorf(field.Pos, "duplicate field value %q", field.Name)
 		}
 		seen[field.Name] = true
 		valueType := c.inferExpr(field.Value, env)
@@ -61,6 +60,28 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 		}
 	}
 	return c.structLiteralResultType(lit.TypeName, structInfo, typeBindings)
+}
+
+func (c *checker) checkStructLiteralCommas(lit *ast.StructLiteral) {
+	for _, field := range lit.Fields {
+		if field.MissingComma {
+			c.errorf(field.Pos, "expected ',' between struct literal fields")
+		}
+	}
+}
+
+func (c *checker) checkExplicitStructLiteralDuplicateFields(lit *ast.StructLiteral) {
+	seen := map[string]bool{}
+	for _, field := range lit.Fields {
+		if field.Spread || field.Name == "" {
+			continue
+		}
+		if seen[field.Name] {
+			c.errorf(field.Pos, "duplicate field value %q", field.Name)
+			continue
+		}
+		seen[field.Name] = true
+	}
 }
 
 func (c *checker) expandStructLiteralFields(lit *ast.StructLiteral, structInfo *StructInfo, typeBindings map[string]Type, env map[string]Type) []ast.FieldValue {
@@ -202,9 +223,17 @@ func (c *checker) inferAnonymousObjectLiteral(lit *ast.AnonymousObjectLiteral, e
 }
 
 func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLiteral, env map[string]Type, selfName string) Type {
+	if selfName == "" && c.expectedType != Unknown {
+		if typ, ok := c.inferAnonymousObjectLiteralAsStruct(lit, c.expectedType, env); ok {
+			return typ
+		}
+	}
 	var fields []FieldInfo
 	byName := map[string]FieldInfo{}
 	for _, field := range lit.Fields {
+		if field.MissingComma {
+			c.errorf(field.Pos, "expected ',' between object literal fields")
+		}
 		if _, exists := byName[field.Name]; exists {
 			c.errorf(field.Pos, "duplicate field value %q", field.Name)
 		}
@@ -238,6 +267,80 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 	}
 	c.registerAnonymousObjectType(typ, fields, byName)
 	return typ
+}
+
+func (c *checker) inferAnonymousObjectLiteralAsStruct(lit *ast.AnonymousObjectLiteral, expected Type, env map[string]Type) (Type, bool) {
+	if expected == Unknown || isObjectType(expected) {
+		return Unknown, false
+	}
+	typeName := baseTypeName(expected)
+	structInfo := c.info.Types[typeName]
+	if structInfo == nil {
+		return Unknown, false
+	}
+	if !c.checkPrivateAccess("type", typeName, structInfo.Private, structInfo.SourcePath, lit.Pos) {
+		for _, field := range lit.Fields {
+			c.inferExpr(field.Value, env)
+		}
+		return Unknown, true
+	}
+
+	c.checkAnonymousObjectLiteralCommas(lit)
+	c.checkAnonymousObjectLiteralDuplicateFields(lit)
+	fields := c.expandStructLiteralFields(&ast.StructLiteral{
+		TypeName: typeName,
+		Fields:   lit.Fields,
+		Pos:      lit.Pos,
+	}, structInfo, typeParamBindingsForStruct(structInfo, expected), env)
+	seen := map[string]bool{}
+	for _, field := range fields {
+		fieldInfo, ok := structInfo.ByName[field.Name]
+		if !ok {
+			c.errorf(field.Pos, "type %s has no field %q", typeName, field.Name)
+			c.inferExpr(field.Value, env)
+			continue
+		}
+		if !c.checkPrivateAccess("field", typeName+"."+field.Name, fieldInfo.Private, fieldInfo.SourcePath, field.Pos) {
+			c.inferExpr(field.Value, env)
+			seen[field.Name] = true
+			continue
+		}
+		seen[field.Name] = true
+		expectedType := structFieldType(structInfo, expected, fieldInfo)
+		valueType := c.inferExprExpected(field.Value, env, expectedType)
+		if valueType != Unknown && expectedType != Unknown && !c.typesCompatible(expectedType, valueType, nil) {
+			c.errorf(field.Value.Position(), "field %s.%s has type %s, expected %s", typeName, field.Name, valueType, expectedType)
+		}
+	}
+	for _, field := range structInfo.Fields {
+		if !seen[field.Name] {
+			c.errorf(lit.Pos, "missing field %s.%s", typeName, field.Name)
+		}
+	}
+	c.info.ExprTypes[lit] = expected
+	return expected, true
+}
+
+func (c *checker) checkAnonymousObjectLiteralCommas(lit *ast.AnonymousObjectLiteral) {
+	for _, field := range lit.Fields {
+		if field.MissingComma {
+			c.errorf(field.Pos, "expected ',' between object literal fields")
+		}
+	}
+}
+
+func (c *checker) checkAnonymousObjectLiteralDuplicateFields(lit *ast.AnonymousObjectLiteral) {
+	seen := map[string]bool{}
+	for _, field := range lit.Fields {
+		if field.Spread || field.Name == "" {
+			continue
+		}
+		if seen[field.Name] {
+			c.errorf(field.Pos, "duplicate field value %q", field.Name)
+			continue
+		}
+		seen[field.Name] = true
+	}
 }
 
 func (c *checker) lambdaSignaturePlaceholder(lambda *ast.LambdaExpr) Type {

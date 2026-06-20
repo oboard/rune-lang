@@ -1,43 +1,55 @@
 String: {
-    length() -> Int => "%string.length"
+  length() -> Int => "%string.length"
 
-    isEmpty() -> Bool => .length() == 0
+  isEmpty() -> Bool => .length() == 0
 
-    toString() -> String => "%string.toString"
+  toString() -> String => "%string.toString"
 
-    at(index: Int) -> Char => "%string.at"
+  at(index: Int) -> Char => "%string.at"
 
-    charAt(index: Int) -> Char => "%string.at"
+  charAt(index: Int) -> Char => "%string.at"
 
-    slice(start: Int, end: Int) -> String => "%string.slice"
+  slice(start: Int, end: Int) -> String => "%string.slice"
 
-    concat(value: String) -> String => "%string.concat"
+  concat(value: String) -> String => "%string.concat"
 
-    includes(searchString: String) -> Bool => "%string.includes"
+  includes(searchString: String) -> Bool => "%string.includes"
 
-    startsWith(searchString: String) -> Bool => "%string.startsWith"
+  startsWith(
+    searchString: String
+  ) -> Bool => "%string.startsWith"
 
-    endsWith(searchString: String) -> Bool => "%string.endsWith"
+  endsWith(searchString: String) -> Bool => "%string.endsWith"
 
-    indexOf(searchString: String) -> Int => "%string.indexOf"
+  indexOf(searchString: String) -> Int => "%string.indexOf"
 
-    lastIndexOf(searchString: String) -> Int => "%string.lastIndexOf"
+  lastIndexOf(
+    searchString: String
+  ) -> Int => "%string.lastIndexOf"
 
-    toLowerCase() -> String => "%string.toLowerCase"
+  toLowerCase() -> String => "%string.toLowerCase"
 
-    toUpperCase() -> String => "%string.toUpperCase"
+  toUpperCase() -> String => "%string.toUpperCase"
 
-    trim() -> String => "%string.trim"
+  trim() -> String => "%string.trim"
 
-    trimStart() -> String => "%string.trimStart"
+  trimStart() -> String => "%string.trimStart"
 
-    trimEnd() -> String => "%string.trimEnd"
+  trimEnd() -> String => "%string.trimEnd"
 
-    repeat(count: Int) -> String => "%string.repeat"
+  repeat(count: Int) -> String => "%string.repeat"
 
-    replace(searchValue: String, replaceValue: String) -> String => "%string.replace"
+  replace(
+    searchValue: String,
+    replaceValue: String
+  ) -> String => "%string.replace"
 
-    replaceAll(searchValue: String, replaceValue: String) -> String => "%string.replaceAll"
+  replaceAll(
+    searchValue: String,
+    replaceValue: String
+  ) -> String => "%string.replaceAll"
 
-    split(separator: String) -> Array[String] => "%string.split"
+  split(
+    separator: String
+  ) -> Array[String] => "%string.split"
 }

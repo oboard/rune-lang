@@ -1,7 +1,10 @@
 BigInt: {
   add(other: BigInt) -> BigInt => "%bigint.add"
+
   sub(other: BigInt) -> BigInt => "%bigint.sub"
+
   mul(other: BigInt) -> BigInt => "%bigint.mul"
+
   div(other: BigInt) -> BigInt => "%bigint.div"
 }
 

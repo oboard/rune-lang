@@ -87,6 +87,29 @@ func TestProgramCacheInvalidatesOnDocumentChange(t *testing.T) {
 	}
 }
 
+func TestDiagnosticsReportMissingStructLiteralComma(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `User: {
+  name: String
+  age: Int
+}
+
+main() => User {
+  name: "oboard"
+  age: 42
+}
+`
+	s := NewSession()
+	s.SetDocument(uri, src)
+	diags := s.Diagnostics(uri)
+	if len(diags) == 0 {
+		t.Fatalf("Diagnostics() = none, want missing comma")
+	}
+	if got := diags[0]["message"]; got != "expected ',' between struct literal fields" {
+		t.Fatalf("Diagnostics()[0] = %v, want missing comma", got)
+	}
+}
+
 func TestDependencyChainStopsAtCycles(t *testing.T) {
 	got := dependencyChain("a", map[string][]string{
 		"a": []string{"b"},

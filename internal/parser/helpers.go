@@ -328,6 +328,18 @@ func (p *Parser) consumeStatementEnd() {
 	}
 }
 
+func (p *Parser) consumeFieldSeparator(close lexer.Kind) bool {
+	p.consumeStatementEnd()
+	if p.check(close) || p.check(lexer.EOF) {
+		return false
+	}
+	if p.match(lexer.Comma) {
+		p.skipNewlines()
+		return false
+	}
+	return true
+}
+
 func (p *Parser) skipNewlines() {
 	for p.match(lexer.Newline) {
 	}
