@@ -286,6 +286,39 @@ main() => @io.println(greet("Rune"))
 	t.Fatalf("GenerateGoFile() diagnostics = %#v, want TypeScript import backend diagnostic", diags)
 }
 
+func TestGenerateMoonBitFile(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  @io.println("Rune")
+}
+`)
+
+	got, diags := GenerateMoonBitFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateMoonBitFile() diagnostics = %#v", diags)
+	}
+	if !strings.Contains(got, "fn main {\n") || !strings.Contains(got, `println("Rune")`) {
+		t.Fatalf("generated MoonBit =\n%s", got)
+	}
+}
+
+func TestGenerateMoonBitFileRejectsTypeScriptImports(t *testing.T) {
+	dir := t.TempDir()
+	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string { return name }\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"greet.ts"
+
+main() => @io.println(greet("Rune"))
+`)
+
+	_, diags := GenerateMoonBitFile(filepath.Join(dir, "main.rn"))
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, "MoonBit backend does not support TypeScript imports") {
+			return
+		}
+	}
+	t.Fatalf("GenerateMoonBitFile() diagnostics = %#v, want TypeScript import backend diagnostic", diags)
+}
+
 func TestAnalyzeSourceSupportsUnicodeIdentifiers(t *testing.T) {
 	src := `问候: {
   名字💡: String

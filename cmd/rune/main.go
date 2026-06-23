@@ -56,8 +56,8 @@ func rootCmd() *cobra.Command {
 			return validateBackend(backend)
 		},
 	}
-	cmd.PersistentFlags().StringVar(&backend, "backend", "go", "target backend: go or ts")
-	cmd.AddCommand(runCmd(), buildCmd(), goCmd(), tsCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
+	cmd.PersistentFlags().StringVar(&backend, "backend", "go", "target backend: go, ts, or mbt")
+	cmd.AddCommand(runCmd(), buildCmd(), goCmd(), tsCmd(), mbtCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
 	return cmd
 }
 
@@ -127,6 +127,23 @@ func runEntry(entry string, runBackend string, programArgs []string, stdin io.Re
 		run.Stdin = stdin
 		run.Dir = runDir
 		return run.Run()
+	case "mbt":
+		runDir, cleanup, err := compileMoonBitProjectToTemp(entry)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		args := []string{"run", "--target", "native", "."}
+		if len(programArgs) > 0 {
+			args = append(args, "--")
+			args = append(args, programArgs...)
+		}
+		run := exec.Command("moon", args...)
+		run.Stdout = stdout
+		run.Stderr = stderr
+		run.Stdin = stdin
+		run.Dir = runDir
+		return run.Run()
 	default:
 		return validateBackend(runBackend)
 	}
@@ -160,8 +177,11 @@ func buildCmd() *cobra.Command {
 		Short: "Compile a Rune program to an executable",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if backend == "mbt" {
+				return buildMoonBit(args[0], target, output)
+			}
 			if backend != "go" {
-				return fmt.Errorf("rune build only supports --backend go")
+				return fmt.Errorf("rune build only supports --backend go or --backend mbt")
 			}
 			goFile, cleanup, err := compileGoToTemp(args[0])
 			if err != nil {
@@ -211,6 +231,29 @@ func tsCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "output TypeScript path")
+	return cmd
+}
+
+func mbtCmd() *cobra.Command {
+	var output string
+	cmd := &cobra.Command{
+		Use:   "mbt <file.rn>",
+		Short: "Compile a Rune program to MoonBit",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			src, diags := compiler.GenerateMoonBitFile(args[0])
+			if len(diags) > 0 {
+				printDiagnostics(args[0], diags)
+				return fmt.Errorf("compile failed")
+			}
+			if output == "" {
+				fmt.Fprint(cmd.OutOrStdout(), src)
+				return nil
+			}
+			return os.WriteFile(output, []byte(src), 0o644)
+		},
+	}
+	cmd.Flags().StringVarP(&output, "output", "o", "", "output MoonBit path")
 	return cmd
 }
 
@@ -621,6 +664,73 @@ func compileTypeScriptToTemp(path string) (string, string, func(), error) {
 	return tsFile, runDir, cleanup, nil
 }
 
+func compileMoonBitProjectToTemp(path string) (string, func(), error) {
+	src, diags := compiler.GenerateMoonBitFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return "", func() {}, fmt.Errorf("compile failed")
+	}
+	dir, err := os.MkdirTemp("", "rune-mbt-*")
+	if err != nil {
+		return "", func() {}, err
+	}
+	cleanup := func() {
+		_ = os.RemoveAll(dir)
+	}
+	files := map[string]string{
+		"main.mbt": src,
+		"moon.mod": "name = \"oboard/rune_mbt\"\n",
+		"moon.pkg": "import {\n  \"moonbitlang/core/env\"\n}\n\noptions(\n  \"is-main\": true,\n)\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			cleanup()
+			return "", func() {}, err
+		}
+	}
+	return dir, cleanup, nil
+}
+
+func buildMoonBit(path string, target string, output string) error {
+	if target == "" {
+		target = "native"
+	}
+	if err := validateMoonBitTarget(target); err != nil {
+		return err
+	}
+	if output != "" && !filepath.IsAbs(output) {
+		abs, err := filepath.Abs(output)
+		if err != nil {
+			return err
+		}
+		output = abs
+	}
+	dir, cleanup, err := compileMoonBitProjectToTemp(path)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	args := []string{"build", "--target", target, "--release"}
+	if output != "" {
+		args = append(args, "--target-dir", output)
+	}
+	build := exec.Command("moon", args...)
+	build.Stdout = os.Stdout
+	build.Stderr = os.Stderr
+	build.Stdin = os.Stdin
+	build.Dir = dir
+	return build.Run()
+}
+
+func validateMoonBitTarget(target string) error {
+	switch target {
+	case "wasm", "wasm-gc", "js", "native", "llvm", "all":
+		return nil
+	default:
+		return fmt.Errorf("invalid MoonBit target %q, expected wasm, wasm-gc, js, native, llvm, or all", target)
+	}
+}
+
 func typeScriptRuntimeIR(file *ir.File) *ir.File {
 	out := *file
 	out.TSImports = append([]ir.TSImport(nil), file.TSImports...)
@@ -688,10 +798,10 @@ func parseTarget(target string) (string, string, error) {
 
 func validateBackend(value string) error {
 	switch value {
-	case "go", "ts":
+	case "go", "ts", "mbt":
 		return nil
 	default:
-		return fmt.Errorf("invalid backend %q, expected go or ts", value)
+		return fmt.Errorf("invalid backend %q, expected go, ts, or mbt", value)
 	}
 }
 

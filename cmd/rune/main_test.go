@@ -29,7 +29,7 @@ func TestParseTargetRejectsInvalidTarget(t *testing.T) {
 }
 
 func TestValidateBackend(t *testing.T) {
-	for _, backend := range []string{"go", "ts"} {
+	for _, backend := range []string{"go", "ts", "mbt"} {
 		if err := validateBackend(backend); err != nil {
 			t.Fatalf("validateBackend(%q) error = %v", backend, err)
 		}
@@ -235,6 +235,99 @@ main() => @io.println(greet("Rune"))
 	want := `from "./greet.ts"`
 	if !strings.Contains(string(data), want) {
 		t.Fatalf("runtime TypeScript = %q, want %q", data, want)
+	}
+}
+
+func TestCompileMoonBitProjectToTempWritesPackage(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  @io.println("Rune")
+}
+`)
+
+	projectDir, cleanup, err := compileMoonBitProjectToTemp(mainPath)
+	if err != nil {
+		t.Fatalf("compileMoonBitProjectToTemp() error = %v", err)
+	}
+	defer cleanup()
+	for _, name := range []string{"main.mbt", "moon.mod", "moon.pkg"} {
+		if _, err := os.Stat(filepath.Join(projectDir, name)); err != nil {
+			t.Fatalf("missing %s: %v", name, err)
+		}
+	}
+	data, err := os.ReadFile(filepath.Join(projectDir, "main.mbt"))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if got := string(data); !strings.Contains(got, "fn main {\n") || !strings.Contains(got, `println("Rune")`) {
+		t.Fatalf("main.mbt =\n%s", got)
+	}
+}
+
+func TestRunEntryMoonBit(t *testing.T) {
+	if _, err := exec.LookPath("moon"); err != nil {
+		t.Skip("moon command not available")
+	}
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  @io.println("Rune")
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runEntry(mainPath, "mbt", nil, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "Rune\n"; got != want {
+		t.Fatalf("runEntry() output = %q, want %q", got, want)
+	}
+}
+
+func TestRunEntryMoonBitCLIArgs(t *testing.T) {
+	if _, err := exec.LookPath("moon"); err != nil {
+		t.Skip("moon command not available")
+	}
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `#cli.command("ship", "Ship a build artifact", "1.0.0")
+Args: {
+  #cli.flag("v", "enable verbose output")
+  verbose: Bool
+  #cli.option("o", "FILE", "write output file", "dist/app")
+  output: String
+  #cli.arg("target name")
+  target: String
+}
+
+#cli.main
+main(args: Args) => {
+  @io.println(args.target)
+  @io.println(args.output)
+  @io.println(args.verbose.toString())
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runEntry(mainPath, "mbt", []string{"wasm", "-v", "-o", "out.js"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "wasm\nout.js\ntrue\n"; got != want {
+		t.Fatalf("runEntry() output = %q, want %q", got, want)
+	}
+}
+
+func TestValidateMoonBitTarget(t *testing.T) {
+	for _, target := range []string{"wasm", "wasm-gc", "js", "native", "llvm", "all"} {
+		if err := validateMoonBitTarget(target); err != nil {
+			t.Fatalf("validateMoonBitTarget(%q) error = %v", target, err)
+		}
+	}
+	if err := validateMoonBitTarget("linux-amd64"); err == nil {
+		t.Fatal("validateMoonBitTarget(\"linux-amd64\") succeeded, want error")
 	}
 }
 
