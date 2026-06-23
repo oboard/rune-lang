@@ -8,6 +8,7 @@
     { "include": "#chars" },
     { "include": "#regex" },
     { "include": "#numbers" },
+    { "include": "#macroDefinitions" },
     { "include": "#macros" },
     { "include": "#modules" },
     { "include": "#xml" },
@@ -19,6 +20,41 @@
     { "include": "#bindings" }
   ],
   "repository": {
+    "macroDefinitions": {
+      "patterns": [
+        {
+          "name": "meta.macro.definition.rune",
+          "begin": "^\\s*(#)([A-Za-z_][A-Za-z0-9_]*)(\\()",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.macro.rune" },
+            "2": { "name": "entity.name.function.macro.rune" },
+            "3": { "name": "punctuation.definition.parameters.begin.rune" }
+          },
+          "end": "(\\))\\s*(?:(->)\\s*([A-Za-z_][A-Za-z0-9_]*(?:\\[[^\\r\\n\\]]*\\])?)(\\?)?\\s*)?(=>)",
+          "endCaptures": {
+            "1": { "name": "punctuation.definition.parameters.end.rune" },
+            "2": { "name": "keyword.operator.arrow.rune" },
+            "3": { "name": "entity.name.type.rune" },
+            "4": { "name": "storage.modifier.nullable.rune" },
+            "5": { "name": "keyword.operator.arrow.rune" }
+          },
+          "patterns": [
+            { "include": "#comments" },
+            { "include": "#strings" },
+            { "include": "#typeReferences" },
+            { "include": "#functionDefinition" },
+            {
+              "name": "variable.parameter.rune",
+              "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b(?=\\s*:)"
+            },
+            {
+              "name": "punctuation.separator.comma.rune",
+              "match": ","
+            }
+          ]
+        }
+      ]
+    },
     "macros": {
       "patterns": [
         {
@@ -290,7 +326,7 @@
         },
         {
           "name": "meta.enum-member.rune",
-          "match": "^\\s*(\\+)?\\s*\\b([A-Z][A-Za-z0-9_]*)\\s*(\\()",
+          "match": "^\\s*(\\+)?\\s*\\b([A-Z][A-Za-z0-9_]*)\\s*(\\()(?![^\\r\\n]*=>)",
           "captures": {
             "1": { "name": "storage.modifier.public.rune" },
             "2": { "name": "constant.other.enum.rune" },
@@ -325,7 +361,7 @@
       "patterns": [
         {
           "name": "meta.function.generic.rune",
-          "begin": "([+-])?\\s*(~)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[)(?=[^\\]\\r\\n]*\\]\\s*\\()",
+          "begin": "^\\s*([+-])?\\s*(~)?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\[)(?=[^\\]\\r\\n]*\\]\\s*\\()",
           "beginCaptures": {
             "1": { "name": "storage.modifier.visibility.rune" },
             "2": { "name": "keyword.control.routine.rune" },
@@ -350,7 +386,7 @@
         },
         {
           "name": "meta.function.routine.rune",
-          "match": "([+-])?\\s*(~)\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "match": "^\\s*([+-])?\\s*(~)\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
           "captures": {
             "1": { "name": "storage.modifier.visibility.rune" },
             "2": { "name": "keyword.control.routine.rune" },
@@ -360,7 +396,7 @@
         },
         {
           "name": "meta.function.rune",
-          "match": "([+-])?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
+          "match": "^\\s*([+-])?\\s*\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(\\()",
           "captures": {
             "1": { "name": "storage.modifier.visibility.rune" },
             "2": { "name": "entity.name.function.rune" },
@@ -392,7 +428,7 @@
         },
         {
           "name": "keyword.operator.assignment.rune",
-          "match": "(:=|~=|\\$=|=)"
+          "match": "(:=|~=|=)"
         },
         {
           "name": "keyword.operator.comparison.rune",

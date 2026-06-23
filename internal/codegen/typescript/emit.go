@@ -229,7 +229,7 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				continue
 			}
 			if s.Signal || g.exprUsesSignal(s.Value) {
-				g.linef("const %s = runeSignal(%s);", mangleIdent(s.Name), g.expr(s.Value))
+				g.linef("const %s = %s;", mangleIdent(s.Name), g.signalInitialValue(s.Value))
 				g.addSignal(s.Name, s.Value.ResultType())
 				deps := g.exprSignalDeps(s.Value)
 				g.setSignalDeps(s.Name, deps)

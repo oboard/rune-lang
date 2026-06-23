@@ -18,6 +18,87 @@ func classMethodSignature(typeName string, fn *checker.FuncInfo) string {
 	return fmt.Sprintf("%s.%s -> %s", typeName, sig, ret)
 }
 
+func traitTypeSignature(info *checker.Info, trait *ast.TraitDecl) string {
+	lines := []string{fmt.Sprintf("&%s: {", trait.Name)}
+	var traitInfo *checker.TraitInfo
+	if info != nil {
+		traitInfo = info.Traits[trait.Name]
+	}
+	for _, field := range trait.Fields {
+		fieldType := field.Type.Display()
+		if traitInfo != nil {
+			if inferred, ok := traitInfo.ByName[field.Name]; ok && inferred.Type != "" && inferred.Type != checker.Unknown {
+				fieldType = displayCheckerType(info, inferred.Type)
+			}
+		}
+		if fieldType == "" {
+			fieldType = string(checker.Unknown)
+		}
+		lines = append(lines, fmt.Sprintf("  %s: %s", field.Name, fieldType))
+	}
+	for _, method := range trait.Methods {
+		lines = append(lines, "  "+traitMethodSignature(info, trait.Name, method))
+	}
+	lines = append(lines, "}")
+	return strings.Join(lines, "\n")
+}
+
+func traitMethodSignature(info *checker.Info, traitName string, fn *ast.Function) string {
+	params := make([]string, 0, len(fn.Params))
+	var methodInfo *checker.FuncInfo
+	if info != nil {
+		if traitInfo := info.Traits[traitName]; traitInfo != nil {
+			if fn.Static {
+				methodInfo = traitInfo.StaticMethods[fn.Name]
+			} else {
+				methodInfo = traitInfo.Methods[fn.Name]
+			}
+		}
+	}
+	for i, param := range fn.Params {
+		typ := param.Type.Display()
+		if methodInfo != nil && i < len(methodInfo.Params) && methodInfo.Params[i].Type != "" && methodInfo.Params[i].Type != checker.Unknown {
+			typ = displayCheckerType(info, methodInfo.Params[i].Type)
+		}
+		if typ == "" {
+			typ = string(checker.Unknown)
+		}
+		params = append(params, fmt.Sprintf("%s: %s", param.Name, typ))
+	}
+	ret := fn.ReturnType.Display()
+	if methodInfo != nil && methodInfo.Return != "" && methodInfo.Return != checker.Unknown {
+		ret = displayCheckerType(info, methodInfo.Return)
+	}
+	if ret == "" {
+		ret = string(checker.Void)
+	}
+	prefix := ""
+	if fn.Static {
+		prefix = "static "
+	}
+	return fmt.Sprintf("%s%s%s(%s) -> %s", prefix, fn.Name, formatSignatureGenerics(fn.Generics), strings.Join(params, ", "), ret)
+}
+
+func traitMemberSignature(info *checker.Info, traitName string, fn *checker.FuncInfo) string {
+	ret := fn.Return
+	if ret == "" || ret == checker.Unknown {
+		ret = checker.Void
+	}
+	name := fn.Name
+	if fn.Node != nil {
+		name = fn.Node.Name
+	}
+	params := make([]string, 0, len(fn.Params))
+	for _, param := range fn.Params {
+		typ := param.Type
+		if typ == "" || typ == checker.Unknown {
+			typ = checker.Unknown
+		}
+		params = append(params, fmt.Sprintf("%s: %s", param.Name, displayCheckerType(info, typ)))
+	}
+	return fmt.Sprintf("&%s.%s(%s) -> %s", traitName, name, strings.Join(params, ", "), displayCheckerType(info, ret))
+}
+
 func structTypeSignature(info *checker.Info, typ *ast.StructType) string {
 	lines := []string{fmt.Sprintf("%s%s: {", typ.Name, formatSignatureGenerics(typ.Generics))}
 	var structInfo *checker.StructInfo

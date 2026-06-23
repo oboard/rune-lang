@@ -153,7 +153,7 @@ func (p *Parser) looksLikeObjectDestructureDecl() bool {
 		return false
 	}
 	p.skipNewlines()
-	return p.check(lexer.Declare) || p.check(lexer.MutDeclare) || p.check(lexer.SignalDeclare)
+	return p.check(lexer.Declare) || p.check(lexer.MutDeclare)
 }
 
 func (p *Parser) looksLikeMapLiteralBody() bool {

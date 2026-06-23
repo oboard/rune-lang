@@ -1293,7 +1293,7 @@ parseStatement(
         : (
           parserCheck(state, TokenKind.Dollar) && parserCheckNext(state, TokenKind.Ident) ? parseDollarStatement(state)
             : (
-              parserCheck(state, TokenKind.Ident) && ((parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) || parserCheckNext(state, TokenKind.SignalDeclare)) ? parseLetStatement(state)
+              parserCheck(state, TokenKind.Ident) && (parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) ? parseLetStatement(state)
                 : (
                   parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state)
                     : parseExpression(state, 1)
@@ -1307,10 +1307,7 @@ parseDollarStatement(
   state: ParserState
 ) -> ExprStep => (
   parserKindAt(state, state.current + 2) == TokenKind.Declare ? parseSignalPrefixLetStatement(state)
-    : (
-      parserKindAt(state, state.current + 2) == TokenKind.Assign ? parseSignalPrefixAssignStatement(state)
-        : parseExpression(state, 1)
-    )
+    : parseExpression(state, 1)
 )
 
 parseSignalPrefixLetStatement(
@@ -1322,7 +1319,7 @@ parseSignalPrefixLetStatement(
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
     state: value.state,
-    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, "", "$=", [], [value.expr], name.token.line, name.token.column)
+    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1405,19 +1402,6 @@ parseAssignStatement(
   ExprStep {
     state: value.state,
     expr: makeExpr(ExprKind.Assign, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
-  }
-}
-
-parseSignalPrefixAssignStatement(
-  state: ParserState
-) -> ExprStep => {
-  dollar := parserAdvance(state)
-  name := parserAdvance(dollar.state)
-  op := parserAdvance(name.state)
-  value := parseExpression(parserSkipNewlines(op.state), 1)
-  ExprStep {
-    state: value.state,
-    expr: makeExpr(ExprKind.Assign, "$" + name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1876,7 +1860,10 @@ parseDollarExpression(
   start := parserConsume(state, TokenKind.Dollar, "expected '$'")
   (
     parserCheck(start.state, TokenKind.Ident) ? parseSignalPrefixIdentifier(start)
-      : parseReactiveLiteralAfterDollar(start)
+      : ExprStep {
+        state: parserErrorAt(start.state, parserPeek(start.state), "expected signal name after '$'"),
+        expr: emptyExpr()
+      }
   )
 }
 
@@ -2093,10 +2080,18 @@ parseParenOrTuple(
   state: ParserState
 ) -> ExprStep => {
   open := parserConsume(state, TokenKind.LParen, "expected '('")
-  expr := parseExpression(parserSkipNewlines(open.state), 1)
+  afterOpen := parserSkipNewlines(open.state)
+  parseParenOrTupleAfterOpen(afterOpen, open.token)
+}
+
+parseParenOrTupleAfterOpen(
+  state: ParserState,
+  open: Token
+) -> ExprStep => {
+  expr := parseExpression(state, 1)
   afterExpr := parserSkipNewlines(expr.state)
   (
-    parserCheck(afterExpr, TokenKind.Comma) ? parseTupleAfterFirst(afterExpr, open.token, expr.expr)
+    parserCheck(afterExpr, TokenKind.Comma) ? parseTupleAfterFirst(afterExpr, open, expr.expr)
       : finishParenExpression(afterExpr, expr.expr)
   )
 }
@@ -2475,7 +2470,7 @@ scanObjectDestructureAfterClose(
   index: Int
 ) -> Bool => {
   afterClose := skipNewlinesAt(state, index)
-  ((parserKindAt(state, afterClose) == TokenKind.Declare) || (parserKindAt(state, afterClose) == TokenKind.MutDeclare)) || (parserKindAt(state, afterClose) == TokenKind.SignalDeclare)
+  (parserKindAt(state, afterClose) == TokenKind.Declare) || (parserKindAt(state, afterClose) == TokenKind.MutDeclare)
 }
 
 looksLikePatternBranch(

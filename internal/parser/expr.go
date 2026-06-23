@@ -394,7 +394,8 @@ func (p *Parser) parseDollarExpression() ast.Expr {
 		name := p.advance()
 		return &ast.Identifier{Name: name.Lexeme, SignalPrefix: true, Pos: name.Pos}
 	}
-	return p.parseReactiveLiteralAfterDollar(start)
+	p.errorAt(p.peek(), "expected signal name after '$'")
+	return &ast.Identifier{Name: "<error>", Pos: start.Pos}
 }
 
 func (p *Parser) parseTemplateLiteral(tok lexer.Token) ast.Expr {

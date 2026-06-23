@@ -32,28 +32,13 @@ func (p *Parser) parseStatement() ast.Stmt {
 			}
 			return stmt
 		}
-		if p.kindAt(p.curr+2) == lexer.Assign {
-			p.advance()
-			name := p.advance()
-			p.advance()
-			p.skipNewlines()
-			return &ast.AssignStmt{
-				Name:         name.Lexeme,
-				SignalPrefix: true,
-				Value:        p.parseExpression(1),
-				Pos:          name.Pos,
-			}
-		}
 	}
 	if p.check(lexer.Ident) {
-		if p.checkNext(lexer.Declare) || p.checkNext(lexer.MutDeclare) || p.checkNext(lexer.SignalDeclare) {
+		if p.checkNext(lexer.Declare) || p.checkNext(lexer.MutDeclare) {
 			name := p.advance()
 			mutable := false
 			signal := false
 			if p.match(lexer.MutDeclare) {
-				mutable = true
-			} else if p.match(lexer.SignalDeclare) {
-				signal = true
 				mutable = true
 			} else {
 				p.consume(lexer.Declare, "expected ':=' after binding name")
@@ -113,9 +98,6 @@ func (p *Parser) parseObjectDestructureStatement() ast.Stmt {
 	p.consume(lexer.RBrace, "expected '}' after object destructuring")
 	p.skipNewlines()
 	if p.match(lexer.MutDeclare) {
-		stmt.Mutable = true
-	} else if p.match(lexer.SignalDeclare) {
-		stmt.Signal = true
 		stmt.Mutable = true
 	} else {
 		p.consume(lexer.Declare, "expected ':=' after object destructuring")

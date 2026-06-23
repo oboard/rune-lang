@@ -3,11 +3,13 @@ package lsp
 import (
 	"sort"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/parser"
 )
 
 func (s *server) semanticTokens(uri string) any {
@@ -17,6 +19,19 @@ func (s *server) semanticTokens(uri string) any {
 	}
 	signals := signalGraph(prog.File)
 	var tokens []semanticToken
+	for _, trait := range prog.File.Traits {
+		tokens = append(tokens, semanticTokenFor(trait.NamePos, trait.Name, semanticTokenTypeInterface, 0))
+		for _, field := range trait.Fields {
+			tokens = append(tokens, semanticTokenFor(field.Pos, field.Name, semanticTokenTypeVariable, 0))
+		}
+		for _, method := range trait.Methods {
+			modifiers := 0
+			if method.Routine {
+				modifiers = semanticTokenModifierAsync
+			}
+			tokens = append(tokens, semanticTokenFor(method.NamePos, method.Name, semanticTokenTypeFunction, modifiers))
+		}
+	}
 	for _, typ := range prog.File.Types {
 		tokens = append(tokens, semanticToken{
 			line:      max(typ.NamePos.Line-1, 0),
@@ -125,13 +140,8 @@ func (s *server) semanticTokens(uri string) any {
 		}
 	})
 	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
-	tokens = append(tokens, compileTimeExpressionSemanticTokens(prog.Source)...)
-	sort.Slice(tokens, func(i, j int) bool {
-		if tokens[i].line != tokens[j].line {
-			return tokens[i].line < tokens[j].line
-		}
-		return tokens[i].character < tokens[j].character
-	})
+	tokens = append(tokens, compileTimeExpressionSemanticTokens(prog.File, prog.Source)...)
+	tokens = normalizeSemanticTokens(tokens)
 	return map[string]any{"data": encodeSemanticTokens(tokens)}
 }
 
@@ -152,52 +162,62 @@ func templateExpressionSemanticTokens(prog *compiler.Program, signals map[string
 	return tokens
 }
 
-func compileTimeExpressionSemanticTokens(src string) []semanticToken {
-	raw := lexer.Lex(src)
-	tokens := make([]lexer.Token, 0, len(raw))
-	for _, tok := range raw {
-		if tok.Kind != lexer.Newline {
-			tokens = append(tokens, tok)
-		}
-	}
+func compileTimeExpressionSemanticTokens(_ *ast.File, src string) []semanticToken {
+	file, _ := parser.Parse(src)
 	var out []semanticToken
-	for idx := 1; idx < len(tokens); idx++ {
-		if tokens[idx].Kind != lexer.Apostrophe || tokens[idx-1].Kind != lexer.RParen {
-			continue
+	walkFileExprs(file, func(expr ast.Expr) {
+		marked, ok := expr.(*ast.CompileTimeExpr)
+		if !ok || marked.Expr == nil {
+			return
 		}
-		open := matchingOpenParen(tokens, idx-1)
-		if open < 0 || open+1 >= idx {
-			continue
+		start := marked.Expr.Position()
+		end := marked.MarkPos
+		if start.Line <= 0 || end.Line != start.Line || end.Column <= start.Column {
+			return
 		}
-		expr := tokens[open+1]
-		if expr.Kind == lexer.EOF || expr.Kind == lexer.Illegal {
-			continue
+		length := utf16LengthBetweenColumns(src, start.Line, start.Column, end.Column)
+		if length <= 0 {
+			length = max(end.Column-start.Column, 1)
 		}
 		out = append(out, semanticToken{
-			line:      max(expr.Pos.Line-1, 0),
-			character: max(expr.Pos.Column-1, 0),
-			length:    len(expr.Lexeme),
-			tokenType: semanticTokenTypeVariable,
+			line:      max(start.Line-1, 0),
+			character: max(start.Column-1, 0),
+			length:    length,
+			tokenType: compileTimeSemanticTokenType(marked.Expr),
 			modifiers: semanticTokenModifierCompileTime,
 		})
-	}
+	})
 	return out
 }
 
-func matchingOpenParen(tokens []lexer.Token, close int) int {
-	depth := 0
-	for idx := close; idx >= 0; idx-- {
-		switch tokens[idx].Kind {
-		case lexer.RParen:
-			depth++
-		case lexer.LParen:
-			depth--
-			if depth == 0 {
-				return idx
-			}
-		}
+func compileTimeSemanticTokenType(expr ast.Expr) int {
+	switch e := expr.(type) {
+	case *ast.CallExpr:
+		return compileTimeSemanticTokenType(e.Callee)
+	case *ast.SelectorExpr:
+		return semanticTokenTypeEnumMember
+	case *ast.Identifier:
+		return semanticTokenTypeFunction
+	default:
+		return semanticTokenTypeVariable
 	}
-	return -1
+}
+
+func utf16LengthBetweenColumns(src string, line int, startColumn int, endColumn int) int {
+	if line <= 0 || startColumn <= 0 || endColumn <= startColumn {
+		return 0
+	}
+	lines := strings.Split(src, "\n")
+	if line > len(lines) {
+		return 0
+	}
+	runes := []rune(lines[line-1])
+	start := min(startColumn-1, len(runes))
+	end := min(endColumn-1, len(runes))
+	if end < start {
+		return 0
+	}
+	return semanticTokenLength(string(runes[start:end]))
 }
 
 func templateCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {
@@ -254,6 +274,9 @@ func templateIdentifierSemanticToken(prog *compiler.Program, signals map[string]
 	if _, ok := prog.Info.Types[ident.Name]; ok {
 		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeType, 0), true
 	}
+	if _, ok := prog.Info.Traits[ident.Name]; ok {
+		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeInterface, 0), true
+	}
 	if _, ok := prog.Info.Enums[ident.Name]; ok {
 		return semanticTokenFor(ident.Pos, ident.Name, semanticTokenTypeEnum, 0), true
 	}
@@ -289,10 +312,14 @@ func semanticTokenFor(pos lexer.Position, name string, tokenType int, modifiers 
 	return semanticToken{
 		line:      max(pos.Line-1, 0),
 		character: max(pos.Column-1, 0),
-		length:    len(name),
+		length:    semanticTokenLength(name),
 		tokenType: tokenType,
 		modifiers: modifiers,
 	}
+}
+
+func semanticTokenLength(text string) int {
+	return max(len(utf16.Encode([]rune(text))), 1)
 }
 
 func signalGraph(file *ast.File) map[string][]string {
@@ -423,6 +450,7 @@ const (
 	semanticTokenTypeFunction   = 2
 	semanticTokenTypeEnum       = 3
 	semanticTokenTypeEnumMember = 4
+	semanticTokenTypeInterface  = 5
 
 	semanticTokenModifierModification = 1 << 0
 	semanticTokenModifierAsync        = 1 << 1
@@ -450,4 +478,64 @@ func encodeSemanticTokens(tokens []semanticToken) []int {
 		prevChar = token.character
 	}
 	return data
+}
+
+func normalizeSemanticTokens(tokens []semanticToken) []semanticToken {
+	sort.SliceStable(tokens, func(i, j int) bool {
+		if tokens[i].line != tokens[j].line {
+			return tokens[i].line < tokens[j].line
+		}
+		if tokens[i].character != tokens[j].character {
+			return tokens[i].character < tokens[j].character
+		}
+		if tokens[i].length != tokens[j].length {
+			return tokens[i].length > tokens[j].length
+		}
+		return semanticTokenTypePriority(tokens[i].tokenType) < semanticTokenTypePriority(tokens[j].tokenType)
+	})
+	out := make([]semanticToken, 0, len(tokens))
+	for _, token := range tokens {
+		if token.length <= 0 {
+			continue
+		}
+		last := len(out) - 1
+		if last >= 0 && out[last].line == token.line {
+			lastEnd := out[last].character + out[last].length
+			tokenEnd := token.character + token.length
+			if out[last].character == token.character && out[last].length == token.length {
+				out[last].modifiers |= token.modifiers
+				if semanticTokenTypePriority(token.tokenType) > semanticTokenTypePriority(out[last].tokenType) {
+					out[last].tokenType = token.tokenType
+				}
+				continue
+			}
+			if token.character < lastEnd {
+				if tokenEnd > lastEnd && token.modifiers&semanticTokenModifierCompileTime != 0 {
+					out[last] = token
+				}
+				continue
+			}
+		}
+		out = append(out, token)
+	}
+	return out
+}
+
+func semanticTokenTypePriority(tokenType int) int {
+	switch tokenType {
+	case semanticTokenTypeVariable:
+		return 0
+	case semanticTokenTypeFunction:
+		return 1
+	case semanticTokenTypeType:
+		return 2
+	case semanticTokenTypeInterface:
+		return 3
+	case semanticTokenTypeEnum:
+		return 4
+	case semanticTokenTypeEnumMember:
+		return 5
+	default:
+		return 0
+	}
 }

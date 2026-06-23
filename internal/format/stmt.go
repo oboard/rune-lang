@@ -31,9 +31,6 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 		if s.Mutable {
 			op = "~="
 		}
-		if s.Signal {
-			op = "$="
-		}
 		fields := make([]string, 0, len(s.Fields))
 		for _, field := range s.Fields {
 			if field.Field == field.Name {

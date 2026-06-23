@@ -105,6 +105,14 @@ func (s *server) methodHover(uri string, prog *compiler.Program, pos position) a
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibReceiverHover(prog.Info.Stdlib, moduleName, receiverName, sel.Name, sel.NamePos)
 	}
+	if traitInfo := traitInfoForType(prog.Info, receiver); traitInfo != nil {
+		if field, ok := traitInfo.ByName[sel.Name]; ok {
+			return hoverResult(fmt.Sprintf("%s: %s", sel.Name, displayCheckerType(prog.Info, field.Type)), sel.NamePos, sel.Name)
+		}
+		if method := traitInfo.Methods[sel.Name]; method != nil {
+			return hoverResult(traitMemberSignature(prog.Info, traitInfo.Name, method), sel.NamePos, sel.Name)
+		}
+	}
 	structInfo := prog.Info.Types[baseType(receiver)]
 	if structInfo == nil {
 		return nil
@@ -223,6 +231,11 @@ func typeHover(prog *compiler.Program, pos position) any {
 			return hoverResult(structTypeSignature(prog.Info, typ), typ.NamePos, typ.Name)
 		}
 	}
+	for _, trait := range prog.File.Traits {
+		if containsSymbol(pos, trait.NamePos, trait.Name) {
+			return hoverResult(traitTypeSignature(prog.Info, trait), trait.NamePos, trait.Name)
+		}
+	}
 	for _, enum := range prog.File.Enums {
 		if containsSymbol(pos, enum.NamePos, enum.Name) {
 			return hoverResult(enumTypeSignature(enum), enum.NamePos, enum.Name)
@@ -258,6 +271,35 @@ func structTypeByName(file *ast.File, name string) *ast.StructType {
 }
 
 func methodDeclHover(uri string, prog *compiler.Program, pos position) any {
+	for _, trait := range prog.File.Traits {
+		traitInfo := prog.Info.Traits[trait.Name]
+		if traitInfo == nil {
+			continue
+		}
+		for _, field := range trait.Fields {
+			if !containsSymbol(pos, field.Pos, field.Name) {
+				continue
+			}
+			if info, ok := traitInfo.ByName[field.Name]; ok {
+				return hoverResult(fmt.Sprintf("%s: %s", field.Name, displayCheckerType(prog.Info, info.Type)), field.Pos, field.Name)
+			}
+		}
+		for _, method := range trait.Methods {
+			if !containsSymbol(pos, method.NamePos, method.Name) {
+				continue
+			}
+			var info *checker.FuncInfo
+			if method.Static {
+				info = traitInfo.StaticMethods[method.Name]
+			} else {
+				info = traitInfo.Methods[method.Name]
+			}
+			if info == nil {
+				continue
+			}
+			return hoverResult(traitMemberSignature(prog.Info, trait.Name, info), method.NamePos, method.Name)
+		}
+	}
 	for _, typ := range prog.File.Types {
 		structInfo := prog.Info.Types[typ.Name]
 		if structInfo == nil {

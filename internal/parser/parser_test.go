@@ -71,6 +71,21 @@ main() => User::fromJson("{}")
 	}
 }
 
+func TestParseCompileTimeExpressionMarker(t *testing.T) {
+	file, errs := Parse(`main() => (1 + 2)'
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	expr, ok := file.Functions[0].Body.(*ast.CompileTimeExpr)
+	if !ok {
+		t.Fatalf("body = %T, want CompileTimeExpr", file.Functions[0].Body)
+	}
+	if _, ok := expr.Expr.(*ast.BinaryExpr); !ok {
+		t.Fatalf("compile-time child = %T, want BinaryExpr", expr.Expr)
+	}
+}
+
 func TestParseTypedBinding(t *testing.T) {
 	file, errs := Parse(`main() => {
   user := @json.parse(text) : User
@@ -949,12 +964,12 @@ func TestAnonymousObjectLiteralStillUsesIdentifierKeys(t *testing.T) {
 
 func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 	file, errs := Parse(`render() -> HTMLElement => {
-    count $= 0
+    $count := 0
 
     <div>
         <h1>Counter Example</h1>
-        <p>Count: {count}</p>
-        <button @click={count++}>Click Me</button>
+        <p>Count: {$count}</p>
+        <button @click={$count++}>Click Me</button>
     </div>
 }
 `)
@@ -988,10 +1003,10 @@ func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 	}
 }
 
-func TestParseReactiveLiterals(t *testing.T) {
+func TestParseSignalCollectionLiterals(t *testing.T) {
 	file, errs := Parse(`main() => {
-    list := $["Item 1"]
-    obj := ${name: "Alice"}
+    $list := ["Item 1"]
+    $obj := {name: "Alice"}
 }
 `)
 	if len(errs) > 0 {
@@ -1005,15 +1020,21 @@ func TestParseReactiveLiterals(t *testing.T) {
 	if !ok {
 		t.Fatalf("first statement = %T, want LetStmt", block.Statements[0])
 	}
-	if _, ok := list.Value.(*ast.ReactiveLiteral); !ok {
-		t.Fatalf("list value = %T, want ReactiveLiteral", list.Value)
+	if !list.Signal {
+		t.Fatalf("first statement = %#v, want signal binding", list)
+	}
+	if _, ok := list.Value.(*ast.ArrayLiteral); !ok {
+		t.Fatalf("list value = %T, want ArrayLiteral", list.Value)
 	}
 	obj, ok := block.Statements[1].(*ast.LetStmt)
 	if !ok {
 		t.Fatalf("second statement = %T, want LetStmt", block.Statements[1])
 	}
-	if _, ok := obj.Value.(*ast.ReactiveLiteral); !ok {
-		t.Fatalf("obj value = %T, want ReactiveLiteral", obj.Value)
+	if !obj.Signal {
+		t.Fatalf("second statement = %#v, want signal binding", obj)
+	}
+	if _, ok := obj.Value.(*ast.AnonymousObjectLiteral); !ok {
+		t.Fatalf("obj value = %T, want AnonymousObjectLiteral", obj.Value)
 	}
 }
 
@@ -1058,9 +1079,13 @@ func TestParseSignalPrefixSyntax(t *testing.T) {
 	if _, ok := effect.Expr.(*ast.BlockExpr); !ok {
 		t.Fatalf("third statement expr = %T, want BlockExpr", effect.Expr)
 	}
-	assign, ok := block.Statements[3].(*ast.AssignStmt)
+	assignStmt, ok := block.Statements[3].(*ast.ExprStmt)
+	if !ok {
+		t.Fatalf("fourth statement = %#v, want assignment expression statement", block.Statements[3])
+	}
+	assign, ok := assignStmt.Expr.(*ast.AssignExpr)
 	if !ok || assign.Name != "count" {
-		t.Fatalf("fourth statement = %#v, want count assignment", block.Statements[3])
+		t.Fatalf("fourth statement expr = %#v, want count assignment", assignStmt.Expr)
 	}
 }
 
@@ -1091,8 +1116,8 @@ func TestParseArraySpread(t *testing.T) {
 
 func TestParseAssignmentExpression(t *testing.T) {
 	file, errs := Parse(`render() => {
-    list $= ["Item 1"]
-    <button @click={list = [...list, "New Item"]}>Add Item</button>
+    $list := ["Item 1"]
+    <button @click={$list = [...$list, "New Item"]}>Add Item</button>
 }
 `)
 	if len(errs) > 0 {

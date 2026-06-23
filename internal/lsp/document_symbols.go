@@ -5,7 +5,19 @@ func (s *server) documentSymbols(uri string) any {
 	if prog == nil {
 		return []any{}
 	}
-	items := make([]map[string]any, 0, len(prog.File.Functions))
+	items := make([]map[string]any, 0, len(prog.File.Traits)+len(prog.File.Functions))
+	for _, trait := range prog.File.Traits {
+		if !sourceMatchesDocument(uri, trait.SourcePath) {
+			continue
+		}
+		items = append(items, map[string]any{
+			"name":           trait.Name,
+			"kind":           11,
+			"range":          symbolRange(trait.NamePos, len(trait.Name)),
+			"selectionRange": symbolRange(trait.NamePos, len(trait.Name)),
+			"detail":         traitTypeSignature(prog.Info, trait),
+		})
+	}
 	for _, fn := range prog.File.Functions {
 		if !sourceMatchesDocument(uri, fn.SourcePath) {
 			continue

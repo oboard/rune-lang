@@ -40,68 +40,146 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 	}
 	file, src, parseErrs, loadDiags := loadImportGraph(path, string(data), true)
 	reg, err := stdlib.LoadDefault()
-	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
+	info, compileTimeFunctions, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
-	return analyzedProgram(path, src, file, info, parseErrs, checkDiags, loadDiags)
+	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
 }
 
 func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
 	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
 	reg, err := stdlib.LoadDefault()
-	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
+	info, compileTimeFunctions, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
-	return analyzedProgram(path, src, file, info, parseErrs, checkDiags, loadDiags)
+	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
 }
 
 func AnalyzeSourceWithStdlib(path string, src string, reg *stdlib.Registry) (*Program, []Diagnostic) {
 	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
-	info, checkDiags := checkAndExpand(file, reg, path, parseErrs)
-	return analyzedProgram(path, src, file, info, parseErrs, checkDiags, loadDiags)
+	info, compileTimeFunctions, checkDiags := checkAndExpand(file, reg, path, parseErrs)
+	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
 }
 
-func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs []parser.Error) (*checker.Info, []checker.Diagnostic) {
+func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs []parser.Error) (*checker.Info, map[*ast.Function]bool, []checker.Diagnostic) {
 	info, checkDiags := checker.CheckWithStdlibForPath(file, reg, path)
 	if len(parseErrs) > 0 || len(checkDiags) > 0 {
-		return info, checkDiags
+		return info, nil, checkDiags
 	}
 	changed, macroDiags := macro.Expand(file, info)
 	checkDiags = append(checkDiags, macroDiags...)
 	if len(macroDiags) > 0 {
-		return info, checkDiags
+		return info, nil, checkDiags
 	}
 	if changed {
 		info, checkDiags = checker.CheckWithStdlibForPath(file, reg, path)
 		if len(checkDiags) > 0 {
-			return info, checkDiags
+			return info, nil, checkDiags
 		}
 	}
-	constChanged, constDiags := expandCompileTimeExprs(file, info)
+	constChanged, compileTimeFunctions, constDiags := expandCompileTimeExprs(file, info)
 	checkDiags = append(checkDiags, constDiags...)
 	if len(constDiags) > 0 || !constChanged {
-		return info, checkDiags
+		return info, compileTimeFunctions, checkDiags
 	}
-	return checker.CheckWithStdlibForPath(file, reg, path)
+	info, checkDiags = checker.CheckWithStdlibForPath(file, reg, path)
+	return info, compileTimeFunctions, checkDiags
 }
 
-func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, parseErrs []parser.Error, checkDiags []checker.Diagnostic, diags []Diagnostic) (*Program, []Diagnostic) {
+func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, compileTimeFunctions map[*ast.Function]bool, parseErrs []parser.Error, checkDiags []checker.Diagnostic, diags []Diagnostic) (*Program, []Diagnostic) {
 	for _, err := range parseErrs {
 		diags = append(diags, Diagnostic{Message: err.Message, Pos: err.Pos, Path: path})
 	}
 	for _, diag := range checkDiags {
 		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path})
 	}
+	lowered := ir.LowerFile(file, info)
+	pruneCompileTimeOnlyFunctions(file, info, lowered, compileTimeFunctions)
 	return &Program{
 		Path:   path,
 		Source: src,
 		File:   file,
 		Info:   info,
-		IR:     ir.LowerFile(file, info),
+		IR:     lowered,
 		Macros: macro.Plan(file, info),
 	}, diags
+}
+
+func pruneCompileTimeOnlyFunctions(file *ast.File, info *checker.Info, lowered *ir.File, compileTimeFunctions map[*ast.Function]bool) {
+	if file == nil || info == nil || lowered == nil || len(compileTimeFunctions) == 0 {
+		return
+	}
+	runtimeFunctions := map[*ast.Function]bool{}
+	markRuntimeFunction := func(fn *ast.Function) {}
+	markRuntimeExpr := func(expr ast.Expr) {}
+	markRuntimeFunction = func(fn *ast.Function) {
+		if fn == nil || runtimeFunctions[fn] {
+			return
+		}
+		runtimeFunctions[fn] = true
+		markRuntimeExpr(fn.Body)
+	}
+	markRuntimeExpr = func(expr ast.Expr) {
+		ast.WalkExpr(expr, func(expr ast.Expr) {
+			switch e := expr.(type) {
+			case *ast.Identifier:
+				if fn := info.ResolvedFunctions[e]; fn != nil {
+					markRuntimeFunction(fn.Node)
+				}
+			case *ast.SelectorExpr:
+				if fn := info.ResolvedSelectorFunctions[e]; fn != nil {
+					markRuntimeFunction(fn.Node)
+				}
+			}
+		})
+	}
+	for _, fn := range file.Functions {
+		if !compileTimeFunctions[fn] {
+			markRuntimeFunction(fn)
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if !compileTimeFunctions[method] {
+				markRuntimeFunction(method)
+			}
+		}
+	}
+	for _, test := range file.Tests {
+		markRuntimeExpr(test.Body)
+	}
+	lowered.Functions = pruneLoweredFunctions(file.Functions, lowered.Functions, compileTimeFunctions, runtimeFunctions)
+	for idx := range file.Types {
+		if idx >= len(lowered.Types) {
+			break
+		}
+		lowered.Types[idx].Methods = pruneLoweredFunctions(file.Types[idx].Methods, lowered.Types[idx].Methods, compileTimeFunctions, runtimeFunctions)
+	}
+}
+
+func pruneLoweredFunctions(astFunctions []*ast.Function, loweredFunctions []*ir.Function, compileTimeFunctions map[*ast.Function]bool, runtimeFunctions map[*ast.Function]bool) []*ir.Function {
+	out := make([]*ir.Function, 0, len(loweredFunctions))
+	loweredIdx := 0
+	for _, fn := range astFunctions {
+		if fn.Macro {
+			continue
+		}
+		if loweredIdx >= len(loweredFunctions) {
+			break
+		}
+		lowered := loweredFunctions[loweredIdx]
+		loweredIdx++
+		if compileTimeFunctions[fn] && !runtimeFunctions[fn] && fn.Name != "main" {
+			continue
+		}
+		out = append(out, lowered)
+	}
+	if loweredIdx < len(loweredFunctions) {
+		out = append(out, loweredFunctions[loweredIdx:]...)
+	}
+	return out
 }
 
 func loadImportGraph(entryPath string, entrySource string, hasEntrySource bool) (*ast.File, string, []parser.Error, []Diagnostic) {

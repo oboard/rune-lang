@@ -219,6 +219,77 @@ main() => TokenKind.EOF
 	}
 }
 
+func TestTraitLSPFeatures(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `&Named: {
+  name: String
+  display(prefix: String) -> String
+}
+
+show(item: &Named) -> String => {
+  item.display("hi") + item.name + item.display("bye")
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	items := s.completion(uri, position{}).([]map[string]any)
+	if !completionContains(items, "Named") {
+		t.Fatalf("completion = %#v, want Named trait", items)
+	}
+	memberPos := positionOf(src, "item.display", ".")
+	memberPos.Character++
+	members := s.completion(uri, memberPos).([]map[string]any)
+	for _, label := range []string{"name", "display"} {
+		if !completionContains(members, label) {
+			t.Fatalf("member completion = %#v, want %s", members, label)
+		}
+	}
+
+	traitHover := hoverValue(s.hover(uri, positionOf(src, "&Named", "Named")).(map[string]any))
+	for _, want := range []string{"&Named: {", "name: String", "display(prefix: String) -> String"} {
+		if !strings.Contains(traitHover, want) {
+			t.Fatalf("trait hover = %q, want %q", traitHover, want)
+		}
+	}
+	memberHover := hoverValue(s.hover(uri, positionOf(src, "item.display", "display")).(map[string]any))
+	if !strings.Contains(memberHover, "&Named.display(prefix: String) -> String") {
+		t.Fatalf("member hover = %q, want trait method signature", memberHover)
+	}
+	fieldHover := hoverValue(s.hover(uri, positionOf(src, "item.name", "name")).(map[string]any))
+	if !strings.Contains(fieldHover, "name: String") {
+		t.Fatalf("field hover = %q, want trait field signature", fieldHover)
+	}
+
+	def := s.definition(uri, positionOf(src, "item.display", "display")).(map[string]any)
+	if got := refStart(def); got != positionOf(src, "display(prefix", "display") {
+		t.Fatalf("display definition = %+v, want trait method", got)
+	}
+	typeDef := s.definition(uri, positionOf(src, "&Named)", "Named")).(map[string]any)
+	if got := refStart(typeDef); got != positionOf(src, "&Named", "Named") {
+		t.Fatalf("trait type definition = %+v, want declaration", got)
+	}
+
+	refs := s.references(uri, positionOf(src, "display(prefix", "display"), false).([]map[string]any)
+	if len(refs) != 2 {
+		t.Fatalf("display references = %d, want 2: %#v", len(refs), refs)
+	}
+	edit := s.rename(uri, positionOf(src, "display(prefix", "display"), "label").(map[string]any)
+	changes := edit["changes"].(map[string]any)[uri].([]map[string]any)
+	if len(changes) != 3 {
+		t.Fatalf("display rename edits = %d, want 3: %#v", len(changes), changes)
+	}
+
+	symbols := s.documentSymbols(uri).([]map[string]any)
+	if len(symbols) == 0 || symbols[0]["name"] != "Named" || symbols[0]["kind"] != 11 {
+		t.Fatalf("document symbols = %#v, want Named interface first", symbols)
+	}
+	resp := s.semanticTokens(uri).(map[string]any)
+	tokens := decodeSemanticTokenTypes(resp["data"].([]int))
+	if tokens[positionOf(src, "&Named", "Named")] != semanticTokenTypeInterface {
+		t.Fatalf("trait semantic token = %d, want interface; all tokens %#v", tokens[positionOf(src, "&Named", "Named")], tokens)
+	}
+}
+
 func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
@@ -718,14 +789,19 @@ func TestSemanticTokensUnderlineCompileTimeExpression(t *testing.T) {
 	uri := "file:///tmp/consteval.rn"
 	src := `double(value: Int) -> Int => value * 2
 
-main() => (double(21))'
+main() => double(21)'
 `
 	s := &server{docs: map[string]string{uri: src}}
 	resp := s.semanticTokens(uri).(map[string]any)
-	got := decodeSemanticTokenModifiers(resp["data"].([]int))
+	data := resp["data"].([]int)
+	got := decodeSemanticTokenModifiers(data)
 	pos := positionOf(src, "double(21)", "double")
 	if got[pos]&semanticTokenModifierCompileTime == 0 {
 		t.Fatalf("semantic modifiers at %+v = %d, want compile-time; all %#v", pos, got[pos], got)
+	}
+	ranges := decodeSemanticTokenRanges(data)
+	if ranges[pos] != len("double(21)") {
+		t.Fatalf("compile-time token length at %+v = %d, want full call", pos, ranges[pos])
 	}
 }
 
@@ -875,24 +951,24 @@ main() => {
 func TestSignalHoverShowsDependencyChain(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
-  count $= 0
-  double := count * 2
-  quadruple := double * 2
-  @io.println(quadruple)
+  $count := 0
+  $double := $count * 2
+  $quadruple := $double * 2
+  @io.println($quadruple)
 }
 `
 	s := &server{docs: map[string]string{uri: src}}
-	countHover := hoverValue(s.hover(uri, positionOf(src, "count $=", "count")).(map[string]any))
+	countHover := hoverValue(s.hover(uri, positionOf(src, "$count :=", "count")).(map[string]any))
 	if !strings.Contains(countHover, "count: Int") || !strings.Contains(countHover, "signal") {
 		t.Fatalf("count hover = %q, want signal type", countHover)
 	}
-	doubleHover := hoverValue(s.hover(uri, positionOf(src, "double :=", "double")).(map[string]any))
+	doubleHover := hoverValue(s.hover(uri, positionOf(src, "$double :=", "double")).(map[string]any))
 	if !strings.Contains(doubleHover, "double: Int") ||
 		!strings.Contains(doubleHover, "computed") ||
 		!strings.Contains(doubleHover, "deps: double -> count") {
 		t.Fatalf("double hover = %q, want computed dependency chain", doubleHover)
 	}
-	quadHover := hoverValue(s.hover(uri, positionOf(src, "@io.println(quadruple)", "quadruple")).(map[string]any))
+	quadHover := hoverValue(s.hover(uri, positionOf(src, "@io.println($quadruple)", "quadruple")).(map[string]any))
 	if !strings.Contains(quadHover, "quadruple: Int") ||
 		!strings.Contains(quadHover, "computed") ||
 		!strings.Contains(quadHover, "deps: quadruple -> double -> count") {

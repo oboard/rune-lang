@@ -1258,7 +1258,7 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
       "this",
       "true",
     ],
-    operators: ["=>", "->", ":=", "$=", "?", "??", "==", "!=", "<=", ">=", "+", "-", "*", "/", "%"],
+    operators: ["=>", "->", ":=", "?", "??", "==", "!=", "<=", ">=", "+", "-", "*", "/", "%"],
     tokenizer: {
       root: [
         [/[A-Z][\w$]*/, "type.identifier"],

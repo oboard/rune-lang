@@ -509,8 +509,28 @@ main() => (double(21))'
 	if lit.Value != 42 {
 		t.Fatalf("literal value = %d, want 42", lit.Value)
 	}
-	if got := prog.IR.Functions[1].Body.(*ir.IntegerLiteral).Value; got != 42 {
+	if len(prog.IR.Functions) != 1 || prog.IR.Functions[0].Name != "main" {
+		t.Fatalf("IR functions = %#v, want only main", prog.IR.Functions)
+	}
+	if got := prog.IR.Functions[0].Body.(*ir.IntegerLiteral).Value; got != 42 {
 		t.Fatalf("IR literal value = %d, want 42", got)
+	}
+}
+
+func TestAnalyzeSourceKeepsRuntimeUseOfCompileTimeFunction(t *testing.T) {
+	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int) -> Int => value * 2
+
+main() => double(1) + (double(21))'
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	names := []string{}
+	for _, fn := range prog.IR.Functions {
+		names = append(names, fn.Name)
+	}
+	if !strings.Contains(strings.Join(names, ","), "double") {
+		t.Fatalf("IR functions = %#v, want double retained", names)
 	}
 }
 

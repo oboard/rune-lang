@@ -370,11 +370,11 @@ matching XML tags create registered custom elements.
 
 ```rune
 render() -> HTMLElement => {
-  count $= 0
+  $count := 0
 
   <div>
-    <p>Count: {count}</p>
-    <button @click={count++}>Click Me</button>
+    <p>Count: {$count}</p>
+    <button @click={$count++}>Click Me</button>
   </div>
 }
 ```

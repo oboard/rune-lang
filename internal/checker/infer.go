@@ -552,13 +552,26 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		if target, ok := e.Target.(*ast.IndexExpr); ok {
 			return c.inferIndexAssign(target, e.Value, env)
 		}
-		if _, exists := env[e.Name]; !exists {
+		if e.Name != "" {
+			if _, exists := env[e.Name]; !exists {
+				c.errorf(e.Pos, "cannot assign undefined name %q", e.Name)
+			}
+			if e.Target != nil {
+				c.inferExpr(e.Target, env)
+			}
+			c.inferExpr(e.Value, env)
+			return Void
+		}
+		if e.Target == nil {
 			c.errorf(e.Pos, "cannot assign undefined name %q", e.Name)
+			c.inferExpr(e.Value, env)
+			return Void
 		}
-		if e.Target != nil {
-			c.inferExpr(e.Target, env)
+		expected := c.inferExpr(e.Target, env)
+		actual := c.inferExpr(e.Value, env)
+		if expected != Unknown && actual != Unknown && !c.typesCompatible(expected, actual, nil) {
+			c.errorf(e.Value.Position(), "assignment has type %s, expected %s", actual, expected)
 		}
-		c.inferExpr(e.Value, env)
 		return Void
 	case *ast.CallExpr:
 		return c.inferCall(e, env)

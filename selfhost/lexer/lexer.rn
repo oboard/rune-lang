@@ -67,7 +67,6 @@ ScannedString: {
   Assign
   Declare
   MutDeclare
-  SignalDeclare
   Arrow
   Plus
   PlusPlus
@@ -205,7 +204,6 @@ canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind
   TokenKind.Assign => "Assign"
   TokenKind.Declare => "Declare"
   TokenKind.MutDeclare => "MutDeclare"
-  TokenKind.SignalDeclare => "SignalDeclare"
   TokenKind.Arrow => "Arrow"
   TokenKind.Plus => "Plus"
   TokenKind.PlusPlus => "PlusPlus"
@@ -436,7 +434,6 @@ lexTilde(state: LexState) -> Lexed => peek(state) {
 }
 
 lexDollar(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), TokenKind.SignalDeclare)
   _ => lexed(state, TokenKind.Dollar)
 }
 

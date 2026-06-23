@@ -10,12 +10,12 @@ import (
 
 func TestGenerateCounterDOMProgram(t *testing.T) {
 	src := `+ render() -> HTMLElement => {
-  count $= 0
+  $count := 0
 
   <div>
     <h1>Counter Example</h1>
-    <p>Count: {count}</p>
-    <button @click={count++}>Click Me</button>
+    <p>Count: {$count}</p>
+    <button @click={$count++}>Click Me</button>
   </div>
 }
 `
@@ -298,13 +298,13 @@ func TestGenerateElementArrayChild(t *testing.T) {
 
 func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	src := `render() => {
-  list := $["Item 1", "Item 2", "Item 3"]
+  $list := ["Item 1", "Item 2", "Item 3"]
 
   <ul>
-    {list.map((item) => (
+    {$list.map((item) => (
         <li>{item}</li>
     ))}
-    <button @click={list.push("New Item")}>Add Item</button>
+    <button @click={$list.push("New Item")}>Add Item</button>
   </ul>
 }
 `
@@ -730,8 +730,26 @@ func TestGenerateSignalAssignmentExpression(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __list = runeSignal(["Item 1"]);`,
+		`const __list = runeReactiveArray(["Item 1"]);`,
 		`.addEventListener("click", () => { __list.set([...__list.get(), "New Item"]); });`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateSignalObjectInitializer(t *testing.T) {
+	src := `render() => {
+  $state := {count: 0}
+  <button @click={$state.count = $state.count + 1}>Add Item</button>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __state = runeReactiveObject({count: 0});`,
+		`.addEventListener("click", () => { __state.mutate((__value) => (__value.count = __state.get().count + 1)); });`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

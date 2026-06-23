@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"strings"
+
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/compiler"
@@ -71,6 +73,7 @@ type methodTarget struct {
 	name       string
 	pos        lexer.Position
 	structName string
+	traitName  string
 	external   bool
 	scope      ast.Expr
 }
@@ -106,6 +109,24 @@ func (s *server) methodTarget(uri string, prog *compiler.Program, pos position) 
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibReceiverTarget(prog.Info.Stdlib, moduleName, receiverName, sel.Name)
 	}
+	if traitInfo := traitInfoForType(prog.Info, receiver); traitInfo != nil {
+		if field, ok := traitInfo.ByName[sel.Name]; ok {
+			return &methodTarget{
+				uri:       sourceURI(uri, field.SourcePath),
+				name:      field.Name,
+				pos:       traitFieldPos(traitInfo.Node, field.Name),
+				traitName: traitInfo.Name,
+			}
+		}
+		if method := traitInfo.Methods[sel.Name]; method != nil && method.Node != nil {
+			return &methodTarget{
+				uri:       sourceURI(uri, method.Node.SourcePath),
+				name:      method.Node.Name,
+				pos:       method.Node.NamePos,
+				traitName: traitInfo.Name,
+			}
+		}
+	}
 	structInfo := prog.Info.Types[baseType(receiver)]
 	if structInfo == nil {
 		return nil
@@ -123,6 +144,28 @@ func (s *server) methodTarget(uri string, prog *compiler.Program, pos position) 
 }
 
 func methodDeclTarget(uri string, file *ast.File, pos position) *methodTarget {
+	for _, trait := range file.Traits {
+		for _, field := range trait.Fields {
+			if containsSymbol(pos, field.Pos, field.Name) {
+				return &methodTarget{
+					uri:       sourceURI(uri, trait.SourcePath),
+					name:      field.Name,
+					pos:       field.Pos,
+					traitName: trait.Name,
+				}
+			}
+		}
+		for _, method := range trait.Methods {
+			if containsSymbol(pos, method.NamePos, method.Name) {
+				return &methodTarget{
+					uri:       sourceURI(uri, method.SourcePath),
+					name:      method.Name,
+					pos:       method.NamePos,
+					traitName: trait.Name,
+				}
+			}
+		}
+	}
 	for _, typ := range file.Types {
 		for _, method := range typ.Methods {
 			if containsSymbol(pos, method.NamePos, method.Name) {
@@ -136,6 +179,42 @@ func methodDeclTarget(uri string, file *ast.File, pos position) *methodTarget {
 		}
 	}
 	return nil
+}
+
+func traitTarget(uri string, prog *compiler.Program, pos position) *methodTarget {
+	name := wordAt(prog.Source, pos)
+	if name == "" {
+		return nil
+	}
+	for _, trait := range prog.File.Traits {
+		if trait.Name == name {
+			return &methodTarget{uri: sourceURI(uri, trait.SourcePath), name: trait.Name, pos: trait.NamePos, traitName: trait.Name}
+		}
+	}
+	return nil
+}
+
+func traitInfoForType(info *checker.Info, typ checker.Type) *checker.TraitInfo {
+	if info == nil {
+		return nil
+	}
+	name := strings.TrimSuffix(strings.TrimPrefix(baseType(typ), "&"), "?")
+	if name == "" {
+		return nil
+	}
+	return info.Traits[name]
+}
+
+func traitFieldPos(trait *ast.TraitDecl, name string) lexer.Position {
+	if trait == nil {
+		return lexer.Position{}
+	}
+	for _, field := range trait.Fields {
+		if field.Name == name {
+			return field.Pos
+		}
+	}
+	return lexer.Position{}
 }
 
 func stdlibTarget(reg *stdlib.Registry, moduleName string, functionName string) *methodTarget {

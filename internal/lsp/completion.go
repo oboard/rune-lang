@@ -85,6 +85,13 @@ func globalCompletion(prog *compiler.Program) []map[string]any {
 			}
 		}
 	}
+	for _, trait := range prog.File.Traits {
+		items = append(items, map[string]any{
+			"label":  trait.Name,
+			"kind":   8,
+			"detail": traitTypeSignature(prog.Info, trait),
+		})
+	}
 	for _, fn := range prog.File.Functions {
 		if fn.Macro {
 			continue
@@ -128,6 +135,9 @@ func (s *server) memberCompletion(uri string, prog *compiler.Program, pos positi
 	}
 	if moduleName, receiverName, ok := stdlibReceiverModule(receiver); ok {
 		return stdlibMemberCompletion(prog.Info, receiver, moduleName, receiverName), true
+	}
+	if traitInfo := traitInfoForType(prog.Info, receiver); traitInfo != nil {
+		return traitMemberCompletion(prog.Info, traitInfo), true
 	}
 	if structInfo := prog.Info.Types[baseType(receiver)]; structInfo != nil {
 		return structMemberCompletion(prog.Info, structInfo), true
@@ -443,6 +453,31 @@ func structMemberCompletion(info *checker.Info, structInfo *checker.StructInfo) 
 			"label":  name,
 			"kind":   2,
 			"detail": classMethodSignature(structInfo.Name, method),
+		})
+	}
+	return items
+}
+
+func traitMemberCompletion(info *checker.Info, traitInfo *checker.TraitInfo) []map[string]any {
+	items := make([]map[string]any, 0, len(traitInfo.Fields)+len(traitInfo.Methods))
+	for _, field := range traitInfo.Fields {
+		items = append(items, map[string]any{
+			"label":  field.Name,
+			"kind":   5,
+			"detail": fmt.Sprintf("%s: %s", field.Name, displayCheckerType(info, field.Type)),
+		})
+	}
+	methodNames := make([]string, 0, len(traitInfo.Methods))
+	for name := range traitInfo.Methods {
+		methodNames = append(methodNames, name)
+	}
+	sort.Strings(methodNames)
+	for _, name := range methodNames {
+		method := traitInfo.Methods[name]
+		items = append(items, map[string]any{
+			"label":  name,
+			"kind":   2,
+			"detail": traitMemberSignature(info, traitInfo.Name, method),
 		})
 	}
 	return items

@@ -416,6 +416,17 @@ func (g *generator) reactiveLiteral(lit *ir.ReactiveLiteral) string {
 	}
 }
 
+func (g *generator) signalInitialValue(expr ir.Expr) string {
+	switch expr.(type) {
+	case *ir.ArrayLiteral:
+		return "runeReactiveArray(" + g.expr(expr) + ")"
+	case *ir.AnonymousObjectLiteral:
+		return "runeReactiveObject(" + g.expr(expr) + ")"
+	default:
+		return "runeSignal(" + g.expr(expr) + ")"
+	}
+}
+
 func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
 	target, ok := expr.Expr.(*ir.Identifier)
 	if !ok || expr.Op != lexer.PlusPlus {
@@ -783,10 +794,37 @@ func (g *generator) watchExpr(watch *ir.WatchExpr) string {
 
 func (g *generator) reactiveIdentifier(expr ir.Expr) (string, bool) {
 	ident, ok := expr.(*ir.Identifier)
-	if !ok || !g.isReactive(ident.Name) {
+	if !ok {
 		return "", false
 	}
-	return mangleIdent(ident.Name), true
+	if g.isReactive(ident.Name) {
+		return mangleIdent(ident.Name), true
+	}
+	if g.isSignal(ident.Name) {
+		if _, ok := checker.ArrayElement(expr.ResultType()); ok {
+			return mangleIdent(ident.Name), true
+		}
+		typeName := string(expr.ResultType())
+		if strings.HasPrefix(typeName, "{") && strings.HasSuffix(typeName, "}") {
+			return mangleIdent(ident.Name), true
+		}
+	}
+	return "", false
+}
+
+func (g *generator) letStmtValue(stmt *ir.LetStmt) string {
+	if stmt.Signal || g.exprUsesSignal(stmt.Value) {
+		g.addSignal(stmt.Name, stmt.Value.ResultType())
+		deps := g.exprSignalDeps(stmt.Value)
+		g.setSignalDeps(stmt.Name, deps)
+		return g.signalInitialValue(stmt.Value)
+	}
+	if _, ok := stmt.Value.(*ir.AnonymousObjectLiteral); ok {
+		return g.withThisName(mangleIdent(stmt.Name), func() string {
+			return g.expr(stmt.Value)
+		})
+	}
+	return g.expr(stmt.Value)
 }
 
 func (g *generator) lambda(lambda *ir.LambdaExpr) string {
@@ -845,15 +883,10 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 			if s.Mutable {
 				kind = "let"
 			}
-			value := g.expr(s.Value)
+			value := g.letStmtValue(s)
 			if _, ok := s.Value.(*ir.ReactiveLiteral); ok {
 				parts = append(parts, fmt.Sprintf("%s %s = %s", kind, mangleIdent(s.Name), value))
 				continue
-			}
-			if _, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
-				value = g.withThisName(mangleIdent(s.Name), func() string {
-					return g.expr(s.Value)
-				})
 			}
 			parts = append(parts, fmt.Sprintf("%s %s = %s", kind, mangleIdent(s.Name), value))
 		case *ir.AssignStmt:

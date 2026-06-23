@@ -104,7 +104,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.SpreadExpr:
 		return "..." + f.expr(e.Expr)
 	case *ast.ReactiveLiteral:
-		return "$" + f.expr(e.Value)
+		return f.expr(e.Value)
 	case *ast.MapLiteral:
 		return f.mapLiteral(e)
 	case *ast.StructLiteral:

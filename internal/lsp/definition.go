@@ -27,6 +27,9 @@ func (s *server) definition(uri string, pos position) any {
 	if target := fieldTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
+	if target := traitTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
 	if target := typeTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
@@ -105,6 +108,11 @@ func typeTarget(uri string, prog *compiler.Program, pos position) *methodTarget 
 	for _, enum := range prog.File.Enums {
 		if enum.Name == name {
 			return &methodTarget{uri: sourceURI(uri, enum.SourcePath), name: enum.Name, pos: enum.NamePos}
+		}
+	}
+	for _, trait := range prog.File.Traits {
+		if trait.Name == name {
+			return &methodTarget{uri: sourceURI(uri, trait.SourcePath), name: trait.Name, pos: trait.NamePos, traitName: trait.Name}
 		}
 	}
 	return nil

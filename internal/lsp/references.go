@@ -14,8 +14,13 @@ func (s *server) references(uri string, pos position, includeDeclaration bool) a
 	if target := functionTarget(uri, prog, pos); target != nil {
 		return functionReferences(prog, target, includeDeclaration)
 	}
-	if target := s.methodTarget(uri, prog, pos); target != nil && target.structName != "" {
-		return methodReferences(prog, target, includeDeclaration)
+	if target := s.methodTarget(uri, prog, pos); target != nil {
+		if target.structName != "" {
+			return methodReferences(prog, target, includeDeclaration)
+		}
+		if target.traitName != "" {
+			return traitMemberReferences(prog, target, includeDeclaration)
+		}
 	}
 	if target := localTarget(uri, prog, pos); target != nil && target.scope != nil {
 		return localReferences(uri, prog, target, includeDeclaration)
@@ -49,6 +54,23 @@ func methodReferences(prog *compiler.Program, target *methodTarget, includeDecla
 			return
 		}
 		if baseType(prog.Info.ExprTypes[sel.Receiver]) != target.structName {
+			return
+		}
+		refs = append(refs, referenceLocation(target.uri, sel.NamePos, sel.Name))
+	})
+	return refs
+}
+
+func traitMemberReferences(prog *compiler.Program, target *methodTarget, includeDeclaration bool) []map[string]any {
+	refs := []map[string]any{}
+	if includeDeclaration {
+		refs = append(refs, target.location())
+	}
+	walkFileSelectors(prog.File, func(sel *ast.SelectorExpr) {
+		if sel.Name != target.name {
+			return
+		}
+		if traitInfo := traitInfoForType(prog.Info, prog.Info.ExprTypes[sel.Receiver]); traitInfo == nil || traitInfo.Name != target.traitName {
 			return
 		}
 		refs = append(refs, referenceLocation(target.uri, sel.NamePos, sel.Name))

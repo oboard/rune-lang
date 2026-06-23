@@ -656,14 +656,15 @@ and reruns it when any dependency changes.
 `target -> handler` registers a watcher. A handler can be a zero-argument block
 or a lambda with two parameters `(old, new)`.
 
-Reactive array and object literals use `$[...]` and `${...}`:
+Signal array and object initializers become reactive containers:
 
 ```rune
-items := $["Item 1", "Item 2"]
-state := ${ count: 0 }
+$items := ["Item 1", "Item 2"]
+$state := { count: 0 }
 ```
 
-The TypeScript backend emits helper wrappers for signals and reactive arrays.
+The TypeScript backend emits helper wrappers for signals, reactive arrays, and
+reactive objects.
 
 ## XML and DOM Expressions
 
@@ -671,11 +672,11 @@ XML-like elements are expressions that return `HTMLElement` by default:
 
 ```rune
 render() -> HTMLElement => {
-  count $= 0
+  $count := 0
 
   <div class="counter">
-    <p>Count: {count}</p>
-    <button @click={count++}>Click Me</button>
+    <p>Count: {$count}</p>
+    <button @click={$count++}>Click Me</button>
   </div>
 }
 ```

@@ -1,0 +1,6 @@
+main() => {
+    str := ("Hello " + "World!")'
+    num := ((1 + 2) * 3)'
+    @io.println(str)
+    @io.println(num)
+}

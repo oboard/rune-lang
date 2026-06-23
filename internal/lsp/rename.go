@@ -22,12 +22,17 @@ func (s *server) rename(uri string, pos position, newName string) any {
 			}
 		}
 		if target := s.methodTarget(uri, prog, pos); target != nil {
-			if target.structName == "" {
-				return nil
+			if target.structName != "" {
+				return map[string]any{
+					"changes": map[string]any{uri: methodRenameEdits(prog, target, newName)},
+				}
 			}
-			return map[string]any{
-				"changes": map[string]any{uri: methodRenameEdits(prog, target, newName)},
+			if target.traitName != "" {
+				return map[string]any{
+					"changes": map[string]any{uri: traitMemberRenameEdits(prog, target, newName)},
+				}
 			}
+			return nil
 		}
 		if target := functionTarget(uri, prog, pos); target != nil && target.external {
 			return nil
@@ -76,6 +81,35 @@ func methodRenameEdits(prog *compiler.Program, target *methodTarget, newName str
 			return
 		}
 		if baseType(prog.Info.ExprTypes[sel.Receiver]) != target.structName {
+			return
+		}
+		edits = append(edits, textEdit(sel.NamePos, sel.Name, newName))
+	})
+	return edits
+}
+
+func traitMemberRenameEdits(prog *compiler.Program, target *methodTarget, newName string) []map[string]any {
+	var edits []map[string]any
+	for _, trait := range prog.File.Traits {
+		if trait.Name != target.traitName {
+			continue
+		}
+		for _, field := range trait.Fields {
+			if field.Name == target.name {
+				edits = append(edits, textEdit(field.Pos, field.Name, newName))
+			}
+		}
+		for _, method := range trait.Methods {
+			if method.Name == target.name {
+				edits = append(edits, textEdit(method.NamePos, method.Name, newName))
+			}
+		}
+	}
+	walkFileSelectors(prog.File, func(sel *ast.SelectorExpr) {
+		if sel.Name != target.name {
+			return
+		}
+		if traitInfo := traitInfoForType(prog.Info, prog.Info.ExprTypes[sel.Receiver]); traitInfo == nil || traitInfo.Name != target.traitName {
 			return
 		}
 		edits = append(edits, textEdit(sel.NamePos, sel.Name, newName))

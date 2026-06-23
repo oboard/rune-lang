@@ -638,14 +638,14 @@ render() => {
 `target -> handler` 注册 watcher。handler 可以是零参数代码块，也可以是接收
 `(old, new)` 两个参数的 lambda。
 
-响应式数组和对象字面量使用 `$[...]` 和 `${...}`：
+signal 的数组和对象初始值会成为响应式容器：
 
 ```rune
-items := $["Item 1", "Item 2"]
-state := ${ count: 0 }
+$items := ["Item 1", "Item 2"]
+$state := { count: 0 }
 ```
 
-TypeScript 后端会为 signal 和响应式数组生成辅助封装。
+TypeScript 后端会为 signal、响应式数组和响应式对象生成辅助封装。
 
 ## XML 与 DOM 表达式
 
@@ -653,11 +653,11 @@ TypeScript 后端会为 signal 和响应式数组生成辅助封装。
 
 ```rune
 render() -> HTMLElement => {
-  count $= 0
+  $count := 0
 
   <div class="counter">
-    <p>Count: {count}</p>
-    <button @click={count++}>Click Me</button>
+    <p>Count: {$count}</p>
+    <button @click={$count++}>Click Me</button>
   </div>
 }
 ```

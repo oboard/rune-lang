@@ -13,21 +13,26 @@ import (
 	"github.com/oboard/rune-lang/internal/lexer"
 )
 
-func expandCompileTimeExprs(file *ast.File, info *checker.Info) (bool, []checker.Diagnostic) {
+func expandCompileTimeExprs(file *ast.File, info *checker.Info) (bool, map[*ast.Function]bool, []checker.Diagnostic) {
 	if !hasCompileTimeExpr(file) {
-		return false, nil
+		return false, nil, nil
 	}
 	runtime := interpreter.New(ir.LowerFile(file, info), interpreter.WithCompileTime())
-	rewriter := compileTimeRewriter{info: info, runtime: runtime}
+	rewriter := compileTimeRewriter{
+		info:                 info,
+		runtime:              runtime,
+		compileTimeFunctions: map[*ast.Function]bool{},
+	}
 	rewriter.file(file)
-	return rewriter.changed, rewriter.diags
+	return rewriter.changed, rewriter.compileTimeFunctions, rewriter.diags
 }
 
 type compileTimeRewriter struct {
-	info    *checker.Info
-	runtime *interpreter.Interpreter
-	changed bool
-	diags   []checker.Diagnostic
+	info                 *checker.Info
+	runtime              *interpreter.Interpreter
+	changed              bool
+	compileTimeFunctions map[*ast.Function]bool
+	diags                []checker.Diagnostic
 }
 
 func (r *compileTimeRewriter) file(file *ast.File) {
@@ -104,6 +109,7 @@ func (r *compileTimeRewriter) expr(expr ast.Expr) ast.Expr {
 	case *ast.ResultUnwrapExpr:
 		e.Expr = r.expr(e.Expr)
 	case *ast.CompileTimeExpr:
+		r.markCompileTimeExpr(e.Expr)
 		e.Expr = r.expr(e.Expr)
 		return r.evaluate(e)
 	case *ast.BinaryExpr:
@@ -180,6 +186,36 @@ func (r *compileTimeRewriter) expr(expr ast.Expr) ast.Expr {
 		e.Handler = r.expr(e.Handler)
 	}
 	return expr
+}
+
+func (r *compileTimeRewriter) markCompileTimeExpr(expr ast.Expr) {
+	r.markResolvedFunctions(expr, r.markCompileTimeFunction)
+}
+
+func (r *compileTimeRewriter) markCompileTimeFunction(fn *ast.Function) {
+	if fn == nil || r.compileTimeFunctions[fn] {
+		return
+	}
+	r.compileTimeFunctions[fn] = true
+	r.markResolvedFunctions(fn.Body, r.markCompileTimeFunction)
+}
+
+func (r *compileTimeRewriter) markResolvedFunctions(expr ast.Expr, mark func(*ast.Function)) {
+	if expr == nil || r.info == nil {
+		return
+	}
+	ast.WalkExpr(expr, func(expr ast.Expr) {
+		switch e := expr.(type) {
+		case *ast.Identifier:
+			if fn := r.info.ResolvedFunctions[e]; fn != nil {
+				mark(fn.Node)
+			}
+		case *ast.SelectorExpr:
+			if fn := r.info.ResolvedSelectorFunctions[e]; fn != nil {
+				mark(fn.Node)
+			}
+		}
+	})
 }
 
 func (r *compileTimeRewriter) pattern(pattern ast.Pattern) {
