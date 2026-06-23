@@ -157,6 +157,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Null => "nil"
   ExprKind.Unary => expr.op + emitGoExpr(expr.children[0])
   ExprKind.Postfix => emitGoExpr(expr.children[0]) + expr.op
+  ExprKind.CompileTime => emitGoExpr(expr.children[0])
   ExprKind.Binary => emitGoBinary(expr)
   ExprKind.Ternary => emitGoTernary(expr)
   ExprKind.Assign => emitGoAssign(expr)

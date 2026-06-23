@@ -208,6 +208,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Null => "null"
   ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
   ExprKind.Postfix => emitTSExpr(expr.children[0]) + expr.op
+  ExprKind.CompileTime => emitTSExpr(expr.children[0])
   ExprKind.Binary => emitTSBinary(expr)
   ExprKind.Ternary => emitTSTernary(expr)
   ExprKind.Assign => emitTSAssign(expr)

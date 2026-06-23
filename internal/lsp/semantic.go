@@ -125,6 +125,7 @@ func (s *server) semanticTokens(uri string) any {
 		}
 	})
 	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
+	tokens = append(tokens, compileTimeExpressionSemanticTokens(prog.Source)...)
 	sort.Slice(tokens, func(i, j int) bool {
 		if tokens[i].line != tokens[j].line {
 			return tokens[i].line < tokens[j].line
@@ -149,6 +150,54 @@ func templateExpressionSemanticTokens(prog *compiler.Program, signals map[string
 		}
 	})
 	return tokens
+}
+
+func compileTimeExpressionSemanticTokens(src string) []semanticToken {
+	raw := lexer.Lex(src)
+	tokens := make([]lexer.Token, 0, len(raw))
+	for _, tok := range raw {
+		if tok.Kind != lexer.Newline {
+			tokens = append(tokens, tok)
+		}
+	}
+	var out []semanticToken
+	for idx := 1; idx < len(tokens); idx++ {
+		if tokens[idx].Kind != lexer.Apostrophe || tokens[idx-1].Kind != lexer.RParen {
+			continue
+		}
+		open := matchingOpenParen(tokens, idx-1)
+		if open < 0 || open+1 >= idx {
+			continue
+		}
+		expr := tokens[open+1]
+		if expr.Kind == lexer.EOF || expr.Kind == lexer.Illegal {
+			continue
+		}
+		out = append(out, semanticToken{
+			line:      max(expr.Pos.Line-1, 0),
+			character: max(expr.Pos.Column-1, 0),
+			length:    len(expr.Lexeme),
+			tokenType: semanticTokenTypeVariable,
+			modifiers: semanticTokenModifierCompileTime,
+		})
+	}
+	return out
+}
+
+func matchingOpenParen(tokens []lexer.Token, close int) int {
+	depth := 0
+	for idx := close; idx >= 0; idx-- {
+		switch tokens[idx].Kind {
+		case lexer.RParen:
+			depth++
+		case lexer.LParen:
+			depth--
+			if depth == 0 {
+				return idx
+			}
+		}
+	}
+	return -1
 }
 
 func templateCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {
@@ -377,6 +426,7 @@ const (
 
 	semanticTokenModifierModification = 1 << 0
 	semanticTokenModifierAsync        = 1 << 1
+	semanticTokenModifierCompileTime  = 1 << 2
 )
 
 func encodeSemanticTokens(tokens []semanticToken) []int {

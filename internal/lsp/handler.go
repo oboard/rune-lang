@@ -22,7 +22,7 @@ func (s *server) handle(req request) error {
 				"semanticTokensProvider": map[string]any{
 					"legend": map[string]any{
 						"tokenTypes":     []string{"variable", "type", "function", "enum", "enumMember"},
-						"tokenModifiers": []string{"modification", "async"},
+						"tokenModifiers": []string{"modification", "async", "compileTime"},
 					},
 					"full": true,
 				},

@@ -53,6 +53,8 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
 	case *ast.ResultUnwrapExpr:
 		return f.postfixReceiverExpr(e.Expr) + "?"
+	case *ast.CompileTimeExpr:
+		return f.postfixReceiverExpr(e.Expr) + "'"
 	case *ast.BinaryExpr:
 		if f.isPatternPredicateBitOr(e) {
 			return strings.Join(f.patternPredicateBitOrParts(e), " | ")

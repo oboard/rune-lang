@@ -156,6 +156,15 @@ Status: {
   @assert.eq(body.children[1].kind, ExprKind.String)
 }
 
+? "selfhost parser reads compile-time expressions" {
+  source := "main() => (1 + 2)'\n"
+  file := parse(source)
+  body := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(body.kind, ExprKind.CompileTime)
+  @assert.eq(body.children[0].kind, ExprKind.Binary)
+}
+
 ? "selfhost parser reads conditional expression without else" {
   source := `main() => {
   handled ~= false

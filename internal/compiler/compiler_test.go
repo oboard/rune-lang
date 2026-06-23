@@ -11,6 +11,7 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/interpreter"
+	"github.com/oboard/rune-lang/internal/ir"
 )
 
 func TestAnalyzeCoreSourceDoesNotDuplicateOwnTypes(t *testing.T) {
@@ -490,6 +491,26 @@ Args: {
 	}
 	if len(prog.Macros) != 1 || prog.Macros[0].Annotation.Name != "renameDeclaration" {
 		t.Fatalf("macro plan = %#v", prog.Macros)
+	}
+}
+
+func TestAnalyzeSourceEvaluatesCompileTimeExpression(t *testing.T) {
+	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int) -> Int => value * 2
+
+main() => (double(21))'
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	lit, ok := prog.File.Functions[1].Body.(*ast.IntegerLiteral)
+	if !ok {
+		t.Fatalf("main body = %T, want IntegerLiteral", prog.File.Functions[1].Body)
+	}
+	if lit.Value != 42 {
+		t.Fatalf("literal value = %d, want 42", lit.Value)
+	}
+	if got := prog.IR.Functions[1].Body.(*ir.IntegerLiteral).Value; got != 42 {
+		t.Fatalf("IR literal value = %d, want 42", got)
 	}
 }
 

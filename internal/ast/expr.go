@@ -169,6 +169,17 @@ func (e *ResultUnwrapExpr) Position() lexer.Position {
 	return e.Pos
 }
 
+type CompileTimeExpr struct {
+	Expr    Expr
+	Pos     lexer.Position
+	MarkPos lexer.Position
+}
+
+func (*CompileTimeExpr) exprNode() {}
+func (e *CompileTimeExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 type BinaryExpr struct {
 	Left  Expr
 	Op    lexer.Kind

@@ -70,7 +70,18 @@ func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs
 	}
 	changed, macroDiags := macro.Expand(file, info)
 	checkDiags = append(checkDiags, macroDiags...)
-	if len(macroDiags) > 0 || !changed {
+	if len(macroDiags) > 0 {
+		return info, checkDiags
+	}
+	if changed {
+		info, checkDiags = checker.CheckWithStdlibForPath(file, reg, path)
+		if len(checkDiags) > 0 {
+			return info, checkDiags
+		}
+	}
+	constChanged, constDiags := expandCompileTimeExprs(file, info)
+	checkDiags = append(checkDiags, constDiags...)
+	if len(constDiags) > 0 || !constChanged {
 		return info, checkDiags
 	}
 	return checker.CheckWithStdlibForPath(file, reg, path)

@@ -50,6 +50,9 @@
           "function.async:rune": {
             "fontStyle": "italic underline"
           },
+          "*.compileTime:rune": {
+            "fontStyle": "underline"
+          },
           "enum:rune": {
             "foreground": "#4EC9B0"
           },

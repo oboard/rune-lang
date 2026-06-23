@@ -68,6 +68,16 @@ newline := '\\n'`)
   @assert.eq(tokens[6].lexeme, "'\\n'")
 }
 
+? "selfhost lexer reads compile-time marker" {
+  tokens := lex("value := (1)'")
+  @assert.eq(tokens[0].kind, TokenKind.Ident)
+  @assert.eq(tokens[1].kind, TokenKind.Declare)
+  @assert.eq(tokens[2].kind, TokenKind.LParen)
+  @assert.eq(tokens[3].kind, TokenKind.Int)
+  @assert.eq(tokens[4].kind, TokenKind.RParen)
+  @assert.eq(tokens[5].kind, TokenKind.Apostrophe)
+}
+
 ? "selfhost lexer reads range pattern operator" {
   tokens := lex("'0'..='9' .. ... ??")
   @assert.eq(tokens[0].kind, TokenKind.Char)

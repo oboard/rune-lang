@@ -1446,12 +1446,15 @@ parseExpressionLoop(
                   : (
                     parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec)
                       : (
-                        (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec)
+                        parserCheck(state, TokenKind.Apostrophe) ? parseCompileTimePostfixExpression(state, expr, minPrec)
                           : (
-                            (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec)
+                            (minPrec <= 1) && parserCheck(state, TokenKind.Arrow) ? parseWatchExpression(state, expr, minPrec)
                               : (
-                                (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
-                                  : parseBinaryExpression(state, expr, minPrec)
+                                (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec)
+                                  : (
+                                    (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
+                                      : parseBinaryExpression(state, expr, minPrec)
+                                  )
                               )
                           )
                       )
@@ -1574,6 +1577,18 @@ parsePostfixExpression(
   parseExpressionLoop(ExprStep {
     state: op.state,
     expr: opNode(ExprKind.Postfix, op.token.lexeme, op.token, [expr])
+  }, minPrec)
+}
+
+parseCompileTimePostfixExpression(
+  state: ParserState,
+  expr: ParsedExpr,
+  minPrec: Int
+) -> ExprStep => {
+  op := parserAdvance(state)
+  parseExpressionLoop(ExprStep {
+    state: op.state,
+    expr: opNode(ExprKind.CompileTime, op.token.lexeme, op.token, [expr])
   }, minPrec)
 }
 

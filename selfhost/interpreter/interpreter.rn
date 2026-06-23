@@ -405,6 +405,7 @@ evalExpr(
   ExprKind.Null => okResult(nullValue())
   ExprKind.Unary => evalUnary(interpreter, env, expr)
   ExprKind.Postfix => evalPostfix(interpreter, env, expr)
+  ExprKind.CompileTime => evalExpr(interpreter, env, expr.children[0])
   ExprKind.Binary => evalBinary(interpreter, env, expr)
   ExprKind.Ternary => evalTernary(interpreter, env, expr)
   ExprKind.Assign => evalAssign(interpreter, env, expr)

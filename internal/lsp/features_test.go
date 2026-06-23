@@ -714,6 +714,21 @@ func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 	}
 }
 
+func TestSemanticTokensUnderlineCompileTimeExpression(t *testing.T) {
+	uri := "file:///tmp/consteval.rn"
+	src := `double(value: Int) -> Int => value * 2
+
+main() => (double(21))'
+`
+	s := &server{docs: map[string]string{uri: src}}
+	resp := s.semanticTokens(uri).(map[string]any)
+	got := decodeSemanticTokenModifiers(resp["data"].([]int))
+	pos := positionOf(src, "double(21)", "double")
+	if got[pos]&semanticTokenModifierCompileTime == 0 {
+		t.Fatalf("semantic modifiers at %+v = %d, want compile-time; all %#v", pos, got[pos], got)
+	}
+}
+
 func TestSignalWatchInlayHintsReturnOnce(t *testing.T) {
 	uri := "file:///tmp/signal.rn"
 	src := `main() => {
@@ -913,6 +928,22 @@ func decodeSemanticTokenTypes(data []int) map[position]int {
 			character = data[i+1]
 		}
 		out[position{Line: line, Character: character}] = data[i+3]
+	}
+	return out
+}
+
+func decodeSemanticTokenModifiers(data []int) map[position]int {
+	out := map[position]int{}
+	line := 0
+	character := 0
+	for i := 0; i+4 < len(data); i += 5 {
+		line += data[i]
+		if data[i] == 0 {
+			character += data[i+1]
+		} else {
+			character = data[i+1]
+		}
+		out[position{Line: line, Character: character}] = data[i+4]
 	}
 	return out
 }

@@ -472,6 +472,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			}
 		}
 		return value
+	case *ast.CompileTimeExpr:
+		return c.inferExpr(e.Expr, env)
 	case *ast.BinaryExpr:
 		left := c.inferExpr(e.Left, env)
 		right := c.inferExpr(e.Right, env)

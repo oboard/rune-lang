@@ -65,6 +65,10 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.PostfixExpr{Expr: left, Op: lexer.PlusPlus, Pos: left.Position()}
 			continue
 		}
+		if p.match(lexer.Apostrophe) {
+			left = &ast.CompileTimeExpr{Expr: left, Pos: left.Position(), MarkPos: p.previous().Pos}
+			continue
+		}
 		if minPrec <= 1 && p.match(lexer.Arrow) {
 			p.skipNewlines()
 			handler := p.parseWatchHandler()

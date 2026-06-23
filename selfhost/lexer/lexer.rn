@@ -62,6 +62,7 @@ ScannedString: {
   RBrace
   Question
   QuestionQuestion
+  Apostrophe
   FatArrow
   Assign
   Declare
@@ -199,6 +200,7 @@ canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind
   TokenKind.RBrace => "RBrace"
   TokenKind.Question => "Question"
   TokenKind.QuestionQuestion => "QuestionQuestion"
+  TokenKind.Apostrophe => "Apostrophe"
   TokenKind.FatArrow => "FatArrow"
   TokenKind.Assign => "Assign"
   TokenKind.Declare => "Declare"
@@ -365,7 +367,10 @@ scanToken(step) => {
     '>' => lexGreater(state)
     '"' => lexStringToken(state)
     '`' => lexTemplateStringToken(state)
-    '\'' => lexCharToken(state)
+    '\'' => (
+      state.canStartRegex ? lexCharToken(state)
+        : lexed(state, TokenKind.Apostrophe)
+    )
     '_' => (
       isIdentContinue(peek(state)) ? lexIdentifierToken(state)
         : lexed(state, TokenKind.Underscore)

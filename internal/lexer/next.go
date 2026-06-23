@@ -172,6 +172,9 @@ func (l *Lexer) nextCode() Token {
 	case '`':
 		return l.templateString()
 	case '\'':
+		if !l.canStartRegex {
+			return l.token(Apostrophe)
+		}
 		return l.char()
 	case '_':
 		if isIdentContinue(l.peek()) {
