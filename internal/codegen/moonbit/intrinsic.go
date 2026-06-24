@@ -25,11 +25,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	}
 	switch fn.Intrinsic {
 	case "io.print":
-		return "print(" + strings.Join(args, ", ") + ")", true
+		return "print(" + g.printArgs(call.Args) + ")", true
 	case "io.println":
-		return "println(" + strings.Join(args, ", ") + ")", true
+		return "println(" + g.printArgs(call.Args) + ")", true
 	case "io.printf":
-		return "println(" + strings.Join(args, ", ") + ")", true
+		return "println(" + g.printArgs(call.Args) + ")", true
 	case "io.scan", "io.scanLine":
 		return "None", true
 	case "io.readAll":
@@ -90,6 +90,17 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return runtimeTrap(fn.Intrinsic), true
 	}
 	return runtimeTrap(fn.Intrinsic), true
+}
+
+func (g *generator) printArgs(args []ir.Expr) string {
+	if len(args) == 0 {
+		return quoteString("")
+	}
+	parts := make([]string, 0, len(args))
+	for _, arg := range args {
+		parts = append(parts, g.showExpr(arg))
+	}
+	return strings.Join(parts, " + \" \" + ")
 }
 
 func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
@@ -190,6 +201,9 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 		return receiver
 	case "string.at":
 		if len(args) == 1 {
+			if resultType == checker.Char {
+				return fmt.Sprintf("%s[%s].unsafe_to_char()", receiver, args[0])
+			}
 			return fmt.Sprintf("%s[%s]", receiver, args[0])
 		}
 	case "string.slice":

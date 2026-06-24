@@ -53,7 +53,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.UnaryExpr:
 		op := e.Op.String()
 		if e.Op == lexer.Bang {
-			op = "not "
+			op = "!"
 		}
 		out := op + g.exprPrec(e.Expr, 6)
 		if 6 < parentPrec {
@@ -100,6 +100,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.SelectorExpr:
+		if member, ok := g.enumMemberSelector(e); ok {
+			return member
+		}
 		if e.Static {
 			if ident, ok := e.Receiver.(*ir.Identifier); ok {
 				return mangleMethod(ident.Name, e.Name)
@@ -112,6 +115,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.IndexExpr:
 		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
 			return fmt.Sprintf("%s.get(%s)", g.expr(e.Receiver), g.expr(e.Index))
+		}
+		if e.Receiver.ResultType() == checker.String && e.ResultType() == checker.Char {
+			return fmt.Sprintf("%s[%s].unsafe_to_char()", g.expr(e.Receiver), g.expr(e.Index))
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
@@ -225,6 +231,29 @@ func (g *generator) structTypeFromReceiver(receiver ir.Expr) *ir.StructType {
 	return nil
 }
 
+func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
+	ident, ok := sel.Receiver.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	for _, enum := range g.file.Enums {
+		enumType := checker.Type(enum.Name)
+		if enum.Name != ident.Name || sel.ResultType() != enumType || ident.ResultType() != enumType {
+			continue
+		}
+		for _, member := range enum.Members {
+			if member.Name != sel.Name {
+				continue
+			}
+			if enumHasValueMembers(enum) {
+				return mangleIdent(enum.Name + "_" + member.Name), true
+			}
+			return mangleType(enum.Name) + "::" + mangleType(member.Name), true
+		}
+	}
+	return "", false
+}
+
 func (g *generator) lambda(lambda *ir.LambdaExpr) string {
 	params := make([]string, 0, len(lambda.Params))
 	for _, param := range lambda.Params {
@@ -257,11 +286,12 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 }
 
 func (g *generator) matchExpr(match *ir.MatchExpr) string {
+	subject := g.nextTemp("__match")
 	branches := make([]string, 0, len(match.Branches))
 	for _, branch := range match.Branches {
-		branches = append(branches, fmt.Sprintf("%s => %s", g.pattern(branch.Pattern), g.expr(branch.Expr)))
+		branches = append(branches, fmt.Sprintf("%s => %s", g.patternFor(subject, branch.Pattern), g.expr(branch.Expr)))
 	}
-	return fmt.Sprintf("match %s { %s }", g.expr(match.Subject), strings.Join(branches, "; "))
+	return fmt.Sprintf("{ let %s = %s; match %s { %s } }", subject, g.expr(match.Subject), subject, strings.Join(branches, "; "))
 }
 
 func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret checker.Type) {
@@ -274,13 +304,17 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 	g.linef("match %s {", subject)
 	g.indent++
 	for _, branch := range block.Branches {
-		g.linef("%s => %s", g.pattern(branch.Pattern), g.expr(branch.Expr))
+		g.linef("%s => %s", g.patternFor(subject, branch.Pattern), g.expr(branch.Expr))
 	}
 	g.indent--
 	g.line("}")
 }
 
 func (g *generator) pattern(pattern ir.Pattern) string {
+	return g.patternFor("_", pattern)
+}
+
+func (g *generator) patternFor(subject string, pattern ir.Pattern) string {
 	switch p := pattern.(type) {
 	case *ir.WildcardPattern:
 		return "_"
@@ -289,19 +323,19 @@ func (g *generator) pattern(pattern ir.Pattern) string {
 	case *ir.LiteralPattern:
 		return g.expr(p.Value)
 	case *ir.ComparePattern:
-		return "_ if " + mbtBinaryOp(p.Op) + " " + g.expr(p.Value)
+		return subjectGuard(subject, fmt.Sprintf("%s %s %s", subject, mbtBinaryOp(p.Op), g.expr(p.Value)))
 	case *ir.RangePattern:
-		return fmt.Sprintf("_ if _ >= %s && _ <= %s", g.expr(p.Start), g.expr(p.End))
+		return subjectGuard(subject, fmt.Sprintf("%s >= %s && %s <= %s", subject, g.expr(p.Start), subject, g.expr(p.End)))
 	case *ir.OrPattern:
-		parts := make([]string, 0, len(p.Alternatives))
+		conditions := make([]string, 0, len(p.Alternatives))
 		for _, alt := range p.Alternatives {
-			parts = append(parts, g.pattern(alt))
+			conditions = append(conditions, g.patternCondition(subject, alt))
 		}
-		return strings.Join(parts, " | ")
+		return subjectGuard(subject, strings.Join(conditions, " || "))
 	case *ir.TuplePattern:
 		parts := make([]string, 0, len(p.Elements))
 		for _, elem := range p.Elements {
-			parts = append(parts, g.pattern(elem))
+			parts = append(parts, g.patternFor(subject, elem))
 		}
 		return "(" + strings.Join(parts, ", ") + ")"
 	case *ir.ConstructorPattern:
@@ -312,5 +346,34 @@ func (g *generator) pattern(pattern ir.Pattern) string {
 	default:
 		g.addError(fmt.Errorf("MoonBit backend does not support complex pattern %T yet", pattern))
 		return "_"
+	}
+}
+
+func subjectGuard(subject string, condition string) string {
+	if subject == "_" {
+		return "_"
+	}
+	return "_ if " + condition
+}
+
+func (g *generator) patternCondition(subject string, pattern ir.Pattern) string {
+	switch p := pattern.(type) {
+	case *ir.WildcardPattern, *ir.BindingPattern:
+		return "true"
+	case *ir.LiteralPattern:
+		return fmt.Sprintf("%s == %s", subject, g.expr(p.Value))
+	case *ir.ComparePattern:
+		return fmt.Sprintf("%s %s %s", subject, mbtBinaryOp(p.Op), g.expr(p.Value))
+	case *ir.RangePattern:
+		return fmt.Sprintf("%s >= %s && %s <= %s", subject, g.expr(p.Start), subject, g.expr(p.End))
+	case *ir.OrPattern:
+		conditions := make([]string, 0, len(p.Alternatives))
+		for _, alt := range p.Alternatives {
+			conditions = append(conditions, g.patternCondition(subject, alt))
+		}
+		return "(" + strings.Join(conditions, " || ") + ")"
+	default:
+		g.addError(fmt.Errorf("MoonBit backend does not support guarded pattern %T yet", pattern))
+		return "false"
 	}
 }

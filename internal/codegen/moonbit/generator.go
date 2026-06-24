@@ -116,7 +116,9 @@ func (g *generator) enumType(enum *ir.EnumType) {
 			g.line(mangleType(member.Name))
 		}
 		g.indent--
-		g.line("}")
+		g.line("} derive(Eq)")
+		g.line("")
+		g.enumShowImpl(enum)
 		return
 	}
 	g.linef("type %s Int", mangleType(enum.Name))
@@ -126,6 +128,24 @@ func (g *generator) enumType(enum *ir.EnumType) {
 		}
 		g.linef("let %s : %s = %d", mangleIdent(enum.Name+"_"+member.Name), mangleType(enum.Name), member.Value)
 	}
+}
+
+func (g *generator) enumShowImpl(enum *ir.EnumType) {
+	g.linef("impl Show for %s with fn output(self, logger) {", mangleType(enum.Name))
+	g.indent++
+	g.line("(match self {")
+	g.indent++
+	for i, member := range enum.Members {
+		value := i
+		if member.HasValue {
+			value = member.Value
+		}
+		g.linef("%s => %d", mangleType(member.Name), value)
+	}
+	g.indent--
+	g.line("}).output(logger)")
+	g.indent--
+	g.line("}")
 }
 
 func enumHasValueMembers(enum *ir.EnumType) bool {

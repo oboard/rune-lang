@@ -82,6 +82,29 @@ func TestGenerateMapIndexFallback(t *testing.T) {
 	}
 }
 
+func TestGenerateEnumShowUsesOrdinalValues(t *testing.T) {
+	src := `Kind: {
+  A
+  B
+}
+
+main() => @io.println(Kind.B)`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"} derive(Eq)",
+		"impl Show for Kind with fn output(self, logger) {",
+		"B => 1",
+		"}).output(logger)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "derive(Eq, Show)") {
+		t.Fatalf("generated source still derives Show:\n%s", got)
+	}
+}
+
 func generateSource(t *testing.T, src string) string {
 	t.Helper()
 	prog, diags := compiler.AnalyzeSource("test.rn", src)

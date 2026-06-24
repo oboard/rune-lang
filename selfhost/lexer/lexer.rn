@@ -331,7 +331,7 @@ skipBlockComment(state) => (
 
 isSpace(ch) => ' ' | '\t' | '\r'
 
-scanToken(step) => {
+scanToken(step: Advanced) => {
   { state, ch } := step
   ch {
     '\n' => lexed(state, TokenKind.Newline)

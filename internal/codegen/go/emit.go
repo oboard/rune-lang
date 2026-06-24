@@ -19,9 +19,6 @@ func (g *generator) structType(typ *ir.StructType) {
 }
 
 func (g *generator) enumType(enum *ir.EnumType) {
-	if !enumHasValueMembers(enum) {
-		return
-	}
 	g.linef("type %s int", mangleIdent(enum.Name))
 	if len(enum.Members) == 0 {
 		return
@@ -29,23 +26,15 @@ func (g *generator) enumType(enum *ir.EnumType) {
 	g.line("")
 	g.line("const (")
 	g.indent++
-	for _, member := range enum.Members {
-		if !member.HasValue {
-			continue
+	for i, member := range enum.Members {
+		value := i
+		if member.HasValue {
+			value = member.Value
 		}
-		g.linef("%s %s = %d", mangleEnumMember(enum.Name, member.Name), mangleIdent(enum.Name), member.Value)
+		g.linef("%s %s = %d", mangleEnumMember(enum.Name, member.Name), mangleIdent(enum.Name), value)
 	}
 	g.indent--
 	g.line(")")
-}
-
-func enumHasValueMembers(enum *ir.EnumType) bool {
-	for _, member := range enum.Members {
-		if member.HasValue {
-			return true
-		}
-	}
-	return false
 }
 
 func (g *generator) function(fn *ir.Function) error {
