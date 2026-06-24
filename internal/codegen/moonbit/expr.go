@@ -266,9 +266,6 @@ func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
 			if member.Name != sel.Name {
 				continue
 			}
-			if enumHasValueMembers(enum) {
-				return mangleIdent(enum.Name + "_" + member.Name), true
-			}
 			return mangleType(enum.Name) + "::" + mangleType(member.Name), true
 		}
 	}

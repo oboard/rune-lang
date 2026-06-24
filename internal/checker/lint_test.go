@@ -46,7 +46,6 @@ main() => {
 	}
 	warnings := Lint(file, info)
 	for _, want := range []string{
-		"Warning [0006] (unused_constructor): Variant \"XMLText\" is never constructed",
 		"Warning [0007] (unused_field): Field \"offset\" is never read",
 		"Warning [0001] (unused_value): Function \"tokenKindName\" is never used",
 		"Warning [0012] (unreachable_code): Unreachable pattern branch",

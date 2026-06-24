@@ -115,29 +115,19 @@ func (g *generator) structType(typ *ir.StructType) {
 }
 
 func (g *generator) enumType(enum *ir.EnumType) {
-	if !enumHasValueMembers(enum) {
-		g.linef("enum %s {", mangleType(enum.Name))
-		g.indent++
-		for _, member := range enum.Members {
-			g.line(mangleType(member.Name))
-		}
-		g.indent--
-		g.line("} derive(Eq)")
-		g.line("")
-		g.enumShowImpl(enum)
-		return
-	}
-	g.linef("type %s Int", mangleType(enum.Name))
+	g.linef("enum %s {", mangleType(enum.Name))
+	g.indent++
 	for _, member := range enum.Members {
-		if !member.HasValue {
-			continue
-		}
-		g.linef("let %s : %s = %d", mangleIdent(enum.Name+"_"+member.Name), mangleType(enum.Name), member.Value)
+		g.line(mangleType(member.Name))
 	}
+	g.indent--
+	g.line("} derive(Eq)")
+	g.line("")
+	g.enumShowImpl(enum)
 }
 
 func (g *generator) enumShowImpl(enum *ir.EnumType) {
-	g.linef("impl Show for %s with fn output(self, logger) {", mangleType(enum.Name))
+	g.linef("pub impl Show for %s with fn output(self, logger) {", mangleType(enum.Name))
 	g.indent++
 	g.line("(match self {")
 	g.indent++

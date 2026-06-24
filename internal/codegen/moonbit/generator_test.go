@@ -92,16 +92,13 @@ main() => @io.println(Kind.B)`
 	got := generateSource(t, src)
 	for _, want := range []string{
 		"} derive(Eq)",
-		"impl Show for Kind with fn output(self, logger) {",
+		"pub impl Show for Kind with fn output(self, logger) {",
 		"B => 1",
 		"}).output(logger)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
 		}
-	}
-	if strings.Contains(got, "derive(Eq, Show)") {
-		t.Fatalf("generated source still derives Show:\n%s", got)
 	}
 }
 

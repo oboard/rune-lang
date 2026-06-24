@@ -3,10 +3,9 @@ Status: {
   Fail = 1
 }
 
-statusText(status: Status) -> String => status {
+statusText(status: Status) -> String => {
   Status.Completed => "completed"
   Status.Fail => "fail"
-  _ => "unknown"
 }
 
 main() => {

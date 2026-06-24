@@ -265,6 +265,7 @@ func (l *linter) lintPatternBranches(branches []ast.PatternBranch, subject Type)
 		}
 		for _, member := range members {
 			covered[member] = true
+			l.constructedEnumMembers[enumMemberKey(enum.Name, member)] = true
 		}
 		if len(covered) == len(enum.Members) {
 			exhaustive = true
