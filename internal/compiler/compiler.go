@@ -20,9 +20,12 @@ import (
 )
 
 type Diagnostic struct {
-	Message string
-	Pos     lexer.Position
-	Path    string
+	Message  string
+	Pos      lexer.Position
+	Path     string
+	Severity checker.DiagnosticSeverity
+	Code     string
+	Kind     string
 }
 
 type Program struct {
@@ -35,6 +38,14 @@ type Program struct {
 }
 
 func AnalyzeFile(path string) (*Program, []Diagnostic) {
+	return analyzeFile(path, false)
+}
+
+func AnalyzeFileWithWarnings(path string) (*Program, []Diagnostic) {
+	return analyzeFile(path, true)
+}
+
+func analyzeFile(path string, includeWarnings bool) (*Program, []Diagnostic) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, []Diagnostic{{Message: err.Error(), Path: path}}
@@ -45,23 +56,32 @@ func AnalyzeFile(path string) (*Program, []Diagnostic) {
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
-	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
+	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags, includeWarnings)
 }
 
 func AnalyzeSource(path string, src string) (*Program, []Diagnostic) {
+	return analyzeSource(path, src, nil, false)
+}
+
+func AnalyzeSourceWithWarnings(path string, src string) (*Program, []Diagnostic) {
+	return analyzeSource(path, src, nil, true)
+}
+
+func analyzeSource(path string, src string, reg *stdlib.Registry, includeWarnings bool) (*Program, []Diagnostic) {
 	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
-	reg, err := stdlib.LoadDefault()
+	var err error
+	if reg == nil {
+		reg, err = stdlib.LoadDefault()
+	}
 	info, compileTimeFunctions, checkDiags := checkAndExpand(file, reg, path, parseErrs)
 	if err != nil {
 		checkDiags = append([]checker.Diagnostic{{Message: err.Error()}}, checkDiags...)
 	}
-	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
+	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags, includeWarnings)
 }
 
 func AnalyzeSourceWithStdlib(path string, src string, reg *stdlib.Registry) (*Program, []Diagnostic) {
-	file, src, parseErrs, loadDiags := loadImportGraph(path, src, true)
-	info, compileTimeFunctions, checkDiags := checkAndExpand(file, reg, path, parseErrs)
-	return analyzedProgram(path, src, file, info, compileTimeFunctions, parseErrs, checkDiags, loadDiags)
+	return analyzeSource(path, src, reg, false)
 }
 
 func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs []parser.Error) (*checker.Info, map[*ast.Function]bool, []checker.Diagnostic) {
@@ -89,12 +109,17 @@ func checkAndExpand(file *ast.File, reg *stdlib.Registry, path string, parseErrs
 	return info, compileTimeFunctions, checkDiags
 }
 
-func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, compileTimeFunctions map[*ast.Function]bool, parseErrs []parser.Error, checkDiags []checker.Diagnostic, diags []Diagnostic) (*Program, []Diagnostic) {
+func analyzedProgram(path string, src string, file *ast.File, info *checker.Info, compileTimeFunctions map[*ast.Function]bool, parseErrs []parser.Error, checkDiags []checker.Diagnostic, diags []Diagnostic, includeWarnings bool) (*Program, []Diagnostic) {
 	for _, err := range parseErrs {
 		diags = append(diags, Diagnostic{Message: err.Message, Pos: err.Pos, Path: path})
 	}
 	for _, diag := range checkDiags {
-		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path})
+		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
+	}
+	if includeWarnings && len(parseErrs) == 0 && !hasErrorDiagnostics(checkDiags) {
+		for _, diag := range checker.Lint(file, info) {
+			diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
+		}
 	}
 	lowered := ir.LowerFile(file, info)
 	pruneCompileTimeOnlyFunctions(file, info, lowered, compileTimeFunctions)
@@ -106,6 +131,15 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 		IR:     lowered,
 		Macros: macro.Plan(file, info),
 	}, diags
+}
+
+func hasErrorDiagnostics(diags []checker.Diagnostic) bool {
+	for _, diag := range diags {
+		if diag.Severity != checker.SeverityWarning {
+			return true
+		}
+	}
+	return false
 }
 
 func pruneCompileTimeOnlyFunctions(file *ast.File, info *checker.Info, lowered *ir.File, compileTimeFunctions map[*ast.Function]bool) {

@@ -49,9 +49,19 @@ const (
 )
 
 type Diagnostic struct {
-	Message string
-	Pos     lexer.Position
+	Message  string
+	Pos      lexer.Position
+	Severity DiagnosticSeverity
+	Code     string
+	Kind     string
 }
+
+type DiagnosticSeverity string
+
+const (
+	SeverityError   DiagnosticSeverity = ""
+	SeverityWarning DiagnosticSeverity = "warning"
+)
 
 type ParamInfo struct {
 	Name string

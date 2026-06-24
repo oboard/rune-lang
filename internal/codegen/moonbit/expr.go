@@ -8,6 +8,7 @@ import (
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func (g *generator) expr(expr ir.Expr) string {
@@ -39,7 +40,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.TemplateLiteral:
 		return g.templateLiteral(e)
 	case *ir.CharLiteral:
-		return strconv.QuoteRune(e.Value)
+		return quoteChar(e.Value)
 	case *ir.RegexLiteral:
 		g.addError(fmt.Errorf("MoonBit backend does not support regex literals"))
 		return "()"
@@ -113,6 +114,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
 	case *ir.IndexExpr:
+		if _, ok := checker.TupleElements(e.Receiver.ResultType()); ok {
+			if index, ok := e.Index.(*ir.IntegerLiteral); ok {
+				return fmt.Sprintf("%s.%d", g.expr(e.Receiver), index.Value)
+			}
+		}
 		if _, _, ok := checker.MapKeyValue(e.Receiver.ResultType()); ok {
 			return fmt.Sprintf("%s.get(%s)", g.expr(e.Receiver), g.expr(e.Index))
 		}
@@ -201,6 +207,9 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 	if out, ok := g.moduleIntrinsicCall(call); ok {
 		return out
 	}
+	if out, ok := g.iterMethodCall(call); ok {
+		return out
+	}
 	if out, ok := g.receiverIntrinsicCall(call); ok {
 		return out
 	}
@@ -219,6 +228,18 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 		return g.expr(sel.Receiver) + "." + mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
 	}
 	return g.expr(call.Callee) + "(" + strings.Join(args, ", ") + ")"
+}
+
+func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if _, ok := checker.IterValue(sel.Receiver.ResultType()); !ok {
+		return "", false
+	}
+	fn := &stdlib.Function{Name: sel.Name, Intrinsic: "iter." + sel.Name}
+	return g.iterIntrinsicCall(call, fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args)), true
 }
 
 func (g *generator) structTypeFromReceiver(receiver ir.Expr) *ir.StructType {
@@ -278,7 +299,7 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 			if last && ret != checker.Void {
 				parts = append(parts, g.expr(s.Expr))
 			} else {
-				parts = append(parts, g.expr(s.Expr))
+				parts = append(parts, g.discardExpr(s.Expr, g.expr(s.Expr)))
 			}
 		}
 	}
@@ -288,8 +309,16 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 func (g *generator) matchExpr(match *ir.MatchExpr) string {
 	subject := g.nextTemp("__match")
 	branches := make([]string, 0, len(match.Branches))
+	covered, exhaustive := map[string]bool{}, false
+	enum := g.enumFromType(match.Subject.ResultType())
 	for _, branch := range match.Branches {
+		if exhaustive {
+			continue
+		}
 		branches = append(branches, fmt.Sprintf("%s => %s", g.patternFor(subject, branch.Pattern), g.expr(branch.Expr)))
+		if enum != nil {
+			exhaustive = updateEnumCoverage(enum, covered, branch.Pattern)
+		}
 	}
 	return fmt.Sprintf("{ let %s = %s; match %s { %s } }", subject, g.expr(match.Subject), subject, strings.Join(branches, "; "))
 }
@@ -301,13 +330,76 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 		return
 	}
 	subject := mangleIdent(fn.Params[0].Name)
+	enum := g.enumFromType(fn.Params[0].Type)
+	covered, exhaustive := map[string]bool{}, false
 	g.linef("match %s {", subject)
 	g.indent++
 	for _, branch := range block.Branches {
+		if exhaustive {
+			continue
+		}
 		g.linef("%s => %s", g.patternFor(subject, branch.Pattern), g.expr(branch.Expr))
+		if enum != nil {
+			exhaustive = updateEnumCoverage(enum, covered, branch.Pattern)
+		}
 	}
 	g.indent--
 	g.line("}")
+}
+
+func (g *generator) enumFromType(typ checker.Type) *ir.EnumType {
+	name := string(typ)
+	for _, enum := range g.file.Enums {
+		if enum.Name == name {
+			return enum
+		}
+	}
+	return nil
+}
+
+func updateEnumCoverage(enum *ir.EnumType, covered map[string]bool, pattern ir.Pattern) bool {
+	members, all := enumPatternCoverage(enum, pattern)
+	if all {
+		return true
+	}
+	for _, member := range members {
+		covered[member] = true
+	}
+	return len(covered) == len(enum.Members)
+}
+
+func enumPatternCoverage(enum *ir.EnumType, pattern ir.Pattern) ([]string, bool) {
+	switch p := pattern.(type) {
+	case *ir.WildcardPattern, *ir.BindingPattern:
+		return nil, true
+	case *ir.LiteralPattern:
+		if sel, ok := p.Value.(*ir.SelectorExpr); ok {
+			if ident, ok := sel.Receiver.(*ir.Identifier); ok && ident.Name == enum.Name {
+				for _, member := range enum.Members {
+					if member.Name == sel.Name {
+						return []string{member.Name}, false
+					}
+				}
+			}
+		}
+	case *ir.ConstructorPattern:
+		for _, member := range enum.Members {
+			if member.Name == p.Name {
+				return []string{member.Name}, false
+			}
+		}
+	case *ir.OrPattern:
+		var out []string
+		for _, alt := range p.Alternatives {
+			members, all := enumPatternCoverage(enum, alt)
+			if all {
+				return nil, true
+			}
+			out = append(out, members...)
+		}
+		return out, false
+	}
+	return nil, false
 }
 
 func (g *generator) pattern(pattern ir.Pattern) string {

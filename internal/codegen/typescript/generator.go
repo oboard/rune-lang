@@ -39,10 +39,6 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.errorRuntime()
 		g.line("")
 	}
-	if fileUsesPathRuntime(usage) {
-		g.pathRuntime()
-		g.line("")
-	}
 	if fileUsesIORuntime(usage) {
 		g.ioRuntime()
 		g.line("")
@@ -278,36 +274,6 @@ func (g *generator) errorRuntime() {
 	g.line("return { code: 1, message: error instanceof Error ? error.message : String(error), cause: null };")
 	g.indent--
 	g.line("}")
-}
-
-func (g *generator) pathRuntime() {
-	g.line("function runePathParts(path: string): string[] {")
-	g.indent++
-	g.line("return path.replace(/\\\\+/g, \"/\").split(\"/\").filter((part) => part.length > 0);")
-	g.indent--
-	g.line("}")
-	g.line("function runePathBasename(path: string): string { const parts = runePathParts(path); return parts.length === 0 ? \".\" : parts[parts.length - 1]; }")
-	g.line("function runePathDirname(path: string): string { const normalized = runePathNormalize(path); const index = normalized.lastIndexOf(\"/\"); return index <= 0 ? (normalized.startsWith(\"/\") ? \"/\" : \".\") : normalized.slice(0, index); }")
-	g.line("function runePathExtname(path: string): string { const base = runePathBasename(path); const index = base.lastIndexOf(\".\"); return index <= 0 ? \"\" : base.slice(index); }")
-	g.line("function runePathJoin(parts: string[]): string { return runePathNormalize(parts.join(\"/\")); }")
-	g.line("function runePathNormalize(path: string): string {")
-	g.indent++
-	g.line("const absolute = path.startsWith(\"/\");")
-	g.line("const out: string[] = [];")
-	g.line("for (const part of path.replace(/\\\\+/g, \"/\").split(\"/\")) {")
-	g.indent++
-	g.line("if (part === \"\" || part === \".\") continue;")
-	g.line("if (part === \"..\") out.pop(); else out.push(part);")
-	g.indent--
-	g.line("}")
-	g.line("const joined = out.join(\"/\");")
-	g.line("return (absolute ? \"/\" : \"\") + (joined === \"\" ? (absolute ? \"\" : \".\") : joined);")
-	g.indent--
-	g.line("}")
-	g.line("function runePathProcessObject(): any { return (globalThis as any).process ?? {}; }")
-	g.line("function runePathResolve(parts: string[]): string { const cwd = runePathProcessObject().cwd?.() ?? \".\"; const path = parts.length === 0 || !runePathIsAbsolute(parts[0]) ? [cwd, ...parts] : parts; return runePathJoin(path); }")
-	g.line("function runePathRelative(from: string, to: string): string { const fromParts = runePathParts(runePathResolve([from])); const toParts = runePathParts(runePathResolve([to])); while (fromParts.length > 0 && toParts.length > 0 && fromParts[0] === toParts[0]) { fromParts.shift(); toParts.shift(); } return [...fromParts.map(() => \"..\"), ...toParts].join(\"/\") || \".\"; }")
-	g.line("function runePathIsAbsolute(path: string): boolean { return path.startsWith(\"/\") || /^[A-Za-z]:[\\\\/]/.test(path); }")
 }
 
 func (g *generator) processRuntime() {
@@ -704,10 +670,6 @@ func fileUsesBytesRuntime(usage codeusage.Usage) bool {
 	return fileUsesType(usage, checker.Buffer) ||
 		fileUsesType(usage, checker.Reader) ||
 		fileUsesType(usage, checker.Writer)
-}
-
-func fileUsesPathRuntime(usage codeusage.Usage) bool {
-	return usage.HasIntrinsicPrefix("path.")
 }
 
 func fileUsesIORuntime(usage codeusage.Usage) bool {

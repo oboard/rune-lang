@@ -64,8 +64,6 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return fmt.Sprintf("runeReadFile(%s)", args[0]), true
 	case "fs.readFileText", "fs.writeFile", "fs.writeFileText", "fs.exists", "fs.readdir", "fs.mkdir", "fs.remove", "fs.stat":
 		return g.fsModuleCall(fn, args, call.ResultType()), true
-	case "path.basename", "path.dirname", "path.extname", "path.join", "path.normalize", "path.resolve", "path.relative", "path.isAbsolute":
-		return g.pathModuleCall(fn, args, call.ResultType()), true
 	case "process.argv", "process.cwd", "process.env", "process.exit", "process.platform":
 		return g.processModuleCall(fn, args, call.ResultType()), true
 	case "stringbuffer.new", "stringbuffer.from":
@@ -150,29 +148,6 @@ func (g *generator) fsModuleCall(fn *stdlib.Function, args []string, resultType 
 		return fmt.Sprintf("runeFsRemove(%s)", args[0])
 	case "fs.stat":
 		return fmt.Sprintf("runeFsStat(%s)", args[0])
-	default:
-		return g.unsupportedIntrinsic(fn, resultType)
-	}
-}
-
-func (g *generator) pathModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
-	switch fn.Intrinsic {
-	case "path.basename":
-		return fmt.Sprintf("runePathBasename(%s)", args[0])
-	case "path.dirname":
-		return fmt.Sprintf("runePathDirname(%s)", args[0])
-	case "path.extname":
-		return fmt.Sprintf("runePathExtname(%s)", args[0])
-	case "path.join":
-		return fmt.Sprintf("runePathJoin(%s)", args[0])
-	case "path.normalize":
-		return fmt.Sprintf("runePathNormalize(%s)", args[0])
-	case "path.resolve":
-		return fmt.Sprintf("runePathResolve(%s)", args[0])
-	case "path.relative":
-		return fmt.Sprintf("runePathRelative(%s, %s)", args[0], args[1])
-	case "path.isAbsolute":
-		return fmt.Sprintf("runePathIsAbsolute(%s)", args[0])
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

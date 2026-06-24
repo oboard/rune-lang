@@ -7,7 +7,6 @@ import (
 	"math"
 	"math/big"
 	"os"
-	"path/filepath"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -172,56 +171,6 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 			return nil, fmt.Errorf("@stringbuffer.from expects String")
 		}
 		return &StringBuffer{Parts: []string{value}}, nil
-	case "path.basename":
-		return pathStringUnary(values, "@path.basename", filepath.Base)
-	case "path.dirname":
-		return pathStringUnary(values, "@path.dirname", filepath.Dir)
-	case "path.extname":
-		return pathStringUnary(values, "@path.extname", filepath.Ext)
-	case "path.join":
-		parts, err := stringArrayArg(values, "@path.join")
-		if err != nil {
-			return nil, err
-		}
-		return filepath.Join(parts...), nil
-	case "path.normalize":
-		return pathStringUnary(values, "@path.normalize", filepath.Clean)
-	case "path.resolve":
-		parts, err := stringArrayArg(values, "@path.resolve")
-		if err != nil {
-			return nil, err
-		}
-		joined := filepath.Join(parts...)
-		if abs, err := filepath.Abs(joined); err == nil {
-			return abs, nil
-		}
-		return joined, nil
-	case "path.relative":
-		if len(values) != 2 {
-			return nil, fmt.Errorf("@path.relative expects 2 args, got %d", len(values))
-		}
-		from, ok := values[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("@path.relative from expects String")
-		}
-		to, ok := values[1].(string)
-		if !ok {
-			return nil, fmt.Errorf("@path.relative to expects String")
-		}
-		rel, err := filepath.Rel(from, to)
-		if err != nil {
-			return nil, err
-		}
-		return rel, nil
-	case "path.isAbsolute":
-		if len(values) != 1 {
-			return nil, fmt.Errorf("@path.isAbsolute expects 1 arg, got %d", len(values))
-		}
-		path, ok := values[0].(string)
-		if !ok {
-			return nil, fmt.Errorf("@path.isAbsolute expects String")
-		}
-		return filepath.IsAbs(path), nil
 	case "process.argv":
 		if len(values) != 0 {
 			return nil, fmt.Errorf("@process.argv expects 0 args, got %d", len(values))
@@ -443,36 +392,6 @@ func int4(value int) int8 {
 		return int8(n - 16)
 	}
 	return int8(n)
-}
-
-func pathStringUnary(values []Value, name string, fn func(string) string) (Value, error) {
-	if len(values) != 1 {
-		return nil, fmt.Errorf("%s expects 1 arg, got %d", name, len(values))
-	}
-	value, ok := values[0].(string)
-	if !ok {
-		return nil, fmt.Errorf("%s expects String", name)
-	}
-	return fn(value), nil
-}
-
-func stringArrayArg(values []Value, name string) ([]string, error) {
-	if len(values) != 1 {
-		return nil, fmt.Errorf("%s expects 1 arg, got %d", name, len(values))
-	}
-	array, ok := values[0].(*Array)
-	if !ok {
-		return nil, fmt.Errorf("%s expects Array[String]", name)
-	}
-	out := make([]string, 0, len(array.Elements))
-	for idx, elem := range array.Elements {
-		value, ok := elem.(string)
-		if !ok {
-			return nil, fmt.Errorf("%s element %d expects String", name, idx)
-		}
-		out = append(out, value)
-	}
-	return out, nil
 }
 
 func (i *Interpreter) callStringBufferMethod(value *StringBuffer, name string, args []ir.Expr, env *Env) (Value, error) {

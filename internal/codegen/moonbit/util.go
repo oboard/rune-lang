@@ -90,8 +90,10 @@ func mbtType(typ checker.Type) string {
 			return "Set[" + mbtType(checker.Type(args[0])) + "]"
 		case "Result":
 			return "Result[" + mbtTypeList(args) + "]"
-		case "Task", "Iter":
+		case "Task":
 			return "Unit"
+		case "Iter":
+			return "Iter[" + mbtType(checker.Type(args[0])) + "]"
 		}
 	}
 	if params, ret, ok := parseFuncType(name); ok {
@@ -130,8 +132,10 @@ func mbtType(typ checker.Type) string {
 		return "Buffer"
 	case checker.Error:
 		return "String"
+	case checker.StringBuffer:
+		return "StringBuilder"
 	case checker.Regex, checker.Object, checker.Symbol, checker.HTMLElement, checker.WebComponent,
-		checker.Reader, checker.Writer, checker.StringBuffer, checker.FileStat, checker.TCPConnection,
+		checker.Reader, checker.Writer, checker.FileStat, checker.TCPConnection,
 		checker.TCPListener:
 		return "Unit"
 	default:
@@ -156,6 +160,10 @@ func mbtGenerics(names []string) string {
 		parts = append(parts, mangleType(name))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func mbtFnPrefix(generics []string) string {
+	return "fn" + mbtGenerics(generics)
 }
 
 func parseGenericType(name string) (string, []string, bool) {
@@ -268,9 +276,41 @@ func quoteString(value string) string {
 	return strconv.Quote(value)
 }
 
+func quoteChar(value rune) string {
+	switch value {
+	case '\n':
+		return "'\\n'"
+	case '\r':
+		return "'\\r'"
+	case '\t':
+		return "'\\t'"
+	case '\'':
+		return "'\\''"
+	case '\\':
+		return "'\\\\'"
+	}
+	if value < 0x20 || value == 0x7f {
+		return fmt.Sprintf("'\\u%04x'", value)
+	}
+	return strconv.QuoteRune(value)
+}
+
 func zeroValue(typ checker.Type) string {
 	if inner, ok := parseNullableType(string(typ)); ok && inner != "" {
 		return "None"
+	}
+	if base, args, ok := parseGenericType(string(typ)); ok {
+		switch base {
+		case "Iter":
+			return "Iter::new(fn() { None })"
+		case "ReadonlyArray":
+			return "[]"
+		case "Map", "WeakMap", "Record":
+			return "{}"
+		case "Set", "WeakSet":
+			return "Set::new()"
+		}
+		_ = args
 	}
 	switch typ {
 	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
@@ -284,9 +324,11 @@ func zeroValue(typ checker.Type) string {
 	case checker.String:
 		return "\"\""
 	case checker.Char:
-		return "'\\x00'"
+		return quoteChar(0)
 	case checker.Bool:
 		return "false"
+	case checker.StringBuffer:
+		return "StringBuilder()"
 	default:
 		return "()"
 	}

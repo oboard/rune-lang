@@ -1,18 +1,195 @@
-basename(path: String) -> String => "%path.basename"
++ basename(path: String) -> String => {
+  clean := normalize(path)
+  slash := clean.lastIndexOf("/")
+  (
+    slash < 0 ? clean
+      : (
+        slash == (clean.length() - 1) ? clean
+          : clean.slice(slash + 1, clean.length())
+      )
+  )
+}
 
-dirname(path: String) -> String => "%path.dirname"
++ dirname(path: String) -> String => {
+  clean := normalize(path)
+  slash := clean.lastIndexOf("/")
+  (
+    slash < 0 ? "."
+      : (
+        slash == 0 ? "/"
+          : clean.slice(0, slash)
+      )
+  )
+}
 
-extname(path: String) -> String => "%path.extname"
++ extname(path: String) -> String => {
+  base := basename(path)
+  dot := base.lastIndexOf(".")
+  (
+    dot <= 0 ? ""
+      : base.slice(dot, base.length())
+  )
+}
 
-join(parts: Array[String]) -> String => "%path.join"
++ join(parts: Array[String]) -> String => normalize(joinParts(parts, 0, ""))
 
-normalize(path: String) -> String => "%path.normalize"
++ normalize(path: String) -> String => {
+  absolute := isAbsolute(path)
+  pieces := path.split("/")
+  out := normalizeParts(pieces, 0, absolute, pieces.slice(0, 0))
+  joined := joinParts(out, 0, "")
+  (
+    absolute ? "/" + joined
+      : (
+        joined.isEmpty() ? "."
+          : joined
+      )
+  )
+}
 
-resolve(parts: Array[String]) -> String => "%path.resolve"
++ resolve(
+  parts: Array[String]
+) -> String => (
+  parts.length() == 0 ? "."
+    : (
+      isAbsolute(parts[0]) ? normalize(join(parts))
+        : normalize(join(parts))
+    )
+)
 
-relative(
++ relative(
   from: String,
   to: String
-) -> String => "%path.relative"
+) -> String => {
+  fromParts := pathParts(resolve([from]))
+  toParts := pathParts(resolve([to]))
+  relativeFromParts(fromParts, toParts, 0)
+}
 
-isAbsolute(path: String) -> Bool => "%path.isAbsolute"
++ isAbsolute(path: String) -> Bool => path.startsWith("/")
+
++ joinParts(
+  parts: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= parts.length() ? out
+    : joinParts(parts, index + 1, appendPathPart(out, parts[index]))
+)
+
++ appendPathPart(
+  out: String,
+  part: String
+) -> String => (
+  out.isEmpty() ? part
+    : (
+      part.isEmpty() ? out
+        : (out + "/") + part
+    )
+)
+
++ normalizeParts(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => (
+  index >= parts.length() ? out
+    : normalizePart(parts, index, absolute, out)
+)
+
++ normalizePart(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => {
+  part := parts[index]
+  (
+    part.isEmpty() || (part == ".") ? normalizeParts(parts, index + 1, absolute, out)
+      : (
+        part == ".." ? normalizeParent(parts, index, absolute, out)
+          : normalizePush(parts, index, absolute, out, part)
+      )
+  )
+}
+
++ normalizeParent(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => (
+  out.length() > 0 ? normalizePop(parts, index, absolute, out)
+    : (
+      absolute ? normalizeParts(parts, index + 1, absolute, out)
+        : normalizePush(parts, index, absolute, out, "..")
+    )
+)
+
++ normalizePop(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => normalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
+
++ normalizePush(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String],
+  part: String
+) -> Array[String] => normalizeParts(parts, index + 1, absolute, [...out, part])
+
++ pathParts(
+  path: String
+) -> Array[String] => {
+  clean := normalize(path)
+  pieces := clean.split("/")
+  collectPathParts(pieces, 0, pieces.slice(0, 0))
+}
+
++ collectPathParts(
+  parts: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= parts.length() ? out
+    : (
+      parts[index].isEmpty() ? collectPathParts(parts, index + 1, out)
+        : collectPathPart(parts, index, out)
+    )
+)
+
++ collectPathPart(
+  parts: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => collectPathParts(parts, index + 1, [...out, parts[index]])
+
+relativeFromParts(
+  fromParts: Array[String],
+  toParts: Array[String],
+  index: Int
+) -> String => (
+  (index < fromParts.length()) && ((index < toParts.length()) && (fromParts[index] == toParts[index])) ? relativeFromParts(fromParts, toParts, index + 1)
+    : relativeTail(fromParts, toParts, index, index, "")
+)
+
++ relativeTail(
+  fromParts: Array[String],
+  toParts: Array[String],
+  fromIndex: Int,
+  toIndex: Int,
+  out: String
+) -> String => (
+  fromIndex < fromParts.length() ? relativeTail(fromParts, toParts, fromIndex + 1, toIndex, appendPathPart(out, ".."))
+    : (
+      toIndex < toParts.length() ? relativeTail(fromParts, toParts, fromIndex, toIndex + 1, appendPathPart(out, toParts[toIndex]))
+        : (
+          out.isEmpty() ? "."
+            : out
+        )
+    )
+)

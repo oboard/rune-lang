@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/oboard/rune-lang/internal/checker"
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
@@ -377,12 +378,13 @@ func checkTarget(path string, out io.Writer) error {
 	}
 	failed := false
 	for _, file := range files {
-		_, diags := compiler.AnalyzeFile(file)
-		if len(diags) == 0 {
-			continue
+		_, diags := compiler.AnalyzeFileWithWarnings(file)
+		if len(diags) > 0 {
+			printDiagnostics(file, diags)
 		}
-		printDiagnostics(file, diags)
-		failed = true
+		if hasErrorDiagnostics(diags) {
+			failed = true
+		}
 	}
 	if failed {
 		return fmt.Errorf("check failed")
@@ -392,9 +394,11 @@ func checkTarget(path string, out io.Writer) error {
 }
 
 func checkFile(path string, out io.Writer) error {
-	_, diags := compiler.AnalyzeFile(path)
+	_, diags := compiler.AnalyzeFileWithWarnings(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
+	}
+	if hasErrorDiagnostics(diags) {
 		return fmt.Errorf("check failed")
 	}
 	fmt.Fprintf(out, "ok %s\n", path)
@@ -811,12 +815,25 @@ func printDiagnostics(path string, diags []compiler.Diagnostic) {
 		if diag.Path != "" {
 			diagPath = diag.Path
 		}
+		prefix := ""
+		if diag.Severity == checker.SeverityWarning {
+			prefix = "warning: "
+		}
 		if diag.Pos.Line > 0 {
-			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s\n", diagPath, diag.Pos.Line, diag.Pos.Column, diag.Message)
+			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s%s\n", diagPath, diag.Pos.Line, diag.Pos.Column, prefix, diag.Message)
 		} else {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", diagPath, diag.Message)
+			fmt.Fprintf(os.Stderr, "%s: %s%s\n", diagPath, prefix, diag.Message)
 		}
 	}
+}
+
+func hasErrorDiagnostics(diags []compiler.Diagnostic) bool {
+	for _, diag := range diags {
+		if diag.Severity != checker.SeverityWarning {
+			return true
+		}
+	}
+	return false
 }
 
 func parseDiagnostics(errs []parser.Error) []compiler.Diagnostic {

@@ -105,6 +105,78 @@ main() => @io.println(Kind.B)`
 	}
 }
 
+func TestGeneratePrivateKeepaliveForMoonBitWarnings(t *testing.T) {
+	src := `Token: {
+  kind: Kind
+  offset: Int
+}
+
+Kind: {
+  A
+  B
+}
+
+unused(kind: Kind) -> String => kind {
+  Kind.A => "a"
+  Kind.B => "b"
+  _ => "unknown"
+}
+
+main() => {
+  token := Token { kind: Kind.A, offset: 1 }
+  @io.println(token.kind)
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"fn __rune_keepalive() -> Unit {",
+		"match Kind::B { B => (); _ => () }",
+		"let __rune_keep_rune_Token = Token::{ kind: Kind::A, offset: 0 }",
+		"ignore(__rune_keep_rune_Token.offset)",
+		"__rune_keepalive()",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	if !strings.Contains(got, "ignore(__rune_private_") || !strings.Contains(got, "_unused)") {
+		t.Fatalf("generated source =\n%s\nmissing private unused function keepalive", got)
+	}
+	for _, bad := range []string{"pub fn", "pub let", "pub(all)", "_ => \"unknown\""} {
+		if strings.Contains(got, bad) {
+			t.Fatalf("generated source contains %q:\n%s", bad, got)
+		}
+	}
+}
+
+func TestGenerateIterAndStringBuffer(t *testing.T) {
+	src := `main() => {
+  values := @iter.range(1, 3)
+  first := values.next()
+  @io.println(first[0])
+  @iter.range(4, 6).map((value) => value * 2).each((value) => @io.println(value))
+  buffer := @stringbuffer.from("Rune")
+  buffer.append(" core")
+  @io.println(buffer.toString())
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"Iter::new(fn()",
+		"values.next()",
+		"first.0",
+		".map((value) => value * 2).to_array().each",
+		"StringBuilder()",
+		`write_string(" core")`,
+		"ignore({ buffer.write_string",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "().range") || strings.Contains(got, "??") {
+		t.Fatalf("generated source contains stale Rune/MoonBit lowering:\n%s", got)
+	}
+}
+
 func generateSource(t *testing.T, src string) string {
 	t.Helper()
 	prog, diags := compiler.AnalyzeSource("test.rn", src)

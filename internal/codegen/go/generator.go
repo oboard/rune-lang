@@ -47,9 +47,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesFSRuntime(usage) {
 		g.imports["os"] = true
 	}
-	if fileUsesPathRuntime(usage) {
-		g.imports["path/filepath"] = true
-	}
 	if fileUsesProcessRuntime(usage) {
 		g.imports["os"] = true
 		g.imports["runtime"] = true
@@ -168,12 +165,6 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
-	if fileUsesPathRuntime(usage) {
-		g.pathRuntime()
-		if len(file.Functions) > 0 || len(file.Types) > 0 {
-			g.line("")
-		}
-	}
 	if fileUsesIORuntime(usage) {
 		g.ioRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
@@ -276,10 +267,6 @@ func fileUsesBytesRuntime(usage codeusage.Usage) bool {
 
 func fileUsesTemplateRuntime(usage codeusage.Usage) bool {
 	return usage.Template
-}
-
-func fileUsesPathRuntime(usage codeusage.Usage) bool {
-	return usage.HasIntrinsicPrefix("path.")
 }
 
 func fileUsesIORuntime(usage codeusage.Usage) bool {
@@ -459,38 +446,6 @@ func (g *generator) errorRuntime() {
 	g.line("return &runeError{__code: 1, __message: err.Error()}")
 	g.indent--
 	g.line("}")
-}
-
-func (g *generator) pathRuntime() {
-	g.line("func runePathBasename(path string) string { return filepath.Base(path) }")
-	g.line("func runePathDirname(path string) string { return filepath.Dir(path) }")
-	g.line("func runePathExtname(path string) string { return filepath.Ext(path) }")
-	g.line("func runePathJoin(parts []string) string { return filepath.Join(parts...) }")
-	g.line("func runePathNormalize(path string) string { return filepath.Clean(path) }")
-	g.line("func runePathResolve(parts []string) string {")
-	g.indent++
-	g.line("joined := filepath.Join(parts...)")
-	g.line("abs, err := filepath.Abs(joined)")
-	g.line("if err != nil {")
-	g.indent++
-	g.line("return joined")
-	g.indent--
-	g.line("}")
-	g.line("return abs")
-	g.indent--
-	g.line("}")
-	g.line("func runePathRelative(from string, to string) string {")
-	g.indent++
-	g.line("value, err := filepath.Rel(from, to)")
-	g.line("if err != nil {")
-	g.indent++
-	g.line("return to")
-	g.indent--
-	g.line("}")
-	g.line("return value")
-	g.indent--
-	g.line("}")
-	g.line("func runePathIsAbsolute(path string) bool { return filepath.IsAbs(path) }")
 }
 
 func (g *generator) processRuntime() {
