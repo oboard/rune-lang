@@ -82,6 +82,64 @@ func TestGenerateMapIndexFallback(t *testing.T) {
 	}
 }
 
+func TestGenerateParenthesizesTernaryInBinaryExpr(t *testing.T) {
+	src := `main() => @io.println("hello " + (true ? "Rune" : "MoonBit"))`
+	got := generateSource(t, src)
+	if !strings.Contains(got, `"hello " + (if true { "Rune" } else { "MoonBit" })`) {
+		t.Fatalf("generated source =\n%s\nwant parenthesized if expression in binary expr", got)
+	}
+}
+
+func TestGenerateStringTrimReturnsString(t *testing.T) {
+	src := `trimmed() -> String => " Rune ".trim()`
+	got := generateSource(t, src)
+	if !strings.Contains(got, `" Rune ".trim().to_owned()`) {
+		t.Fatalf("generated source =\n%s\nwant trim converted back to String", got)
+	}
+}
+
+func TestGenerateStringSearchUsesCurrentMoonBitNames(t *testing.T) {
+	src := `startsAndEnds(value: String) -> Bool => value.startsWith("Ru") && value.endsWith("ne")`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		`value.has_prefix("Ru")`,
+		`value.has_suffix("ne")`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	for _, deprecated := range []string{"starts_with", "ends_with"} {
+		if strings.Contains(got, deprecated) {
+			t.Fatalf("generated source contains deprecated %q:\n%s", deprecated, got)
+		}
+	}
+}
+
+func TestGenerateEscapesReservedIdentifiers(t *testing.T) {
+	src := `Token: {
+  module: String
+  static: Int
+}
+
+useReserved(method: String) -> String => {
+  member := Token { module: method, static: 1 }
+  member.module
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"module_ : String",
+		"static_ : Int",
+		"method_ : String",
+		"let member_ = Token::{ module_: method_, static_: 1 }",
+		"member_.module_",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing escaped identifier %q", got, want)
+		}
+	}
+}
+
 func TestGenerateEnumShowUsesOrdinalValues(t *testing.T) {
 	src := `Kind: {
   A

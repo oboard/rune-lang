@@ -87,7 +87,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.Alternative != nil {
 			alt = g.expr(e.Alternative)
 		}
-		return fmt.Sprintf("if %s { %s } else { %s }", g.expr(e.Condition), g.expr(e.Consequence), alt)
+		out := fmt.Sprintf("if %s { %s } else { %s }", g.expr(e.Condition), g.expr(e.Consequence), alt)
+		if parentPrec > 0 {
+			return "(" + out + ")"
+		}
+		return out
 	case *ir.AssignExpr:
 		if target, ok := e.Target.(*ir.IndexExpr); ok {
 			return fmt.Sprintf("%s[%s] = %s", g.expr(target.Receiver), g.expr(target.Index), g.expr(e.Value))

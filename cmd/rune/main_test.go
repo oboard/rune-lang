@@ -94,7 +94,7 @@ func TestRunEntryGoForwardsProgramArgs(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "go", []string{"-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := runEntry(mainPath, "go", "", []string{"-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
 	}
 	if got, want := out.String(), "-v\ntarget\n"; got != want {
@@ -109,7 +109,7 @@ func TestRunEntryGoPreservesProgramExitCode(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	err := runEntry(mainPath, "go", nil, strings.NewReader(""), &out, &errOut)
+	err := runEntry(mainPath, "go", "", nil, strings.NewReader(""), &out, &errOut)
 	code, ok := exitCode(err)
 	if !ok || code != 2 {
 		t.Fatalf("runEntry() error = %v, exit code = %d/%v, want 2", err, code, ok)
@@ -278,7 +278,7 @@ func TestRunEntryMoonBit(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "mbt", nil, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := runEntry(mainPath, "mbt", "", nil, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
 	}
 	if got, want := out.String(), "Rune\n"; got != want {
@@ -312,11 +312,27 @@ main(args: Args) => {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "mbt", []string{"wasm", "-v", "-o", "out.js"}, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := runEntry(mainPath, "mbt", "", []string{"wasm", "-v", "-o", "out.js"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
 	}
 	if got, want := out.String(), "wasm\nout.js\ntrue\n"; got != want {
 		t.Fatalf("runEntry() output = %q, want %q", got, want)
+	}
+}
+
+func TestRunEntryMoonBitRejectsInvalidTarget(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  @io.println("Rune")
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := runEntry(mainPath, "mbt", "linux-amd64", nil, strings.NewReader(""), &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), `invalid MoonBit target "linux-amd64"`) {
+		t.Fatalf("runEntry() error = %v, want invalid MoonBit target", err)
 	}
 }
 

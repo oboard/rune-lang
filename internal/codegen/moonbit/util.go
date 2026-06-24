@@ -12,13 +12,31 @@ import (
 )
 
 var reserved = map[string]bool{
-	"as": true, "async": true, "break": true, "catch": true, "const": true,
-	"continue": true, "derive": true, "else": true, "enum": true, "fn": true,
-	"for": true, "guard": true, "if": true, "impl": true, "in": true,
-	"is": true, "let": true, "loop": true, "match": true, "mut": true,
-	"priv": true, "pub": true, "raise": true, "return": true, "struct": true,
-	"test": true, "trait": true, "try": true, "type": true, "while": true,
-	"with": true,
+	"_": true, "abstract": true, "alias": true, "and": true, "anyframe": true,
+	"anytype": true, "as": true, "asm": true, "assert": true, "assume": true,
+	"async": true, "atomic": true, "await": true, "break": true, "catch": true,
+	"comptime": true, "const": true, "constructor": true, "continue": true,
+	"declare": true, "define": true, "defer": true, "derive": true, "do": true,
+	"downcast": true, "dyn": true, "dynclass": true, "dynobj": true,
+	"dynrec": true, "else": true, "enum": true, "enumview": true,
+	"errdefer": true, "export": true, "extern": true, "extenum": true,
+	"false": true, "final": true, "finally": true, "fn": true, "fnalias": true,
+	"for": true, "guard": true, "if": true, "impl": true, "import": true,
+	"in": true, "include": true, "inherit": true, "is": true, "isnot": true,
+	"lazy": true, "let": true, "letrec": true, "lexmatch": true, "local": true,
+	"loop": true, "macro": true, "match": true, "member": true, "method": true,
+	"mixin": true, "module": true, "move": true, "mut": true, "namespace": true,
+	"noasync": true, "nobreak": true, "noraise": true, "opaque": true,
+	"orelse": true, "override": true, "package": true, "priv": true,
+	"proof_assert": true, "proof_let": true, "protected": true, "pub": true,
+	"raise": true, "readonly": true, "recur": true, "ref": true, "resume": true,
+	"return": true, "sealed": true, "static": true, "struct": true,
+	"suberror": true, "super": true, "test": true, "threadlocal": true,
+	"throw": true, "trait": true, "traitalias": true, "true": true,
+	"try": true, "type": true, "typealias": true, "typeof": true,
+	"unsafe": true, "unreachable": true, "upcast": true, "use": true,
+	"using": true, "var": true, "virtual": true, "void": true, "volatile": true,
+	"where": true, "while": true, "with": true, "yield": true,
 }
 
 var identRE = regexp.MustCompile(`[^A-Za-z0-9_]`)

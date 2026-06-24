@@ -217,18 +217,18 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 		}
 	case "string.startsWith":
 		if len(args) == 1 {
-			return fmt.Sprintf("%s.starts_with(%s)", receiver, args[0])
+			return fmt.Sprintf("%s.has_prefix(%s)", receiver, args[0])
 		}
 	case "string.endsWith":
 		if len(args) == 1 {
-			return fmt.Sprintf("%s.ends_with(%s)", receiver, args[0])
+			return fmt.Sprintf("%s.has_suffix(%s)", receiver, args[0])
 		}
 	case "string.toLowerCase":
 		return receiver + ".to_lower()"
 	case "string.toUpperCase":
 		return receiver + ".to_upper()"
 	case "string.trim":
-		return receiver + ".trim()"
+		return receiver + ".trim().to_owned()"
 	case "string.trimStart":
 		return receiver + ".trim_start().to_owned()"
 	case "string.trimEnd":

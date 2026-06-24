@@ -245,7 +245,14 @@ emitGoFields(
     : emitGoFields(fields, index + 1, (((out + (
       out == "" ? ""
         : ", "
-    )) + mangleIdent(fields[index].name)) + ": ") + emitGoExpr(fields[index].children[0]))
+    )) + mangleIdent(fields[index].name)) + ": ") + emitGoStructFieldValue(fields[index].children[0]))
+)
+
+emitGoStructFieldValue(
+  expr: IRExpr
+) -> String => (
+  (expr.kind == ExprKind.Array) && (expr.children.length() == 0) ? "nil"
+    : emitGoExpr(expr)
 )
 
 goBinaryOp(op: String) -> String => op

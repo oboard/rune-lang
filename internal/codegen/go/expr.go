@@ -177,13 +177,13 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.TypeName == string(checker.Error) {
 			fields := make([]string, 0, len(e.Fields))
 			for _, field := range e.Fields {
-				fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+				fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.structFieldExpr(e.TypeName, field)))
 			}
 			return fmt.Sprintf("&runeError{%s}", strings.Join(fields, ", "))
 		}
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.structFieldExpr(e.TypeName, field)))
 		}
 		return fmt.Sprintf("%s{%s}", mangleIdent(e.TypeName), strings.Join(fields, ", "))
 	case *ir.AnonymousObjectLiteral:
@@ -685,6 +685,15 @@ func (g *generator) watchExpr(watch *ir.WatchExpr) string {
 }
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
+	if arr, ok := expr.(*ir.ArrayLiteral); ok {
+		if _, ok := checker.ArrayElement(expected); ok {
+			elems := make([]string, 0, len(arr.Elements))
+			for _, elem := range arr.Elements {
+				elems = append(elems, g.expr(elem))
+			}
+			return fmt.Sprintf("%s{%s}", goType(expected), strings.Join(elems, ", "))
+		}
+	}
 	if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
 		if _, ok := parseGoObjectType(string(expected)); ok {
 			return fmt.Sprintf("%s{%s}", goType(expected), anonymousObjectFieldsForType(g, obj, expected))
@@ -694,6 +703,30 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 		}
 	}
 	return g.expr(expr)
+}
+
+func (g *generator) structFieldExpr(typeName string, field ir.FieldValue) string {
+	if typ, ok := g.structFieldType(typeName, field.Name); ok {
+		return g.exprAs(field.Value, typ)
+	}
+	return g.expr(field.Value)
+}
+
+func (g *generator) structFieldType(typeName string, fieldName string) (checker.Type, bool) {
+	if base, _, ok := parseGoGenericType(typeName); ok {
+		typeName = base
+	}
+	for _, typ := range g.file.Types {
+		if typ.Name != typeName {
+			continue
+		}
+		for _, field := range typ.Fields {
+			if field.Name == fieldName {
+				return field.Type, true
+			}
+		}
+	}
+	return checker.Unknown, false
 }
 
 func (g *generator) ternaryExpr(expr *ir.TernaryExpr) string {

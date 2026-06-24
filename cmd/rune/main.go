@@ -63,7 +63,8 @@ func rootCmd() *cobra.Command {
 }
 
 func runCmd() *cobra.Command {
-	return &cobra.Command{
+	var target string
+	cmd := &cobra.Command{
 		Use:   "run <path> [args...]",
 		Short: "Compile and run a Rune program",
 		Args:  cobra.MinimumNArgs(1),
@@ -82,9 +83,11 @@ func runCmd() *cobra.Command {
 			}
 			cmd.SilenceUsage = true
 			cmd.SilenceErrors = true
-			return runEntry(entry, runBackend, runProgramArgs(args, cmd.ArgsLenAtDash()), os.Stdin, os.Stdout, os.Stderr)
+			return runEntry(entry, runBackend, target, runProgramArgs(args, cmd.ArgsLenAtDash()), os.Stdin, os.Stdout, os.Stderr)
 		},
 	}
+	cmd.Flags().StringVar(&target, "target", "", "MoonBit run target: wasm, wasm-gc, js, native, llvm, or all")
+	return cmd
 }
 
 func runProgramArgs(args []string, dash int) []string {
@@ -100,7 +103,10 @@ func runProgramArgs(args []string, dash int) []string {
 	return out
 }
 
-func runEntry(entry string, runBackend string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	if runTarget != "" && runBackend != "mbt" {
+		return fmt.Errorf("rune run --target is only supported with --backend mbt")
+	}
 	switch runBackend {
 	case "go":
 		exe, cleanup, err := compileGoExecutableToTemp(entry, stdout, stderr)
@@ -129,12 +135,18 @@ func runEntry(entry string, runBackend string, programArgs []string, stdin io.Re
 		run.Dir = runDir
 		return run.Run()
 	case "mbt":
+		if runTarget == "" {
+			runTarget = "native"
+		}
+		if err := validateMoonBitTarget(runTarget); err != nil {
+			return err
+		}
 		runDir, cleanup, err := compileMoonBitProjectToTemp(entry)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
-		args := []string{"run", "--target", "native", "."}
+		args := []string{"run", "--target", runTarget, "."}
 		if len(programArgs) > 0 {
 			args = append(args, "--")
 			args = append(args, programArgs...)
