@@ -11,5 +11,5 @@ main() => {
   buffer.append(" core")
   @io.println(buffer.toString())
   @io.println(@path.basename("examples/core_modules.rn"))
-  @io.println(@process.platform())
+  @io.println(@process.platform()')
 }

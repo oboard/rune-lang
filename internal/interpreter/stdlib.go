@@ -17,6 +17,14 @@ import (
 )
 
 func (i *Interpreter) callModuleFunction(module string, name string, args []ir.Expr, resultType checker.Type, env *Env) (Value, error) {
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	return i.callModuleFunctionValue(module, name, values, resultType)
+}
+
+func (i *Interpreter) callModuleFunctionValue(module string, name string, values []Value, resultType checker.Type) (Value, error) {
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
@@ -24,15 +32,18 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 	if !ok {
 		return nil, fmt.Errorf("unknown module function @%s.%s", module, name)
 	}
-	values, err := i.evalArgs(args, env)
-	if err != nil {
-		return nil, err
-	}
-	if i.compileTime && fn.Body == nil {
+	if i.compileTime && fn.Body == nil && !compileTimeStdlibIntrinsicAllowed(fn.Intrinsic) {
 		return nil, fmt.Errorf("compile-time macro cannot call @%s.%s", module, name)
 	}
 	if fn.Body != nil {
 		local := NewEnv(i.globals)
+		if mod := i.file.Stdlib.Modules[module]; mod != nil {
+			for _, other := range mod.Functions {
+				if other.Receiver == "" {
+					local.Define(other.Name, stdlibFunctionValue{Module: module, Name: other.Name, ResultType: checker.Type(other.Return)})
+				}
+			}
+		}
 		for idx, param := range fn.ParamNames {
 			if idx < len(values) {
 				local.Define(param, values[idx])
@@ -270,6 +281,15 @@ func (i *Interpreter) callModuleFunction(module string, name string, args []ir.E
 		return nil, fmt.Errorf("@%s.%s is only supported by the Go backend", module, name)
 	default:
 		return nil, fmt.Errorf("@%s.%s is not supported by the interpreter", module, name)
+	}
+}
+
+func compileTimeStdlibIntrinsicAllowed(intrinsic string) bool {
+	switch intrinsic {
+	case "process.platform":
+		return true
+	default:
+		return false
 	}
 }
 

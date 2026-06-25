@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/codegen/stdlibhelpers"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
@@ -24,6 +25,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "cli" && fn.Body != nil {
 				return g.cliModuleCall(fn, args, call.ResultType()), true
+			}
+		}
+		if fn.Body != nil {
+			if moduleName, ok := stdlibCallModuleName(call); ok {
+				return fmt.Sprintf("%s(%s)", mangleIdent(stdlibhelpers.HelperName(moduleName, fn.Name)), strings.Join(args, ", ")), true
 			}
 		}
 		return "", false
@@ -85,6 +91,17 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	return runtimeTrap(fn.Intrinsic), true
 }
 
+func stdlibCallModuleName(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name != "" {
+		return at.Name, true
+	}
+	return checker.ModuleNamespaceName(sel.Receiver.ResultType())
+}
+
 func (g *generator) printArgs(args []ir.Expr) string {
 	if len(args) == 0 {
 		return quoteString("")
@@ -98,11 +115,17 @@ func (g *generator) printArgs(args []ir.Expr) string {
 
 func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	sel, fn, ok := g.stdlibReceiverFunctionFromCall(call)
-	if !ok || fn.Intrinsic == "" {
+	if !ok {
 		return "", false
 	}
 	receiver := g.expr(sel.Receiver)
 	args := g.intrinsicArgs(call.Args)
+	if fn.Intrinsic == "" {
+		if fn.Body != nil && fn.Name == "isEmpty" && len(args) == 0 {
+			return receiver + ".length() == 0", true
+		}
+		return "", false
+	}
 	switch {
 	case strings.HasPrefix(fn.Intrinsic, "array."):
 		return g.arrayIntrinsicCall(fn, receiver, args, call.ResultType()), true
@@ -194,6 +217,8 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 	switch fn.Intrinsic {
 	case "string.length":
 		return receiver + ".length()"
+	case "string.isEmpty":
+		return receiver + ".is_empty()"
 	case "string.toString":
 		return receiver
 	case "string.at":

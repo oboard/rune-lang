@@ -7,6 +7,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/codegen/stdlibhelpers"
 	codeusage "github.com/oboard/rune-lang/internal/codegen/usage"
 	"github.com/oboard/rune-lang/internal/ir"
 )
@@ -16,7 +17,8 @@ func Generate(file *ast.File, info *checker.Info) (string, error) {
 }
 
 func GenerateIR(file *ir.File) (string, error) {
-	usage := codeusage.Collect(file)
+	helpers := stdlibhelpers.BodyHelpers(file)
+	usage := codeusage.Collect(fileWithHelpers(file, helpers))
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("TypeScript backend does not support @go.import")
 	}
@@ -107,6 +109,12 @@ func GenerateIR(file *ir.File) (string, error) {
 	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
 		g.line("")
 	}
+	for _, fn := range helpers {
+		if err := g.function(fn); err != nil {
+			return "", err
+		}
+		g.line("")
+	}
 	for i, fn := range file.Functions {
 		if i > 0 {
 			g.line("")
@@ -132,6 +140,15 @@ func GenerateIR(file *ir.File) (string, error) {
 		return g.buf.String(), err
 	}
 	return g.buf.String(), nil
+}
+
+func fileWithHelpers(file *ir.File, helpers []*ir.Function) *ir.File {
+	if len(helpers) == 0 {
+		return file
+	}
+	copy := *file
+	copy.Functions = append(append([]*ir.Function{}, helpers...), file.Functions...)
+	return &copy
 }
 
 func (g *generator) typeScriptImports() bool {

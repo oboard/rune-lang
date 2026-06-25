@@ -141,26 +141,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if elem, ok := checker.ArrayElement(e.ResultType()); ok {
 			elemType = elem
 		}
-		if arrayLiteralHasSpread(e) {
-			resultType := goType(elemType)
-			var b strings.Builder
-			b.WriteString(fmt.Sprintf("func() []%s { ", resultType))
-			b.WriteString(fmt.Sprintf("out := []%s{}; ", resultType))
-			for _, elem := range e.Elements {
-				if spread, ok := elem.(*ir.SpreadExpr); ok {
-					b.WriteString(fmt.Sprintf("out = append(out, %s...); ", g.expr(spread.Expr)))
-					continue
-				}
-				b.WriteString(fmt.Sprintf("out = append(out, %s); ", g.expr(elem)))
-			}
-			b.WriteString("return out }()")
-			return b.String()
-		}
-		elems := make([]string, 0, len(e.Elements))
-		for _, elem := range e.Elements {
-			elems = append(elems, g.expr(elem))
-		}
-		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+		return goArrayLiteral(elemType, e.Elements, func(expr ir.Expr) string {
+			return g.expr(expr)
+		})
 	case *ir.TupleLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for idx, elem := range e.Elements {
@@ -445,8 +428,31 @@ func (g *generator) hasEnumType(typ checker.Type) bool {
 	return false
 }
 
-func arrayLiteralHasSpread(lit *ir.ArrayLiteral) bool {
-	for _, elem := range lit.Elements {
+func goArrayLiteral(elemType checker.Type, elements []ir.Expr, emit func(ir.Expr) string) string {
+	if arrayElementsHaveSpread(elements) {
+		resultType := goType(elemType)
+		var b strings.Builder
+		b.WriteString(fmt.Sprintf("func() []%s { ", resultType))
+		b.WriteString(fmt.Sprintf("out := []%s{}; ", resultType))
+		for _, elem := range elements {
+			if spread, ok := elem.(*ir.SpreadExpr); ok {
+				b.WriteString(fmt.Sprintf("out = append(out, %s...); ", emit(spread.Expr)))
+				continue
+			}
+			b.WriteString(fmt.Sprintf("out = append(out, %s); ", emit(elem)))
+		}
+		b.WriteString("return out }()")
+		return b.String()
+	}
+	elems := make([]string, 0, len(elements))
+	for _, elem := range elements {
+		elems = append(elems, emit(elem))
+	}
+	return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+}
+
+func arrayElementsHaveSpread(elements []ir.Expr) bool {
+	for _, elem := range elements {
 		if _, ok := elem.(*ir.SpreadExpr); ok {
 			return true
 		}
@@ -686,12 +692,10 @@ func (g *generator) watchExpr(watch *ir.WatchExpr) string {
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 	if arr, ok := expr.(*ir.ArrayLiteral); ok {
-		if _, ok := checker.ArrayElement(expected); ok {
-			elems := make([]string, 0, len(arr.Elements))
-			for _, elem := range arr.Elements {
-				elems = append(elems, g.expr(elem))
-			}
-			return fmt.Sprintf("%s{%s}", goType(expected), strings.Join(elems, ", "))
+		if elemType, ok := checker.ArrayElement(expected); ok {
+			return goArrayLiteral(elemType, arr.Elements, func(expr ir.Expr) string {
+				return g.expr(expr)
+			})
 		}
 	}
 	if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
@@ -944,7 +948,10 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
-			parts = append(parts, fmt.Sprintf("%s := %s; _ = %s", mangleIdent(s.Name), g.expr(s.Value), mangleIdent(s.Name)))
+			if isNamespaceValue(s.Value) {
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s := %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
 				parts = append(parts, fmt.Sprintf("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value)))

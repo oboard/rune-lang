@@ -8,6 +8,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/codegen/stdlibhelpers"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
@@ -60,6 +61,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		if len(file.Functions) > 0 {
 			g.line("")
 		}
+	}
+	for _, fn := range stdlibhelpers.BodyHelpers(file) {
+		g.function(fn)
+		g.line("")
 	}
 	for i, fn := range file.Functions {
 		if i > 0 {

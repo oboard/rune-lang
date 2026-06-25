@@ -140,7 +140,9 @@
   absolute: Bool,
   out: Array[String],
   part: String
-) -> Array[String] => normalizeParts(parts, index + 1, absolute, [...out, part])
+) -> Array[String] => (
+  normalizeParts(parts, index + 1, absolute, [...out, part])
+)
 
 + pathParts(
   path: String
@@ -168,7 +170,7 @@
   out: Array[String]
 ) -> Array[String] => collectPathParts(parts, index + 1, [...out, parts[index]])
 
-relativeFromParts(
++ relativeFromParts(
   fromParts: Array[String],
   toParts: Array[String],
   index: Int

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
@@ -86,6 +87,12 @@ type Closure struct {
 	Params []string
 	Body   ir.Expr
 	Env    *Env
+}
+
+type stdlibFunctionValue struct {
+	Module     string
+	Name       string
+	ResultType checker.Type
 }
 
 func Format(value Value) string {

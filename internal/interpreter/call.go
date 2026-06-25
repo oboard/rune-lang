@@ -116,6 +116,8 @@ func (i *Interpreter) callCallable(callee Value, args []ir.Expr, env *Env) (Valu
 		return i.callClosure(fn, values)
 	case *ir.Function:
 		return i.callFunctionValue(fn, values)
+	case stdlibFunctionValue:
+		return i.callModuleFunctionValue(fn.Module, fn.Name, values, fn.ResultType)
 	default:
 		return nil, fmt.Errorf("%s is not callable", typeName(callee))
 	}

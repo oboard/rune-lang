@@ -131,11 +131,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
-		elems := make([]string, 0, len(e.Elements))
-		for _, elem := range e.Elements {
-			elems = append(elems, g.expr(elem))
-		}
-		return "[" + strings.Join(elems, ", ") + "]"
+		return g.arrayLiteral(e)
 	case *ir.TupleLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {
@@ -182,6 +178,18 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	default:
 		return zeroValue(expr.ResultType())
 	}
+}
+
+func (g *generator) arrayLiteral(lit *ir.ArrayLiteral) string {
+	elems := make([]string, 0, len(lit.Elements))
+	for _, elem := range lit.Elements {
+		if spread, ok := elem.(*ir.SpreadExpr); ok {
+			elems = append(elems, ".."+g.expr(spread.Expr))
+			continue
+		}
+		elems = append(elems, g.expr(elem))
+	}
+	return "[" + strings.Join(elems, ", ") + "]"
 }
 
 func (g *generator) templateLiteral(lit *ir.TemplateLiteral) string {

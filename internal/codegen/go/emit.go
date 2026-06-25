@@ -165,9 +165,11 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.resultUnwrapLet(s.Name, unwrap, ret)
 				continue
 			}
+			if isNamespaceValue(s.Value) {
+				continue
+			}
 			if s.Signal || g.exprUsesSignal(s.Value) {
 				g.linef("%s := newRuneSignal(%s)", mangleIdent(s.Name), g.expr(s.Value))
-				g.linef("_ = %s", mangleIdent(s.Name))
 				g.addSignal(s.Name, s.Value.ResultType())
 				deps := g.exprSignalDeps(s.Value)
 				g.setSignalDeps(s.Name, deps)
@@ -184,11 +186,9 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 					return g.expr(s.Value)
 				})
 				g.linef("%s = %s", mangleIdent(s.Name), value)
-				g.linef("_ = %s", mangleIdent(s.Name))
 				continue
 			}
 			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
-			g.linef("_ = %s", mangleIdent(s.Name))
 		case *ir.ObjectDestructureStmt:
 			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapObjectDestructure(s, unwrap, ret)
@@ -291,7 +291,6 @@ func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, re
 	g.indent--
 	g.line("}")
 	g.linef("%s := %s.value", mangleIdent(name), tmp)
-	g.linef("_ = %s", mangleIdent(name))
 }
 
 func (g *generator) resultUnwrapObjectDestructure(stmt *ir.ObjectDestructureStmt, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
@@ -314,13 +313,11 @@ func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source str
 		value := goObjectFieldAccess(tmp, field.Field)
 		if signal {
 			g.linef("%s := newRuneSignal(%s)", name, value)
-			g.linef("_ = %s", name)
 			g.addSignal(field.Name, field.Type)
 			g.setSignalDeps(field.Name, g.exprSignalDeps(stmt.Value))
 			continue
 		}
 		g.linef("%s := %s", name, value)
-		g.linef("_ = %s", name)
 	}
 	if !signal {
 		return
@@ -332,6 +329,19 @@ func (g *generator) objectDestructure(stmt *ir.ObjectDestructureStmt, source str
 			g.linef("%s.Watch(func(_, _ %s) { %s.Set(%s) })", depName, goType(g.signalType(dep)), name, goObjectFieldAccess(g.expr(stmt.Value), field.Field))
 		}
 	}
+}
+
+func isNamespaceValue(expr ir.Expr) bool {
+	if _, ok := expr.(*ir.AtExpr); ok {
+		return true
+	}
+	if _, ok := checker.ModuleNamespaceName(expr.ResultType()); ok {
+		return true
+	}
+	if _, ok := checker.ImportNamespacePath(expr.ResultType()); ok {
+		return true
+	}
+	return false
 }
 
 func goObjectFieldAccess(source string, field string) string {

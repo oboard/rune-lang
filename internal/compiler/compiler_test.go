@@ -152,8 +152,8 @@ func TestGenerateGoFileImportsRuneNamespaceReferences(t *testing.T) {
 	if !strings.Contains(got, `fmt.Println(__greeting("Alice"))`) {
 		t.Fatalf("generated Go does not call imported namespace function:\n%s", got)
 	}
-	if !strings.Contains(got, `_ = __io`) || !strings.Contains(got, `_ = __helper`) {
-		t.Fatalf("generated Go does not mark namespace placeholders as used:\n%s", got)
+	if strings.Contains(got, `__io := struct{}{}`) || strings.Contains(got, `__helper := struct{}{}`) {
+		t.Fatalf("generated Go should not emit namespace placeholders:\n%s", got)
 	}
 }
 
@@ -547,6 +547,21 @@ main() => (double(21))'
 	}
 	if got := prog.IR.Functions[0].Body.(*ir.IntegerLiteral).Value; got != 42 {
 		t.Fatalf("IR literal value = %d, want 42", got)
+	}
+}
+
+func TestAnalyzeSourceEvaluatesCompileTimeProcessPlatform(t *testing.T) {
+	prog, diags := AnalyzeSource("consteval_process.rn", `main() => (@process.platform())'
+`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	lit, ok := prog.File.Functions[0].Body.(*ast.StringLiteral)
+	if !ok {
+		t.Fatalf("main body = %T, want StringLiteral", prog.File.Functions[0].Body)
+	}
+	if lit.Value == "" {
+		t.Fatalf("platform literal should not be empty")
 	}
 }
 

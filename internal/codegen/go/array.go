@@ -367,11 +367,9 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 		} else if elem, ok := checker.ArrayElement(e.ResultType()); ok {
 			elemType = elem
 		}
-		elems := make([]string, 0, len(e.Elements))
-		for _, elem := range e.Elements {
-			elems = append(elems, c.expr(elem, elem.ResultType()))
-		}
-		return fmt.Sprintf("[]%s{%s}", goType(elemType), strings.Join(elems, ", "))
+		return goArrayLiteral(elemType, e.Elements, func(expr ir.Expr) string {
+			return c.expr(expr, expr.ResultType())
+		})
 	case *ir.CallExpr:
 		if expr, ok := c.arrayCallExpr(e, expected); ok {
 			return expr

@@ -839,7 +839,6 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		`var __obj2 struct`,
 		`__parent struct`,
 		`__name string`,
-		`_ = __obj2`,
 		`fmt.Println(__obj.__name)`,
 		`fmt.Println(__obj2.__parent.__name)`,
 		`fmt.Println(__obj.__age)`,
@@ -850,6 +849,47 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated Go missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestGeneratePathBodyHelper(t *testing.T) {
+	src := `main() => {
+  @io.println(@path.basename("/tmp/example.txt"))
+  @io.println(@process.platform())
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`func __path_basename(__path string) string`,
+		`func __path_normalize(__path string) string`,
+		`fmt.Println(__path_basename("/tmp/example.txt"))`,
+		`fmt.Println(runeProcessPlatform())`,
+		`append(out, __out...)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "struct{}{}.__basename") {
+		t.Fatalf("generated Go should call stdlib body helper directly:\n%s", got)
+	}
+	if strings.Contains(got, "spread is only supported") {
+		t.Fatalf("generated Go should lower spread array literals:\n%s", got)
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "path_body_helper.go", got, 0); err != nil {
+		t.Fatalf("generated Go parse error: %v\n%s", err, got)
 	}
 }
 

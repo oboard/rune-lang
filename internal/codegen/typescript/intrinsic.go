@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/codegen/stdlibhelpers"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
@@ -38,6 +39,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "cli" && fn.Body != nil {
 				return g.cliModuleCall(fn, args, call.ResultType()), true
+			}
+		}
+		if fn.Body != nil {
+			if moduleName, ok := stdlibCallModuleName(call); ok {
+				return fmt.Sprintf("%s(%s)", mangleIdent(stdlibhelpers.HelperName(moduleName, fn.Name)), strings.Join(args, ", ")), true
 			}
 		}
 		return "", false
@@ -98,6 +104,17 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	}
+}
+
+func stdlibCallModuleName(call *ir.CallExpr) (string, bool) {
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name != "" {
+		return at.Name, true
+	}
+	return checker.ModuleNamespaceName(sel.Receiver.ResultType())
 }
 
 func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
