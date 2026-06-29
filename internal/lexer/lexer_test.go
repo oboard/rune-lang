@@ -51,3 +51,13 @@ func TestLexStaticSelector(t *testing.T) {
 		t.Fatalf("tokens[1] = %s, want DoubleColon; tokens = %#v", tokens[1], tokens)
 	}
 }
+
+func TestLexCharAfterLess(t *testing.T) {
+	tokens := Lex("@assert.eq('a' < 'b', true)")
+	if tokens[6].Kind != Less {
+		t.Fatalf("tokens[6] = %s, want Less; tokens = %#v", tokens[6], tokens)
+	}
+	if tokens[7].Kind != Char || tokens[7].Lexeme != "'b'" {
+		t.Fatalf("tokens[7] = %s, want Char(\"'b'\"); tokens = %#v", tokens[7], tokens)
+	}
+}

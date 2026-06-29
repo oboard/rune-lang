@@ -75,6 +75,7 @@ type ExternalValueInfo struct {
 	Type       Type
 	Pos        lexer.Position
 	NamePos    lexer.Position
+	Const      *ast.ConstDecl
 }
 
 type FuncInfo struct {
@@ -158,6 +159,7 @@ type Info struct {
 	FunctionDecls             map[*ast.Function]*FuncInfo
 	ExternalFunctions         []*FuncInfo
 	ExternalValues            []*ExternalValueInfo
+	ConstDecls                map[*ast.ConstDecl]*ExternalValueInfo
 	ResolvedFunctions         map[*ast.Identifier]*FuncInfo
 	ResolvedValues            map[*ast.Identifier]*ExternalValueInfo
 	ResolvedSelectorFunctions map[*ast.SelectorExpr]*FuncInfo

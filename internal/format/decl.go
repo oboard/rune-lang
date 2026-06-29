@@ -71,6 +71,15 @@ func (f *formatter) enumType(enum *ast.EnumType) {
 	f.line("}")
 }
 
+func (f *formatter) constDecl(constant *ast.ConstDecl) {
+	prefix := publicPrefix(constant.Private)
+	typ := ""
+	if !constant.Type.IsZero() {
+		typ = ": " + formatType(constant.Type)
+	}
+	f.linef("%sconst %s%s = %s", prefix, constant.Name, typ, f.expr(constant.Value))
+}
+
 func (f *formatter) function(fn *ast.Function) {
 	f.annotations(fn.Annotations)
 	signature := f.functionSignature(fn)

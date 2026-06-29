@@ -30,6 +30,28 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 			parts = append(parts, f.pattern(elem))
 		}
 		return "(" + strings.Join(parts, ", ") + ")"
+	case *ast.ArrayPattern:
+		parts := make([]string, 0, len(p.Elements)+1)
+		for idx, elem := range p.Elements {
+			if p.RestIndex == idx {
+				if p.RestBinding != "" {
+					parts = append(parts, ".."+p.RestBinding)
+				} else {
+					parts = append(parts, "..")
+				}
+			}
+			parts = append(parts, f.pattern(elem))
+		}
+		if p.RestIndex == len(p.Elements) {
+			if p.RestBinding != "" {
+				parts = append(parts, ".."+p.RestBinding)
+			} else {
+				parts = append(parts, "..")
+			}
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case *ast.SequenceSpreadPattern:
+		return ".. " + f.expr(p.Value)
 	case *ast.ConstructorPattern:
 		binding := p.Binding
 		if binding == "" {

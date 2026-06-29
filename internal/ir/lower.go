@@ -38,6 +38,9 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 	for _, enum := range file.Enums {
 		out.Enums = append(out.Enums, l.enumType(enum))
 	}
+	for _, constant := range file.Constants {
+		out.Constants = append(out.Constants, l.constDecl(constant))
+	}
 	for _, fn := range file.Functions {
 		if fn.Macro {
 			continue
@@ -144,6 +147,27 @@ func findAnnotation(annotations []ast.Annotation, module string, name string) *a
 		}
 	}
 	return nil
+}
+
+func (l lowerer) constDecl(constant *ast.ConstDecl) *ConstDecl {
+	name := constant.Name
+	typ := checker.Unknown
+	if l.info != nil {
+		if info := l.info.ConstDecls[constant]; info != nil {
+			typ = info.Type
+			if info.LinkName != "" {
+				name = info.LinkName
+			}
+		}
+	}
+	return &ConstDecl{
+		Name:    name,
+		Private: constant.Private,
+		Type:    typ,
+		Value:   l.exprExpected(constant.Value, typ),
+		Pos:     constant.Pos,
+		NamePos: constant.NamePos,
+	}
 }
 
 func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
@@ -547,13 +571,25 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 	case *ast.WildcardPattern:
 		return &WildcardPattern{Pos: p.Pos}
 	case *ast.BindingPattern:
-		return &BindingPattern{Name: p.Name, Type: checker.Type(p.Type), Pos: p.Pos}
+		name := p.Name
+		if p.Constant && p.LinkName != "" {
+			name = p.LinkName
+		}
+		return &BindingPattern{Name: name, Type: checker.Type(p.Type), Constant: p.Constant, LinkName: p.LinkName, Pos: p.Pos}
 	case *ast.LiteralPattern:
 		return &LiteralPattern{Value: l.expr(p.Value), Pos: p.Pos}
 	case *ast.ComparePattern:
 		return &ComparePattern{Op: p.Op, Value: l.expr(p.Value), Pos: p.Pos}
 	case *ast.RangePattern:
-		return &RangePattern{Start: l.expr(p.Start), End: l.expr(p.End), Pos: p.Pos}
+		var start Expr
+		if p.Start != nil {
+			start = l.expr(p.Start)
+		}
+		var end Expr
+		if p.End != nil {
+			end = l.expr(p.End)
+		}
+		return &RangePattern{Start: start, End: end, Inclusive: p.Inclusive, Pos: p.Pos}
 	case *ast.OrPattern:
 		out := &OrPattern{Pos: p.Pos}
 		for _, alternative := range p.Alternatives {
@@ -566,10 +602,26 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 			out.Elements = append(out.Elements, l.pattern(elem))
 		}
 		return out
+	case *ast.ArrayPattern:
+		out := &ArrayPattern{RestIndex: p.RestIndex, RestBinding: p.RestBinding, RestType: checker.Type(p.RestType), RestPos: p.RestPos, SubjectType: checker.Type(p.SubjectType), Pos: p.Pos}
+		for _, elem := range p.Elements {
+			out.Elements = append(out.Elements, l.pattern(elem))
+		}
+		return out
+	case *ast.SequenceSpreadPattern:
+		return &SequenceSpreadPattern{Value: l.expr(p.Value), Type: checker.Type(p.Type), Pos: p.Pos}
+	case *ast.BitPattern:
+		return &BitPattern{Width: p.Width, Signed: p.Signed, Endian: p.Endian, Value: l.pattern(p.Value), Pos: p.Pos}
+	case *ast.AsPattern:
+		return &AsPattern{Pattern: l.pattern(p.Pattern), Name: p.Name, Type: checker.Type(p.Type), NamePos: p.NamePos, Pos: p.Pos}
 	case *ast.ConstructorPattern:
-		return &ConstructorPattern{Name: p.Name, Binding: p.Binding, BindingPos: p.BindingPos, Pos: p.Pos}
+		out := &ConstructorPattern{Name: p.Name, Rest: p.Rest, RestPos: p.RestPos, Binding: p.Binding, BindingPos: p.BindingPos, SubjectType: checker.Type(p.SubjectType), Pos: p.Pos}
+		for _, arg := range p.Args {
+			out.Args = append(out.Args, l.pattern(arg))
+		}
+		return out
 	case *ast.MapPattern:
-		out := &MapPattern{Rest: p.Rest, Pos: p.Pos}
+		out := &MapPattern{Rest: p.Rest, SubjectType: checker.Type(p.SubjectType), ValueType: checker.Type(p.ValueType), Access: p.Access, Pos: p.Pos}
 		for _, entry := range p.Entries {
 			out.Entries = append(out.Entries, MapPatternEntry{
 				Key:      l.expr(entry.Key),
@@ -580,7 +632,7 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 		}
 		return out
 	case *ast.ObjectPattern:
-		out := &ObjectPattern{Rest: p.Rest, Pos: p.Pos}
+		out := &ObjectPattern{Rest: p.Rest, SubjectType: checker.Type(p.SubjectType), Pos: p.Pos}
 		for _, field := range p.Fields {
 			out.Fields = append(out.Fields, ObjectPatternField{
 				Name:     field.Name,

@@ -268,11 +268,49 @@ func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
 		}
 		for _, member := range enum.Members {
 			if member.Name == sel.Name {
+				if enumHasPayload(enum) {
+					return fmt.Sprintf("{ tag: %s, payload: [] }", tsPropertyAccess(mangleIdent(enum.Name), member.Name)), true
+				}
 				return tsPropertyAccess(mangleIdent(enum.Name), member.Name), true
 			}
 		}
 	}
 	return "", false
+}
+
+func enumHasPayload(enum *ir.EnumType) bool {
+	if enum == nil {
+		return false
+	}
+	for _, member := range enum.Members {
+		if len(member.Params) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) enumForType(typ checker.Type) *ir.EnumType {
+	name := baseTypeName(typ)
+	for _, enum := range g.file.Enums {
+		if enum.Name == name {
+			return enum
+		}
+	}
+	return nil
+}
+
+func (g *generator) enumMemberForConstructor(typ checker.Type, name string) (*ir.EnumType, *ir.EnumMember, bool) {
+	enum := g.enumForType(typ)
+	if enum == nil {
+		return nil, nil, false
+	}
+	for idx := range enum.Members {
+		if enum.Members[idx].Name == name {
+			return enum, &enum.Members[idx], true
+		}
+	}
+	return nil, nil, false
 }
 
 func selectorResolvedName(sel *ir.SelectorExpr) string {
@@ -307,6 +345,9 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 			return fmt.Sprintf("runeErr<%s, %s>(%s)", tsType(okType), tsType(errType), g.expr(e.Args[0]))
 		}
 	}
+	if constructor, ok := g.enumConstructorCall(e); ok {
+		return constructor
+	}
 	if call, ok := g.moduleIntrinsicCall(e); ok {
 		return call
 	}
@@ -330,6 +371,22 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 		args = append(args, g.expr(arg))
 	}
 	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) enumConstructorCall(call *ir.CallExpr) (string, bool) {
+	ident, ok := call.Callee.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), ident.Name)
+	if !ok || !enumHasPayload(enum) {
+		return "", false
+	}
+	args := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		args = append(args, g.expr(arg))
+	}
+	return fmt.Sprintf("{ tag: %s, payload: [%s] }", tsPropertyAccess(mangleIdent(enum.Name), member.Name), strings.Join(args, ", ")), true
 }
 
 func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
@@ -663,6 +720,12 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 		b.WriteString(g.expr(match.Subject))
 		b.WriteString("; ")
 	}
+	restoreMapGetters := g.pushMapPatternGetters(subject, match.Branches)
+	defer restoreMapGetters()
+	for _, line := range g.mapPatternGetterPrelude(subject, match.Branches) {
+		b.WriteString(line)
+		b.WriteString("; ")
+	}
 	hasDefault := false
 	for i, branch := range match.Branches {
 		if _, ok := branch.Pattern.(*ir.WildcardPattern); ok {
@@ -709,9 +772,112 @@ func matchNeedsSubjectTemp(match *ir.MatchExpr) bool {
 	return false
 }
 
+func (g *generator) pushMapPatternGetters(subject string, branches []ir.PatternBranch) func() {
+	getter := ""
+	for _, branch := range branches {
+		if patternHasMapLikeGet(branch.Pattern) {
+			getter = g.nextTemp("__mapGet")
+			break
+		}
+	}
+	if getter == "" {
+		return func() {}
+	}
+	prev := g.mapGetters
+	next := map[string]string{}
+	for key, value := range prev {
+		next[key] = value
+	}
+	next[subject] = getter
+	g.mapGetters = next
+	return func() {
+		g.mapGetters = prev
+	}
+}
+
+func (g *generator) mapPatternGetterPrelude(subject string, branches []ir.PatternBranch) []string {
+	var pattern *ir.MapPattern
+	for _, branch := range branches {
+		pattern = firstMapLikeGetPattern(branch.Pattern)
+		if pattern != nil {
+			break
+		}
+	}
+	if pattern == nil {
+		return nil
+	}
+	getter := ""
+	if g.mapGetters != nil {
+		getter = g.mapGetters[subject]
+	}
+	if getter == "" {
+		getter = g.nextTemp("__mapGet")
+	}
+	keyType := checker.Unknown
+	if len(pattern.Entries) > 0 {
+		keyType = pattern.Entries[0].Key.ResultType()
+	}
+	cache := g.nextTemp("__mapCache")
+	key := g.nextTemp("__key")
+	value := g.nextTemp("__value")
+	return []string{
+		fmt.Sprintf("const %s = new Map<%s, any>()", cache, tsType(keyType)),
+		fmt.Sprintf("const %s = (%s: %s): any => { if (%s.has(%s)) return %s.get(%s); const %s = %s(%s, %s); %s.set(%s, %s); return %s }",
+			getter, key, tsType(keyType), cache, key, cache, key, value, mangleMethod(baseTypeName(pattern.SubjectType), "get"), subject, key, cache, key, value, value),
+	}
+}
+
+func patternHasMapLikeGet(pattern ir.Pattern) bool {
+	return firstMapLikeGetPattern(pattern) != nil
+}
+
+func firstMapLikeGetPattern(pattern ir.Pattern) *ir.MapPattern {
+	switch p := pattern.(type) {
+	case *ir.MapPattern:
+		if p.Access == "get" {
+			return p
+		}
+	case *ir.AsPattern:
+		return firstMapLikeGetPattern(p.Pattern)
+	case *ir.OrPattern:
+		for _, alternative := range p.Alternatives {
+			if found := firstMapLikeGetPattern(alternative); found != nil {
+				return found
+			}
+		}
+	case *ir.ConstructorPattern:
+		for _, arg := range p.Args {
+			if found := firstMapLikeGetPattern(arg); found != nil {
+				return found
+			}
+		}
+	case *ir.ArrayPattern:
+		for _, elem := range p.Elements {
+			if found := firstMapLikeGetPattern(elem); found != nil {
+				return found
+			}
+		}
+	case *ir.BitPattern:
+		return firstMapLikeGetPattern(p.Value)
+	case *ir.TuplePattern:
+		for _, elem := range p.Elements {
+			if found := firstMapLikeGetPattern(elem); found != nil {
+				return found
+			}
+		}
+	case *ir.ObjectPattern:
+		for _, field := range p.Fields {
+			if found := firstMapLikeGetPattern(field.Pattern); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
 func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
-	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern:
+	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AsPattern:
 		return true
 	case *ir.OrPattern:
 		for _, alternative := range p.Alternatives {
@@ -738,36 +904,173 @@ func (g *generator) patternBinding(subject string, pattern ir.Pattern) string {
 func (g *generator) appendPatternBindings(parts *[]string, subject string, pattern ir.Pattern) {
 	switch p := pattern.(type) {
 	case *ir.BindingPattern:
+		if p.Constant {
+			return
+		}
 		*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.Name), subject))
 	case *ir.TuplePattern:
 		for idx, elem := range p.Elements {
 			g.appendPatternBindings(parts, fmt.Sprintf("%s[%d]", subject, idx), elem)
 		}
-	case *ir.OrPattern:
-	case *ir.ConstructorPattern:
-		if p.Binding == "" {
-			return
+	case *ir.ArrayPattern:
+		for idx, elem := range p.Elements {
+			if bit, ok := elem.(*ir.BitPattern); ok {
+				g.appendPatternBindings(parts, g.bitPatternValueExpr(subject, p.SubjectType, bitPatternOffset(p, idx), bit), bit.Value)
+				continue
+			}
+			if _, ok := elem.(*ir.SequenceSpreadPattern); ok {
+				continue
+			}
+			g.appendPatternBindings(parts, tsSequenceIndex(subject, p.SubjectType, g.arrayPatternElementIndex(subject, p, idx)), elem)
 		}
-		switch p.Name {
-		case "Ok":
-			*parts = append(*parts, fmt.Sprintf("const %s = %s.value;", mangleIdent(p.Binding), subject))
-		case "Err":
-			*parts = append(*parts, fmt.Sprintf("const %s = %s.error;", mangleIdent(p.Binding), subject))
+		if p.RestBinding != "" {
+			if irArrayPatternHasBits(p) {
+				start := bitPatternRequiredBits(p) / 8
+				*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.RestBinding), tsSequenceSlice(subject, p.SubjectType, start, 0)))
+			} else {
+				start := g.arrayPatternPrefixWidth(p, p.RestIndex)
+				end := tsSubtractExpr(tsSequenceLength(subject, p.SubjectType), g.arrayPatternSuffixWidth(p, p.RestIndex))
+				*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.RestBinding), tsSequenceSliceExpr(subject, p.SubjectType, start, end)))
+			}
+		}
+	case *ir.BitPattern:
+		g.appendPatternBindings(parts, subject, p.Value)
+	case *ir.AsPattern:
+		g.appendPatternBindings(parts, subject, p.Pattern)
+		*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.Name), subject))
+	case *ir.OrPattern:
+		if len(p.Alternatives) > 0 {
+			g.appendPatternBindings(parts, subject, p.Alternatives[0])
+		}
+	case *ir.ConstructorPattern:
+		for idx, arg := range p.Args {
+			payload := g.constructorPayload(subject, p, idx)
+			if payload == "" {
+				continue
+			}
+			g.appendPatternBindings(parts, payload, arg)
 		}
 	case *ir.MapPattern:
 		for _, entry := range p.Entries {
-			if entry.Optional {
-				continue
+			value := fmt.Sprintf("%s.get(%s)!", subject, g.expr(entry.Key))
+			if p.Access == "get" {
+				value = g.tsMapLikeGet(subject, p.SubjectType, g.expr(entry.Key))
+			} else if p.Access == "object" || p.SubjectType == checker.Object {
+				if key, ok := entry.Key.(*ir.StringLiteral); ok {
+					value = fmt.Sprintf("(%s as any)[%q]", subject, key.Value)
+				}
+			} else if entry.Optional {
+				value = fmt.Sprintf("(%s.has(%s) ? %s.get(%s)! : null)", subject, g.expr(entry.Key), subject, g.expr(entry.Key))
 			}
-			g.appendPatternBindings(parts, fmt.Sprintf("%s.get(%s)!", subject, g.expr(entry.Key)), entry.Pattern)
+			g.appendPatternBindings(parts, value, entry.Pattern)
 		}
 	case *ir.ObjectPattern:
 		for _, field := range p.Fields {
 			if field.Optional && !field.Exists {
 				continue
 			}
-			g.appendPatternBindings(parts, tsPropertyAccess(subject, field.Name), field.Pattern)
+			value := tsPropertyAccess(subject, field.Name)
+			if p.SubjectType == checker.Object || p.SubjectType == checker.Unknown {
+				value = fmt.Sprintf("(%s as any)[%q]", subject, field.Name)
+			}
+			g.appendPatternBindings(parts, value, field.Pattern)
 		}
+	}
+}
+
+func patternIndex(idx int, pattern *ir.ArrayPattern) string {
+	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+		return fmt.Sprintf("%d", idx)
+	}
+	tail := len(pattern.Elements) - idx
+	return fmt.Sprintf("%s - %d", tsSequenceLength("_", pattern.SubjectType), tail)
+}
+
+func (g *generator) arrayPatternElementIndex(subject string, pattern *ir.ArrayPattern, idx int) string {
+	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+		return g.arrayPatternPrefixWidth(pattern, idx)
+	}
+	return tsSubtractExpr(tsSequenceLength(subject, pattern.SubjectType), g.arrayPatternSuffixWidth(pattern, idx))
+}
+
+func (g *generator) arrayPatternRequiredWidth(pattern *ir.ArrayPattern) string {
+	return g.arrayPatternSum(pattern, 0, len(pattern.Elements))
+}
+
+func (g *generator) arrayPatternPrefixWidth(pattern *ir.ArrayPattern, end int) string {
+	return g.arrayPatternSum(pattern, 0, end)
+}
+
+func (g *generator) arrayPatternSuffixWidth(pattern *ir.ArrayPattern, start int) string {
+	return g.arrayPatternSum(pattern, start, len(pattern.Elements))
+}
+
+func (g *generator) arrayPatternSum(pattern *ir.ArrayPattern, start int, end int) string {
+	constants := 0
+	terms := []string{}
+	for idx := start; idx < end; idx++ {
+		elem := pattern.Elements[idx]
+		if spread, ok := elem.(*ir.SequenceSpreadPattern); ok {
+			terms = append(terms, tsSequenceLength(g.expr(spread.Value), spread.Type))
+			continue
+		}
+		constants++
+	}
+	if constants > 0 || len(terms) == 0 {
+		terms = append([]string{fmt.Sprintf("%d", constants)}, terms...)
+	}
+	return strings.Join(terms, " + ")
+}
+
+func tsSequenceLength(subject string, typ checker.Type) string {
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("Array.from(%s).length", subject)
+	case checker.Bytes:
+		return subject + ".byteLength"
+	default:
+		return subject + ".length"
+	}
+}
+
+func tsSubtractExpr(left string, right string) string {
+	if right == "0" {
+		return left
+	}
+	if strings.ContainsAny(right, "+-*/ ") {
+		return fmt.Sprintf("%s - (%s)", left, right)
+	}
+	return fmt.Sprintf("%s - %s", left, right)
+}
+
+func tsSequenceIndex(subject string, typ checker.Type, index string) string {
+	index = strings.ReplaceAll(index, tsSequenceLength("_", typ), tsSequenceLength(subject, typ))
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("(Array.from(%s)[%s] ?? \"\")", subject, index)
+	case checker.Bytes:
+		return fmt.Sprintf("%s.getUint8(%s)", subject, index)
+	default:
+		return fmt.Sprintf("%s[%s]", subject, index)
+	}
+}
+
+func tsSequenceSlice(subject string, typ checker.Type, restIndex int, tailCount int) string {
+	end := tsSequenceLength(subject, typ)
+	if tailCount > 0 {
+		end = fmt.Sprintf("%s - %d", end, tailCount)
+	}
+	return tsSequenceSliceExpr(subject, typ, fmt.Sprintf("%d", restIndex), end)
+}
+
+func tsSequenceSliceExpr(subject string, typ checker.Type, start string, end string) string {
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("Array.from(%s).slice(%s, %s).join(\"\")", subject, start, end)
+	case checker.Bytes:
+		return fmt.Sprintf("new DataView(%s.buffer.slice(%s.byteOffset + %s, %s.byteOffset + %s))", subject, subject, start, subject, end)
+	default:
+		return fmt.Sprintf("%s.slice(%s, %s)", subject, start, end)
 	}
 }
 

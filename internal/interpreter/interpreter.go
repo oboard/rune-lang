@@ -67,6 +67,12 @@ func (i *Interpreter) Load(file *ir.File) {
 	for _, fn := range file.Functions {
 		i.functions[fn.Name] = fn
 	}
+	for _, constant := range file.Constants {
+		value, err := i.eval(constant.Value, i.globals)
+		if err == nil {
+			i.globals.Define(constant.Name, value)
+		}
+	}
 }
 
 func (i *Interpreter) RunMain() error {

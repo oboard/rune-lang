@@ -225,8 +225,12 @@ func (r *compileTimeRewriter) pattern(pattern ast.Pattern) {
 	case *ast.ComparePattern:
 		p.Value = r.expr(p.Value)
 	case *ast.RangePattern:
-		p.Start = r.expr(p.Start)
-		p.End = r.expr(p.End)
+		if p.Start != nil {
+			p.Start = r.expr(p.Start)
+		}
+		if p.End != nil {
+			p.End = r.expr(p.End)
+		}
 	case *ast.OrPattern:
 		for _, elem := range p.Alternatives {
 			r.pattern(elem)
@@ -234,6 +238,16 @@ func (r *compileTimeRewriter) pattern(pattern ast.Pattern) {
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {
 			r.pattern(elem)
+		}
+	case *ast.ArrayPattern:
+		for _, elem := range p.Elements {
+			r.pattern(elem)
+		}
+	case *ast.AsPattern:
+		r.pattern(p.Pattern)
+	case *ast.ConstructorPattern:
+		for _, arg := range p.Args {
+			r.pattern(arg)
 		}
 	case *ast.MapPattern:
 		for idx := range p.Entries {

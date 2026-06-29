@@ -110,7 +110,7 @@
       out
     },
     lc004MedianOfSortedArraysInt(left: Array[Int], right: Array[Int]) -> Int => {
-      merged := .sortInts([...left, ...right])
+      merged := .sortInts([..left, ..right])
       merged[merged.length() / 2]
     }
   }
@@ -296,7 +296,7 @@
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc021MergeTwoSortedArrays(left: Array[Int], right: Array[Int]) -> Array[Int] => .sortInts([...left, ...right])
+    lc021MergeTwoSortedArrays(left: Array[Int], right: Array[Int]) -> Array[Int] => .sortInts([..left, ..right])
   }
 
   @assert.eq(solution.lc021MergeTwoSortedArrays([1, 2, 4], [1, 3, 4])[5], 4)
@@ -353,7 +353,7 @@
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc023MergeKSortedArrays(first: Array[Int], second: Array[Int], third: Array[Int]) -> Array[Int] => .sortInts([...first, ...second, ...third])
+    lc023MergeKSortedArrays(first: Array[Int], second: Array[Int], third: Array[Int]) -> Array[Int] => .sortInts([..first, ..second, ..third])
   }
 
   @assert.eq(solution.lc023MergeKSortedArrays([1, 4], [1, 3], [2, 6])[5], 6)

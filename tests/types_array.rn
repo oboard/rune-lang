@@ -16,7 +16,7 @@
 
 ? "array spread literal" {
   middle := [2, 3]
-  values := [1, ...middle, 4]
+  values := [1, ..middle, 4]
   @assert.eq(values.length(), 4)
   @assert.eq(values[0], 1)
   @assert.eq(values[1], 2)

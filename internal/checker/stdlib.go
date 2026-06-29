@@ -45,6 +45,9 @@ func (c *checker) inferStdlibCall(moduleName string, sel *ast.SelectorExpr, call
 			c.errorf(sel.Pos, "@json.parse target type cannot be inferred; add ': Type' to the binding")
 			return Unknown
 		}
+		if target == Object {
+			return target
+		}
 		if !c.typeImplementsTrait(target, "FromJson") {
 			c.errorf(sel.Pos, "@json.parse target type %s does not implement &FromJson", target)
 			return Unknown

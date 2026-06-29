@@ -23,9 +23,11 @@ func (p *WildcardPattern) Position() lexer.Position {
 }
 
 type BindingPattern struct {
-	Name string
-	Type string
-	Pos  lexer.Position
+	Name     string
+	Type     string
+	Constant bool
+	LinkName string
+	Pos      lexer.Position
 }
 
 func (*BindingPattern) patternNode() {}
@@ -55,9 +57,10 @@ func (p *ComparePattern) Position() lexer.Position {
 }
 
 type RangePattern struct {
-	Start Expr
-	End   Expr
-	Pos   lexer.Position
+	Start     Expr
+	End       Expr
+	Inclusive bool
+	Pos       lexer.Position
 }
 
 func (*RangePattern) patternNode() {}
@@ -85,11 +88,67 @@ func (p *TuplePattern) Position() lexer.Position {
 	return p.Pos
 }
 
+type ArrayPattern struct {
+	Elements    []Pattern
+	RestIndex   int
+	RestBinding string
+	RestType    string
+	RestPos     lexer.Position
+	SubjectType string
+	Pos         lexer.Position
+}
+
+func (*ArrayPattern) patternNode() {}
+func (p *ArrayPattern) Position() lexer.Position {
+	return p.Pos
+}
+
+type SequenceSpreadPattern struct {
+	Value Expr
+	Type  string
+	Pos   lexer.Position
+}
+
+func (*SequenceSpreadPattern) patternNode() {}
+func (p *SequenceSpreadPattern) Position() lexer.Position {
+	return p.Pos
+}
+
+type BitPattern struct {
+	Width  int
+	Signed bool
+	Endian string
+	Value  Pattern
+	Pos    lexer.Position
+}
+
+func (*BitPattern) patternNode() {}
+func (p *BitPattern) Position() lexer.Position {
+	return p.Pos
+}
+
+type AsPattern struct {
+	Pattern Pattern
+	Name    string
+	Type    string
+	NamePos lexer.Position
+	Pos     lexer.Position
+}
+
+func (*AsPattern) patternNode() {}
+func (p *AsPattern) Position() lexer.Position {
+	return p.Pos
+}
+
 type ConstructorPattern struct {
-	Name       string
-	Binding    string
-	BindingPos lexer.Position
-	Pos        lexer.Position
+	Name        string
+	Args        []Pattern
+	Rest        bool
+	RestPos     lexer.Position
+	Binding     string
+	BindingPos  lexer.Position
+	SubjectType string
+	Pos         lexer.Position
 }
 
 func (*ConstructorPattern) patternNode() {}
@@ -105,9 +164,12 @@ type MapPatternEntry struct {
 }
 
 type MapPattern struct {
-	Entries []MapPatternEntry
-	Rest    bool
-	Pos     lexer.Position
+	Entries     []MapPatternEntry
+	Rest        bool
+	SubjectType string
+	ValueType   string
+	Access      string
+	Pos         lexer.Position
 }
 
 func (*MapPattern) patternNode() {}
@@ -125,9 +187,10 @@ type ObjectPatternField struct {
 }
 
 type ObjectPattern struct {
-	Fields []ObjectPatternField
-	Rest   bool
-	Pos    lexer.Position
+	Fields      []ObjectPatternField
+	Rest        bool
+	SubjectType string
+	Pos         lexer.Position
 }
 
 func (*ObjectPattern) patternNode() {}

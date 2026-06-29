@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
@@ -276,6 +277,32 @@ func (i *Interpreter) callMethod(receiver *Struct, name string, args []ir.Expr, 
 	return i.evalFunctionBody(method.Body, method.Return, local)
 }
 
+func (i *Interpreter) callStructMethodValues(receiver *Struct, name string, values []Value) (Value, error) {
+	typ := i.types[receiver.TypeName]
+	if typ == nil {
+		return nil, fmt.Errorf("unknown type %q", receiver.TypeName)
+	}
+	var method *ir.Function
+	for _, candidate := range typ.Methods {
+		if candidate.Name == name && !candidate.Static {
+			method = candidate
+			break
+		}
+	}
+	if method == nil {
+		return nil, fmt.Errorf("type %s has no method %q", receiver.TypeName, name)
+	}
+	if len(values) != len(method.Params) {
+		return nil, fmt.Errorf("method %s.%s expects %d args, got %d", receiver.TypeName, name, len(method.Params), len(values))
+	}
+	local := NewEnv(i.globals)
+	local.Define("this", receiver)
+	for idx, param := range method.Params {
+		local.Define(param.Name, values[idx])
+	}
+	return i.evalFunctionBody(method.Body, method.Return, local)
+}
+
 func (i *Interpreter) callStaticMethod(typ *ir.StructType, name string, args []ir.Expr, env *Env) (Value, error) {
 	var method *ir.Function
 	for _, candidate := range typ.Methods {
@@ -305,7 +332,7 @@ func (i *Interpreter) callStdlibStructMethod(receiver *Struct, name string, args
 	if i.file.Stdlib == nil {
 		return nil, false, nil
 	}
-	fn, ok := i.file.Stdlib.ReceiverFunction("iter", receiver.TypeName, name)
+	fn, ok := i.file.Stdlib.ReceiverFunction("iter", structBaseTypeName(receiver.TypeName), name)
 	if !ok || fn.Body == nil {
 		return nil, false, nil
 	}
@@ -323,6 +350,13 @@ func (i *Interpreter) callStdlibStructMethod(receiver *Struct, name string, args
 	}
 	value, err := i.eval(ir.LowerExprExpected(fn.Body, nil, checker.Type(fn.Return)), local)
 	return value, true, err
+}
+
+func structBaseTypeName(name string) string {
+	if idx := strings.Index(name, "["); idx >= 0 {
+		return name[:idx]
+	}
+	return name
 }
 
 func (i *Interpreter) callClosure(fn *Closure, args []Value) (Value, error) {

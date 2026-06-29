@@ -236,7 +236,7 @@ func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
 	p.consume(lexer.LBrace, "expected '{' after type name")
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
-		if p.match(lexer.DotDotDot) {
+		if p.match(lexer.DotDot) {
 			spread := p.previous()
 			value := p.parseExpression(1)
 			missingComma := p.consumeFieldSeparator(lexer.RBrace)
@@ -660,6 +660,18 @@ func (p *Parser) parseAnonymousObjectLiteral() ast.Expr {
 	p.skipNewlines()
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		private := p.parseObjectPrivateModifier()
+		if p.match(lexer.DotDot) {
+			spread := p.previous()
+			value := p.parseExpression(1)
+			missingComma := p.consumeFieldSeparator(lexer.RBrace)
+			lit.Fields = append(lit.Fields, ast.FieldValue{
+				Spread:       true,
+				MissingComma: missingComma,
+				Value:        value,
+				Pos:          spread.Pos,
+			})
+			continue
+		}
 		if p.looksLikeFunctionDecl() {
 			field := p.parseAnonymousObjectMethod(private)
 			field.MissingComma = p.consumeFieldSeparator(lexer.RBrace)
@@ -714,7 +726,7 @@ func (p *Parser) parseArrayLiteral() ast.Expr {
 	p.skipNewlines()
 	if !p.check(lexer.RBracket) {
 		for {
-			if p.match(lexer.DotDotDot) {
+			if p.match(lexer.DotDot) {
 				lit.Elements = append(lit.Elements, &ast.SpreadExpr{Expr: p.parseExpression(1), Pos: p.previous().Pos})
 			} else {
 				lit.Elements = append(lit.Elements, p.parseExpression(1))

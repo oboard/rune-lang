@@ -108,7 +108,7 @@ func TestParseStructLiteralSpreadField(t *testing.T) {
 }
 
 main(existing: User) => User {
-  ...existing,
+  ..existing,
   age: 42,
 }
 `)
@@ -532,6 +532,38 @@ func TestConstructorPatternMatch(t *testing.T) {
 	}
 }
 
+func TestConstructorPatternWithNestedArgsAndRest(t *testing.T) {
+	file, errs := Parse(`Expr: {
+  Lit(value: Int)
+  Add(left: Expr, right: Expr)
+}
+
+eval(expr: Expr) -> Int => expr {
+  Add(Lit(left), Lit(0)) => left
+  Add(Lit(_), ..) => 1
+  _ => 0
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 3 {
+		t.Fatalf("body = %#v, want constructor pattern match", file.Functions[0].Body)
+	}
+	first, ok := match.Branches[0].Pattern.(*ast.ConstructorPattern)
+	if !ok || first.Name != "Add" || first.Rest || len(first.Args) != 2 {
+		t.Fatalf("first pattern = %#v, want Add with two args", match.Branches[0].Pattern)
+	}
+	if nested, ok := first.Args[0].(*ast.ConstructorPattern); !ok || nested.Name != "Lit" || len(nested.Args) != 1 {
+		t.Fatalf("first arg = %#v, want Lit(left)", first.Args[0])
+	}
+	second, ok := match.Branches[1].Pattern.(*ast.ConstructorPattern)
+	if !ok || second.Name != "Add" || !second.Rest || len(second.Args) != 1 {
+		t.Fatalf("second pattern = %#v, want Add(Lit(_), ..)", match.Branches[1].Pattern)
+	}
+}
+
 func TestRangePatternMatch(t *testing.T) {
 	file, errs := Parse(`isDigit(ch: Char) -> Bool => ch {
   '0'..='9' => true
@@ -616,6 +648,91 @@ mapScore(values) => values {
 	}
 	if binding, ok := mapPattern.Entries[0].Pattern.(*ast.BindingPattern); !ok || binding.Name != "value" {
 		t.Fatalf("map value pattern = %#v, want value binding", mapPattern.Entries[0].Pattern)
+	}
+}
+
+func TestMapPatternConstIdentifierKey(t *testing.T) {
+	file, errs := Parse(`const KeyA = "a"
+
+mapScore(values) => values {
+  { KeyA: value, .. } => value
+  _ => 0
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("map body = %#v, want map pattern match", file.Functions[0].Body)
+	}
+	mapPattern, ok := match.Branches[0].Pattern.(*ast.MapPattern)
+	if !ok || !mapPattern.Rest || len(mapPattern.Entries) != 1 {
+		t.Fatalf("map pattern = %#v, want const-key map pattern", match.Branches[0].Pattern)
+	}
+	key, ok := mapPattern.Entries[0].Key.(*ast.Identifier)
+	if !ok || key.Name != "KeyA" {
+		t.Fatalf("map key = %#v, want KeyA identifier", mapPattern.Entries[0].Key)
+	}
+}
+
+func TestMoonBitStyleArrayAsAndOpenRangePatterns(t *testing.T) {
+	file, errs := Parse(`classify(values: Array[Int]) -> Int => values {
+  [0, ..rest, last] as whole => rest.length() + last + whole.length()
+  _..<0 => -1
+  10..<_ => 1
+  _ => 0
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 4 {
+		t.Fatalf("body = %#v, want match with four branches", file.Functions[0].Body)
+	}
+	asPattern, ok := match.Branches[0].Pattern.(*ast.AsPattern)
+	if !ok || asPattern.Name != "whole" {
+		t.Fatalf("first pattern = %#v, want as pattern", match.Branches[0].Pattern)
+	}
+	arrayPattern, ok := asPattern.Pattern.(*ast.ArrayPattern)
+	if !ok || arrayPattern.RestIndex != 1 || arrayPattern.RestBinding != "rest" || len(arrayPattern.Elements) != 2 {
+		t.Fatalf("array pattern = %#v, want [0, ..rest, last]", asPattern.Pattern)
+	}
+	openStart, ok := match.Branches[1].Pattern.(*ast.RangePattern)
+	if !ok || openStart.Start != nil || openStart.End == nil || openStart.Inclusive {
+		t.Fatalf("second pattern = %#v, want _..<0", match.Branches[1].Pattern)
+	}
+	openEnd, ok := match.Branches[2].Pattern.(*ast.RangePattern)
+	if !ok || openEnd.Start == nil || openEnd.End != nil || openEnd.Inclusive {
+		t.Fatalf("third pattern = %#v, want 10..<_", match.Branches[2].Pattern)
+	}
+}
+
+func TestArrayPatternStringSpread(t *testing.T) {
+	file, errs := Parse(`hasYes(text: String) -> Bool => text {
+  [.. "yes", ..] => true
+  _ => false
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("body = %#v, want match", file.Functions[0].Body)
+	}
+	pattern, ok := match.Branches[0].Pattern.(*ast.ArrayPattern)
+	if !ok || pattern.RestIndex != 1 || len(pattern.Elements) != 1 {
+		t.Fatalf("pattern = %#v, want string spread then rest", match.Branches[0].Pattern)
+	}
+	spread, ok := pattern.Elements[0].(*ast.SequenceSpreadPattern)
+	if !ok {
+		t.Fatalf("element = %#v, want sequence spread", pattern.Elements[0])
+	}
+	lit, ok := spread.Value.(*ast.StringLiteral)
+	if !ok || lit.Value != "yes" {
+		t.Fatalf("spread value = %#v, want \"yes\"", spread.Value)
 	}
 }
 
@@ -1091,7 +1208,7 @@ func TestParseSignalPrefixSyntax(t *testing.T) {
 
 func TestParseArraySpread(t *testing.T) {
 	file, errs := Parse(`main() => {
-    next := [...items, "New Item"]
+    next := [..items, "New Item"]
 }
 `)
 	if len(errs) > 0 {
@@ -1117,7 +1234,7 @@ func TestParseArraySpread(t *testing.T) {
 func TestParseAssignmentExpression(t *testing.T) {
 	file, errs := Parse(`render() => {
     $list := ["Item 1"]
-    <button @click={$list = [...$list, "New Item"]}>Add Item</button>
+    <button @click={$list = [..$list, "New Item"]}>Add Item</button>
 }
 `)
 	if len(errs) > 0 {

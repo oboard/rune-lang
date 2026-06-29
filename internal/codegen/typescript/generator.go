@@ -109,6 +109,15 @@ func GenerateIR(file *ir.File) (string, error) {
 	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
 		g.line("")
 	}
+	for i, constant := range file.Constants {
+		if i > 0 {
+			g.line("")
+		}
+		g.constDecl(constant)
+	}
+	if len(file.Constants) > 0 && (len(helpers) > 0 || len(file.Functions) > 0) {
+		g.line("")
+	}
 	for _, fn := range helpers {
 		if err := g.function(fn); err != nil {
 			return "", err

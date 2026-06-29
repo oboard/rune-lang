@@ -140,14 +140,11 @@
       "patterns": [
         {
           "name": "constant.character.rune",
-          "begin": "'",
-          "end": "'",
-          "patterns": [
-            {
-              "name": "constant.character.escape.rune",
-              "match": "\\\\."
-            }
-          ]
+          "match": "'(?:[^'\\\\\\r\\n]|\\\\(?:x[0-9A-Fa-f]{2}|u\\{[0-9A-Fa-f]+\\}|.))'"
+        },
+        {
+          "name": "punctuation.definition.character.unmatched.rune",
+          "match": "'"
         }
       ]
     },

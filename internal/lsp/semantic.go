@@ -9,7 +9,6 @@ import (
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/lexer"
-	"github.com/oboard/rune-lang/internal/parser"
 )
 
 func (s *server) semanticTokens(uri string) any {
@@ -140,7 +139,6 @@ func (s *server) semanticTokens(uri string) any {
 		}
 	})
 	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
-	tokens = append(tokens, compileTimeExpressionSemanticTokens(prog.File, prog.Source)...)
 	tokens = normalizeSemanticTokens(tokens)
 	return map[string]any{"data": encodeSemanticTokens(tokens)}
 }
@@ -160,64 +158,6 @@ func templateExpressionSemanticTokens(prog *compiler.Program, signals map[string
 		}
 	})
 	return tokens
-}
-
-func compileTimeExpressionSemanticTokens(_ *ast.File, src string) []semanticToken {
-	file, _ := parser.Parse(src)
-	var out []semanticToken
-	walkFileExprs(file, func(expr ast.Expr) {
-		marked, ok := expr.(*ast.CompileTimeExpr)
-		if !ok || marked.Expr == nil {
-			return
-		}
-		start := marked.Expr.Position()
-		end := marked.MarkPos
-		if start.Line <= 0 || end.Line != start.Line || end.Column <= start.Column {
-			return
-		}
-		length := utf16LengthBetweenColumns(src, start.Line, start.Column, end.Column)
-		if length <= 0 {
-			length = max(end.Column-start.Column, 1)
-		}
-		out = append(out, semanticToken{
-			line:      max(start.Line-1, 0),
-			character: max(start.Column-1, 0),
-			length:    length,
-			tokenType: compileTimeSemanticTokenType(marked.Expr),
-			modifiers: semanticTokenModifierCompileTime,
-		})
-	})
-	return out
-}
-
-func compileTimeSemanticTokenType(expr ast.Expr) int {
-	switch e := expr.(type) {
-	case *ast.CallExpr:
-		return compileTimeSemanticTokenType(e.Callee)
-	case *ast.SelectorExpr:
-		return semanticTokenTypeEnumMember
-	case *ast.Identifier:
-		return semanticTokenTypeFunction
-	default:
-		return semanticTokenTypeVariable
-	}
-}
-
-func utf16LengthBetweenColumns(src string, line int, startColumn int, endColumn int) int {
-	if line <= 0 || startColumn <= 0 || endColumn <= startColumn {
-		return 0
-	}
-	lines := strings.Split(src, "\n")
-	if line > len(lines) {
-		return 0
-	}
-	runes := []rune(lines[line-1])
-	start := min(startColumn-1, len(runes))
-	end := min(endColumn-1, len(runes))
-	if end < start {
-		return 0
-	}
-	return semanticTokenLength(string(runes[start:end]))
 }
 
 func templateCallSemanticToken(prog *compiler.Program, call *ast.CallExpr) (semanticToken, bool) {

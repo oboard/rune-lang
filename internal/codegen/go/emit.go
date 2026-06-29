@@ -19,6 +19,26 @@ func (g *generator) structType(typ *ir.StructType) {
 }
 
 func (g *generator) enumType(enum *ir.EnumType) {
+	if enumHasPayload(enum) {
+		g.linef("type %s struct {", mangleIdent(enum.Name))
+		g.indent++
+		g.line("__tag int")
+		g.line("__payload []any")
+		g.indent--
+		g.line("}")
+		if len(enum.Members) == 0 {
+			return
+		}
+		g.line("")
+		g.line("const (")
+		g.indent++
+		for i, member := range enum.Members {
+			g.linef("%s = %d", mangleEnumMember(enum.Name, member.Name), i)
+		}
+		g.indent--
+		g.line(")")
+		return
+	}
 	g.linef("type %s int", mangleIdent(enum.Name))
 	if len(enum.Members) == 0 {
 		return
@@ -35,6 +55,10 @@ func (g *generator) enumType(enum *ir.EnumType) {
 	}
 	g.indent--
 	g.line(")")
+}
+
+func (g *generator) constDecl(constant *ir.ConstDecl) {
+	g.linef("var %s %s = %s", mangleIdent(constant.Name), goType(constant.Type), g.expr(constant.Value))
 }
 
 func (g *generator) function(fn *ir.Function) error {
@@ -389,6 +413,11 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 		return fmt.Errorf("%s: pattern blocks currently require exactly one parameter", block.Pos)
 	}
 	subject := mangleIdent(fn.Params[0].Name)
+	restoreMapGetters := g.pushMapPatternGetters(subject, block.Branches)
+	defer restoreMapGetters()
+	for _, line := range g.mapPatternGetterPrelude(subject, block.Branches) {
+		g.line(line)
+	}
 	g.line("switch {")
 	g.indent++
 	hasDefault := false
@@ -423,13 +452,30 @@ func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret ch
 func (g *generator) patternCondition(subject string, pattern ir.Pattern) string {
 	switch p := pattern.(type) {
 	case *ir.BindingPattern:
+		if p.Constant {
+			return fmt.Sprintf("%s == %s", subject, mangleIdent(p.Name))
+		}
 		return "true"
 	case *ir.LiteralPattern:
 		return fmt.Sprintf("%s == %s", subject, g.expr(p.Value))
 	case *ir.ComparePattern:
 		return fmt.Sprintf("%s %s %s", subject, p.Op, g.expr(p.Value))
 	case *ir.RangePattern:
-		return fmt.Sprintf("(%s >= %s && %s <= %s)", subject, g.expr(p.Start), subject, g.expr(p.End))
+		parts := []string{}
+		if p.Start != nil {
+			parts = append(parts, fmt.Sprintf("%s >= %s", subject, g.expr(p.Start)))
+		}
+		if p.End != nil {
+			op := "<"
+			if p.Inclusive {
+				op = "<="
+			}
+			parts = append(parts, fmt.Sprintf("%s %s %s", subject, op, g.expr(p.End)))
+		}
+		if len(parts) == 0 {
+			return "true"
+		}
+		return "(" + strings.Join(parts, " && ") + ")"
 	case *ir.OrPattern:
 		parts := make([]string, 0, len(p.Alternatives))
 		for _, alternative := range p.Alternatives {
@@ -442,15 +488,36 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 			parts = append(parts, g.patternCondition(fmt.Sprintf("%s.F%d", subject, i), elem))
 		}
 		return strings.Join(parts, " && ")
+	case *ir.ArrayPattern:
+		return g.arrayPatternCondition(subject, p)
+	case *ir.BitPattern:
+		return g.patternCondition(g.bitPatternValueExpr(subject, checker.Unknown, 0, p), p.Value)
+	case *ir.AsPattern:
+		return g.patternCondition(subject, p.Pattern)
 	case *ir.ConstructorPattern:
+		if condition, ok := g.jsonConstructorPatternCondition(subject, p); ok {
+			return condition
+		}
+		if condition, ok := g.enumConstructorPatternCondition(subject, p); ok {
+			return condition
+		}
+		parts := []string{}
 		switch p.Name {
 		case "Ok":
-			return subject + ".ok"
+			parts = append(parts, subject+".ok")
 		case "Err":
-			return "!" + subject + ".ok"
+			parts = append(parts, "!"+subject+".ok")
 		default:
 			return "false"
 		}
+		for idx, arg := range p.Args {
+			payload := g.constructorPayload(subject, p, idx)
+			if payload == "" {
+				continue
+			}
+			parts = append(parts, g.patternCondition(payload, arg))
+		}
+		return strings.Join(parts, " && ")
 	case *ir.MapPattern:
 		return g.mapPatternCondition(subject, p)
 	case *ir.ObjectPattern:
@@ -460,7 +527,239 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	}
 }
 
+func (g *generator) enumConstructorPatternCondition(subject string, pattern *ir.ConstructorPattern) (string, bool) {
+	enum, member, ok := g.enumMemberForConstructor(pattern.SubjectType, pattern.Name)
+	if !ok || !enumHasPayload(enum) {
+		return "", false
+	}
+	parts := []string{fmt.Sprintf("%s.__tag == %s", subject, mangleEnumMember(enum.Name, member.Name))}
+	if pattern.Rest {
+		parts = append(parts, fmt.Sprintf("len(%s.__payload) >= %d", subject, len(pattern.Args)))
+	} else {
+		parts = append(parts, fmt.Sprintf("len(%s.__payload) == %d", subject, len(pattern.Args)))
+	}
+	for idx, arg := range pattern.Args {
+		parts = append(parts, g.patternCondition(g.constructorPayload(subject, pattern, idx), arg))
+	}
+	return strings.Join(parts, " && "), true
+}
+
+func (g *generator) constructorPayload(subject string, pattern *ir.ConstructorPattern, idx int) string {
+	if enum, member, ok := g.enumMemberForConstructor(pattern.SubjectType, pattern.Name); ok && enumHasPayload(enum) {
+		if idx < 0 || idx >= len(member.Params) {
+			return ""
+		}
+		return fmt.Sprintf("%s.__payload[%d].(%s)", subject, idx, goType(member.Params[idx].Type))
+	}
+	if idx != 0 {
+		return ""
+	}
+	switch pattern.Name {
+	case "Ok":
+		return subject + ".value"
+	case "Err":
+		return subject + ".err"
+	case "Array":
+		return subject + ".([]any)"
+	case "Object":
+		return subject + ".(map[string]any)"
+	case "String":
+		return subject + ".(string)"
+	case "Bool":
+		return subject + ".(bool)"
+	case "Number":
+		return subject
+	default:
+		return ""
+	}
+}
+
+func (g *generator) jsonConstructorPatternCondition(subject string, pattern *ir.ConstructorPattern) (string, bool) {
+	kind := ""
+	switch pattern.Name {
+	case "Array":
+		kind = "[]any"
+	case "Object":
+		kind = "map[string]any"
+	case "String":
+		kind = "string"
+	case "Bool":
+		kind = "bool"
+	case "Number":
+		if len(pattern.Args) == 0 {
+			return fmt.Sprintf("func() bool { switch %s.(type) { case int, int8, int16, int64, uint, uint8, uint16, uint64, float32, float64: return true; default: return false } }()", subject), true
+		}
+		payload := g.nextTemp("json")
+		condition := g.patternCondition(payload, pattern.Args[0])
+		if condition == "true" {
+			return fmt.Sprintf("func() bool { switch %s.(type) { case int, int8, int16, int64, uint, uint8, uint16, uint64, float32, float64: return true; default: return false } }()", subject), true
+		}
+		return fmt.Sprintf("func() bool { switch %s := %s.(type) { case int, int8, int16, int64, uint, uint8, uint16, uint64, float32, float64: return %s; default: return false } }()", payload, subject, condition), true
+	case "Null":
+		return subject + " == nil", true
+	default:
+		return "", false
+	}
+	if len(pattern.Args) == 0 {
+		return fmt.Sprintf("func() bool { _, ok := %s.(%s); return ok }()", subject, kind), true
+	}
+	payload := g.nextTemp("json")
+	condition := g.patternCondition(payload, pattern.Args[0])
+	if condition == "true" {
+		return fmt.Sprintf("func() bool { _, ok := %s.(%s); return ok }()", subject, kind), true
+	}
+	return fmt.Sprintf("func() bool { %s, ok := %s.(%s); if !ok { return false }; return %s }()", payload, subject, kind, condition), true
+}
+
+func (g *generator) arrayPatternCondition(subject string, pattern *ir.ArrayPattern) string {
+	if irArrayPatternHasBits(pattern) {
+		return g.bitArrayPatternCondition(subject, pattern)
+	}
+	length := goSequenceLength(subject, pattern.SubjectType)
+	required := g.arrayPatternRequiredWidth(pattern)
+	parts := []string{}
+	if pattern.RestIndex >= 0 {
+		parts = append(parts, fmt.Sprintf("%s >= %s", length, required))
+	} else {
+		parts = append(parts, fmt.Sprintf("%s == %s", length, required))
+	}
+	for idx, elem := range pattern.Elements {
+		if spread, ok := elem.(*ir.SequenceSpreadPattern); ok {
+			parts = append(parts, g.sequenceSpreadPatternCondition(subject, pattern.SubjectType, g.arrayPatternElementIndex(subject, pattern, idx), spread))
+			continue
+		}
+		parts = append(parts, g.patternCondition(goSequenceIndex(subject, pattern.SubjectType, g.arrayPatternElementIndex(subject, pattern, idx)), elem))
+	}
+	return strings.Join(parts, " && ")
+}
+
+func (g *generator) sequenceSpreadPatternCondition(subject string, subjectType checker.Type, start string, pattern *ir.SequenceSpreadPattern) string {
+	spread := g.nextTemp("spread")
+	idx := g.nextTemp("idx")
+	return fmt.Sprintf("func() bool { %s := %s; for %s := 0; %s < %s; %s++ { if %s != %s { return false } }; return true }()",
+		spread,
+		g.expr(pattern.Value),
+		idx,
+		idx,
+		goSequenceLength(spread, pattern.Type),
+		idx,
+		goSequenceIndex(subject, subjectType, fmt.Sprintf("(%s + %s)", start, idx)),
+		goSequenceIndex(spread, pattern.Type, idx),
+	)
+}
+
+func irArrayPatternHasBits(pattern *ir.ArrayPattern) bool {
+	for _, elem := range pattern.Elements {
+		if _, ok := elem.(*ir.BitPattern); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) bitArrayPatternCondition(subject string, pattern *ir.ArrayPattern) string {
+	lengthBits := goSequenceLength(subject, pattern.SubjectType) + " * 8"
+	requiredBits := bitPatternRequiredBits(pattern)
+	parts := []string{}
+	if pattern.RestIndex >= 0 {
+		parts = append(parts, fmt.Sprintf("%s >= %d", lengthBits, requiredBits))
+	} else {
+		parts = append(parts, fmt.Sprintf("%s == %d", lengthBits, requiredBits))
+	}
+	for idx, elem := range pattern.Elements {
+		bit, ok := elem.(*ir.BitPattern)
+		if !ok {
+			parts = append(parts, "false")
+			continue
+		}
+		offset := bitPatternOffset(pattern, idx)
+		parts = append(parts, g.patternCondition(g.bitPatternValueExpr(subject, pattern.SubjectType, offset, bit), bit.Value))
+	}
+	return strings.Join(parts, " && ")
+}
+
+func bitPatternRequiredBits(pattern *ir.ArrayPattern) int {
+	total := 0
+	for idx, elem := range pattern.Elements {
+		if pattern.RestIndex >= 0 && idx >= pattern.RestIndex {
+			break
+		}
+		if bit, ok := elem.(*ir.BitPattern); ok {
+			total += bit.Width
+		}
+	}
+	return total
+}
+
+func bitPatternOffset(pattern *ir.ArrayPattern, idx int) int {
+	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+		offset := 0
+		for i := 0; i < idx; i++ {
+			if bit, ok := pattern.Elements[i].(*ir.BitPattern); ok {
+				offset += bit.Width
+			}
+		}
+		return offset
+	}
+	tail := 0
+	for i := idx; i < len(pattern.Elements); i++ {
+		if bit, ok := pattern.Elements[i].(*ir.BitPattern); ok {
+			tail += bit.Width
+		}
+	}
+	return -tail
+}
+
+func (g *generator) bitPatternValueExpr(subject string, typ checker.Type, offset int, pattern *ir.BitPattern) string {
+	ret := bitPatternGoType(pattern)
+	start := fmt.Sprintf("%d", offset)
+	if offset < 0 {
+		start = fmt.Sprintf("%s * 8 - %d", goSequenceLength(subject, typ), -offset)
+	}
+	value := "__out"
+	if pattern.Signed {
+		value = fmt.Sprintf("func(__value uint64) %s { if %d < 64 && (__value & (uint64(1) << uint(%d))) != 0 { __mask := ^uint64(0); __value |= __mask << uint(%d) }; return %s(__value) }(__out)", ret, pattern.Width, pattern.Width-1, pattern.Width, ret)
+	} else {
+		value = fmt.Sprintf("%s(__out)", ret)
+	}
+	if pattern.Endian == "le" {
+		byteExpr := g.bitPatternByteExpr(subject, typ, "__byteIndex")
+		return fmt.Sprintf("func() %s { var __out uint64; __start := (%s) / 8; for __i := 0; __i < %d; __i++ { __byteIndex := __start + __i; __out |= uint64(%s) << uint(8 * __i) }; return %s }()", ret, start, pattern.Width/8, byteExpr, value)
+	}
+	byteExpr := g.bitPatternByteExpr(subject, typ, "__bitIndex / 8")
+	step := "__out = (__out << 1) | __bit"
+	return fmt.Sprintf("func() %s { var __out uint64; for __i := 0; __i < %d; __i++ { __bitIndex := %s + __i; __bit := (uint64(%s) >> uint(7 - (__bitIndex %% 8))) & 1; %s }; return %s }()", ret, pattern.Width, start, byteExpr, step, value)
+}
+
+func (g *generator) bitPatternByteExpr(subject string, typ checker.Type, index string) string {
+	switch typ {
+	case checker.Bytes:
+		return fmt.Sprintf("%s.GetUInt8(%s)", subject, index)
+	default:
+		return fmt.Sprintf("%s[%s]", subject, index)
+	}
+}
+
+func bitPatternGoType(pattern *ir.BitPattern) string {
+	if pattern.Width > 32 {
+		if pattern.Signed {
+			return "int64"
+		}
+		return "uint64"
+	}
+	if pattern.Signed {
+		return "int"
+	}
+	return "uint"
+}
+
 func (g *generator) mapPatternCondition(subject string, pattern *ir.MapPattern) string {
+	if pattern.Access == "object" || pattern.SubjectType == checker.Object {
+		return g.objectMapPatternCondition(subject, pattern)
+	}
+	if pattern.Access == "get" {
+		return g.mapLikePatternCondition(subject, pattern)
+	}
 	parts := make([]string, 0, len(pattern.Entries))
 	for _, entry := range pattern.Entries {
 		key := g.expr(entry.Key)
@@ -472,7 +771,12 @@ func (g *generator) mapPatternCondition(subject string, pattern *ir.MapPattern) 
 			target = "_"
 		}
 		if entry.Optional {
-			parts = append(parts, fmt.Sprintf("func() bool { %s, %s := %s[%s]; return !%s || (%s) }()", target, ok, subject, key, ok, condition))
+			if condition == "true" {
+				parts = append(parts, "true")
+				continue
+			}
+			raw := g.nextTemp("pattern")
+			parts = append(parts, fmt.Sprintf("func() bool { %s, %s := %s[%s]; var %s any; if %s { %s = %s } else { %s = any(nil) }; return %s }()", raw, ok, subject, key, value, ok, value, raw, value, condition))
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("func() bool { %s, %s := %s[%s]; return %s && (%s) }()", target, ok, subject, key, ok, condition))
@@ -483,7 +787,64 @@ func (g *generator) mapPatternCondition(subject string, pattern *ir.MapPattern) 
 	return strings.Join(parts, " && ")
 }
 
+func (g *generator) mapLikePatternCondition(subject string, pattern *ir.MapPattern) string {
+	parts := make([]string, 0, len(pattern.Entries))
+	for _, entry := range pattern.Entries {
+		key := g.expr(entry.Key)
+		value := g.nextTemp("pattern")
+		condition := g.patternCondition(value, entry.Pattern)
+		if entry.Optional {
+			if condition == "true" {
+				parts = append(parts, "true")
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s }()", value, g.goMapLikeGet(subject, pattern.SubjectType, key), condition))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s != nil && (%s) }()", value, g.goMapLikeGet(subject, pattern.SubjectType, key), value, condition))
+	}
+	if len(parts) == 0 {
+		return "true"
+	}
+	return strings.Join(parts, " && ")
+}
+
+func (g *generator) goMapLikeGet(subject string, typ checker.Type, key string) string {
+	if g.mapGetters != nil {
+		if getter := g.mapGetters[subject]; getter != "" {
+			return fmt.Sprintf("%s(%s)", getter, key)
+		}
+	}
+	return fmt.Sprintf("%s.%s(%s)", subject, mangleIdent("get"), key)
+}
+
+func (g *generator) objectMapPatternCondition(subject string, pattern *ir.MapPattern) string {
+	parts := make([]string, 0, len(pattern.Entries))
+	for _, entry := range pattern.Entries {
+		key, ok := entry.Key.(*ir.StringLiteral)
+		if !ok {
+			parts = append(parts, "false")
+			continue
+		}
+		value := g.nextTemp("field")
+		exists := g.nextTemp("ok")
+		condition := g.patternCondition(value, entry.Pattern)
+		if entry.Optional {
+			parts = append(parts, fmt.Sprintf("func() bool { obj, ok := %s.(map[string]any); if !ok { return false }; %s, _ := obj[%q]; return %s }()", subject, value, key.Value, condition))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("func() bool { obj, ok := %s.(map[string]any); if !ok { return false }; %s, %s := obj[%q]; if !%s { return false }; return %s }()", subject, value, exists, key.Value, exists, condition))
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("func() bool { _, ok := %s.(map[string]any); return ok }()", subject)
+	}
+	return strings.Join(parts, " && ")
+}
+
 func (g *generator) objectPatternCondition(subject string, pattern *ir.ObjectPattern) string {
+	if pattern.SubjectType == checker.Object || pattern.SubjectType == checker.Unknown {
+		return g.dynamicObjectPatternCondition(subject, pattern)
+	}
 	parts := make([]string, 0, len(pattern.Fields))
 	for _, field := range pattern.Fields {
 		if field.Optional && !field.Exists {
@@ -496,6 +857,20 @@ func (g *generator) objectPatternCondition(subject string, pattern *ir.ObjectPat
 	}
 	if len(parts) == 0 {
 		return "true"
+	}
+	return strings.Join(parts, " && ")
+}
+
+func (g *generator) dynamicObjectPatternCondition(subject string, pattern *ir.ObjectPattern) string {
+	parts := make([]string, 0, len(pattern.Fields))
+	for _, field := range pattern.Fields {
+		value := g.nextTemp("field")
+		ok := g.nextTemp("ok")
+		condition := g.patternCondition(value, field.Pattern)
+		parts = append(parts, fmt.Sprintf("func() bool { obj, ok := %s.(map[string]any); if !ok { return false }; %s, %s := obj[%q]; if !%s { return false }; return %s }()", subject, value, ok, field.Name, ok, condition))
+	}
+	if len(parts) == 0 {
+		return fmt.Sprintf("func() bool { _, ok := %s.(map[string]any); return ok }()", subject)
 	}
 	return strings.Join(parts, " && ")
 }

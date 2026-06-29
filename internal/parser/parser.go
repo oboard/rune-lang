@@ -79,6 +79,14 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			if test != nil {
 				file.Tests = append(file.Tests, test)
 			}
+		} else if p.looksLikeConstDecl() {
+			if len(annotations) > 0 {
+				p.errors = append(p.errors, Error{Message: "annotations cannot be applied to constants", Pos: annotations[0].Pos})
+			}
+			constant := p.parseConstDecl(private)
+			if constant != nil {
+				file.Constants = append(file.Constants, constant)
+			}
 		} else if p.looksLikeTypeDecl() {
 			typ, enum := p.parseTypeDecl(private)
 			if typ != nil {

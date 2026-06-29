@@ -68,6 +68,13 @@ newline := '\\n'`)
   @assert.eq(tokens[6].lexeme, "'\\n'")
 }
 
+? "selfhost lexer reads char after less" {
+  tokens := lex("@assert.eq('a' < 'b', true)")
+  @assert.eq(tokens[6].kind, TokenKind.Less)
+  @assert.eq(tokens[7].kind, TokenKind.Char)
+  @assert.eq(tokens[7].lexeme, "'b'")
+}
+
 ? "selfhost lexer reads compile-time marker" {
   tokens := lex("value := (1)'")
   @assert.eq(tokens[0].kind, TokenKind.Ident)
@@ -79,13 +86,12 @@ newline := '\\n'`)
 }
 
 ? "selfhost lexer reads range pattern operator" {
-  tokens := lex("'0'..='9' .. ... ??")
+  tokens := lex("'0'..='9' .. ??")
   @assert.eq(tokens[0].kind, TokenKind.Char)
   @assert.eq(tokens[1].kind, TokenKind.DotDotEqual)
   @assert.eq(tokens[2].kind, TokenKind.Char)
   @assert.eq(tokens[3].kind, TokenKind.DotDot)
-  @assert.eq(tokens[4].kind, TokenKind.DotDotDot)
-  @assert.eq(tokens[5].kind, TokenKind.QuestionQuestion)
+  @assert.eq(tokens[4].kind, TokenKind.QuestionQuestion)
 }
 
 ? "selfhost lexer reads static selector" {

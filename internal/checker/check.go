@@ -27,6 +27,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 		info: &Info{
 			Functions:                 map[string]*FuncInfo{},
 			FunctionDecls:             map[*ast.Function]*FuncInfo{},
+			ConstDecls:                map[*ast.ConstDecl]*ExternalValueInfo{},
 			ResolvedFunctions:         map[*ast.Identifier]*FuncInfo{},
 			ResolvedValues:            map[*ast.Identifier]*ExternalValueInfo{},
 			ResolvedSelectorFunctions: map[*ast.SelectorExpr]*FuncInfo{},
@@ -58,6 +59,9 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	c.checkGoImports(file)
 	c.collect(file)
 	c.checkMacros(file)
+	for _, constant := range file.Constants {
+		c.inferConstDecl(constant)
+	}
 	for _, typ := range file.Types {
 		c.inferMethods(typ)
 	}

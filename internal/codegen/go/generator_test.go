@@ -108,6 +108,52 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateArrayAsAndOpenRangePatterns(t *testing.T) {
+	src := `score(values: Array[Int]) -> Int => values {
+  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [] => 0
+  _ => 1
+}
+
+sign(value: Int) -> Int => value {
+  _..<0 => -1
+  0 => 0
+  1..<_ => 1
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`__match1 := __values`,
+		`case len(__match1) >= 2 && true && true:`,
+		`__head := __match1[0]`,
+		`__tail := __match1[len(__match1)-1]`,
+		`__rest := append([]int{}, __match1[1:len(__match1)-1]...)`,
+		`__whole := __match1`,
+		`case len(__match1) == 0:`,
+		`case (__value < 0):`,
+		`case (__value >= 1):`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "main.go", got, 0); err != nil {
+		t.Fatalf("generated Go parse error: %v\n%s", err, got)
+	}
+}
+
 func TestGenerateOrPatternBlock(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
@@ -466,7 +512,7 @@ main() => {
 func TestGenerateArraySpread(t *testing.T) {
 	src := `main() => {
   items := ["Item 1"]
-  next := [...items, "New Item"]
+  next := [..items, "New Item"]
   @io.println(next.length())
 }
 `
@@ -1203,6 +1249,7 @@ func TestGenerateRegexProgram(t *testing.T) {
   @io.println(re.match("Rune 123 rune 456"))
   @io.println(built.replaceAll("a1 b22", "[$1]"))
 }
+
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -1223,6 +1270,91 @@ func TestGenerateRegexProgram(t *testing.T) {
 		`__built := newRuneRegex("\\d+", "g")`,
 		`fmt.Println(__re.match("Rune 123 rune 456"))`,
 		`fmt.Println(__built.replaceAll("a1 b22", "[$1]"))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGeneratePayloadEnumPatterns(t *testing.T) {
+	src := `Expr: {
+  Lit(value: Int)
+  Add(left: Expr, right: Expr)
+}
+
+eval(expr: Expr) -> Int => expr {
+  Add(Lit(left), Lit(0)) => left
+  Add(left, right) => eval(left) + eval(right)
+  Lit(value) => value
+}
+
+main() => @io.println(eval(Add(Lit(2), Lit(0))))
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`type __Expr struct`,
+		`__tag`,
+		`int`,
+		`__payload []any`,
+		`__Expr{__tag: __Expr_Add, __payload: []any{`,
+		`__match`,
+		`.__tag == __Expr_Add`,
+		`.__payload[0].(__Expr)`,
+		`.__payload[0].(int)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "main.go", got, 0); err != nil {
+		t.Fatalf("generated Go parse error: %v\n%s", err, got)
+	}
+}
+
+func TestGenerateMapLikePatternCachesGet(t *testing.T) {
+	src := `Lookup: {
+  entries: Map[String, Int]
+
+  get(key: String) -> Int? => .entries[key]
+}
+
+score(values: Lookup) -> Int => values {
+  { "b"? : null, "a": x, .. } => x
+  { "b"? : b, .. } => b ?? 0
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+	wantParts := []string{
+		`map[string]any{}`,
+		`func(__key`,
+		`.__get(__key`,
+		`__x := __mapGet`,
+		`__b := __mapGet`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

@@ -21,6 +21,7 @@ type File struct {
 	TSImports []TSImport
 	Types     []*StructType
 	Enums     []*EnumType
+	Constants []*ConstDecl
 	Functions []*Function
 	Tests     []*Test
 	Stdlib    *stdlib.Registry
@@ -45,6 +46,15 @@ type TSFunction struct {
 
 type TSValue struct {
 	Name string
+}
+
+type ConstDecl struct {
+	Name    string
+	Private bool
+	Type    checker.Type
+	Value   Expr
+	Pos     lexer.Position
+	NamePos lexer.Position
 }
 
 type StructType struct {

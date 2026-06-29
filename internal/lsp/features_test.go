@@ -785,7 +785,7 @@ func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 	}
 }
 
-func TestSemanticTokensUnderlineCompileTimeExpression(t *testing.T) {
+func TestSemanticTokensDoNotRecolorCompileTimeExpression(t *testing.T) {
 	uri := "file:///tmp/consteval.rn"
 	src := `double(value: Int) -> Int => value * 2
 
@@ -796,12 +796,20 @@ main() => double(21)'
 	data := resp["data"].([]int)
 	got := decodeSemanticTokenModifiers(data)
 	pos := positionOf(src, "double(21)", "double")
-	if got[pos]&semanticTokenModifierCompileTime == 0 {
-		t.Fatalf("semantic modifiers at %+v = %d, want compile-time; all %#v", pos, got[pos], got)
+	if got[pos]&semanticTokenModifierCompileTime != 0 {
+		t.Fatalf("semantic modifiers at %+v = %d, want no compile-time recolor; all %#v", pos, got[pos], got)
 	}
-	ranges := decodeSemanticTokenRanges(data)
-	if ranges[pos] != len("double(21)") {
-		t.Fatalf("compile-time token length at %+v = %d, want full call", pos, ranges[pos])
+}
+
+func TestDefinitionFindsStdlibCallBeforeCompileTimeMarker(t *testing.T) {
+	uri := "file:///tmp/consteval.rn"
+	src := `main() => @process.platform()'
+`
+	s := &server{docs: map[string]string{uri: src}}
+	def := s.definition(uri, positionOf(src, "@process.platform", "platform")).(map[string]any)
+	defURI := def["uri"].(string)
+	if !strings.HasSuffix(defURI, "/core/process/process.rn") {
+		t.Fatalf("definition uri = %s, want core/process/process.rn", defURI)
 	}
 }
 

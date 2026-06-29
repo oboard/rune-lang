@@ -180,6 +180,38 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
+func TestGenerateArrayAsAndOpenRangePatterns(t *testing.T) {
+	src := `score(values: Array[Int]) -> Int => values {
+  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [] => 0
+  _ => 1
+}
+
+sign(value: Int) -> Int => value {
+  _..<0 => -1
+  0 => 0
+  1..<_ => 1
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`const __match1 = __values;`,
+		`if (__match1.length >= 2 && true && true)`,
+		`const __head = __match1[0];`,
+		`const __tail = __match1[__match1.length - 1];`,
+		`const __rest = __match1.slice(1, __match1.length - 1);`,
+		`const __whole = __match1;`,
+		`else if (__match1.length === 0)`,
+		`if ((__value < 0))`,
+		`else if ((__value >= 1))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateOrPatternBlock(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
@@ -334,7 +366,7 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 func TestGenerateArraySpread(t *testing.T) {
 	src := `main() => {
   items := ["Item 1"]
-  next := [...items, "New Item"]
+  next := [..items, "New Item"]
   @io.println(next.length())
 }
 `
@@ -725,7 +757,7 @@ main() => {
 func TestGenerateSignalAssignmentExpression(t *testing.T) {
 	src := `render() => {
   $list := ["Item 1"]
-  <button @click={$list = [...$list, "New Item"]}>Add Item</button>
+  <button @click={$list = [..$list, "New Item"]}>Add Item</button>
 }
 `
 	got := generateForTest(t, src)
@@ -804,6 +836,63 @@ main() => {
 	wantParts := []string{
 		`const { x: __x, y: __y } = __point;`,
 		`console.log(__x + __y);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGeneratePayloadEnumPatterns(t *testing.T) {
+	src := `Expr: {
+  Lit(value: Int)
+  Add(left: Expr, right: Expr)
+}
+
+eval(expr: Expr) -> Int => expr {
+  Add(Lit(left), Lit(0)) => left
+  Add(left, right) => eval(left) + eval(right)
+  Lit(value) => value
+}
+
+main() => @io.println(eval(Add(Lit(2), Lit(0))))
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`type __Expr = { tag: number; payload: any[] };`,
+		`{ tag: __Expr.Add, payload: [`,
+		`.tag === __Expr.Add`,
+		`(__match`,
+		`.payload[0] as __Expr)`,
+		`.payload[0] as number`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestGenerateMapLikePatternCachesGet(t *testing.T) {
+	src := `Lookup: {
+  entries: Map[String, Int]
+
+  get(key: String) -> Int? => .entries[key]
+}
+
+score(values: Lookup) -> Int => values {
+  { "b"? : null, "a": x, .. } => x
+  { "b"? : b, .. } => b ?? 0
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`new Map<string, any>()`,
+		`const __mapGet`,
+		`__Lookup_get(__match`,
+		`const __x = __mapGet`,
+		`const __b = __mapGet`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

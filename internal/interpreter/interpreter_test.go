@@ -218,7 +218,7 @@ optionalPoint(point: Point) -> Int => point {
 
 mapScore(values: Map[String, Int]) -> Int => values {
   { "a": value, .. } => value
-  { "missing"?: 1, .. } => 7
+  { "missing"?: null, .. } => 7
   _ => 0
 }
 

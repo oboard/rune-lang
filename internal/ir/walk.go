@@ -113,13 +113,30 @@ func WalkPattern(pattern Pattern, visit func(Expr)) {
 	case *ComparePattern:
 		WalkExpr(p.Value, visit)
 	case *RangePattern:
-		WalkExpr(p.Start, visit)
-		WalkExpr(p.End, visit)
+		if p.Start != nil {
+			WalkExpr(p.Start, visit)
+		}
+		if p.End != nil {
+			WalkExpr(p.End, visit)
+		}
 	case *TuplePattern:
 		for _, elem := range p.Elements {
 			WalkPattern(elem, visit)
 		}
+	case *ArrayPattern:
+		for _, elem := range p.Elements {
+			WalkPattern(elem, visit)
+		}
+	case *SequenceSpreadPattern:
+		WalkExpr(p.Value, visit)
+	case *BitPattern:
+		WalkPattern(p.Value, visit)
+	case *AsPattern:
+		WalkPattern(p.Pattern, visit)
 	case *ConstructorPattern:
+		for _, arg := range p.Args {
+			WalkPattern(arg, visit)
+		}
 	case *MapPattern:
 		for _, entry := range p.Entries {
 			WalkExpr(entry.Key, visit)

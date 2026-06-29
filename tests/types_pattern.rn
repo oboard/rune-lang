@@ -1,0 +1,175 @@
+const PatternZero = 0
+const PatternOne: Int = 1
+const PatternNo: Bytes = @bytes.fromInts([110, 111])
+const PatternKeyA = "a"
+const PatternKeyB = "b"
+
+patternScore(values: Array[Int]) -> Int => values {
+  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [] => 0
+  _ => 1
+}
+
+patternClassify(value: Int) -> Int => value {
+  _..<PatternZero => -1
+  PatternZero => 0
+  1..<_ => 1
+}
+
+patternConst(value: Int) -> Int => value {
+  PatternOne => 10
+  other => other
+}
+
+patternMiddle(text: String) -> String => text {
+  [first, ..rest, last] => rest + first.toString() + last.toString()
+  _ => text
+}
+
+PatternExpr: {
+  PatternLit(value: Int)
+  PatternAdd(left: PatternExpr, right: PatternExpr)
+  PatternMul(left: PatternExpr, right: PatternExpr)
+}
+
+PatternLookup: {
+  entries: Map[String, Int]
+
+  get(key: String) -> Int? => .entries[key]
+}
+
+patternEval(expr: PatternExpr) -> Int => expr {
+  PatternAdd(PatternLit(left), PatternLit(0)) => left
+  PatternAdd(left, right) | PatternMul(left, right) => patternEval(left) + patternEval(right)
+  PatternLit(value) => value
+}
+
+patternLeft(expr: PatternExpr) -> Int => expr {
+  PatternAdd(PatternLit(value), ..) => value
+  _ => 0
+}
+
+patternHasYes(text: String) -> Bool => text {
+  [.. "yes", ..] => true
+  _ => false
+}
+
+patternHasMiddleHan(text: String) -> Bool => text {
+  [.. "中b", ..] => true
+  _ => false
+}
+
+patternHasNo(bytes: Bytes) -> Bool => bytes {
+  [.. PatternNo, ..] => true
+  _ => false
+}
+
+patternMapMissing(values: Map[String, Int]) -> Int => values {
+  { PatternKeyB? : null, PatternKeyA: x, .. } => x
+  { PatternKeyB? : b, .. } => b ?? 0
+}
+
+patternLookupMissing(values: PatternLookup) -> Int => values {
+  { PatternKeyB? : null, PatternKeyA: x, .. } => x
+  { PatternKeyB? : b, .. } => b ?? 0
+}
+
+patternPacketSummary(packet: Bytes) -> Int => packet {
+  [u1be(flag), u3be(kind), u4be(version), u8be(length)] =>
+    @uint.toInt(flag) * 1000 + @uint.toInt(kind) * 100 + @uint.toInt(version) * 10 + @uint.toInt(length)
+  _ => 0
+}
+
+patternTaggedRest(packet: Bytes) -> Int => packet {
+  [u4be(15), u4be(tag), .. rest] =>
+    @uint.toInt(tag) * 100 + rest.length() * 10 + rest.toInts()[0]
+  _ => 0
+}
+
+patternSignedBit(packet: Bytes) -> Int => packet {
+  [i1be(value), ..] => value
+  _ => 1
+}
+
+patternLittleEndian(packet: Bytes) -> Int => packet {
+  [u16le(value)] => @uint.toInt(value)
+  _ => 0
+}
+
+patternJSONImports(value: Object) -> Int => value {
+  { "version": "1.0.0", "import": Array(imports), .. } => imports.length()
+  _ => 0
+}
+
+patternJSONKinds(value: Object) -> Int => value {
+  { "count": Number(_, ..), "deleted": Null(), .. } => 1
+  { "enabled": Bool(true), .. } => 2
+  _ => 0
+}
+
+? "moonbit-style array and as patterns" {
+  @assert.eq(patternScore([1, 2, 3, 4]), 11)
+  @assert.eq(patternScore([]), 0)
+  @assert.eq(patternScore([9]), 1)
+}
+
+? "moonbit-style string and open range patterns" {
+  @assert.eq(patternClassify(0 - 2), -1)
+  @assert.eq(patternClassify(0), 0)
+  @assert.eq(patternClassify(7), 1)
+  @assert.eq(patternConst(1), 10)
+  @assert.eq(patternConst(4), 4)
+  @assert.eq(patternMiddle("中b文"), "b中文")
+}
+
+? "moonbit-style constructor payload patterns" {
+  @assert.eq(patternEval(PatternAdd(PatternLit(5), PatternLit(0))), 5)
+  @assert.eq(patternEval(PatternMul(PatternLit(2), PatternLit(3))), 5)
+  @assert.eq(patternLeft(PatternAdd(PatternLit(9), PatternLit(4))), 9)
+}
+
+? "moonbit-style string spread array patterns" {
+  @assert.eq(patternHasYes("yes please"), true)
+  @assert.eq(patternHasYes("yep"), false)
+  @assert.eq(patternHasMiddleHan("中b文"), true)
+  @assert.eq(patternHasNo(@bytes.fromInts([110, 111, 33])), true)
+  @assert.eq(patternHasNo(@bytes.fromInts([110, 120])), false)
+}
+
+? "moonbit-style optional map key patterns" {
+  onlyA := {
+    "a": 7,
+  }
+  withB := {
+    "a": 7,
+    "b": 3,
+  }
+  @assert.eq(patternMapMissing(onlyA), 7)
+  @assert.eq(patternMapMissing(withB), 3)
+  lookupOnlyA := PatternLookup {
+    entries: onlyA,
+  }
+  lookupWithB := PatternLookup {
+    entries: withB,
+  }
+  @assert.eq(patternLookupMissing(lookupOnlyA), 7)
+  @assert.eq(patternLookupMissing(lookupWithB), 3)
+}
+
+? "moonbit-style bitstring patterns" {
+  header := @bytes.fromInts([210, 16])
+  @assert.eq(patternPacketSummary(header), 1536)
+  tagged := @bytes.fromInts([241, 170, 187])
+  @assert.eq(patternTaggedRest(tagged), 290)
+  @assert.eq(patternSignedBit(@bytes.fromInts([128])), 0 - 1)
+  @assert.eq(patternLittleEndian(@bytes.fromInts([1, 2])), 513)
+}
+
+? "moonbit-style json patterns" {
+  manifest := @json.parse("{\"version\":\"1.0.0\",\"import\":[\"a\",\"b\"]}") : Object
+  @assert.eq(patternJSONImports(manifest), 2)
+  counts := @json.parse("{\"count\":3,\"deleted\":null}") : Object
+  @assert.eq(patternJSONKinds(counts), 1)
+  enabled := @json.parse("{\"enabled\":true}") : Object
+  @assert.eq(patternJSONKinds(enabled), 2)
+}

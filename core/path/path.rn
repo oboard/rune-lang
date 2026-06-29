@@ -141,7 +141,7 @@
   out: Array[String],
   part: String
 ) -> Array[String] => (
-  normalizeParts(parts, index + 1, absolute, [...out, part])
+  normalizeParts(parts, index + 1, absolute, [..out, part])
 )
 
 + pathParts(
@@ -168,7 +168,7 @@
   parts: Array[String],
   index: Int,
   out: Array[String]
-) -> Array[String] => collectPathParts(parts, index + 1, [...out, parts[index]])
+) -> Array[String] => collectPathParts(parts, index + 1, [..out, parts[index]])
 
 + relativeFromParts(
   fromParts: Array[String],

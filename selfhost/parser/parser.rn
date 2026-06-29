@@ -1508,13 +1508,13 @@ parseOneArgument(
   holder: ParsedExpr,
   endKind: TokenKind
 ) -> ExprStep => {
-  spread := parserMatch(state, TokenKind.DotDotDot)
+  spread := parserMatch(state, TokenKind.DotDot)
   value := parseExpression((
     spread.ok ? spread.state
       : state
   ), 1)
   arg := (
-    spread.ok ? opNode(ExprKind.Spread, "...", parserPrevious(spread.state), [value.expr])
+    spread.ok ? opNode(ExprKind.Spread, "..", parserPrevious(spread.state), [value.expr])
       : value.expr
   )
   nextHolder := appendChild(holder, arg)
@@ -2038,7 +2038,7 @@ parseStructLiteralField(
   state: ParserState,
   structExpr: ParsedExpr
 ) -> ExprStep => (
-  parserCheck(state, TokenKind.DotDotDot) ? parseStructLiteralSpreadField(state, structExpr)
+  parserCheck(state, TokenKind.DotDot) ? parseStructLiteralSpreadField(state, structExpr)
     : parseStructLiteralNamedField(state, structExpr)
 )
 
@@ -2058,9 +2058,9 @@ parseStructLiteralSpreadField(
   state: ParserState,
   structExpr: ParsedExpr
 ) -> ExprStep => {
-  spread := parserConsume(state, TokenKind.DotDotDot, "expected '...'")
+  spread := parserConsume(state, TokenKind.DotDot, "expected '..'")
   value := parseExpression(spread.state, 1)
-  field := opNode(ExprKind.Spread, "...", spread.token, [value.expr])
+  field := opNode(ExprKind.Spread, "..", spread.token, [value.expr])
   nextStruct := appendChild(structExpr, field)
   parseStructLiteralLoop(consumeFieldSeparator(value.state, TokenKind.RBrace, "expected ',' between struct literal fields"), nextStruct)
 }

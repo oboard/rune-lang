@@ -60,7 +60,7 @@ hasFromJson(
     annotations: structure.annotations,
     fields: structure.fields,
     methods: (
-      (structure.id == context.targetID) && !@json.hasFromJson(structure) ? [...structure.methods, @json.fromJsonMethod(structure)]
+      (structure.id == context.targetID) && !@json.hasFromJson(structure) ? [..structure.methods, @json.fromJsonMethod(structure)]
         : structure.methods
     ),
     sourcePath: structure.sourcePath

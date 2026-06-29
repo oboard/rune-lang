@@ -275,6 +275,9 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 			return fmt.Sprintf("runeErr[%s, %s](%s)", goType(okType), goType(errType), g.expr(e.Args[0]))
 		}
 	}
+	if constructor, ok := g.enumConstructorCall(e); ok {
+		return constructor
+	}
 	if intrinsicCall, ok := g.moduleIntrinsicCall(e); ok {
 		return intrinsicCall
 	}
@@ -306,6 +309,25 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 		}
 	}
 	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) enumConstructorCall(call *ir.CallExpr) (string, bool) {
+	ident, ok := call.Callee.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), ident.Name)
+	if !ok || !enumHasPayload(enum) {
+		return "", false
+	}
+	args := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		args = append(args, g.expr(arg))
+	}
+	if len(args) == 0 {
+		return fmt.Sprintf("%s{__tag: %s}", goType(call.ResultType()), mangleEnumMember(enum.Name, member.Name)), true
+	}
+	return fmt.Sprintf("%s{__tag: %s, __payload: []any{%s}}", goType(call.ResultType()), mangleEnumMember(enum.Name, member.Name), strings.Join(args, ", ")), true
 }
 
 func (g *generator) userMethodCall(call *ir.CallExpr) (string, bool) {
@@ -412,11 +434,56 @@ func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {
 		}
 		for _, member := range enum.Members {
 			if member.Name == sel.Name {
+				if enumHasPayload(enum) {
+					return fmt.Sprintf("%s{__tag: %s}", goType(enumType), mangleEnumMember(enum.Name, member.Name)), true
+				}
 				return mangleEnumMember(enum.Name, member.Name), true
 			}
 		}
 	}
 	return "", false
+}
+
+func enumHasPayload(enum *ir.EnumType) bool {
+	if enum == nil {
+		return false
+	}
+	for _, member := range enum.Members {
+		if len(member.Params) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) enumForType(typ checker.Type) *ir.EnumType {
+	name := goBaseTypeName(typ)
+	for _, enum := range g.file.Enums {
+		if enum.Name == name {
+			return enum
+		}
+	}
+	return nil
+}
+
+func goBaseTypeName(typ checker.Type) string {
+	if base, _, ok := parseGoGenericType(string(typ)); ok {
+		return base
+	}
+	return string(typ)
+}
+
+func (g *generator) enumMemberForConstructor(typ checker.Type, name string) (*ir.EnumType, *ir.EnumMember, bool) {
+	enum := g.enumForType(typ)
+	if enum == nil {
+		return nil, nil, false
+	}
+	for idx := range enum.Members {
+		if enum.Members[idx].Name == name {
+			return enum, &enum.Members[idx], true
+		}
+	}
+	return nil, nil, false
 }
 
 func (g *generator) hasEnumType(typ checker.Type) bool {
@@ -774,10 +841,17 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 		b.WriteString(subject)
 		b.WriteString(" := ")
 		b.WriteString(g.expr(match.Subject))
-		b.WriteString("; switch { ")
+		b.WriteString("; ")
 	} else {
-		b.WriteString(" { switch { ")
+		b.WriteString(" { ")
 	}
+	restoreMapGetters := g.pushMapPatternGetters(subject, match.Branches)
+	defer restoreMapGetters()
+	for _, line := range g.mapPatternGetterPrelude(subject, match.Branches) {
+		b.WriteString(line)
+		b.WriteString("; ")
+	}
+	b.WriteString("switch { ")
 	hasDefault := false
 	for _, branch := range match.Branches {
 		if _, ok := branch.Pattern.(*ir.WildcardPattern); ok {
@@ -817,9 +891,114 @@ func matchNeedsSubjectTemp(match *ir.MatchExpr) bool {
 	return false
 }
 
+func (g *generator) pushMapPatternGetters(subject string, branches []ir.PatternBranch) func() {
+	getter := ""
+	for _, branch := range branches {
+		if patternHasMapLikeGet(branch.Pattern) {
+			getter = g.nextTemp("mapGet")
+			break
+		}
+	}
+	if getter == "" {
+		return func() {}
+	}
+	prev := g.mapGetters
+	next := map[string]string{}
+	for key, value := range prev {
+		next[key] = value
+	}
+	next[subject] = getter
+	g.mapGetters = next
+	return func() {
+		g.mapGetters = prev
+	}
+}
+
+func (g *generator) mapPatternGetterPrelude(subject string, branches []ir.PatternBranch) []string {
+	var pattern *ir.MapPattern
+	for _, branch := range branches {
+		pattern = firstMapLikeGetPattern(branch.Pattern)
+		if pattern != nil {
+			break
+		}
+	}
+	if pattern == nil {
+		return nil
+	}
+	getter := ""
+	if g.mapGetters != nil {
+		getter = g.mapGetters[subject]
+	}
+	if getter == "" {
+		getter = g.nextTemp("mapGet")
+	}
+	keyType := checker.Unknown
+	if len(pattern.Entries) > 0 {
+		keyType = pattern.Entries[0].Key.ResultType()
+	}
+	seen := g.nextTemp("mapSeen")
+	cache := g.nextTemp("mapCache")
+	key := g.nextTemp("key")
+	value := g.nextTemp("value")
+	return []string{
+		fmt.Sprintf("%s := map[%s]bool{}", seen, goType(keyType)),
+		fmt.Sprintf("%s := map[%s]any{}", cache, goType(keyType)),
+		fmt.Sprintf("%s := func(%s %s) any { if %s[%s] { return %s[%s] }; %s := %s.%s(%s); %s[%s] = true; %s[%s] = %s; return %s }",
+			getter, key, goType(keyType), seen, key, cache, key, value, subject, mangleIdent("get"), key, seen, key, cache, key, value, value),
+	}
+}
+
+func patternHasMapLikeGet(pattern ir.Pattern) bool {
+	return firstMapLikeGetPattern(pattern) != nil
+}
+
+func firstMapLikeGetPattern(pattern ir.Pattern) *ir.MapPattern {
+	switch p := pattern.(type) {
+	case *ir.MapPattern:
+		if p.Access == "get" {
+			return p
+		}
+	case *ir.AsPattern:
+		return firstMapLikeGetPattern(p.Pattern)
+	case *ir.OrPattern:
+		for _, alternative := range p.Alternatives {
+			if found := firstMapLikeGetPattern(alternative); found != nil {
+				return found
+			}
+		}
+	case *ir.ConstructorPattern:
+		for _, arg := range p.Args {
+			if found := firstMapLikeGetPattern(arg); found != nil {
+				return found
+			}
+		}
+	case *ir.ArrayPattern:
+		for _, elem := range p.Elements {
+			if found := firstMapLikeGetPattern(elem); found != nil {
+				return found
+			}
+		}
+	case *ir.BitPattern:
+		return firstMapLikeGetPattern(p.Value)
+	case *ir.TuplePattern:
+		for _, elem := range p.Elements {
+			if found := firstMapLikeGetPattern(elem); found != nil {
+				return found
+			}
+		}
+	case *ir.ObjectPattern:
+		for _, field := range p.Fields {
+			if found := firstMapLikeGetPattern(field.Pattern); found != nil {
+				return found
+			}
+		}
+	}
+	return nil
+}
+
 func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
-	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern:
+	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AsPattern:
 		return true
 	case *ir.OrPattern:
 		for _, alternative := range p.Alternatives {
@@ -846,36 +1025,181 @@ func (g *generator) patternBinding(subject string, pattern ir.Pattern) string {
 func (g *generator) appendPatternBindings(parts *[]string, subject string, pattern ir.Pattern) {
 	switch p := pattern.(type) {
 	case *ir.BindingPattern:
+		if p.Constant {
+			return
+		}
 		*parts = append(*parts, fmt.Sprintf("%s := %s;", mangleIdent(p.Name), subject))
 	case *ir.TuplePattern:
 		for idx, elem := range p.Elements {
 			g.appendPatternBindings(parts, fmt.Sprintf("%s.F%d", subject, idx), elem)
 		}
-	case *ir.OrPattern:
-	case *ir.ConstructorPattern:
-		if p.Binding == "" {
-			return
+	case *ir.ArrayPattern:
+		for idx, elem := range p.Elements {
+			if bit, ok := elem.(*ir.BitPattern); ok {
+				g.appendPatternBindings(parts, g.bitPatternValueExpr(subject, p.SubjectType, bitPatternOffset(p, idx), bit), bit.Value)
+				continue
+			}
+			if _, ok := elem.(*ir.SequenceSpreadPattern); ok {
+				continue
+			}
+			g.appendPatternBindings(parts, goSequenceIndex(subject, p.SubjectType, g.arrayPatternElementIndex(subject, p, idx)), elem)
 		}
-		switch p.Name {
-		case "Ok":
-			*parts = append(*parts, fmt.Sprintf("%s := %s.value;", mangleIdent(p.Binding), subject))
-		case "Err":
-			*parts = append(*parts, fmt.Sprintf("%s := %s.err;", mangleIdent(p.Binding), subject))
+		if p.RestBinding != "" {
+			if irArrayPatternHasBits(p) {
+				start := bitPatternRequiredBits(p) / 8
+				*parts = append(*parts, fmt.Sprintf("%s := %s;", mangleIdent(p.RestBinding), goSequenceSlice(subject, p.SubjectType, start, 0)))
+			} else {
+				start := g.arrayPatternPrefixWidth(p, p.RestIndex)
+				end := goSubtractExpr(goSequenceLength(subject, p.SubjectType), g.arrayPatternSuffixWidth(p, p.RestIndex))
+				*parts = append(*parts, fmt.Sprintf("%s := %s;", mangleIdent(p.RestBinding), goSequenceSliceExpr(subject, p.SubjectType, start, end)))
+			}
+		}
+	case *ir.BitPattern:
+		g.appendPatternBindings(parts, subject, p.Value)
+	case *ir.AsPattern:
+		g.appendPatternBindings(parts, subject, p.Pattern)
+		*parts = append(*parts, fmt.Sprintf("%s := %s;", mangleIdent(p.Name), subject))
+	case *ir.OrPattern:
+		if len(p.Alternatives) > 0 {
+			g.appendPatternBindings(parts, subject, p.Alternatives[0])
+		}
+	case *ir.ConstructorPattern:
+		for idx, arg := range p.Args {
+			payload := g.constructorPayload(subject, p, idx)
+			if payload == "" {
+				continue
+			}
+			g.appendPatternBindings(parts, payload, arg)
 		}
 	case *ir.MapPattern:
 		for _, entry := range p.Entries {
-			if entry.Optional {
-				continue
+			value := fmt.Sprintf("%s[%s]", subject, g.expr(entry.Key))
+			if p.Access == "get" {
+				value = g.goMapLikeGet(subject, p.SubjectType, g.expr(entry.Key))
+				if !entry.Optional && p.ValueType != checker.Unknown {
+					value = fmt.Sprintf("%s.(%s)", value, goType(p.ValueType))
+				}
+			} else if p.Access == "object" || p.SubjectType == checker.Object {
+				if key, ok := entry.Key.(*ir.StringLiteral); ok {
+					value = fmt.Sprintf("%s.(map[string]any)[%q]", subject, key.Value)
+				}
+				if entry.Optional {
+					value = fmt.Sprintf("func() any { obj := %s.(map[string]any); return obj[%s] }()", subject, g.expr(entry.Key))
+				}
+			} else if entry.Optional {
+				patternValue := g.nextTemp("pattern")
+				ok := g.nextTemp("ok")
+				value = fmt.Sprintf("func() any { %s, %s := %s[%s]; if !%s { return any(nil) }; return %s }()", patternValue, ok, subject, g.expr(entry.Key), ok, patternValue)
 			}
-			g.appendPatternBindings(parts, fmt.Sprintf("%s[%s]", subject, g.expr(entry.Key)), entry.Pattern)
+			g.appendPatternBindings(parts, value, entry.Pattern)
 		}
 	case *ir.ObjectPattern:
 		for _, field := range p.Fields {
 			if field.Optional && !field.Exists {
 				continue
 			}
-			g.appendPatternBindings(parts, goObjectFieldAccess(subject, field.Name), field.Pattern)
+			value := goObjectFieldAccess(subject, field.Name)
+			if p.SubjectType == checker.Object || p.SubjectType == checker.Unknown {
+				value = fmt.Sprintf("%s.(map[string]any)[%q]", subject, field.Name)
+			}
+			g.appendPatternBindings(parts, value, field.Pattern)
 		}
+	}
+}
+
+func goPatternIndex(idx int, pattern *ir.ArrayPattern) string {
+	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+		return fmt.Sprintf("%d", idx)
+	}
+	tail := len(pattern.Elements) - idx
+	return fmt.Sprintf("%s - %d", goSequenceLength("_", pattern.SubjectType), tail)
+}
+
+func (g *generator) arrayPatternElementIndex(subject string, pattern *ir.ArrayPattern, idx int) string {
+	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+		return g.arrayPatternPrefixWidth(pattern, idx)
+	}
+	return goSubtractExpr(goSequenceLength(subject, pattern.SubjectType), g.arrayPatternSuffixWidth(pattern, idx))
+}
+
+func (g *generator) arrayPatternRequiredWidth(pattern *ir.ArrayPattern) string {
+	return g.arrayPatternSum(pattern, 0, len(pattern.Elements))
+}
+
+func (g *generator) arrayPatternPrefixWidth(pattern *ir.ArrayPattern, end int) string {
+	return g.arrayPatternSum(pattern, 0, end)
+}
+
+func (g *generator) arrayPatternSuffixWidth(pattern *ir.ArrayPattern, start int) string {
+	return g.arrayPatternSum(pattern, start, len(pattern.Elements))
+}
+
+func (g *generator) arrayPatternSum(pattern *ir.ArrayPattern, start int, end int) string {
+	constants := 0
+	terms := []string{}
+	for idx := start; idx < end; idx++ {
+		elem := pattern.Elements[idx]
+		if spread, ok := elem.(*ir.SequenceSpreadPattern); ok {
+			terms = append(terms, goSequenceLength(g.expr(spread.Value), spread.Type))
+			continue
+		}
+		constants++
+	}
+	if constants > 0 || len(terms) == 0 {
+		terms = append([]string{fmt.Sprintf("%d", constants)}, terms...)
+	}
+	return strings.Join(terms, " + ")
+}
+
+func goSequenceLength(subject string, typ checker.Type) string {
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("len([]rune(%s))", subject)
+	case checker.Bytes:
+		return subject + ".ByteLength()"
+	default:
+		return "len(" + subject + ")"
+	}
+}
+
+func goSubtractExpr(left string, right string) string {
+	if right == "0" {
+		return left
+	}
+	if strings.ContainsAny(right, "+-*/ ") {
+		return fmt.Sprintf("%s-(%s)", left, right)
+	}
+	return fmt.Sprintf("%s-%s", left, right)
+}
+
+func goSequenceIndex(subject string, typ checker.Type, index string) string {
+	index = strings.ReplaceAll(index, goSequenceLength("_", typ), goSequenceLength(subject, typ))
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("[]rune(%s)[%s]", subject, index)
+	case checker.Bytes:
+		return fmt.Sprintf("%s.GetUInt8(%s)", subject, index)
+	default:
+		return fmt.Sprintf("%s[%s]", subject, index)
+	}
+}
+
+func goSequenceSlice(subject string, typ checker.Type, restIndex int, tailCount int) string {
+	end := goSequenceLength(subject, typ)
+	if tailCount > 0 {
+		end = fmt.Sprintf("%s - %d", end, tailCount)
+	}
+	return goSequenceSliceExpr(subject, typ, fmt.Sprintf("%d", restIndex), end)
+}
+
+func goSequenceSliceExpr(subject string, typ checker.Type, start string, end string) string {
+	switch typ {
+	case checker.String:
+		return fmt.Sprintf("func() string { runes := []rune(%s); return string(runes[%s:%s]) }()", subject, start, end)
+	case checker.Bytes:
+		return fmt.Sprintf("%s.Slice(%s, %s)", subject, start, end)
+	default:
+		return fmt.Sprintf("append([]%s{}, %s[%s:%s]...)", goType(arrayElemOrUnknown(typ, typ)), subject, start, end)
 	}
 }
 

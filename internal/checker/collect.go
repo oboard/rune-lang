@@ -169,6 +169,14 @@ func (c *checker) collect(file *ast.File) {
 			}
 		}
 	}
+	for _, constant := range file.Constants {
+		info := c.collectConst(constant)
+		if !c.addExternalValue(constant.NamePos, info) {
+			continue
+		}
+		c.info.ConstDecls[constant] = info
+		c.info.ExternalValues = append(c.info.ExternalValues, info)
+	}
 	for _, fn := range file.Functions {
 		info := c.collectFunction(fn, nil, nil)
 		if !c.addFunction(fn, info) {
@@ -191,6 +199,29 @@ func (c *checker) collect(file *ast.File) {
 			c.info.ExternalValues = append(c.info.ExternalValues, info)
 		}
 	}
+}
+
+func (c *checker) collectConst(constant *ast.ConstDecl) *ExternalValueInfo {
+	info := &ExternalValueInfo{
+		Name:       constant.Name,
+		LinkName:   constant.Name,
+		SourcePath: constant.SourcePath,
+		Type:       Unknown,
+		Pos:        constant.Pos,
+		NamePos:    constant.NamePos,
+		Const:      constant,
+	}
+	if constant.Private && constant.SourcePath != "" {
+		info.LinkName = privateLinkName(constant.SourcePath, constant.Name)
+	}
+	if typ := constant.Type.Canonical(); typ != "" {
+		resolved := c.resolveType(typ)
+		if resolved == Unknown && !isDynamicTypeName(typ) {
+			c.reportUnknownOrPrivateType(constant.NamePos, typ)
+		}
+		info.Type = resolved
+	}
+	return info
 }
 
 func (c *checker) addFunction(fn *ast.Function, info *FuncInfo) bool {

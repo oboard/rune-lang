@@ -153,6 +153,29 @@ func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[st
 	return ret
 }
 
+func (c *checker) inferConstDecl(constant *ast.ConstDecl) Type {
+	info := c.info.ConstDecls[constant]
+	if info == nil || constant.Value == nil {
+		return Unknown
+	}
+	var typ Type
+	c.withSourcePath(constant.SourcePath, func() {
+		env := map[string]Type{}
+		if info.Type != Unknown {
+			typ = c.inferExprExpected(constant.Value, env, info.Type)
+		} else {
+			typ = c.inferExpr(constant.Value, env)
+		}
+		if info.Type != Unknown && typ != Unknown && !c.typesCompatible(info.Type, typ, nil) {
+			c.errorf(constant.Value.Position(), "constant %s has type %s, expected %s", constant.Name, typ, info.Type)
+		}
+		if info.Type == Unknown {
+			info.Type = typ
+		}
+	})
+	return info.Type
+}
+
 func (c *checker) inferExprExpected(expr ast.Expr, env map[string]Type, expected Type) Type {
 	previous := c.expectedType
 	c.expectedType = expected

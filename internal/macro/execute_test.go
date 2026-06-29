@@ -124,7 +124,7 @@ func TestExpandSyntaxMacroReplacesDeclarationTree(t *testing.T) {
 	    private: current.private,
 	    generics: current.generics,
 	    annotations: current.annotations,
-	    fields: [...current.fields, generatedField],
+	    fields: [..current.fields, generatedField],
 	    methods: current.methods,
 	    sourcePath: current.sourcePath
 	  }

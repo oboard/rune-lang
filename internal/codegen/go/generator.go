@@ -217,9 +217,18 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	if fileUsesSignals(usage) {
 		g.signalRuntime()
-		if len(file.Functions) > 0 {
+		if len(file.Functions) > 0 || len(file.Constants) > 0 {
 			g.line("")
 		}
+	}
+	for i, constant := range file.Constants {
+		if i > 0 {
+			g.line("")
+		}
+		g.constDecl(constant)
+	}
+	if len(file.Constants) > 0 && (len(helpers) > 0 || len(file.Functions) > 0) {
+		g.line("")
 	}
 	for _, fn := range helpers {
 		if err := g.function(fn); err != nil {
@@ -1038,6 +1047,7 @@ type generator struct {
 	temp       int
 	errors     []error
 	thisNames  []string
+	mapGetters map[string]string
 	signals    []map[string]checker.Type
 	signalDeps []map[string][]string
 }

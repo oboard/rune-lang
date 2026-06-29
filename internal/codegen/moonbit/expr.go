@@ -426,7 +426,7 @@ func (g *generator) patternFor(subject string, pattern ir.Pattern) string {
 	case *ir.ComparePattern:
 		return subjectGuard(subject, fmt.Sprintf("%s %s %s", subject, mbtBinaryOp(p.Op), g.expr(p.Value)))
 	case *ir.RangePattern:
-		return subjectGuard(subject, fmt.Sprintf("%s >= %s && %s <= %s", subject, g.expr(p.Start), subject, g.expr(p.End)))
+		return subjectGuard(subject, g.patternCondition(subject, p))
 	case *ir.OrPattern:
 		conditions := make([]string, 0, len(p.Alternatives))
 		for _, alt := range p.Alternatives {
@@ -439,11 +439,32 @@ func (g *generator) patternFor(subject string, pattern ir.Pattern) string {
 			parts = append(parts, g.patternFor(subject, elem))
 		}
 		return "(" + strings.Join(parts, ", ") + ")"
+	case *ir.ArrayPattern:
+		parts := make([]string, 0, len(p.Elements)+1)
+		for idx, elem := range p.Elements {
+			if p.RestIndex == idx {
+				parts = append(parts, mbtRestPattern(p.RestBinding))
+			}
+			parts = append(parts, g.patternFor(subject, elem))
+		}
+		if p.RestIndex == len(p.Elements) {
+			parts = append(parts, mbtRestPattern(p.RestBinding))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	case *ir.AsPattern:
+		return fmt.Sprintf("%s as %s", g.patternFor(subject, p.Pattern), mangleIdent(p.Name))
 	case *ir.ConstructorPattern:
-		if p.Binding == "" {
+		if len(p.Args) == 0 && !p.Rest {
 			return p.Name
 		}
-		return fmt.Sprintf("%s(%s)", p.Name, mangleIdent(p.Binding))
+		parts := make([]string, 0, len(p.Args)+1)
+		for _, arg := range p.Args {
+			parts = append(parts, g.patternFor(subject, arg))
+		}
+		if p.Rest {
+			parts = append(parts, "..")
+		}
+		return fmt.Sprintf("%s(%s)", p.Name, strings.Join(parts, ", "))
 	default:
 		g.addError(fmt.Errorf("MoonBit backend does not support complex pattern %T yet", pattern))
 		return "_"
@@ -457,6 +478,13 @@ func subjectGuard(subject string, condition string) string {
 	return "_ if " + condition
 }
 
+func mbtRestPattern(binding string) string {
+	if binding == "" {
+		return ".."
+	}
+	return ".." + mangleIdent(binding)
+}
+
 func (g *generator) patternCondition(subject string, pattern ir.Pattern) string {
 	switch p := pattern.(type) {
 	case *ir.WildcardPattern, *ir.BindingPattern:
@@ -466,7 +494,21 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	case *ir.ComparePattern:
 		return fmt.Sprintf("%s %s %s", subject, mbtBinaryOp(p.Op), g.expr(p.Value))
 	case *ir.RangePattern:
-		return fmt.Sprintf("%s >= %s && %s <= %s", subject, g.expr(p.Start), subject, g.expr(p.End))
+		parts := []string{}
+		if p.Start != nil {
+			parts = append(parts, fmt.Sprintf("%s >= %s", subject, g.expr(p.Start)))
+		}
+		if p.End != nil {
+			op := "<"
+			if p.Inclusive {
+				op = "<="
+			}
+			parts = append(parts, fmt.Sprintf("%s %s %s", subject, op, g.expr(p.End)))
+		}
+		if len(parts) == 0 {
+			return "true"
+		}
+		return strings.Join(parts, " && ")
 	case *ir.OrPattern:
 		conditions := make([]string, 0, len(p.Alternatives))
 		for _, alt := range p.Alternatives {

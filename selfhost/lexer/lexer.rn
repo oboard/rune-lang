@@ -162,10 +162,20 @@ finishToken(
   column: state.column,
   startLine: state.startLine,
   startColumn: state.startColumn,
-  canStartRegex: !canEndExpression(kind)
+  canStartRegex: !canEndExpression(state, kind)
 }
 
-canEndExpression(kind: TokenKind) => TokenKind.Ident | TokenKind.Int | TokenKind.Double | TokenKind.BigInt | TokenKind.String | TokenKind.TemplateString | TokenKind.Char | TokenKind.Regex | TokenKind.XMLText | TokenKind.Less | TokenKind.RParen | TokenKind.RBracket | TokenKind.RBrace
+canEndExpression(
+  state: LexState,
+  kind: TokenKind
+) => canEndValueToken(kind) || canEndXmlLess(state, kind)
+
+canEndValueToken(kind: TokenKind) => (((((((((((kind == TokenKind.Ident) || (kind == TokenKind.Int)) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.TemplateString)) || (kind == TokenKind.Char)) || (kind == TokenKind.Regex)) || (kind == TokenKind.XMLText)) || (kind == TokenKind.RParen)) || (kind == TokenKind.RBracket)) || (kind == TokenKind.RBrace)
+
+canEndXmlLess(
+  state: LexState,
+  kind: TokenKind
+) => (kind == TokenKind.Less) && ((peek(state) == '/') || isIdentStart(peek(state)))
 
 + tokenKindName(
   kind: TokenKind

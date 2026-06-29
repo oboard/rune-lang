@@ -102,7 +102,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 		}
 		return "(" + strings.Join(elems, ", ") + ")"
 	case *ast.SpreadExpr:
-		return "..." + f.expr(e.Expr)
+		return ".." + f.expr(e.Expr)
 	case *ast.ReactiveLiteral:
 		return f.expr(e.Value)
 	case *ast.MapLiteral:
@@ -447,7 +447,7 @@ func (f *formatter) structLiteral(lit *ast.StructLiteral) string {
 	for i, field := range lit.Fields {
 		b.WriteString(fieldIndent)
 		if field.Spread {
-			b.WriteString("...")
+			b.WriteString("..")
 			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
 			if i < len(lit.Fields)-1 {
 				b.WriteByte(',')
@@ -544,7 +544,7 @@ func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) stri
 		seenMethod = seenMethod || isMethod
 		b.WriteString(fieldIndent)
 		if field.Spread {
-			b.WriteString("...")
+			b.WriteString("..")
 			b.WriteString(f.exprWithIndent(field.Value, f.indent+1))
 		} else if isMethod {
 			b.WriteString(privatePrefix(field.Private))

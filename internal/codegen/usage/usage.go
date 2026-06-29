@@ -21,6 +21,10 @@ type Usage struct {
 
 func Collect(file *ir.File) Usage {
 	var usage Usage
+	for _, constant := range file.Constants {
+		usage.addType(constant.Type)
+		usage.collectExpr(file, constant.Value)
+	}
 	for _, fn := range file.Functions {
 		usage.collectFunction(file, fn)
 	}

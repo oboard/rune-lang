@@ -49,11 +49,18 @@
           },
           "function.async:rune": {
             "fontStyle": "italic underline"
-          },
-          "*.compileTime:rune": {
-            "fontStyle": "underline"
           }
         }
+      },
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "punctuation.definition.character.unmatched.rune",
+            "settings": {
+              "fontStyle": "underline"
+            }
+          }
+        ]
       }
     },
     "commands": [

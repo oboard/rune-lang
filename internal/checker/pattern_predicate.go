@@ -139,7 +139,7 @@ func (c *checker) rangePatternFromExpr(expr ast.Expr) (ast.Pattern, bool) {
 	if !patternPredicateRangeEndpoint(binary.Left) || !patternPredicateRangeEndpoint(binary.Right) {
 		return nil, false
 	}
-	return &ast.RangePattern{Start: binary.Left, End: binary.Right, Pos: binary.Pos}, true
+	return &ast.RangePattern{Start: binary.Left, End: binary.Right, Inclusive: true, Pos: binary.Pos}, true
 }
 
 func (c *checker) literalPatternFromExpr(expr ast.Expr) (ast.Pattern, bool) {

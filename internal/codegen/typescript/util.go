@@ -19,6 +19,7 @@ type generator struct {
 	temp       int
 	errors     []error
 	thisNames  []string
+	mapGetters map[string]string
 	signals    []map[string]checker.Type
 	signalDeps []map[string][]string
 	reactives  []map[string]checker.Type

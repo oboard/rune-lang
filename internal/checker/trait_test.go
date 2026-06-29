@@ -219,7 +219,7 @@ func TestStructLiteralSpreadStillChecksExplicitDuplicateFields(t *testing.T) {
 }
 
 main(existing: User) => User {
-  ...existing,
+  ..existing,
   age: 41,
   age: 42,
 }

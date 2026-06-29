@@ -719,7 +719,7 @@ func TestAnalyzeSourceExpandsStructLiteralSpreadInMacro(t *testing.T) {
 ) -> SyntaxFile => {
   current := tree.types[0]
 	  renamed := SyntaxStruct {
-	    ...current,
+	    ..current,
 	    name: context.targetID == current.id ? name : current.name
 	  }
 	  SyntaxFile {

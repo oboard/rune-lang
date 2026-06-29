@@ -119,6 +119,22 @@ func WalkPattern(pattern Pattern, visit func(Pattern)) {
 			WalkPattern(elem, visit)
 		}
 	}
+	if array, ok := pattern.(*ArrayPattern); ok {
+		for _, elem := range array.Elements {
+			WalkPattern(elem, visit)
+		}
+	}
+	if bit, ok := pattern.(*BitPattern); ok {
+		WalkPattern(bit.Value, visit)
+	}
+	if as, ok := pattern.(*AsPattern); ok {
+		WalkPattern(as.Pattern, visit)
+	}
+	if constructor, ok := pattern.(*ConstructorPattern); ok {
+		for _, arg := range constructor.Args {
+			WalkPattern(arg, visit)
+		}
+	}
 	if or, ok := pattern.(*OrPattern); ok {
 		for _, alternative := range or.Alternatives {
 			WalkPattern(alternative, visit)
@@ -143,8 +159,12 @@ func WalkPatternExprs(pattern Pattern, visit func(Expr)) {
 	case *ComparePattern:
 		WalkExpr(p.Value, visit)
 	case *RangePattern:
-		WalkExpr(p.Start, visit)
-		WalkExpr(p.End, visit)
+		if p.Start != nil {
+			WalkExpr(p.Start, visit)
+		}
+		if p.End != nil {
+			WalkExpr(p.End, visit)
+		}
 	case *OrPattern:
 		for _, alternative := range p.Alternatives {
 			WalkPatternExprs(alternative, visit)
@@ -152,6 +172,20 @@ func WalkPatternExprs(pattern Pattern, visit func(Expr)) {
 	case *TuplePattern:
 		for _, elem := range p.Elements {
 			WalkPatternExprs(elem, visit)
+		}
+	case *ArrayPattern:
+		for _, elem := range p.Elements {
+			WalkPatternExprs(elem, visit)
+		}
+	case *SequenceSpreadPattern:
+		WalkExpr(p.Value, visit)
+	case *BitPattern:
+		WalkPatternExprs(p.Value, visit)
+	case *AsPattern:
+		WalkPatternExprs(p.Pattern, visit)
+	case *ConstructorPattern:
+		for _, arg := range p.Args {
+			WalkPatternExprs(arg, visit)
 		}
 	case *MapPattern:
 		for _, entry := range p.Entries {

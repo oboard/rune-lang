@@ -208,7 +208,7 @@ mainBody(
   SyntaxFile {
     types: tree.types,
     enums: tree.enums,
-    functions: [...tree.functions.map((function) => (
+    functions: [..tree.functions.map((function) => (
       function.id == target.id ? handler
         : function
     )), entry]
@@ -244,7 +244,7 @@ withOption(
   name: command.name,
   version: command.version,
   about: command.about,
-  options: [...command.options, option],
+  options: [..command.options, option],
   arguments: command.arguments
 }
 
@@ -256,7 +256,7 @@ withArgument(
   version: command.version,
   about: command.about,
   options: command.options,
-  arguments: [...command.arguments, argument]
+  arguments: [..command.arguments, argument]
 }
 
 flag(

@@ -31,7 +31,7 @@ func FileWithOptions(file *ast.File, options Options) string {
 	for _, imp := range file.GoImports {
 		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
 	}
-	if (len(file.Imports) > 0 || len(file.GoImports) > 0) && (len(file.Traits) > 0 || len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
+	if (len(file.Imports) > 0 || len(file.GoImports) > 0) && (len(file.Traits) > 0 || len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Constants) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
 		f.line("")
 	}
 	for i, trait := range file.Traits {
@@ -40,7 +40,7 @@ func FileWithOptions(file *ast.File, options Options) string {
 		}
 		f.trait(trait)
 	}
-	if len(file.Traits) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
+	if len(file.Traits) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Constants) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
 		f.line("")
 	}
 	for i, typ := range file.Types {
@@ -58,7 +58,16 @@ func FileWithOptions(file *ast.File, options Options) string {
 		}
 		f.enumType(enum)
 	}
-	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
+	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Constants) > 0 {
+		f.line("")
+	}
+	for i, constant := range file.Constants {
+		if i > 0 {
+			f.line("")
+		}
+		f.constDecl(constant)
+	}
+	if (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Constants) > 0) && len(file.Functions) > 0 {
 		f.line("")
 	}
 	for i, fn := range file.Functions {
@@ -67,7 +76,7 @@ func FileWithOptions(file *ast.File, options Options) string {
 		}
 		f.function(fn)
 	}
-	if (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Functions) > 0) && len(file.Tests) > 0 {
+	if (len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Constants) > 0 || len(file.Functions) > 0) && len(file.Tests) > 0 {
 		f.line("")
 	}
 	for i, test := range file.Tests {

@@ -7,6 +7,7 @@ import (
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/lexer"
+	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
 func (s *server) definition(uri string, pos position) any {
@@ -15,7 +16,13 @@ func (s *server) definition(uri string, pos position) any {
 	}
 	prog, _ := s.analyze(uri)
 	word := wordAt(s.docs[uri], pos)
-	if word == "" || prog == nil {
+	if word == "" {
+		return nil
+	}
+	if prog == nil {
+		if target := s.stdlibModuleDefinitionFromTokens(uri, pos); target != nil {
+			return target.location()
+		}
 		return nil
 	}
 	if target := annotationTarget(uri, prog, pos); target != nil {
@@ -41,6 +48,33 @@ func (s *server) definition(uri string, pos position) any {
 	}
 	if target := functionTarget(uri, prog, pos); target != nil {
 		return target.location()
+	}
+	if target := s.stdlibModuleDefinitionFromTokens(uri, pos); target != nil {
+		return target.location()
+	}
+	return nil
+}
+
+func (s *server) stdlibModuleDefinitionFromTokens(uri string, pos position) *methodTarget {
+	reg, err := stdlib.LoadDefault()
+	if err != nil {
+		return nil
+	}
+	return stdlibModuleDefinitionInSource(s.docs[uri], reg, pos)
+}
+
+func stdlibModuleDefinitionInSource(text string, reg *stdlib.Registry, pos position) *methodTarget {
+	tokens := lexer.Lex(text)
+	for i := 0; i+3 < len(tokens); i++ {
+		if tokens[i].Kind != lexer.At || tokens[i+1].Kind != lexer.Ident || tokens[i+2].Kind != lexer.Dot || tokens[i+3].Kind != lexer.Ident {
+			continue
+		}
+		module := tokens[i+1]
+		name := tokens[i+3]
+		if !containsToken(pos, module) && !containsToken(pos, name) {
+			continue
+		}
+		return stdlibTarget(reg, module.Lexeme, name.Lexeme)
 	}
 	return nil
 }

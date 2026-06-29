@@ -608,10 +608,22 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 	case *ast.LiteralPattern:
 		return c.patternExprType(p.Value)
 	case *ast.RangePattern:
-		start := c.patternExprType(p.Start)
-		end := c.patternExprType(p.End)
-		if start == Unknown || end == Unknown || start != end {
+		start := Unknown
+		if p.Start != nil {
+			start = c.patternExprType(p.Start)
+		}
+		end := Unknown
+		if p.End != nil {
+			end = c.patternExprType(p.End)
+		}
+		if start == Unknown && end == Unknown {
 			return Unknown
+		}
+		if start != Unknown && end != Unknown && start != end {
+			return Unknown
+		}
+		if start != Unknown {
+			return start
 		}
 		return start
 	case *ast.OrPattern:
@@ -631,32 +643,19 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 		}
 		return result
 	case *ast.MapPattern:
-		keyType := Unknown
-		valueType := Unknown
-		for _, entry := range p.Entries {
-			key := c.patternExprType(entry.Key)
-			if keyType == Unknown {
-				keyType = key
-			} else if key != Unknown && keyType != key {
-				return Unknown
-			}
-			value := c.patternLiteralType(entry.Pattern)
-			if valueType == Unknown {
-				valueType = value
-			} else if value != Unknown && valueType != value {
-				return Unknown
-			}
-		}
-		if keyType != Unknown && valueType != Unknown {
-			return MapOf(keyType, valueType)
-		}
+		return Unknown
+	case *ast.ArrayPattern:
+		return Unknown
+	case *ast.AsPattern:
+		return c.patternLiteralType(p.Pattern)
 	}
 	return Unknown
 }
 
 func (c *checker) checkPatternForSubject(pattern ast.Pattern, subject Type, env map[string]Type) {
+	c.checkPatternBindingUniqueness(pattern)
 	switch pattern.(type) {
-	case *ast.MapPattern, *ast.ObjectPattern:
+	case *ast.MapPattern, *ast.ObjectPattern, *ast.ArrayPattern:
 	default:
 		patternSubject := c.patternLiteralType(pattern)
 		if subject != Unknown && patternSubject != Unknown && subject != patternSubject {
@@ -664,6 +663,59 @@ func (c *checker) checkPatternForSubject(pattern ast.Pattern, subject Type, env 
 		}
 	}
 	c.checkPatternWithSubject(pattern, subject, env, false)
+}
+
+func (c *checker) checkPatternBindingUniqueness(pattern ast.Pattern) {
+	seen := map[string]lexer.Position{}
+	var visit func(ast.Pattern)
+	visit = func(pattern ast.Pattern) {
+		switch p := pattern.(type) {
+		case *ast.BindingPattern:
+			if c.patternConstantInfo(p) != nil {
+				return
+			}
+			if prev, ok := seen[p.Name]; ok {
+				c.errorf(p.Pos, "pattern binding %q was already bound at %s", p.Name, prev)
+				return
+			}
+			seen[p.Name] = p.Pos
+		case *ast.AsPattern:
+			visit(p.Pattern)
+			if prev, ok := seen[p.Name]; ok {
+				c.errorf(p.NamePos, "pattern binding %q was already bound at %s", p.Name, prev)
+				return
+			}
+			seen[p.Name] = p.NamePos
+		case *ast.OrPattern:
+			for _, alt := range p.Alternatives {
+				c.checkPatternBindingUniqueness(alt)
+			}
+		case *ast.TuplePattern:
+			for _, elem := range p.Elements {
+				visit(elem)
+			}
+		case *ast.ArrayPattern:
+			for _, elem := range p.Elements {
+				visit(elem)
+			}
+		case *ast.SequenceSpreadPattern:
+		case *ast.BitPattern:
+			visit(p.Value)
+		case *ast.ConstructorPattern:
+			for _, arg := range p.Args {
+				visit(arg)
+			}
+		case *ast.MapPattern:
+			for _, entry := range p.Entries {
+				visit(entry.Pattern)
+			}
+		case *ast.ObjectPattern:
+			for _, field := range p.Fields {
+				visit(field.Pattern)
+			}
+		}
+	}
+	visit(pattern)
 }
 
 func (c *checker) patternExprType(expr ast.Expr) Type {
@@ -799,6 +851,15 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 	switch p := pattern.(type) {
 	case *ast.WildcardPattern:
 	case *ast.BindingPattern:
+		if value := c.patternConstantInfo(p); value != nil {
+			p.Constant = true
+			p.Type = string(value.Type)
+			p.LinkName = value.LinkName
+			if subject != Unknown && value.Type != Unknown && !c.typesCompatible(subject, value.Type, nil) {
+				c.errorf(p.Pos, "constant pattern %s has type %s, expected %s", p.Name, value.Type, subject)
+			}
+			return
+		}
 		if optional {
 			c.errorf(p.Pos, "optional pattern binding %q is not available when the key is absent", p.Name)
 			return
@@ -813,25 +874,46 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, String, or Char literal")
 		}
 	case *ast.RangePattern:
-		start := c.inferExpr(p.Start, env)
-		end := c.inferExpr(p.End, env)
-		if !orderedComparisonType(start) && start != Unknown {
-			c.errorf(p.Start.Position(), "range pattern expects Int, Double, BigInt, String, or Char literal")
+		start := Unknown
+		if p.Start != nil {
+			c.checkRangePatternBound(p.Start)
+			start = c.inferExpr(p.Start, env)
 		}
-		if !orderedComparisonType(end) && end != Unknown {
-			c.errorf(p.End.Position(), "range pattern expects Int, Double, BigInt, String, or Char literal")
+		end := Unknown
+		if p.End != nil {
+			c.checkRangePatternBound(p.End)
+			end = c.inferExpr(p.End, env)
+		}
+		if !rangePatternType(start) && start != Unknown {
+			c.errorf(p.Start.Position(), "range pattern expects an integer or Char bound")
+		}
+		if !rangePatternType(end) && end != Unknown {
+			c.errorf(p.End.Position(), "range pattern expects an integer or Char bound")
 		}
 		if start != Unknown && end != Unknown && start != end {
 			c.errorf(p.Pos, "range pattern bounds must have matching types, got %s and %s", start, end)
 		}
 	case *ast.OrPattern:
-		for _, alternative := range p.Alternatives {
-			c.checkPatternWithSubject(alternative, subject, cloneEnv(env), optional)
-		}
+		c.checkOrPattern(p, subject, env, optional)
 	case *ast.TuplePattern:
 		for _, elem := range p.Elements {
 			c.checkPatternWithSubject(elem, Unknown, env, optional)
 		}
+	case *ast.ArrayPattern:
+		c.checkArrayPattern(p, subject, env, optional)
+	case *ast.SequenceSpreadPattern:
+		elemType, _, _ := c.sequencePatternTypes(subject)
+		c.checkSequenceSpreadPattern(p, subject, elemType, env)
+	case *ast.BitPattern:
+		c.checkBitPattern(p, env, optional)
+	case *ast.AsPattern:
+		c.checkPatternWithSubject(p.Pattern, subject, env, optional)
+		if optional {
+			c.errorf(p.NamePos, "optional pattern binding %q is not available when the key is absent", p.Name)
+			return
+		}
+		p.Type = string(subject)
+		env[p.Name] = subject
 	case *ast.ConstructorPattern:
 		c.checkConstructorPattern(p, subject, env, optional)
 	case *ast.MapPattern:
@@ -841,8 +923,258 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 	}
 }
 
+func (c *checker) patternConstantInfo(pattern *ast.BindingPattern) *ExternalValueInfo {
+	if pattern == nil {
+		return nil
+	}
+	value := c.resolveExternalValue(pattern.Name)
+	if value == nil || value.Const == nil {
+		return nil
+	}
+	return value
+}
+
+func (c *checker) checkRangePatternBound(expr ast.Expr) {
+	if c.patternLiteralOrConst(expr) {
+		return
+	}
+	c.errorf(expr.Position(), "range pattern bound must be a literal, const, or '_'")
+}
+
+func rangePatternType(typ Type) bool {
+	return isIntegerType(typ) || typ == Char
+}
+
+func (c *checker) checkOrPattern(pattern *ast.OrPattern, subject Type, env map[string]Type, optional bool) {
+	var expected map[string]Type
+	for _, alternative := range pattern.Alternatives {
+		branchEnv := cloneEnv(env)
+		c.checkPatternWithSubject(alternative, subject, branchEnv, optional)
+		bindings := patternBindingTypes(alternative, branchEnv)
+		if expected == nil {
+			expected = bindings
+			continue
+		}
+		c.compareOrPatternBindings(alternative.Position(), expected, bindings)
+		for name, typ := range expected {
+			if other, ok := bindings[name]; ok {
+				if merged, ok := c.unifyTypes(typ, other); ok {
+					expected[name] = merged
+				}
+			}
+		}
+	}
+	for name, typ := range expected {
+		env[name] = typ
+	}
+}
+
+func (c *checker) compareOrPatternBindings(pos lexer.Position, expected map[string]Type, actual map[string]Type) {
+	for name := range expected {
+		if _, ok := actual[name]; !ok {
+			c.errorf(pos, "or pattern alternative must bind %q", name)
+		}
+	}
+	for name := range actual {
+		if _, ok := expected[name]; !ok {
+			c.errorf(pos, "or pattern alternative binds extra name %q", name)
+		}
+	}
+}
+
+func patternBindingTypes(pattern ast.Pattern, env map[string]Type) map[string]Type {
+	out := map[string]Type{}
+	var visit func(ast.Pattern)
+	visit = func(pattern ast.Pattern) {
+		switch p := pattern.(type) {
+		case *ast.BindingPattern:
+			if p.Constant {
+				return
+			}
+			out[p.Name] = env[p.Name]
+		case *ast.AsPattern:
+			visit(p.Pattern)
+			out[p.Name] = env[p.Name]
+		case *ast.OrPattern:
+		case *ast.TuplePattern:
+			for _, elem := range p.Elements {
+				visit(elem)
+			}
+		case *ast.ArrayPattern:
+			for _, elem := range p.Elements {
+				visit(elem)
+			}
+		case *ast.SequenceSpreadPattern:
+		case *ast.ConstructorPattern:
+			for _, arg := range p.Args {
+				visit(arg)
+			}
+		case *ast.MapPattern:
+			for _, entry := range p.Entries {
+				visit(entry.Pattern)
+			}
+		case *ast.ObjectPattern:
+			for _, field := range p.Fields {
+				visit(field.Pattern)
+			}
+		}
+	}
+	visit(pattern)
+	return out
+}
+
+func (c *checker) checkArrayPattern(pattern *ast.ArrayPattern, subject Type, env map[string]Type, optional bool) {
+	if arrayPatternHasBits(pattern) {
+		c.checkBitArrayPattern(pattern, subject, env, optional)
+		return
+	}
+	elemType, restType, ok := c.sequencePatternTypes(subject)
+	if !ok && subject != Unknown {
+		c.errorf(pattern.Pos, "array pattern expects Array, String, or Bytes, got %s", subject)
+	}
+	pattern.SubjectType = string(subject)
+	pattern.RestType = string(restType)
+	if optional && pattern.RestBinding != "" {
+		c.errorf(pattern.RestPos, "optional pattern binding %q is not available when the key is absent", pattern.RestBinding)
+	}
+	for _, elem := range pattern.Elements {
+		if spread, ok := elem.(*ast.SequenceSpreadPattern); ok {
+			c.checkSequenceSpreadPattern(spread, subject, elemType, env)
+			continue
+		}
+		c.checkPatternWithSubject(elem, elemType, env, optional)
+	}
+	if pattern.RestBinding != "" && !optional {
+		env[pattern.RestBinding] = restType
+	}
+}
+
+func (c *checker) checkSequenceSpreadPattern(pattern *ast.SequenceSpreadPattern, subject Type, elemType Type, env map[string]Type) {
+	typ := c.inferExpr(pattern.Value, env)
+	pattern.Type = string(typ)
+	if typ == Unknown || subject == Unknown {
+		return
+	}
+	switch subject {
+	case String:
+		if typ != String {
+			c.errorf(pattern.Pos, "string pattern spread expects String, got %s", typ)
+		}
+	case Bytes:
+		if typ != Bytes {
+			c.errorf(pattern.Pos, "bytes pattern spread expects Bytes, got %s", typ)
+		}
+	default:
+		if spreadElem, ok := ArrayElement(typ); ok {
+			if elemType != Unknown && spreadElem != Unknown && !c.typesCompatible(elemType, spreadElem, nil) {
+				c.errorf(pattern.Pos, "array pattern spread has element type %s, expected %s", spreadElem, elemType)
+			}
+			return
+		}
+		c.errorf(pattern.Pos, "array pattern spread expects Array, String, or Bytes, got %s", typ)
+	}
+}
+
+func arrayPatternHasBits(pattern *ast.ArrayPattern) bool {
+	for _, elem := range pattern.Elements {
+		if _, ok := elem.(*ast.BitPattern); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *checker) checkBitArrayPattern(pattern *ast.ArrayPattern, subject Type, env map[string]Type, optional bool) {
+	restType, ok := c.bitPatternSubjectType(subject)
+	if !ok && subject != Unknown {
+		c.errorf(pattern.Pos, "bitstring pattern expects Bytes or Array[UInt8], got %s", subject)
+	}
+	pattern.SubjectType = string(subject)
+	pattern.RestType = string(restType)
+	if optional && pattern.RestBinding != "" {
+		c.errorf(pattern.RestPos, "optional pattern binding %q is not available when the key is absent", pattern.RestBinding)
+	}
+	bitsBeforeRest := 0
+	bitOffset := 0
+	for idx, elem := range pattern.Elements {
+		bit, ok := elem.(*ast.BitPattern)
+		if !ok {
+			c.errorf(elem.Position(), "bitstring pattern cannot mix bit fields with element patterns")
+			c.checkPatternWithSubject(elem, UInt8, env, optional)
+			continue
+		}
+		if bit.Endian == "le" && bitOffset%8 != 0 {
+			c.errorf(bit.Pos, "little-endian bitstring pattern must start on a byte boundary")
+		}
+		c.checkBitPattern(bit, env, optional)
+		if pattern.RestIndex < 0 || idx < pattern.RestIndex {
+			bitsBeforeRest += bit.Width
+		}
+		bitOffset += bit.Width
+	}
+	if pattern.RestBinding != "" && bitsBeforeRest%8 != 0 {
+		c.errorf(pattern.RestPos, "bitstring rest must start on a byte boundary")
+	}
+	if pattern.RestBinding != "" && !optional {
+		env[pattern.RestBinding] = restType
+	}
+}
+
+func (c *checker) bitPatternSubjectType(subject Type) (Type, bool) {
+	if subject == Bytes || subject == Unknown {
+		return subject, true
+	}
+	if elem, ok := ArrayElement(subject); ok && elem == UInt8 {
+		return subject, true
+	}
+	return Unknown, false
+}
+
+func (c *checker) checkBitPattern(pattern *ast.BitPattern, env map[string]Type, optional bool) {
+	if pattern.Width < 1 || pattern.Width > 64 {
+		c.errorf(pattern.Pos, "bitstring pattern width must be between 1 and 64")
+	}
+	if pattern.Endian == "le" && pattern.Width%8 != 0 {
+		c.errorf(pattern.Pos, "little-endian bitstring pattern width must be byte-aligned")
+	}
+	c.checkPatternWithSubject(pattern.Value, bitPatternValueType(pattern), env, optional)
+}
+
+func bitPatternValueType(pattern *ast.BitPattern) Type {
+	if pattern.Width > 32 {
+		if pattern.Signed {
+			return Int64
+		}
+		return UInt64
+	}
+	if pattern.Signed {
+		return Int
+	}
+	return UInt
+}
+
+func (c *checker) sequencePatternTypes(subject Type) (Type, Type, bool) {
+	if elem, ok := ArrayElement(subject); ok {
+		return elem, subject, true
+	}
+	switch subject {
+	case String:
+		return Char, String, true
+	case Bytes:
+		return UInt8, Bytes, true
+	case Unknown:
+		return Unknown, Unknown, true
+	default:
+		return Unknown, Unknown, false
+	}
+}
+
 func (c *checker) checkConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) {
+	pattern.SubjectType = string(subject)
 	if c.checkEnumConstructorPattern(pattern, subject, env, optional) {
+		return
+	}
+	if c.checkJSONConstructorPattern(pattern, subject, env, optional) {
 		return
 	}
 	okType, errType, result := parseResultType(subject)
@@ -869,8 +1201,42 @@ func (c *checker) checkConstructorPattern(pattern *ast.ConstructorPattern, subje
 			c.errorf(pattern.BindingPos, "optional pattern binding %q is not available when the key is absent", pattern.Binding)
 			return
 		}
+	}
+	c.checkConstructorArgs(pattern, []Type{bindingType}, env, optional)
+	if pattern.Binding != "" && len(pattern.Args) == 0 {
 		env[pattern.Binding] = bindingType
 	}
+}
+
+func (c *checker) checkJSONConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) bool {
+	if subject != Object && subject != Unknown {
+		return false
+	}
+	var payload Type
+	switch pattern.Name {
+	case "Array":
+		payload = ArrayOf(Object)
+	case "Object":
+		payload = Object
+	case "String":
+		payload = String
+	case "Bool":
+		payload = Bool
+	case "Number":
+		payload = Unknown
+	case "Null":
+		payload = Null
+	default:
+		return false
+	}
+	if pattern.Name == "Null" {
+		if len(pattern.Args) > 0 {
+			c.errorf(pattern.Pos, "JSON Null pattern expects no args")
+		}
+		return true
+	}
+	c.checkConstructorArgs(pattern, []Type{payload}, env, optional)
+	return true
 }
 
 func (c *checker) checkEnumConstructorPattern(pattern *ast.ConstructorPattern, subject Type, env map[string]Type, optional bool) bool {
@@ -887,39 +1253,64 @@ func (c *checker) checkEnumConstructorPattern(pattern *ast.ConstructorPattern, s
 	if !c.checkPrivateAccess("enum constructor", enum.Name+"."+pattern.Name, member.Private, member.SourcePath, pattern.Pos) {
 		return true
 	}
-	if pattern.Binding == "" {
-		return true
-	}
 	if optional {
 		c.errorf(pattern.BindingPos, "optional pattern binding %q is not available when the key is absent", pattern.Binding)
 		return true
 	}
-	if len(member.Params) == 0 {
+	paramTypes := make([]Type, 0, len(member.Params))
+	for _, param := range member.Params {
+		paramTypes = append(paramTypes, substituteTypeParams(param.Type, typeParamBindingsForEnum(enum, subject)))
+	}
+	if pattern.Binding != "" && len(pattern.Args) == 0 && len(member.Params) == 0 {
 		c.errorf(pattern.BindingPos, "constructor %s.%s does not bind a value", enum.Name, pattern.Name)
 		return true
 	}
-	if len(member.Params) > 1 {
+	if pattern.Binding != "" && len(pattern.Args) == 0 && len(member.Params) > 1 {
 		c.errorf(pattern.BindingPos, "constructor %s.%s binds multiple values", enum.Name, pattern.Name)
 		return true
 	}
-	env[pattern.Binding] = substituteTypeParams(member.Params[0].Type, typeParamBindingsForEnum(enum, subject))
+	c.checkConstructorArgs(pattern, paramTypes, env, optional)
+	if pattern.Binding != "" && len(pattern.Args) == 0 {
+		env[pattern.Binding] = paramTypes[0]
+	}
 	return true
+}
+
+func (c *checker) checkConstructorArgs(pattern *ast.ConstructorPattern, paramTypes []Type, env map[string]Type, optional bool) {
+	if pattern.Rest {
+		if len(pattern.Args) > len(paramTypes) {
+			c.errorf(pattern.Pos, "constructor %s pattern expects at most %d args before '..', got %d", pattern.Name, len(paramTypes), len(pattern.Args))
+			return
+		}
+	} else if len(pattern.Args) != len(paramTypes) {
+		c.errorf(pattern.Pos, "constructor %s pattern expects %d args, got %d", pattern.Name, len(paramTypes), len(pattern.Args))
+		return
+	}
+	for idx, arg := range pattern.Args {
+		expected := Unknown
+		if idx < len(paramTypes) {
+			expected = paramTypes[idx]
+		}
+		c.checkPatternWithSubject(arg, expected, env, optional)
+	}
 }
 
 func (c *checker) checkMapPattern(pattern *ast.MapPattern, subject Type, env map[string]Type, optional bool) {
 	if !pattern.Rest {
 		c.errorf(pattern.Pos, "map pattern requires '..' to ignore unmatched keys")
 	}
-	keyType, valueType, ok := MapKeyValue(subject)
+	pattern.SubjectType = string(subject)
+	keyType, valueType, access, ok := c.mapPatternTypes(subject, pattern.Pos)
+	pattern.Access = access
+	pattern.ValueType = string(valueType)
 	if !ok {
-		if subject != Unknown {
-			c.errorf(pattern.Pos, "map pattern expects Map, got %s", subject)
-		}
 		keyType = Unknown
 		valueType = Unknown
+		pattern.ValueType = string(Unknown)
 	}
 	seen := map[string]lexer.Position{}
 	for _, entry := range pattern.Entries {
+		c.checkMapPatternKey(entry.Key)
 		key := c.inferExpr(entry.Key, env)
 		if keyType != Unknown && key != Unknown && !c.typesCompatible(keyType, key, nil) {
 			c.errorf(entry.Key.Position(), "map pattern key has type %s, expected %s", key, keyType)
@@ -928,14 +1319,74 @@ func (c *checker) checkMapPattern(pattern *ast.MapPattern, subject Type, env map
 			c.errorf(entry.Pos, "duplicate map pattern key also used at %s", prev)
 		}
 		seen[patternKeyText(entry.Key)] = entry.Pos
-		c.checkPatternWithSubject(entry.Pattern, valueType, env, entry.Optional)
+		entryType := valueType
+		entryOptional := entry.Optional
+		if entry.Optional && valueType != Unknown {
+			entryType = NullableOf(valueType)
+			entryOptional = false
+		}
+		c.checkPatternWithSubject(entry.Pattern, entryType, env, entryOptional)
 	}
+}
+
+func (c *checker) checkMapPatternKey(expr ast.Expr) {
+	if c.patternLiteralOrConst(expr) {
+		return
+	}
+	c.errorf(expr.Position(), "map pattern key must be a literal or const")
+}
+
+func (c *checker) patternLiteralOrConst(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.StringLiteral, *ast.CharLiteral, *ast.IntegerLiteral, *ast.DoubleLiteral,
+		*ast.BigIntLiteral, *ast.BoolLiteral, *ast.NullLiteral:
+		return true
+	case *ast.Identifier:
+		value := c.resolveExternalValue(e.Name)
+		return value != nil && value.Const != nil
+	}
+	return false
+}
+
+func (c *checker) mapPatternTypes(subject Type, pos lexer.Position) (Type, Type, string, bool) {
+	if key, value, ok := MapKeyValue(subject); ok {
+		return key, value, "map", true
+	}
+	switch subject {
+	case Object:
+		return String, Unknown, "object", true
+	case Unknown:
+		return Unknown, Unknown, "", true
+	}
+	structInfo := c.info.Types[baseTypeName(subject)]
+	if structInfo == nil {
+		c.errorf(pos, "map pattern expects Map or a type with get(key) -> V?, got %s", subject)
+		return Unknown, Unknown, "", false
+	}
+	method := structInfo.Methods["get"]
+	if method == nil || method.Static || len(method.Params) != 1 {
+		c.errorf(pos, "map pattern expects type %s to define get(key) -> V?", subject)
+		return Unknown, Unknown, "", false
+	}
+	if !c.checkPrivateAccess("method", structInfo.Name+".get", method.Private, method.SourcePath, pos) {
+		return Unknown, Unknown, "", false
+	}
+	bindings := typeParamBindingsForStruct(structInfo, subject)
+	keyType := substituteTypeParams(method.Params[0].Type, bindings)
+	returnType := substituteTypeParams(method.Return, bindings)
+	inner, ok := parseNullableType(string(returnType))
+	if !ok {
+		c.errorf(pos, "map pattern expects get(key) to return nullable value, got %s", returnType)
+		return Unknown, Unknown, "", false
+	}
+	return keyType, Type(inner), "get", true
 }
 
 func (c *checker) checkObjectPattern(pattern *ast.ObjectPattern, subject Type, env map[string]Type, optional bool) {
 	if !pattern.Rest {
 		c.errorf(pattern.Pos, "object pattern requires '..' to ignore unmatched fields")
 	}
+	pattern.SubjectType = string(subject)
 	structInfo := c.info.Types[baseTypeName(subject)]
 	if structInfo == nil {
 		if subject != Unknown && subject != Object {

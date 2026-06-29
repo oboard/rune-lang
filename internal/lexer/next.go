@@ -19,8 +19,10 @@ func (l *Lexer) Next() Token {
 
 func (l *Lexer) finishToken(tok Token) Token {
 	switch tok.Kind {
-	case Ident, Int, Double, BigInt, String, TemplateString, Char, Regex, XMLText, Less, RParen, RBracket, RBrace:
+	case Ident, Int, Double, BigInt, String, TemplateString, Char, Regex, XMLText, RParen, RBracket, RBrace:
 		l.canStartRegex = false
+	case Less:
+		l.canStartRegex = !(l.peek() == '/' || isIdentStart(l.peek()))
 	case EOF:
 	default:
 		l.canStartRegex = true
@@ -55,6 +57,9 @@ func (l *Lexer) nextCode() Token {
 		if l.match('.') {
 			if l.match('.') {
 				return l.token(DotDotDot)
+			}
+			if l.match('<') {
+				return l.token(DotDotLess)
 			}
 			if l.match('=') {
 				return l.token(DotDotEqual)

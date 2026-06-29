@@ -13,6 +13,7 @@ type File struct {
 	Traits    []*TraitDecl
 	Types     []*StructType
 	Enums     []*EnumType
+	Constants []*ConstDecl
 	Functions []*Function
 	Tests     []*Test
 }
@@ -113,6 +114,16 @@ type EnumMember struct {
 	HasValue    bool
 	Params      []Param
 	Pos         lexer.Position
+}
+
+type ConstDecl struct {
+	Name       string
+	Private    bool
+	Type       Type
+	Value      Expr
+	Pos        lexer.Position
+	NamePos    lexer.Position
+	SourcePath string
 }
 
 type Function struct {
