@@ -1,4 +1,4 @@
-Int4: {
++ Int4: {
   add(other: Int4) -> Int4 => "%int4.add"
 
   sub(other: Int4) -> Int4 => "%int4.sub"
@@ -8,6 +8,6 @@ Int4: {
   div(other: Int4) -> Int4 => "%int4.div"
 }
 
-fromInt(value: Int) -> Int4 => "%int4.fromInt"
++ fromInt(value: Int) -> Int4 => "%int4.fromInt"
 
-toInt(value: Int4) -> Int => "%int4.toInt"
++ toInt(value: Int4) -> Int => "%int4.toInt"

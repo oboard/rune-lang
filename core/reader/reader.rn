@@ -1,4 +1,4 @@
-Reader: {
++ Reader: {
   length() -> Int => "%reader.length"
 
   byteLength() -> Int => "%reader.length"
@@ -84,4 +84,4 @@ Reader: {
   ) -> Double => "%reader.readDouble"
 }
 
-new(value: Bytes) -> Reader => "%reader.new"
++ new(value: Bytes) -> Reader => "%reader.new"

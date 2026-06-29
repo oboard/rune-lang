@@ -1,4 +1,4 @@
-TCPConnection: {
++ TCPConnection: {
   ~ read(
     length: Int
   ) -> Result[@io.Data, Error] => "%netConnection.read"
@@ -10,7 +10,7 @@ TCPConnection: {
   ~ close() -> Result[Void, Error] => "%netConnection.close"
 }
 
-TCPListener: {
++ TCPListener: {
   address() -> String => "%netListener.address"
 
   ~ accept(
@@ -19,10 +19,10 @@ TCPListener: {
   ~ close() -> Result[Void, Error] => "%netListener.close"
 }
 
-~ connect(
++ ~ connect(
   address: String
 ) -> Result[TCPConnection, Error] => "%net.connect"
 
-~ listen(
++ ~ listen(
   address: String
 ) -> Result[TCPListener, Error] => "%net.listen"

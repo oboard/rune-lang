@@ -80,6 +80,6 @@ hasFromJson(
   context: MacroContext
 ) -> SyntaxFile => tree
 
-stringify(object: Object) -> String => "%json.stringify"
++ stringify(object: Object) -> String => "%json.stringify"
 
-parse(text: String) -> Dynamic => "%json.parse"
++ parse(text: String) -> Dynamic => "%json.parse"

@@ -1,4 +1,4 @@
-Map[K, V]: {
++ Map[K, V]: {
   size() -> Int => "%map.size"
 
   has(key: K) -> Bool => "%map.has"
@@ -24,7 +24,7 @@ Map[K, V]: {
   ) -> Void => "%map.each"
 }
 
-WeakMap[K, V]: {
++ WeakMap[K, V]: {
   has(key: K) -> Bool => "%weakMap.has"
 
   getOr(key: K, fallback: V) -> V => "%weakMap.getOr"
@@ -34,7 +34,7 @@ WeakMap[K, V]: {
   delete(key: K) -> Bool => "%weakMap.delete"
 }
 
-new[K, V](
++ new[K, V](
   keyType: K,
   valueType: V
 ) -> Map[K, V] => "%map.new"

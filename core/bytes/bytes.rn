@@ -1,4 +1,4 @@
-Bytes: {
++ Bytes: {
   length() -> Int => "%bytes.length"
 
   byteLength() -> Int => "%bytes.length"
@@ -247,6 +247,6 @@ Bytes: {
   ) -> Double => "%bytes.setDouble"
 }
 
-new(length: Int) -> Bytes => "%bytes.new"
++ new(length: Int) -> Bytes => "%bytes.new"
 
-fromInts(values: Array[Int]) -> Bytes => "%bytes.fromInts"
++ fromInts(values: Array[Int]) -> Bytes => "%bytes.fromInts"

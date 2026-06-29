@@ -1,4 +1,4 @@
-Float: {
++ Float: {
   add(other: Float) -> Float => "%float.add"
 
   sub(other: Float) -> Float => "%float.sub"
@@ -8,6 +8,6 @@ Float: {
   div(other: Float) -> Float => "%float.div"
 }
 
-fromDouble(value: Double) -> Float => "%float.fromDouble"
++ fromDouble(value: Double) -> Float => "%float.fromDouble"
 
-toDouble(value: Float) -> Double => "%float.toDouble"
++ toDouble(value: Float) -> Double => "%float.toDouble"

@@ -1,4 +1,4 @@
-Array[T]: {
++ Array[T]: {
   length() -> Int => "%array.len"
 
   isEmpty() -> Bool => .length() == 0

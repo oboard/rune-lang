@@ -1,4 +1,4 @@
-Writer: {
++ Writer: {
   length() -> Int => "%writer.length"
 
   byteLength() -> Int => "%writer.length"
@@ -119,6 +119,6 @@ Writer: {
   ) -> Writer => "%writer.writeDouble"
 }
 
-new() -> Writer => "%writer.new"
++ new() -> Writer => "%writer.new"
 
-withCapacity(capacity: Int) -> Writer => "%writer.withCapacity"
++ withCapacity(capacity: Int) -> Writer => "%writer.withCapacity"

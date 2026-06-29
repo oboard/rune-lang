@@ -1,4 +1,4 @@
-UInt8: {
++ UInt8: {
   add(other: UInt8) -> UInt8 => "%uint8.add"
 
   sub(other: UInt8) -> UInt8 => "%uint8.sub"
@@ -8,6 +8,6 @@ UInt8: {
   div(other: UInt8) -> UInt8 => "%uint8.div"
 }
 
-fromInt(value: Int) -> UInt8 => "%uint8.fromInt"
++ fromInt(value: Int) -> UInt8 => "%uint8.fromInt"
 
-toInt(value: UInt8) -> Int => "%uint8.toInt"
++ toInt(value: UInt8) -> Int => "%uint8.toInt"

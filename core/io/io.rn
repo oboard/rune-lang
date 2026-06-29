@@ -1,14 +1,14 @@
-Data: {
++ Data: {
 }
 
-print[T](input: T) => "%io.print"
++ print[T](input: T) => "%io.print"
 
-println[T](input: T) => "%io.println"
++ println[T](input: T) => "%io.println"
 
-printf[T](format: String, input: T) => "%io.printf"
++ printf[T](format: String, input: T) => "%io.printf"
 
-scan() -> String? => "%io.scan"
++ scan() -> String? => "%io.scan"
 
-scanLine() -> String? => "%io.scanLine"
++ scanLine() -> String? => "%io.scanLine"
 
-readAll() -> String => "%io.readAll"
++ readAll() -> String => "%io.readAll"

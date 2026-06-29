@@ -1,4 +1,4 @@
-Int: {
++ Int: {
   toString() -> String => "%int.toString"
 
   add(other: Int) -> Int => "%int.add"
@@ -10,8 +10,8 @@ Int: {
   div(other: Int) -> Int => "%int.div"
 }
 
-toDouble(value: Int) -> Double => "%int.toDouble"
++ toDouble(value: Int) -> Double => "%int.toDouble"
 
-toBigInt(value: Int) -> BigInt => "%int.toBigInt"
++ toBigInt(value: Int) -> BigInt => "%int.toBigInt"
 
-toString(value: Int) -> String => "%int.toString"
++ toString(value: Int) -> String => "%int.toString"

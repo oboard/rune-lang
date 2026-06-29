@@ -1,4 +1,4 @@
-Set[T]: {
++ Set[T]: {
   size() -> Int => "%set.size"
 
   has(value: T) -> Bool => "%set.has"
@@ -20,7 +20,7 @@ Set[T]: {
   ) -> Void => "%set.each"
 }
 
-WeakSet[T]: {
++ WeakSet[T]: {
   has(value: T) -> Bool => "%weakSet.has"
 
   add(value: T) -> WeakSet[T] => "%weakSet.add"
@@ -28,4 +28,4 @@ WeakSet[T]: {
   delete(value: T) -> Bool => "%weakSet.delete"
 }
 
-new[T](valueType: T) -> Set[T] => "%set.new"
++ new[T](valueType: T) -> Set[T] => "%set.new"

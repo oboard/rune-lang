@@ -1,4 +1,4 @@
-Iter[T]: {
++ Iter[T]: {
   next: () -> (T, Bool)
 
   toArray() -> Array[T] => .toArrayFrom([])
@@ -114,11 +114,13 @@ Iter[T]: {
   }
 }
 
-new[T](next: () -> (T, Bool)) -> Iter[T] => {
++ new[T](
+  next: () -> (T, Bool)
+) -> Iter[T] => {
   next: next
 }
 
-fromArray[T](
++ fromArray[T](
   values: Array[T]
 ) -> Iter[T] => {
   index ~= -1
@@ -131,9 +133,12 @@ fromArray[T](
   })
 }
 
-range(start: Int, end: Int) -> Iter[Int] => @iter.rangeStep(start, end, 1)
++ range(
+  start: Int,
+  end: Int
+) -> Iter[Int] => @iter.rangeStep(start, end, 1)
 
-rangeStep(
++ rangeStep(
   start: Int,
   end: Int,
   step: Int
@@ -151,7 +156,7 @@ rangeStep(
   })
 }
 
-repeat[T](
++ repeat[T](
   value: T,
   count: Int
 ) -> Iter[T] => {
@@ -162,4 +167,4 @@ repeat[T](
   })
 }
 
-empty[T](valueType: T) -> Iter[T] => @iter.new(() => (valueType, false))
++ empty[T](valueType: T) -> Iter[T] => @iter.new(() => (valueType, false))

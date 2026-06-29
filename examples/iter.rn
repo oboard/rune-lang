@@ -10,6 +10,6 @@ main() => {
   buffer := @stringbuffer.from("Rune")
   buffer.append(" core")
   @io.println(buffer.toString())
-  @io.println(@path.basename("examples/core_modules.rn"))
+  @io.println(@path.basename("examples/core_modules.rn")')
   @io.println(@process.platform()')
 }

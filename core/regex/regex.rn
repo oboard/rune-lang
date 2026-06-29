@@ -1,4 +1,4 @@
-Regex: {
++ Regex: {
   exec(string: String) -> Array[String] => "%regex.exec"
 
   match(string: String) -> Array[String] => "%regex.match"
@@ -48,9 +48,9 @@ Regex: {
   setLastIndex(index: Int) -> Int => "%regex.setLastIndex"
 }
 
-new(
++ new(
   pattern: String,
   flags: String
 ) -> Regex => "%regex.new"
 
-escape(value: String) -> String => "%regex.escape"
++ escape(value: String) -> String => "%regex.escape"

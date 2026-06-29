@@ -1,4 +1,4 @@
-UInt64: {
++ UInt64: {
   add(other: UInt64) -> UInt64 => "%uint64.add"
 
   sub(other: UInt64) -> UInt64 => "%uint64.sub"
@@ -8,6 +8,6 @@ UInt64: {
   div(other: UInt64) -> UInt64 => "%uint64.div"
 }
 
-fromInt(value: Int) -> UInt64 => "%uint64.fromInt"
++ fromInt(value: Int) -> UInt64 => "%uint64.fromInt"
 
-toInt(value: UInt64) -> Int => "%uint64.toInt"
++ toInt(value: UInt64) -> Int => "%uint64.toInt"

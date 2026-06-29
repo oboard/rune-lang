@@ -1,6 +1,6 @@
 @syntax
 
-CliCommand: {
++ CliCommand: {
   name: String
   version: String?
   about: String
@@ -8,7 +8,7 @@ CliCommand: {
   arguments: Array[CliArgument]
 }
 
-CliOption: {
++ CliOption: {
   name: String
   short: String
   valueName: String
@@ -17,13 +17,13 @@ CliOption: {
   defaultValue: String?
 }
 
-CliArgument: {
++ CliArgument: {
   name: String
   help: String
   required: Bool
 }
 
-CliParseResult: {
++ CliParseResult: {
   command: CliCommand
   values: Map[String, String]
   flags: Map[String, Bool]
@@ -215,7 +215,7 @@ mainBody(
   }
 }
 
-command(
++ command(
   name: String,
   about: String
 ) -> CliCommand => {
@@ -226,7 +226,7 @@ command(
   arguments: []
 }
 
-withVersion(
++ withVersion(
   command: CliCommand,
   version: String
 ) -> CliCommand => {
@@ -237,7 +237,7 @@ withVersion(
   arguments: command.arguments
 }
 
-withOption(
++ withOption(
   command: CliCommand,
   option: CliOption
 ) -> CliCommand => {
@@ -248,7 +248,7 @@ withOption(
   arguments: command.arguments
 }
 
-withArgument(
++ withArgument(
   command: CliCommand,
   argument: CliArgument
 ) -> CliCommand => {
@@ -259,7 +259,7 @@ withArgument(
   arguments: [..command.arguments, argument]
 }
 
-flag(
++ flag(
   name: String,
   short: String,
   help: String
@@ -272,7 +272,7 @@ flag(
   defaultValue: null
 }
 
-option(
++ option(
   name: String,
   short: String,
   valueName: String,
@@ -288,7 +288,7 @@ option(
   defaultValue: defaultValue
 }
 
-argument(
++ argument(
   name: String,
   help: String,
   required: Bool
@@ -298,7 +298,7 @@ argument(
   required: required
 }
 
-parse(
++ parse(
   command: CliCommand
 ) -> CliParseResult => {
   argv := @process.argv()
@@ -312,12 +312,12 @@ parse(
   parseArgs(command, args)
 }
 
-exitHelp(command: CliCommand) -> Never => {
++ exitHelp(command: CliCommand) -> Never => {
   @io.print(@cli.help(command))
   @process.exit(0)
 }
 
-exitError(
++ exitError(
   command: CliCommand,
   message: String
 ) -> Never => {
@@ -326,7 +326,7 @@ exitError(
   @process.exit(2)
 }
 
-parseOrExit(
++ parseOrExit(
   command: CliCommand
 ) -> CliParseResult => {
   result := @cli.parse(command)
@@ -342,7 +342,7 @@ parseOrExit(
   result
 }
 
-parseArgs(
++ parseArgs(
   command: CliCommand,
   args: Array[String]
 ) -> CliParseResult => {
@@ -636,7 +636,7 @@ parseArgs(
   }
 }
 
-help(command: CliCommand) -> String => {
++ help(command: CliCommand) -> String => {
   text ~= "Usage: " + command.name
   (
     command.options.isEmpty() ? text = text

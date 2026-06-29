@@ -1,4 +1,4 @@
-Buffer: {
++ Buffer: {
   length() -> Int => "%buffer.length"
 
   byteLength() -> Int => "%buffer.length"
@@ -24,6 +24,6 @@ Buffer: {
   writer() -> Writer => "%buffer.writer"
 }
 
-new() -> Buffer => "%buffer.new"
++ new() -> Buffer => "%buffer.new"
 
-fromBytes(value: Bytes) -> Buffer => "%buffer.fromBytes"
++ fromBytes(value: Bytes) -> Buffer => "%buffer.fromBytes"

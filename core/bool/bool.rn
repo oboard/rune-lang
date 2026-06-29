@@ -1,4 +1,4 @@
-Bool: {
++ Bool: {
   not() -> Bool => !this
 
   xor(other: Bool) -> Bool => this != other

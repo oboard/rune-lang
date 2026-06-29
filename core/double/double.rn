@@ -1,4 +1,4 @@
-Double: {
++ Double: {
   add(other: Double) -> Double => "%double.add"
 
   sub(other: Double) -> Double => "%double.sub"
@@ -8,10 +8,10 @@ Double: {
   div(other: Double) -> Double => "%double.div"
 }
 
-trunc(value: Double) -> Int => "%double.trunc"
++ trunc(value: Double) -> Int => "%double.trunc"
 
-floor(value: Double) -> Int => "%double.floor"
++ floor(value: Double) -> Int => "%double.floor"
 
-ceil(value: Double) -> Int => "%double.ceil"
++ ceil(value: Double) -> Int => "%double.ceil"
 
-round(value: Double) -> Int => "%double.round"
++ round(value: Double) -> Int => "%double.round"

@@ -1,4 +1,4 @@
-StringBuffer: {
++ StringBuffer: {
   length() -> Int => "%stringbuffer.length"
 
   isEmpty() -> Bool => .length() == 0
@@ -14,6 +14,6 @@ StringBuffer: {
   toString() -> String => "%stringbuffer.toString"
 }
 
-new() -> StringBuffer => "%stringbuffer.new"
++ new() -> StringBuffer => "%stringbuffer.new"
 
-from(value: String) -> StringBuffer => "%stringbuffer.from"
++ from(value: String) -> StringBuffer => "%stringbuffer.from"

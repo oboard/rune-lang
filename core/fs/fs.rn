@@ -1,43 +1,43 @@
-FileStat: {
++ FileStat: {
   size: Int
   isFile: Bool
   isDirectory: Bool
 }
 
-~ readFile(
++ ~ readFile(
   path: String
 ) -> Result[@io.Data, Error] => "%fs.readFile"
 
-~ readFileText(
++ ~ readFileText(
   path: String
 ) -> Result[String, Error] => "%fs.readFileText"
 
-~ writeFile(
++ ~ writeFile(
   path: String,
   data: @io.Data
 ) -> Result[Void, Error] => "%fs.writeFile"
 
-~ writeFileText(
++ ~ writeFileText(
   path: String,
   data: String
 ) -> Result[Void, Error] => "%fs.writeFileText"
 
-~ exists(
++ ~ exists(
   path: String
 ) -> Result[Bool, Error] => "%fs.exists"
 
-~ readdir(
++ ~ readdir(
   path: String
 ) -> Result[Array[String], Error] => "%fs.readdir"
 
-~ mkdir(
++ ~ mkdir(
   path: String
 ) -> Result[Void, Error] => "%fs.mkdir"
 
-~ remove(
++ ~ remove(
   path: String
 ) -> Result[Void, Error] => "%fs.remove"
 
-~ stat(
++ ~ stat(
   path: String
 ) -> Result[FileStat, Error] => "%fs.stat"
