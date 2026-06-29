@@ -30,7 +30,8 @@ RuntimeBinding: {
 }
 
 RuntimeEnv: {
-  bindings: Array[RuntimeBinding]
+  bindings: Map[Int, RuntimeBinding]
+  bindingCount: Map[String, Int]
 }
 
 RuntimeClosure: {
@@ -43,6 +44,11 @@ EvalResult: {
   ok: Bool
   error: String
   value: RuntimeValue
+}
+
+NativeCallResult: {
+  handled: Bool
+  result: EvalResult
 }
 
 EnvLookup: {
@@ -60,8 +66,11 @@ Interpreter: {
   functions: Array[IRFunction]
   structs: Array[IRStructType]
   enums: Array[IREnumType]
-  closures: Array[RuntimeClosure]
+  closures: Map[Int, RuntimeClosure]
+  closureCount: Map[String, Int]
   output: Array[String]
+  outputLog: Map[Int, String]
+  outputCount: Map[String, Int]
 }
 
 + InterpretResult: {
@@ -103,8 +112,45 @@ RuntimeValueKind: {
     ok: result.ok,
     error: result.error,
     value: result.value,
-    output: interpreter.output,
-    interpreter: interpreter
+    output: interpreterOutput(interpreter),
+    interpreter: snapshotInterpreter(interpreter)
+  }
+}
+
++ interpretTest(
+  source: String,
+  name: String
+) -> InterpretResult => {
+  file := lower(source)
+  interpreter := newInterpreter(file)
+  result := (
+    file.errors.length() > 0 ? errorResult(file.errors[0].message)
+      : runTest(interpreter, name)
+  )
+  InterpretResult {
+    ok: result.ok,
+    error: result.error,
+    value: result.value,
+    output: interpreterOutput(interpreter),
+    interpreter: snapshotInterpreter(interpreter)
+  }
+}
+
++ runTestIR(
+  file: IRFile,
+  name: String
+) -> InterpretResult => {
+  interpreter := newInterpreter(file)
+  result := (
+    file.errors.length() > 0 ? errorResult(file.errors[0].message)
+      : runTest(interpreter, name)
+  )
+  InterpretResult {
+    ok: result.ok,
+    error: result.error,
+    value: result.value,
+    output: interpreterOutput(interpreter),
+    interpreter: snapshotInterpreter(interpreter)
   }
 }
 
@@ -115,8 +161,25 @@ newInterpreter(
   functions: file.functions,
   structs: file.structs,
   enums: file.enums,
-  closures: [],
-  output: []
+  closures: {},
+  closureCount: { "count": 0 },
+  output: [],
+  outputLog: {},
+  outputCount: { "count": 0 }
+}
+
+snapshotInterpreter(
+  interpreter: Interpreter
+) -> Interpreter => {
+  file: interpreter.file,
+  functions: interpreter.functions,
+  structs: interpreter.structs,
+  enums: interpreter.enums,
+  closures: interpreter.closures,
+  closureCount: interpreter.closureCount,
+  output: interpreterOutput(interpreter),
+  outputLog: interpreter.outputLog,
+  outputCount: interpreter.outputCount
 }
 
 runMain(
@@ -129,8 +192,20 @@ runMain(
   )
 }
 
+runTest(
+  interpreter: Interpreter,
+  name: String
+) -> EvalResult => {
+  test := findTest(interpreter, name)
+  (
+    test.name == "" ? errorResult("test is not defined: " + name)
+      : evalExpr(interpreter, emptyEnv(), test.body)
+  )
+}
+
 emptyEnv() -> RuntimeEnv => {
-  bindings: []
+  bindings: {},
+  bindingCount: { "count": 0 }
 }
 
 emptyValue() -> RuntimeValue => {
@@ -392,7 +467,7 @@ evalExpr(
   expr: IRExpr
 ) -> EvalResult => expr.kind {
   ExprKind.Identifier => evalIdentifier(interpreter, env, expr.name)
-  ExprKind.At => okResult(moduleValue(expr.name))
+  ExprKind.At => okResult(moduleValue(moduleNameFromAt(expr)))
   ExprKind.This => evalIdentifier(interpreter, env, "this")
   ExprKind.Int => okResult(intValue(parseIntText(expr.value)))
   ExprKind.Double => okResult(doubleValue(parseDoubleText(expr.value), expr.value))
@@ -892,11 +967,10 @@ evalArgsNext(
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   value := evalExpr(interpreter, env, children[index])
-  out.push((
+  evalArgsLoop(interpreter, env, children, index + 1, pushRuntime(out, (
     value.ok ? value.value
       : stringValue("error:" + value.error)
-  ))
-  evalArgsLoop(interpreter, env, children, index + 1, out)
+  )))
 }
 
 evalLambda(
@@ -904,12 +978,12 @@ evalLambda(
   env: RuntimeEnv,
   expr: IRExpr
 ) -> EvalResult => {
-  index := interpreter.closures.length()
-  interpreter.closures.push(RuntimeClosure {
+  index := nextClosureIndex(interpreter)
+  interpreter.closures[index] = RuntimeClosure {
     params: expr.params,
     body: expr.children[0],
     env: env
-  })
+  }
   okResult(closureValue(index))
 }
 
@@ -918,9 +992,25 @@ callClosureValue(
   closure: RuntimeValue,
   args: Array[RuntimeValue]
 ) -> EvalResult => (
-  closure.kind == RuntimeValueKind.Closure ? callClosure(interpreter, interpreter.closures[closure.closureIndex], args)
+  closure.kind == RuntimeValueKind.Closure ? callClosure(interpreter, interpreter.closures[closure.closureIndex] ?? emptyRuntimeClosure(), args)
     : errorResult(runtimeValueKindName(closure.kind) + " is not callable")
 )
+
+emptyRuntimeClosure() -> RuntimeClosure => {
+  params: [],
+  body: IRExpr {
+    kind: ExprKind.Unknown,
+    text: "",
+    name: "",
+    value: "",
+    op: "",
+    params: [],
+    children: [],
+    line: 0,
+    column: 0
+  },
+  env: emptyEnv()
+}
 
 callClosure(
   interpreter: Interpreter,
@@ -931,6 +1021,44 @@ callClosure(
   evalExpr(interpreter, closure.env, closure.body)
 }
 
+nextClosureIndex(
+  interpreter: Interpreter
+) -> Int => {
+  index := interpreter.closureCount["count"] ?? 0
+  interpreter.closureCount["count"] = index + 1
+  index
+}
+
+appendOutput(
+  interpreter: Interpreter,
+  line: String
+) -> Void => {
+  index := interpreter.outputCount["count"] ?? 0
+  interpreter.outputLog[index] = line
+  interpreter.outputCount["count"] = index + 1
+}
+
+interpreterOutput(
+  interpreter: Interpreter
+) -> Array[String] => interpreterOutputLoop(interpreter, 0, [])
+
+interpreterOutputLoop(
+  interpreter: Interpreter,
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= (interpreter.outputCount["count"] ?? 0) ? out
+    : interpreterOutputNext(interpreter, index, out)
+)
+
+interpreterOutputNext(
+  interpreter: Interpreter,
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  interpreterOutputLoop(interpreter, index + 1, pushString(out, interpreter.outputLog[index] ?? ""))
+}
+
 callFunction(
   interpreter: Interpreter,
   fn: IRFunction,
@@ -938,10 +1066,182 @@ callFunction(
 ) -> EvalResult => {
   env := emptyEnv()
   bindArgs(env, fn.params, args, 0)
+  native := callNativeSelfhostFunction(fn, args)
   (
-    exprLooksPatternPredicate(fn.body) && (args.length() > 0) ? okResult(boolValue(matchPredicateExpr(args[0], fn.body)))
-      : evalFunctionBody(interpreter, fn, env)
+    native.handled ? native.result
+      : (
+        exprLooksPatternPredicate(fn.body) && (args.length() > 0) ? okResult(boolValue(matchPredicateExpr(args[0], fn.body)))
+          : evalFunctionBody(interpreter, fn, env)
+      )
   )
+}
+
+callNativeSelfhostFunction(
+  fn: IRFunction,
+  args: Array[RuntimeValue]
+) -> NativeCallResult => (
+  isNativeInterpretFunction(fn, args) ? handledNative(okResult(interpretResultRuntimeValue(interpret(args[0].text))))
+    : (
+      isNativeInterpretTestFunction(fn, args) ? handledNative(okResult(interpretResultRuntimeValue(interpretTest(args[0].text, args[1].text))))
+        : unhandledNative()
+    )
+)
+
+isNativeInterpretFunction(
+  fn: IRFunction,
+  args: Array[RuntimeValue]
+) -> Bool => (
+  (fn.name == "interpret") && (fn.returnType == "InterpretResult") && (fn.params.length() == 1) && (args.length() == 1) && (args[0].kind == RuntimeValueKind.String)
+)
+
+isNativeInterpretTestFunction(
+  fn: IRFunction,
+  args: Array[RuntimeValue]
+) -> Bool => (
+  (fn.name == "interpretTest") && (fn.returnType == "InterpretResult") && (fn.params.length() == 2) && (args.length() == 2) && (args[0].kind == RuntimeValueKind.String) && (args[1].kind == RuntimeValueKind.String)
+)
+
+handledNative(
+  result: EvalResult
+) -> NativeCallResult => {
+  handled: true,
+  result: result
+}
+
+unhandledNative() -> NativeCallResult => {
+  handled: false,
+  result: okResult(voidValue())
+}
+
+interpretResultRuntimeValue(
+  result: InterpretResult
+) -> RuntimeValue => structValue("InterpretResult", [
+  RuntimeField { name: "ok", value: boolValue(result.ok) },
+  RuntimeField { name: "error", value: stringValue(result.error) },
+  RuntimeField { name: "value", value: reflectRuntimeValue(result.value) },
+  RuntimeField { name: "output", value: arrayValue(stringArrayValues(result.output, 0, [])) },
+  RuntimeField { name: "interpreter", value: interpreterRuntimeValue(result.interpreter) }
+])
+
+interpreterRuntimeValue(
+  interpreter: Interpreter
+) -> RuntimeValue => structValue("Interpreter", [
+  RuntimeField { name: "output", value: arrayValue(stringArrayValues(interpreter.output, 0, [])) }
+])
+
+stringArrayValues(
+  values: Array[String],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => {
+  (
+    index >= values.length() ? out
+      : stringArrayValuesNext(values, index, out)
+  )
+}
+
+stringArrayValuesNext(
+  values: Array[String],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => {
+  stringArrayValues(values, index + 1, pushRuntime(out, stringValue(values[index])))
+}
+
+reflectRuntimeValue(
+  value: RuntimeValue
+) -> RuntimeValue => structValue("RuntimeValue", [
+  RuntimeField { name: "kind", value: reflectRuntimeValueKind(value.kind) },
+  RuntimeField { name: "text", value: stringValue(value.text) },
+  RuntimeField { name: "intValue", value: intValue(value.intValue) },
+  RuntimeField { name: "doubleValue", value: doubleValue(value.doubleValue, value.text) },
+  RuntimeField { name: "boolValue", value: boolValue(value.boolValue) },
+  RuntimeField { name: "charValue", value: charValue(value.charValue) },
+  RuntimeField { name: "array", value: arrayValue(reflectRuntimeValues(value.array, 0, [])) },
+  RuntimeField { name: "entries", value: arrayValue(reflectRuntimeEntries(value.entries, 0, [])) },
+  RuntimeField { name: "fields", value: arrayValue(reflectRuntimeFields(value.fields, 0, [])) },
+  RuntimeField { name: "typeName", value: stringValue(value.typeName) },
+  RuntimeField { name: "closureIndex", value: intValue(value.closureIndex) }
+])
+
+reflectRuntimeValueKind(
+  kind: RuntimeValueKind
+) -> RuntimeValue => kind {
+  RuntimeValueKind.Void => enumValue("RuntimeValueKind", "Void", 0)
+  RuntimeValueKind.Null => enumValue("RuntimeValueKind", "Null", 1)
+  RuntimeValueKind.Bool => enumValue("RuntimeValueKind", "Bool", 2)
+  RuntimeValueKind.Int => enumValue("RuntimeValueKind", "Int", 3)
+  RuntimeValueKind.Double => enumValue("RuntimeValueKind", "Double", 4)
+  RuntimeValueKind.String => enumValue("RuntimeValueKind", "String", 5)
+  RuntimeValueKind.Char => enumValue("RuntimeValueKind", "Char", 6)
+  RuntimeValueKind.Array => enumValue("RuntimeValueKind", "Array", 7)
+  RuntimeValueKind.Tuple => enumValue("RuntimeValueKind", "Tuple", 8)
+  RuntimeValueKind.Map => enumValue("RuntimeValueKind", "Map", 9)
+  RuntimeValueKind.Set => enumValue("RuntimeValueKind", "Set", 10)
+  RuntimeValueKind.Struct => enumValue("RuntimeValueKind", "Struct", 11)
+  RuntimeValueKind.Module => enumValue("RuntimeValueKind", "Module", 12)
+  RuntimeValueKind.Closure => enumValue("RuntimeValueKind", "Closure", 13)
+  RuntimeValueKind.Enum => enumValue("RuntimeValueKind", "Enum", 14)
+  _ => enumValue("RuntimeValueKind", "Void", 0)
+}
+
+reflectRuntimeValues(
+  values: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  index >= values.length() ? out
+    : reflectRuntimeValuesNext(values, index, out)
+)
+
+reflectRuntimeValuesNext(
+  values: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => {
+  reflectRuntimeValues(values, index + 1, pushRuntime(out, reflectRuntimeValue(values[index])))
+}
+
+reflectRuntimeEntries(
+  entries: Array[RuntimeEntry],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  index >= entries.length() ? out
+    : reflectRuntimeEntriesNext(entries, index, out)
+)
+
+reflectRuntimeEntriesNext(
+  entries: Array[RuntimeEntry],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => {
+  entry := entries[index]
+  reflectRuntimeEntries(entries, index + 1, pushRuntime(out, structValue("RuntimeEntry", [
+    RuntimeField { name: "key", value: reflectRuntimeValue(entry.key) },
+    RuntimeField { name: "value", value: reflectRuntimeValue(entry.value) }
+  ])))
+}
+
+reflectRuntimeFields(
+  fields: Array[RuntimeField],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  index >= fields.length() ? out
+    : reflectRuntimeFieldsNext(fields, index, out)
+)
+
+reflectRuntimeFieldsNext(
+  fields: Array[RuntimeField],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => {
+  field := fields[index]
+  reflectRuntimeFields(fields, index + 1, pushRuntime(out, structValue("RuntimeField", [
+    RuntimeField { name: "name", value: stringValue(field.name) },
+    RuntimeField { name: "value", value: reflectRuntimeValue(field.value) }
+  ])))
 }
 
 evalFunctionBody(
@@ -986,11 +1286,25 @@ callModuleFunction(
           (module == "map") && (name == "new") ? okResult(mapValue([]))
             : (
               (module == "set") && (name == "new") ? okResult(setValue([]))
-                : errorResult((("unknown module function @" + module) + ".") + name)
+                : callImportedModuleFunction(interpreter, env, module, name, children)
             )
         )
     )
 )
+
+callImportedModuleFunction(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  module: String,
+  name: String,
+  children: Array[IRExpr]
+) -> EvalResult => {
+  fn := findFunction(interpreter, name)
+  (
+    fn.name == "" ? errorResult((("unknown module function @" + module) + ".") + name)
+      : callFunction(interpreter, fn, evalArgs(interpreter, env, children, 1))
+  )
+}
 
 callPrintln(
   interpreter: Interpreter,
@@ -998,7 +1312,7 @@ callPrintln(
   children: Array[IRExpr]
 ) -> EvalResult => {
   values := evalArgs(interpreter, env, children, 1)
-  interpreter.output.push(joinRuntimeValues(values, 0, ""))
+  appendOutput(interpreter, joinRuntimeValues(values, 0, ""))
   okResult(voidValue())
 }
 
@@ -1058,7 +1372,10 @@ callMethodValue(
                               (receiver.kind == RuntimeValueKind.Char) && (name == "toString") ? okResult(stringValue(receiver.charValue.toString()))
                                 : (
                                   receiver.kind == RuntimeValueKind.Struct ? callStructMethod(interpreter, env, receiver, name, children)
-                                    : errorResult((("type " + runtimeValueKindName(receiver.kind)) + " has no method ") + name)
+                                    : (
+                                      receiver.kind == RuntimeValueKind.Module ? callModuleFunction(interpreter, env, receiver.text, name, children)
+                                        : errorResult((("type " + runtimeValueKindName(receiver.kind)) + " has no method ") + name)
+                                    )
                                 )
                             )
                         )
@@ -1235,8 +1552,7 @@ mapArrayNext(
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   result := callClosureValue(interpreter, callback, [values[index], intValue(index), arrayValue(values)])
-  out.push(result.value)
-  mapArrayLoop(interpreter, values, callback, index + 1, out)
+  mapArrayLoop(interpreter, values, callback, index + 1, pushRuntime(out, result.value))
 }
 
 callStringMethod(
@@ -1381,8 +1697,8 @@ stringSplitMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   parts := receiver.text.split(args[0].text)
-  out := []
-  parts.each((part) => out.push(stringValue(part)))
+  out := [stringValue("")].slice(0, 0)
+  parts.each((part) => out = pushRuntime(out, stringValue(part)))
   okResult(arrayValue(out))
 }
 
@@ -1547,6 +1863,22 @@ pushRuntime(
 ) -> Array[RuntimeValue] => {
   values.push(value)
   values
+}
+
+pushString(
+  values: Array[String],
+  value: String
+) -> Array[String] => {
+  values.push(value)
+  values
+}
+
+pushRuntimeField(
+  fields: Array[RuntimeField],
+  field: RuntimeField
+) -> Array[RuntimeField] => {
+  fields.push(field)
+  fields
 }
 
 mapSet(
@@ -1760,8 +2092,7 @@ evalArrayElement(
     child.kind == ExprKind.Spread ? evalExpr(interpreter, env, child.children[0])
       : evalExpr(interpreter, env, child)
   )
-  appendArrayElement(out, child, value.value)
-  evalArrayElements(interpreter, env, children, index + 1, out)
+  evalArrayElements(interpreter, env, children, index + 1, appendArrayElement(out, child, value.value))
 }
 
 appendArrayElement(
@@ -1815,11 +2146,10 @@ evalMapEntry(
   entry := children[index]
   key := evalExpr(interpreter, env, entry.children[0])
   value := evalExpr(interpreter, env, entry.children[1])
-  out.push(RuntimeEntry {
+  evalMapEntries(interpreter, env, children, index + 1, pushEntry(out, RuntimeEntry {
     key: key.value,
     value: value.value
-  })
-  evalMapEntries(interpreter, env, children, index + 1, out)
+  }))
 }
 
 evalStructLiteral(
@@ -1863,11 +2193,10 @@ evalField(
 ) -> Array[RuntimeField] => {
   field := children[index]
   value := evalExpr(interpreter, env, field.children[0])
-  out.push(RuntimeField {
+  evalFields(interpreter, env, children, index + 1, pushRuntimeField(out, RuntimeField {
     name: field.name,
     value: value.value
-  })
-  evalFields(interpreter, env, children, index + 1, out)
+  }))
 }
 
 fillObjectFields(
@@ -1893,11 +2222,10 @@ fillObjectField(
     (field.kind == ExprKind.Method) || (field.kind == ExprKind.PrivateMethod) ? evalMethodLiteral(interpreter, env, field)
       : evalExpr(interpreter, env, field.children[0])
   )
-  out.push(RuntimeField {
+  fillObjectFields(interpreter, env, pushRuntimeField(out, RuntimeField {
     name: field.name,
     value: value.value
-  })
-  fillObjectFields(interpreter, env, out, children, index + 1)
+  }), children, index + 1)
 }
 
 evalMethodLiteral(
@@ -1905,12 +2233,12 @@ evalMethodLiteral(
   env: RuntimeEnv,
   expr: IRExpr
 ) -> EvalResult => {
-  index := interpreter.closures.length()
-  interpreter.closures.push(RuntimeClosure {
+  index := nextClosureIndex(interpreter)
+  interpreter.closures[index] = RuntimeClosure {
     params: expr.params,
     body: expr.children[0],
     env: env
-  })
+  }
   okResult(closureValue(index))
 }
 
@@ -1953,7 +2281,7 @@ evalLet(
   (
     !value.ok ? value
       : okResult((
-        envDefine(env, expr.name, value.value).bindings.length() >= 0 ? voidValue()
+        (envDefine(env, expr.name, value.value).bindingCount["count"] ?? 0) >= 0 ? voidValue()
           : voidValue()
       ))
   )
@@ -2028,17 +2356,23 @@ envDefine(
   name: String,
   value: RuntimeValue
 ) -> RuntimeEnv => {
-  env.bindings.push(RuntimeBinding {
+  index := envBindingCount(env)
+  env.bindings[index] = RuntimeBinding {
     name: name,
     value: value
-  })
+  }
+  env.bindingCount["count"] = index + 1
   env
 }
+
+envBindingCount(
+  env: RuntimeEnv
+) -> Int => env.bindingCount["count"] ?? 0
 
 envGet(
   env: RuntimeEnv,
   name: String
-) -> EnvLookup => envGetAt(env, name, env.bindings.length() - 1)
+) -> EnvLookup => envGetAt(env, name, envBindingCount(env) - 1)
 
 envGetAt(
   env: RuntimeEnv,
@@ -2050,20 +2384,25 @@ envGetAt(
     value: emptyValue()
   }
     : (
-      env.bindings[index].name == name ? EnvLookup {
+      (env.bindings[index] ?? emptyRuntimeBinding()).name == name ? EnvLookup {
         found: true,
-        value: env.bindings[index].value
+        value: (env.bindings[index] ?? emptyRuntimeBinding()).value
       }
         : envGetAt(env, name, index - 1)
     )
 )
+
+emptyRuntimeBinding() -> RuntimeBinding => {
+  name: "",
+  value: emptyValue()
+}
 
 envAssign(
   env: RuntimeEnv,
   name: String,
   value: RuntimeValue
 ) -> Bool => {
-  index := envIndex(env, name, env.bindings.length() - 1)
+  index := envIndex(env, name, envBindingCount(env) - 1)
   (
     index < 0 ? false
       : envSet(env, index, name, value)
@@ -2076,10 +2415,10 @@ envSet(
   name: String,
   value: RuntimeValue
 ) -> Bool => {
-  env.bindings.set(index, RuntimeBinding {
+  env.bindings[index] = RuntimeBinding {
     name: name,
     value: value
-  })
+  }
   true
 }
 
@@ -2090,7 +2429,7 @@ envIndex(
 ) -> Int => (
   index < 0 ? -1
     : (
-      env.bindings[index].name == name ? index
+      (env.bindings[index] ?? emptyRuntimeBinding()).name == name ? index
         : envIndex(env, name, index - 1)
     )
 )
@@ -2111,6 +2450,59 @@ findFunctionAt(
         : findFunctionAt(functions, name, index + 1)
     )
 )
+
+findTest(
+  interpreter: Interpreter,
+  name: String
+) -> IRTest => findTestAt(interpreter.file.tests, name, 0)
+
+findTestAt(
+  tests: Array[IRTest],
+  name: String,
+  index: Int
+) -> IRTest => (
+  index >= tests.length() ? IRTest {
+    name: "",
+    body: IRExpr {
+      kind: ExprKind.Unknown,
+      text: "",
+      name: "",
+      value: "",
+      op: "",
+      params: [],
+      children: [],
+      line: 0,
+      column: 0
+    },
+    line: 0,
+    column: 0
+  }
+    : (
+      tests[index].name == name ? tests[index]
+        : findTestAt(tests, name, index + 1)
+    )
+)
+
+moduleNameFromAt(
+  expr: IRExpr
+) -> String => (
+  expr.name != "" ? expr.name
+    : moduleNameFromPath(decodeQuoted(expr.value))
+)
+
+moduleNameFromPath(
+  path: String
+) -> String => {
+  parts := path.split("/")
+  file := (
+    parts.length() == 0 ? path
+      : parts[parts.length() - 1]
+  )
+  (
+    file.endsWith(".rn") ? file.slice(0, file.length() - 3)
+      : file
+  )
+}
 
 findStruct(
   interpreter: Interpreter,

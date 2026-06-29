@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/oboard/rune-lang/internal/compiler"
-	"github.com/oboard/rune-lang/internal/interpreter"
+	"github.com/oboard/rune-lang/internal/selfhostrunner"
 )
 
 type Summary struct {
@@ -67,23 +67,21 @@ func Run(path string, pattern string, out io.Writer) (Summary, error) {
 			}
 			fmt.Fprintf(out, "=== RUN %s ? %s\n", file, test.Name)
 			testStart := time.Now()
-			var testOutput bytes.Buffer
-			runner := interpreter.New(prog.IR, interpreter.WithOutput(&testOutput))
-			err := runner.RunTest(test)
+			result := selfhostrunner.RunTestIR(prog.IR, test.Name)
 			elapsed := time.Since(testStart)
-			if err != nil {
+			if result.Err != nil {
 				summary.Failed++
 				fmt.Fprintf(out, "--- FAIL %s ? %s (%s)\n", file, test.Name, elapsed.Round(time.Microsecond))
-				if testOutput.Len() > 0 {
-					fmt.Fprintf(out, "    output:\n%s", indent(testOutput.String(), "      "))
+				if result.Output != "" {
+					fmt.Fprintf(out, "    output:\n%s", indent(result.Output, "      "))
 				}
-				fmt.Fprintf(out, "    error: %s\n", err)
+				fmt.Fprintf(out, "    error: %s\n", result.Err)
 				continue
 			}
 			summary.Passed++
 			fmt.Fprintf(out, "--- PASS %s ? %s (%s)\n", file, test.Name, elapsed.Round(time.Microsecond))
-			if testOutput.Len() > 0 {
-				fmt.Fprintf(out, "    output:\n%s", indent(testOutput.String(), "      "))
+			if result.Output != "" {
+				fmt.Fprintf(out, "    output:\n%s", indent(result.Output, "      "))
 			}
 		}
 	}

@@ -54,7 +54,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	switch fn.Intrinsic {
 	case "io.scan", "io.scanLine", "io.readAll":
 		return g.ioModuleCall(fn, args, call.ResultType()), true
-	case "int.toString", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+	case "int.toString", "int.toDouble", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
@@ -341,6 +341,8 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	switch fn.Intrinsic {
 	case "int.toString":
 		return fmt.Sprintf("strconv.Itoa(%s)", value)
+	case "int.toDouble":
+		return fmt.Sprintf("float64(%s)", value)
 	case "int4.fromInt":
 		return fmt.Sprintf("func() int8 { n := (%s) & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()", value)
 	case "int8.fromInt":

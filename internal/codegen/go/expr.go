@@ -242,7 +242,11 @@ func (g *generator) nullCoalesceExpr(expr *ir.BinaryExpr) string {
 }
 
 func (g *generator) mapLiteral(lit *ir.MapLiteral) string {
-	mapType := goType(lit.ResultType())
+	return g.mapLiteralAs(lit, lit.ResultType())
+}
+
+func (g *generator) mapLiteralAs(lit *ir.MapLiteral, typ checker.Type) string {
+	mapType := goType(typ)
 	entries := make([]string, 0, len(lit.Entries))
 	for _, entry := range lit.Entries {
 		entries = append(entries, fmt.Sprintf("%s: %s", g.expr(entry.Key), g.expr(entry.Value)))
@@ -765,7 +769,24 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 			})
 		}
 	}
+	if lit, ok := expr.(*ir.MapLiteral); ok {
+		if base, _, ok := parseGoGenericType(string(expected)); ok && (base == "Map" || base == "WeakMap" || base == "Record" || base == "Set" || base == "WeakSet") {
+			return g.mapLiteralAs(lit, expected)
+		}
+	}
+	if lit, ok := expr.(*ir.StructLiteral); ok {
+		if len(lit.Fields) == 0 && lit.TypeName == "Map" {
+			if base, _, ok := parseGoGenericType(string(expected)); ok && (base == "Map" || base == "WeakMap" || base == "Record" || base == "Set" || base == "WeakSet") {
+				return goType(expected) + "{}"
+			}
+		}
+	}
 	if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
+		if len(obj.Fields) == 0 {
+			if base, _, ok := parseGoGenericType(string(expected)); ok && (base == "Map" || base == "WeakMap" || base == "Record" || base == "Set" || base == "WeakSet") {
+				return goType(expected) + "{}"
+			}
+		}
 		if _, ok := parseGoObjectType(string(expected)); ok {
 			return fmt.Sprintf("%s{%s}", goType(expected), anonymousObjectFieldsForType(g, obj, expected))
 		}
