@@ -1,0 +1,326 @@
++ RuneCliInvocation: {
+  ok: Bool
+  command: String
+  backend: String
+  path: String
+  output: String
+  target: String
+  pattern: String
+  checkOnly: Bool
+  stdout: Bool
+  runArgs: Array[String]
+  errors: Array[String]
+  help: Bool
+}
+
++ RuneCliExecution: {
+  ok: Bool
+  output: String
+  errors: Array[String]
+}
+
++ RuneCliRootArgs: {
+  globalArgs: Array[String]
+  commandArgs: Array[String]
+}
+
+#cli.command("rune-selfhost", "Self-hosted Rune CLI entry point", "0.0.0")
+RuneCliArgsEntry: {
+  #cli.option("b", "BACKEND", "target backend", "go")
+  backend: String
+  #cli.arg("rune command")
+  command: String
+}
+
++ parseCli(
+  args: Array[String]
+) -> RuneCliInvocation => {
+  split := splitRootArgs(args)
+  root := parseRoot(split.globalArgs)
+  backend := root.values.getOr("backend", "go")
+  errors := cliErrors(root)
+  invalidBackend := !isBackend(backend)
+  (
+    invalidBackend ? errors.push("unsupported backend " + backend)
+      : 0
+  )
+  (
+    errors.length() > 0 ? errorInvocation("", backend, errors)
+      : parseCommandAt(split.commandArgs, 0, backend)
+  )
+}
+
++ runeCommand() -> CliCommand => {
+  command := @cli.command("rune", "Rune language toolchain")
+  command = @cli.withOption(command, @cli.option("backend", "b", "BACKEND", "target backend", false, "go"))
+  command
+}
+
+parseRoot(
+  args: Array[String]
+) -> CliParseResult => {
+  command := runeCommand()
+  @cli.parseArgs(command, args)
+}
+
+splitRootArgs(
+  args: Array[String]
+) -> RuneCliRootArgs => {
+  globalArgs := []
+  commandArgs := []
+  index ~= 0
+  inCommand ~= false
+  args.each((arg, position) => {
+    active := !inCommand && (position == index)
+    backendLong := active && (arg == "--backend")
+    backendShort := active && (arg == "-b")
+    backendPair := backendLong || backendShort
+    hasBackendValue := backendPair && ((position + 1) < args.length())
+    (
+      backendPair ? globalArgs.push(arg)
+        : 0
+    )
+    (
+      hasBackendValue ? globalArgs.push(args[position + 1])
+        : 0
+    )
+    (
+      backendPair ? index = position + 2
+        : index = index
+    )
+    backendInline := active && (arg.startsWith("--backend=") || (arg.startsWith("-b") && (arg.length() > 2)))
+    (
+      backendInline ? globalArgs.push(arg)
+        : 0
+    )
+    (
+      backendInline ? index = position + 1
+        : index = index
+    )
+    startsCommand := active && !(backendPair || backendInline)
+    (
+      startsCommand ? inCommand = true
+        : inCommand = inCommand
+    )
+    (
+      startsCommand ? commandArgs.push(arg)
+        : 0
+    )
+    (
+      inCommand && !active ? commandArgs.push(arg)
+        : 0
+    )
+  })
+  RuneCliRootArgs {
+    globalArgs: globalArgs,
+    commandArgs: commandArgs
+  }
+}
+
+parseCommandAt(
+  args: Array[String],
+  index: Int,
+  backend: String
+) -> RuneCliInvocation => (
+  index >= args.length() ? helpInvocation(backend)
+    : dispatchCommand(args[index], args.slice(index + 1, args.length()), backend)
+)
+
+dispatchCommand(
+  command: String,
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => command {
+  "run" => parseRun(args, backend)
+  "build" => parseBuild(args, backend)
+  "check" => parseSinglePath(command, args, backend)
+  "fmt" | "format" => parseFmt(args, backend)
+  "test" => parseTest(args, backend)
+  "ts" | "go" | "mbt" => parseEmit(command, args, backend)
+  "repl" | "lsp" => parseNoArgs(command, args, backend)
+  _ => errorInvocation(command, backend, ["unknown command " + command])
+}
+
+parseRun(
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(runCommand(), args)
+  invocationFromResult("run", backend, result, result.rest, false, false)
+}
+
++ runCommand() -> CliCommand => {
+  command := @cli.command("run", "Compile and run a Rune program")
+  command = @cli.withOption(command, @cli.option("target", "", "TARGET", "MoonBit run target", false, null))
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
+parseBuild(
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(buildCommand(), args)
+  invocationFromResult("build", backend, result, [], false, false)
+}
+
++ buildCommand() -> CliCommand => {
+  command := @cli.command("build", "Compile a Rune program to an executable")
+  command = @cli.withOption(command, @cli.option("output", "o", "FILE", "output executable path", false, ""))
+  command = @cli.withOption(command, @cli.option("target", "", "TARGET", "build target", false, ""))
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
+parseEmit(
+  name: String,
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(emitCommand(name), args)
+  invocationFromResult(name, backend, result, [], false, false)
+}
+
++ emitCommand(
+  name: String
+) -> CliCommand => {
+  command := @cli.command(name, "Compile a Rune program")
+  command = @cli.withOption(command, @cli.option("output", "o", "FILE", "output file", false, ""))
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
+parseSinglePath(
+  name: String,
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(singlePathCommand(name), args)
+  invocationFromResult(name, backend, result, [], false, false)
+}
+
++ singlePathCommand(
+  name: String
+) -> CliCommand => {
+  command := @cli.command(name, "Parse and type-check Rune source")
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
+parseFmt(
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(fmtCommand(), args)
+  invocationFromResult("fmt", backend, result, [], result.flags.getOr("check", false), result.flags.getOr("stdout", false))
+}
+
++ fmtCommand() -> CliCommand => {
+  command := @cli.command("fmt", "Format Rune source")
+  command = @cli.withOption(command, @cli.flag("check", "", "fail if not formatted"))
+  command = @cli.withOption(command, @cli.flag("stdout", "", "write formatted source to stdout"))
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
+parseTest(
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(testCommand(), args)
+  invocationFromResult("test", backend, result, [], false, false)
+}
+
++ testCommand() -> CliCommand => {
+  command := @cli.command("test", "Run Rune tests")
+  command = @cli.withArgument(command, @cli.argument("path", "Rune test path", false))
+  @cli.withArgument(command, @cli.argument("pattern", "test name pattern", false))
+}
+
+parseNoArgs(
+  name: String,
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(@cli.command(name, ""), args)
+  invocationFromResult(name, backend, result, [], false, false)
+}
+
+invocationFromResult(
+  name: String,
+  backend: String,
+  result: CliParseResult,
+  runArgs: Array[String],
+  checkOnly: Bool,
+  stdout: Bool
+) -> RuneCliInvocation => {
+  errors := cliErrors(result)
+  RuneCliInvocation {
+    ok: errors.isEmpty(),
+    command: name,
+    backend: backend,
+    path: result.positionals.getOr("path", ""),
+    output: result.values.getOr("output", ""),
+    target: result.values.getOr("target", ""),
+    pattern: result.positionals.getOr("pattern", ""),
+    checkOnly: checkOnly,
+    stdout: stdout,
+    runArgs: runArgs,
+    errors: errors,
+    help: result.help
+  }
+}
+
+cliErrors(
+  result: CliParseResult
+) -> Array[String] => {
+  error := result.error ?? ""
+  errors := []
+  (
+    error.isEmpty() ? 0
+      : errors.push(error)
+  )
+  errors
+}
+
+helpInvocation(
+  backend: String
+) -> RuneCliInvocation => {
+  ok: true,
+  command: "",
+  backend: backend,
+  path: "",
+  output: "",
+  target: "",
+  pattern: "",
+  checkOnly: false,
+  stdout: false,
+  runArgs: [],
+  errors: [],
+  help: true
+}
+
+errorInvocation(
+  command: String,
+  backend: String,
+  errors: Array[String]
+) -> RuneCliInvocation => {
+  ok: false,
+  command: command,
+  backend: backend,
+  path: "",
+  output: "",
+  target: "",
+  pattern: "",
+  checkOnly: false,
+  stdout: false,
+  runArgs: [],
+  errors: errors,
+  help: false
+}
+
+isBackend(value: String) -> Bool => ((value == "go") || (value == "ts")) || (value == "mbt")
+
+#cli.main
+main(args: RuneCliArgsEntry) => {
+  invocation := parseCli(["--backend=" + args.backend, args.command])
+  (
+    invocation.help ? @io.print(@cli.help(runeCommand()))
+      : @io.println(invocation.command)
+  )
+}

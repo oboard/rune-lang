@@ -1,0 +1,50 @@
+? "selfhost cli parses run command with backend and args" {
+  cli := @"../selfhost/cli/cli.rn"
+  invocation := cli.parseCli(["--backend", "mbt", "run", "--target", "native", "examples/cli.rn", "--", "-v", "-o", "out.js", "core"])
+  @assert.eq(invocation.ok, true)
+  @assert.eq(invocation.command, "run")
+  @assert.eq(invocation.backend, "mbt")
+  @assert.eq(invocation.target, "native")
+  @assert.eq(invocation.path, "examples/cli.rn")
+  @assert.eq(invocation.runArgs.length(), 4)
+  @assert.eq(invocation.runArgs[0], "-v")
+  @assert.eq(invocation.runArgs[3], "core")
+}
+
+? "selfhost cli parses build fmt and test commands" {
+  cli := @"../selfhost/cli/cli.rn"
+  build := cli.parseCli(["build", "-o", "rune-bin", "--target", "linux-amd64", "examples/fib.rn"])
+  @assert.eq(build.ok, true)
+  @assert.eq(build.command, "build")
+  @assert.eq(build.output, "rune-bin")
+  @assert.eq(build.target, "linux-amd64")
+  @assert.eq(build.path, "examples/fib.rn")
+  fmt := cli.parseCli(["fmt", "--check", "--stdout", "selfhost/cli/cli.rn"])
+  @assert.eq(fmt.ok, true)
+  @assert.eq(fmt.checkOnly, true)
+  @assert.eq(fmt.stdout, true)
+  @assert.eq(fmt.path, "selfhost/cli/cli.rn")
+  tests := cli.parseCli(["test", "tests", "cli"])
+  @assert.eq(tests.ok, true)
+  @assert.eq(tests.path, "tests")
+  @assert.eq(tests.pattern, "cli")
+}
+
+? "selfhost cli reports unknown commands and backends" {
+  cli := @"../selfhost/cli/cli.rn"
+  unknown := cli.parseCli(["ship", "examples/fib.rn"])
+  @assert.eq(unknown.ok, false)
+  @assert.eq(unknown.errors[0], "unknown command ship")
+  backend := cli.parseCli(["--backend", "swift", "run", "examples/fib.rn"])
+  @assert.eq(backend.ok, false)
+  @assert.eq(backend.errors[0], "unsupported backend swift")
+}
+
+? "selfhost cli exposes core cli command specs" {
+  cli := @"../selfhost/cli/cli.rn"
+  help := @cli.help(cli.runeCommand())
+  @assert.eq(help.includes("Usage: rune [options]"), true)
+  @assert.eq(help.includes("--backend <BACKEND>"), true)
+  runHelp := @cli.help(cli.runCommand())
+  @assert.eq(runHelp.includes("Usage: run [options] <path>"), true)
+}
