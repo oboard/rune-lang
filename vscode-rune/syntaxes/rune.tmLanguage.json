@@ -4,6 +4,7 @@
   "scopeName": "source.rune",
   "patterns": [
     { "include": "#comments" },
+    { "include": "#imports" },
     { "include": "#strings" },
     { "include": "#chars" },
     { "include": "#regex" },
@@ -20,6 +21,18 @@
     { "include": "#bindings" }
   ],
   "repository": {
+    "imports": {
+      "patterns": [
+        {
+          "name": "meta.import.rune",
+          "match": "^\\s*(@)(\"(?:[^\"\\\\]|\\\\.)*\")",
+          "captures": {
+            "1": { "name": "keyword.control.import.rune" },
+            "2": { "name": "string.quoted.double.rune" }
+          }
+        }
+      ]
+    },
     "macroDefinitions": {
       "patterns": [
         {

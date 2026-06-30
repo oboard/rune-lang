@@ -9,12 +9,18 @@ module.exports = grammar({
 
   rules: {
     source_file: ($) => repeat(choice(
+      $.import_declaration,
       $.macro_definition,
       $.macro_attributed_declaration,
       $.trait_definition,
       $.type_definition,
       $.function_definition
     )),
+
+    import_declaration: ($) => seq(
+      "@",
+      field("path", $.string)
+    ),
 
     macro_definition: ($) => seq(
       "#",

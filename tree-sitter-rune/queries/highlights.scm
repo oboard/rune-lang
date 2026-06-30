@@ -6,6 +6,7 @@
   "="
 ] @operator
 
+(import_declaration "@" @keyword.import)
 (module_identifier) @module
 (trait_definition "&" @punctuation.special)
 (trait_definition name: (identifier) @type)
