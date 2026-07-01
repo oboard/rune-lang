@@ -47,7 +47,7 @@ func exitCode(err error) (int, bool) {
 func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	invocation := __parseCli(args)
 	if invocation.__help {
-		fmt.Fprint(stdout, helpForInvocation(invocation))
+		fmt.Fprint(stdout, invocation.__helpText)
 		return nil
 	}
 	if !invocation.__ok {
@@ -57,27 +57,6 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 		return fmt.Errorf("rune command failed")
 	}
 	return executeInvocation(invocation, invocation.__backendExplicit, stdin, stdout, stderr)
-}
-
-func helpForInvocation(invocation __RuneCliInvocation) string {
-	switch invocation.__command {
-	case "run":
-		return runeCliHelp(__runCommand())
-	case "build":
-		return runeCliHelp(__buildCommand())
-	case "go", "ts", "mbt":
-		return runeCliHelp(__emitCommand(invocation.__command))
-	case "check":
-		return runeCliHelp(__singlePathCommand("check"))
-	case "fmt":
-		return runeCliHelp(__fmtCommand())
-	case "test":
-		return runeCliHelp(__testCommand())
-	case "repl", "lsp":
-		return runeCliHelp(runeCliCommand(invocation.__command, ""))
-	default:
-		return runeCliHelp(__runeCommand())
-	}
 }
 
 func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {

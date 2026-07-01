@@ -20,6 +20,7 @@ type __RuneCliInvocation struct {
 	__runArgs         []string
 	__errors          []string
 	__help            bool
+	__helpText        string
 }
 
 type __RuneCliExecution struct {
@@ -686,7 +687,36 @@ func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend str
 			return value
 		}
 		return ""
-	}(), __checkOnly: __checkOnly, __stdout: __stdout, __backendExplicit: __backendExplicit, __runArgs: __runArgs, __errors: __errors, __help: __result.__help}
+	}(), __checkOnly: __checkOnly, __stdout: __stdout, __backendExplicit: __backendExplicit, __runArgs: __runArgs, __errors: __errors, __help: __result.__help, __helpText: ____rune_private_5b8b8d7b_invocationHelpText(__name)}
+}
+
+func ____rune_private_5b8b8d7b_invocationHelpText(__name string) string {
+	return func() string {
+		switch {
+		case __name == "run":
+			return runeCliHelp(__runCommand())
+		case __name == "build":
+			return runeCliHelp(__buildCommand())
+		case __name == "go":
+			return runeCliHelp(__emitCommand("go"))
+		case __name == "ts":
+			return runeCliHelp(__emitCommand("ts"))
+		case __name == "mbt":
+			return runeCliHelp(__emitCommand("mbt"))
+		case __name == "check":
+			return runeCliHelp(__singlePathCommand("check"))
+		case __name == "fmt":
+			return runeCliHelp(__fmtCommand())
+		case __name == "test":
+			return runeCliHelp(__testCommand())
+		case __name == "repl":
+			return runeCliHelp(runeCliCommand("repl", ""))
+		case __name == "lsp":
+			return runeCliHelp(__lspCommand())
+		default:
+			return runeCliHelp(__runeCommand())
+		}
+	}()
 }
 
 func ____rune_private_5b8b8d7b_cliErrors(__result __CliParseResult) []string {
@@ -708,11 +738,11 @@ func ____rune_private_5b8b8d7b_cliErrors(__result __CliParseResult) []string {
 }
 
 func ____rune_private_5b8b8d7b_helpInvocation(__backend string) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: []string{}, __help: true}
+	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: []string{}, __help: true, __helpText: runeCliHelp(__runeCommand())}
 }
 
 func ____rune_private_5b8b8d7b_errorInvocation(__command string, __backend string, __errors []string) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: false, __command: __command, __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false}
+	return __RuneCliInvocation{__ok: false, __command: __command, __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
 }
 
 func ____rune_private_5b8b8d7b_isBackend(__value string) bool {

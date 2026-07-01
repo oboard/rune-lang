@@ -12,6 +12,7 @@
   runArgs: Array[String]
   errors: Array[String]
   help: Bool
+  helpText: String
 }
 
 + RuneCliExecution: {
@@ -429,8 +430,25 @@ invocationFromResult(
     backendExplicit: backendExplicit,
     runArgs: runArgs,
     errors: errors,
-    help: result.help
+    help: result.help,
+    helpText: invocationHelpText(name)
   }
+}
+
+invocationHelpText(
+  name: String
+) -> String => name {
+  "run" => @cli.help(runCommand())
+  "build" => @cli.help(buildCommand())
+  "go" => @cli.help(emitCommand("go"))
+  "ts" => @cli.help(emitCommand("ts"))
+  "mbt" => @cli.help(emitCommand("mbt"))
+  "check" => @cli.help(singlePathCommand("check"))
+  "fmt" => @cli.help(fmtCommand())
+  "test" => @cli.help(testCommand())
+  "repl" => @cli.help(@cli.command("repl", ""))
+  "lsp" => @cli.help(lspCommand())
+  _ => @cli.help(runeCommand())
 }
 
 cliErrors(
@@ -460,7 +478,8 @@ helpInvocation(
     backendExplicit: false,
     runArgs: [],
     errors: [],
-    help: true
+    help: true,
+    helpText: @cli.help(runeCommand())
 }
 
 errorInvocation(
@@ -480,7 +499,8 @@ errorInvocation(
     backendExplicit: false,
     runArgs: [],
     errors: errors,
-    help: false
+    help: false,
+    helpText: ""
 }
 
 isBackend(value: String) -> Bool => ((value == "go") || (value == "ts")) || (value == "mbt")

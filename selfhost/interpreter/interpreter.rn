@@ -3617,7 +3617,7 @@ runeCliParseCli(
       : errors = errors
   )
   (
-    errors.length() > 0 ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), errors, false)
+    errors.length() > 0 ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), errors, false, "")
       : runeCliParseCommandAt(commandArgs, 0, backend, backendExplicit)
   )
 }
@@ -3741,7 +3741,7 @@ runeCliParseCommandAt(
   backend: String,
   backendExplicit: Bool
 ) -> RuntimeValue => (
-  index >= args.length() ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), emptyRuntimeArray(), true)
+  index >= args.length() ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), emptyRuntimeArray(), true, runeCliInvocationHelpText(""))
     : runeCliDispatchCommand(runtimeText(args[index]), args.slice(index + 1, args.length()), backend, backendExplicit)
 )
 
@@ -3762,7 +3762,7 @@ runeCliDispatchCommand(
                   command == "test" ? runeCliParseTest(args, backend, backendExplicit)
                     : (
                       command == "lsp" ? runeCliParseLsp(args, backend, backendExplicit)
-                        : runeCliInvocation(command, backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), [stringValue("unknown command " + command)], false)
+                        : runeCliInvocation(command, backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), [stringValue("unknown command " + command)], false, "")
                     )
                 )
             )
@@ -3892,8 +3892,20 @@ runeCliInvocationFromResult(
     backendExplicit,
     runArgs,
     errors,
-    runtimeBool(cliField(result, "help"))
+    runtimeBool(cliField(result, "help")),
+    runeCliInvocationHelpText(name)
   )
+}
+
+runeCliInvocationHelpText(
+  name: String
+) -> String => name {
+  "run" => cliHelpText(runeCliRunCommand())
+  "build" => cliHelpText(runeCliBuildCommand())
+  "fmt" => cliHelpText(runeCliFmtCommand())
+  "test" => cliHelpText(runeCliTestCommand())
+  "lsp" => cliHelpText(runeCliLspCommand())
+  _ => cliHelpText(runeCliRootCommand())
 }
 
 runeCliInvocation(
@@ -3908,7 +3920,8 @@ runeCliInvocation(
   backendExplicit: Bool,
   runArgs: Array[RuntimeValue],
   errors: Array[RuntimeValue],
-  help: Bool
+  help: Bool,
+  helpText: String
 ) -> RuntimeValue => structValue("RuneCliInvocation", [
   RuntimeField { name: "ok", value: boolValue(errors.length() == 0) },
   RuntimeField { name: "command", value: stringValue(command) },
@@ -3922,7 +3935,8 @@ runeCliInvocation(
   RuntimeField { name: "backendExplicit", value: boolValue(backendExplicit) },
   RuntimeField { name: "runArgs", value: arrayValue(runArgs) },
   RuntimeField { name: "errors", value: arrayValue(errors) },
-  RuntimeField { name: "help", value: boolValue(help) }
+  RuntimeField { name: "help", value: boolValue(help) },
+  RuntimeField { name: "helpText", value: stringValue(helpText) }
 ])
 
 runeCliErrors(
