@@ -455,14 +455,16 @@ func TestGenerateRegexProgram(t *testing.T) {
   built := @regex.new("\\d+", "g")
   @io.println(re.match("Rune 123 rune 456"))
   @io.println(built.replaceAll("a1 b22", "[$1]"))
+  @io.println(@regex.escape("a+b?"))
 }
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __re = /rune\s+(\d+)/ig;`,
-		`const __built = new RegExp("\\d+", "g");`,
+		`let __re = /rune\s+(\d+)/ig;`,
+		`let __built = new RegExp("\\d+", "g");`,
 		`"Rune 123 rune 456".match(__re)`,
 		`"a1 b22".replaceAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + "g"), "[$1]"))(__built)`,
+		`__value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

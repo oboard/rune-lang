@@ -110,7 +110,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		if len(args) != 1 {
 			return "undefined", true
 		}
-		return fmt.Sprintf("((__value: string): string => (RegExp as any).escape ? (RegExp as any).escape(__value) : __value.replace(/[\\\\^$.*+?()[\\]{}|]/g, \"\\\\$&\"))(%s)", args[0]), true
+		return fmt.Sprintf("((__value: string): string => __value.replace(/[\\\\^$.*+?()[\\]{}|]/g, \"\\\\$&\"))(%s)", args[0]), true
 	case "map.new", "set.new":
 		return "new " + tsType(call.ResultType()) + "()", true
 	case "go.import", "go.stmt", "go.expr":
