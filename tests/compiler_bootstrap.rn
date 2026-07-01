@@ -25,6 +25,25 @@
   @assert.eq(result.output.includes("func main()"), true)
 }
 
+? "selfhost compiler emits go pattern blocks" {
+  source := `fib(n) => {
+  0 => 0
+  1 => 1
+  _ => fib(n - 1) + fib(n - 2)
+}
+
+main() => {
+  @io.println(fib(10))
+}
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("func __fib(__n int) int"), true)
+  @assert.eq(result.output.includes("} else if __n == 1 {"), true)
+  @assert.eq(result.output.includes("return __fib(__n - 1) + __fib(__n - 2)"), true)
+}
+
 ? "selfhost compiler emits moonbit functions" {
   source := `+ add(a: Int, b: Int) -> Int => a + b
 + main() -> Int => add(20, 22)

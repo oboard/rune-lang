@@ -136,6 +136,49 @@ func TestSelfhostCLIGeneratedGoIsCurrent(t *testing.T) {
 	}
 }
 
+func TestSelfhostCompilerGeneratedGoIsCurrent(t *testing.T) {
+	root := repoRootForCommandTest(t)
+	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/compiler/compiler.rn")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generate selfhost compiler failed: %v\n%s", err, out)
+	}
+	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_compiler_gen.go")
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
+	}
+	formatted, err := format.Source(out)
+	if err != nil {
+		t.Fatalf("format generated compiler error = %v", err)
+	}
+	if string(formatted) != string(want) {
+		t.Fatalf("selfhost_compiler_gen.go is stale; regenerate it with rune go selfhost/compiler/compiler.rn")
+	}
+}
+
+func TestGeneratedSelfhostCompilerEmitsPatternFunction(t *testing.T) {
+	source := `fib(n) => {
+  0 => 0
+  1 => 1
+  _ => fib(n - 1) + fib(n - 2)
+}
+
+main() => {
+  @io.println(fib(10))
+}
+`
+	result := __compileGo(source)
+	if !result.__ok {
+		t.Fatalf("__compileGo() errors = %v", result.__errors)
+	}
+	if !strings.Contains(result.__output, "func __fib(__n int) int") ||
+		!strings.Contains(result.__output, "} else if __n == 1 {") {
+		t.Fatalf("__compileGo() output did not lower pattern function:\n%s", result.__output)
+	}
+}
+
 func normalizeGeneratedCLIForHost(src string) string {
 	src = strings.ReplaceAll(src, "func __main()", "func selfhostCliGeneratedMain()")
 	src = strings.Replace(src, "func main() {\n\t__main()\n}\n", "func selfhostCliGeneratedEntrypoint() {\n\tselfhostCliGeneratedMain()\n}\n", 1)

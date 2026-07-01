@@ -394,9 +394,10 @@ emitGoFunction(
   fn: IRFunction,
   receiverType: String
 ) -> String => {
-  params := emitGoParams(fn.params, 0, "")
+  returnType := inferredGoReturnType(fn)
+  params := emitGoFunctionParams(fn, 0, "")
   ret := (
-    returnsValue(fn.returnType) ? " " + goType(fn.returnType)
+    returnsValue(returnType) ? " " + goType(returnType)
       : ""
   )
   receiver := (
@@ -408,9 +409,42 @@ emitGoFunction(
       : mangleIdent(fn.name)
   )
   out :=: (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
-  out = out + emitGoBody(file, fn.body, returnsValue(fn.returnType), fn.returnType, 1)
+  out = out + emitGoBody(file, fn.body, returnsValue(returnType), returnType, 1)
   out + "}\n"
 }
+
+inferredGoReturnType(
+  fn: IRFunction
+) -> String => (
+  fn.returnType != "" ? fn.returnType
+    : (
+      fn.body.kind == ExprKind.PatternBlock ? "Int"
+        : ""
+    )
+)
+
+emitGoFunctionParams(
+  fn: IRFunction,
+  index: Int,
+  out: String
+) -> String => (
+  index >= fn.params.length() ? out
+    : emitGoFunctionParams(fn, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(fn.params[index].name)) + " ") + goType(inferredGoParamType(fn, fn.params[index])))
+)
+
+inferredGoParamType(
+  fn: IRFunction,
+  param: IRParam
+) -> String => (
+  param.typeName != "" ? param.typeName
+    : (
+      (fn.body.kind == ExprKind.PatternBlock) && (fn.params.length() == 1) ? "Int"
+        : ""
+    )
+)
 
 emitGoBody(
   file: IRFile,
@@ -420,11 +454,78 @@ emitGoBody(
   level: Int
 ) -> String => expr.kind {
   ExprKind.Block => emitGoBlock(file, expr.children, 0, returns, returnType, level, "")
+  ExprKind.PatternBlock => emitGoPatternBlock(file, expr, returns, returnType, level)
   _ => line(level, (
     returns ? "return " + emitGoExprExpected(expr, returnType)
       : emitGoExpr(expr)
   ))
 }
+
+emitGoPatternBlock(
+  file: IRFile,
+  expr: IRExpr,
+  returns: Bool,
+  returnType: String,
+  level: Int
+) -> String => emitGoPatternBranches(file, expr.children, 0, returns, returnType, level, "")
+
+emitGoPatternBranches(
+  file: IRFile,
+  branches: Array[IRExpr],
+  index: Int,
+  returns: Bool,
+  returnType: String,
+  level: Int,
+  out: String
+) -> String => (
+  index >= branches.length() ? out + line(level, "}") + (
+    returns ? line(level, "return " + goZero(returnType))
+      : ""
+  )
+    : emitGoPatternBranches(file, branches, index + 1, returns, returnType, level, out + emitGoPatternBranch(file, branches[index], returns, returnType, level, index == 0))
+)
+
+emitGoPatternBranch(
+  file: IRFile,
+  branch: IRExpr,
+  returns: Bool,
+  returnType: String,
+  level: Int,
+  first: Bool
+) -> String => {
+  pattern := branch.children[0]
+  value := branch.children[1]
+  head := (
+    first ? "if "
+      : "else if "
+  )
+  (
+    pattern.text == "_" ? line(level, emitGoPatternPrefix(first) + "else {") + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
+      : line(level, (emitGoPatternPrefix(first) + head + emitGoPatternCondition(pattern)) + " {") + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
+  )
+}
+
+emitGoPatternPrefix(
+  first: Bool
+) -> String => (
+  first ? ""
+    : "} "
+)
+
+emitGoPatternBranchBody(
+  file: IRFile,
+  value: IRExpr,
+  returns: Bool,
+  returnType: String,
+  level: Int
+) -> String => (
+  returns ? line(level, "return " + emitGoExprExpected(value, returnType))
+    : line(level, emitGoExpr(value))
+)
+
+emitGoPatternCondition(
+  pattern: IRExpr
+) -> String => "__n == " + pattern.text
 
 emitGoBlock(
   file: IRFile,

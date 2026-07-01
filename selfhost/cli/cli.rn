@@ -1,13 +1,18 @@
-+ RuneCliExecution: {
++ RuneCliInvocation: {
   ok: Bool
+  command: String
+  backend: String
+  path: String
   output: String
+  target: String
+  pattern: String
+  checkOnly: Bool
+  stdout: Bool
+  backendExplicit: Bool
+  runArgs: Array[String]
   errors: Array[String]
-}
-
-+ RuneCliStringResult: {
-  ok: Bool
-  value: String
-  errors: Array[String]
+  help: Bool
+  helpText: String
 }
 
 #cli.command("rune-selfhost", "Self-hosted Rune CLI entry point", "0.0.0")
@@ -18,192 +23,162 @@ RuneCliArgsEntry: {
   command: String
 }
 
+#cli.parser("runeCommand", "runeCommands", "runeAliases", "runeTrailingRest", "invocationFromParsed")
 + parseCli(
   args: Array[String]
-) -> RuneCliInvocation => @cli.parseRuneCli(runeCommand(), runeCommands(), runeAliases(), args)
+) -> RuneCliInvocation => emptyInvocation()
 
-+ runCli(
-  args: Array[String]
-) -> RuneCliExecution => {
-  invocation := parseCli(args)
+invocationFromParsed(
+  parsed: CliCommandParseResult,
+  rootCommand: CliCommand,
+  commands: Array[CliCommand]
+) -> RuneCliInvocation => {
+  root := parsed.root
+  backend := root.values.getOr("backend", "go")
+  errors := cliErrors(root)
+  commandError := parsed.error ?? ""
   (
-    invocation.help ? successExecution(invocation.helpText)
+    commandError.isEmpty() ? 0
+      : errors.push(commandError)
+  )
+  invalidBackend := @cli.contains(["go", "ts", "mbt"], backend) == false
+  (
+    invalidBackend ? errors.push("unsupported backend " + backend)
+      : 0
+  )
+  backendExplicit := @cli.contains(root.explicitOptions, "backend")
+  (
+    errors.length() > 0 ? errorInvocation(backend, errors)
       : (
-        invocation.ok ? executeInvocation(invocation)
-          : failureExecution(invocation.errors)
+        parsed.commandName.isEmpty() ? helpInvocation(rootCommand, backend, backendExplicit)
+          : invocationFromResult(parsed.commandName, rootCommand, commands, backend, backendExplicit, parsed.command)
       )
   )
 }
 
-+ runCliMain(
-  args: Array[String]
-) -> Int => {
-  result := runCli(args)
-  (
-    result.output.isEmpty() ? 0
-      : hostWriteStdout(result.output)
-  )
-  (
-    result.ok ? 0
-      : renderFailure(result.errors)
-  )
+invocationFromResult(
+  name: String,
+  rootCommand: CliCommand,
+  commands: Array[CliCommand],
+  backend: String,
+  backendExplicit: Bool,
+  result: CliParseResult
+) -> RuneCliInvocation => {
+  errors := cliErrors(result)
+  target := result.values.getOr("target", "")
+  target = defaultTargetForCommand(name, backend, target)
+  errors = invocationErrors(name, backend, target, errors)
+  RuneCliInvocation {
+    ok: errors.isEmpty(),
+    command: name,
+    backend: backend,
+    path: defaultPathForCommand(name, result.positionals.getOr("path", "")),
+    output: result.values.getOr("output", ""),
+    target: target,
+    pattern: result.positionals.getOr("pattern", ""),
+    checkOnly: result.flags.getOr("check", false),
+    stdout: result.flags.getOr("stdout", false),
+    backendExplicit: backendExplicit,
+    runArgs: result.rest,
+    errors: errors,
+    help: result.help,
+    helpText: @cli.help(invocationHelpCommand(rootCommand, commands, name))
+  }
 }
 
-renderFailure(
+invocationErrors(
+  name: String,
+  backend: String,
+  target: String,
   errors: Array[String]
-) -> Int => {
-  errors.each((message) => hostWriteStderr(message + "\n"))
-  1
-}
-
-executeInvocation(
-  invocation: RuneCliInvocation
-) -> RuneCliExecution => invocation.command {
-  "run" => executeRun(invocation)
-  "build" => executeBuild(invocation)
-  "go" => hostEmitGo(invocation.path, invocation.output)
-  "ts" => hostEmitTypeScript(invocation.path, invocation.output)
-  "mbt" => hostEmitMoonBit(invocation.path, invocation.output)
-  "check" => hostCheck(invocation.path)
-  "test" => executeTest(invocation)
-  "fmt" => hostFmt(invocation.path, invocation.checkOnly, invocation.stdout)
-  "repl" => hostRepl()
-  "lsp" => hostLsp()
-  _ => failureExecution(["unknown command " + invocation.command])
-}
-
-executeRun(
-  invocation: RuneCliInvocation
-) -> RuneCliExecution => {
-  entry := hostResolveRunEntry(invocation.path)
-  (
-    entry.ok ? executeResolvedRun(invocation, entry.value)
-      : failureExecution(entry.errors)
-  )
-}
-
-executeResolvedRun(
-  invocation: RuneCliInvocation,
-  entry: String
-) -> RuneCliExecution => {
-  backend := hostSelectRunBackend(entry, invocation.backend, invocation.backendExplicit)
-  validated := hostValidateBackend(backend)
-  (
-    validated.ok ? hostRunEntry(entry, backend, invocation.target, invocation.runArgs)
-      : validated
-  )
-}
-
-executeBuild(
-  invocation: RuneCliInvocation
-) -> RuneCliExecution => invocation.backend {
-  "mbt" => hostBuildMoonBit(invocation.path, invocation.target, invocation.output)
-  _ => hostBuildGo(invocation.path, invocation.target, invocation.output)
-}
-
-executeTest(
-  invocation: RuneCliInvocation
-) -> RuneCliExecution => (
-  invocation.backendExplicit ? hostTestWithBackend(invocation.path, invocation.pattern, invocation.backend)
-    : hostTest(invocation.path, invocation.pattern)
+) -> Array[String] => (
+  (name == "build") && (@cli.contains(["go", "mbt"], backend) == false) ? [..errors, "rune build only supports --backend go or --backend mbt"]
+    : (
+      ((name == "run") && (target.isEmpty() == false)) && (backend != "mbt") ? [..errors, "rune run --target is only supported with --backend mbt"]
+        : errors
+    )
 )
 
-successExecution(
-  output: String
-) -> RuneCliExecution => {
-  ok: true,
-  output: output,
-  errors: []
-}
+defaultTargetForCommand(
+  name: String,
+  backend: String,
+  target: String
+) -> String => (
+  ((name == "run") && (backend == "mbt")) && target.isEmpty() ? "native"
+    : target
+)
 
-failureExecution(
-  errors: Array[String]
-) -> RuneCliExecution => {
-  ok: false,
-  output: "",
-  errors: errors
-}
-
-hostWriteStdout(
-  text: String
-) -> Int => @go.expr("runeCliHostWriteStdout($text)")
-
-hostWriteStderr(
-  text: String
-) -> Int => @go.expr("runeCliHostWriteStderr($text)")
-
-hostResolveRunEntry(
+defaultPathForCommand(
+  name: String,
   path: String
-) -> RuneCliStringResult => @go.expr("runeCliHostResolveRunEntry($path)")
+) -> String => (
+  (name == "test") && path.isEmpty() ? "tests"
+    : path
+)
 
-hostSelectRunBackend(
-  entry: String,
+invocationHelpCommand(
+  rootCommand: CliCommand,
+  commands: Array[CliCommand],
+  name: String
+) -> CliCommand => commands.foldl(rootCommand, (found, command) => (
+  command.name == name ? command
+    : found
+))
+
+cliErrors(
+  result: CliParseResult
+) -> Array[String] => {
+  error := result.error ?? ""
+  errors := []
+  (
+    error.isEmpty() ? 0
+      : errors.push(error)
+  )
+  errors
+}
+
+helpInvocation(
+  rootCommand: CliCommand,
   backend: String,
   backendExplicit: Bool
-) -> String => @go.expr("runeCliHostSelectRunBackend($entry, $backend, $backendExplicit)")
+) -> RuneCliInvocation => {
+  ok: true,
+  command: "",
+  backend: backend,
+  path: "",
+  output: "",
+  target: "",
+  pattern: "",
+  checkOnly: false,
+  stdout: false,
+  backendExplicit: backendExplicit,
+  runArgs: [],
+  errors: [],
+  help: true,
+  helpText: @cli.help(rootCommand)
+}
 
-hostValidateBackend(
-  backend: String
-) -> RuneCliExecution => @go.expr("runeCliHostValidateBackend($backend)")
-
-hostRunEntry(
-  path: String,
+errorInvocation(
   backend: String,
-  target: String,
-  args: Array[String]
-) -> RuneCliExecution => @go.expr("runeCliHostRunEntry($path, $backend, $target, $args)")
+  errors: Array[String]
+) -> RuneCliInvocation => {
+  ok: false,
+  command: "",
+  backend: backend,
+  path: "",
+  output: "",
+  target: "",
+  pattern: "",
+  checkOnly: false,
+  stdout: false,
+  backendExplicit: false,
+  runArgs: [],
+  errors: errors,
+  help: false,
+  helpText: ""
+}
 
-hostBuildGo(
-  path: String,
-  target: String,
-  output: String
-) -> RuneCliExecution => @go.expr("runeCliHostBuildGo($path, $target, $output)")
-
-hostBuildMoonBit(
-  path: String,
-  target: String,
-  output: String
-) -> RuneCliExecution => @go.expr("runeCliHostBuildMoonBit($path, $target, $output)")
-
-hostEmitGo(
-  path: String,
-  output: String
-) -> RuneCliExecution => @go.expr("runeCliHostEmitGo($path, $output)")
-
-hostEmitTypeScript(
-  path: String,
-  output: String
-) -> RuneCliExecution => @go.expr("runeCliHostEmitTypeScript($path, $output)")
-
-hostEmitMoonBit(
-  path: String,
-  output: String
-) -> RuneCliExecution => @go.expr("runeCliHostEmitMoonBit($path, $output)")
-
-hostCheck(
-  path: String
-) -> RuneCliExecution => @go.expr("runeCliHostCheck($path)")
-
-hostTest(
-  path: String,
-  pattern: String
-) -> RuneCliExecution => @go.expr("runeCliHostTest($path, $pattern)")
-
-hostTestWithBackend(
-  path: String,
-  pattern: String,
-  backend: String
-) -> RuneCliExecution => @go.expr("runeCliHostTestWithBackend($path, $pattern, $backend)")
-
-hostFmt(
-  path: String,
-  checkOnly: Bool,
-  stdout: Bool
-) -> RuneCliExecution => @go.expr("runeCliHostFmt($path, $checkOnly, $stdout)")
-
-hostRepl() -> RuneCliExecution => @go.expr("runeCliHostRepl()")
-
-hostLsp() -> RuneCliExecution => @go.expr("runeCliHostLsp()")
+emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
 
 + runeCommand() -> CliCommand => {
   command := @cli.command("rune", "Rune language toolchain")
@@ -227,6 +202,8 @@ hostLsp() -> RuneCliExecution => @go.expr("runeCliHostLsp()")
 + runeAliases() -> Array[CliCommandAlias] => [
   @cli.alias("format", "fmt")
 ]
+
++ runeTrailingRest() -> Array[String] => ["run"]
 
 + runCommand() -> CliCommand => {
   command := @cli.command("run", "Compile and run a Rune program")
