@@ -600,6 +600,74 @@ func runeCliContains(values []string, value string) bool {
 	return false
 }
 
+func runeCliHostUnavailable() __RuneCliExecution {
+	return __RuneCliExecution{__ok: false, __output: "", __errors: []string{"rune CLI host is unavailable"}}
+}
+
+func runeCliStringHostUnavailable() __RuneCliStringResult {
+	return __RuneCliStringResult{__ok: false, __value: "", __errors: []string{"rune CLI host is unavailable"}}
+}
+
+var runeCliHostResolveRunEntry = func(path string) __RuneCliStringResult {
+	return runeCliStringHostUnavailable()
+}
+
+var runeCliHostSelectRunBackend = func(entry string, backend string, backendExplicit bool) string {
+	return backend
+}
+
+var runeCliHostValidateBackend = func(backend string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostRunEntry = func(path string, backend string, target string, args []string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostBuildGo = func(path string, target string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostBuildMoonBit = func(path string, target string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitGo = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitTypeScript = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitMoonBit = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostCheck = func(path string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostTest = func(path string, pattern string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostTestWithBackend = func(path string, pattern string, backend string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostFmt = func(path string, checkOnly bool, stdout bool) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostRepl = func() __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostLsp = func() __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
 func __parseCli(__args []string) __RuneCliInvocation {
 	return runeCliParseRune(__runeCommand(), __runeCommands(), __runeAliases(), __args)
 }
@@ -698,63 +766,63 @@ func ____rune_private_5b8b8d7b_failureExecution(__errors []string) __RuneCliExec
 }
 
 func ____rune_private_5b8b8d7b_hostResolveRunEntry(__path string) __RuneCliStringResult {
-	return hostResolveRunEntry(__path)
+	return runeCliHostResolveRunEntry(__path)
 }
 
 func ____rune_private_5b8b8d7b_hostSelectRunBackend(__entry string, __backend string, __backendExplicit bool) string {
-	return hostSelectRunBackend(__entry, __backend, __backendExplicit)
+	return runeCliHostSelectRunBackend(__entry, __backend, __backendExplicit)
 }
 
 func ____rune_private_5b8b8d7b_hostValidateBackend(__backend string) __RuneCliExecution {
-	return hostValidateBackend(__backend)
+	return runeCliHostValidateBackend(__backend)
 }
 
 func ____rune_private_5b8b8d7b_hostRunEntry(__path string, __backend string, __target string, __args []string) __RuneCliExecution {
-	return hostRunEntry(__path, __backend, __target, __args)
+	return runeCliHostRunEntry(__path, __backend, __target, __args)
 }
 
 func ____rune_private_5b8b8d7b_hostBuildGo(__path string, __target string, __output string) __RuneCliExecution {
-	return hostBuildGo(__path, __target, __output)
+	return runeCliHostBuildGo(__path, __target, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostBuildMoonBit(__path string, __target string, __output string) __RuneCliExecution {
-	return hostBuildMoonBit(__path, __target, __output)
+	return runeCliHostBuildMoonBit(__path, __target, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostEmitGo(__path string, __output string) __RuneCliExecution {
-	return hostEmitGo(__path, __output)
+	return runeCliHostEmitGo(__path, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostEmitTypeScript(__path string, __output string) __RuneCliExecution {
-	return hostEmitTypeScript(__path, __output)
+	return runeCliHostEmitTypeScript(__path, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostEmitMoonBit(__path string, __output string) __RuneCliExecution {
-	return hostEmitMoonBit(__path, __output)
+	return runeCliHostEmitMoonBit(__path, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostCheck(__path string) __RuneCliExecution {
-	return hostCheck(__path)
+	return runeCliHostCheck(__path)
 }
 
 func ____rune_private_5b8b8d7b_hostTest(__path string, __pattern string) __RuneCliExecution {
-	return hostTest(__path, __pattern)
+	return runeCliHostTest(__path, __pattern)
 }
 
 func ____rune_private_5b8b8d7b_hostTestWithBackend(__path string, __pattern string, __backend string) __RuneCliExecution {
-	return hostTestWithBackend(__path, __pattern, __backend)
+	return runeCliHostTestWithBackend(__path, __pattern, __backend)
 }
 
 func ____rune_private_5b8b8d7b_hostFmt(__path string, __checkOnly bool, __stdout bool) __RuneCliExecution {
-	return hostFmt(__path, __checkOnly, __stdout)
+	return runeCliHostFmt(__path, __checkOnly, __stdout)
 }
 
 func ____rune_private_5b8b8d7b_hostRepl() __RuneCliExecution {
-	return hostRepl()
+	return runeCliHostRepl()
 }
 
 func ____rune_private_5b8b8d7b_hostLsp() __RuneCliExecution {
-	return hostLsp()
+	return runeCliHostLsp()
 }
 
 func __runeCommand() __CliCommand {

@@ -52,6 +52,7 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 	runeCLIStdin = stdin
 	runeCLIStdout = stdout
 	runeCLIStderr = stderr
+	installRuneCLIHostHooks()
 	result := __runCli(args)
 	if result.__output != "" {
 		fmt.Fprint(stdout, result.__output)
@@ -63,6 +64,24 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 		return fmt.Errorf("rune command failed")
 	}
 	return nil
+}
+
+func installRuneCLIHostHooks() {
+	runeCliHostResolveRunEntry = hostResolveRunEntry
+	runeCliHostSelectRunBackend = hostSelectRunBackend
+	runeCliHostValidateBackend = hostValidateBackend
+	runeCliHostRunEntry = hostRunEntry
+	runeCliHostBuildGo = hostBuildGo
+	runeCliHostBuildMoonBit = hostBuildMoonBit
+	runeCliHostEmitGo = hostEmitGo
+	runeCliHostEmitTypeScript = hostEmitTypeScript
+	runeCliHostEmitMoonBit = hostEmitMoonBit
+	runeCliHostCheck = hostCheck
+	runeCliHostTest = hostTest
+	runeCliHostTestWithBackend = hostTestWithBackend
+	runeCliHostFmt = hostFmt
+	runeCliHostRepl = hostRepl
+	runeCliHostLsp = hostLsp
 }
 
 func cliSuccess(output string) __RuneCliExecution {

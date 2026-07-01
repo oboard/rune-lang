@@ -105,76 +105,76 @@ failureExecution(
 
 hostResolveRunEntry(
   path: String
-) -> RuneCliStringResult => @go.expr("hostResolveRunEntry($path)")
+) -> RuneCliStringResult => @go.expr("runeCliHostResolveRunEntry($path)")
 
 hostSelectRunBackend(
   entry: String,
   backend: String,
   backendExplicit: Bool
-) -> String => @go.expr("hostSelectRunBackend($entry, $backend, $backendExplicit)")
+) -> String => @go.expr("runeCliHostSelectRunBackend($entry, $backend, $backendExplicit)")
 
 hostValidateBackend(
   backend: String
-) -> RuneCliExecution => @go.expr("hostValidateBackend($backend)")
+) -> RuneCliExecution => @go.expr("runeCliHostValidateBackend($backend)")
 
 hostRunEntry(
   path: String,
   backend: String,
   target: String,
   args: Array[String]
-) -> RuneCliExecution => @go.expr("hostRunEntry($path, $backend, $target, $args)")
+) -> RuneCliExecution => @go.expr("runeCliHostRunEntry($path, $backend, $target, $args)")
 
 hostBuildGo(
   path: String,
   target: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostBuildGo($path, $target, $output)")
+) -> RuneCliExecution => @go.expr("runeCliHostBuildGo($path, $target, $output)")
 
 hostBuildMoonBit(
   path: String,
   target: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostBuildMoonBit($path, $target, $output)")
+) -> RuneCliExecution => @go.expr("runeCliHostBuildMoonBit($path, $target, $output)")
 
 hostEmitGo(
   path: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostEmitGo($path, $output)")
+) -> RuneCliExecution => @go.expr("runeCliHostEmitGo($path, $output)")
 
 hostEmitTypeScript(
   path: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostEmitTypeScript($path, $output)")
+) -> RuneCliExecution => @go.expr("runeCliHostEmitTypeScript($path, $output)")
 
 hostEmitMoonBit(
   path: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostEmitMoonBit($path, $output)")
+) -> RuneCliExecution => @go.expr("runeCliHostEmitMoonBit($path, $output)")
 
 hostCheck(
   path: String
-) -> RuneCliExecution => @go.expr("hostCheck($path)")
+) -> RuneCliExecution => @go.expr("runeCliHostCheck($path)")
 
 hostTest(
   path: String,
   pattern: String
-) -> RuneCliExecution => @go.expr("hostTest($path, $pattern)")
+) -> RuneCliExecution => @go.expr("runeCliHostTest($path, $pattern)")
 
 hostTestWithBackend(
   path: String,
   pattern: String,
   backend: String
-) -> RuneCliExecution => @go.expr("hostTestWithBackend($path, $pattern, $backend)")
+) -> RuneCliExecution => @go.expr("runeCliHostTestWithBackend($path, $pattern, $backend)")
 
 hostFmt(
   path: String,
   checkOnly: Bool,
   stdout: Bool
-) -> RuneCliExecution => @go.expr("hostFmt($path, $checkOnly, $stdout)")
+) -> RuneCliExecution => @go.expr("runeCliHostFmt($path, $checkOnly, $stdout)")
 
-hostRepl() -> RuneCliExecution => @go.expr("hostRepl()")
+hostRepl() -> RuneCliExecution => @go.expr("runeCliHostRepl()")
 
-hostLsp() -> RuneCliExecution => @go.expr("hostLsp()")
+hostLsp() -> RuneCliExecution => @go.expr("runeCliHostLsp()")
 
 + runeCommand() -> CliCommand => {
   command := @cli.command("rune", "Rune language toolchain")

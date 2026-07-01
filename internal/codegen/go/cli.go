@@ -673,4 +673,92 @@ func runeCliContains(values []string, value string) bool {
 	for _, line := range strings.Split(strings.Trim(src, "\n"), "\n") {
 		g.line(line)
 	}
+	if g.fileHasStruct("RuneCliExecution") && g.fileHasStruct("RuneCliStringResult") {
+		g.line("")
+		g.runeCliHostRuntime()
+	}
+}
+
+func (g *generator) fileHasStruct(name string) bool {
+	for _, typ := range g.file.Types {
+		if typ.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) runeCliHostRuntime() {
+	const src = `
+func runeCliHostUnavailable() __RuneCliExecution {
+	return __RuneCliExecution{__ok: false, __output: "", __errors: []string{"rune CLI host is unavailable"}}
+}
+
+func runeCliStringHostUnavailable() __RuneCliStringResult {
+	return __RuneCliStringResult{__ok: false, __value: "", __errors: []string{"rune CLI host is unavailable"}}
+}
+
+var runeCliHostResolveRunEntry = func(path string) __RuneCliStringResult {
+	return runeCliStringHostUnavailable()
+}
+
+var runeCliHostSelectRunBackend = func(entry string, backend string, backendExplicit bool) string {
+	return backend
+}
+
+var runeCliHostValidateBackend = func(backend string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostRunEntry = func(path string, backend string, target string, args []string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostBuildGo = func(path string, target string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostBuildMoonBit = func(path string, target string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitGo = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitTypeScript = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostEmitMoonBit = func(path string, output string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostCheck = func(path string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostTest = func(path string, pattern string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostTestWithBackend = func(path string, pattern string, backend string) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostFmt = func(path string, checkOnly bool, stdout bool) __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostRepl = func() __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+
+var runeCliHostLsp = func() __RuneCliExecution {
+	return runeCliHostUnavailable()
+}
+`
+	for _, line := range strings.Split(strings.Trim(src, "\n"), "\n") {
+		g.line(line)
+	}
 }
