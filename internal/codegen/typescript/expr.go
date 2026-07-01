@@ -56,7 +56,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.NullLiteral:
 		return "null"
 	case *ir.UnaryExpr:
-		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 5))
+		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 6))
 		if 5 < parentPrec {
 			return "(" + s + ")"
 		}
@@ -69,6 +69,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		prec := tsPrecedence(e.Op)
 		op := tsBinaryOp(e.Op)
 		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), op, g.exprPrec(e.Right, prec+1))
+		if e.Op == lexer.Slash && tsIntegerResultType(e.ResultType()) {
+			s = fmt.Sprintf("Math.trunc(%s)", s)
+		}
 		if tsArithmeticOp(e.Op) && isTSGenericResultType(e.ResultType()) {
 			s = fmt.Sprintf("(%s) as %s", s, tsType(e.ResultType()))
 		}
@@ -180,6 +183,15 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return g.xmlExpr(e)
 	default:
 		return "undefined"
+	}
+}
+
+func tsIntegerResultType(typ checker.Type) bool {
+	switch typ {
+	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -394,11 +406,16 @@ func (g *generator) callCalleeExpr(expr ir.Expr) string {
 }
 
 func (g *generator) enumConstructorCall(call *ir.CallExpr) (string, bool) {
-	ident, ok := call.Callee.(*ir.Identifier)
-	if !ok {
+	name := ""
+	if ident, ok := call.Callee.(*ir.Identifier); ok {
+		name = ident.Name
+	} else if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		name = sel.Name
+	}
+	if name == "" {
 		return "", false
 	}
-	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), ident.Name)
+	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), name)
 	if !ok || !enumHasPayload(enum) {
 		return "", false
 	}

@@ -353,6 +353,8 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `/(?:)/`
+	case checker.Symbol:
+		return "Symbol()"
 	case checker.Bytes:
 		return "new DataView(new ArrayBuffer(0))"
 	case checker.Buffer:

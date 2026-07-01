@@ -49,6 +49,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return "", false
 	}
 	switch fn.Intrinsic {
+	case "assert.eq":
+		if len(args) != 2 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("runeAssertEqual(%s, %s)", args[0], args[1]), true
 	case "io.print":
 		if len(args) == 0 {
 			return "undefined", true
@@ -58,10 +63,12 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return "console.log(" + strings.Join(args, ", ") + ")", true
 	case "io.scan", "io.scanLine", "io.readAll":
 		return g.ioModuleCall(fn, args, call.ResultType()), true
-	case "int.toString", "int.toDouble", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+	case "int.toString", "int.toDouble", "int.toBigInt", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
-		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble":
+		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble",
+		"bigint.fromInt", "bigint.toString", "bigint.toDouble",
+		"double.trunc", "double.floor", "double.ceil", "double.round":
 		return g.numericIntrinsicCall(fn, args, call.ResultType()), true
 	case "bytes.new", "bytes.fromInts":
 		return g.bytesModuleCall(fn, args, call.ResultType()), true
@@ -78,6 +85,8 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.processModuleCall(fn, args, call.ResultType()), true
 	case "stringbuffer.new", "stringbuffer.from":
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
+	case "symbol.create", "symbol.unique", "symbol.for", "symbol.keyFor", "symbol.description", "symbol.toString":
+		return g.symbolModuleCall(fn, args, call.ResultType()), true
 	case "compress.gzip", "compress.gunzip", "compress.deflate", "compress.inflate",
 		"compress.brotli", "compress.unbrotli", "compress.zstd", "compress.unzstd",
 		"compress.gzipText", "compress.gunzipText", "compress.brotliText", "compress.unbrotliText",
@@ -127,7 +136,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	if !ok || fn.Intrinsic == "" {
 		return "", false
 	}
-	receiver := g.expr(sel.Receiver)
+	receiver := g.selectorReceiverExpr(sel.Receiver)
 	args := g.intrinsicArgs(call.Args)
 	switch {
 	case strings.HasPrefix(fn.Intrinsic, "int."):
@@ -239,6 +248,26 @@ func (g *generator) ioModuleCall(fn *stdlib.Function, _ []string, resultType che
 		return "runeIoScanLine()"
 	case "io.readAll":
 		return "runeIoReadAll()"
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) symbolModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	if len(args) != 1 {
+		return g.zeroValue(resultType)
+	}
+	switch fn.Intrinsic {
+	case "symbol.create", "symbol.unique":
+		return fmt.Sprintf("Symbol(%s)", args[0])
+	case "symbol.for":
+		return fmt.Sprintf("Symbol.for(%s)", args[0])
+	case "symbol.keyFor":
+		return fmt.Sprintf("(Symbol.keyFor(%s) ?? null)", args[0])
+	case "symbol.description":
+		return fmt.Sprintf("(%s.description ?? null)", args[0])
+	case "symbol.toString":
+		return fmt.Sprintf("String(%s)", args[0])
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}
@@ -380,6 +409,8 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 		return fmt.Sprintf("(%s).toString()", value)
 	case "int.toDouble":
 		return value
+	case "int.toBigInt", "bigint.fromInt":
+		return fmt.Sprintf("BigInt(%s)", value)
 	case "int4.fromInt":
 		return fmt.Sprintf("((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(%s)", value)
 	case "int8.fromInt":
@@ -400,6 +431,18 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 		return fmt.Sprintf("Math.fround(%s)", value)
 	case "int64.toInt", "uint64.toInt":
 		return fmt.Sprintf("Number(%s)", value)
+	case "bigint.toString":
+		return fmt.Sprintf("(%s).toString()", value)
+	case "bigint.toDouble":
+		return fmt.Sprintf("Number(%s)", value)
+	case "double.trunc":
+		return fmt.Sprintf("Math.trunc(%s)", value)
+	case "double.floor":
+		return fmt.Sprintf("Math.floor(%s)", value)
+	case "double.ceil":
+		return fmt.Sprintf("Math.ceil(%s)", value)
+	case "double.round":
+		return fmt.Sprintf("Math.round(%s)", value)
 	default:
 		return value
 	}
@@ -434,7 +477,7 @@ func (g *generator) bytesReceiverCall(fn *stdlib.Function, receiver string, args
 		}
 		return fmt.Sprintf("((__view: DataView): DataView => new DataView(__view.buffer.slice(__view.byteOffset + %s, __view.byteOffset + %s)))(%s)", args[0], args[1], receiver)
 	case "bytes.toInts":
-		return fmt.Sprintf("Array.from(new Uint8Array(%s.buffer, %s.byteOffset, %s.byteLength))", receiver, receiver, receiver)
+		return fmt.Sprintf("((__view: DataView): number[] => Array.from(new Uint8Array(__view.buffer, __view.byteOffset, __view.byteLength)))(%s)", receiver)
 	case "bytes.getInt4":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -507,6 +550,8 @@ func (g *generator) bufferReceiverCall(fn *stdlib.Function, receiver string, arg
 	switch fn.Intrinsic {
 	case "buffer.length":
 		return receiver + ".byteLength"
+	case "buffer.isEmpty":
+		return receiver + ".byteLength === 0"
 	case "buffer.clear":
 		return receiver + ".clear()"
 	case "buffer.clone":
@@ -547,6 +592,8 @@ func (g *generator) readerReceiverCall(fn *stdlib.Function, receiver string, arg
 		return receiver + ".position()"
 	case "reader.remaining":
 		return receiver + ".remaining()"
+	case "reader.isEmpty":
+		return receiver + ".remaining() === 0"
 	case "reader.seek":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -660,6 +707,8 @@ func (g *generator) stringBufferReceiverCall(fn *stdlib.Function, receiver strin
 	switch fn.Intrinsic {
 	case "stringbuffer.length":
 		return receiver + ".length()"
+	case "stringbuffer.isEmpty":
+		return receiver + ".length() === 0"
 	case "stringbuffer.clear":
 		return receiver + ".clear()"
 	case "stringbuffer.append":

@@ -41,6 +41,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.errorRuntime()
 		g.line("")
 	}
+	if fileUsesAssertRuntime(usage) {
+		g.assertRuntime()
+		g.line("")
+	}
 	if fileUsesIORuntime(usage) {
 		g.ioRuntime()
 		g.line("")
@@ -298,6 +302,39 @@ func (g *generator) errorRuntime() {
 	g.line("function runeErrorFrom(error: unknown): RuneError {")
 	g.indent++
 	g.line("return { code: 1, message: error instanceof Error ? error.message : String(error), cause: null };")
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) assertRuntime() {
+	g.line("function runeDeepEqual(actual: unknown, expected: unknown): boolean {")
+	g.indent++
+	g.line("if (Object.is(actual, expected)) return true;")
+	g.line("if (typeof actual !== typeof expected) return false;")
+	g.line("if (actual === null || expected === null) return false;")
+	g.line("if (typeof actual !== \"object\") return false;")
+	g.line("if (Array.isArray(actual) || Array.isArray(expected)) {")
+	g.indent++
+	g.line("if (!Array.isArray(actual) || !Array.isArray(expected) || actual.length !== expected.length) return false;")
+	g.line("return actual.every((value, index) => runeDeepEqual(value, expected[index]));")
+	g.indent--
+	g.line("}")
+	g.line("const actualObj = actual as Record<string, unknown>;")
+	g.line("const expectedObj = expected as Record<string, unknown>;")
+	g.line("const actualKeys = Object.keys(actualObj).sort();")
+	g.line("const expectedKeys = Object.keys(expectedObj).sort();")
+	g.line("if (!runeDeepEqual(actualKeys, expectedKeys)) return false;")
+	g.line("return actualKeys.every((key) => runeDeepEqual(actualObj[key], expectedObj[key]));")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("function runeAssertEqual(actual: unknown, expected: unknown): void {")
+	g.indent++
+	g.line("if (!runeDeepEqual(actual, expected)) {")
+	g.indent++
+	g.line("throw new Error(`assert.eq failed: ${String(actual)} != ${String(expected)}`);")
+	g.indent--
+	g.line("}")
 	g.indent--
 	g.line("}")
 }
@@ -700,6 +737,10 @@ func fileUsesBytesRuntime(usage codeusage.Usage) bool {
 
 func fileUsesIORuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("io.scan") || usage.HasIntrinsicPrefix("io.readAll")
+}
+
+func fileUsesAssertRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("assert.")
 }
 
 func fileUsesProcessRuntime(usage codeusage.Usage) bool {

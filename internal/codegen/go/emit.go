@@ -453,6 +453,9 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	switch p := pattern.(type) {
 	case *ir.BindingPattern:
 		if p.Constant {
+			if condition, ok := g.enumBindingPatternCondition(subject, p); ok {
+				return condition
+			}
 			return fmt.Sprintf("%s == %s", subject, mangleIdent(p.Name))
 		}
 		return "true"
@@ -495,10 +498,10 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	case *ir.AsPattern:
 		return g.patternCondition(subject, p.Pattern)
 	case *ir.ConstructorPattern:
-		if condition, ok := g.jsonConstructorPatternCondition(subject, p); ok {
+		if condition, ok := g.enumConstructorPatternCondition(subject, p); ok {
 			return condition
 		}
-		if condition, ok := g.enumConstructorPatternCondition(subject, p); ok {
+		if condition, ok := g.jsonConstructorPatternCondition(subject, p); ok {
 			return condition
 		}
 		parts := []string{}
@@ -525,6 +528,23 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 	default:
 		return "true"
 	}
+}
+
+func (g *generator) enumBindingPatternCondition(subject string, pattern *ir.BindingPattern) (string, bool) {
+	enum := g.enumForType(pattern.Type)
+	if enum == nil {
+		return "", false
+	}
+	for _, member := range enum.Members {
+		if member.Name != pattern.Name {
+			continue
+		}
+		if enumHasPayload(enum) {
+			return fmt.Sprintf("%s.__tag == %s", subject, mangleEnumMember(enum.Name, member.Name)), true
+		}
+		return fmt.Sprintf("%s == %s", subject, mangleEnumMember(enum.Name, member.Name)), true
+	}
+	return "", false
 }
 
 func (g *generator) enumConstructorPatternCondition(subject string, pattern *ir.ConstructorPattern) (string, bool) {

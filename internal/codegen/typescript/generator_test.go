@@ -668,29 +668,20 @@ main() => {
 	}
 }
 
-func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
+func TestGenerateSymbolIntrinsicProgram(t *testing.T) {
 	src := `main() => {
   @io.println(@symbol.toString(@symbol.create("x")))
 }
 `
-	file, parseErrs := parser.Parse(src)
-	if len(parseErrs) > 0 {
-		t.Fatalf("parse errors: %v", parseErrs)
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`String(Symbol("x"))`,
+		`console.log`,
 	}
-	info, diags := checker.Check(file)
-	if len(diags) > 0 {
-		t.Fatalf("check diagnostics: %v", diags)
-	}
-	got, err := Generate(file, info)
-	if err == nil {
-		t.Fatalf("Generate() expected unsupported intrinsic error:\n%s", got)
-	}
-	if !strings.Contains(err.Error(), "TypeScript backend does not support intrinsic symbol.toString") ||
-		!strings.Contains(err.Error(), "TypeScript backend does not support intrinsic symbol.create") {
-		t.Fatalf("Generate() error = %v, want symbol intrinsic errors", err)
-	}
-	if strings.Contains(got, "@symbol") {
-		t.Fatalf("generated TypeScript leaked @symbol intrinsic:\n%s", got)
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
 	}
 }
 

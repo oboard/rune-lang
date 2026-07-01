@@ -1,0 +1,19 @@
+? "symbol constructors and descriptions" {
+  local := @symbol.create("local")
+  unique := @symbol.unique("unique")
+
+  @assert.eq(@symbol.description(local), "local")
+  @assert.eq(@symbol.description(unique), "unique")
+  @assert.eq(@symbol.toString(local), "Symbol(local)")
+  @assert.eq(@symbol.toString(unique), "Symbol(unique)")
+}
+
+? "symbol registry keys" {
+  local := @symbol.create("local")
+  shared := @symbol.for("shared")
+
+  @assert.eq(@symbol.keyFor(local), null)
+  @assert.eq(@symbol.keyFor(shared), "shared")
+  @assert.eq(@symbol.description(shared), "shared")
+  @assert.eq(@symbol.toString(shared), "Symbol(shared)")
+}

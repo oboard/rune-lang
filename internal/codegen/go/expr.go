@@ -52,7 +52,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.Op == lexer.Tilde && e.Expr.ResultType() == checker.BigInt {
 			return fmt.Sprintf("new(big.Int).Not(%s)", g.exprPrec(e.Expr, 5))
 		}
-		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 5))
+		op := e.Op.String()
+		if e.Op == lexer.Tilde {
+			op = "^"
+		}
+		s := fmt.Sprintf("%s%s", op, g.exprPrec(e.Expr, 6))
 		if 5 < parentPrec {
 			return "(" + s + ")"
 		}
@@ -142,7 +146,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			elemType = elem
 		}
 		return goArrayLiteral(elemType, e.Elements, func(expr ir.Expr) string {
-			return g.expr(expr)
+			return g.exprAs(expr, elemType)
 		})
 	case *ir.TupleLiteral:
 		elems := make([]string, 0, len(e.Elements))
@@ -316,11 +320,16 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 }
 
 func (g *generator) enumConstructorCall(call *ir.CallExpr) (string, bool) {
-	ident, ok := call.Callee.(*ir.Identifier)
-	if !ok {
+	name := ""
+	if ident, ok := call.Callee.(*ir.Identifier); ok {
+		name = ident.Name
+	} else if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		name = sel.Name
+	}
+	if name == "" {
 		return "", false
 	}
-	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), ident.Name)
+	enum, member, ok := g.enumMemberForConstructor(call.ResultType(), name)
 	if !ok || !enumHasPayload(enum) {
 		return "", false
 	}
@@ -765,7 +774,7 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 	if arr, ok := expr.(*ir.ArrayLiteral); ok {
 		if elemType, ok := checker.ArrayElement(expected); ok {
 			return goArrayLiteral(elemType, arr.Elements, func(expr ir.Expr) string {
-				return g.expr(expr)
+				return g.exprAs(expr, elemType)
 			})
 		}
 	}
@@ -1049,7 +1058,8 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 		if p.Constant {
 			return
 		}
-		*parts = append(*parts, fmt.Sprintf("%s := %s;", mangleIdent(p.Name), subject))
+		name := mangleIdent(p.Name)
+		*parts = append(*parts, fmt.Sprintf("%s := %s; _ = %s;", name, subject, name))
 	case *ir.TuplePattern:
 		for idx, elem := range p.Elements {
 			g.appendPatternBindings(parts, fmt.Sprintf("%s.F%d", subject, idx), elem)

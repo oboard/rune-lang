@@ -781,8 +781,8 @@ func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 		`"math"`,
 		`type runeBytes struct`,
 		`__bytes := newRuneBytes(16)`,
-		`__bytes.SetUInt8(0, uint8(255))`,
-		`__bytes.SetInt16(1, int16(0-1234), true)`,
+		`__bytes.SetUInt8(0, func() uint8 { n := int(255); return uint8(n) }())`,
+		`__bytes.SetInt16(1, func() int16 { n := int(0 - 1234); return int16(n) }(), true)`,
 		`__bytes.SetUInt64(4, uint64(123456), false)`,
 		`__bytes.SetFloat(12, float32(1.5), true)`,
 		`fmt.Println(__bytes.GetUInt8(0))`,
@@ -1059,7 +1059,7 @@ main() => {
 	}
 }
 
-func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
+func TestGenerateSymbolIntrinsicProgram(t *testing.T) {
 	src := `main() => {
   @io.println(@symbol.toString(@symbol.create("x")))
 }
@@ -1073,14 +1073,18 @@ func TestGenerateUnsupportedModuleIntrinsicError(t *testing.T) {
 		t.Fatalf("check diagnostics: %v", diags)
 	}
 	got, err := Generate(file, info)
-	if err == nil {
-		t.Fatalf("Generate() expected unsupported intrinsic error:\n%s", got)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
-	if !strings.Contains(err.Error(), "Go backend does not support intrinsic symbol.toString") {
-		t.Fatalf("Generate() error = %v, want symbol intrinsic error", err)
+	wantParts := []string{
+		`"sync/atomic"`,
+		`type runeSymbol struct`,
+		`runeSymbolToString(runeSymbolCreate("x"))`,
 	}
-	if strings.Contains(got, "symbol.__") {
-		t.Fatalf("generated Go leaked symbol fallback call:\n%s", got)
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
 	}
 }
 

@@ -33,6 +33,13 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesType(usage, checker.Regex) {
 		g.imports["regexp"] = true
 	}
+	if fileUsesSymbolRuntime(usage) {
+		g.imports["sync/atomic"] = true
+	}
+	if fileUsesAssertRuntime(usage) {
+		g.imports["fmt"] = true
+		g.imports["reflect"] = true
+	}
 	if fileUsesTemplateRuntime(usage) {
 		g.imports["fmt"] = true
 	}
@@ -137,8 +144,20 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
+	if fileUsesSymbolRuntime(usage) {
+		g.symbolRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
 	if fileUsesTemplateRuntime(usage) {
 		g.templateRuntime()
+		if len(file.Functions) > 0 || len(file.Types) > 0 {
+			g.line("")
+		}
+	}
+	if fileUsesAssertRuntime(usage) {
+		g.assertRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
 			g.line("")
 		}
@@ -295,6 +314,10 @@ func fileUsesTemplateRuntime(usage codeusage.Usage) bool {
 	return usage.Template
 }
 
+func fileUsesAssertRuntime(usage codeusage.Usage) bool {
+	return usage.HasIntrinsicPrefix("assert.")
+}
+
 func fileUsesIORuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("io.scan") || usage.HasIntrinsicPrefix("io.readAll")
 }
@@ -313,6 +336,10 @@ func fileUsesCLIRuntime(usage codeusage.Usage) bool {
 
 func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {
 	return fileUsesType(usage, checker.StringBuffer) || usage.HasIntrinsicPrefix("stringbuffer.")
+}
+
+func fileUsesSymbolRuntime(usage codeusage.Usage) bool {
+	return fileUsesType(usage, checker.Symbol) || usage.HasIntrinsicPrefix("symbol.")
 }
 
 func fileUsesIterRuntime(usage codeusage.Usage) bool {
@@ -385,6 +412,80 @@ func (g *generator) bigIntRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("return value")
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) symbolRuntime() {
+	g.line("type runeSymbol struct {")
+	g.indent++
+	g.line("id int64")
+	g.line("key string")
+	g.line("description string")
+	g.line("global bool")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("var runeSymbolNextID int64")
+	g.line("var runeSymbolRegistry = map[string]runeSymbol{}")
+	g.line("")
+	g.line("func runeSymbolCreate(description string) runeSymbol {")
+	g.indent++
+	g.line("return runeSymbol{id: atomic.AddInt64(&runeSymbolNextID, 1), description: description}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeSymbolUnique(description string) runeSymbol {")
+	g.indent++
+	g.line("return runeSymbolCreate(description)")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeSymbolFor(key string) runeSymbol {")
+	g.indent++
+	g.line("if value, ok := runeSymbolRegistry[key]; ok {")
+	g.indent++
+	g.line("return value")
+	g.indent--
+	g.line("}")
+	g.line("value := runeSymbol{id: atomic.AddInt64(&runeSymbolNextID, 1), key: key, description: key, global: true}")
+	g.line("runeSymbolRegistry[key] = value")
+	g.line("return value")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeSymbolKeyFor(value runeSymbol) any {")
+	g.indent++
+	g.line("if value.global {")
+	g.indent++
+	g.line("return value.key")
+	g.indent--
+	g.line("}")
+	g.line("return nil")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeSymbolDescription(value runeSymbol) any {")
+	g.indent++
+	g.line("return value.description")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("func runeSymbolToString(value runeSymbol) string {")
+	g.indent++
+	g.line(`return "Symbol(" + value.description + ")"`)
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) assertRuntime() {
+	g.line("func runeAssertEqual(actual any, expected any) {")
+	g.indent++
+	g.line("if !reflect.DeepEqual(actual, expected) {")
+	g.indent++
+	g.line(`panic(fmt.Sprintf("assert.eq failed: %v != %v", actual, expected))`)
+	g.indent--
+	g.line("}")
 	g.indent--
 	g.line("}")
 }

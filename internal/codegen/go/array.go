@@ -216,7 +216,11 @@ func (g *generator) arrayReduceExpr(call *ir.CallExpr, receiver string, reverse 
 		b.WriteString(fmt.Sprintf("\t\t%s = %s\n", resultName, arrayReducerCallbackCall(callback, arity, resultName, valueName, indexName, arrayName)))
 		b.WriteString("\t}\n")
 	} else {
-		b.WriteString(fmt.Sprintf("\tfor %s, %s := range %s {\n", indexName, valueName, arrayName))
+		rangeIndex := "_"
+		if arity >= 3 {
+			rangeIndex = indexName
+		}
+		b.WriteString(fmt.Sprintf("\tfor %s, %s := range %s {\n", rangeIndex, valueName, arrayName))
 		b.WriteString(fmt.Sprintf("\t\t%s = %s\n", resultName, arrayReducerCallbackCall(callback, arity, resultName, valueName, indexName, arrayName)))
 		b.WriteString("\t}\n")
 	}
@@ -368,7 +372,7 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 			elemType = elem
 		}
 		return goArrayLiteral(elemType, e.Elements, func(expr ir.Expr) string {
-			return c.expr(expr, expr.ResultType())
+			return c.expr(expr, elemType)
 		})
 	case *ir.CallExpr:
 		if expr, ok := c.arrayCallExpr(e, expected); ok {

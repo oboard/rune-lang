@@ -296,6 +296,8 @@ func zeroValue(typ checker.Type) string {
 		return "false"
 	case checker.Regex:
 		return `newRuneRegex("", "")`
+	case checker.Symbol:
+		return "runeSymbol{}"
 	case checker.Bytes:
 		return "newRuneBytes(0)"
 	case checker.Buffer:
