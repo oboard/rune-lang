@@ -3883,7 +3883,7 @@ runeCliInvocationFromResult(
   runeCliInvocation(
     name,
     backend,
-    callMapGetOrString(cliField(result, "positionals"), "path", ""),
+    runeCliDefaultPath(name, callMapGetOrString(cliField(result, "positionals"), "path", "")),
     callMapGetOrString(cliField(result, "values"), "output", ""),
     callMapGetOrString(cliField(result, "values"), "target", ""),
     callMapGetOrString(cliField(result, "positionals"), "pattern", ""),
@@ -3896,6 +3896,14 @@ runeCliInvocationFromResult(
     runeCliInvocationHelpText(name)
   )
 }
+
+runeCliDefaultPath(
+  name: String,
+  path: String
+) -> String => (
+  (name == "test") && path.isEmpty() ? "tests"
+    : path
+)
 
 runeCliInvocationHelpText(
   name: String

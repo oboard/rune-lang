@@ -92,15 +92,11 @@ func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, std
 	case "check":
 		return checkTarget(invocation.__path, stdout)
 	case "test":
-		path := invocation.__path
-		if path == "" {
-			path = "tests"
-		}
 		if explicitBackend {
-			_, err := tester.RunWithBackend(path, invocation.__pattern, invocation.__backend, stdout)
+			_, err := tester.RunWithBackend(invocation.__path, invocation.__pattern, invocation.__backend, stdout)
 			return err
 		}
-		_, err := tester.Run(path, invocation.__pattern, stdout)
+		_, err := tester.Run(invocation.__path, invocation.__pattern, stdout)
 		return err
 	case "fmt":
 		return formatTarget(invocation.__path, invocation.__checkOnly, invocation.__stdout, stdout)

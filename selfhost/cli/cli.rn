@@ -421,7 +421,7 @@ invocationFromResult(
     ok: errors.isEmpty(),
     command: name,
     backend: backend,
-    path: result.positionals.getOr("path", ""),
+    path: defaultPathForCommand(name, result.positionals.getOr("path", "")),
     output: result.values.getOr("output", ""),
     target: result.values.getOr("target", ""),
     pattern: result.positionals.getOr("pattern", ""),
@@ -434,6 +434,14 @@ invocationFromResult(
     helpText: invocationHelpText(name)
   }
 }
+
+defaultPathForCommand(
+  name: String,
+  path: String
+) -> String => (
+  (name == "test") && path.isEmpty() ? "tests"
+    : path
+)
 
 invocationHelpText(
   name: String

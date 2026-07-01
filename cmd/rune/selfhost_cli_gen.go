@@ -663,13 +663,13 @@ func __lspCommand() __CliCommand {
 
 func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend string, __backendExplicit bool, __result __CliParseResult, __runArgs []string, __checkOnly bool, __stdout bool) __RuneCliInvocation {
 	__errors := ____rune_private_5b8b8d7b_cliErrors(__result)
-	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: func() string {
+	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_5b8b8d7b_defaultPathForCommand(__name, func() string {
 		value, ok := __result.__positionals["path"]
 		if ok {
 			return value
 		}
 		return ""
-	}(), __output: func() string {
+	}()), __output: func() string {
 		value, ok := __result.__values["output"]
 		if ok {
 			return value
@@ -688,6 +688,15 @@ func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend str
 		}
 		return ""
 	}(), __checkOnly: __checkOnly, __stdout: __stdout, __backendExplicit: __backendExplicit, __runArgs: __runArgs, __errors: __errors, __help: __result.__help, __helpText: ____rune_private_5b8b8d7b_invocationHelpText(__name)}
+}
+
+func ____rune_private_5b8b8d7b_defaultPathForCommand(__name string, __path string) string {
+	return func() string {
+		if __name == "test" && len(__path) == 0 {
+			return "tests"
+		}
+		return __path
+	}()
 }
 
 func ____rune_private_5b8b8d7b_invocationHelpText(__name string) string {
