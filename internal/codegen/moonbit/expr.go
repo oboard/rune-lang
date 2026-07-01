@@ -387,6 +387,9 @@ func (g *generator) arrayLiteralAs(lit *ir.ArrayLiteral, expected checker.Type) 
 }
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
+	if ternary, ok := expr.(*ir.TernaryExpr); ok {
+		return g.ternaryExprAs(ternary, expected)
+	}
 	if expr.ResultType() == expected {
 		return g.expr(expr)
 	}
@@ -413,6 +416,14 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 		}
 	}
 	return g.expr(expr)
+}
+
+func (g *generator) ternaryExprAs(expr *ir.TernaryExpr, expected checker.Type) string {
+	alt := zeroValue(expected)
+	if expr.Alternative != nil {
+		alt = g.exprAs(expr.Alternative, expected)
+	}
+	return fmt.Sprintf("if %s { %s } else { %s }", g.expr(expr.Condition), g.exprAs(expr.Consequence, expected), alt)
 }
 
 func (g *generator) objectAsExpected(expr ir.Expr, expected checker.Type) string {
