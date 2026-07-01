@@ -602,6 +602,13 @@ func resultTypeArgs(typ checker.Type) (checker.Type, checker.Type) {
 }
 
 func (g *generator) discardExpr(expr ir.Expr, rendered string) string {
+	if ternary, ok := expr.(*ir.TernaryExpr); ok {
+		alt := "()"
+		if ternary.Alternative != nil {
+			alt = g.discardExpr(ternary.Alternative, g.expr(ternary.Alternative))
+		}
+		return fmt.Sprintf("if %s { %s } else { %s }", g.expr(ternary.Condition), g.discardExpr(ternary.Consequence, g.expr(ternary.Consequence)), alt)
+	}
 	if expr.ResultType() == checker.Void {
 		return rendered
 	}
