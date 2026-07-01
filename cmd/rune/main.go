@@ -135,9 +135,6 @@ func runEntry(entry string, runBackend string, runTarget string, programArgs []s
 		run.Dir = runDir
 		return run.Run()
 	case "mbt":
-		if runTarget == "" {
-			runTarget = "native"
-		}
 		if err := validateMoonBitTarget(runTarget); err != nil {
 			return err
 		}

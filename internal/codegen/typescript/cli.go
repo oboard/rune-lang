@@ -46,6 +46,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliArgument(%s, %s, %s)", args[0], args[1], args[2])
+	case "alias":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("({ from: %s, to: %s })", args[0], args[1])
 	case "parse":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -56,6 +61,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliParseArgs(%s, %s)", args[0], args[1])
+	case "parseCommandArgs":
+		if len(args) != 5 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("runeCliParseCommandArgs(%s, %s, %s, %s, %s)", args[0], args[1], args[2], args[3], args[4])
 	case "help":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -106,9 +116,23 @@ type __CliParseResult = {
   values: Map<string, string>;
   flags: Map<string, boolean>;
   positionals: Map<string, string>;
+  explicitOptions: string[];
   args: string[];
   rest: string[];
   help: boolean;
+  error: string | null;
+};
+
+type __CliCommandAlias = {
+  from: string;
+  to: string;
+};
+
+type __CliCommandParseResult = {
+  root: __CliParseResult;
+  command: __CliParseResult;
+  commandName: string;
+  commandArgs: string[];
   error: string | null;
 };
 
@@ -153,11 +177,16 @@ function runeCliParse(command: __CliCommand): __CliParseResult {
 }
 
 function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResult {
+  return runeCliParseArgsMode(command, args, false);
+}
+
+function runeCliParseArgsMode(command: __CliCommand, args: string[], trailingRest: boolean): __CliParseResult {
   const longOptions = new Map<string, __CliOption>();
   const shortOptions = new Map<string, __CliOption>();
   const values = new Map<string, string>();
   const flags = new Map<string, boolean>();
   const positionals = new Map<string, string>();
+  const explicitOptions: string[] = [];
   const positionalValues: string[] = [];
   let rest: string[] = [];
   let help = false;
@@ -171,6 +200,10 @@ function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResu
 
   for (let idx = 0; idx < args.length; idx += 1) {
     const arg = args[idx]!;
+    if (trailingRest && positionalValues.length >= command.arguments.length) {
+      rest = arg === "--" ? args.slice(idx + 1) : args.slice(idx);
+      break;
+    }
     if (arg === "--") {
       rest = args.slice(idx + 1);
       break;
@@ -193,6 +226,7 @@ function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResu
         const option = longOptions.get(name.slice(3));
         if (option && option.valueName === "") {
           flags.set(option.name, false);
+          explicitOptions.push(option.name);
           continue;
         }
       }
@@ -211,8 +245,10 @@ function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResu
           value = args[idx]!;
         }
         values.set(option.name, value);
+        explicitOptions.push(option.name);
       } else {
         flags.set(option.name, !hasValue || value !== "false");
+        explicitOptions.push(option.name);
       }
       continue;
     }
@@ -240,9 +276,11 @@ function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResu
             value = args[idx]!;
           }
           values.set(option.name, value);
+          explicitOptions.push(option.name);
           break;
         }
         flags.set(option.name, true);
+        explicitOptions.push(option.name);
       }
       if (parseError !== null) break;
       continue;
@@ -279,7 +317,51 @@ function runeCliParseArgs(command: __CliCommand, args: string[]): __CliParseResu
     }
   }
 
-  return { command, values, flags, positionals, args: [...args], rest, help, error: parseError };
+  return { command, values, flags, positionals, explicitOptions, args: [...args], rest, help, error: parseError };
+}
+
+function runeCliParseCommandArgs(root: __CliCommand, commands: __CliCommand[], aliases: __CliCommandAlias[], trailingRest: string[], args: string[]): __CliCommandParseResult {
+  const rootArgs: string[] = [];
+  const commandArgs: string[] = [];
+  let commandName = "";
+  let inRest = false;
+  for (let idx = 0; idx < args.length; idx += 1) {
+    const arg = args[idx]!;
+    if (commandName === "" && !inRest && (arg === "--help" || arg === "-h")) {
+      rootArgs.push(arg);
+      continue;
+    }
+    const rootMatch = !inRest ? runeCliRootOption(root, arg) : null;
+    if (rootMatch) {
+      rootArgs.push(arg);
+      const consumesNext = rootMatch.valueName !== "" && !arg.includes("=") && !(arg.startsWith("-") && !arg.startsWith("--") && arg.length > 2);
+      if (consumesNext && idx + 1 < args.length) rootArgs.push(args[++idx]!);
+      continue;
+    }
+    if (commandName === "") {
+      commandName = aliases.find((alias) => alias.from === arg)?.to ?? arg;
+      continue;
+    }
+    commandArgs.push(arg);
+    if (arg === "--") inRest = true;
+  }
+  const rootResult = runeCliParseArgs(root, rootArgs);
+  if (commandName === "") return { root: rootResult, command: rootResult, commandName: "", commandArgs: [], error: null };
+  const command = commands.find((candidate) => candidate.name === commandName);
+  if (!command) return { root: rootResult, command: rootResult, commandName, commandArgs, error: "unknown command " + commandName };
+  const commandResult = runeCliParseArgsMode(command, commandArgs, trailingRest.includes(commandName));
+  return { root: rootResult, command: commandResult, commandName, commandArgs, error: null };
+}
+
+function runeCliRootOption(command: __CliCommand, arg: string): __CliOption | null {
+  if (arg.startsWith("--") && arg.length > 2) {
+    const name = arg.slice(2).split("=")[0]!;
+    return command.options.find((option) => option.name === name) ?? null;
+  }
+  if (arg.startsWith("-") && arg !== "-") {
+    return command.options.find((option) => option.short === arg.slice(1, 2)) ?? null;
+  }
+  return null;
 }
 
 function runeCliHelp(command: __CliCommand): string {

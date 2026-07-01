@@ -13,10 +13,14 @@
   implicitArgs := cli.parseCli(["run", "examples/cli.rn", "-v", "core"])
   @assert.eq(implicitArgs.ok, true)
   @assert.eq(implicitArgs.backendExplicit, false)
+  @assert.eq(implicitArgs.target, "")
   @assert.eq(implicitArgs.path, "examples/cli.rn")
   @assert.eq(implicitArgs.runArgs.length(), 2)
   @assert.eq(implicitArgs.runArgs[0], "-v")
   @assert.eq(implicitArgs.runArgs[1], "core")
+  defaultMbt := cli.parseCli(["--backend", "mbt", "run", "examples/cli.rn"])
+  @assert.eq(defaultMbt.ok, true)
+  @assert.eq(defaultMbt.target, "native")
 }
 
 ? "selfhost cli parses build fmt and test commands" {

@@ -28,9 +28,23 @@
   values: Map[String, String]
   flags: Map[String, Bool]
   positionals: Map[String, String]
+  explicitOptions: Array[String]
   args: Array[String]
   rest: Array[String]
   help: Bool
+  error: String?
+}
+
++ CliCommandAlias: {
+  from: String
+  to: String
+}
+
++ CliCommandParseResult: {
+  root: CliParseResult
+  command: CliParseResult
+  commandName: String
+  commandArgs: Array[String]
   error: String?
 }
 
@@ -298,6 +312,14 @@ mainBody(
   required: required
 }
 
++ alias(
+  from: String,
+  to: String
+) -> CliCommandAlias => {
+  from: from,
+  to: to
+}
+
 + contains(
   values: Array[String],
   value: String
@@ -320,7 +342,7 @@ containsAt(
 ) -> CliParseResult => {
   argv := @process.argv()
   rawArgs := argv.slice(1, argv.length())
-  args ~= rawArgs
+  args :=: rawArgs
   skipScript := (args.length() > 0) && (args[0].endsWith(".ts") || args[0].endsWith(".js"))
   (
     skipScript ? args = args.slice(1, args.length())
@@ -367,11 +389,12 @@ containsAt(
   flags := @map.new("", false)
   positionals := @map.new("", "")
   rest := args.slice(0, 0)
+  explicitOptions := args.slice(0, 0)
   positionalValues := args.slice(0, 0)
-  helpValue ~= false
-  parseError ~= ""
-  afterDoubleDash ~= false
-  skipNext ~= false
+  helpValue :=: false
+  parseError :=: ""
+  afterDoubleDash :=: false
+  skipNext :=: false
   command.options.each((option) => {
     useDefault := !option.valueName.isEmpty() && (option.defaultValue != null)
     (
@@ -380,7 +403,7 @@ containsAt(
     )
   })
   args.each((arg, index) => {
-    handled ~= false
+    handled :=: false
     (
       skipNext ? handled = true
         : handled = handled
@@ -417,12 +440,12 @@ containsAt(
         : handled = handled
     )
     isLong := ((!handled && parseError.isEmpty()) && arg.startsWith("--")) && (arg.length() > 2)
-    longName ~= (
+    longName :=: (
       isLong ? arg.slice(2, arg.length())
         : ""
     )
-    longValue ~= ""
-    longHasValue ~= false
+    longValue :=: ""
+    longHasValue :=: false
     eqIndex := longName.indexOf("=")
     hasEquals := isLong && (eqIndex >= 0)
     (
@@ -441,8 +464,8 @@ containsAt(
       longName.startsWith("no-") ? longName.slice(3, longName.length())
         : ""
     )
-    noFound ~= false
-    noTakesValue ~= false
+    noFound :=: false
+    noTakesValue :=: false
     command.options.each((option) => {
       match := ((isLong && !handled) && !noName.isEmpty()) && (option.name == noName)
       (
@@ -460,12 +483,16 @@ containsAt(
         : flags
     )
     (
+      useNoFlag ? explicitOptions.push(noName)
+        : 0
+    )
+    (
       useNoFlag ? handled = true
         : handled = handled
     )
-    longFound ~= false
-    longTakesValue ~= false
-    longOptionName ~= ""
+    longFound :=: false
+    longTakesValue :=: false
+    longOptionName :=: ""
     command.options.each((option) => {
       match := (isLong && !handled) && (option.name == longName)
       (
@@ -518,6 +545,10 @@ containsAt(
         : values
     )
     (
+      storeLongValue ? explicitOptions.push(longOptionName)
+        : 0
+    )
+    (
       storeLongValue ? handled = true
         : handled = handled
     )
@@ -527,11 +558,15 @@ containsAt(
         : flags
     )
     (
+      storeLongFlag ? explicitOptions.push(longOptionName)
+        : 0
+    )
+    (
       storeLongFlag ? handled = true
         : handled = handled
     )
     isShort := ((!handled && parseError.isEmpty()) && arg.startsWith("-")) && (arg != "-")
-    clusterDone ~= false
+    clusterDone :=: false
     arg.slice(1, arg.length()).split("").each((short, shortIndex) => {
       active := (isShort && !clusterDone) && parseError.isEmpty()
       shortHelp := active && (short == "h")
@@ -539,9 +574,9 @@ containsAt(
         shortHelp ? helpValue = true
           : helpValue = helpValue
       )
-      shortFound ~= false
-      shortTakesValue ~= false
-      shortOptionName ~= ""
+      shortFound :=: false
+      shortTakesValue :=: false
+      shortOptionName :=: ""
       command.options.each((option) => {
         match := (active && !shortHelp) && (option.short == short)
         (
@@ -566,7 +601,7 @@ containsAt(
         unknownShort ? clusterDone = true
           : clusterDone = clusterDone
       )
-      shortValue ~= arg.slice(shortIndex + 2, arg.length())
+      shortValue :=: arg.slice(shortIndex + 2, arg.length())
       missingShortValue := ((((active && !shortHelp) && shortFound) && shortTakesValue) && shortValue.isEmpty()) && ((index + 1) >= args.length())
       (
         missingShortValue ? parseError = "missing value for -" + short
@@ -587,8 +622,12 @@ containsAt(
       )
       storeShortValue := (((active && !shortHelp) && shortFound) && shortTakesValue) && parseError.isEmpty()
       (
-        storeShortValue ? values.set(shortOptionName, shortValue)
-          : values
+      storeShortValue ? values.set(shortOptionName, shortValue)
+        : values
+      )
+      (
+        storeShortValue ? explicitOptions.push(shortOptionName)
+          : 0
       )
       (
         storeShortValue ? clusterDone = true
@@ -598,6 +637,10 @@ containsAt(
       (
         storeShortFlag ? flags.set(shortOptionName, true)
           : flags
+      )
+      (
+        storeShortFlag ? explicitOptions.push(shortOptionName)
+          : 0
       )
     })
     (
@@ -617,7 +660,7 @@ containsAt(
         : parseError = parseError
     )
   })
-  positionIndex ~= 0
+  positionIndex :=: 0
   command.arguments.each((argument) => {
     hasValue := positionIndex < positionalValues.length()
     (
@@ -643,6 +686,7 @@ containsAt(
     values: values,
     flags: flags,
     positionals: positionals,
+    explicitOptions: explicitOptions,
     args: args,
     rest: rest,
     help: helpValue,
@@ -653,8 +697,25 @@ containsAt(
   }
 }
 
++ parseCommandArgs(
+  root: CliCommand,
+  commands: Array[CliCommand],
+  aliases: Array[CliCommandAlias],
+  trailingRest: Array[String],
+  args: Array[String]
+) -> CliCommandParseResult => {
+  rootResult := parseArgs(root, args)
+  CliCommandParseResult {
+    root: rootResult,
+    command: rootResult,
+    commandName: "",
+    commandArgs: [],
+    error: null
+  }
+}
+
 + help(command: CliCommand) -> String => {
-  text ~= "Usage: " + command.name
+  text :=: "Usage: " + command.name
   (
     command.options.isEmpty() ? text = text
       : text = text + " [options]"

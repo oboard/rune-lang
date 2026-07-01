@@ -327,7 +327,7 @@ func TestRunEntryMoonBit(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "mbt", "", nil, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := runEntry(mainPath, "mbt", "native", nil, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
 	}
 	if got, want := out.String(), "Rune\n"; got != want {
@@ -361,7 +361,7 @@ main(args: Args) => {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "mbt", "", []string{"wasm", "-v", "-o", "out.js"}, strings.NewReader(""), &out, &errOut); err != nil {
+	if err := runEntry(mainPath, "mbt", "native", []string{"wasm", "-v", "-o", "out.js"}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
 	}
 	if got, want := out.String(), "wasm\nout.js\ntrue\n"; got != want {

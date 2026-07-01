@@ -42,6 +42,10 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 		if len(args) == 3 {
 			return fmt.Sprintf("rune_cli_argument(%s, %s, %s)", args[0], args[1], args[2])
 		}
+	case "alias":
+		if len(args) == 2 {
+			return fmt.Sprintf("CliCommandAlias::{ from: %s, to: %s }", args[0], args[1])
+		}
 	case "parse":
 		if len(args) == 1 {
 			return fmt.Sprintf("rune_cli_parse(%s)", args[0])
@@ -49,6 +53,10 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 	case "parseArgs":
 		if len(args) == 2 {
 			return fmt.Sprintf("rune_cli_parse_args(%s, %s)", args[0], args[1])
+		}
+	case "parseCommandArgs":
+		if len(args) == 5 {
+			return fmt.Sprintf("rune_cli_parse_command_args(%s, %s, %s, %s, %s)", args[0], args[1], args[2], args[3], args[4])
 		}
 	case "help":
 		if len(args) == 1 {
@@ -103,9 +111,27 @@ func (g *generator) cliRuntime() {
 	g.line("values : Map[String, String]")
 	g.line("flags : Map[String, Bool]")
 	g.line("positionals : Map[String, String]")
+	g.line("explicit_options : Array[String]")
 	g.line("args : Array[String]")
 	g.line("rest : Array[String]")
 	g.line("help : Bool")
+	g.line("error : String?")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("struct CliCommandAlias {")
+	g.indent++
+	g.line("from : String")
+	g.line("to : String")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("struct CliCommandParseResult {")
+	g.indent++
+	g.line("root : CliParseResult")
+	g.line("command : CliParseResult")
+	g.line("command_name : String")
+	g.line("command_args : Array[String]")
 	g.line("error : String?")
 	g.indent--
 	g.line("}")
@@ -191,11 +217,35 @@ func (g *generator) cliRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
+	g.line("fn rune_cli_parse_command_args(root : CliCommand, commands : Array[CliCommand], aliases : Array[CliCommandAlias], trailing_rest : Array[String], args : Array[String]) -> CliCommandParseResult {")
+	g.indent++
+	g.line("let root_result = rune_cli_parse_args(root, args)")
+	g.line("let mut command_name = \"\"")
+	g.line("let command_args : Array[String] = []")
+	g.line("let mut index = 0")
+	g.line("while index < args.length() {")
+	g.indent++
+	g.line("let arg = args[index]")
+	g.line("if command_name.is_empty() && !arg.starts_with(\"-\") { command_name = arg } else if !command_name.is_empty() { command_args.push(arg) }")
+	g.line("index = index + 1")
+	g.indent--
+	g.line("}")
+	g.line("aliases.each((alias) => { if command_name == alias.from { command_name = alias.to } })")
+	g.line("let mut found = false")
+	g.line("let mut command = root")
+	g.line("commands.each((candidate) => { if candidate.name == command_name { command = candidate; found = true } })")
+	g.line("let command_result = if found { rune_cli_parse_args(command, command_args) } else { root_result }")
+	g.line("let error = if !command_name.is_empty() && !found { Some(\"unknown command \" + command_name) } else { None }")
+	g.line("CliCommandParseResult::{ root: root_result, command: command_result, command_name, command_args, error }")
+	g.indent--
+	g.line("}")
+	g.line("")
 	g.line("fn rune_cli_parse_args(command : CliCommand, args : Array[String]) -> CliParseResult {")
 	g.indent++
 	g.line("let values : Map[String, String] = {}")
 	g.line("let flags : Map[String, Bool] = {}")
 	g.line("let positionals : Map[String, String] = {}")
+	g.line("let explicit_options : Array[String] = []")
 	g.line("let mut rest : Array[String] = []")
 	g.line("let positional_values : Array[String] = []")
 	g.line("let mut help = false")
@@ -337,7 +387,7 @@ func (g *generator) cliRuntime() {
 	g.line("}")
 	g.indent--
 	g.line("})")
-	g.line("CliParseResult::{ command, values, flags, positionals, args, rest, help, error }")
+	g.line("CliParseResult::{ command, values, flags, positionals, explicit_options, args, rest, help, error }")
 	g.indent--
 	g.line("}")
 	g.line("")

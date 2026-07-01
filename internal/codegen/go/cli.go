@@ -46,6 +46,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliArgument(%s, %s, %s)", args[0], args[1], args[2])
+	case "alias":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("__CliCommandAlias{__from: %s, __to: %s}", args[0], args[1])
 	case "parse":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -56,6 +61,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliParseArgs(%s, %s)", args[0], args[1])
+	case "parseCommandArgs":
+		if len(args) != 5 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("runeCliParseCommandArgs(%s, %s, %s, %s, %s)", args[0], args[1], args[2], args[3], args[4])
 	case "help":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -106,9 +116,23 @@ type __CliParseResult struct {
 	__values map[string]string
 	__flags map[string]bool
 	__positionals map[string]string
+	__explicitOptions []string
 	__args []string
 	__rest []string
 	__help bool
+	__error any
+}
+
+type __CliCommandAlias struct {
+	__from string
+	__to string
+}
+
+type __CliCommandParseResult struct {
+	__root __CliParseResult
+	__command __CliParseResult
+	__commandName string
+	__commandArgs []string
 	__error any
 }
 
@@ -148,12 +172,17 @@ func runeCliParse(command __CliCommand) __CliParseResult {
 }
 
 func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
+	return runeCliParseArgsMode(command, args, false)
+}
+
+func runeCliParseArgsMode(command __CliCommand, args []string, trailingRest bool) __CliParseResult {
 	longOptions := map[string]__CliOption{}
 	shortOptions := map[string]__CliOption{}
 	values := map[string]string{}
 	flags := map[string]bool{}
 	positionals := map[string]string{}
 	positionalValues := []string{}
+	explicitOptions := []string{}
 	rest := []string{}
 	help := false
 	parseError := ""
@@ -172,6 +201,14 @@ func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
 
 	for idx := 0; idx < len(args); idx++ {
 		arg := args[idx]
+		if trailingRest && len(positionalValues) >= len(command.__arguments) {
+			if arg == "--" {
+				rest = append(rest, args[idx+1:]...)
+			} else {
+				rest = append(rest, args[idx:]...)
+			}
+			break
+		}
 		if arg == "--" {
 			rest = append(rest, args[idx+1:]...)
 			break
@@ -192,6 +229,7 @@ func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
 			if strings.HasPrefix(name, "no-") {
 				if option, ok := longOptions[strings.TrimPrefix(name, "no-")]; ok && option.__valueName == "" {
 					flags[option.__name] = false
+					explicitOptions = append(explicitOptions, option.__name)
 					continue
 				}
 			}
@@ -210,8 +248,10 @@ func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
 					value = args[idx]
 				}
 				values[option.__name] = value
+				explicitOptions = append(explicitOptions, option.__name)
 			} else {
 				flags[option.__name] = !hasValue || value != "false"
+				explicitOptions = append(explicitOptions, option.__name)
 			}
 			continue
 		}
@@ -239,9 +279,11 @@ func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
 						value = args[idx]
 					}
 					values[option.__name] = value
+					explicitOptions = append(explicitOptions, option.__name)
 					break
 				}
 				flags[option.__name] = true
+				explicitOptions = append(explicitOptions, option.__name)
 			}
 			if parseError != "" {
 				break
@@ -292,11 +334,121 @@ func runeCliParseArgs(command __CliCommand, args []string) __CliParseResult {
 		__values: values,
 		__flags: flags,
 		__positionals: positionals,
+		__explicitOptions: explicitOptions,
 		__args: append([]string(nil), args...),
 		__rest: rest,
 		__help: help,
 		__error: errorValue,
 	}
+}
+
+func runeCliParseCommandArgs(root __CliCommand, commands []__CliCommand, aliases []__CliCommandAlias, trailingRest []string, args []string) __CliCommandParseResult {
+	rootArgs, commandName, commandArgs := runeCliSplitCommandArgs(root, aliases, args)
+	rootResult := runeCliParseArgs(root, rootArgs)
+	if commandName == "" {
+		return __CliCommandParseResult{__root: rootResult, __command: rootResult, __commandName: "", __commandArgs: []string{}, __error: any(nil)}
+	}
+	command, ok := runeCliFindCommand(commands, commandName)
+	if !ok {
+		return __CliCommandParseResult{__root: rootResult, __command: rootResult, __commandName: commandName, __commandArgs: commandArgs, __error: "unknown command " + commandName}
+	}
+	commandResult := runeCliParseArgsMode(command, commandArgs, runeCliContains(trailingRest, commandName))
+	return __CliCommandParseResult{__root: rootResult, __command: commandResult, __commandName: commandName, __commandArgs: commandArgs, __error: any(nil)}
+}
+
+func runeCliSplitCommandArgs(root __CliCommand, aliases []__CliCommandAlias, args []string) ([]string, string, []string) {
+	rootArgs := []string{}
+	commandArgs := []string{}
+	commandName := ""
+	inRest := false
+	skipNext := false
+	for idx := 0; idx < len(args); idx++ {
+		arg := args[idx]
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if commandName == "" && !inRest && (arg == "--help" || arg == "-h") {
+			rootArgs = append(rootArgs, arg)
+			continue
+		}
+		if !inRest {
+			matched, consumesNext := runeCliRootOptionArg(root, arg)
+			if matched {
+				rootArgs = append(rootArgs, arg)
+				if consumesNext && idx+1 < len(args) {
+					rootArgs = append(rootArgs, args[idx+1])
+					skipNext = true
+				}
+				continue
+			}
+		}
+		if commandName == "" {
+			commandName = runeCliResolveAlias(aliases, arg)
+			continue
+		}
+		commandArgs = append(commandArgs, arg)
+		if arg == "--" {
+			inRest = true
+		}
+	}
+	return rootArgs, commandName, commandArgs
+}
+
+func runeCliRootOptionArg(root __CliCommand, arg string) (bool, bool) {
+	if strings.HasPrefix(arg, "--") && len(arg) > 2 {
+		name := arg[2:]
+		if before, _, ok := strings.Cut(name, "="); ok {
+			name = before
+		}
+		option, ok := runeCliFindLongOption(root, name)
+		return ok, ok && option.__valueName != "" && !strings.Contains(arg, "=")
+	}
+	if strings.HasPrefix(arg, "-") && arg != "-" {
+		short := arg[1:]
+		if len(short) > 1 {
+			short = short[:1]
+		}
+		option, ok := runeCliFindShortOption(root, short)
+		return ok, ok && option.__valueName != "" && len(arg) == 2
+	}
+	return false, false
+}
+
+func runeCliFindLongOption(command __CliCommand, name string) (__CliOption, bool) {
+	for _, option := range command.__options {
+		if option.__name == name {
+			return option, true
+		}
+	}
+	return __CliOption{}, false
+}
+
+func runeCliFindShortOption(command __CliCommand, short string) (__CliOption, bool) {
+	for _, option := range command.__options {
+		if option.__short == short {
+			return option, true
+		}
+	}
+	return __CliOption{}, false
+}
+
+func runeCliFindCommand(commands []__CliCommand, name string) (__CliCommand, bool) {
+	for _, command := range commands {
+		if command.__name == name {
+			return command, true
+		}
+	}
+	return __CliCommand{}, false
+}
+
+func runeCliResolveAlias(aliases []__CliCommandAlias, name string) string {
+	for _, alias := range aliases {
+		if alias.__from == name {
+			return alias.__to
+		}
+	}
+	return name
 }
 
 func runeCliHelp(command __CliCommand) string {

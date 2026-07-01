@@ -94,6 +94,7 @@ CliParseState: {
   flags: RuntimeValue
   positionals: RuntimeValue
   positionalValues: Array[RuntimeValue]
+  explicitOptions: Array[RuntimeValue]
   rest: Array[RuntimeValue]
   help: Bool
   error: String
@@ -3019,11 +3020,13 @@ callCliModuleFunction(
     "flag" => okResult(cliFlagValue(runtimeText(args[0]), runtimeText(args[1]), runtimeText(args[2])))
     "option" => okResult(cliOptionValue(runtimeText(args[0]), runtimeText(args[1]), runtimeText(args[2]), runtimeText(args[3]), runtimeBool(args[4]), args[5]))
     "argument" => okResult(cliArgumentValue(runtimeText(args[0]), runtimeText(args[1]), runtimeBool(args[2])))
+    "alias" => okResult(cliAliasValue(runtimeText(args[0]), runtimeText(args[1])))
     "parse" => okResult(cliParseArgsValue(args[0], emptyRuntimeArray()))
     "exitHelp" => errorResult("process.exit(0)")
     "exitError" => errorResult("process.exit(2)")
     "parseOrExit" => cliParseOrExitResult(args[0])
     "parseArgs" => okResult(cliParseArgsValue(args[0], runtimeArray(args[1])))
+    "parseCommandArgs" => okResult(cliParseCommandArgsValue(args[0], runtimeArray(args[1]), runtimeArray(args[2]), runtimeArray(args[3]), runtimeArray(args[4])))
     "help" => okResult(stringValue(cliHelpText(args[0])))
     "contains" => okResult(boolValue(cliContainsString(runtimeArray(args[0]), runtimeText(args[1]))))
     _ => callImportedModuleFunction(interpreter, env, "cli", name, children)
@@ -3103,6 +3106,14 @@ cliArgumentValue(
   RuntimeField { name: "required", value: boolValue(required) }
 ])
 
+cliAliasValue(
+  from: String,
+  to: String
+) -> RuntimeValue => structValue("CliCommandAlias", [
+  RuntimeField { name: "from", value: stringValue(from) },
+  RuntimeField { name: "to", value: stringValue(to) }
+])
+
 cliWithVersion(
   command: RuntimeValue,
   version: RuntimeValue
@@ -3147,6 +3158,7 @@ cliParseArgsValue(
     RuntimeField { name: "values", value: finalState.values },
     RuntimeField { name: "flags", value: finalState.flags },
     RuntimeField { name: "positionals", value: finalState.positionals },
+    RuntimeField { name: "explicitOptions", value: arrayValue(finalState.explicitOptions) },
     RuntimeField { name: "args", value: arrayValue(args) },
     RuntimeField { name: "rest", value: arrayValue(finalState.rest) },
     RuntimeField { name: "help", value: boolValue(finalState.help) },
@@ -3157,6 +3169,240 @@ cliParseArgsValue(
   ])
 }
 
+cliParseCommandArgsValue(
+  root: RuntimeValue,
+  commands: Array[RuntimeValue],
+  aliases: Array[RuntimeValue],
+  trailingRest: Array[RuntimeValue],
+  args: Array[RuntimeValue]
+) -> RuntimeValue => {
+  split := cliSplitCommandArgs(root, aliases, args, 0, emptyRuntimeArray(), "", emptyRuntimeArray(), false)
+  rootArgs := runtimeArray(cliField(split, "rootArgs"))
+  commandName := runtimeText(cliField(split, "commandName"))
+  commandArgs := runtimeArray(cliField(split, "commandArgs"))
+  rootResult := cliParseArgsValue(root, rootArgs)
+  command := cliFindCommandValue(commands, commandName, 0)
+  commandFound := cliOptionFound(command)
+  normalizedArgs := (
+    cliContainsString(trailingRest, commandName) ? cliNormalizeTrailingRestArgs(command, commandArgs)
+      : commandArgs
+  )
+  commandResult := (
+    commandName == "" ? rootResult
+      : (
+        commandFound ? cliParseArgsValue(command, normalizedArgs)
+          : rootResult
+      )
+  )
+  structValue("CliCommandParseResult", [
+    RuntimeField { name: "root", value: rootResult },
+    RuntimeField { name: "command", value: commandResult },
+    RuntimeField { name: "commandName", value: stringValue(commandName) },
+    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) },
+    RuntimeField { name: "error", value: (
+      (commandName != "") && !commandFound ? stringValue("unknown command " + commandName)
+        : nullValue()
+    ) }
+  ])
+}
+
+cliSplitCommandArgs(
+  root: RuntimeValue,
+  aliases: Array[RuntimeValue],
+  args: Array[RuntimeValue],
+  index: Int,
+  rootArgs: Array[RuntimeValue],
+  commandName: String,
+  commandArgs: Array[RuntimeValue],
+  skipNext: Bool
+) -> RuntimeValue => (
+  index >= args.length() ? structValue("CliCommandArgs", [
+    RuntimeField { name: "rootArgs", value: arrayValue(rootArgs) },
+    RuntimeField { name: "commandName", value: stringValue(commandName) },
+    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) }
+  ])
+    : cliSplitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
+)
+
+cliSplitCommandArg(
+  root: RuntimeValue,
+  aliases: Array[RuntimeValue],
+  args: Array[RuntimeValue],
+  index: Int,
+  rootArgs: Array[RuntimeValue],
+  commandName: String,
+  commandArgs: Array[RuntimeValue],
+  skipNext: Bool
+) -> RuntimeValue => skipNext {
+  true => cliSplitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false)
+  _ => cliSplitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
+}
+
+cliSplitCommandArgValue(
+  root: RuntimeValue,
+  aliases: Array[RuntimeValue],
+  args: Array[RuntimeValue],
+  index: Int,
+  rootArgs: Array[RuntimeValue],
+  commandName: String,
+  commandArgs: Array[RuntimeValue]
+) -> RuntimeValue => {
+  arg := runtimeText(args[index])
+  isRootHelp := (commandName == "") && ((arg == "--help") || (arg == "-h"))
+  isRootOption := cliRootOptionArg(root, arg)
+  consumesNext := isRootOption && cliRootOptionConsumesNext(root, arg)
+  (
+    isRootHelp ? cliSplitCommandArgs(root, aliases, args, index + 1, pushRuntime(rootArgs, args[index]), commandName, commandArgs, false)
+      : (
+        isRootOption ? cliSplitRootOptionArg(root, aliases, args, index, rootArgs, commandName, commandArgs, consumesNext)
+          : (
+            commandName == "" ? cliSplitCommandArgs(root, aliases, args, index + 1, rootArgs, cliResolveAlias(aliases, arg, 0), commandArgs, false)
+              : cliSplitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, pushRuntime(commandArgs, args[index]), false)
+          )
+      )
+  )
+}
+
+cliSplitRootOptionArg(
+  root: RuntimeValue,
+  aliases: Array[RuntimeValue],
+  args: Array[RuntimeValue],
+  index: Int,
+  rootArgs: Array[RuntimeValue],
+  commandName: String,
+  commandArgs: Array[RuntimeValue],
+  consumesNext: Bool
+) -> RuntimeValue => {
+  nextRoot := pushRuntime(rootArgs, args[index])
+  nextRoot = (
+    consumesNext && ((index + 1) < args.length()) ? pushRuntime(nextRoot, args[index + 1])
+      : nextRoot
+  )
+  cliSplitCommandArgs(root, aliases, args, index + 1, nextRoot, commandName, commandArgs, consumesNext)
+}
+
+cliRootOptionArg(
+  root: RuntimeValue,
+  arg: String
+) -> Bool => cliOptionFound(cliRootOption(root, arg))
+
+cliRootOptionConsumesNext(
+  root: RuntimeValue,
+  arg: String
+) -> Bool => {
+  option := cliRootOption(root, arg)
+  hasInline := arg.includes("=") || ((arg.startsWith("-") && !arg.startsWith("--")) && (arg.length() > 2))
+  cliOptionFound(option) && ((runtimeText(cliField(option, "valueName")) != "") && !hasInline)
+}
+
+cliRootOption(
+  root: RuntimeValue,
+  arg: String
+) -> RuntimeValue => (
+  arg.startsWith("--") && (arg.length() > 2) ? cliFindOptionByName(runtimeArray(cliField(root, "options")), cliLongOptionName(arg), 0)
+    : (
+      (arg.startsWith("-") && (arg != "-")) ? cliFindOptionByShort(runtimeArray(cliField(root, "options")), arg.slice(1, 2), 0)
+        : emptyValue()
+    )
+)
+
+cliLongOptionName(
+  arg: String
+) -> String => {
+  raw := arg.slice(2, arg.length())
+  eq := raw.indexOf("=")
+  (
+    eq >= 0 ? raw.slice(0, eq)
+      : raw
+  )
+}
+
+cliResolveAlias(
+  aliases: Array[RuntimeValue],
+  name: String,
+  index: Int
+) -> String => (
+  index >= aliases.length() ? name
+    : (
+      runtimeText(cliField(aliases[index], "from")) == name ? runtimeText(cliField(aliases[index], "to"))
+        : cliResolveAlias(aliases, name, index + 1)
+    )
+)
+
+cliFindCommandValue(
+  commands: Array[RuntimeValue],
+  name: String,
+  index: Int
+) -> RuntimeValue => (
+  (name == "") || (index >= commands.length()) ? emptyValue()
+    : (
+      runtimeText(cliField(commands[index], "name")) == name ? commands[index]
+        : cliFindCommandValue(commands, name, index + 1)
+    )
+)
+
+cliNormalizeTrailingRestArgs(
+  command: RuntimeValue,
+  args: Array[RuntimeValue]
+) -> Array[RuntimeValue] => cliNormalizeTrailingRestArgsAt(command, args, 0, emptyRuntimeArray(), 0, false)
+
+cliNormalizeTrailingRestArgsAt(
+  command: RuntimeValue,
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue],
+  positionalCount: Int,
+  skipNext: Bool
+) -> Array[RuntimeValue] => (
+  index >= args.length() ? out
+    : cliNormalizeTrailingRestArg(command, args, index, out, positionalCount, skipNext)
+)
+
+cliNormalizeTrailingRestArg(
+  command: RuntimeValue,
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue],
+  positionalCount: Int,
+  skipNext: Bool
+) -> Array[RuntimeValue] => {
+  arg := runtimeText(args[index])
+  argumentCount := runtimeArray(cliField(command, "arguments")).length()
+  (
+    positionalCount >= argumentCount ? cliAppendRestSeparator(args, index, out)
+      : (
+        skipNext ? cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount, false)
+          : (
+            cliCommandOptionConsumesNext(command, arg) ? cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount, true)
+              : cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount + (arg.startsWith("-") ? 0 : 1), false)
+          )
+      )
+  )
+}
+
+cliCommandOptionConsumesNext(
+  command: RuntimeValue,
+  arg: String
+) -> Bool => cliRootOptionConsumesNext(command, arg)
+
+cliAppendRestSeparator(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  runtimeText(args[index]) == "--" ? cliAppendRuntimeRest(args, index, out)
+    : cliAppendRuntimeRest(args, index, pushRuntime(out, stringValue("--")))
+)
+
+cliAppendRuntimeRest(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  index >= args.length() ? out
+    : cliAppendRuntimeRest(args, index + 1, pushRuntime(out, args[index]))
+)
+
 cliInitialParseState(
   command: RuntimeValue
 ) -> CliParseState => {
@@ -3166,6 +3412,7 @@ cliInitialParseState(
     flags: mapValue([]),
     positionals: mapValue([]),
     positionalValues: emptyRuntimeArray(),
+    explicitOptions: emptyRuntimeArray(),
     rest: emptyRuntimeArray(),
     help: false,
     error: ""
@@ -3557,6 +3804,7 @@ cliStateHelp(
   flags: state.flags,
   positionals: state.positionals,
   positionalValues: state.positionalValues,
+  explicitOptions: state.explicitOptions,
   rest: state.rest,
   help: true,
   error: state.error
@@ -3570,6 +3818,7 @@ cliStateError(
   flags: state.flags,
   positionals: state.positionals,
   positionalValues: state.positionalValues,
+  explicitOptions: state.explicitOptions,
   rest: state.rest,
   help: state.help,
   error: error
@@ -3581,6 +3830,7 @@ cliStateValue(
   value: String
 ) -> CliParseState => {
   state.values = mapSet(state.values, stringValue(name), stringValue(value))
+  state.explicitOptions = pushRuntime(state.explicitOptions, stringValue(name))
   state
 }
 
@@ -3590,6 +3840,7 @@ cliStateFlag(
   value: Bool
 ) -> CliParseState => {
   state.flags = mapSet(state.flags, stringValue(name), boolValue(value))
+  state.explicitOptions = pushRuntime(state.explicitOptions, stringValue(name))
   state
 }
 
@@ -3899,6 +4150,7 @@ runeCliInvocationFromResult(
 ) -> RuntimeValue => {
   errors := runeCliErrors(result)
   target := callMapGetOrString(cliField(result, "values"), "target", "")
+  target = runeCliDefaultTarget(name, backend, target)
   errors = runeCliInvocationErrors(name, backend, target, errors)
   runeCliInvocation(
     name,
@@ -3928,6 +4180,15 @@ runeCliInvocationErrors(
       ((name == "run") && (target.isEmpty() == false)) && (backend != "mbt") ? pushRuntime(errors, stringValue("rune run --target is only supported with --backend mbt"))
         : errors
     )
+)
+
+runeCliDefaultTarget(
+  name: String,
+  backend: String,
+  target: String
+) -> String => (
+  ((name == "run") && (backend == "mbt")) && target.isEmpty() ? "native"
+    : target
 )
 
 runeCliDefaultPath(
@@ -4082,15 +4343,11 @@ callSelfhostCliFunction(
   name: String,
   children: Array[IRExpr]
 ) -> NativeCallResult => {
-  args := evalArgs(interpreter, env, children, 1)
   (
-    name == "parseCli" ? handledNative(okResult(runeCliParseCli(runtimeArray(args[0]))))
+    name == "runeCommand" ? handledNative(okResult(runeCliRootCommand()))
       : (
-        name == "runeCommand" ? handledNative(okResult(runeCliRootCommand()))
-          : (
-            name == "runCommand" ? handledNative(okResult(runeCliRunCommand()))
-              : unhandledNative()
-          )
+        name == "runCommand" ? handledNative(okResult(runeCliRunCommand()))
+          : unhandledNative()
       )
   )
 }
@@ -8369,12 +8626,19 @@ matchPatternTextEnv(
   text: String,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  pattern := text.trim()
+  pattern := stripGroupedOrPatternText(text.trim())
   (
     pattern == "_" ? patternMatched(env)
       : matchNonWildcardPatternText(subject, pattern, env)
   )
 }
+
+stripGroupedOrPatternText(
+  text: String
+) -> String => (
+  (text.length() >= 2) && (text.at(0) == '(') && (text.at(text.length() - 1) == ')') && text.slice(1, text.length() - 1).includes("|") ? text.slice(1, text.length() - 1).trim()
+    : text
+)
 
 matchNonWildcardPatternText(
   subject: RuntimeValue,
