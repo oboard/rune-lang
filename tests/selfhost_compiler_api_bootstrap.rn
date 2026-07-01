@@ -68,6 +68,38 @@ assertCompilesAllBackends(
   assertCompilesAllBackends(source)
 }
 
+? "selfhost compiler compiles type and value APIs" {
+  source := `Status: {
+  Ready
+  Waiting
+}
+
+User: {
+  name: String
+  status: Status
+}
+
+statusText(status: Status) -> String => status {
+  Status.Ready => "ready"
+  Status.Waiting => "waiting"
+}
+
+main() -> String => {
+  user := User {
+    name: "Rune",
+    status: Status.Ready
+  }
+  scores := @map.new("", 0)
+  fallback := scores["missing"] ?? 7
+  first := user.name.at(0)
+  label := fallback > 3 ? statusText(user.status) : "small"
+  symbol := @symbol.for("type.value")
+  first.toString() + ":" + label + ":" + @int.toString(fallback) + ":" + (@symbol.keyFor(symbol) ?? "")
+}
+`
+  assertCompilesAllBackends(source)
+}
+
 ? "selfhost compiler compiles result APIs" {
   source := `main() -> String => {
   @fs.mkdir("tmp")?
