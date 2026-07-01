@@ -69,19 +69,6 @@ func TestSelectRunBackendKeepsGoForRuneOnlyProgram(t *testing.T) {
 	}
 }
 
-func TestRunProgramArgsUsesDashBoundary(t *testing.T) {
-	args := []string{"main.rn", "-v", "target"}
-	if got, want := runProgramArgs(args, 1), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("runProgramArgs() = %#v, want %#v", got, want)
-	}
-	if got, want := runProgramArgs(args, -1), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("runProgramArgs(no dash) = %#v, want %#v", got, want)
-	}
-	if got, want := runProgramArgs(args, 0), []string{"-v", "target"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("runProgramArgs(dash before path) = %#v, want %#v", got, want)
-	}
-}
-
 func TestRunEntryGoForwardsProgramArgs(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := filepath.Join(dir, "main.rn")
@@ -119,14 +106,34 @@ func TestRunEntryGoPreservesProgramExitCode(t *testing.T) {
 	}
 }
 
-func TestFmtCommandHasFormatAlias(t *testing.T) {
-	cmd := fmtCmd()
-	for _, alias := range cmd.Aliases {
-		if alias == "format" {
-			return
-		}
+func TestGeneratedCLIParsesFormatAlias(t *testing.T) {
+	invocation := __parseCli([]string{"format", "--check", "main.rn"})
+	if !invocation.__ok {
+		t.Fatalf("__parseCli() errors = %v", invocation.__errors)
 	}
-	t.Fatalf("fmt aliases = %v, want format", cmd.Aliases)
+	if invocation.__command != "fmt" || !invocation.__checkOnly || invocation.__path != "main.rn" {
+		t.Fatalf("__parseCli(format) = %#v", invocation)
+	}
+}
+
+func TestRunRuneCLIForwardsProgramArgs(t *testing.T) {
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  argv := @process.argv()
+  @io.println(argv[1])
+  @io.println(argv[2])
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"run", mainPath, "--", "-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI() error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "-v\ntarget\n"; got != want {
+		t.Fatalf("runRuneCLI() output = %q, want %q", got, want)
+	}
 }
 
 func TestCheckTargetAcceptsStdlibRoot(t *testing.T) {

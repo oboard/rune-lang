@@ -66,55 +66,115 @@ parseRoot(
 splitRootArgs(
   args: Array[String]
 ) -> RuneCliRootArgs => {
-  globalArgs := []
-  commandArgs := []
-  index ~= 0
-  inCommand ~= false
-  args.each((arg, position) => {
-    active := !inCommand && (position == index)
-    backendLong := active && (arg == "--backend")
-    backendShort := active && (arg == "-b")
-    backendPair := backendLong || backendShort
-    hasBackendValue := backendPair && ((position + 1) < args.length())
-    (
-      backendPair ? globalArgs.push(arg)
-        : 0
-    )
-    (
-      hasBackendValue ? globalArgs.push(args[position + 1])
-        : 0
-    )
-    (
-      backendPair ? index = position + 2
-        : index = index
-    )
-    backendInline := active && (arg.startsWith("--backend=") || (arg.startsWith("-b") && (arg.length() > 2)))
-    (
-      backendInline ? globalArgs.push(arg)
-        : 0
-    )
-    (
-      backendInline ? index = position + 1
-        : index = index
-    )
-    startsCommand := active && !(backendPair || backendInline)
-    (
-      startsCommand ? inCommand = true
-        : inCommand = inCommand
-    )
-    (
-      startsCommand ? commandArgs.push(arg)
-        : 0
-    )
-    (
-      inCommand && !active ? commandArgs.push(arg)
-        : 0
-    )
-  })
-  RuneCliRootArgs {
+  splitRootArgsAt(args, 0, [], [], false, false)
+}
+
+splitRootArgsAt(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  skipNext: Bool,
+  inRest: Bool
+) -> RuneCliRootArgs => (
+  position >= args.length() ? RuneCliRootArgs {
     globalArgs: globalArgs,
     commandArgs: commandArgs
   }
+    : splitRootArgAt(args, position, globalArgs, commandArgs, skipNext, inRest)
+)
+
+splitRootArgAt(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  skipNext: Bool,
+  inRest: Bool
+) -> RuneCliRootArgs => skipNext {
+  true => splitRootArgsAt(args, position + 1, globalArgs, commandArgs, false, inRest)
+  _ => splitRootArgValue(args, position, globalArgs, commandArgs, inRest)
+}
+
+splitRootArgValue(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  inRest: Bool
+) -> RuneCliRootArgs => {
+  arg := args[position]
+  backendPair := isRootBackendPair(inRest, arg)
+  hasBackendValue := backendPair && ((position + 1) < args.length())
+  backendInline := isRootBackendInline(inRest, arg)
+  rootHelp := isRootHelpArg(inRest, commandArgs.length(), arg)
+  (
+    backendPair ? splitRootAfterBackendPair(args, position, globalArgs, commandArgs, hasBackendValue, inRest)
+      : (
+        backendInline || rootHelp ? splitRootAfterGlobal(args, position, globalArgs, commandArgs, inRest)
+          : splitRootAfterCommand(args, position, globalArgs, commandArgs, inRest)
+      )
+  )
+}
+
+isRootBackendPair(
+  inRest: Bool,
+  arg: String
+) -> Bool => (
+  (inRest == false) && ((arg == "--backend") || (arg == "-b"))
+)
+
+isRootBackendInline(
+  inRest: Bool,
+  arg: String
+) -> Bool => (
+  (inRest == false) && (arg.startsWith("--backend=") || (arg.startsWith("-b") && (arg.length() > 2)))
+)
+
+isRootHelpArg(
+  inRest: Bool,
+  commandCount: Int,
+  arg: String
+) -> Bool => (
+  ((inRest == false) && (commandCount == 0)) && ((arg == "--help") || (arg == "-h"))
+)
+
+splitRootAfterBackendPair(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  hasValue: Bool,
+  inRest: Bool
+) -> RuneCliRootArgs => {
+  globalArgs.push(args[position])
+  (
+    hasValue ? globalArgs.push(args[position + 1])
+      : 0
+  )
+  splitRootArgsAt(args, position + 1, globalArgs, commandArgs, hasValue, inRest)
+}
+
+splitRootAfterGlobal(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  inRest: Bool
+) -> RuneCliRootArgs => {
+  globalArgs.push(args[position])
+  splitRootArgsAt(args, position + 1, globalArgs, commandArgs, false, inRest)
+}
+
+splitRootAfterCommand(
+  args: Array[String],
+  position: Int,
+  globalArgs: Array[String],
+  commandArgs: Array[String],
+  inRest: Bool
+) -> RuneCliRootArgs => {
+  commandArgs.push(args[position])
+  splitRootArgsAt(args, position + 1, globalArgs, commandArgs, false, inRest || (args[position] == "--"))
 }
 
 parseCommandAt(

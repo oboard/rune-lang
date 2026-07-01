@@ -28,6 +28,10 @@
   @assert.eq(tests.ok, true)
   @assert.eq(tests.path, "tests")
   @assert.eq(tests.pattern, "cli")
+  backendAfterCommand := cli.parseCli(["test", "tests/cli_bootstrap.rn", "--backend", "go"])
+  @assert.eq(backendAfterCommand.ok, true)
+  @assert.eq(backendAfterCommand.backend, "go")
+  @assert.eq(backendAfterCommand.path, "tests/cli_bootstrap.rn")
 }
 
 ? "selfhost cli reports unknown commands and backends" {
@@ -42,6 +46,9 @@
 
 ? "selfhost cli exposes core cli command specs" {
   cli := @"../selfhost/cli/cli.rn"
+  rootHelp := cli.parseCli(["--help"])
+  @assert.eq(rootHelp.ok, true)
+  @assert.eq(rootHelp.help, true)
   help := @cli.help(cli.runeCommand())
   @assert.eq(help.includes("Usage: rune [options]"), true)
   @assert.eq(help.includes("--backend <BACKEND>"), true)

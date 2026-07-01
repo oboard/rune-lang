@@ -3603,7 +3603,7 @@ cliStateRest(
 runeCliParseCli(
   args: Array[RuntimeValue]
 ) -> RuntimeValue => {
-  root := runeCliSplitRoot(args, 0, emptyRuntimeArray(), emptyRuntimeArray(), false, 0)
+  root := runeCliSplitRoot(args, 0, emptyRuntimeArray(), emptyRuntimeArray(), false, false)
   globalArgs := runtimeArray(cliField(root, "globalArgs"))
   commandArgs := runtimeArray(cliField(root, "commandArgs"))
   rootResult := cliParseArgsValue(runeCliRootCommand(), globalArgs)
@@ -3626,14 +3626,14 @@ runeCliSplitRoot(
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
-  inCommand: Bool,
-  index: Int
+  skipNext: Bool,
+  inRest: Bool
 ) -> RuntimeValue => (
   position >= args.length() ? structValue("RuneCliRootArgs", [
     RuntimeField { name: "globalArgs", value: arrayValue(globalArgs) },
     RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) }
   ])
-    : runeCliSplitRootNext(args, position, globalArgs, commandArgs, inCommand, index)
+    : runeCliSplitRootNext(args, position, globalArgs, commandArgs, skipNext, inRest)
 )
 
 runeCliSplitRootNext(
@@ -3641,44 +3641,81 @@ runeCliSplitRootNext(
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
-  inCommand: Bool,
-  index: Int
+  skipNext: Bool,
+  inRest: Bool
+) -> RuntimeValue => skipNext {
+  true => runeCliSplitRoot(args, position + 1, globalArgs, commandArgs, false, inRest)
+  _ => runeCliSplitRootValue(args, position, globalArgs, commandArgs, inRest)
+}
+
+runeCliSplitRootValue(
+  args: Array[RuntimeValue],
+  position: Int,
+  globalArgs: Array[RuntimeValue],
+  commandArgs: Array[RuntimeValue],
+  inRest: Bool
 ) -> RuntimeValue => {
   arg := runtimeText(args[position])
-  active := !inCommand && (position == index)
-  backendPair := active && ((arg == "--backend") || (arg == "-b"))
+  backendPair := runeCliRootBackendPair(inRest, arg)
   hasBackendValue := backendPair && ((position + 1) < args.length())
-  backendInline := active && (arg.startsWith("--backend=") || (arg.startsWith("-b") && (arg.length() > 2)))
-  startsCommand := active && !(backendPair || backendInline)
-  nextGlobal := (
-    backendPair ? pushRuntime(globalArgs, args[position])
-      : globalArgs
-  )
-  nextGlobal = (
-    hasBackendValue ? pushRuntime(nextGlobal, args[position + 1])
-      : nextGlobal
-  )
-  nextGlobal = (
-    backendInline ? pushRuntime(nextGlobal, args[position])
-      : nextGlobal
-  )
-  nextIndex := (
-    backendPair ? position + 2
+  backendInline := runeCliRootBackendInline(inRest, arg)
+  rootHelp := runeCliRootHelpArg(inRest, commandArgs.length(), arg)
+  (
+    backendPair ? runeCliSplitRootBackendPair(args, position, globalArgs, commandArgs, hasBackendValue, inRest)
       : (
-        backendInline ? position + 1
-          : index
+        backendInline || rootHelp ? runeCliSplitRootGlobal(args, position, globalArgs, commandArgs, inRest)
+          : runeCliSplitRootCommand(args, position, globalArgs, commandArgs, inRest)
       )
   )
-  nextInCommand := (
-    startsCommand ? true
-      : inCommand
-  )
-  nextCommand := (
-    startsCommand || (inCommand && !active) ? pushRuntime(commandArgs, args[position])
-      : commandArgs
-  )
-  runeCliSplitRoot(args, position + 1, nextGlobal, nextCommand, nextInCommand, nextIndex)
 }
+
+runeCliRootBackendPair(
+  inRest: Bool,
+  arg: String
+) -> Bool => (inRest == false) && ((arg == "--backend") || (arg == "-b"))
+
+runeCliRootBackendInline(
+  inRest: Bool,
+  arg: String
+) -> Bool => (inRest == false) && (arg.startsWith("--backend=") || (arg.startsWith("-b") && (arg.length() > 2)))
+
+runeCliRootHelpArg(
+  inRest: Bool,
+  commandCount: Int,
+  arg: String
+) -> Bool => ((inRest == false) && (commandCount == 0)) && ((arg == "--help") || (arg == "-h"))
+
+runeCliSplitRootBackendPair(
+  args: Array[RuntimeValue],
+  position: Int,
+  globalArgs: Array[RuntimeValue],
+  commandArgs: Array[RuntimeValue],
+  hasValue: Bool,
+  inRest: Bool
+) -> RuntimeValue => {
+  nextGlobal := pushRuntime(globalArgs, args[position])
+  nextGlobal = (
+    hasValue ? pushRuntime(nextGlobal, args[position + 1])
+      : nextGlobal
+  )
+  runeCliSplitRoot(args, position + 1, nextGlobal, commandArgs, hasValue, inRest)
+}
+
+runeCliSplitRootGlobal(
+  args: Array[RuntimeValue],
+  position: Int,
+  globalArgs: Array[RuntimeValue],
+  commandArgs: Array[RuntimeValue],
+  inRest: Bool
+) -> RuntimeValue => runeCliSplitRoot(args, position + 1, pushRuntime(globalArgs, args[position]), commandArgs, false, inRest)
+
+runeCliSplitRootCommand(
+  args: Array[RuntimeValue],
+  position: Int,
+  globalArgs: Array[RuntimeValue],
+  commandArgs: Array[RuntimeValue],
+  inRest: Bool
+) -> RuntimeValue => runeCliSplitRoot(args, position + 1, globalArgs, pushRuntime(commandArgs, args[position]), false, inRest || (runtimeText(args[position]) == "--"))
 
 runeCliParseCommandAt(
   args: Array[RuntimeValue],

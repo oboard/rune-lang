@@ -13,9 +13,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-
 	"github.com/oboard/rune-lang/internal/checker"
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
@@ -29,10 +26,8 @@ import (
 	"github.com/oboard/rune-lang/internal/tester"
 )
 
-var backend string
-
 func main() {
-	if err := rootCmd().Execute(); err != nil {
+	if err := runRuneCLI(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		if code, ok := exitCode(err); ok {
 			os.Exit(code)
 		}
@@ -49,58 +44,113 @@ func exitCode(err error) (int, bool) {
 	return 0, false
 }
 
-func rootCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "rune",
-		Short: "Rune language toolchain",
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			return validateBackend(backend)
-		},
-	}
-	cmd.PersistentFlags().StringVar(&backend, "backend", "go", "target backend: go, ts, or mbt")
-	cmd.AddCommand(runCmd(), buildCmd(), goCmd(), tsCmd(), mbtCmd(), checkCmd(), testCmd(), fmtCmd(), replCmd(), lspCmd())
-	return cmd
-}
-
-func runCmd() *cobra.Command {
-	var target string
-	cmd := &cobra.Command{
-		Use:   "run <path> [args...]",
-		Short: "Compile and run a Rune program",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			entry, diags, err := resolveRunEntry(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("run failed")
-			}
-			if err != nil {
-				return err
-			}
-			runBackend := selectRunBackend(entry, backend, backendFlagChanged(cmd))
-			if err := validateBackend(runBackend); err != nil {
-				return err
-			}
-			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
-			return runEntry(entry, runBackend, target, runProgramArgs(args, cmd.ArgsLenAtDash()), os.Stdin, os.Stdout, os.Stderr)
-		},
-	}
-	cmd.Flags().StringVar(&target, "target", "", "MoonBit run target: wasm, wasm-gc, js, native, llvm, or all")
-	return cmd
-}
-
-func runProgramArgs(args []string, dash int) []string {
-	if len(args) <= 1 {
+func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	invocation := __parseCli(args)
+	if invocation.__help {
+		fmt.Fprint(stdout, helpForInvocation(invocation))
 		return nil
 	}
-	start := 1
-	if dash > 0 && dash < len(args) {
-		start = dash
+	if !invocation.__ok {
+		for _, message := range invocation.__errors {
+			fmt.Fprintln(stderr, message)
+		}
+		return fmt.Errorf("rune command failed")
 	}
-	out := make([]string, len(args[start:]))
-	copy(out, args[start:])
-	return out
+	return executeInvocation(invocation, hasBackendFlag(args), stdin, stdout, stderr)
+}
+
+func helpForInvocation(invocation __RuneCliInvocation) string {
+	switch invocation.__command {
+	case "run":
+		return runeCliHelp(__runCommand())
+	case "build":
+		return runeCliHelp(__buildCommand())
+	case "go", "ts", "mbt":
+		return runeCliHelp(__emitCommand(invocation.__command))
+	case "check":
+		return runeCliHelp(__singlePathCommand("check"))
+	case "fmt":
+		return runeCliHelp(__fmtCommand())
+	case "test":
+		return runeCliHelp(__testCommand())
+	case "repl", "lsp":
+		return runeCliHelp(runeCliCommand(invocation.__command, ""))
+	default:
+		return runeCliHelp(__runeCommand())
+	}
+}
+
+func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	switch invocation.__command {
+	case "run":
+		entry, diags, err := resolveRunEntry(invocation.__path)
+		if len(diags) > 0 {
+			printDiagnostics(invocation.__path, diags)
+			return fmt.Errorf("run failed")
+		}
+		if err != nil {
+			return err
+		}
+		runBackend := selectRunBackend(entry, invocation.__backend, explicitBackend)
+		if err := validateBackend(runBackend); err != nil {
+			return err
+		}
+		return runEntry(entry, runBackend, invocation.__target, invocation.__runArgs, stdin, stdout, stderr)
+	case "build":
+		if invocation.__backend == "mbt" {
+			return buildMoonBit(invocation.__path, invocation.__target, invocation.__output)
+		}
+		if invocation.__backend != "go" {
+			return fmt.Errorf("rune build only supports --backend go or --backend mbt")
+		}
+		return buildGo(invocation.__path, invocation.__target, invocation.__output, stdin, stdout, stderr)
+	case "go":
+		return emitGo(invocation.__path, invocation.__output, stdout)
+	case "ts":
+		return emitTypeScript(invocation.__path, invocation.__output, stdout)
+	case "mbt":
+		return emitMoonBit(invocation.__path, invocation.__output, stdout)
+	case "check":
+		return checkTarget(invocation.__path, stdout)
+	case "test":
+		path := invocation.__path
+		if path == "" {
+			path = "tests"
+		}
+		if explicitBackend {
+			_, err := tester.RunWithBackend(path, invocation.__pattern, invocation.__backend, stdout)
+			return err
+		}
+		_, err := tester.Run(path, invocation.__pattern, stdout)
+		return err
+	case "fmt":
+		return formatTarget(invocation.__path, invocation.__checkOnly, invocation.__stdout, stdout)
+	case "repl":
+		return repl.Serve(stdin, stdout)
+	case "lsp":
+		return lsp.Serve(stdin, stdout)
+	default:
+		return fmt.Errorf("unknown command %s", invocation.__command)
+	}
+}
+
+func hasBackendFlag(args []string) bool {
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "--" {
+			return false
+		}
+		if arg == "--backend" || arg == "-b" {
+			return true
+		}
+		if strings.HasPrefix(arg, "--backend=") || (strings.HasPrefix(arg, "-b") && len(arg) > 2) {
+			return true
+		}
+		if !strings.HasPrefix(arg, "-") {
+			return false
+		}
+	}
+	return false
 }
 
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
@@ -162,15 +212,6 @@ func runEntry(entry string, runBackend string, runTarget string, programArgs []s
 	}
 }
 
-func backendFlagChanged(cmd *cobra.Command) bool {
-	for _, flags := range []*pflag.FlagSet{cmd.Flags(), cmd.InheritedFlags(), cmd.Root().PersistentFlags()} {
-		if flag := flags.Lookup("backend"); flag != nil && flag.Changed {
-			return true
-		}
-	}
-	return false
-}
-
 func selectRunBackend(entry string, requested string, explicit bool) string {
 	if requested != "go" || explicit {
 		return requested
@@ -182,193 +223,67 @@ func selectRunBackend(entry string, requested string, explicit bool) string {
 	return requested
 }
 
-func buildCmd() *cobra.Command {
-	var output string
-	var target string
-	cmd := &cobra.Command{
-		Use:   "build <file.rn>",
-		Short: "Compile a Rune program to an executable",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if backend == "mbt" {
-				return buildMoonBit(args[0], target, output)
-			}
-			if backend != "go" {
-				return fmt.Errorf("rune build only supports --backend go or --backend mbt")
-			}
-			goFile, cleanup, err := compileGoToTemp(args[0])
-			if err != nil {
-				return err
-			}
-			defer cleanup()
-
-			env, err := buildEnv(target)
-			if err != nil {
-				return err
-			}
-
-			out := output
-			if out == "" {
-				out = defaultBinaryName(args[0])
-			}
-			build := exec.Command("go", "build", "-o", out, goFile)
-			build.Env = env
-			build.Stdout = os.Stdout
-			build.Stderr = os.Stderr
-			build.Stdin = os.Stdin
-			return build.Run()
-		},
+func buildGo(path string, target string, output string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	goFile, cleanup, err := compileGoToTemp(path)
+	if err != nil {
+		return err
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output executable path")
-	cmd.Flags().StringVar(&target, "target", "", "build target as GOOS-GOARCH, for example linux-amd64")
-	return cmd
+	defer cleanup()
+
+	env, err := buildEnv(target)
+	if err != nil {
+		return err
+	}
+
+	out := output
+	if out == "" {
+		out = defaultBinaryName(path)
+	}
+	build := exec.Command("go", "build", "-o", out, goFile)
+	build.Env = env
+	build.Stdout = stdout
+	build.Stderr = stderr
+	build.Stdin = stdin
+	return build.Run()
 }
 
-func tsCmd() *cobra.Command {
-	var output string
-	cmd := &cobra.Command{
-		Use:   "ts <file.rn>",
-		Short: "Compile a Rune program to TypeScript",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			src, diags := compiler.GenerateTypeScriptFile(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("compile failed")
-			}
-			if output == "" {
-				fmt.Fprint(cmd.OutOrStdout(), src)
-				return nil
-			}
-			return os.WriteFile(output, []byte(src), 0o644)
-		},
+func emitGo(path string, output string, stdout io.Writer) error {
+	src, diags := compiler.GenerateGoFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return fmt.Errorf("compile failed")
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output TypeScript path")
-	return cmd
+	if output == "" {
+		fmt.Fprint(stdout, src)
+		return nil
+	}
+	return os.WriteFile(output, []byte(src), 0o644)
 }
 
-func mbtCmd() *cobra.Command {
-	var output string
-	cmd := &cobra.Command{
-		Use:   "mbt <file.rn>",
-		Short: "Compile a Rune program to MoonBit",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			src, diags := compiler.GenerateMoonBitFile(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("compile failed")
-			}
-			if output == "" {
-				fmt.Fprint(cmd.OutOrStdout(), src)
-				return nil
-			}
-			return os.WriteFile(output, []byte(src), 0o644)
-		},
+func emitTypeScript(path string, output string, stdout io.Writer) error {
+	src, diags := compiler.GenerateTypeScriptFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return fmt.Errorf("compile failed")
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output MoonBit path")
-	return cmd
+	if output == "" {
+		fmt.Fprint(stdout, src)
+		return nil
+	}
+	return os.WriteFile(output, []byte(src), 0o644)
 }
 
-func goCmd() *cobra.Command {
-	var output string
-	cmd := &cobra.Command{
-		Use:   "go <file.rn>",
-		Short: "Compile a Rune program to Go",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			src, diags := compiler.GenerateGoFile(args[0])
-			if len(diags) > 0 {
-				printDiagnostics(args[0], diags)
-				return fmt.Errorf("compile failed")
-			}
-			if output == "" {
-				fmt.Fprint(cmd.OutOrStdout(), src)
-				return nil
-			}
-			return os.WriteFile(output, []byte(src), 0o644)
-		},
+func emitMoonBit(path string, output string, stdout io.Writer) error {
+	src, diags := compiler.GenerateMoonBitFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return fmt.Errorf("compile failed")
 	}
-	cmd.Flags().StringVarP(&output, "output", "o", "", "output Go path")
-	return cmd
-}
-
-func checkCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "check <path>",
-		Short: "Parse and type-check Rune source",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return checkTarget(args[0], cmd.OutOrStdout())
-		},
+	if output == "" {
+		fmt.Fprint(stdout, src)
+		return nil
 	}
-}
-
-func testCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "test [path] [pattern]",
-		Short: "Run Rune tests",
-		Args:  cobra.MaximumNArgs(2),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			path := "tests"
-			pattern := ""
-			if len(args) > 0 {
-				path = args[0]
-			}
-			if len(args) > 1 {
-				pattern = args[1]
-			}
-			var err error
-			if backendFlagChanged(cmd) {
-				_, err = tester.RunWithBackend(path, pattern, backend, cmd.OutOrStdout())
-			} else {
-				_, err = tester.Run(path, pattern, cmd.OutOrStdout())
-			}
-			return err
-		},
-	}
-}
-
-func fmtCmd() *cobra.Command {
-	var checkOnly bool
-	var stdout bool
-	cmd := &cobra.Command{
-		Use:     "fmt <path>",
-		Aliases: []string{"format"},
-		Short:   "Format Rune source",
-		Args:    cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return formatTarget(args[0], checkOnly, stdout, cmd.OutOrStdout())
-		},
-	}
-	cmd.Flags().BoolVar(&checkOnly, "check", false, "fail if the file is not formatted")
-	cmd.Flags().BoolVar(&stdout, "stdout", false, "write formatted source to stdout")
-	return cmd
-}
-
-func lspCmd() *cobra.Command {
-	var stdio bool
-	cmd := &cobra.Command{
-		Use:   "lsp",
-		Short: "Start the Rune language server",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return lsp.Serve(os.Stdin, os.Stdout)
-		},
-	}
-	cmd.Flags().BoolVar(&stdio, "stdio", true, "serve LSP over stdin/stdout")
-	return cmd
-}
-
-func replCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "repl",
-		Short: "Start the Rune REPL",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return repl.Serve(os.Stdin, os.Stdout)
-		},
-	}
+	return os.WriteFile(output, []byte(src), 0o644)
 }
 
 func checkTarget(path string, out io.Writer) error {
