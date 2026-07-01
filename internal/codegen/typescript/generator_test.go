@@ -242,7 +242,7 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`function ` + mangleIdent("计算✅") + `(` + mangleIdent("数值🐉") + `: number): number`,
-		`const ` + mangleIdent("增量📈") + ` = 1;`,
+		`let ` + mangleIdent("增量📈") + ` = 1;`,
 		`return ` + mangleIdent("数值🐉") + ` + ` + mangleIdent("增量📈") + `;`,
 		`export { ` + mangleIdent("计算✅") + ` as "计算✅" };`,
 	}
@@ -372,7 +372,7 @@ func TestGenerateArraySpread(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __next = [...__items, "New Item"];`,
+		`let __next = [...__items, "New Item"];`,
 		`console.log(__next.length);`,
 	}
 	for _, want := range wantParts {
@@ -436,10 +436,10 @@ main() => {
 		`__status === __Status.Fail`,
 		`function __fallback(__flag: boolean): __Status`,
 		`return 0 as __Status;`,
-		`const __status = __Status.Completed;`,
+		`let __status = __Status.Completed;`,
 		`console.log(__statusText(__status));`,
 		`console.log(__fallback(false));`,
-		`const __Status = {Completed: 42};`,
+		`let __Status = {Completed: 42};`,
 		`console.log(__Status.Completed);`,
 	}
 	for _, want := range wantParts {
@@ -589,7 +589,7 @@ func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __bytes = new DataView(new ArrayBuffer(16));`,
+		`let __bytes = new DataView(new ArrayBuffer(16));`,
 		`__bytes.setUint8(0, __value); return __value; })((255 & 0xff))`,
 		`__bytes.setInt16(1, __value, true); return __value; })`,
 		`__bytes.setBigUint64(4, __value, false); return __value; })`,
@@ -777,7 +777,7 @@ main() => {
 		`"return": number;`,
 		`func: number;`,
 		`def: number;`,
-		`const __freedom = {"return": 0, func: 1, def: 2};`,
+		`let __freedom = {"return": 0, func: 1, def: 2};`,
 		`console.log(__freedom["return"]);`,
 		`console.log(__freedom.func);`,
 		`console.log(__freedom.def);`,

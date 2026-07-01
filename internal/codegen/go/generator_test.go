@@ -922,7 +922,7 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		`return __obj.__age + 1`,
 		`var __obj2 struct`,
 		`__parent struct`,
-		`__name string`,
+		`__name   string`,
 		`fmt.Println(__obj.__name)`,
 		`fmt.Println(__obj2.__parent.__name)`,
 		`fmt.Println(__obj.__age)`,
@@ -1206,7 +1206,7 @@ main() => {
 		`func() func(struct {`,
 		`__z bool`,
 		`}) struct{ __k int }`,
-		`{__b: 2, __z: false, __a: 1}).__k`,
+		`{__a: 1, __b: 2, __z: false}).__k`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -1249,7 +1249,7 @@ fun(flag) => {
 	if err != nil {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
-	if !strings.Contains(got, `__Return{__b: 2, __z: false, __a: 1}`) {
+	if !strings.Contains(got, `__Return{__a: 1, __b: 2, __z: false}`) {
 		t.Fatalf("generated Go missing __Return literal conversion:\n%s", got)
 	}
 }
