@@ -718,7 +718,7 @@ func moonBitMod(src string) string {
 	}
 	var b strings.Builder
 	b.WriteString("name = \"oboard/rune_mbt\"\n\nimport {\n")
-	b.WriteString("  \"moonbitlang/async@0.19.3\",\n")
+	b.WriteString("  \"moonbitlang/async@0.19.4\",\n")
 	if moonBitUsesBikallemCompress(src) {
 		b.WriteString("  \"bikallem/compress@0.3.4\",\n")
 	}
@@ -778,7 +778,10 @@ func moonBitPkg(src string) string {
 }
 
 func moonBitUsesAsync(src string) bool {
-	return strings.Contains(src, "async fn")
+	return strings.Contains(src, "async fn") ||
+		moonBitUsesAsyncFS(src) ||
+		moonBitUsesAsyncIO(src) ||
+		moonBitUsesAsyncGzip(src)
 }
 
 func moonBitUsesAsyncFS(src string) bool {

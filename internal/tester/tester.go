@@ -548,12 +548,12 @@ func writeMoonBitPackage(dir string, src string) error {
 }
 
 func moonBitMod(src string) string {
-	if !strings.Contains(src, "async fn") {
+	if !moonBitUsesAsync(src) {
 		return "name = \"oboard/rune_test_mbt\"\n"
 	}
 	var b strings.Builder
 	b.WriteString("name = \"oboard/rune_test_mbt\"\n\nimport {\n")
-	b.WriteString("  \"moonbitlang/async@0.19.3\",\n")
+	b.WriteString("  \"moonbitlang/async@0.19.4\",\n")
 	if moonBitUsesBikallemCompress(src) {
 		b.WriteString("  \"bikallem/compress@0.3.4\",\n")
 	}
@@ -568,7 +568,7 @@ func moonBitPkg(src string) string {
 		"moonbitlang/core/bigint",
 		"moonbitlang/core/json",
 	}
-	if strings.Contains(src, "async fn") {
+	if moonBitUsesAsync(src) {
 		imports = append(imports, "moonbitlang/async")
 	}
 	if strings.Contains(src, "@fs.") {
@@ -612,6 +612,13 @@ func moonBitUsesBikallemCompress(src string) bool {
 		strings.Contains(src, "@brotli.") ||
 		strings.Contains(src, "@zstd.") ||
 		strings.Contains(src, "@utf8.")
+}
+
+func moonBitUsesAsync(src string) bool {
+	return strings.Contains(src, "async fn") ||
+		strings.Contains(src, "@fs.") ||
+		strings.Contains(src, "@io.") ||
+		strings.Contains(src, "@gzip.")
 }
 
 func runeFiles(path string) ([]string, error) {
