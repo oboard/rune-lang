@@ -14,5 +14,6 @@ fun(flag) => {
 }
 
 main() => {
-  @io.println(fun(true) + fun(false))
+  res := fun(true) + fun(false)
+  @io.println(res)
 }

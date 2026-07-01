@@ -127,7 +127,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
 		}
-		return tsPropertyAccess(g.expr(e.Receiver), e.Name)
+		return tsPropertyAccess(g.selectorReceiverExpr(e.Receiver), e.Name)
 	case *ir.IndexExpr:
 		if _, ok := checker.TupleElements(e.Receiver.ResultType()); ok {
 			return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
@@ -137,7 +137,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			keyName := g.nextTemp("key")
 			return fmt.Sprintf("((%s, %s) => %s.has(%s) ? %s.get(%s)! : null)(%s, %s)", mapName, keyName, mapName, keyName, mapName, keyName, g.expr(e.Receiver), g.expr(e.Index))
 		}
-		return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
+		return fmt.Sprintf("%s[%s]", g.selectorReceiverExpr(e.Receiver), g.expr(e.Index))
 	case *ir.ArrayLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {
@@ -180,6 +180,16 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return g.xmlExpr(e)
 	default:
 		return "undefined"
+	}
+}
+
+func (g *generator) selectorReceiverExpr(expr ir.Expr) string {
+	out := g.expr(expr)
+	switch expr.(type) {
+	case *ir.BinaryExpr, *ir.TernaryExpr, *ir.AssignExpr, *ir.CallExpr, *ir.BlockExpr:
+		return "(" + out + ")"
+	default:
+		return out
 	}
 }
 
@@ -370,7 +380,17 @@ func (g *generator) callExprRaw(e *ir.CallExpr) string {
 	for _, arg := range e.Args {
 		args = append(args, g.expr(arg))
 	}
-	return fmt.Sprintf("%s(%s)", g.expr(e.Callee), strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", g.callCalleeExpr(e.Callee), strings.Join(args, ", "))
+}
+
+func (g *generator) callCalleeExpr(expr ir.Expr) string {
+	out := g.expr(expr)
+	switch expr.(type) {
+	case *ir.TernaryExpr, *ir.AssignExpr, *ir.BlockExpr:
+		return "(" + out + ")"
+	default:
+		return out
+	}
 }
 
 func (g *generator) enumConstructorCall(call *ir.CallExpr) (string, bool) {

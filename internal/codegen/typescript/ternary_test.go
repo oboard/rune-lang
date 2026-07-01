@@ -49,3 +49,30 @@ func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
 		t.Fatalf("generated TypeScript contains unnecessary else fallback:\n%s", got)
 	}
 }
+
+func TestGenerateTernaryLambdaCallee(t *testing.T) {
+	src := `fun(flag: Bool) => {
+  (flag ? (x) => {
+    k: x.a + 1
+  } : (y) => {
+    k: y.b + 1
+  })({
+    b: 2,
+    z: false,
+    a: 1
+  }).k
+}`
+	got := generateForTest(t, src)
+	for _, want := range []string{
+		`(__flag ?`,
+		`__x: { b: number; z: boolean; a: number }`,
+		`__y: { b: number; z: boolean; a: number }`,
+		`=> ({k: __x.a + 1})`,
+		`=> ({k: __y.b + 1})`,
+		`({b: 2, z: false, a: 1})).k`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}

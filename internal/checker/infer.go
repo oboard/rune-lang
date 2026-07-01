@@ -240,6 +240,12 @@ func (c *checker) inferredParamUseType(body ast.Expr, name string, selfFunction 
 				walk(e.Left, Unknown)
 				walk(e.Right, Unknown)
 			}
+		case *ast.TernaryExpr:
+			walk(e.Condition, Bool)
+			walk(e.Consequence, expected)
+			if e.Alternative != nil {
+				walk(e.Alternative, expected)
+			}
 		case *ast.CallExpr:
 			if ident, ok := e.Callee.(*ast.Identifier); ok && selfFunction != "" && ident.Name == selfFunction && expected != Unknown {
 				for _, arg := range e.Args {

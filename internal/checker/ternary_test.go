@@ -38,6 +38,9 @@ main() => {
 			t.Fatalf("%s type = %s, want %s", name, got, want)
 		}
 	}
+	if got := info.Functions["fun"].Params[0].Type; got != Bool {
+		t.Fatalf("flag type = %s, want %s", got, Bool)
+	}
 }
 
 func identifierType(info *Info, file *ast.File, name string) Type {
