@@ -56,6 +56,93 @@ RuneCliArgsEntry: {
   )
 }
 
++ runCli(
+  args: Array[String]
+) -> RuneCliExecution => {
+  invocation := parseCli(args)
+  (
+    invocation.help ? successExecution(invocation.helpText)
+      : (
+        invocation.ok ? executeInvocation(invocation)
+          : failureExecution(invocation.errors)
+      )
+  )
+}
+
+executeInvocation(
+  invocation: RuneCliInvocation
+) -> RuneCliExecution => invocation.command {
+  "run" => hostRun(invocation.path, invocation.backend, invocation.backendExplicit, invocation.target, invocation.runArgs)
+  "build" => hostBuild(invocation.path, invocation.backend, invocation.target, invocation.output)
+  "go" => hostEmit("go", invocation.path, invocation.output)
+  "ts" => hostEmit("ts", invocation.path, invocation.output)
+  "mbt" => hostEmit("mbt", invocation.path, invocation.output)
+  "check" => hostCheck(invocation.path)
+  "test" => hostTest(invocation.path, invocation.pattern, invocation.backend, invocation.backendExplicit)
+  "fmt" => hostFmt(invocation.path, invocation.checkOnly, invocation.stdout)
+  "repl" => hostRepl()
+  "lsp" => hostLsp()
+  _ => failureExecution(["unknown command " + invocation.command])
+}
+
+successExecution(
+  output: String
+) -> RuneCliExecution => {
+  ok: true,
+  output: output,
+  errors: []
+}
+
+failureExecution(
+  errors: Array[String]
+) -> RuneCliExecution => {
+  ok: false,
+  output: "",
+  errors: errors
+}
+
+hostRun(
+  path: String,
+  backend: String,
+  backendExplicit: Bool,
+  target: String,
+  args: Array[String]
+) -> RuneCliExecution => @go.expr("hostRun($path, $backend, $backendExplicit, $target, $args)")
+
+hostBuild(
+  path: String,
+  backend: String,
+  target: String,
+  output: String
+) -> RuneCliExecution => @go.expr("hostBuild($path, $backend, $target, $output)")
+
+hostEmit(
+  backend: String,
+  path: String,
+  output: String
+) -> RuneCliExecution => @go.expr("hostEmit($backend, $path, $output)")
+
+hostCheck(
+  path: String
+) -> RuneCliExecution => @go.expr("hostCheck($path)")
+
+hostTest(
+  path: String,
+  pattern: String,
+  backend: String,
+  backendExplicit: Bool
+) -> RuneCliExecution => @go.expr("hostTest($path, $pattern, $backend, $backendExplicit)")
+
+hostFmt(
+  path: String,
+  checkOnly: Bool,
+  stdout: Bool
+) -> RuneCliExecution => @go.expr("hostFmt($path, $checkOnly, $stdout)")
+
+hostRepl() -> RuneCliExecution => @go.expr("hostRepl()")
+
+hostLsp() -> RuneCliExecution => @go.expr("hostLsp()")
+
 + runeCommand() -> CliCommand => {
   command := @cli.command("rune", "Rune language toolchain")
   command = @cli.withOption(command, @cli.option("backend", "b", "BACKEND", "target backend", false, "go"))

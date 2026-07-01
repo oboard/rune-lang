@@ -540,6 +540,90 @@ func __parseCli(__args []string) __RuneCliInvocation {
 	}()
 }
 
+func __runCli(__args []string) __RuneCliExecution {
+	__invocation := __parseCli(__args)
+	return func() __RuneCliExecution {
+		if __invocation.__help {
+			return ____rune_private_5b8b8d7b_successExecution(__invocation.__helpText)
+		}
+		return func() __RuneCliExecution {
+			if __invocation.__ok {
+				return ____rune_private_5b8b8d7b_executeInvocation(__invocation)
+			}
+			return ____rune_private_5b8b8d7b_failureExecution(__invocation.__errors)
+		}()
+	}()
+}
+
+func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocation) __RuneCliExecution {
+	return func() __RuneCliExecution {
+		switch {
+		case __invocation.__command == "run":
+			return ____rune_private_5b8b8d7b_hostRun(__invocation.__path, __invocation.__backend, __invocation.__backendExplicit, __invocation.__target, __invocation.__runArgs)
+		case __invocation.__command == "build":
+			return ____rune_private_5b8b8d7b_hostBuild(__invocation.__path, __invocation.__backend, __invocation.__target, __invocation.__output)
+		case __invocation.__command == "go":
+			return ____rune_private_5b8b8d7b_hostEmit("go", __invocation.__path, __invocation.__output)
+		case __invocation.__command == "ts":
+			return ____rune_private_5b8b8d7b_hostEmit("ts", __invocation.__path, __invocation.__output)
+		case __invocation.__command == "mbt":
+			return ____rune_private_5b8b8d7b_hostEmit("mbt", __invocation.__path, __invocation.__output)
+		case __invocation.__command == "check":
+			return ____rune_private_5b8b8d7b_hostCheck(__invocation.__path)
+		case __invocation.__command == "test":
+			return ____rune_private_5b8b8d7b_hostTest(__invocation.__path, __invocation.__pattern, __invocation.__backend, __invocation.__backendExplicit)
+		case __invocation.__command == "fmt":
+			return ____rune_private_5b8b8d7b_hostFmt(__invocation.__path, __invocation.__checkOnly, __invocation.__stdout)
+		case __invocation.__command == "repl":
+			return ____rune_private_5b8b8d7b_hostRepl()
+		case __invocation.__command == "lsp":
+			return ____rune_private_5b8b8d7b_hostLsp()
+		default:
+			return ____rune_private_5b8b8d7b_failureExecution([]string{"unknown command " + __invocation.__command})
+		}
+	}()
+}
+
+func ____rune_private_5b8b8d7b_successExecution(__output string) __RuneCliExecution {
+	return __RuneCliExecution{__ok: true, __output: __output, __errors: []string{}}
+}
+
+func ____rune_private_5b8b8d7b_failureExecution(__errors []string) __RuneCliExecution {
+	return __RuneCliExecution{__ok: false, __output: "", __errors: __errors}
+}
+
+func ____rune_private_5b8b8d7b_hostRun(__path string, __backend string, __backendExplicit bool, __target string, __args []string) __RuneCliExecution {
+	return hostRun(__path, __backend, __backendExplicit, __target, __args)
+}
+
+func ____rune_private_5b8b8d7b_hostBuild(__path string, __backend string, __target string, __output string) __RuneCliExecution {
+	return hostBuild(__path, __backend, __target, __output)
+}
+
+func ____rune_private_5b8b8d7b_hostEmit(__backend string, __path string, __output string) __RuneCliExecution {
+	return hostEmit(__backend, __path, __output)
+}
+
+func ____rune_private_5b8b8d7b_hostCheck(__path string) __RuneCliExecution {
+	return hostCheck(__path)
+}
+
+func ____rune_private_5b8b8d7b_hostTest(__path string, __pattern string, __backend string, __backendExplicit bool) __RuneCliExecution {
+	return hostTest(__path, __pattern, __backend, __backendExplicit)
+}
+
+func ____rune_private_5b8b8d7b_hostFmt(__path string, __checkOnly bool, __stdout bool) __RuneCliExecution {
+	return hostFmt(__path, __checkOnly, __stdout)
+}
+
+func ____rune_private_5b8b8d7b_hostRepl() __RuneCliExecution {
+	return hostRepl()
+}
+
+func ____rune_private_5b8b8d7b_hostLsp() __RuneCliExecution {
+	return hostLsp()
+}
+
 func __runeCommand() __CliCommand {
 	__command := runeCliCommand("rune", "Rune language toolchain")
 	__command = runeCliWithOption(__command, runeCliOption("backend", "b", "BACKEND", "target backend", false, "go"))

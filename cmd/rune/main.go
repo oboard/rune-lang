@@ -26,6 +26,10 @@ import (
 	"github.com/oboard/rune-lang/internal/tester"
 )
 
+var runeCLIStdin io.Reader
+var runeCLIStdout io.Writer
+var runeCLIStderr io.Writer
+
 func main() {
 	if err := runRuneCLI(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		if code, ok := exitCode(err); ok {
@@ -45,65 +49,92 @@ func exitCode(err error) (int, bool) {
 }
 
 func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	invocation := __parseCli(args)
-	if invocation.__help {
-		fmt.Fprint(stdout, invocation.__helpText)
-		return nil
+	runeCLIStdin = stdin
+	runeCLIStdout = stdout
+	runeCLIStderr = stderr
+	result := __runCli(args)
+	if result.__output != "" {
+		fmt.Fprint(stdout, result.__output)
 	}
-	if !invocation.__ok {
-		for _, message := range invocation.__errors {
+	if !result.__ok {
+		for _, message := range result.__errors {
 			fmt.Fprintln(stderr, message)
 		}
 		return fmt.Errorf("rune command failed")
 	}
-	return executeInvocation(invocation, invocation.__backendExplicit, stdin, stdout, stderr)
+	return nil
 }
 
-func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	switch invocation.__command {
-	case "run":
-		entry, diags, err := resolveRunEntry(invocation.__path)
-		if len(diags) > 0 {
-			printDiagnostics(invocation.__path, diags)
-			return fmt.Errorf("run failed")
-		}
-		if err != nil {
-			return err
-		}
-		runBackend := selectRunBackend(entry, invocation.__backend, explicitBackend)
-		if err := validateBackend(runBackend); err != nil {
-			return err
-		}
-		return runEntry(entry, runBackend, invocation.__target, invocation.__runArgs, stdin, stdout, stderr)
-	case "build":
-		if invocation.__backend == "mbt" {
-			return buildMoonBit(invocation.__path, invocation.__target, invocation.__output)
-		}
-		return buildGo(invocation.__path, invocation.__target, invocation.__output, stdin, stdout, stderr)
-	case "go":
-		return emitGo(invocation.__path, invocation.__output, stdout)
-	case "ts":
-		return emitTypeScript(invocation.__path, invocation.__output, stdout)
-	case "mbt":
-		return emitMoonBit(invocation.__path, invocation.__output, stdout)
-	case "check":
-		return checkTarget(invocation.__path, stdout)
-	case "test":
-		if explicitBackend {
-			_, err := tester.RunWithBackend(invocation.__path, invocation.__pattern, invocation.__backend, stdout)
-			return err
-		}
-		_, err := tester.Run(invocation.__path, invocation.__pattern, stdout)
-		return err
-	case "fmt":
-		return formatTarget(invocation.__path, invocation.__checkOnly, invocation.__stdout, stdout)
-	case "repl":
-		return repl.Serve(stdin, stdout)
-	case "lsp":
-		return lsp.Serve(stdin, stdout)
-	default:
-		return fmt.Errorf("unknown command %s", invocation.__command)
+func cliSuccess(output string) __RuneCliExecution {
+	return __RuneCliExecution{__ok: true, __output: output, __errors: []string{}}
+}
+
+func cliFailure(err error) __RuneCliExecution {
+	if err == nil {
+		return cliSuccess("")
 	}
+	return __RuneCliExecution{__ok: false, __output: "", __errors: []string{err.Error()}}
+}
+
+func hostRun(path string, backend string, explicitBackend bool, target string, programArgs []string) __RuneCliExecution {
+	entry, diags, err := resolveRunEntry(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return cliFailure(fmt.Errorf("run failed"))
+	}
+	if err != nil {
+		return cliFailure(err)
+	}
+	runBackend := selectRunBackend(entry, backend, explicitBackend)
+	if err := validateBackend(runBackend); err != nil {
+		return cliFailure(err)
+	}
+	return cliFailure(runEntry(entry, runBackend, target, programArgs, runeCLIStdin, runeCLIStdout, runeCLIStderr))
+}
+
+func hostBuild(path string, backend string, target string, output string) __RuneCliExecution {
+	if backend == "mbt" {
+		return cliFailure(buildMoonBit(path, target, output))
+	}
+	return cliFailure(buildGo(path, target, output, runeCLIStdin, runeCLIStdout, runeCLIStderr))
+}
+
+func hostEmit(backend string, path string, output string) __RuneCliExecution {
+	switch backend {
+	case "go":
+		return cliFailure(emitGo(path, output, runeCLIStdout))
+	case "ts":
+		return cliFailure(emitTypeScript(path, output, runeCLIStdout))
+	case "mbt":
+		return cliFailure(emitMoonBit(path, output, runeCLIStdout))
+	default:
+		return cliFailure(validateBackend(backend))
+	}
+}
+
+func hostCheck(path string) __RuneCliExecution {
+	return cliFailure(checkTarget(path, runeCLIStdout))
+}
+
+func hostTest(path string, pattern string, backend string, explicitBackend bool) __RuneCliExecution {
+	if explicitBackend {
+		_, err := tester.RunWithBackend(path, pattern, backend, runeCLIStdout)
+		return cliFailure(err)
+	}
+	_, err := tester.Run(path, pattern, runeCLIStdout)
+	return cliFailure(err)
+}
+
+func hostFmt(path string, checkOnly bool, stdout bool) __RuneCliExecution {
+	return cliFailure(formatTarget(path, checkOnly, stdout, runeCLIStdout))
+}
+
+func hostRepl() __RuneCliExecution {
+	return cliFailure(repl.Serve(runeCLIStdin, runeCLIStdout))
+}
+
+func hostLsp() __RuneCliExecution {
+	return cliFailure(lsp.Serve(runeCLIStdin, runeCLIStdout))
 }
 
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
