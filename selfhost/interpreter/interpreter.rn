@@ -3025,9 +3025,27 @@ callCliModuleFunction(
     "parseOrExit" => cliParseOrExitResult(args[0])
     "parseArgs" => okResult(cliParseArgsValue(args[0], runtimeArray(args[1])))
     "help" => okResult(stringValue(cliHelpText(args[0])))
+    "contains" => okResult(boolValue(cliContainsString(runtimeArray(args[0]), runtimeText(args[1]))))
     _ => callImportedModuleFunction(interpreter, env, "cli", name, children)
   }
 }
+
+cliContainsString(
+  values: Array[RuntimeValue],
+  value: String
+) -> Bool => cliContainsStringAt(values, value, 0)
+
+cliContainsStringAt(
+  values: Array[RuntimeValue],
+  value: String,
+  index: Int
+) -> Bool => (
+  index >= values.length() ? false
+    : (
+      runtimeText(values[index]) == value ? true
+        : cliContainsStringAt(values, value, index + 1)
+    )
+)
 
 cliParseOrExitResult(command: RuntimeValue) -> EvalResult => {
   result := cliParseArgsValue(command, emptyRuntimeArray())
@@ -3611,7 +3629,7 @@ runeCliParseCli(
   backend := runtimeText(cliField(cliField(rootResult, "values"), "missing"))
   backend = callMapGetOrString(cliField(rootResult, "values"), "backend", "go")
   errors := runeCliErrors(rootResult)
-  invalidBackend := !runeCliIsBackend(backend)
+  invalidBackend := cliContainsString([stringValue("go"), stringValue("ts"), stringValue("mbt")], backend) == false
   (
     invalidBackend ? errors = pushRuntime(errors, stringValue("unsupported backend " + backend))
       : errors = errors
@@ -3880,12 +3898,14 @@ runeCliInvocationFromResult(
   stdout: Bool
 ) -> RuntimeValue => {
   errors := runeCliErrors(result)
+  target := callMapGetOrString(cliField(result, "values"), "target", "")
+  errors = runeCliInvocationErrors(name, backend, target, errors)
   runeCliInvocation(
     name,
     backend,
     runeCliDefaultPath(name, callMapGetOrString(cliField(result, "positionals"), "path", "")),
     callMapGetOrString(cliField(result, "values"), "output", ""),
-    callMapGetOrString(cliField(result, "values"), "target", ""),
+    target,
     callMapGetOrString(cliField(result, "positionals"), "pattern", ""),
     checkOnly,
     stdout,
@@ -3896,6 +3916,19 @@ runeCliInvocationFromResult(
     runeCliInvocationHelpText(name)
   )
 }
+
+runeCliInvocationErrors(
+  name: String,
+  backend: String,
+  target: String,
+  errors: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  (name == "build") && (cliContainsString([stringValue("go"), stringValue("mbt")], backend) == false) ? pushRuntime(errors, stringValue("rune build only supports --backend go or --backend mbt"))
+    : (
+      ((name == "run") && (target.isEmpty() == false)) && (backend != "mbt") ? pushRuntime(errors, stringValue("rune run --target is only supported with --backend mbt"))
+        : errors
+    )
+)
 
 runeCliDefaultPath(
   name: String,
@@ -3986,8 +4019,6 @@ runeCliLspCommand() -> RuntimeValue => cliWithOption(
   cliCommandValue("lsp", "Start the Rune language server"),
   cliFlagValue("stdio", "", "serve LSP over stdin/stdout")
 )
-
-runeCliIsBackend(value: String) -> Bool => ((value == "go") || (value == "ts")) || (value == "mbt")
 
 callMapGetOrString(
   map: RuntimeValue,

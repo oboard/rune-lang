@@ -298,6 +298,23 @@ mainBody(
   required: required
 }
 
++ contains(
+  values: Array[String],
+  value: String
+) -> Bool => containsAt(values, value, 0)
+
+containsAt(
+  values: Array[String],
+  value: String,
+  index: Int
+) -> Bool => (
+  index >= values.length() ? false
+    : (
+      values[index] == value ? true
+        : containsAt(values, value, index + 1)
+    )
+)
+
 + parse(
   command: CliCommand
 ) -> CliParseResult => {

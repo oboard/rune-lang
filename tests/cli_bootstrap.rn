@@ -56,6 +56,12 @@
   backend := cli.parseCli(["--backend", "swift", "run", "examples/fib.rn"])
   @assert.eq(backend.ok, false)
   @assert.eq(backend.errors[0], "unsupported backend swift")
+  buildTs := cli.parseCli(["--backend", "ts", "build", "examples/fib.rn"])
+  @assert.eq(buildTs.ok, false)
+  @assert.eq(buildTs.errors[0], "rune build only supports --backend go or --backend mbt")
+  runTarget := cli.parseCli(["run", "--target", "native", "examples/fib.rn"])
+  @assert.eq(runTarget.ok, false)
+  @assert.eq(runTarget.errors[0], "rune run --target is only supported with --backend mbt")
 }
 
 ? "selfhost cli exposes core cli command specs" {

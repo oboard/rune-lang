@@ -54,6 +54,10 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 		if len(args) == 1 {
 			return fmt.Sprintf("rune_cli_help(%s)", args[0])
 		}
+	case "contains":
+		if len(args) == 2 {
+			return fmt.Sprintf("rune_cli_contains(%s, %s)", args[0], args[1])
+		}
 	case "parseOrExit":
 		if len(args) == 1 {
 			return fmt.Sprintf("rune_cli_parse_or_exit(%s)", args[0])
@@ -170,6 +174,20 @@ func (g *generator) cliRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("result")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_contains(values : Array[String], value : String) -> Bool {")
+	g.indent++
+	g.line("let mut index = 0")
+	g.line("let mut found = false")
+	g.line("while index < values.length() {")
+	g.indent++
+	g.line("if values[index] == value { found = true }")
+	g.line("index = index + 1")
+	g.indent--
+	g.line("}")
+	g.line("found")
 	g.indent--
 	g.line("}")
 	g.line("")

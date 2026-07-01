@@ -42,7 +42,7 @@ RuneCliArgsEntry: {
   root := parseRoot(split.globalArgs)
   backend := root.values.getOr("backend", "go")
   errors := cliErrors(root)
-  invalidBackend := !isBackend(backend)
+  invalidBackend := @cli.contains(["go", "ts", "mbt"], backend) == false
   (
     invalidBackend ? errors.push("unsupported backend " + backend)
       : 0
@@ -131,7 +131,7 @@ isRootBackendPair(
   inRest: Bool,
   arg: String
 ) -> Bool => (
-  (inRest == false) && ((arg == "--backend") || (arg == "-b"))
+  (inRest == false) && @cli.contains(["--backend", "-b"], arg)
 )
 
 isRootBackendInline(
@@ -146,7 +146,7 @@ isRootHelpArg(
   commandCount: Int,
   arg: String
 ) -> Bool => (
-  ((inRest == false) && (commandCount == 0)) && ((arg == "--help") || (arg == "-h"))
+  ((inRest == false) && (commandCount == 0)) && @cli.contains(["--help", "-h"], arg)
 )
 
 splitRootAfterBackendPair(
@@ -417,13 +417,15 @@ invocationFromResult(
   stdout: Bool
 ) -> RuneCliInvocation => {
   errors := cliErrors(result)
+  target := result.values.getOr("target", "")
+  errors = invocationErrors(name, backend, target, errors)
   RuneCliInvocation {
     ok: errors.isEmpty(),
     command: name,
     backend: backend,
     path: defaultPathForCommand(name, result.positionals.getOr("path", "")),
     output: result.values.getOr("output", ""),
-    target: result.values.getOr("target", ""),
+    target: target,
     pattern: result.positionals.getOr("pattern", ""),
     checkOnly: checkOnly,
     stdout: stdout,
@@ -434,6 +436,19 @@ invocationFromResult(
     helpText: invocationHelpText(name)
   }
 }
+
+invocationErrors(
+  name: String,
+  backend: String,
+  target: String,
+  errors: Array[String]
+) -> Array[String] => (
+  (name == "build") && (@cli.contains(["go", "mbt"], backend) == false) ? [..errors, "rune build only supports --backend go or --backend mbt"]
+    : (
+      ((name == "run") && (target.isEmpty() == false)) && (backend != "mbt") ? [..errors, "rune run --target is only supported with --backend mbt"]
+        : errors
+    )
+)
 
 defaultPathForCommand(
   name: String,
@@ -510,8 +525,6 @@ errorInvocation(
     help: false,
     helpText: ""
 }
-
-isBackend(value: String) -> Bool => ((value == "go") || (value == "ts")) || (value == "mbt")
 
 #cli.main
 main(args: RuneCliArgsEntry) => {

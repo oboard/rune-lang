@@ -350,6 +350,15 @@ func runeCliParseOrExit(command __CliCommand) __CliParseResult {
 	return result
 }
 
+func runeCliContains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
 func __parseCli(__args []string) __RuneCliInvocation {
 	__split := ____rune_private_5b8b8d7b_splitRootArgs(__args)
 	__root := ____rune_private_5b8b8d7b_parseRoot(__split.__globalArgs)
@@ -361,7 +370,7 @@ func __parseCli(__args []string) __RuneCliInvocation {
 		return "go"
 	}()
 	__errors := ____rune_private_5b8b8d7b_cliErrors(__root)
-	__invalidBackend := !____rune_private_5b8b8d7b_isBackend(__backend)
+	__invalidBackend := runeCliContains([]string{"go", "ts", "mbt"}, __backend) == false
 	func() int {
 		if __invalidBackend {
 			return func() int { __errors = append(__errors, "unsupported backend "+__backend); return len(__errors) }()
@@ -436,7 +445,7 @@ func ____rune_private_5b8b8d7b_splitRootArgValue(__args []string, __position int
 }
 
 func ____rune_private_5b8b8d7b_isRootBackendPair(__inRest bool, __arg string) bool {
-	return __inRest == false && (__arg == "--backend" || __arg == "-b")
+	return __inRest == false && runeCliContains([]string{"--backend", "-b"}, __arg)
 }
 
 func ____rune_private_5b8b8d7b_isRootBackendInline(__inRest bool, __arg string) bool {
@@ -444,7 +453,7 @@ func ____rune_private_5b8b8d7b_isRootBackendInline(__inRest bool, __arg string) 
 }
 
 func ____rune_private_5b8b8d7b_isRootHelpArg(__inRest bool, __commandCount int, __arg string) bool {
-	return __inRest == false && __commandCount == 0 && (__arg == "--help" || __arg == "-h")
+	return __inRest == false && __commandCount == 0 && runeCliContains([]string{"--help", "-h"}, __arg)
 }
 
 func ____rune_private_5b8b8d7b_splitRootAfterBackendPair(__args []string, __position int, __globalArgs []string, __commandArgs []string, __hasValue bool, __inRest bool) __RuneCliRootArgs {
@@ -663,6 +672,14 @@ func __lspCommand() __CliCommand {
 
 func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend string, __backendExplicit bool, __result __CliParseResult, __runArgs []string, __checkOnly bool, __stdout bool) __RuneCliInvocation {
 	__errors := ____rune_private_5b8b8d7b_cliErrors(__result)
+	__target := func() string {
+		value, ok := __result.__values["target"]
+		if ok {
+			return value
+		}
+		return ""
+	}()
+	__errors = ____rune_private_5b8b8d7b_invocationErrors(__name, __backend, __target, __errors)
 	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_5b8b8d7b_defaultPathForCommand(__name, func() string {
 		value, ok := __result.__positionals["path"]
 		if ok {
@@ -675,19 +692,37 @@ func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend str
 			return value
 		}
 		return ""
-	}(), __target: func() string {
-		value, ok := __result.__values["target"]
-		if ok {
-			return value
-		}
-		return ""
-	}(), __pattern: func() string {
+	}(), __target: __target, __pattern: func() string {
 		value, ok := __result.__positionals["pattern"]
 		if ok {
 			return value
 		}
 		return ""
 	}(), __checkOnly: __checkOnly, __stdout: __stdout, __backendExplicit: __backendExplicit, __runArgs: __runArgs, __errors: __errors, __help: __result.__help, __helpText: ____rune_private_5b8b8d7b_invocationHelpText(__name)}
+}
+
+func ____rune_private_5b8b8d7b_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
+	return func() []string {
+		if __name == "build" && runeCliContains([]string{"go", "mbt"}, __backend) == false {
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "rune build only supports --backend go or --backend mbt")
+				return out
+			}()
+		}
+		return func() []string {
+			if __name == "run" && len(__target) == 0 == false && __backend != "mbt" {
+				return func() []string {
+					out := []string{}
+					out = append(out, __errors...)
+					out = append(out, "rune run --target is only supported with --backend mbt")
+					return out
+				}()
+			}
+			return __errors
+		}()
+	}()
 }
 
 func ____rune_private_5b8b8d7b_defaultPathForCommand(__name string, __path string) string {
@@ -752,10 +787,6 @@ func ____rune_private_5b8b8d7b_helpInvocation(__backend string) __RuneCliInvocat
 
 func ____rune_private_5b8b8d7b_errorInvocation(__command string, __backend string, __errors []string) __RuneCliInvocation {
 	return __RuneCliInvocation{__ok: false, __command: __command, __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
-}
-
-func ____rune_private_5b8b8d7b_isBackend(__value string) bool {
-	return __value == "go" || __value == "ts" || __value == "mbt"
 }
 
 func ____rune_private_5b8b8d7b___cliMain(__args __RuneCliArgsEntry) {

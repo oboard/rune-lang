@@ -79,9 +79,6 @@ func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, std
 		if invocation.__backend == "mbt" {
 			return buildMoonBit(invocation.__path, invocation.__target, invocation.__output)
 		}
-		if invocation.__backend != "go" {
-			return fmt.Errorf("rune build only supports --backend go or --backend mbt")
-		}
 		return buildGo(invocation.__path, invocation.__target, invocation.__output, stdin, stdout, stderr)
 	case "go":
 		return emitGo(invocation.__path, invocation.__output, stdout)
@@ -110,9 +107,6 @@ func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, std
 }
 
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	if runTarget != "" && runBackend != "mbt" {
-		return fmt.Errorf("rune run --target is only supported with --backend mbt")
-	}
 	switch runBackend {
 	case "go":
 		exe, cleanup, err := compileGoExecutableToTemp(entry, stdout, stderr)

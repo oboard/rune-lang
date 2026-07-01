@@ -61,6 +61,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 			return g.zeroValue(resultType)
 		}
 		return fmt.Sprintf("runeCliHelp(%s)", args[0])
+	case "contains":
+		if len(args) != 2 {
+			return g.zeroValue(resultType)
+		}
+		return fmt.Sprintf("runeCliContains(%s, %s)", args[0], args[1])
 	case "parseOrExit":
 		if len(args) != 1 {
 			return g.zeroValue(resultType)
@@ -381,6 +386,15 @@ func runeCliParseOrExit(command __CliCommand) __CliParseResult {
 		os.Exit(2)
 	}
 	return result
+}
+
+func runeCliContains(values []string, value string) bool {
+	for _, candidate := range values {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 `
 	for _, line := range strings.Split(strings.Trim(src, "\n"), "\n") {
