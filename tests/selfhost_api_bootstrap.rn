@@ -1,0 +1,101 @@
+@"../selfhost/interpreter/interpreter.rn"
+
+assertInterpretValue(
+  source: String,
+  want: String
+) => {
+  result := interpret(source)
+  @assert.eq(result.error, "")
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), want)
+}
+
+assertInterpretOutput(
+  source: String,
+  index: Int,
+  want: String
+) => {
+  result := interpret(source)
+  @assert.eq(result.error, "")
+  @assert.eq(result.ok, true)
+  @assert.eq(result.output[index], want)
+}
+
+? "selfhost interpreter covers array map set string APIs" {
+  assertInterpretValue(`main() -> String => {
+  values := [1, 2, 3]
+  values.push(4)
+  doubled := values.map((value, index) => value + index)
+  total := doubled.reduce(0, (sum, value) => sum + value)
+  words := [" rune ", "lang"]
+  trimmed := words[0].trim()
+  joined := trimmed.concat("-").concat(words[1].toUpperCase())
+  scores := @map.new("", 0)
+  scores.set("total", total)
+  scores.set("size", values.length())
+  seen := @set.new("")
+  seen.add(trimmed)
+  seen.add(words[1])
+  joined + ":" + @int.toString(scores.getOr("total", 0)) + ":" + @int.toString(seen.size())
+}
+`, "rune-LANG:16:2")
+}
+
+? "selfhost interpreter covers bytes buffer reader writer APIs" {
+  assertInterpretValue(`main() -> String => {
+  writer := @writer.new()
+  writer.writeUInt8(@uint8.fromInt(7))
+  writer.writeInt16(@int16.fromInt(0 - 1234), true)
+  writer.writeFloat(@float.fromDouble(1.5), true)
+  bytes := writer.toBytes()
+  reader := @reader.new(bytes)
+  first := @uint8.toInt(reader.readUInt8())
+  second := @int16.toInt(reader.readInt16(true))
+  third := @float.toDouble(reader.readFloat32(true))
+  buffer := @buffer.fromBytes(bytes.clone())
+  buffer.append(@uint8.fromInt(9))
+  @int.toString(first) + ":" + @int.toString(second) + ":" + @int.toString(@double.trunc(third)) + ":" + @int.toString(buffer.length())
+}
+`, "7:-1234:1:8")
+}
+
+? "selfhost interpreter covers json regex symbol iter APIs" {
+  assertInterpretValue(`main() -> String => {
+  text := @json.stringify({ name: "Rune", score: 42 })
+  parsed := @json.parse(text)
+  match := /(\\w+)-(\\d+)/.exec("id-42")
+  parts := "a,b,c".split(",")
+  total ~= 0
+  @iter.range(1, 4).each((value) => total = total + value)
+  symbol := @symbol.for("rune.key")
+  @json.stringify(parsed).includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")
+}
+`, "true:id:c:6:rune.key")
+}
+
+? "selfhost interpreter covers path process io APIs" {
+  assertInterpretOutput(`main() -> String => {
+  joined := @path.join(["src", "parser", "..", "lexer.rn"])
+  relative := @path.relative("src/parser", "src/lexer/token.rn")
+  @io.println(@path.basename(joined), @path.extname(joined), relative, @process.platform().isEmpty(), @process.cwd().isEmpty(), @process.argv().length())
+  joined
+}
+`, 0, "lexer.rn .rn ../lexer/token.rn false false 0")
+}
+
+? "selfhost interpreter covers fs compress net APIs" {
+  assertInterpretOutput(`main() -> String => {
+  @fs.mkdir("tmp")?
+  @fs.writeFileText("tmp/a.txt", "hello api")?
+  text := @fs.readFileText("tmp/a.txt")?
+  gz := @compress.gzipText(text)?
+  plain := @compress.gunzipText(gz)?
+  listener := @net.listen("loop:api")?
+  conn := listener.accept()?
+  written := conn.write(@bytes.fromInts([1, 2, 3]))?
+  read := conn.read(2)?
+  @io.println(plain, listener.address(), written, read.length(), read.toInts()[1])
+  plain
+}
+`, 0, "hello api loop:api 3 2 2")
+}
