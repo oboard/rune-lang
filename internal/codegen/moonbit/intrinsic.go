@@ -254,9 +254,9 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	case strings.HasPrefix(fn.Intrinsic, "writer."):
 		return g.writerIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."):
-		return g.mapIntrinsicCall(fn, receiver, args, call.ResultType()), true
+		return g.mapIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
-		return g.setIntrinsicCall(fn, receiver, args, call.ResultType()), true
+		return g.setIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "stringbuffer."):
 		return g.stringBufferIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "regex."):
@@ -1137,7 +1137,7 @@ func uint64BitsDecodeAtExpr(target string, offset string, little bool) string {
 	return fmt.Sprintf("((%s).reinterpret_as_uint().to_uint64() | ((%s).reinterpret_as_uint().to_uint64() << 32))", low, high)
 }
 
-func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args []string, rawArgs []ir.Expr, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "map.size":
 		return receiver + ".length()"
@@ -1167,7 +1167,8 @@ func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		return receiver + ".values().collect()"
 	case "map.each":
 		if len(args) == 1 {
-			return fmt.Sprintf("%s.each((k, v) => { %s(v, k, %s) })", receiver, args[0], receiver)
+			arity := callbackArity(rawArgs[0], 3)
+			return fmt.Sprintf("%s.each((k, v) => { ignore(%s) })", receiver, callbackCall(args[0], arity, "v", "k", receiver))
 		}
 	case "weakMap.has":
 		if len(args) == 1 {
@@ -1181,7 +1182,7 @@ func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args 
 	return runtimeTrap(fn.Intrinsic)
 }
 
-func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args []string, rawArgs []ir.Expr, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "set.size":
 		return receiver + ".length()"
@@ -1197,7 +1198,8 @@ func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		return receiver + ".to_array()"
 	case "set.each":
 		if len(args) == 1 {
-			return fmt.Sprintf("%s.each((v) => { %s(v, v, %s) })", receiver, args[0], receiver)
+			arity := callbackArity(rawArgs[0], 3)
+			return fmt.Sprintf("%s.each((v) => { ignore(%s) })", receiver, callbackCall(args[0], arity, "v", "v", receiver))
 		}
 	}
 	return runtimeTrap(fn.Intrinsic)
