@@ -57,6 +57,11 @@ ExprStep: {
   expr: ParsedExpr
 }
 
+TemplateParse: {
+  text: String
+  children: Array[ParsedExpr]
+}
+
 FileStep: {
   state: ParserState
   file: ParsedFile
@@ -1221,7 +1226,13 @@ parseOneTypeRefListValue(
   typeRef := parseTypeRef(state)
   refs.push(typeRef.typeRef)
   comma := parserMatch(parserSkipNewlines(typeRef.state), TokenKind.Comma)
-  parseTypeRefList(comma.state, refs)
+  comma.ok {
+    true => parseTypeRefList(comma.state, refs)
+    _ => TypeRefListStep {
+      state: typeRef.state,
+      refs: refs
+    }
+  }
 }
 
 parseTypeParamList(
@@ -1245,7 +1256,13 @@ parseOneTypeParam(
   param := parseTypeParam(state)
   params.push(param.param)
   comma := parserMatch(parserSkipNewlines(param.state), TokenKind.Comma)
-  parseTypeParamList(comma.state, params)
+  comma.ok {
+    true => parseTypeParamList(comma.state, params)
+    _ => TypeParamListStep {
+      state: param.state,
+      params: params
+    }
+  }
 }
 
 parseTypeParam(
@@ -1795,7 +1812,7 @@ parsePrimary(
     TokenKind.Double => parseLiteral(state, ExprKind.Double)
     TokenKind.BigInt => parseLiteral(state, ExprKind.BigInt)
     TokenKind.String => parseLiteral(state, ExprKind.String)
-    TokenKind.TemplateString => parseLiteral(state, ExprKind.Template)
+    TokenKind.TemplateString => parseTemplateLiteral(state)
     TokenKind.Char => parseLiteral(state, ExprKind.Char)
     TokenKind.Regex => parseLiteral(state, ExprKind.Regex)
     TokenKind.XMLText => parseLiteral(state, ExprKind.XMLText)
@@ -1809,6 +1826,139 @@ parsePrimary(
     _ => parsePrimaryError(state)
   }
 }
+
+parseTemplateLiteral(
+  state: ParserState
+) -> ExprStep => {
+  step := parserAdvance(state)
+  parsed := parseTemplateParts(templateInner(step.token.lexeme), 0, 0, "", [])
+  ExprStep {
+    state: step.state,
+    expr: makeExpr(ExprKind.Template, step.token.lexeme, "", ("`" + parsed.text) + "`", "", [], parsed.children, step.token.line, step.token.column)
+  }
+}
+
+templateInner(raw: String) -> String => (
+  raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+    : raw
+)
+
+parseTemplateParts(
+  inner: String,
+  index: Int,
+  textStart: Int,
+  out: String,
+  children: Array[ParsedExpr]
+) -> TemplateParse => (
+  index >= inner.length() ? TemplateParse {
+    text: out + inner.slice(textStart, inner.length()),
+    children: children
+  }
+    : parseTemplatePartAt(inner, index, textStart, out, children)
+)
+
+parseTemplatePartAt(
+  inner: String,
+  index: Int,
+  textStart: Int,
+  out: String,
+  children: Array[ParsedExpr]
+) -> TemplateParse => {
+  ch := inner.at(index)
+  (
+    (ch == '\\') && ((index + 1) < inner.length()) && (inner.at(index + 1) == '(') ? parseTemplateExprPart(inner, index, textStart, out, children)
+      : parseTemplateParts(inner, index + 1, textStart, out, children)
+  )
+}
+
+parseTemplateExprPart(
+  inner: String,
+  index: Int,
+  textStart: Int,
+  out: String,
+  children: Array[ParsedExpr]
+) -> TemplateParse => {
+  exprStart := index + 2
+  exprEnd := scanTemplateExprEnd(inner, exprStart, 1)
+  (
+    exprEnd < 0 ? TemplateParse {
+      text: out + inner.slice(textStart, inner.length()),
+      children: children
+    }
+      : parseTemplateParts(inner, exprEnd + 1, exprEnd + 1, (out + inner.slice(textStart, index)) + "<<<RUNE_TEMPLATE_PART>>>", pushTemplateExpr(children, inner.slice(exprStart, exprEnd)))
+  )
+}
+
+scanTemplateExprEnd(
+  inner: String,
+  index: Int,
+  depth: Int
+) -> Int => (
+  index >= inner.length() ? -1
+    : scanTemplateExprEndAt(inner, index, depth)
+)
+
+scanTemplateExprEndAt(
+  inner: String,
+  index: Int,
+  depth: Int
+) -> Int => {
+  ch := inner.at(index)
+  ch {
+    '"' => scanTemplateExprEnd(inner, skipTemplateQuoted(inner, index + 1, '"'), depth)
+    '\'' => scanTemplateExprEnd(inner, skipTemplateQuoted(inner, index + 1, '\''), depth)
+    '`' => scanTemplateExprEnd(inner, skipTemplateQuoted(inner, index + 1, '`'), depth)
+    '(' => scanTemplateExprEnd(inner, index + 1, depth + 1)
+    ')' => (
+      depth == 1 ? index
+        : scanTemplateExprEnd(inner, index + 1, depth - 1)
+    )
+    _ => scanTemplateExprEnd(inner, index + 1, depth)
+  }
+}
+
+skipTemplateQuoted(
+  text: String,
+  index: Int,
+  quote: Char
+) -> Int => (
+  index >= text.length() ? index
+    : skipTemplateQuotedAt(text, index, quote)
+)
+
+skipTemplateQuotedAt(
+  text: String,
+  index: Int,
+  quote: Char
+) -> Int => {
+  ch := text.at(index)
+  (
+    ch == '\\' ? skipTemplateQuoted(text, index + 2, quote)
+      : (
+        ch == quote ? index + 1
+          : skipTemplateQuoted(text, index + 1, quote)
+      )
+  )
+}
+
+pushTemplateExpr(
+  children: Array[ParsedExpr],
+  source: String
+) -> Array[ParsedExpr] => {
+  parsed := parseTemplateExpression(source.trim())
+  [..children, parsed]
+}
+
+parseTemplateExpression(
+  source: String
+) -> ParsedExpr => (
+  source == "" ? emptyExpr()
+    : parseExpression(ParserState {
+      tokens: lex(source),
+      current: 0,
+      errors: []
+    }, 1).expr
+)
 
 parseLiteral(
   state: ParserState,
