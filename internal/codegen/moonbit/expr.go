@@ -484,14 +484,17 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 		if ctor, ok := g.enumSelectorConstructorCall(sel, call.ResultType()); ok {
 			return ctor + "(" + strings.Join(args, ", ") + ")"
 		}
+		if sel.Static {
+			if ident, ok := sel.Receiver.(*ir.Identifier); ok {
+				return mangleMethod(ident.Name, sel.Name) + "(" + strings.Join(args, ", ") + ")"
+			}
+			return g.expr(sel) + "(" + strings.Join(args, ", ") + ")"
+		}
 		if sel.ResolvedName != "" {
 			return mangleIdent(sel.ResolvedName) + "(" + strings.Join(args, ", ") + ")"
 		}
 		if ident, ok := sel.Receiver.(*ir.Identifier); ok && g.importAliases[ident.Name] {
 			return mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
-		}
-		if sel.Static {
-			return g.expr(sel) + "(" + strings.Join(args, ", ") + ")"
 		}
 		if typ := g.structTypeFromReceiver(sel.Receiver); typ != nil {
 			args = append([]string{g.expr(sel.Receiver)}, args...)
