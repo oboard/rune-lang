@@ -43,7 +43,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	args := g.intrinsicArgs(call.Args)
 	switch fn.Intrinsic {
 	case "io.print":
-		return "print(" + g.printArgs(call.Args) + ")", true
+		return "println(" + g.printArgs(call.Args) + ")", true
 	case "io.println":
 		return "println(" + g.printArgs(call.Args) + ")", true
 	case "io.printf":
@@ -364,7 +364,7 @@ func (g *generator) arrayEachExpr(receiver string, args []string, rawArgs []ir.E
 	index := g.nextTemp("__index")
 	value := g.nextTemp("__value")
 	call := callbackCall(callback, arity, value, index, target)
-	return fmt.Sprintf("{ let %s = %s; let mut %s = 0; while %s < %s.length() { let %s = %s[%s]; %s; %s = %s + 1 }; () }", target, receiver, index, index, target, value, target, index, call, index, index)
+	return fmt.Sprintf("{ let %s = %s; let mut %s = 0; while %s < %s.length() { let %s = %s[%s]; ignore(%s); %s = %s + 1 }; () }", target, receiver, index, index, target, value, target, index, call, index, index)
 }
 
 func (g *generator) arrayMapExpr(receiver string, args []string, rawArgs []ir.Expr, resultType checker.Type) string {
@@ -1335,10 +1335,10 @@ func (g *generator) iterEachExpr(receiver string, callback string, arity int) st
 	case 1:
 		return fmt.Sprintf("%s.each(%s)", receiver, callback)
 	case 2:
-		return fmt.Sprintf("%s.eachi(fn(index, value) { %s })", receiver, callbackCall(callback, 2, "value", "index"))
+		return fmt.Sprintf("%s.eachi(fn(index, value) { ignore(%s) })", receiver, callbackCall(callback, 2, "value", "index"))
 	default:
 		iter := g.nextTemp("__iter")
-		return fmt.Sprintf("{ let %s = %s; %s.eachi(fn(index, value) { %s }) }", iter, receiver, iter, callbackCall(callback, arity, "value", "index", iter))
+		return fmt.Sprintf("{ let %s = %s; %s.eachi(fn(index, value) { ignore(%s) }) }", iter, receiver, iter, callbackCall(callback, arity, "value", "index", iter))
 	}
 }
 

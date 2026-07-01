@@ -137,6 +137,12 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.LambdaExpr:
 		return g.lambda(e)
 	case *ir.SelectorExpr:
+		if e.ResolvedName != "" {
+			return mangleIdent(e.ResolvedName)
+		}
+		if ident, ok := e.Receiver.(*ir.Identifier); ok && g.importAliases[ident.Name] {
+			return mangleIdent(e.Name)
+		}
 		if member, ok := g.enumMemberSelector(e); ok {
 			return member
 		}
@@ -144,6 +150,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			if ident, ok := e.Receiver.(*ir.Identifier); ok {
 				return mangleMethod(ident.Name, e.Name)
 			}
+		}
+		if _, ok := checker.ImportNamespacePath(e.Receiver.ResultType()); ok {
+			return mangleIdent(selectorResolvedName(e))
 		}
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
@@ -394,6 +403,13 @@ func (g *generator) showExpr(expr ir.Expr) string {
 	return fmt.Sprintf("(%s).to_string()", g.expr(expr))
 }
 
+func selectorResolvedName(sel *ir.SelectorExpr) string {
+	if sel.ResolvedName != "" {
+		return sel.ResolvedName
+	}
+	return sel.Name
+}
+
 func (g *generator) callExpr(call *ir.CallExpr) string {
 	if out, ok := g.moduleIntrinsicCall(call); ok {
 		return out
@@ -417,6 +433,12 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 		}
 	}
 	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		if sel.ResolvedName != "" {
+			return mangleIdent(sel.ResolvedName) + "(" + strings.Join(args, ", ") + ")"
+		}
+		if ident, ok := sel.Receiver.(*ir.Identifier); ok && g.importAliases[ident.Name] {
+			return mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
+		}
 		if sel.Static {
 			return g.expr(sel) + "(" + strings.Join(args, ", ") + ")"
 		}

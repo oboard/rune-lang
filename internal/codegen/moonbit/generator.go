@@ -14,21 +14,22 @@ import (
 )
 
 type generator struct {
-	buf         bytes.Buffer
-	file        *ir.File
-	indent      int
-	temp        int
-	errors      []error
-	thisNames   []string
-	useCLI      bool
-	useFS       bool
-	useCompress bool
-	useRegex    bool
-	useString   bool
-	useReader   bool
-	hasRoutine  bool
-	anonTypes   map[string]string
-	anonOrder   []checker.Type
+	buf           bytes.Buffer
+	file          *ir.File
+	indent        int
+	temp          int
+	errors        []error
+	thisNames     []string
+	useCLI        bool
+	useFS         bool
+	useCompress   bool
+	useRegex      bool
+	useString     bool
+	useReader     bool
+	hasRoutine    bool
+	anonTypes     map[string]string
+	anonOrder     []checker.Type
+	importAliases map[string]bool
 }
 
 func Generate(file *ast.File, info *checker.Info) (string, error) {
@@ -42,7 +43,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("MoonBit backend does not support @go.import")
 	}
-	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}}
+	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}, importAliases: map[string]bool{}}
 	g.collectAnonymousTypes()
 	for i, enum := range file.Enums {
 		if i > 0 {
@@ -448,16 +449,21 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) {
 }
 
 func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
+	assigned := assignedNames(block)
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if _, ok := s.Value.(*ir.AtExpr); ok {
+				g.importAliases[s.Name] = true
+				continue
+			}
 			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapLet(s.Name, unwrap, ret)
 				continue
 			}
 			mut := ""
-			if s.Mutable {
+			if assigned[s.Name] {
 				mut = "mut "
 			}
 			value := g.expr(s.Value)
@@ -503,6 +509,28 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 	if ret != checker.Void && len(block.Statements) == 0 {
 		g.line(zeroValue(ret))
 	}
+}
+
+func assignedNames(block *ir.BlockExpr) map[string]bool {
+	assigned := map[string]bool{}
+	for _, stmt := range block.Statements {
+		if assign, ok := stmt.(*ir.AssignStmt); ok {
+			assigned[assign.Name] = true
+		}
+		ir.WalkStmt(stmt, func(expr ir.Expr) {
+			switch e := expr.(type) {
+			case *ir.AssignExpr:
+				if e.Name != "" {
+					assigned[e.Name] = true
+				}
+			case *ir.PostfixExpr:
+				if ident, ok := e.Expr.(*ir.Identifier); ok {
+					assigned[ident.Name] = true
+				}
+			}
+		})
+	}
+	return assigned
 }
 
 func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
