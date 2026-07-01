@@ -484,10 +484,10 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __scores = new Map<string, number>();`,
+		`let __scores = new Map<string, number>();`,
 		`__scores.set("rune", 10);`,
 		`((__map, __key) => __map.has(__key) ? __map.get(__key)! : 0)(__scores, "rune")`,
-		`const __seen = new Set<string>();`,
+		`let __seen = new Set<string>();`,
 		`__seen.add("rune");`,
 		`console.log(__seen.has("rune"));`,
 	}
@@ -525,6 +525,32 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestGenerateArrayEachAvoidsUserIndexShadow(t *testing.T) {
+	src := `main() => {
+  index := 0
+  [1].each((value, position, array) => {
+    index = position + value + array.length()
+  })
+  @io.println(index)
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`let __index = 0;`,
+		`for (const [__arrayIndex`,
+		`__index = __position + __value + __array.length`,
+		`console.log(__index);`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `for (const [__index,`) {
+		t.Fatalf("generated TypeScript shadowed user index:\n%s", got)
 	}
 }
 

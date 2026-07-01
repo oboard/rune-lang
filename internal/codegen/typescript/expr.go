@@ -563,7 +563,9 @@ func (g *generator) arrayMethodCall(call *ir.CallExpr) (string, bool) {
 		if len(args) != 1 {
 			return "undefined", true
 		}
-		return fmt.Sprintf("(() => { for (const [__index, __value] of %s.entries()) { (%s)(__value, __index, %s); } })()", receiver, args[0], receiver), true
+		index := g.nextTemp("__arrayIndex")
+		value := g.nextTemp("__arrayValue")
+		return fmt.Sprintf("(() => { for (const [%s, %s] of %s.entries()) { (%s)(%s, %s, %s); } })()", index, value, receiver, args[0], value, index, receiver), true
 	case "map":
 		if len(args) != 1 {
 			return "undefined", true

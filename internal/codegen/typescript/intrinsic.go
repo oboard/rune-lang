@@ -822,7 +822,9 @@ func (g *generator) arrayIntrinsicCall(fn *stdlib.Function, receiver string, arg
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("(() => { for (const [__index, __value] of %s.entries()) { (%s)(__value, __index, %s); } })()", receiver, args[0], receiver)
+		index := g.nextTemp("__arrayIndex")
+		value := g.nextTemp("__arrayValue")
+		return fmt.Sprintf("(() => { for (const [%s, %s] of %s.entries()) { (%s)(%s, %s, %s); } })()", index, value, receiver, args[0], value, index, receiver)
 	case "array.map":
 		if len(args) != 1 {
 			return "undefined"
@@ -959,7 +961,9 @@ func (g *generator) mapIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("(() => { for (const [__key, __value] of %s.entries()) { (%s)(__value, __key, %s); } })()", receiver, args[0], receiver)
+		key := g.nextTemp("__mapKey")
+		value := g.nextTemp("__mapValue")
+		return fmt.Sprintf("(() => { for (const [%s, %s] of %s.entries()) { (%s)(%s, %s, %s); } })()", key, value, receiver, args[0], value, key, receiver)
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}
@@ -992,7 +996,8 @@ func (g *generator) setIntrinsicCall(fn *stdlib.Function, receiver string, args 
 		if len(args) != 1 {
 			return "undefined"
 		}
-		return fmt.Sprintf("(() => { for (const __value of %s.values()) { (%s)(__value, __value, %s); } })()", receiver, args[0], receiver)
+		value := g.nextTemp("__setValue")
+		return fmt.Sprintf("(() => { for (const %s of %s.values()) { (%s)(%s, %s, %s); } })()", value, receiver, args[0], value, value, receiver)
 	default:
 		return g.unsupportedIntrinsic(fn, resultType)
 	}

@@ -242,10 +242,7 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				}
 				continue
 			}
-			kind := "const"
-			if s.Mutable {
-				kind = "let"
-			}
+			kind := "let"
 			value := g.expr(s.Value)
 			if _, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
 				value = g.withThisName(mangleIdent(s.Name), func() string {
