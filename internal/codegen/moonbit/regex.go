@@ -12,8 +12,25 @@ func (g *generator) regexRuntime() {
 	g.line("")
 	g.line("fn rune_regex_new(source : String, flags : String) -> RuneRegex {")
 	g.indent++
-	g.line("let pattern = rune_regex_pattern(source, flags)")
-	g.line("{ source, flags, regex: @string.Regex::unsafe_from_string(pattern), last_index: 0 }")
+	g.line("let normalized_flags = rune_regex_normalize_flags(flags)")
+	g.line("let pattern = rune_regex_pattern(source, normalized_flags)")
+	g.line("{ source, flags: normalized_flags, regex: @string.Regex::unsafe_from_string(pattern), last_index: 0 }")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_regex_normalize_flags(flags : String) -> String {")
+	g.indent++
+	g.line("let order = \"dgimsuvy\"")
+	g.line("let builder = StringBuilder()")
+	g.line("let mut index = 0")
+	g.line("while index < order.length() {")
+	g.indent++
+	g.line("let flag = order[index:index + 1]")
+	g.line("if flags.contains(flag) { builder.write_stringview(flag) }")
+	g.line("index = index + 1")
+	g.indent--
+	g.line("}")
+	g.line("builder.to_string()")
 	g.indent--
 	g.line("}")
 	g.line("")
