@@ -154,6 +154,10 @@ func syntaxEnumValue(enum *ast.EnumType, refs *syntaxRefs) interpreter.Value {
 			"params", params,
 		))
 	}
+	methods := &interpreter.Array{}
+	for _, method := range enum.Methods {
+		methods.Elements = append(methods.Elements, syntaxFunctionValue(method, refs))
+	}
 	return structValue("SyntaxEnum",
 		"id", id,
 		"name", enum.Name,
@@ -161,6 +165,7 @@ func syntaxEnumValue(enum *ast.EnumType, refs *syntaxRefs) interpreter.Value {
 		"generics", stringArray(enum.Generics),
 		"annotations", syntaxAnnotationsValue(enum.Annotations, enum.SourcePath, refs),
 		"members", members,
+		"methods", methods,
 		"sourcePath", enum.SourcePath,
 	)
 }
@@ -499,6 +504,18 @@ func decodeSyntaxEnum(value interpreter.Value, refs *syntaxRefs, seen map[string
 			member.Params = append(member.Params, param)
 		}
 		out.Members = append(out.Members, member)
+	}
+	methods, err := structArrayField(node, "methods")
+	if err != nil {
+		return nil, err
+	}
+	for _, value := range methods {
+		method, err := decodeSyntaxFunction(value, refs, seen)
+		if err != nil {
+			return nil, err
+		}
+		method.ReceiverType = out.Name
+		out.Methods = append(out.Methods, method)
 	}
 	return out, nil
 }

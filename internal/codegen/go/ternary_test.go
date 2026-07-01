@@ -53,7 +53,7 @@ func TestGenerateVoidTernaryExpression(t *testing.T) {
 
 func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
 	src := `main() => {
-  handled ~= false
+  handled :=: false
   true ? handled = true
 }
 `

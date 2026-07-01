@@ -52,6 +52,16 @@ func TestLexStaticSelector(t *testing.T) {
 	}
 }
 
+func TestLexMutableDeclare(t *testing.T) {
+	tokens := Lex("total :=: 0\nold ~= 1")
+	if tokens[1].Kind != MutDeclare || tokens[1].Lexeme != ":=:" {
+		t.Fatalf("tokens[1] = %s, want MutDeclare; tokens = %#v", tokens[1], tokens)
+	}
+	if tokens[5].Kind != Tilde || tokens[6].Kind != Assign {
+		t.Fatalf("old ~= tokens = %s %s, want Tilde Assign; tokens = %#v", tokens[5], tokens[6], tokens)
+	}
+}
+
 func TestLexCharAfterLess(t *testing.T) {
 	tokens := Lex("@assert.eq('a' < 'b', true)")
 	if tokens[6].Kind != Less {

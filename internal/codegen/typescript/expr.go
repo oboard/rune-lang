@@ -791,17 +791,25 @@ func (g *generator) methodCall(call *ir.CallExpr) (string, bool) {
 	if typeName == "" || strings.HasPrefix(typeName, "{") {
 		return "", false
 	}
-	var typ *ir.StructType
+	var methods []*ir.Function
 	for _, candidate := range g.file.Types {
 		if candidate.Name == typeName {
-			typ = candidate
+			methods = candidate.Methods
 			break
 		}
 	}
-	if typ == nil {
+	if methods == nil {
+		for _, candidate := range g.file.Enums {
+			if candidate.Name == typeName {
+				methods = candidate.Methods
+				break
+			}
+		}
+	}
+	if methods == nil {
 		return "", false
 	}
-	for _, method := range typ.Methods {
+	for _, method := range methods {
 		if method.Name != sel.Name || method.Static != sel.Static {
 			continue
 		}

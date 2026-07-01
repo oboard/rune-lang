@@ -94,6 +94,12 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 		g.enumType(enum)
+		for _, method := range enum.Methods {
+			g.line("")
+			if err := g.method(enum.Name, method); err != nil {
+				return "", err
+			}
+		}
 	}
 	if len(file.Enums) > 0 && len(file.Types) > 0 {
 		g.line("")
@@ -105,7 +111,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.structType(typ)
 		for _, method := range typ.Methods {
 			g.line("")
-			if err := g.method(typ, method); err != nil {
+			if err := g.method(typ.Name, method); err != nil {
 				return "", err
 			}
 		}

@@ -172,7 +172,7 @@ func (k Kind) String() string {
 	case Declare:
 		return ":="
 	case MutDeclare:
-		return "~="
+		return ":=:"
 	case Arrow:
 		return "->"
 	case Plus:

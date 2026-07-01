@@ -417,6 +417,9 @@ func annotateSourcePath(file *ast.File, sourcePath string) {
 	}
 	for _, enum := range file.Enums {
 		enum.SourcePath = sourcePath
+		for _, method := range enum.Methods {
+			method.SourcePath = sourcePath
+		}
 	}
 	for _, constant := range file.Constants {
 		constant.SourcePath = sourcePath

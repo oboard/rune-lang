@@ -86,6 +86,30 @@ func TestParseCompileTimeExpressionMarker(t *testing.T) {
 	}
 }
 
+func TestParsePatternPredicateExpression(t *testing.T) {
+	file, errs := Parse(`main(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok {
+		t.Fatalf("body = %T, want MatchExpr", file.Functions[0].Body)
+	}
+	if len(match.Branches) != 2 {
+		t.Fatalf("branches = %#v, want predicate and wildcard", match.Branches)
+	}
+	if _, ok := match.Branches[0].Pattern.(*ast.OrPattern); !ok {
+		t.Fatalf("first pattern = %T, want OrPattern", match.Branches[0].Pattern)
+	}
+	if lit, ok := match.Branches[0].Expr.(*ast.BoolLiteral); !ok || !lit.Value {
+		t.Fatalf("first expr = %#v, want true literal", match.Branches[0].Expr)
+	}
+	if _, ok := match.Branches[1].Pattern.(*ast.WildcardPattern); !ok {
+		t.Fatalf("second pattern = %T, want wildcard", match.Branches[1].Pattern)
+	}
+}
+
 func TestParseTypedBinding(t *testing.T) {
 	file, errs := Parse(`main() => {
   user := @json.parse(text) : User

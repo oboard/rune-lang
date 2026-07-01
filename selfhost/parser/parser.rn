@@ -463,7 +463,7 @@ parseTopLevel(
   file: ParsedFile
 ) -> FileStep => {
   publicStep := parsePublicModifier(state)
-  current ~= publicStep.state
+  current :=: publicStep.state
   private := publicStep.ok == false
   current = (
     publicStep.ok && (parserCheck(current, TokenKind.At) || parserCheck(current, TokenKind.Question)) ? parserErrorAt(current, parserPeek(current), "expected public declaration after '+'")
@@ -823,10 +823,48 @@ parseEnumTypeMember(
   state: ParserState,
   typeDecl: ParsedType
 ) -> TypeStep => {
+  current := skipAnnotations(state)
+  privateStep := parseObjectPrivateModifier(current)
+  memberState := privateStep.state
+  staticStep := (
+    looksLikeStaticFunctionDecl(memberState) ? parseStaticMethodMarker(memberState)
+      : BoolStep {
+        state: memberState,
+        ok: false
+      }
+  )
+  parsed := (
+    looksLikeFunctionDecl(staticStep.state) ? parseEnumMethod(staticStep.state, typeDecl, privateStep.ok, staticStep.ok)
+      : parseEnumTypeMemberValue(state, typeDecl)
+  )
+  next := parserSkipNewlines(parserMatch(consumeStatementEnd(parsed.state), TokenKind.Comma).state)
+  parseEnumTypeLoop(next, parsed.typeDecl)
+}
+
+parseEnumMethod(
+  state: ParserState,
+  typeDecl: ParsedType,
+  private: Bool,
+  static: Bool
+) -> TypeStep => {
+  step := parseFunctionWithReceiver(state, typeDecl.name, private, static)
+  typeDecl.methods.push(step.function)
+  TypeStep {
+    state: step.state,
+    typeDecl: typeDecl
+  }
+}
+
+parseEnumTypeMemberValue(
+  state: ParserState,
+  typeDecl: ParsedType
+) -> TypeStep => {
   member := parseEnumMember(state)
   typeDecl.members.push(member.member)
-  next := parserSkipNewlines(parserMatch(consumeStatementEnd(member.state), TokenKind.Comma).state)
-  parseEnumTypeLoop(next, typeDecl)
+  TypeStep {
+    state: member.state,
+    typeDecl: typeDecl
+  }
 }
 
 parseEnumMember(
@@ -1528,8 +1566,11 @@ parseExpressionLoop(
                               : (
                                 (minPrec <= 1) && parserCheck(state, TokenKind.Assign) ? parseAssignmentExpression(state, expr, minPrec)
                                   : (
-                                    (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
-                                      : parseBinaryExpression(state, expr, minPrec)
+                                    (minPrec <= 1) && parserCheck(state, TokenKind.Tilde) ? parsePatternPredicateExpression(state, expr, minPrec)
+                                      : (
+                                        (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
+                                          : parseBinaryExpression(state, expr, minPrec)
+                                      )
                                   )
                               )
                           )
@@ -1701,6 +1742,25 @@ parseAssignmentExpression(
   parseExpressionLoop(ExprStep {
     state: value.state,
     expr: opNode(ExprKind.Assign, op.token.lexeme, op.token, [target, value.expr])
+  }, minPrec)
+}
+
+parsePatternPredicateExpression(
+  state: ParserState,
+  subject: ParsedExpr,
+  minPrec: Int
+) -> ExprStep => {
+  op := parserAdvance(state)
+  pattern := parsePredicatePatternText(parserSkipNewlines(op.state))
+  trueExpr := valueNode(ExprKind.Bool, "true", op.token)
+  falseExpr := valueNode(ExprKind.Bool, "false", op.token)
+  patternBranch := makeExpr(ExprKind.Branch, pattern.expr.text, "", "", "=>", [], [pattern.expr, trueExpr], pattern.expr.line, pattern.expr.column)
+  wildcardPattern := makeExpr(ExprKind.Pattern, "_", "", "", "", [], [], pattern.expr.line, pattern.expr.column)
+  wildcardBranch := makeExpr(ExprKind.Branch, "_", "", "", "=>", [], [wildcardPattern, falseExpr], pattern.expr.line, pattern.expr.column)
+  matchExpr := appendChild(appendChild(appendChild(node(ExprKind.Match, op.token), subject), patternBranch), wildcardBranch)
+  parseExpressionLoop(ExprStep {
+    state: pattern.state,
+    expr: matchExpr
   }, minPrec)
 }
 
@@ -2025,10 +2085,21 @@ parseThisSelector(
   state: ParserState
 ) -> ExprStep => {
   dot := parserConsume(state, TokenKind.Dot, "expected '.'")
-  name := parserConsume(dot.state, TokenKind.Ident, "expected field name after '.'")
+  parserCheck(dot.state, TokenKind.Ident) ? parseThisFieldSelector(dot.state, dot.token)
+    : ExprStep {
+      state: dot.state,
+      expr: node(ExprKind.This, dot.token)
+    }
+}
+
+parseThisFieldSelector(
+  state: ParserState,
+  dot: Token
+) -> ExprStep => {
+  name := parserConsume(state, TokenKind.Ident, "expected field name after '.'")
   ExprStep {
     state: name.state,
-    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [node(ExprKind.This, dot.token)], dot.token.line, dot.token.column)
+    expr: makeExpr(ExprKind.Selector, name.token.lexeme, name.token.lexeme, "", ".", [], [node(ExprKind.This, dot)], dot.line, dot.column)
   }
 }
 
@@ -2399,6 +2470,40 @@ finishPatternBlock(
 parsePatternText(
   state: ParserState
 ) -> ExprStep => parsePatternTextLoop(state, "", parserPeek(state), 0, false)
+
+parsePredicatePatternText(
+  state: ParserState
+) -> ExprStep => parsePredicatePatternTextLoop(state, "", parserPeek(state), 0, false)
+
+parsePredicatePatternTextLoop(
+  state: ParserState,
+  text: String,
+  start: Token,
+  depth: Int,
+  consumed: Bool
+) -> ExprStep => (
+  (depth == 0) && predicatePatternEnd(parserPeek(state).kind) ? ExprStep {
+    state: (
+      consumed ? state
+        : parserErrorAt(state, parserPeek(state), "expected pattern")
+    ),
+    expr: withText(node(ExprKind.Pattern, start), text)
+  }
+    : parsePredicatePatternTextToken(state, text, start, depth)
+)
+
+parsePredicatePatternTextToken(
+  state: ParserState,
+  text: String,
+  start: Token,
+  depth: Int
+) -> ExprStep => {
+  token := parserPeek(state)
+  step := parserAdvance(state)
+  parsePredicatePatternTextLoop(step.state, text + token.lexeme, start, patternNextDepth(depth, token.kind), true)
+}
+
+predicatePatternEnd(kind: TokenKind) -> Bool => (((((kind == TokenKind.EOF) || (kind == TokenKind.Newline)) || (kind == TokenKind.Comma)) || (kind == TokenKind.RParen)) || (kind == TokenKind.RBracket)) || (kind == TokenKind.RBrace)
 
 parsePatternTextLoop(
   state: ParserState,

@@ -84,6 +84,27 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.AssignExpr{Name: name, Target: left, Value: p.parseExpression(1), Pos: left.Position()}
 			continue
 		}
+		if minPrec <= 1 && p.match(lexer.Tilde) {
+			p.skipNewlines()
+			pattern := p.parsePattern()
+			left = &ast.MatchExpr{
+				Subject: left,
+				Branches: []ast.PatternBranch{
+					{
+						Pattern: pattern,
+						Expr:    &ast.BoolLiteral{Value: true, Pos: pattern.Position()},
+						Pos:     pattern.Position(),
+					},
+					{
+						Pattern: &ast.WildcardPattern{Pos: pattern.Position()},
+						Expr:    &ast.BoolLiteral{Value: false, Pos: pattern.Position()},
+						Pos:     pattern.Position(),
+					},
+				},
+				Pos: left.Position(),
+			}
+			continue
+		}
 		if minPrec <= 1 && p.check(lexer.Question) && p.questionIsPostfixUnwrap() {
 			question := p.advance()
 			left = &ast.ResultUnwrapExpr{Expr: left, Pos: question.Pos}
@@ -345,7 +366,10 @@ func (p *Parser) parsePrimary() ast.Expr {
 		return &ast.AtExpr{Name: name.Lexeme, Pos: at.Pos}
 	case lexer.Dot:
 		dot := p.advance()
-		name := p.consume(lexer.Ident, "expected field name after '.'")
+		if !p.check(lexer.Ident) {
+			return &ast.ThisExpr{Pos: dot.Pos}
+		}
+		name := p.advance()
 		return &ast.SelectorExpr{
 			Receiver: &ast.ThisExpr{Pos: dot.Pos},
 			Name:     name.Lexeme,

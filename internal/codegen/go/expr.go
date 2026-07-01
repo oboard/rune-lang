@@ -371,6 +371,21 @@ func (g *generator) userMethodCall(call *ir.CallExpr) (string, bool) {
 			return fmt.Sprintf("%s(%s)", mangleIdent(typeName+"_"+sel.Name), strings.Join(args, ", ")), true
 		}
 	}
+	for _, enum := range g.file.Enums {
+		if enum.Name != typeName {
+			continue
+		}
+		for _, method := range enum.Methods {
+			if method.Name != sel.Name || !method.Static {
+				continue
+			}
+			args := make([]string, 0, len(call.Args))
+			for _, arg := range call.Args {
+				args = append(args, g.expr(arg))
+			}
+			return fmt.Sprintf("%s(%s)", mangleIdent(typeName+"_"+sel.Name), strings.Join(args, ", ")), true
+		}
+	}
 	return "", false
 }
 
@@ -1029,7 +1044,9 @@ func firstMapLikeGetPattern(pattern ir.Pattern) *ir.MapPattern {
 
 func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
-	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AsPattern:
+	case *ir.BindingPattern:
+		return !p.Constant
+	case *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AsPattern:
 		return true
 	case *ir.OrPattern:
 		for _, alternative := range p.Alternatives {
@@ -1303,20 +1320,20 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
-			case *ir.LetStmt:
-				if isNamespaceValue(s.Value) {
-					continue
-				}
-				if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
-					name := mangleIdent(s.Name)
-					value := g.withThisName(name, func() string {
-						return g.expr(obj)
-					})
-					parts = append(parts, fmt.Sprintf("var %s %s", name, anonymousObjectType(obj)))
-					parts = append(parts, fmt.Sprintf("%s = %s", name, value))
-					continue
-				}
-				parts = append(parts, fmt.Sprintf("%s := %s", mangleIdent(s.Name), g.expr(s.Value)))
+		case *ir.LetStmt:
+			if isNamespaceValue(s.Value) {
+				continue
+			}
+			if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
+				name := mangleIdent(s.Name)
+				value := g.withThisName(name, func() string {
+					return g.expr(obj)
+				})
+				parts = append(parts, fmt.Sprintf("var %s %s", name, anonymousObjectType(obj)))
+				parts = append(parts, fmt.Sprintf("%s = %s", name, value))
+				continue
+			}
+			parts = append(parts, fmt.Sprintf("%s := %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
 				parts = append(parts, fmt.Sprintf("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
@@ -1476,11 +1493,11 @@ func anonymousObjectFieldsForType(g *generator, obj *ir.AnonymousObjectLiteral, 
 		for _, field := range obj.Fields {
 			byName[field.Name] = field.Value
 		}
-			for _, field := range resultFields {
-				if value := byName[field.name]; value != nil {
-					fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.expr(value)))
-				}
+		for _, field := range resultFields {
+			if value := byName[field.name]; value != nil {
+				fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.expr(value)))
 			}
+		}
 		return strings.Join(fields, ", ")
 	}
 	for _, field := range sortedAnonymousFields(obj.Fields) {

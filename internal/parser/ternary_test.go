@@ -50,7 +50,7 @@ func TestParseTernaryLowerThanOr(t *testing.T) {
 
 func TestParseConditionalExpressionWithoutElse(t *testing.T) {
 	file, errs := Parse(`main() => {
-  handled ~= false
+  handled :=: false
   isHelp ? handled = true
 }`)
 	if len(errs) > 0 {

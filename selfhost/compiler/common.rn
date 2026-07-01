@@ -85,7 +85,7 @@
 + fileUsesUnwrap(
   file: IRFile
 ) -> Bool => (
-  functionsUseUnwrap(file.functions, 0) || structsUseUnwrap(file.structs, 0) || testsUseUnwrap(file.tests, 0)
+  functionsUseUnwrap(file.functions, 0) || structsUseUnwrap(file.structs, 0) || enumsUseUnwrap(file.enums, 0) || testsUseUnwrap(file.tests, 0)
 )
 
 functionsUseUnwrap(
@@ -112,6 +112,14 @@ structsUseUnwrap(
     : functionsUseUnwrap(structs[index].methods, 0) || structsUseUnwrap(structs, index + 1)
 )
 
+enumsUseUnwrap(
+  enums: Array[IREnumType],
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : functionsUseUnwrap(enums[index].methods, 0) || enumsUseUnwrap(enums, index + 1)
+)
+
 + exprUsesUnwrap(
   expr: IRExpr
 ) -> Bool => (
@@ -122,7 +130,7 @@ structsUseUnwrap(
 + fileUsesModuleCall(
   file: IRFile,
   key: String
-) -> Bool => functionsUseModuleCall(file.functions, key, 0) || structsUseModuleCall(file.structs, key, 0) || testsUseModuleCall(file.tests, key, 0)
+) -> Bool => functionsUseModuleCall(file.functions, key, 0) || structsUseModuleCall(file.structs, key, 0) || enumsUseModuleCall(file.enums, key, 0) || testsUseModuleCall(file.tests, key, 0)
 
 functionsUseModuleCall(
   functions: Array[IRFunction],
@@ -149,6 +157,15 @@ structsUseModuleCall(
 ) -> Bool => (
   index >= structs.length() ? false
     : functionsUseModuleCall(structs[index].methods, key, 0) || structsUseModuleCall(structs, key, index + 1)
+)
+
+enumsUseModuleCall(
+  enums: Array[IREnumType],
+  key: String,
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : functionsUseModuleCall(enums[index].methods, key, 0) || enumsUseModuleCall(enums, key, index + 1)
 )
 
 exprUsesModuleCall(

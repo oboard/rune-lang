@@ -101,6 +101,7 @@ type EnumType struct {
 	GenericConstraints map[string]Type
 	Annotations        []Annotation
 	Members            []EnumMember
+	Methods            []*Function
 	Pos                lexer.Position
 	NamePos            lexer.Position
 	SourcePath         string

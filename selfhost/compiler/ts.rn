@@ -4,7 +4,7 @@
 + generateTypeScript(
   file: IRFile
 ) -> String => {
-  out ~= ""
+  out :=: ""
   (
     fileUsesUnwrap(file) ? out = out + emitTSUnwrapHelper()
   )
@@ -12,6 +12,7 @@
     fileUsesPathFamily(file) ? out = out + emitTSPathHelpers()
   )
   file.enums.each((enumDecl) => out = (out + emitTSEnum(enumDecl)) + "\n")
+  file.enums.each((enumDecl) => out = out + emitTSEnumMethods(enumDecl))
   file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
   file.functions.each((fn) => out = (out + emitTSFunction(fn)) + "\n")
@@ -152,7 +153,7 @@ emitTSEnum(
 emitTSSimpleEnum(
   enumDecl: IREnumType
 ) -> String => {
-  out ~= ("type " + mangleIdent(enumDecl.name)) + " = number;\n"
+  out :=: ("type " + mangleIdent(enumDecl.name)) + " = number;\n"
   out = ((out + "const ") + mangleIdent(enumDecl.name)) + " = {\n"
   out = out + emitTSEnumMembers(enumDecl.members, 0, "")
   out + "} as const;\n"
@@ -161,7 +162,7 @@ emitTSSimpleEnum(
 emitTSPayloadEnum(
   enumDecl: IREnumType
 ) -> String => {
-  out ~= (("type " + mangleIdent(enumDecl.name)) + emitTSGenerics(enumDecl.generics)) + " =\n"
+  out :=: (("type " + mangleIdent(enumDecl.name)) + emitTSGenerics(enumDecl.generics)) + " =\n"
   out = out + emitTSPayloadEnumMembers(enumDecl.members, 0, "")
   out = out + ";\n\n"
   out + emitTSPayloadEnumConstructors(enumDecl.name, enumDecl.generics, enumDecl.members, 0, "")
@@ -267,7 +268,7 @@ emitTSStruct(
   typeDecl: IRStructType
 ) -> String => {
   generics := emitTSGenerics(typeDecl.generics)
-  out ~= (("type " + mangleIdent(typeDecl.name)) + generics) + " = {\n"
+  out :=: (("type " + mangleIdent(typeDecl.name)) + generics) + " = {\n"
   typeDecl.fields.each((field) => out = ((((out + indent(1)) + tsPropertyName(field.name)) + ": ") + tsType(field.typeName)) + ";\n")
   out + "};\n"
 }
@@ -275,8 +276,16 @@ emitTSStruct(
 emitTSMethods(
   typeDecl: IRStructType
 ) -> String => {
-  out ~= ""
+  out :=: ""
   typeDecl.methods.each((method) => out = (out + emitTSFunction(methodWithReceiver(typeDecl.name, method))) + "\n")
+  out
+}
+
+emitTSEnumMethods(
+  enumDecl: IREnumType
+) -> String => {
+  out :=: ""
+  enumDecl.methods.each((method) => out = (out + emitTSFunction(methodWithReceiver(enumDecl.name, method))) + "\n")
   out
 }
 
@@ -312,7 +321,7 @@ prependThisParam(
 
 emitTSFunction(fn: IRFunction) -> String => {
   ret := tsType(fn.returnType)
-  out ~= (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
+  out :=: (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
   out = out + emitTSBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
   out + "}\n"
 }
@@ -366,7 +375,7 @@ emitTSLet(
 ) -> String => line(level, (((tsLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitTSExpr(expr.children[0])) + ";")
 
 tsLetKeyword(op: String) -> String => op {
-  "~=" => "let "
+  ":=:" => "let "
   _ => "const "
 }
 

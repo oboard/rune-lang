@@ -8,7 +8,7 @@
   @assert.eq(scores.has("rune"), true)
   @assert.eq(scores.getOr("rune", 0), 10)
   @assert.eq(scores.getOr("missing", 7), 7)
-  total ~= 0
+  total :=: 0
   scores.each((value, key) => total = (total + value) + key.length())
   @assert.eq(total, 38)
   keys := scores.keys()
@@ -40,7 +40,7 @@
   @assert.eq(scores.size(), 3)
   @assert.eq(scores["core"], 25)
   @assert.eq(scores["new"], 30)
-  total ~= 0
+  total :=: 0
   scores.each((value) => total = total + value)
   @assert.eq(total, 65)
 }
@@ -92,7 +92,7 @@
   @assert.eq(seen.has("a"), true)
   chars := seen.values()
   @assert.eq(chars.length(), 2)
-  total ~= 0
+  total :=: 0
   seen.each((value) => total = total + value.length())
   @assert.eq(total, 2)
   @assert.eq(seen.delete("a"), true)

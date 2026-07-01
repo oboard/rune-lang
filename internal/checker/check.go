@@ -65,6 +65,9 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	for _, typ := range file.Types {
 		c.inferMethods(typ)
 	}
+	for _, enum := range file.Enums {
+		c.inferEnumMethods(enum)
+	}
 	for _, fn := range file.Functions {
 		c.inferFunction(fn)
 	}
@@ -219,11 +222,13 @@ func (c *checker) collectCoreTypeConstructors(typ *stdlib.Type) {
 		return
 	}
 	enumInfo := &EnumInfo{
-		Name:       typ.Name,
-		Private:    false,
-		SourcePath: typ.SourcePath,
-		Generics:   append([]string(nil), typ.Generics...),
-		ByName:     map[string]EnumMemberInfo{},
+		Name:          typ.Name,
+		Private:       false,
+		SourcePath:    typ.SourcePath,
+		Generics:      append([]string(nil), typ.Generics...),
+		ByName:        map[string]EnumMemberInfo{},
+		Methods:       map[string]*FuncInfo{},
+		StaticMethods: map[string]*FuncInfo{},
 	}
 	typeGenerics := genericSet(typ.Generics...)
 	for _, constructor := range typ.Constructors {

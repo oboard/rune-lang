@@ -87,6 +87,7 @@ renameEnum(
   generics: enumeration.generics,
   annotations: enumeration.annotations,
   members: enumeration.members.map((member) => @macro.renameEnumMember(member, targetID, name)),
+  methods: enumeration.methods.map((method) => @macro.renameFunction(method, targetID, name)),
   sourcePath: enumeration.sourcePath
 }
 

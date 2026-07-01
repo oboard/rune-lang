@@ -65,7 +65,7 @@ assertInterpretOutput(
   parsed := @json.parse(text)
   match := /(\\w+)-(\\d+)/.exec("id-42")
   parts := "a,b,c".split(",")
-  total ~= 0
+  total :=: 0
   @iter.range(1, 4).each((value) => total = total + value)
   symbol := @symbol.for("rune.key")
   @json.stringify(parsed).includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")

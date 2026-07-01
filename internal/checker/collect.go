@@ -59,7 +59,7 @@ func (c *checker) collect(file *ast.File) {
 			c.errorf(enum.NamePos, "duplicate type %q", enum.Name)
 			continue
 		}
-		c.info.Enums[enum.Name] = &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, Generics: append([]string(nil), enum.Generics...), GenericConstraints: c.collectGenericConstraints(enum.GenericConstraints, genericSet(enum.Generics...), enum.NamePos), ByName: map[string]EnumMemberInfo{}, Node: enum}
+		c.info.Enums[enum.Name] = &EnumInfo{Name: enum.Name, Private: enum.Private, SourcePath: enum.SourcePath, Generics: append([]string(nil), enum.Generics...), GenericConstraints: c.collectGenericConstraints(enum.GenericConstraints, genericSet(enum.Generics...), enum.NamePos), ByName: map[string]EnumMemberInfo{}, Methods: map[string]*FuncInfo{}, StaticMethods: map[string]*FuncInfo{}, Node: enum}
 	}
 	for _, trait := range file.Traits {
 		info := c.info.Traits[trait.Name]
@@ -129,6 +129,19 @@ func (c *checker) collect(file *ast.File) {
 			info.ByName[member.Name] = memberInfo
 			if !member.HasValue {
 				c.info.Constructors[member.Name] = append(c.info.Constructors[member.Name], EnumConstructorInfo{Enum: info, Member: memberInfo})
+			}
+		}
+		for _, method := range enum.Methods {
+			if _, exists := info.Methods[method.Name]; exists || info.StaticMethods[method.Name] != nil {
+				c.errorf(method.NamePos, "duplicate method %s.%s", enum.Name, method.Name)
+				continue
+			}
+			methodInfo := c.collectFunction(method, enum.Generics, info.GenericConstraints)
+			methodInfo.ReceiverType = enumReceiverType(enum)
+			if method.Static {
+				info.StaticMethods[method.Name] = methodInfo
+			} else {
+				info.Methods[method.Name] = methodInfo
 			}
 		}
 	}

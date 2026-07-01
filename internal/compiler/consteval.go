@@ -55,6 +55,9 @@ func (r *compileTimeRewriter) file(file *ast.File) {
 		for memberIdx := range file.Enums[idx].Members {
 			r.annotations(file.Enums[idx].Members[memberIdx].Annotations)
 		}
+		for _, method := range file.Enums[idx].Methods {
+			r.function(method)
+		}
 	}
 	for _, fn := range file.Functions {
 		r.function(fn)
@@ -445,6 +448,9 @@ func hasCompileTimeExpr(file *ast.File) bool {
 					ast.WalkExpr(arg, visit)
 				}
 			}
+		}
+		for _, method := range enum.Methods {
+			ast.WalkExpr(method.Body, visit)
 		}
 	}
 	for _, fn := range file.Functions {

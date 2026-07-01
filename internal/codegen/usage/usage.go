@@ -39,6 +39,11 @@ func Collect(file *ir.File) Usage {
 			usage.collectFunction(file, method)
 		}
 	}
+	for _, enum := range file.Enums {
+		for _, method := range enum.Methods {
+			usage.collectFunction(file, method)
+		}
+	}
 	return usage
 }
 

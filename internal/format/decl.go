@@ -67,6 +67,12 @@ func (f *formatter) enumType(enum *ast.EnumType) {
 		}
 		f.linef("%s(%s)", member.Name, formatParams(member.Params))
 	}
+	for i, method := range enum.Methods {
+		if len(enum.Members) > 0 || i > 0 {
+			f.line("")
+		}
+		f.function(method)
+	}
 	f.indent--
 	f.line("}")
 }

@@ -63,6 +63,36 @@ func TestStringArrayPatternBindings(t *testing.T) {
 	}
 }
 
+func TestPatternPredicateExpressionInfersEnumMembers(t *testing.T) {
+	src := `TokenKind: {
+  Ident = 0
+  Int = 1
+  RParen = 2
+}
+
+canEndValueToken(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got := info.Functions["canEndValueToken"].Return; got != Bool {
+		t.Fatalf("return = %s, want Bool", got)
+	}
+	match := file.Functions[0].Body.(*ast.MatchExpr)
+	orPattern := match.Branches[0].Pattern.(*ast.OrPattern)
+	for _, alternative := range orPattern.Alternatives {
+		binding, ok := alternative.(*ast.BindingPattern)
+		if !ok || !binding.Constant || binding.Type != "TokenKind" {
+			t.Fatalf("alternative = %#v, want inferred enum member binding", alternative)
+		}
+	}
+}
+
 func TestConstructorArgPatternsAndOrBindings(t *testing.T) {
 	src := `Expr: {
   Lit(value: Int)

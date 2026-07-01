@@ -96,6 +96,7 @@
   generics: Array[String]
   annotations: Array[SyntaxAnnotation]
   members: Array[SyntaxEnumMember]
+  methods: Array[SyntaxFunction]
   sourcePath: String
 }
 

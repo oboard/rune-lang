@@ -82,6 +82,7 @@ type EnumType struct {
 	Private  bool
 	Generics []string
 	Members  []EnumMember
+	Methods  []*Function
 	Pos      lexer.Position
 	NamePos  lexer.Position
 }

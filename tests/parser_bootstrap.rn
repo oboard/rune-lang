@@ -175,7 +175,7 @@ Status[E]: {
 
 ? "selfhost parser reads conditional expression without else" {
   source := `main() => {
-  handled ~= false
+  handled :=: false
   isHelp ? handled = true
 }
 `

@@ -932,7 +932,7 @@ func (c *checker) checkEnumMemberBindingPattern(pattern *ast.BindingPattern, sub
 		return false
 	}
 	member, ok := enum.ByName[pattern.Name]
-	if !ok || member.HasValue || len(member.Params) > 0 {
+	if !ok || len(member.Params) > 0 {
 		return false
 	}
 	if !c.checkPrivateAccess("enum member", enum.Name+"."+pattern.Name, member.Private, member.SourcePath, pattern.Pos) {

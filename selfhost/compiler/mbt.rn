@@ -2,8 +2,9 @@
 @"./common.rn"
 
 + generateMoonBit(file: IRFile) -> String => {
-  out ~= ""
+  out :=: ""
   file.enums.each((enumDecl) => out = (out + emitMoonBitEnum(enumDecl)) + "\n")
+  file.enums.each((enumDecl) => out = out + emitMoonBitEnumMethods(enumDecl))
   (
     fileUsesUnwrap(file) ? out = out + emitMoonBitUnwrapHelper()
   )
@@ -180,7 +181,7 @@ fn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String
 emitMoonBitEnum(
   enumDecl: IREnumType
 ) -> String => {
-  out ~= (("enum " + moonBitTypeIdent(enumDecl.name)) + emitMoonBitGenerics(enumDecl.generics)) + " {\n"
+  out :=: (("enum " + moonBitTypeIdent(enumDecl.name)) + emitMoonBitGenerics(enumDecl.generics)) + " {\n"
   out = out + emitMoonBitEnumMembers(enumDecl.members, 0, "")
   out + "} derive(Eq, Show)\n"
 }
@@ -204,7 +205,7 @@ emitMoonBitEnumMember(
 emitMoonBitStruct(
   typeDecl: IRStructType
 ) -> String => {
-  out ~= ("struct " + moonBitTypeIdent(typeDecl.name)) + " {\n"
+  out :=: ("struct " + moonBitTypeIdent(typeDecl.name)) + " {\n"
   typeDecl.fields.each((field) => out = out + line(1, (mangleIdent(field.name) + " : ") + moonBitType(field.typeName)))
   out + "}\n"
 }
@@ -212,8 +213,16 @@ emitMoonBitStruct(
 emitMoonBitMethods(
   typeDecl: IRStructType
 ) -> String => {
-  out ~= ""
+  out :=: ""
   typeDecl.methods.each((method) => out = (out + emitMoonBitFunction(methodWithMoonBitReceiver(typeDecl.name, method), "")) + "\n")
+  out
+}
+
+emitMoonBitEnumMethods(
+  enumDecl: IREnumType
+) -> String => {
+  out :=: ""
+  enumDecl.methods.each((method) => out = (out + emitMoonBitFunction(methodWithMoonBitReceiver(enumDecl.name, method), "")) + "\n")
   out
 }
 
@@ -262,7 +271,7 @@ emitMoonBitFunction(
     (fn.name == "main") && (params == "") ? "fn main"
       : (((("fn " + name) + emitMoonBitGenerics(fn.generics)) + "(") + params) + ")" + ret
   )
-  out ~= head + " {\n"
+  out :=: head + " {\n"
   out = out + emitMoonBitBody(fn.body, bodyReturns, fn.returnType, 1)
   out + "}\n"
 }
@@ -315,7 +324,7 @@ emitMoonBitLet(
 ) -> String => line(level, ((moonBitLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitMoonBitExpr(expr.children[0]))
 
 moonBitLetKeyword(op: String) -> String => op {
-  "~=" => "let mut "
+  ":=:" => "let mut "
   _ => "let "
 }
 
@@ -325,7 +334,7 @@ emitMoonBitObjectDestructure(
 ) -> String => {
   source := emitMoonBitExpr(expr.children[0])
   tmp := mangleIdent("__object")
-  out ~= line(level, ("let " + tmp) + " = " + source)
+  out :=: line(level, ("let " + tmp) + " = " + source)
   expr.params.each((param) => out = out + line(level, (((("let " + mangleIdent(param.name)) + " = ") + tmp) + ".") + mangleIdent(param.typeName)))
   out
 }

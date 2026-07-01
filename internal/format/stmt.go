@@ -12,7 +12,7 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 	case *ast.LetStmt:
 		op := ":="
 		if s.Mutable {
-			op = "~="
+			op = ":=:"
 		}
 		if s.Signal {
 			out := fmt.Sprintf("$%s := %s", s.Name, f.expr(s.Value))
@@ -29,7 +29,7 @@ func (f *formatter) stmt(stmt ast.Stmt) string {
 	case *ast.ObjectDestructureStmt:
 		op := ":="
 		if s.Mutable {
-			op = "~="
+			op = ":=:"
 		}
 		fields := make([]string, 0, len(s.Fields))
 		for _, field := range s.Fields {

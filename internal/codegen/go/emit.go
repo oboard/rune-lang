@@ -109,7 +109,7 @@ func (g *generator) routineFunction(fn *ir.Function, params []string) error {
 	return nil
 }
 
-func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
+func (g *generator) method(typeName string, fn *ir.Function) error {
 	params := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s %s", mangleIdent(param.Name), goType(param.Type)))
@@ -126,9 +126,9 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 		}
 	}
 	if fn.Static {
-		g.linef("func %s%s(%s)%s {", mangleIdent(typ.Name+"_"+fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+		g.linef("func %s%s(%s)%s {", mangleIdent(typeName+"_"+fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	} else {
-		g.linef("func (%s %s) %s%s(%s)%s {", mangleIdent("this"), mangleIdent(typ.Name), mangleIdent(fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+		g.linef("func (%s %s) %s%s(%s)%s {", mangleIdent("this"), mangleIdent(typeName), mangleIdent(fn.Name), goGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	}
 	g.indent++
 	g.pushSignalScope()

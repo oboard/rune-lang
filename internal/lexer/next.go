@@ -71,6 +71,9 @@ func (l *Lexer) nextCode() Token {
 		return l.token(Comma)
 	case ':':
 		if l.match('=') {
+			if l.match(':') {
+				return l.token(MutDeclare)
+			}
 			return l.token(Declare)
 		}
 		if l.match(':') {
@@ -139,9 +142,6 @@ func (l *Lexer) nextCode() Token {
 		}
 		return l.token(Assign)
 	case '~':
-		if l.match('=') {
-			return l.token(MutDeclare)
-		}
 		return l.token(Tilde)
 	case '$':
 		return l.token(Dollar)
@@ -307,6 +307,9 @@ func (l *Lexer) nextXMLExpr() Token {
 		return l.token(Comma)
 	case ':':
 		if l.match('=') {
+			if l.match(':') {
+				return l.token(MutDeclare)
+			}
 			return l.token(Declare)
 		}
 		if l.match(':') {
@@ -382,9 +385,6 @@ func (l *Lexer) nextXMLExpr() Token {
 		}
 		return l.token(Assign)
 	case '~':
-		if l.match('=') {
-			return l.token(MutDeclare)
-		}
 		return l.token(Tilde)
 	case '$':
 		return l.token(Dollar)

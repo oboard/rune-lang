@@ -41,6 +41,34 @@ main() => {
 	}
 }
 
+func TestInterpreterRunsPatternPredicateExpression(t *testing.T) {
+	src := `Kind: {
+  Ident = 0
+  Slash = 1
+}
+
+canEnd(kind: Kind) -> Bool => kind ~ (Ident)
+
+main() => {
+  @io.println(canEnd(Kind.Ident))
+  @io.println(canEnd(Kind.Slash))
+}
+`
+	prog, diags := compiler.AnalyzeSource("pattern_predicate.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "true\nfalse" {
+		t.Fatalf("output = %q, want predicate match result", got)
+	}
+}
+
 func TestInterpreterRunsMapLiteral(t *testing.T) {
 	src := `main() => {
   values := {

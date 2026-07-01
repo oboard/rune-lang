@@ -5889,6 +5889,7 @@ callMethodValue(
       : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
   )
   Struct(typeName, fields) => callStructMethod(interpreter, env, receiver, name, children)
+  Enum(typeName, memberName, value, payload) => callDeclaredStructMethod(interpreter, env, receiver, name, children)
   Module(moduleName) => callModuleFunction(interpreter, env, moduleName, name, children)
   _ => errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
 }
@@ -7980,11 +7981,32 @@ findStructAt(
     )
 )
 
+findEnum(
+  interpreter: Interpreter,
+  name: String
+) -> IREnumType => findEnumAt(interpreter.enums, name, 0)
+
+findEnumAt(
+  enums: Array[IREnumType],
+  name: String,
+  index: Int
+) -> IREnumType => (
+  index >= enums.length() ? emptyIREnumType()
+    : (
+      enums[index].name == name ? enums[index]
+        : findEnumAt(enums, name, index + 1)
+    )
+)
+
 findMethod(
   interpreter: Interpreter,
   typeName: String,
   name: String
-) -> IRFunction => findMethodAt(findStruct(interpreter, typeName).methods, name, 0)
+) -> IRFunction => {
+  method := findMethodAt(findStruct(interpreter, typeName).methods, name, 0)
+  method.name == "" ? findMethodAt(findEnum(interpreter, typeName).methods, name, 0)
+    : method
+}
 
 findMethodAt(
   methods: Array[IRFunction],
@@ -8003,6 +8025,16 @@ emptyIRStructType() -> IRStructType => {
   private: false,
   generics: [],
   fields: [],
+  methods: [],
+  line: 0,
+  column: 0
+}
+
+emptyIREnumType() -> IREnumType => {
+  name: "",
+  private: false,
+  generics: [],
+  members: [],
   methods: [],
   line: 0,
   column: 0

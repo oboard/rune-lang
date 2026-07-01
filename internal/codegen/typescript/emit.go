@@ -95,23 +95,23 @@ func (g *generator) routineFunction(fn *ir.Function, params []string) error {
 	return nil
 }
 
-func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
+func (g *generator) method(typeName string, fn *ir.Function) error {
 	params := []string{}
 	if !fn.Static {
-		params = append(params, fmt.Sprintf("%s: %s", mangleIdent("this"), mangleIdent(typ.Name)))
+		params = append(params, fmt.Sprintf("%s: %s", mangleIdent("this"), mangleIdent(typeName)))
 	}
 	for _, param := range fn.Params {
 		params = append(params, fmt.Sprintf("%s: %s", mangleIdent(param.Name), tsType(param.Type)))
 	}
 	if fn.Return == checker.WebComponent && !fn.Routine {
-		return g.webComponentFunction(mangleMethod(typ.Name, fn.Name), params, fn)
+		return g.webComponentFunction(mangleMethod(typeName, fn.Name), params, fn)
 	}
 	if fn.Routine {
-		return g.routineMethod(typ, fn, params)
+		return g.routineMethod(typeName, fn, params)
 	}
 	prefix := "function"
 	ret := tsType(fn.Return)
-	g.linef("%s %s%s(%s): %s {", prefix, mangleMethod(typ.Name, fn.Name), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
+	g.linef("%s %s%s(%s): %s {", prefix, mangleMethod(typeName, fn.Name), tsGenerics(fn.Generics, fn.GenericConstraints), strings.Join(params, ", "), ret)
 	g.indent++
 	g.pushSignalScope()
 	g.pushReactiveScope()
@@ -131,9 +131,9 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) error {
 	return nil
 }
 
-func (g *generator) routineMethod(typ *ir.StructType, fn *ir.Function, params []string) error {
+func (g *generator) routineMethod(typeName string, fn *ir.Function, params []string) error {
 	ret := tsType(fn.Return)
-	g.linef("function %s(%s): Promise<%s> {", mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
+	g.linef("function %s(%s): Promise<%s> {", mangleMethod(typeName, fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.linef("return runeGo(async (): Promise<%s> => {", ret)
 	g.indent++
@@ -150,7 +150,6 @@ func (g *generator) routineMethod(typ *ir.StructType, fn *ir.Function, params []
 	g.line("});")
 	g.indent--
 	g.line("}")
-	_ = typ
 	return nil
 }
 

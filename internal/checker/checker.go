@@ -151,6 +151,8 @@ type EnumInfo struct {
 	GenericConstraints map[string]string
 	Members            []EnumMemberInfo
 	ByName             map[string]EnumMemberInfo
+	Methods            map[string]*FuncInfo
+	StaticMethods      map[string]*FuncInfo
 	Node               *ast.EnumType
 }
 

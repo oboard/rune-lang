@@ -328,8 +328,33 @@ func (p *Parser) parseEnumBody(name lexer.Token, private bool, generics []string
 	enum := &ast.EnumType{Name: name.Lexeme, Private: private, Generics: generics, GenericConstraints: constraints, Pos: name.Pos, NamePos: name.Pos}
 	for !p.check(lexer.RBrace) && !p.check(lexer.EOF) {
 		annotations := p.parseAnnotations()
-		p.parsePublicModifier()
+		privateMethod := p.parseObjectPrivateModifier()
+		static := false
+		if p.looksLikeStaticFunctionDecl() {
+			p.matchStaticMethodMarker()
+			p.skipNewlines()
+			static = true
+		}
+		if p.looksLikeFunctionDecl() {
+			method := p.parseFunctionWithReceiver(enum.Name, privateMethod)
+			if method != nil {
+				method.Static = static
+				method.Annotations = annotations
+				enum.Methods = append(enum.Methods, method)
+			}
+			p.consumeStatementEnd()
+			p.skipNewlines()
+			continue
+		}
+		if static {
+			p.errorAt(p.peek(), "enum members cannot be static")
+		}
+		if privateMethod {
+			p.errorAt(p.peek(), "enum members use '+' for public visibility")
+		}
+		public := p.parsePublicModifier()
 		memberName := p.consume(lexer.Ident, "expected enum member name")
+		_ = public
 		member := ast.EnumMember{Name: memberName.Lexeme, Annotations: annotations, Pos: memberName.Pos}
 		if p.check(lexer.Newline) || p.check(lexer.Comma) || p.check(lexer.RBrace) || p.check(lexer.EOF) {
 			enum.Members = append(enum.Members, member)

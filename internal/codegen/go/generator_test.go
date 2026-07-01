@@ -675,7 +675,7 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
   scores := @map.new("", 0)
   scores.set("rune", 10)
   @io.println(scores.getOr("rune", 0))
-  total ~= 0
+  total :=: 0
   scores.each((value) => total = total + value)
 
   seen := @set.new("")

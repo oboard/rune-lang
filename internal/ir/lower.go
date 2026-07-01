@@ -188,6 +188,9 @@ func (l lowerer) enumType(enum *ast.EnumType) *EnumType {
 		}
 		out.Members = append(out.Members, lowered)
 	}
+	for _, method := range enum.Methods {
+		out.Methods = append(out.Methods, l.function(method, enum.Name))
+	}
 	return out
 }
 
@@ -220,7 +223,21 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 	if l.info != nil {
 		if receiver != "" {
 			if typ := l.info.Types[receiver]; typ != nil {
-				if info := typ.Methods[fn.Name]; info != nil {
+				info := typ.Methods[fn.Name]
+				if fn.Static {
+					info = typ.StaticMethods[fn.Name]
+				}
+				if info != nil {
+					l.fillFunctionInfo(out, info)
+					foundInfo = true
+				}
+			}
+			if enum := l.info.Enums[receiver]; enum != nil {
+				info := enum.Methods[fn.Name]
+				if fn.Static {
+					info = enum.StaticMethods[fn.Name]
+				}
+				if info != nil {
 					l.fillFunctionInfo(out, info)
 					foundInfo = true
 				}

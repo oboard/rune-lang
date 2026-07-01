@@ -861,16 +861,26 @@ func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, erro
 		if _, shadowed := env.Get(ident.Name); shadowed {
 			return nil, fmt.Errorf("static selector receiver %q is a value, not a type", ident.Name)
 		}
-		typ := i.types[ident.Name]
-		if typ == nil {
+		typeName := ident.Name
+		typ := i.types[typeName]
+		enum := i.enums[typeName]
+		if typ == nil && enum == nil {
 			return nil, fmt.Errorf("unknown type %q", ident.Name)
 		}
-		for _, method := range typ.Methods {
-			if method.Name == expr.Name && method.Static {
-				return method, nil
+		if typ != nil {
+			for _, method := range typ.Methods {
+				if method.Name == expr.Name && method.Static {
+					return method, nil
+				}
+			}
+		} else {
+			for _, method := range enum.Methods {
+				if method.Name == expr.Name && method.Static {
+					return method, nil
+				}
 			}
 		}
-		return nil, fmt.Errorf("type %s has no static method %q", typ.Name, expr.Name)
+		return nil, fmt.Errorf("type %s has no static method %q", typeName, expr.Name)
 	}
 	if ident, ok := expr.Receiver.(*ir.Identifier); ok {
 		if _, exists := env.Get(ident.Name); !exists {

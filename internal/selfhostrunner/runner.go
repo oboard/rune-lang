@@ -449,6 +449,7 @@ type __runeSelfhostIREnum struct {
 	Private bool ` + "`json:\"private\"`" + `
 	Generics []string ` + "`json:\"generics\"`" + `
 	Members []__runeSelfhostIREnumMember ` + "`json:\"members\"`" + `
+	Methods []__runeSelfhostIRFunc ` + "`json:\"methods\"`" + `
 	Line int ` + "`json:\"line\"`" + `
 	Column int ` + "`json:\"column\"`" + `
 }
@@ -574,7 +575,7 @@ func __runeSelfhostStructs(in []__runeSelfhostIRStruct) []__IRStructType {
 func __runeSelfhostEnums(in []__runeSelfhostIREnum) []__IREnumType {
 	out := make([]__IREnumType, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IREnumType{__name: item.Name, __private: item.Private, __generics: item.Generics, __members: __runeSelfhostEnumMembers(item.Members), __line: item.Line, __column: item.Column})
+		out = append(out, __IREnumType{__name: item.Name, __private: item.Private, __generics: item.Generics, __members: __runeSelfhostEnumMembers(item.Members), __methods: __runeSelfhostFuncs(item.Methods), __line: item.Line, __column: item.Column})
 	}
 	return out
 }

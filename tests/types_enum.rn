@@ -10,6 +10,11 @@ Container: {
 Status: {
   Completed = 0
   Fail = 1
+
+  toString() -> String => . {
+    Completed => "completed"
+    Fail => "fail"
+  }
 }
 
 statusText(status: Status) -> String => status {
@@ -17,6 +22,8 @@ statusText(status: Status) -> String => status {
   Status.Fail => "fail"
   _ => "unknown"
 }
+
+statusMethodText(status: Status) -> String => status.toString()
 
 ? "enum members and comparison" {
   @assert.eq(Status.Completed == Status.Completed, true)
@@ -27,6 +34,12 @@ statusText(status: Status) -> String => status {
 ? "enum typed parameter and match" {
   @assert.eq(statusText(Status.Completed), "completed")
   @assert.eq(statusText(Status.Fail), "fail")
+}
+
+? "enum methods" {
+  @assert.eq(Status.Completed.toString(), "completed")
+  @assert.eq(Status.Fail.toString(), "fail")
+  @assert.eq(statusMethodText(Status.Completed), "completed")
 }
 
 ? "enum in struct fields" {

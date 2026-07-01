@@ -80,6 +80,7 @@
   private: Bool
   generics: Array[String]
   members: Array[IREnumMember]
+  methods: Array[IRFunction]
   line: Int
   column: Int
 }
@@ -106,7 +107,7 @@
 + lowerParsed(
   file: ParsedFile
 ) -> IRFile => {
-  out ~= IRFile {
+  out :=: IRFile {
     imports: [],
     structs: [],
     enums: [],
@@ -244,6 +245,7 @@ lowerEnumType(
   private: typeDecl.private,
   generics: typeDecl.generics,
   members: lowerEnumMembers(typeDecl.members),
+  methods: lowerFunctions(typeDecl.methods),
   line: typeDecl.line,
   column: typeDecl.column
 }

@@ -171,7 +171,7 @@ canEndExpression(
   kind: TokenKind
 ) => canEndValueToken(kind) || canEndXmlLess(state, kind)
 
-canEndValueToken(kind: TokenKind) => (((((((((((kind == TokenKind.Ident) || (kind == TokenKind.Int)) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.TemplateString)) || (kind == TokenKind.Char)) || (kind == TokenKind.Regex)) || (kind == TokenKind.XMLText)) || (kind == TokenKind.RParen)) || (kind == TokenKind.RBracket)) || (kind == TokenKind.RBrace)
+canEndValueToken(kind: TokenKind) => kind ~ (Ident | Int | Double | BigInt | String | TemplateString | Char | Regex | XMLText | RParen | RBracket | RBrace)
 
 canEndXmlLess(
   state: LexState,
@@ -416,7 +416,10 @@ lexDotDot(state: LexState) -> Lexed => peek(state) {
 }
 
 lexColon(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), TokenKind.Declare)
+  '=' => (
+    peek(advanceState(state)) == ':' ? lexed(advanceState(advanceState(state)), TokenKind.MutDeclare)
+      : lexed(advanceState(state), TokenKind.Declare)
+  )
   ':' => lexed(advanceState(state), TokenKind.DoubleColon)
   _ => lexed(state, TokenKind.Colon)
 }
@@ -442,7 +445,6 @@ lexBang(state: LexState) -> Lexed => peek(state) {
 }
 
 lexTilde(state: LexState) -> Lexed => peek(state) {
-  '=' => lexed(advanceState(state), TokenKind.MutDeclare)
   _ => lexed(state, TokenKind.Tilde)
 }
 

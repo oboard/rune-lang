@@ -2,7 +2,7 @@
 @"./common.rn"
 
 + generateGo(file: IRFile) -> String => {
-  out ~= "package main\n\n"
+  out :=: "package main\n\n"
   out = out + emitGoImports(file)
   (
     fileUsesUnwrap(file) ? out = out + emitGoUnwrapHelper()
@@ -11,6 +11,7 @@
     fileUsesPathFamily(file) ? out = out + emitGoPathHelpers()
   )
   file.enums.each((enumDecl) => out = (out + emitGoEnum(enumDecl)) + "\n")
+  file.enums.each((enumDecl) => out = out + emitGoEnumMethods(file, enumDecl))
   file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitGoMethods(file, typeDecl))
   file.functions.each((fn) => out = (out + emitGoFunction(file, fn, "")) + "\n")
@@ -272,7 +273,7 @@ emitGoEnum(
 emitGoSimpleEnum(
   enumDecl: IREnumType
 ) -> String => {
-  out ~= ("type " + mangleIdent(enumDecl.name)) + " int\n\n"
+  out :=: ("type " + mangleIdent(enumDecl.name)) + " int\n\n"
   out = out + "const (\n"
   out = out + emitGoEnumMembers(enumDecl.name, enumDecl.members, 0, "")
   out + ")\n"
@@ -281,7 +282,7 @@ emitGoSimpleEnum(
 emitGoPayloadEnum(
   enumDecl: IREnumType
 ) -> String => {
-  out ~= (("type " + mangleIdent(enumDecl.name)) + emitGoGenericsDecl(enumDecl.generics)) + " struct {\n"
+  out :=: (("type " + mangleIdent(enumDecl.name)) + emitGoGenericsDecl(enumDecl.generics)) + " struct {\n"
   out = out + "\t__tag int\n"
   out = out + "\t__payload []any\n"
   out = out + "}\n\n"
@@ -365,7 +366,7 @@ emitGoEnumMembers(
 emitGoStruct(
   typeDecl: IRStructType
 ) -> String => {
-  out ~= (("type " + mangleIdent(typeDecl.name)) + emitGoGenericsDecl(typeDecl.generics)) + " struct {\n"
+  out :=: (("type " + mangleIdent(typeDecl.name)) + emitGoGenericsDecl(typeDecl.generics)) + " struct {\n"
   typeDecl.fields.each((field) => out = ((((out + "\t") + mangleIdent(field.name)) + " ") + goType(field.typeName)) + "\n")
   out + "}\n"
 }
@@ -374,8 +375,17 @@ emitGoMethods(
   file: IRFile,
   typeDecl: IRStructType
 ) -> String => {
-  out ~= ""
+  out :=: ""
   typeDecl.methods.each((method) => out = (out + emitGoFunction(file, method, typeDecl.name)) + "\n")
+  out
+}
+
+emitGoEnumMethods(
+  file: IRFile,
+  enumDecl: IREnumType
+) -> String => {
+  out :=: ""
+  enumDecl.methods.each((method) => out = (out + emitGoFunction(file, method, enumDecl.name)) + "\n")
   out
 }
 
@@ -397,7 +407,7 @@ emitGoFunction(
     receiverType == "" ? mangleIdent(fn.name)
       : mangleIdent(fn.name)
   )
-  out ~= (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
+  out :=: (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
   out = out + emitGoBody(file, fn.body, returnsValue(fn.returnType), fn.returnType, 1)
   out + "}\n"
 }
@@ -466,7 +476,7 @@ emitGoObjectDestructure(
   level: Int
 ) -> String => {
   source := emitGoExpr(expr.children[0])
-  out ~= ""
+  out :=: ""
   expr.params.each((param) => out = (out + line(level, (((mangleIdent(param.name) + " := ") + source) + ".") + mangleIdent(param.typeName))) + line(level, "_ = " + mangleIdent(param.name)))
   out
 }
@@ -786,7 +796,7 @@ hasFunction(
     )
 )
 
-usesPrintFile(file: IRFile) -> Bool => functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0)
+usesPrintFile(file: IRFile) -> Bool => functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0) || enumsUsePrint(file.enums, 0)
 
 functionsUsePrint(
   functions: Array[IRFunction],
@@ -807,6 +817,17 @@ structsUsePrint(
     : (
       functionsUsePrint(structs[index].methods, 0) ? true
         : structsUsePrint(structs, index + 1)
+    )
+)
+
+enumsUsePrint(
+  enums: Array[IREnumType],
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : (
+      functionsUsePrint(enums[index].methods, 0) ? true
+        : enumsUsePrint(enums, index + 1)
     )
 )
 

@@ -523,6 +523,13 @@ func receiverType(typ *ast.StructType) Type {
 	return Type(typ.Name + "[" + strings.Join(typ.Generics, ",") + "]")
 }
 
+func enumReceiverType(enum *ast.EnumType) Type {
+	if len(enum.Generics) == 0 {
+		return Type(enum.Name)
+	}
+	return Type(enum.Name + "[" + strings.Join(enum.Generics, ",") + "]")
+}
+
 func structFieldType(info *StructInfo, receiver Type, field FieldInfo) Type {
 	return substituteTypeParams(field.Type, typeParamBindingsForStruct(info, receiver))
 }

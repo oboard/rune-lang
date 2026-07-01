@@ -58,13 +58,13 @@
 
 ? "array each" {
   values := [1, 2, 3, 4]
-  sum ~= 0
+  sum :=: 0
   values.each((value) => sum = sum + value)
   @assert.eq(sum, 10)
-  indexed ~= 0
+  indexed :=: 0
   values.each((value, index) => indexed = indexed + (value * index))
   @assert.eq(indexed, 20)
-  product ~= 1
+  product :=: 1
   values.each((value) => product = product * value)
   @assert.eq(product, 24)
 }

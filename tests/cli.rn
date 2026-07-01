@@ -1,5 +1,5 @@
 ? "cli parses flags options and arguments" {
-  cmd ~= @cli.command("ship", "Ship build artifacts")
+  cmd :=: @cli.command("ship", "Ship build artifacts")
   cmd = @cli.withVersion(cmd, "1.0.0")
   cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
   cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", true, null))
@@ -15,7 +15,7 @@
 }
 
 ? "cli supports defaults rest args and short values" {
-  cmd ~= @cli.command("fmtx", "Format files")
+  cmd :=: @cli.command("fmtx", "Format files")
   cmd = @cli.withOption(cmd, @cli.option("mode", "m", "MODE", "format mode", false, "check"))
   cmd = @cli.withArgument(cmd, @cli.argument("path", "input path", false))
   result := @cli.parseArgs(cmd, ["-mwrite", "--", "one", "two"])
@@ -30,7 +30,7 @@
 }
 
 ? "cli validates required values and help" {
-  cmd ~= @cli.command("ship", "Ship build artifacts")
+  cmd :=: @cli.command("ship", "Ship build artifacts")
   cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", true, null))
   cmd = @cli.withArgument(cmd, @cli.argument("target", "target name", true))
   missing := @cli.parseArgs(cmd, ["core"])

@@ -49,6 +49,39 @@ func (c *checker) inferMethods(typ *ast.StructType) {
 	})
 }
 
+func (c *checker) inferEnumMethods(enum *ast.EnumType) {
+	enumInfo := c.info.Enums[enum.Name]
+	if enumInfo == nil {
+		return
+	}
+	c.withSourcePath(enum.SourcePath, func() {
+		for _, method := range enum.Methods {
+			info := enumInfo.Methods[method.Name]
+			if method.Static {
+				info = enumInfo.StaticMethods[method.Name]
+			}
+			if info == nil {
+				continue
+			}
+			c.withSourcePath(method.SourcePath, func() {
+				c.withGenericTypes(info.Generics, info.GenericConstraints, func() {
+					env := map[string]Type{}
+					if !info.Static {
+						env["this"] = info.ReceiverType
+					}
+					for _, param := range info.Params {
+						env[param.Name] = param.Type
+					}
+					c.rewritePatternPredicateBody(method, info, env)
+					ret := c.inferFunctionBody(method, info, env)
+					c.finishInferredParams(info, method.Body, env)
+					c.finishFunctionReturn(info, ret, c.popRoutineErrors(), method)
+				})
+			})
+		}
+	})
+}
+
 func (c *checker) inferFunction(fn *ast.Function) {
 	if c.inferredFunctions[fn] {
 		return
@@ -692,13 +725,19 @@ func (c *checker) inferStaticSelector(sel *ast.SelectorExpr, env map[string]Type
 		return Unknown
 	}
 	structInfo := c.info.Types[ident.Name]
-	if structInfo == nil {
+	enumInfo := c.info.Enums[ident.Name]
+	if structInfo == nil && enumInfo == nil {
 		c.errorf(sel.Pos, "unknown type %q", ident.Name)
 		return Unknown
 	}
-	method := structInfo.StaticMethods[sel.Name]
+	var method *FuncInfo
+	if structInfo != nil {
+		method = structInfo.StaticMethods[sel.Name]
+	} else {
+		method = enumInfo.StaticMethods[sel.Name]
+	}
 	if method == nil {
-		if sel.Name == "fromJson" &&
+		if structInfo != nil && sel.Name == "fromJson" &&
 			structInfo.Methods[sel.Name] == nil &&
 			structInfo.Node != nil &&
 			hasJSONAnnotation(structInfo.Node.Annotations, "object") {
@@ -708,7 +747,7 @@ func (c *checker) inferStaticSelector(sel *ast.SelectorExpr, env map[string]Type
 		c.errorf(sel.Pos, "type %s has no static method %q", ident.Name, sel.Name)
 		return Unknown
 	}
-	if !c.checkPrivateAccess("static method", structInfo.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
+	if !c.checkPrivateAccess("static method", ident.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
 		return Unknown
 	}
 	c.info.ExprTypes[ident] = Type(ident.Name)
@@ -863,13 +902,19 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 				return Unknown
 			}
 			structInfo := c.info.Types[ident.Name]
-			if structInfo == nil {
+			enumInfo := c.info.Enums[ident.Name]
+			if structInfo == nil && enumInfo == nil {
 				c.errorf(sel.Pos, "unknown type %q", ident.Name)
 				return Unknown
 			}
-			method := structInfo.StaticMethods[sel.Name]
+			var method *FuncInfo
+			if structInfo != nil {
+				method = structInfo.StaticMethods[sel.Name]
+			} else {
+				method = enumInfo.StaticMethods[sel.Name]
+			}
 			if method == nil {
-				if sel.Name == "fromJson" &&
+				if structInfo != nil && sel.Name == "fromJson" &&
 					structInfo.Methods[sel.Name] == nil &&
 					structInfo.Node != nil &&
 					hasJSONAnnotation(structInfo.Node.Annotations, "object") {
@@ -882,7 +927,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 				c.errorf(sel.Pos, "type %s has no static method %q", ident.Name, sel.Name)
 				return Unknown
 			}
-			if !c.checkPrivateAccess("static method", structInfo.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
+			if !c.checkPrivateAccess("static method", ident.Name+"::"+sel.Name, method.Private, method.SourcePath, sel.Pos) {
 				return Unknown
 			}
 			c.info.ExprTypes[ident] = Type(ident.Name)
@@ -895,6 +940,10 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		if ident, ok := sel.Receiver.(*ast.Identifier); ok {
 			if _, shadowed := env[ident.Name]; !shadowed {
 				if structInfo := c.info.Types[ident.Name]; structInfo != nil && structInfo.StaticMethods[sel.Name] != nil {
+					c.errorf(sel.Pos, "static method %s::%s must be called with '::'", ident.Name, sel.Name)
+					return Unknown
+				}
+				if enumInfo := c.info.Enums[ident.Name]; enumInfo != nil && enumInfo.StaticMethods[sel.Name] != nil {
 					c.errorf(sel.Pos, "static method %s::%s must be called with '::'", ident.Name, sel.Name)
 					return Unknown
 				}
@@ -957,6 +1006,29 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		if ret, ok := c.inferStdlibReceiverMethodCall(receiver, sel, call, argTypes, env); ok {
 			return ret
+		}
+		if enumInfo := c.info.Enums[baseTypeName(receiver)]; enumInfo != nil {
+			if !c.checkPrivateAccess("enum", enumInfo.Name, enumInfo.Private, enumInfo.SourcePath, sel.Pos) {
+				return Unknown
+			}
+			method := enumInfo.Methods[sel.Name]
+			if method == nil {
+				c.errorf(sel.Pos, "type %s has no method %q", receiver, sel.Name)
+				return Unknown
+			}
+			if !c.checkPrivateAccess("method", enumInfo.Name+"."+sel.Name, method.Private, method.SourcePath, sel.Pos) {
+				return Unknown
+			}
+			bindings := typeParamBindingsForEnum(enumInfo, receiver)
+			params := make([]ParamInfo, 0, len(method.Params))
+			for _, param := range method.Params {
+				params = append(params, ParamInfo{Name: param.Name, Type: substituteTypeParams(param.Type, bindings)})
+			}
+			ret := substituteTypeParams(method.Return, bindings)
+			c.refineCallArgsFromParams(params, call.Args, argTypes, env)
+			c.checkArgs(sel.Name, params, call.Args, argTypes, sel.Pos)
+			c.info.ResolvedSelectorFunctions[sel] = method
+			return c.finishRoutineCall(call, method.Routine, ret)
 		}
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {

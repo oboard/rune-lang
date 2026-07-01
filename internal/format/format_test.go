@@ -167,7 +167,7 @@ Args: {
 }
 
 func TestObjectDestructureFormatting(t *testing.T) {
-	src := `main()=>{{state:nextState,ch}:=step}`
+	src := `main()=>{{state:nextState,ch}:=:step}`
 	file, errs := parser.Parse(src)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -175,7 +175,7 @@ func TestObjectDestructureFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `main() => {
-  { state: nextState, ch } := step
+  { state: nextState, ch } :=: step
 }
 `
 	if got != want {
@@ -195,6 +195,21 @@ mask()=>1|2|4`
 	want := `isSpace(ch) => ' ' | '\t' | '\r'
 
 mask() => (1 | 2) | 4
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestPatternPredicateExpressionFormatting(t *testing.T) {
+	src := `canEnd(kind:TokenKind)->Bool=>kind~(Ident|Int|RParen)`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `canEnd(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)

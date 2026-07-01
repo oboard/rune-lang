@@ -1,14 +1,14 @@
 Status: {
   Completed = 0
   Fail = 1
-}
 
-statusText(status: Status) -> String => {
-  Status.Completed => "completed"
-  Status.Fail => "fail"
+  toString() -> String => . {
+    Completed => "completed"
+    Fail => "fail"
+  }
 }
 
 main() => {
   status := Status.Completed
-  @io.println(statusText(status))
+  @io.println(status.toString())
 }

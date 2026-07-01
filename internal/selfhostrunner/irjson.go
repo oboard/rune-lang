@@ -139,12 +139,13 @@ type selfhostIRConst struct {
 }
 
 type selfhostIREnum struct {
-	Name    string                 `json:"name"`
-	Private bool                   `json:"private"`
-	Generics []string              `json:"generics"`
-	Members []selfhostIREnumMember `json:"members"`
-	Line    int                    `json:"line"`
-	Column  int                    `json:"column"`
+	Name     string                 `json:"name"`
+	Private  bool                   `json:"private"`
+	Generics []string               `json:"generics"`
+	Members  []selfhostIREnumMember `json:"members"`
+	Methods  []selfhostIRFunc       `json:"methods"`
+	Line     int                    `json:"line"`
+	Column   int                    `json:"column"`
 }
 
 type selfhostIRTest struct {
@@ -235,6 +236,7 @@ func selfhostEnum(enum *ir.EnumType) selfhostIREnum {
 		Private:  enum.Private,
 		Generics: append([]string(nil), enum.Generics...),
 		Members:  make([]selfhostIREnumMember, 0, len(enum.Members)),
+		Methods:  make([]selfhostIRFunc, 0, len(enum.Methods)),
 		Line:     enum.Pos.Line,
 		Column:   enum.Pos.Column,
 	}
@@ -251,6 +253,9 @@ func selfhostEnum(enum *ir.EnumType) selfhostIREnum {
 			Line:    member.Pos.Line,
 			Column:  member.Pos.Column,
 		})
+	}
+	for _, method := range enum.Methods {
+		out.Methods = append(out.Methods, selfhostFunc(method))
 	}
 	return out
 }
@@ -552,6 +557,9 @@ func selfhostPatternText(pattern ir.Pattern) string {
 		return "_"
 	case *ir.BindingPattern:
 		if p.Constant {
+			if p.Type != "" && p.LinkName == "" {
+				return p.Name
+			}
 			return "=" + p.Name
 		}
 		return p.Name

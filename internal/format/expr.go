@@ -122,7 +122,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.WatchExpr:
 		return f.watchExpr(e)
 	case *ast.ThisExpr:
-		return "this"
+		return "."
 	default:
 		return ""
 	}
@@ -510,6 +510,13 @@ func mapKeyNeedsParens(expr ast.Expr) bool {
 }
 
 func (f *formatter) matchExpr(match *ast.MatchExpr) string {
+	if pattern, ok := patternPredicateMatchPattern(match); ok {
+		formatted := f.pattern(pattern)
+		if _, ok := pattern.(*ast.OrPattern); ok {
+			formatted = "(" + formatted + ")"
+		}
+		return f.expr(match.Subject) + " ~ " + formatted
+	}
 	var b strings.Builder
 	b.WriteString(f.expr(match.Subject))
 	b.WriteString(" {\n")
@@ -525,6 +532,24 @@ func (f *formatter) matchExpr(match *ast.MatchExpr) string {
 	b.WriteString(closeIndent)
 	b.WriteString("}")
 	return b.String()
+}
+
+func patternPredicateMatchPattern(match *ast.MatchExpr) (ast.Pattern, bool) {
+	if match == nil || len(match.Branches) != 2 {
+		return nil, false
+	}
+	first, ok := match.Branches[0].Expr.(*ast.BoolLiteral)
+	if !ok || !first.Value {
+		return nil, false
+	}
+	second, ok := match.Branches[1].Expr.(*ast.BoolLiteral)
+	if !ok || second.Value {
+		return nil, false
+	}
+	if _, ok := match.Branches[1].Pattern.(*ast.WildcardPattern); !ok {
+		return nil, false
+	}
+	return match.Branches[0].Pattern, true
 }
 
 func (f *formatter) anonymousObjectLiteral(obj *ast.AnonymousObjectLiteral) string {

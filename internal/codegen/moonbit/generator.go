@@ -50,6 +50,10 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 		g.enumType(enum)
+		for _, method := range enum.Methods {
+			g.line("")
+			g.method(enum.Name, method)
+		}
 	}
 	if len(file.Enums) > 0 && len(file.Types) > 0 {
 		g.line("")
@@ -61,7 +65,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.structType(typ)
 		for _, method := range typ.Methods {
 			g.line("")
-			g.method(typ, method)
+			g.method(typ.Name, method)
 		}
 	}
 	if len(g.anonOrder) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0) {
@@ -168,6 +172,11 @@ func (g *generator) collectAnonymousTypes() {
 			g.addAnonymousType(field.Type, "")
 		}
 		for _, method := range typ.Methods {
+			g.collectFunctionAnonymousTypes(method)
+		}
+	}
+	for _, enum := range g.file.Enums {
+		for _, method := range enum.Methods {
 			g.collectFunctionAnonymousTypes(method)
 		}
 	}
@@ -396,10 +405,10 @@ func (g *generator) function(fn *ir.Function) {
 	g.line("}")
 }
 
-func (g *generator) method(typ *ir.StructType, fn *ir.Function) {
+func (g *generator) method(typeName string, fn *ir.Function) {
 	params := make([]string, 0, len(fn.Params)+1)
 	if !fn.Static {
-		params = append(params, fmt.Sprintf("self : %s", mangleType(typ.Name)))
+		params = append(params, fmt.Sprintf("self : %s", mangleType(typeName)))
 		g.thisNames = append(g.thisNames, "self")
 	}
 	for _, param := range fn.Params {
@@ -407,7 +416,7 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) {
 	}
 	ret := ""
 	ret = " -> " + g.mbtType(fn.Return)
-	g.linef("%s %s(%s)%s {", g.fnPrefix(fn), mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
+	g.linef("%s %s(%s)%s {", g.fnPrefix(fn), mangleMethod(typeName, fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.body(fn, fn.Body, fn.Return)
 	g.indent--
@@ -432,6 +441,13 @@ func fileHasRoutine(file *ir.File) bool {
 	}
 	for _, typ := range file.Types {
 		for _, method := range typ.Methods {
+			if method.Routine {
+				return true
+			}
+		}
+	}
+	for _, enum := range file.Enums {
+		for _, method := range enum.Methods {
 			if method.Routine {
 				return true
 			}

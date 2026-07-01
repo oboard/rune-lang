@@ -33,6 +33,9 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 				if typ := i.types[ident.Name]; typ != nil {
 					return i.callStaticMethod(typ, sel.Name, call.Args, env)
 				}
+				if enum := i.enums[ident.Name]; enum != nil {
+					return i.callEnumStaticMethod(enum, sel.Name, call.Args, env)
+				}
 			}
 			return nil, fmt.Errorf("unknown type %q", ident.Name)
 		}
@@ -72,6 +75,8 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 				return i.callCallable(field, call.Args, env)
 			}
 			return i.callMethod(value, sel.Name, call.Args, env)
+		case EnumValue:
+			return i.callEnumMethod(value, sel.Name, call.Args, env)
 		default:
 			return nil, fmt.Errorf("type %s has no method %q", typeName(value), sel.Name)
 		}
@@ -332,6 +337,36 @@ func (i *Interpreter) callStructMethodValues(receiver *Struct, name string, valu
 	return i.evalFunctionBody(method.Body, method.Return, local)
 }
 
+func (i *Interpreter) callEnumMethod(receiver EnumValue, name string, args []ir.Expr, env *Env) (Value, error) {
+	enum := i.enums[receiver.TypeName]
+	if enum == nil {
+		return nil, fmt.Errorf("unknown type %q", receiver.TypeName)
+	}
+	var method *ir.Function
+	for _, candidate := range enum.Methods {
+		if candidate.Name == name && !candidate.Static {
+			method = candidate
+			break
+		}
+	}
+	if method == nil {
+		return nil, fmt.Errorf("type %s has no method %q", receiver.TypeName, name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	if len(values) != len(method.Params) {
+		return nil, fmt.Errorf("method %s.%s expects %d args, got %d", receiver.TypeName, name, len(method.Params), len(values))
+	}
+	local := NewEnv(i.globals)
+	local.Define("this", receiver)
+	for idx, param := range method.Params {
+		local.Define(param.Name, values[idx])
+	}
+	return i.evalFunctionBody(method.Body, method.Return, local)
+}
+
 func (i *Interpreter) callStaticMethod(typ *ir.StructType, name string, args []ir.Expr, env *Env) (Value, error) {
 	var method *ir.Function
 	for _, candidate := range typ.Methods {
@@ -349,6 +384,31 @@ func (i *Interpreter) callStaticMethod(typ *ir.StructType, name string, args []i
 	}
 	if len(values) != len(method.Params) {
 		return nil, fmt.Errorf("static method %s::%s expects %d args, got %d", typ.Name, name, len(method.Params), len(values))
+	}
+	local := NewEnv(i.globals)
+	for idx, param := range method.Params {
+		local.Define(param.Name, values[idx])
+	}
+	return i.evalFunctionBody(method.Body, method.Return, local)
+}
+
+func (i *Interpreter) callEnumStaticMethod(enum *ir.EnumType, name string, args []ir.Expr, env *Env) (Value, error) {
+	var method *ir.Function
+	for _, candidate := range enum.Methods {
+		if candidate.Name == name && candidate.Static {
+			method = candidate
+			break
+		}
+	}
+	if method == nil {
+		return nil, fmt.Errorf("type %s has no static method %q", enum.Name, name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	if len(values) != len(method.Params) {
+		return nil, fmt.Errorf("static method %s::%s expects %d args, got %d", enum.Name, name, len(method.Params), len(values))
 	}
 	local := NewEnv(i.globals)
 	for idx, param := range method.Params {

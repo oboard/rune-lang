@@ -51,7 +51,7 @@ chooseNullable(flag: Bool) -> Int? => (
 }
 
 ? "ternary void branches" {
-  seen ~= 0
+  seen :=: 0
   (
     true ? seen = 1
       : seen = 2
@@ -65,7 +65,7 @@ chooseNullable(flag: Bool) -> Int? => (
 }
 
 ? "conditional expression without else" {
-  handled ~= false
+  handled :=: false
   (
     true ? handled = true
   )

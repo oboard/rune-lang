@@ -541,15 +541,19 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 			}
 			return g.expr(sel) + "(" + strings.Join(args, ", ") + ")"
 		}
+		if typ := g.structTypeFromReceiver(sel.Receiver); typ != nil {
+			_ = typ
+			return g.receiverMethodCall(sel, args)
+		}
+		if enum := g.enumTypeFromReceiver(sel.Receiver); enum != nil {
+			_ = enum
+			return g.receiverMethodCall(sel, args)
+		}
 		if sel.ResolvedName != "" {
 			return mangleIdent(sel.ResolvedName) + "(" + strings.Join(args, ", ") + ")"
 		}
 		if ident, ok := sel.Receiver.(*ir.Identifier); ok && g.importAliases[ident.Name] {
 			return mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
-		}
-		if typ := g.structTypeFromReceiver(sel.Receiver); typ != nil {
-			args = append([]string{g.expr(sel.Receiver)}, args...)
-			return mangleMethod(typ.Name, sel.Name) + "(" + strings.Join(args, ", ") + ")"
 		}
 		if fieldType, ok := g.selectorFieldType(sel.Receiver.ResultType(), sel.Name); ok {
 			if isFuncType(fieldType) {
@@ -645,6 +649,24 @@ func (g *generator) structTypeFromReceiver(receiver ir.Expr) *ir.StructType {
 	for _, typ := range g.file.Types {
 		if typ.Name == name {
 			return typ
+		}
+	}
+	return nil
+}
+
+func (g *generator) receiverMethodCall(sel *ir.SelectorExpr, args []string) string {
+	receiver := g.expr(sel.Receiver)
+	if len(args) == 0 {
+		return receiver + "." + mangleIdent(sel.Name) + "()"
+	}
+	return receiver + "." + mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
+}
+
+func (g *generator) enumTypeFromReceiver(receiver ir.Expr) *ir.EnumType {
+	name := string(receiver.ResultType())
+	for _, enum := range g.file.Enums {
+		if enum.Name == name {
+			return enum
 		}
 	}
 	return nil
