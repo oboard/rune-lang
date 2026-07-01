@@ -316,7 +316,14 @@ stringValue(
 
 bigIntValue(
   value: String
-) -> RuntimeValue => RuntimeValue.String(value, "BigInt")
+) -> RuntimeValue => RuntimeValue.String(normalizeBigIntText(value), "BigInt")
+
+normalizeBigIntText(
+  value: String
+) -> String => value.endsWith("n") {
+  true => value.slice(0, value.length() - 1)
+  _ => value
+}
 
 charValue(value: Char) -> RuntimeValue => RuntimeValue.Char(value)
 
@@ -7676,7 +7683,7 @@ runtimeEqual(
                     : (
                       runtimeKind(left) == RuntimeValueKind.Double ? runtimeDouble(left) == runtimeDouble(right)
                         : (
-                          runtimeKind(left) == RuntimeValueKind.String ? runtimeText(left) == runtimeText(right)
+                          runtimeKind(left) == RuntimeValueKind.String ? (runtimeText(left) == runtimeText(right)) && (runtimeTypeName(left) == runtimeTypeName(right))
                             : (
                               runtimeKind(left) == RuntimeValueKind.Char ? runtimeChar(left) == runtimeChar(right)
                                 : (
@@ -7783,7 +7790,7 @@ runtimeValueKindName(
                 : (
                   runtimeKind(value) == RuntimeValueKind.Double ? runtimeText(value)
                     : (
-                      runtimeKind(value) == RuntimeValueKind.String ? runtimeText(value)
+                      runtimeKind(value) == RuntimeValueKind.String ? formatRuntimeString(value)
                         : (
                           runtimeKind(value) == RuntimeValueKind.Char ? runtimeChar(value).toString()
                             : (
@@ -7859,6 +7866,20 @@ formatEntries(
       index == 0 ? ""
         : ", "
     )) + formatRuntimeValue(entries[index].key)) + ": ") + formatRuntimeValue(entries[index].value))
+)
+
+formatRuntimeString(
+  value: RuntimeValue
+) -> String => (
+  isBigIntRuntime(value) ? formatRuntimeBigInt(runtimeText(value))
+    : runtimeText(value)
+)
+
+formatRuntimeBigInt(
+  text: String
+) -> String => (
+  text.endsWith("n") ? text
+    : text + "n"
 )
 
 parseIntText(text: String) -> Int => (
