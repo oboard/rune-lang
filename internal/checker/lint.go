@@ -22,6 +22,40 @@ func Lint(file *ast.File, info *Info) []Diagnostic {
 	return l.diags
 }
 
+func LintErrors(file *ast.File, info *Info) []Diagnostic {
+	return lintErrorsForSourcePath(file, info, "")
+}
+
+func lintErrorsForSourcePath(file *ast.File, info *Info, sourcePath string) []Diagnostic {
+	if file == nil || info == nil {
+		return nil
+	}
+	l := &linter{
+		file:                   file,
+		info:                   info,
+		sourcePath:             normalizeSourcePath(sourcePath),
+		usedFunctions:          map[*FuncInfo]bool{},
+		usedFields:             map[string]bool{},
+		constructedEnumMembers: map[string]bool{},
+	}
+	l.run()
+	diags := l.diags
+	if len(diags) == 0 {
+		return nil
+	}
+	var out []Diagnostic
+	for _, diag := range diags {
+		if diag.Severity != SeverityWarning {
+			out = append(out, diag)
+		}
+	}
+	return out
+}
+
+func LintErrorsForSourcePath(file *ast.File, info *Info, sourcePath string) []Diagnostic {
+	return lintErrorsForSourcePath(file, info, sourcePath)
+}
+
 type linter struct {
 	file                   *ast.File
 	info                   *Info
@@ -30,6 +64,8 @@ type linter struct {
 	usedFields             map[string]bool
 	constructedEnumMembers map[string]bool
 	currentFunction        *ast.Function
+	currentSourcePath      string
+	sourcePath             string
 }
 
 func (l *linter) run() {
@@ -42,7 +78,10 @@ func (l *linter) run() {
 		l.visitFunction(fn)
 	}
 	for _, test := range l.file.Tests {
+		prevSourcePath := l.currentSourcePath
+		l.currentSourcePath = normalizeSourcePath(test.SourcePath)
 		l.visitExpr(test.Body)
+		l.currentSourcePath = prevSourcePath
 	}
 	l.warnUnusedFunctions()
 	l.warnUnusedFields()
@@ -51,7 +90,9 @@ func (l *linter) run() {
 
 func (l *linter) visitFunction(fn *ast.Function) {
 	prev := l.currentFunction
+	prevSourcePath := l.currentSourcePath
 	l.currentFunction = fn
+	l.currentSourcePath = normalizeSourcePath(fn.SourcePath)
 	if len(fn.Params) == 1 {
 		if block, ok := fn.Body.(*ast.PatternBlock); ok {
 			l.lintPatternBranches(block.Branches, Type(fn.Params[0].Type.Canonical()))
@@ -59,6 +100,7 @@ func (l *linter) visitFunction(fn *ast.Function) {
 	}
 	l.visitExpr(fn.Body)
 	l.currentFunction = prev
+	l.currentSourcePath = prevSourcePath
 }
 
 func (l *linter) visitExpr(expr ast.Expr) {
@@ -176,6 +218,10 @@ func (l *linter) visitExprNode(expr ast.Expr) {
 		if fn := l.info.ResolvedFunctions[e]; fn != nil {
 			l.usedFunctions[fn] = true
 		}
+	case *ast.BinaryExpr:
+		l.lintPatternPredicateBinary(e)
+	case *ast.TernaryExpr:
+		l.lintPatternPredicateTernary(e)
 	case *ast.SelectorExpr:
 		if fn := l.info.ResolvedSelectorFunctions[e]; fn != nil {
 			l.usedFunctions[fn] = true
@@ -192,6 +238,96 @@ func (l *linter) visitExprNode(expr ast.Expr) {
 				l.usedFields[fieldKey(typ.Name, e.Name)] = true
 			}
 		}
+	}
+}
+
+func (l *linter) lintPatternPredicateBinary(expr *ast.BinaryExpr) {
+	if expr.Op != lexer.OrOr {
+		return
+	}
+	comparisons := flattenBinaryExpr(expr, lexer.OrOr)
+	if len(comparisons) < 3 {
+		return
+	}
+	subject := ""
+	for _, comparison := range comparisons {
+		binary, ok := comparison.(*ast.BinaryExpr)
+		if !ok || binary.Op != lexer.EqualEqual || !isPatternPredicateValue(binary.Right) {
+			return
+		}
+		key := patternPredicateSubjectKey(binary.Left)
+		if key == "" {
+			return
+		}
+		if subject == "" {
+			subject = key
+			continue
+		}
+		if subject != key {
+			return
+		}
+	}
+	l.error(expr.Pos, "0013", "prefer_pattern_match", "Use '~' with an or-pattern instead of chained equality checks")
+}
+
+func (l *linter) lintPatternPredicateTernary(expr *ast.TernaryExpr) {
+	subject := ""
+	count := 0
+	current := expr
+	for current != nil {
+		binary, ok := current.Condition.(*ast.BinaryExpr)
+		if !ok || binary.Op != lexer.EqualEqual || !isPatternPredicateValue(binary.Right) {
+			break
+		}
+		key := patternPredicateSubjectKey(binary.Left)
+		if key == "" {
+			break
+		}
+		if subject == "" {
+			subject = key
+		} else if subject != key {
+			break
+		}
+		count++
+		next, _ := current.Alternative.(*ast.TernaryExpr)
+		current = next
+	}
+	if count < 3 {
+		return
+	}
+	l.error(expr.Pos, "0013", "prefer_pattern_match", "Use pattern matching instead of a chained equality ternary")
+}
+
+func flattenBinaryExpr(expr ast.Expr, op lexer.Kind) []ast.Expr {
+	binary, ok := expr.(*ast.BinaryExpr)
+	if !ok || binary.Op != op {
+		return []ast.Expr{expr}
+	}
+	out := flattenBinaryExpr(binary.Left, op)
+	return append(out, flattenBinaryExpr(binary.Right, op)...)
+}
+
+func patternPredicateSubjectKey(expr ast.Expr) string {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		return "ident:" + e.Name
+	case *ast.SelectorExpr:
+		receiver := patternPredicateSubjectKey(e.Receiver)
+		if receiver == "" {
+			return ""
+		}
+		return receiver + "." + e.Name
+	default:
+		return ""
+	}
+}
+
+func isPatternPredicateValue(expr ast.Expr) bool {
+	switch expr.(type) {
+	case *ast.BoolLiteral, *ast.IntegerLiteral, *ast.DoubleLiteral, *ast.BigIntLiteral, *ast.StringLiteral, *ast.CharLiteral, *ast.NullLiteral, *ast.SelectorExpr:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -341,6 +477,20 @@ func (l *linter) warn(pos lexer.Position, code string, kind string, format strin
 		Message:  message,
 		Pos:      pos,
 		Severity: SeverityWarning,
+		Code:     code,
+		Kind:     kind,
+	})
+}
+
+func (l *linter) error(pos lexer.Position, code string, kind string, format string, args ...any) {
+	if l.sourcePath != "" && l.currentSourcePath != "" && l.currentSourcePath != l.sourcePath {
+		return
+	}
+	message := fmt.Sprintf("Error [%s] (%s): %s", code, kind, fmt.Sprintf(format, args...))
+	l.diags = append(l.diags, Diagnostic{
+		Message:  message,
+		Pos:      pos,
+		Severity: SeverityError,
 		Code:     code,
 		Kind:     kind,
 	})

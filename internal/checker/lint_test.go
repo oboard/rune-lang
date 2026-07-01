@@ -56,6 +56,55 @@ main() => {
 	}
 }
 
+func TestLintRejectsChainedEqualityTernary(t *testing.T) {
+	src := `dispatch(op: String) -> Int => op == "-" ? 1 : (op == "*" ? 2 : (op == "/" ? 3 : 0))
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	diags = LintErrors(file, info)
+	if !hasLintDiagnostic(diags, "Use pattern matching instead of a chained equality ternary") {
+		t.Fatalf("diagnostics = %#v, want chained equality ternary error", diags)
+	}
+}
+
+func TestLintRejectsChainedEqualityOr(t *testing.T) {
+	src := `TokenKind: {
+  Ident
+  Int
+  RParen
+}
+
+canEndValueToken(kind: TokenKind) -> Bool => ((kind == TokenKind.Ident) || (kind == TokenKind.Int)) || (kind == TokenKind.RParen)
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	diags = LintErrors(file, info)
+	if !hasLintDiagnostic(diags, "Use '~' with an or-pattern instead of chained equality checks") {
+		t.Fatalf("diagnostics = %#v, want chained equality or error", diags)
+	}
+}
+
+func hasLintDiagnostic(diags []Diagnostic, want string) bool {
+	for _, diag := range diags {
+		if diag.Severity != SeverityWarning && strings.Contains(diag.Message, want) {
+			return true
+		}
+	}
+	return false
+}
+
 func hasWarning(diags []Diagnostic, want string) bool {
 	for _, diag := range diags {
 		if diag.Severity == SeverityWarning && strings.Contains(diag.Message, want) {
