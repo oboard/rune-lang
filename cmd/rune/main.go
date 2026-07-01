@@ -56,7 +56,7 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 		}
 		return fmt.Errorf("rune command failed")
 	}
-	return executeInvocation(invocation, hasBackendFlag(args), stdin, stdout, stderr)
+	return executeInvocation(invocation, invocation.__backendExplicit, stdin, stdout, stderr)
 }
 
 func helpForInvocation(invocation __RuneCliInvocation) string {
@@ -132,25 +132,6 @@ func executeInvocation(invocation __RuneCliInvocation, explicitBackend bool, std
 	default:
 		return fmt.Errorf("unknown command %s", invocation.__command)
 	}
-}
-
-func hasBackendFlag(args []string) bool {
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if arg == "--" {
-			return false
-		}
-		if arg == "--backend" || arg == "-b" {
-			return true
-		}
-		if strings.HasPrefix(arg, "--backend=") || (strings.HasPrefix(arg, "-b") && len(arg) > 2) {
-			return true
-		}
-		if !strings.HasPrefix(arg, "-") {
-			return false
-		}
-	}
-	return false
 }
 
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {

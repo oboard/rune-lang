@@ -3603,9 +3603,10 @@ cliStateRest(
 runeCliParseCli(
   args: Array[RuntimeValue]
 ) -> RuntimeValue => {
-  root := runeCliSplitRoot(args, 0, emptyRuntimeArray(), emptyRuntimeArray(), false, false)
+  root := runeCliSplitRoot(args, 0, emptyRuntimeArray(), emptyRuntimeArray(), false, false, false)
   globalArgs := runtimeArray(cliField(root, "globalArgs"))
   commandArgs := runtimeArray(cliField(root, "commandArgs"))
+  backendExplicit := runtimeBool(cliField(root, "backendExplicit"))
   rootResult := cliParseArgsValue(runeCliRootCommand(), globalArgs)
   backend := runtimeText(cliField(cliField(rootResult, "values"), "missing"))
   backend = callMapGetOrString(cliField(rootResult, "values"), "backend", "go")
@@ -3616,8 +3617,8 @@ runeCliParseCli(
       : errors = errors
   )
   (
-    errors.length() > 0 ? runeCliInvocation("", backend, "", "", "", "", false, false, emptyRuntimeArray(), errors, false)
-      : runeCliParseCommandAt(commandArgs, 0, backend)
+    errors.length() > 0 ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), errors, false)
+      : runeCliParseCommandAt(commandArgs, 0, backend, backendExplicit)
   )
 }
 
@@ -3626,14 +3627,16 @@ runeCliSplitRoot(
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
+  backendExplicit: Bool,
   skipNext: Bool,
   inRest: Bool
 ) -> RuntimeValue => (
   position >= args.length() ? structValue("RuneCliRootArgs", [
     RuntimeField { name: "globalArgs", value: arrayValue(globalArgs) },
-    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) }
+    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) },
+    RuntimeField { name: "backendExplicit", value: boolValue(backendExplicit) }
   ])
-    : runeCliSplitRootNext(args, position, globalArgs, commandArgs, skipNext, inRest)
+    : runeCliSplitRootNext(args, position, globalArgs, commandArgs, backendExplicit, skipNext, inRest)
 )
 
 runeCliSplitRootNext(
@@ -3641,11 +3644,12 @@ runeCliSplitRootNext(
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
+  backendExplicit: Bool,
   skipNext: Bool,
   inRest: Bool
 ) -> RuntimeValue => skipNext {
-  true => runeCliSplitRoot(args, position + 1, globalArgs, commandArgs, false, inRest)
-  _ => runeCliSplitRootValue(args, position, globalArgs, commandArgs, inRest)
+  true => runeCliSplitRoot(args, position + 1, globalArgs, commandArgs, backendExplicit, false, inRest)
+  _ => runeCliSplitRootValue(args, position, globalArgs, commandArgs, backendExplicit, inRest)
 }
 
 runeCliSplitRootValue(
@@ -3653,6 +3657,7 @@ runeCliSplitRootValue(
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
+  backendExplicit: Bool,
   inRest: Bool
 ) -> RuntimeValue => {
   arg := runtimeText(args[position])
@@ -3663,8 +3668,11 @@ runeCliSplitRootValue(
   (
     backendPair ? runeCliSplitRootBackendPair(args, position, globalArgs, commandArgs, hasBackendValue, inRest)
       : (
-        backendInline || rootHelp ? runeCliSplitRootGlobal(args, position, globalArgs, commandArgs, inRest)
-          : runeCliSplitRootCommand(args, position, globalArgs, commandArgs, inRest)
+        backendInline ? runeCliSplitRootBackendInline(args, position, globalArgs, commandArgs, inRest)
+          : (
+            rootHelp ? runeCliSplitRootGlobal(args, position, globalArgs, commandArgs, backendExplicit, inRest)
+              : runeCliSplitRootCommand(args, position, globalArgs, commandArgs, backendExplicit, inRest)
+          )
       )
   )
 }
@@ -3698,51 +3706,63 @@ runeCliSplitRootBackendPair(
     hasValue ? pushRuntime(nextGlobal, args[position + 1])
       : nextGlobal
   )
-  runeCliSplitRoot(args, position + 1, nextGlobal, commandArgs, hasValue, inRest)
+  runeCliSplitRoot(args, position + 1, nextGlobal, commandArgs, true, hasValue, inRest)
 }
+
+runeCliSplitRootBackendInline(
+  args: Array[RuntimeValue],
+  position: Int,
+  globalArgs: Array[RuntimeValue],
+  commandArgs: Array[RuntimeValue],
+  inRest: Bool
+) -> RuntimeValue => runeCliSplitRoot(args, position + 1, pushRuntime(globalArgs, args[position]), commandArgs, true, false, inRest)
 
 runeCliSplitRootGlobal(
   args: Array[RuntimeValue],
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
+  backendExplicit: Bool,
   inRest: Bool
-) -> RuntimeValue => runeCliSplitRoot(args, position + 1, pushRuntime(globalArgs, args[position]), commandArgs, false, inRest)
+) -> RuntimeValue => runeCliSplitRoot(args, position + 1, pushRuntime(globalArgs, args[position]), commandArgs, backendExplicit, false, inRest)
 
 runeCliSplitRootCommand(
   args: Array[RuntimeValue],
   position: Int,
   globalArgs: Array[RuntimeValue],
   commandArgs: Array[RuntimeValue],
+  backendExplicit: Bool,
   inRest: Bool
-) -> RuntimeValue => runeCliSplitRoot(args, position + 1, globalArgs, pushRuntime(commandArgs, args[position]), false, inRest || (runtimeText(args[position]) == "--"))
+) -> RuntimeValue => runeCliSplitRoot(args, position + 1, globalArgs, pushRuntime(commandArgs, args[position]), backendExplicit, false, inRest || (runtimeText(args[position]) == "--"))
 
 runeCliParseCommandAt(
   args: Array[RuntimeValue],
   index: Int,
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => (
-  index >= args.length() ? runeCliInvocation("", backend, "", "", "", "", false, false, emptyRuntimeArray(), emptyRuntimeArray(), true)
-    : runeCliDispatchCommand(runtimeText(args[index]), args.slice(index + 1, args.length()), backend)
+  index >= args.length() ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), emptyRuntimeArray(), true)
+    : runeCliDispatchCommand(runtimeText(args[index]), args.slice(index + 1, args.length()), backend, backendExplicit)
 )
 
 runeCliDispatchCommand(
   command: String,
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => (
-  command == "run" ? runeCliParseRun(args, backend)
+  command == "run" ? runeCliParseRun(args, backend, backendExplicit)
     : (
-      command == "build" ? runeCliParseBuild(args, backend)
+      command == "build" ? runeCliParseBuild(args, backend, backendExplicit)
         : (
-          command == "fmt" ? runeCliParseFmt(args, backend)
+          command == "fmt" ? runeCliParseFmt(args, backend, backendExplicit)
             : (
-              command == "format" ? runeCliParseFmt(args, backend)
+              command == "format" ? runeCliParseFmt(args, backend, backendExplicit)
                 : (
-                  command == "test" ? runeCliParseTest(args, backend)
+                  command == "test" ? runeCliParseTest(args, backend, backendExplicit)
                     : (
-                      command == "lsp" ? runeCliParseLsp(args, backend)
-                        : runeCliInvocation(command, backend, "", "", "", "", false, false, emptyRuntimeArray(), [stringValue("unknown command " + command)], false)
+                      command == "lsp" ? runeCliParseLsp(args, backend, backendExplicit)
+                        : runeCliInvocation(command, backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), [stringValue("unknown command " + command)], false)
                     )
                 )
             )
@@ -3752,10 +3772,11 @@ runeCliDispatchCommand(
 
 runeCliParseRun(
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliRunCommand(), runeCliNormalizeRunArgs(args))
-  runeCliInvocationFromResult("run", backend, result, runtimeArray(cliField(result, "rest")), false, false)
+  runeCliInvocationFromResult("run", backend, backendExplicit, result, runtimeArray(cliField(result, "rest")), false, false)
 }
 
 runeCliNormalizeRunArgs(
@@ -3815,39 +3836,44 @@ runeCliAppendRunRest(
 
 runeCliParseBuild(
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliBuildCommand(), args)
-  runeCliInvocationFromResult("build", backend, result, emptyRuntimeArray(), false, false)
+  runeCliInvocationFromResult("build", backend, backendExplicit, result, emptyRuntimeArray(), false, false)
 }
 
 runeCliParseFmt(
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliFmtCommand(), args)
-  runeCliInvocationFromResult("fmt", backend, result, emptyRuntimeArray(), callMapGetOrBool(cliField(result, "flags"), "check", false), callMapGetOrBool(cliField(result, "flags"), "stdout", false))
+  runeCliInvocationFromResult("fmt", backend, backendExplicit, result, emptyRuntimeArray(), callMapGetOrBool(cliField(result, "flags"), "check", false), callMapGetOrBool(cliField(result, "flags"), "stdout", false))
 }
 
 runeCliParseTest(
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliTestCommand(), args)
-  runeCliInvocationFromResult("test", backend, result, emptyRuntimeArray(), false, false)
+  runeCliInvocationFromResult("test", backend, backendExplicit, result, emptyRuntimeArray(), false, false)
 }
 
 runeCliParseLsp(
   args: Array[RuntimeValue],
-  backend: String
+  backend: String,
+  backendExplicit: Bool
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliLspCommand(), args)
-  runeCliInvocationFromResult("lsp", backend, result, emptyRuntimeArray(), false, false)
+  runeCliInvocationFromResult("lsp", backend, backendExplicit, result, emptyRuntimeArray(), false, false)
 }
 
 runeCliInvocationFromResult(
   name: String,
   backend: String,
+  backendExplicit: Bool,
   result: RuntimeValue,
   runArgs: Array[RuntimeValue],
   checkOnly: Bool,
@@ -3863,6 +3889,7 @@ runeCliInvocationFromResult(
     callMapGetOrString(cliField(result, "positionals"), "pattern", ""),
     checkOnly,
     stdout,
+    backendExplicit,
     runArgs,
     errors,
     runtimeBool(cliField(result, "help"))
@@ -3878,6 +3905,7 @@ runeCliInvocation(
   pattern: String,
   checkOnly: Bool,
   stdout: Bool,
+  backendExplicit: Bool,
   runArgs: Array[RuntimeValue],
   errors: Array[RuntimeValue],
   help: Bool
@@ -3891,6 +3919,7 @@ runeCliInvocation(
   RuntimeField { name: "pattern", value: stringValue(pattern) },
   RuntimeField { name: "checkOnly", value: boolValue(checkOnly) },
   RuntimeField { name: "stdout", value: boolValue(stdout) },
+  RuntimeField { name: "backendExplicit", value: boolValue(backendExplicit) },
   RuntimeField { name: "runArgs", value: arrayValue(runArgs) },
   RuntimeField { name: "errors", value: arrayValue(errors) },
   RuntimeField { name: "help", value: boolValue(help) }
