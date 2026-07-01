@@ -635,7 +635,7 @@ func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocatio
 		case __invocation.__command == "check":
 			return ____rune_private_5b8b8d7b_hostCheck(__invocation.__path)
 		case __invocation.__command == "test":
-			return ____rune_private_5b8b8d7b_hostTest(__invocation.__path, __invocation.__pattern, __invocation.__backend, __invocation.__backendExplicit)
+			return ____rune_private_5b8b8d7b_executeTest(__invocation)
 		case __invocation.__command == "fmt":
 			return ____rune_private_5b8b8d7b_hostFmt(__invocation.__path, __invocation.__checkOnly, __invocation.__stdout)
 		case __invocation.__command == "repl":
@@ -677,6 +677,15 @@ func ____rune_private_5b8b8d7b_executeBuild(__invocation __RuneCliInvocation) __
 		default:
 			return ____rune_private_5b8b8d7b_hostBuildGo(__invocation.__path, __invocation.__target, __invocation.__output)
 		}
+	}()
+}
+
+func ____rune_private_5b8b8d7b_executeTest(__invocation __RuneCliInvocation) __RuneCliExecution {
+	return func() __RuneCliExecution {
+		if __invocation.__backendExplicit {
+			return ____rune_private_5b8b8d7b_hostTestWithBackend(__invocation.__path, __invocation.__pattern, __invocation.__backend)
+		}
+		return ____rune_private_5b8b8d7b_hostTest(__invocation.__path, __invocation.__pattern)
 	}()
 }
 
@@ -728,8 +737,12 @@ func ____rune_private_5b8b8d7b_hostCheck(__path string) __RuneCliExecution {
 	return hostCheck(__path)
 }
 
-func ____rune_private_5b8b8d7b_hostTest(__path string, __pattern string, __backend string, __backendExplicit bool) __RuneCliExecution {
-	return hostTest(__path, __pattern, __backend, __backendExplicit)
+func ____rune_private_5b8b8d7b_hostTest(__path string, __pattern string) __RuneCliExecution {
+	return hostTest(__path, __pattern)
+}
+
+func ____rune_private_5b8b8d7b_hostTestWithBackend(__path string, __pattern string, __backend string) __RuneCliExecution {
+	return hostTestWithBackend(__path, __pattern, __backend)
 }
 
 func ____rune_private_5b8b8d7b_hostFmt(__path string, __checkOnly bool, __stdout bool) __RuneCliExecution {

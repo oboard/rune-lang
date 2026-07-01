@@ -44,7 +44,7 @@ executeInvocation(
   "ts" => hostEmitTypeScript(invocation.path, invocation.output)
   "mbt" => hostEmitMoonBit(invocation.path, invocation.output)
   "check" => hostCheck(invocation.path)
-  "test" => hostTest(invocation.path, invocation.pattern, invocation.backend, invocation.backendExplicit)
+  "test" => executeTest(invocation)
   "fmt" => hostFmt(invocation.path, invocation.checkOnly, invocation.stdout)
   "repl" => hostRepl()
   "lsp" => hostLsp()
@@ -79,6 +79,13 @@ executeBuild(
   "mbt" => hostBuildMoonBit(invocation.path, invocation.target, invocation.output)
   _ => hostBuildGo(invocation.path, invocation.target, invocation.output)
 }
+
+executeTest(
+  invocation: RuneCliInvocation
+) -> RuneCliExecution => (
+  invocation.backendExplicit ? hostTestWithBackend(invocation.path, invocation.pattern, invocation.backend)
+    : hostTest(invocation.path, invocation.pattern)
+)
 
 successExecution(
   output: String
@@ -150,10 +157,14 @@ hostCheck(
 
 hostTest(
   path: String,
+  pattern: String
+) -> RuneCliExecution => @go.expr("hostTest($path, $pattern)")
+
+hostTestWithBackend(
+  path: String,
   pattern: String,
-  backend: String,
-  backendExplicit: Bool
-) -> RuneCliExecution => @go.expr("hostTest($path, $pattern, $backend, $backendExplicit)")
+  backend: String
+) -> RuneCliExecution => @go.expr("hostTestWithBackend($path, $pattern, $backend)")
 
 hostFmt(
   path: String,

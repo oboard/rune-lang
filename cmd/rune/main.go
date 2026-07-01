@@ -135,12 +135,13 @@ func hostCheck(path string) __RuneCliExecution {
 	return cliFailure(checkTarget(path, runeCLIStdout))
 }
 
-func hostTest(path string, pattern string, backend string, explicitBackend bool) __RuneCliExecution {
-	if explicitBackend {
-		_, err := tester.RunWithBackend(path, pattern, backend, runeCLIStdout)
-		return cliFailure(err)
-	}
+func hostTest(path string, pattern string) __RuneCliExecution {
 	_, err := tester.Run(path, pattern, runeCLIStdout)
+	return cliFailure(err)
+}
+
+func hostTestWithBackend(path string, pattern string, backend string) __RuneCliExecution {
+	_, err := tester.RunWithBackend(path, pattern, backend, runeCLIStdout)
 	return cliFailure(err)
 }
 
