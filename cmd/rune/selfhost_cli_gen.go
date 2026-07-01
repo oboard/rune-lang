@@ -625,13 +625,13 @@ func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocatio
 		case __invocation.__command == "run":
 			return ____rune_private_5b8b8d7b_executeRun(__invocation)
 		case __invocation.__command == "build":
-			return ____rune_private_5b8b8d7b_hostBuild(__invocation.__path, __invocation.__backend, __invocation.__target, __invocation.__output)
+			return ____rune_private_5b8b8d7b_executeBuild(__invocation)
 		case __invocation.__command == "go":
-			return ____rune_private_5b8b8d7b_hostEmit("go", __invocation.__path, __invocation.__output)
+			return ____rune_private_5b8b8d7b_hostEmitGo(__invocation.__path, __invocation.__output)
 		case __invocation.__command == "ts":
-			return ____rune_private_5b8b8d7b_hostEmit("ts", __invocation.__path, __invocation.__output)
+			return ____rune_private_5b8b8d7b_hostEmitTypeScript(__invocation.__path, __invocation.__output)
 		case __invocation.__command == "mbt":
-			return ____rune_private_5b8b8d7b_hostEmit("mbt", __invocation.__path, __invocation.__output)
+			return ____rune_private_5b8b8d7b_hostEmitMoonBit(__invocation.__path, __invocation.__output)
 		case __invocation.__command == "check":
 			return ____rune_private_5b8b8d7b_hostCheck(__invocation.__path)
 		case __invocation.__command == "test":
@@ -669,6 +669,17 @@ func ____rune_private_5b8b8d7b_executeResolvedRun(__invocation __RuneCliInvocati
 	}()
 }
 
+func ____rune_private_5b8b8d7b_executeBuild(__invocation __RuneCliInvocation) __RuneCliExecution {
+	return func() __RuneCliExecution {
+		switch {
+		case __invocation.__backend == "mbt":
+			return ____rune_private_5b8b8d7b_hostBuildMoonBit(__invocation.__path, __invocation.__target, __invocation.__output)
+		default:
+			return ____rune_private_5b8b8d7b_hostBuildGo(__invocation.__path, __invocation.__target, __invocation.__output)
+		}
+	}()
+}
+
 func ____rune_private_5b8b8d7b_successExecution(__output string) __RuneCliExecution {
 	return __RuneCliExecution{__ok: true, __output: __output, __errors: []string{}}
 }
@@ -693,12 +704,24 @@ func ____rune_private_5b8b8d7b_hostRunEntry(__path string, __backend string, __t
 	return hostRunEntry(__path, __backend, __target, __args)
 }
 
-func ____rune_private_5b8b8d7b_hostBuild(__path string, __backend string, __target string, __output string) __RuneCliExecution {
-	return hostBuild(__path, __backend, __target, __output)
+func ____rune_private_5b8b8d7b_hostBuildGo(__path string, __target string, __output string) __RuneCliExecution {
+	return hostBuildGo(__path, __target, __output)
 }
 
-func ____rune_private_5b8b8d7b_hostEmit(__backend string, __path string, __output string) __RuneCliExecution {
-	return hostEmit(__backend, __path, __output)
+func ____rune_private_5b8b8d7b_hostBuildMoonBit(__path string, __target string, __output string) __RuneCliExecution {
+	return hostBuildMoonBit(__path, __target, __output)
+}
+
+func ____rune_private_5b8b8d7b_hostEmitGo(__path string, __output string) __RuneCliExecution {
+	return hostEmitGo(__path, __output)
+}
+
+func ____rune_private_5b8b8d7b_hostEmitTypeScript(__path string, __output string) __RuneCliExecution {
+	return hostEmitTypeScript(__path, __output)
+}
+
+func ____rune_private_5b8b8d7b_hostEmitMoonBit(__path string, __output string) __RuneCliExecution {
+	return hostEmitMoonBit(__path, __output)
 }
 
 func ____rune_private_5b8b8d7b_hostCheck(__path string) __RuneCliExecution {

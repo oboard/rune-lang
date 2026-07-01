@@ -111,24 +111,24 @@ func hostRunEntry(entry string, backend string, target string, programArgs []str
 	return cliFailure(runEntry(entry, backend, target, programArgs, runeCLIStdin, runeCLIStdout, runeCLIStderr))
 }
 
-func hostBuild(path string, backend string, target string, output string) __RuneCliExecution {
-	if backend == "mbt" {
-		return cliFailure(buildMoonBit(path, target, output))
-	}
+func hostBuildGo(path string, target string, output string) __RuneCliExecution {
 	return cliFailure(buildGo(path, target, output, runeCLIStdin, runeCLIStdout, runeCLIStderr))
 }
 
-func hostEmit(backend string, path string, output string) __RuneCliExecution {
-	switch backend {
-	case "go":
-		return cliFailure(emitGo(path, output, runeCLIStdout))
-	case "ts":
-		return cliFailure(emitTypeScript(path, output, runeCLIStdout))
-	case "mbt":
-		return cliFailure(emitMoonBit(path, output, runeCLIStdout))
-	default:
-		return cliFailure(validateBackend(backend))
-	}
+func hostBuildMoonBit(path string, target string, output string) __RuneCliExecution {
+	return cliFailure(buildMoonBit(path, target, output))
+}
+
+func hostEmitGo(path string, output string) __RuneCliExecution {
+	return cliFailure(emitGo(path, output, runeCLIStdout))
+}
+
+func hostEmitTypeScript(path string, output string) __RuneCliExecution {
+	return cliFailure(emitTypeScript(path, output, runeCLIStdout))
+}
+
+func hostEmitMoonBit(path string, output string) __RuneCliExecution {
+	return cliFailure(emitMoonBit(path, output, runeCLIStdout))
 }
 
 func hostCheck(path string) __RuneCliExecution {

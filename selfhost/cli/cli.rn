@@ -39,10 +39,10 @@ executeInvocation(
   invocation: RuneCliInvocation
 ) -> RuneCliExecution => invocation.command {
   "run" => executeRun(invocation)
-  "build" => hostBuild(invocation.path, invocation.backend, invocation.target, invocation.output)
-  "go" => hostEmit("go", invocation.path, invocation.output)
-  "ts" => hostEmit("ts", invocation.path, invocation.output)
-  "mbt" => hostEmit("mbt", invocation.path, invocation.output)
+  "build" => executeBuild(invocation)
+  "go" => hostEmitGo(invocation.path, invocation.output)
+  "ts" => hostEmitTypeScript(invocation.path, invocation.output)
+  "mbt" => hostEmitMoonBit(invocation.path, invocation.output)
   "check" => hostCheck(invocation.path)
   "test" => hostTest(invocation.path, invocation.pattern, invocation.backend, invocation.backendExplicit)
   "fmt" => hostFmt(invocation.path, invocation.checkOnly, invocation.stdout)
@@ -71,6 +71,13 @@ executeResolvedRun(
     validated.ok ? hostRunEntry(entry, backend, invocation.target, invocation.runArgs)
       : validated
   )
+}
+
+executeBuild(
+  invocation: RuneCliInvocation
+) -> RuneCliExecution => invocation.backend {
+  "mbt" => hostBuildMoonBit(invocation.path, invocation.target, invocation.output)
+  _ => hostBuildGo(invocation.path, invocation.target, invocation.output)
 }
 
 successExecution(
@@ -110,18 +117,32 @@ hostRunEntry(
   args: Array[String]
 ) -> RuneCliExecution => @go.expr("hostRunEntry($path, $backend, $target, $args)")
 
-hostBuild(
+hostBuildGo(
   path: String,
-  backend: String,
   target: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostBuild($path, $backend, $target, $output)")
+) -> RuneCliExecution => @go.expr("hostBuildGo($path, $target, $output)")
 
-hostEmit(
-  backend: String,
+hostBuildMoonBit(
+  path: String,
+  target: String,
+  output: String
+) -> RuneCliExecution => @go.expr("hostBuildMoonBit($path, $target, $output)")
+
+hostEmitGo(
   path: String,
   output: String
-) -> RuneCliExecution => @go.expr("hostEmit($backend, $path, $output)")
+) -> RuneCliExecution => @go.expr("hostEmitGo($path, $output)")
+
+hostEmitTypeScript(
+  path: String,
+  output: String
+) -> RuneCliExecution => @go.expr("hostEmitTypeScript($path, $output)")
+
+hostEmitMoonBit(
+  path: String,
+  output: String
+) -> RuneCliExecution => @go.expr("hostEmitMoonBit($path, $output)")
 
 hostCheck(
   path: String
