@@ -4,6 +4,12 @@
   errors: Array[String]
 }
 
++ RuneCliStringResult: {
+  ok: Bool
+  value: String
+  errors: Array[String]
+}
+
 #cli.command("rune-selfhost", "Self-hosted Rune CLI entry point", "0.0.0")
 RuneCliArgsEntry: {
   #cli.option("b", "BACKEND", "target backend", "go")
@@ -32,7 +38,7 @@ RuneCliArgsEntry: {
 executeInvocation(
   invocation: RuneCliInvocation
 ) -> RuneCliExecution => invocation.command {
-  "run" => hostRun(invocation.path, invocation.backend, invocation.backendExplicit, invocation.target, invocation.runArgs)
+  "run" => executeRun(invocation)
   "build" => hostBuild(invocation.path, invocation.backend, invocation.target, invocation.output)
   "go" => hostEmit("go", invocation.path, invocation.output)
   "ts" => hostEmit("ts", invocation.path, invocation.output)
@@ -43,6 +49,28 @@ executeInvocation(
   "repl" => hostRepl()
   "lsp" => hostLsp()
   _ => failureExecution(["unknown command " + invocation.command])
+}
+
+executeRun(
+  invocation: RuneCliInvocation
+) -> RuneCliExecution => {
+  entry := hostResolveRunEntry(invocation.path)
+  (
+    entry.ok ? executeResolvedRun(invocation, entry.value)
+      : failureExecution(entry.errors)
+  )
+}
+
+executeResolvedRun(
+  invocation: RuneCliInvocation,
+  entry: String
+) -> RuneCliExecution => {
+  backend := hostSelectRunBackend(entry, invocation.backend, invocation.backendExplicit)
+  validated := hostValidateBackend(backend)
+  (
+    validated.ok ? hostRunEntry(entry, backend, invocation.target, invocation.runArgs)
+      : validated
+  )
 }
 
 successExecution(
@@ -61,13 +89,26 @@ failureExecution(
   errors: errors
 }
 
-hostRun(
+hostResolveRunEntry(
+  path: String
+) -> RuneCliStringResult => @go.expr("hostResolveRunEntry($path)")
+
+hostSelectRunBackend(
+  entry: String,
+  backend: String,
+  backendExplicit: Bool
+) -> String => @go.expr("hostSelectRunBackend($entry, $backend, $backendExplicit)")
+
+hostValidateBackend(
+  backend: String
+) -> RuneCliExecution => @go.expr("hostValidateBackend($backend)")
+
+hostRunEntry(
   path: String,
   backend: String,
-  backendExplicit: Bool,
   target: String,
   args: Array[String]
-) -> RuneCliExecution => @go.expr("hostRun($path, $backend, $backendExplicit, $target, $args)")
+) -> RuneCliExecution => @go.expr("hostRunEntry($path, $backend, $target, $args)")
 
 hostBuild(
   path: String,

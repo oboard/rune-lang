@@ -76,20 +76,39 @@ func cliFailure(err error) __RuneCliExecution {
 	return __RuneCliExecution{__ok: false, __output: "", __errors: []string{err.Error()}}
 }
 
-func hostRun(path string, backend string, explicitBackend bool, target string, programArgs []string) __RuneCliExecution {
+func cliStringSuccess(value string) __RuneCliStringResult {
+	return __RuneCliStringResult{__ok: true, __value: value, __errors: []string{}}
+}
+
+func cliStringFailure(err error) __RuneCliStringResult {
+	if err == nil {
+		return cliStringSuccess("")
+	}
+	return __RuneCliStringResult{__ok: false, __value: "", __errors: []string{err.Error()}}
+}
+
+func hostResolveRunEntry(path string) __RuneCliStringResult {
 	entry, diags, err := resolveRunEntry(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
-		return cliFailure(fmt.Errorf("run failed"))
+		return cliStringFailure(fmt.Errorf("run failed"))
 	}
 	if err != nil {
-		return cliFailure(err)
+		return cliStringFailure(err)
 	}
-	runBackend := selectRunBackend(entry, backend, explicitBackend)
-	if err := validateBackend(runBackend); err != nil {
-		return cliFailure(err)
-	}
-	return cliFailure(runEntry(entry, runBackend, target, programArgs, runeCLIStdin, runeCLIStdout, runeCLIStderr))
+	return cliStringSuccess(entry)
+}
+
+func hostSelectRunBackend(entry string, backend string, explicitBackend bool) string {
+	return selectRunBackend(entry, backend, explicitBackend)
+}
+
+func hostValidateBackend(backend string) __RuneCliExecution {
+	return cliFailure(validateBackend(backend))
+}
+
+func hostRunEntry(entry string, backend string, target string, programArgs []string) __RuneCliExecution {
+	return cliFailure(runEntry(entry, backend, target, programArgs, runeCLIStdin, runeCLIStdout, runeCLIStderr))
 }
 
 func hostBuild(path string, backend string, target string, output string) __RuneCliExecution {

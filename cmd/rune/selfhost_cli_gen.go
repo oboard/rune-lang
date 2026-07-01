@@ -12,6 +12,12 @@ type __RuneCliExecution struct {
 	__errors []string
 }
 
+type __RuneCliStringResult struct {
+	__ok     bool
+	__value  string
+	__errors []string
+}
+
 type __RuneCliArgsEntry struct {
 	__backend string
 	__command string
@@ -617,7 +623,7 @@ func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocatio
 	return func() __RuneCliExecution {
 		switch {
 		case __invocation.__command == "run":
-			return ____rune_private_5b8b8d7b_hostRun(__invocation.__path, __invocation.__backend, __invocation.__backendExplicit, __invocation.__target, __invocation.__runArgs)
+			return ____rune_private_5b8b8d7b_executeRun(__invocation)
 		case __invocation.__command == "build":
 			return ____rune_private_5b8b8d7b_hostBuild(__invocation.__path, __invocation.__backend, __invocation.__target, __invocation.__output)
 		case __invocation.__command == "go":
@@ -642,6 +648,27 @@ func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocatio
 	}()
 }
 
+func ____rune_private_5b8b8d7b_executeRun(__invocation __RuneCliInvocation) __RuneCliExecution {
+	__entry := ____rune_private_5b8b8d7b_hostResolveRunEntry(__invocation.__path)
+	return func() __RuneCliExecution {
+		if __entry.__ok {
+			return ____rune_private_5b8b8d7b_executeResolvedRun(__invocation, __entry.__value)
+		}
+		return ____rune_private_5b8b8d7b_failureExecution(__entry.__errors)
+	}()
+}
+
+func ____rune_private_5b8b8d7b_executeResolvedRun(__invocation __RuneCliInvocation, __entry string) __RuneCliExecution {
+	__backend := ____rune_private_5b8b8d7b_hostSelectRunBackend(__entry, __invocation.__backend, __invocation.__backendExplicit)
+	__validated := ____rune_private_5b8b8d7b_hostValidateBackend(__backend)
+	return func() __RuneCliExecution {
+		if __validated.__ok {
+			return ____rune_private_5b8b8d7b_hostRunEntry(__entry, __backend, __invocation.__target, __invocation.__runArgs)
+		}
+		return __validated
+	}()
+}
+
 func ____rune_private_5b8b8d7b_successExecution(__output string) __RuneCliExecution {
 	return __RuneCliExecution{__ok: true, __output: __output, __errors: []string{}}
 }
@@ -650,8 +677,20 @@ func ____rune_private_5b8b8d7b_failureExecution(__errors []string) __RuneCliExec
 	return __RuneCliExecution{__ok: false, __output: "", __errors: __errors}
 }
 
-func ____rune_private_5b8b8d7b_hostRun(__path string, __backend string, __backendExplicit bool, __target string, __args []string) __RuneCliExecution {
-	return hostRun(__path, __backend, __backendExplicit, __target, __args)
+func ____rune_private_5b8b8d7b_hostResolveRunEntry(__path string) __RuneCliStringResult {
+	return hostResolveRunEntry(__path)
+}
+
+func ____rune_private_5b8b8d7b_hostSelectRunBackend(__entry string, __backend string, __backendExplicit bool) string {
+	return hostSelectRunBackend(__entry, __backend, __backendExplicit)
+}
+
+func ____rune_private_5b8b8d7b_hostValidateBackend(__backend string) __RuneCliExecution {
+	return hostValidateBackend(__backend)
+}
+
+func ____rune_private_5b8b8d7b_hostRunEntry(__path string, __backend string, __target string, __args []string) __RuneCliExecution {
+	return hostRunEntry(__path, __backend, __target, __args)
 }
 
 func ____rune_private_5b8b8d7b_hostBuild(__path string, __backend string, __target string, __output string) __RuneCliExecution {
