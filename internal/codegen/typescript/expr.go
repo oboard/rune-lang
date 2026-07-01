@@ -160,17 +160,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.ReactiveLiteral:
 		return g.reactiveLiteral(e)
 	case *ir.StructLiteral:
-		fields := make([]string, 0, len(e.Fields))
-		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.expr(field.Value)))
-		}
-		return "{" + strings.Join(fields, ", ") + "}"
+		return g.objectLiteralExpr(e.Fields, e.ResultType())
 	case *ir.AnonymousObjectLiteral:
-		fields := make([]string, 0, len(e.Fields))
-		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.expr(field.Value)))
-		}
-		return "{" + strings.Join(fields, ", ") + "}"
+		return g.objectLiteralExpr(e.Fields, e.ResultType())
 	case *ir.BlockExpr:
 		return fmt.Sprintf("(() => { %s })()", g.blockInline(e, e.ResultType()))
 	case *ir.PatternBlock:
@@ -276,6 +268,99 @@ func (g *generator) mapLiteral(lit *ir.MapLiteral) string {
 		entries = append(entries, fmt.Sprintf("[%s, %s]", g.expr(entry.Key), g.expr(entry.Value)))
 	}
 	return fmt.Sprintf("new Map<%s, %s>([%s])", tsType(keyType), tsType(valueType), strings.Join(entries, ", "))
+}
+
+func (g *generator) exprWithExpected(expr ir.Expr, expected checker.Type) string {
+	switch e := expr.(type) {
+	case *ir.StructLiteral:
+		return g.objectLiteralExpr(e.Fields, expected)
+	case *ir.AnonymousObjectLiteral:
+		return g.objectLiteralExpr(e.Fields, expected)
+	default:
+		return g.expr(expr)
+	}
+}
+
+func (g *generator) objectLiteralExpr(fields []ir.FieldValue, typ checker.Type) string {
+	out := make([]string, 0, len(fields))
+	fieldTypes := g.objectFieldTypes(typ)
+	for _, field := range fields {
+		out = append(out, fmt.Sprintf("%s: %s", tsPropertyName(field.Name), g.fieldValueExpr(field, fieldTypes[field.Name])))
+	}
+	return "{" + strings.Join(out, ", ") + "}"
+}
+
+func (g *generator) fieldValueExpr(field ir.FieldValue, expected checker.Type) string {
+	if emptyObjectValue(field.Value) {
+		if keyType, valueType, ok := checker.MapKeyValue(expected); ok {
+			return fmt.Sprintf("new Map<%s, %s>()", tsType(keyType), tsType(valueType))
+		}
+		if keyType, valueType, ok := g.uniqueMapFieldType(field.Name); ok {
+			return fmt.Sprintf("new Map<%s, %s>()", tsType(keyType), tsType(valueType))
+		}
+	}
+	return g.expr(field.Value)
+}
+
+func emptyObjectValue(expr ir.Expr) bool {
+	switch e := expr.(type) {
+	case *ir.AnonymousObjectLiteral:
+		return len(e.Fields) == 0
+	case *ir.StructLiteral:
+		return len(e.Fields) == 0
+	case *ir.MapLiteral:
+		return len(e.Entries) == 0
+	case *ir.AtExpr:
+		return e.Name == ""
+	default:
+		return false
+	}
+}
+
+func (g *generator) objectFieldTypes(typ checker.Type) map[string]checker.Type {
+	result := map[string]checker.Type{}
+	fields, ok := parseTSObjectType(string(typ))
+	if ok {
+		for _, field := range fields {
+			result[field.name] = checker.Type(field.typ)
+		}
+		return result
+	}
+	typeName := baseTypeName(typ)
+	for _, typ := range g.file.Types {
+		if typ.Name != typeName {
+			continue
+		}
+		for _, field := range typ.Fields {
+			result[field.Name] = field.Type
+		}
+		break
+	}
+	return result
+}
+
+func (g *generator) uniqueMapFieldType(name string) (checker.Type, checker.Type, bool) {
+	var keyType checker.Type
+	var valueType checker.Type
+	found := false
+	for _, typ := range g.file.Types {
+		for _, field := range typ.Fields {
+			if field.Name != name {
+				continue
+			}
+			key, value, ok := checker.MapKeyValue(field.Type)
+			if !ok {
+				continue
+			}
+			if found && (keyType != key || valueType != value) {
+				return checker.Unknown, checker.Unknown, false
+			}
+			keyType = key
+			valueType = value
+			found = true
+		}
+	}
+	return keyType, valueType, found
 }
 
 func (g *generator) enumMemberSelector(sel *ir.SelectorExpr) (string, bool) {

@@ -515,7 +515,7 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
+		`let __scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
 		`.has(`,
 		` ?? 0`,
 		`__scores.set("b", 3);`,
@@ -525,6 +525,22 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
+	}
+}
+
+func TestGenerateEmptyMapFieldFromStructContext(t *testing.T) {
+	src := `Env: {
+  bindings: Map[Int, String]
+}
+
+emptyEnv() -> Env => {
+  bindings: {}
+}
+`
+	got := generateForTest(t, src)
+	want := `bindings: new Map<number, string>()`
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
 }
 

@@ -401,7 +401,11 @@ func (g *generator) resultErrReturn(ret checker.Type, errExpr string) string {
 }
 
 func (g *generator) returnExpr(expr ir.Expr, ret checker.Type) string {
-	return g.returnRawExpr(expr, ret, g.expr(expr))
+	expected := ret
+	if okType, _ := resultTypeArgs(ret); okType != checker.Unknown && expr != nil && expr.ResultType() == okType {
+		expected = okType
+	}
+	return g.returnRawExpr(expr, ret, g.exprWithExpected(expr, expected))
 }
 
 func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) string {
