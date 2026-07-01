@@ -2,6 +2,7 @@ package gocodegen
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -1302,11 +1303,20 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
-		case *ir.LetStmt:
-			if isNamespaceValue(s.Value) {
-				continue
-			}
-			parts = append(parts, fmt.Sprintf("%s := %s", mangleIdent(s.Name), g.expr(s.Value)))
+			case *ir.LetStmt:
+				if isNamespaceValue(s.Value) {
+					continue
+				}
+				if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
+					name := mangleIdent(s.Name)
+					value := g.withThisName(name, func() string {
+						return g.expr(obj)
+					})
+					parts = append(parts, fmt.Sprintf("var %s %s", name, anonymousObjectType(obj)))
+					parts = append(parts, fmt.Sprintf("%s = %s", name, value))
+					continue
+				}
+				parts = append(parts, fmt.Sprintf("%s := %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.AssignStmt:
 			if g.isSignal(s.Name) {
 				parts = append(parts, fmt.Sprintf("%s.Set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
@@ -1439,14 +1449,16 @@ func (g *generator) lookupSignalDeps(name string) []string {
 
 func anonymousObjectType(obj *ir.AnonymousObjectLiteral) string {
 	if fields, ok := parseGoObjectType(string(obj.ResultType())); ok && len(fields) > 0 {
+		fields = sortedGoObjectFields(fields)
 		parts := make([]string, 0, len(fields))
 		for _, field := range fields {
 			parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
 		}
 		return "struct{" + strings.Join(parts, "; ") + "}"
 	}
-	fields := make([]string, 0, len(obj.Fields))
-	for _, field := range obj.Fields {
+	objectFields := sortedAnonymousFields(obj.Fields)
+	fields := make([]string, 0, len(objectFields))
+	for _, field := range objectFields {
 		fields = append(fields, fmt.Sprintf("%s %s", mangleIdent(field.Name), goType(field.Value.ResultType())))
 	}
 	return "struct{" + strings.Join(fields, "; ") + "}"
@@ -1459,47 +1471,38 @@ func anonymousObjectFields(g *generator, obj *ir.AnonymousObjectLiteral) string 
 func anonymousObjectFieldsForType(g *generator, obj *ir.AnonymousObjectLiteral, typ checker.Type) string {
 	fields := make([]string, 0, len(obj.Fields))
 	if resultFields, ok := parseGoObjectType(string(typ)); ok && len(resultFields) > 0 {
+		resultFields = sortedGoObjectFields(resultFields)
 		byName := map[string]ir.Expr{}
 		for _, field := range obj.Fields {
 			byName[field.Name] = field.Value
 		}
 			for _, field := range resultFields {
 				if value := byName[field.name]; value != nil {
-					fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.anonymousObjectFieldExpr(value)))
+					fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.expr(value)))
 				}
 			}
 		return strings.Join(fields, ", ")
 	}
-	for _, field := range obj.Fields {
-		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.anonymousObjectFieldExpr(field.Value)))
+	for _, field := range sortedAnonymousFields(obj.Fields) {
+		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
 	}
 	return strings.Join(fields, ", ")
 }
 
-func (g *generator) anonymousObjectFieldExpr(expr ir.Expr) string {
-	if zero, ok := zeroFunctionValue(expr.ResultType()); ok {
-		return zero
-	}
-	return g.expr(expr)
+func sortedAnonymousFields(fields []ir.FieldValue) []ir.FieldValue {
+	out := append([]ir.FieldValue(nil), fields...)
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
-func zeroFunctionValue(typ checker.Type) (string, bool) {
-	params, ret, ok := parseGoFuncType(string(typ))
-	if !ok {
-		return "", false
-	}
-	names := make([]string, 0, len(params))
-	for idx, param := range params {
-		names = append(names, fmt.Sprintf("_%d %s", idx, goType(checker.Type(param))))
-	}
-	out := "func(" + strings.Join(names, ", ") + ")"
-	if ret != string(checker.Void) {
-		retType := checker.Type(ret)
-		out += " " + goType(retType) + " { return " + zeroValue(retType) + " }"
-		return out, true
-	}
-	out += " {}"
-	return out, true
+func sortedGoObjectFields(fields []goObjectField) []goObjectField {
+	out := append([]goObjectField(nil), fields...)
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].name < out[j].name
+	})
+	return out
 }
 
 func goPrecedence(op lexer.Kind) int {

@@ -52,10 +52,11 @@ func goType(typ checker.Type) string {
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
-	if fields, ok := parseGoObjectType(string(typ)); ok {
-		parts := make([]string, 0, len(fields))
-		for _, field := range fields {
-			parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
+		if fields, ok := parseGoObjectType(string(typ)); ok {
+			fields = sortedGoObjectFields(fields)
+			parts := make([]string, 0, len(fields))
+			for _, field := range fields {
+				parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
 		}
 		return "struct{" + strings.Join(parts, "; ") + "}"
 	}

@@ -752,6 +752,41 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateAnonymousObjectFieldsStableOrder(t *testing.T) {
+	src := `readScore(row) => row.points + row.bonus
+
+main() => {
+  row := {
+    points: 30,
+    bonus: 12
+  }
+  @io.println(readScore(row))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		"__row struct {\n\t\t__bonus  int\n\t\t__points int\n\t}",
+		"__row = struct {\n\t\t__bonus  int\n\t\t__points int\n\t}{__bonus: 12, __points: 30}",
+		"fmt.Println(__readScore(__row))",
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing stable anonymous object order %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 	src := `main() => {
   bytes := @bytes.new(16)
