@@ -32,7 +32,11 @@ func (g *generator) cliModuleCall(fn *stdlib.Function, args []string, resultType
 		}
 	case "option":
 		if len(args) == 6 {
-			return fmt.Sprintf("rune_cli_option(%s, %s, %s, %s, %s, Some(%s))", args[0], args[1], args[2], args[3], args[4], args[5])
+			defaultValue := "Some(" + args[5] + ")"
+			if args[5] == "None" {
+				defaultValue = "None"
+			}
+			return fmt.Sprintf("rune_cli_option(%s, %s, %s, %s, %s, %s)", args[0], args[1], args[2], args[3], args[4], defaultValue)
 		}
 	case "argument":
 		if len(args) == 3 {
@@ -204,7 +208,10 @@ func (g *generator) cliRuntime() {
 	g.indent--
 	g.line("} else if arg.has_prefix(\"--\") {")
 	g.indent++
-	g.line("let name = arg[2:].to_owned()")
+	g.line("let raw_name = arg[2:].to_owned()")
+	g.line("let equal = raw_name.find(\"=\").unwrap_or(-1)")
+	g.line("let name = if equal >= 0 { raw_name[0:equal].to_owned() } else { raw_name }")
+	g.line("let inline_value : String? = if equal >= 0 { Some(raw_name[equal + 1:raw_name.length()].to_owned()) } else { None }")
 	g.line("let mut matched = false")
 	g.line("command.options.each((option) => {")
 	g.indent++
@@ -214,6 +221,10 @@ func (g *generator) cliRuntime() {
 	g.line("if option.value_name.is_empty() {")
 	g.indent++
 	g.line("flags[option.name] = true")
+	g.indent--
+	g.line("} else if inline_value != None {")
+	g.indent++
+	g.line("values[option.name] = inline_value.unwrap()")
 	g.indent--
 	g.line("} else if idx + 1 < args.length() {")
 	g.indent++
@@ -234,7 +245,9 @@ func (g *generator) cliRuntime() {
 	g.indent--
 	g.line("} else if arg.has_prefix(\"-\") && arg.length() > 1 {")
 	g.indent++
-	g.line("let short = arg[1:].to_owned()")
+	g.line("let short_arg = arg[1:].to_owned()")
+	g.line("let short = short_arg[0:1].to_owned()")
+	g.line("let short_value : String? = if short_arg.length() > 1 { Some(short_arg[1:short_arg.length()].to_owned()) } else { None }")
 	g.line("let mut matched = false")
 	g.line("command.options.each((option) => {")
 	g.indent++
@@ -244,6 +257,10 @@ func (g *generator) cliRuntime() {
 	g.line("if option.value_name.is_empty() {")
 	g.indent++
 	g.line("flags[option.name] = true")
+	g.indent--
+	g.line("} else if short_value != None {")
+	g.indent++
+	g.line("values[option.name] = short_value.unwrap()")
 	g.indent--
 	g.line("} else if idx + 1 < args.length() {")
 	g.indent++
@@ -270,6 +287,23 @@ func (g *generator) cliRuntime() {
 	g.line("}")
 	g.indent--
 	g.line("}")
+	g.line("command.options.each((option) => {")
+	g.indent++
+	g.line("if option.required && error == None && !help {")
+	g.indent++
+	g.line("if option.value_name.is_empty() {")
+	g.indent++
+	g.line("if !flags.contains(option.name) { error = Some(\"missing required option --\" + option.name) }")
+	g.indent--
+	g.line("} else {")
+	g.indent++
+	g.line("if !values.contains(option.name) { error = Some(\"missing required option --\" + option.name) }")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("})")
 	g.line("let mut pos = 0")
 	g.line("command.arguments.each((argument) => {")
 	g.indent++
@@ -278,7 +312,7 @@ func (g *generator) cliRuntime() {
 	g.line("positionals[argument.name] = positional_values[pos]")
 	g.line("pos += 1")
 	g.indent--
-	g.line("} else if argument.required && error == None {")
+	g.line("} else if argument.required && error == None && !help {")
 	g.indent++
 	g.line("error = Some(\"missing argument \" + argument.name)")
 	g.indent--
@@ -291,7 +325,27 @@ func (g *generator) cliRuntime() {
 	g.line("")
 	g.line("fn rune_cli_help(command : CliCommand) -> String {")
 	g.indent++
-	g.line("command.name + \" - \" + command.about")
+	g.line("let mut usage = \"Usage: \" + command.name")
+	g.line("if command.options.length() > 0 { usage = usage + \" [options]\" }")
+	g.line("command.arguments.each((argument) => {")
+	g.indent++
+	g.line("usage = usage + \" \" + (if argument.required { \"<\" + argument.name + \">\" } else { \"[\" + argument.name + \"]\" })")
+	g.indent--
+	g.line("})")
+	g.line("let mut out = usage + \"\\n\" + command.about")
+	g.line("if command.options.length() > 0 {")
+	g.indent++
+	g.line("out = out + \"\\nOptions:\"")
+	g.line("command.options.each((option) => {")
+	g.indent++
+	g.line("let value = (if option.value_name.is_empty() { \"\" } else { \" <\" + option.value_name + \">\" })")
+	g.line("let short = (if option.short.is_empty() { \"\" } else { \"-\" + option.short + \", \" })")
+	g.line("out = out + \"\\n  \" + short + \"--\" + option.name + value")
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.line("out")
 	g.indent--
 	g.line("}")
 }

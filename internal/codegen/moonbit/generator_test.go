@@ -201,6 +201,32 @@ func TestGenerateRegexIntrinsics(t *testing.T) {
 	}
 }
 
+func TestGenerateCLIOptionDefaultValue(t *testing.T) {
+	src := `main() => {
+  cmd := @cli.command("ship", "Ship artifacts")
+  @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", true, null))
+  @cli.withOption(cmd, @cli.option("mode", "m", "MODE", "mode", false, "check"))
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		`rune_cli_option("output", "o", "FILE", "write output", true, None)`,
+		`rune_cli_option("mode", "m", "MODE", "mode", false, Some("check"))`,
+		`let equal = raw_name.find("=").unwrap_or(-1)`,
+		`let inline_value : String? = if equal >= 0`,
+		`let short_value : String? = if short_arg.length() > 1`,
+		`missing required option --`,
+		`Usage: `,
+		`"--" + option.name + value`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "Some(None)") {
+		t.Fatalf("generated source contains double optional default:\n%s", got)
+	}
+}
+
 func TestGenerateResultUnwrap(t *testing.T) {
 	src := `read(flag: Bool) -> Result[String, Error] => flag {
   true => Ok("Rune")
