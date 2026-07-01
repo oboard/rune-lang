@@ -263,6 +263,18 @@ func TestCompileMoonBitProjectToTempWritesPackage(t *testing.T) {
 	if got := string(data); !strings.Contains(got, "fn main {\n") || !strings.Contains(got, `println("Rune")`) {
 		t.Fatalf("main.mbt =\n%s", got)
 	}
+	pkg, err := os.ReadFile(filepath.Join(projectDir, "moon.pkg"))
+	if err != nil {
+		t.Fatalf("ReadFile(moon.pkg) error = %v", err)
+	}
+	for _, want := range []string{
+		`"moonbitlang/core/env"`,
+		`"moonbitlang/core/string"`,
+	} {
+		if !strings.Contains(string(pkg), want) {
+			t.Fatalf("moon.pkg =\n%s\nmissing %s", pkg, want)
+		}
+	}
 }
 
 func TestRunEntryMoonBit(t *testing.T) {

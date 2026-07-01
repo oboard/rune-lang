@@ -42,3 +42,14 @@
   @assert.eq(helpText.includes("Usage: ship [options] <target>"), true)
   @assert.eq(helpText.includes("--output <FILE>"), true)
 }
+
+? "cli parses process argv and parseOrExit success" {
+  cmd := @cli.command("noop", "No operation")
+  parsed := @cli.parse(cmd)
+  @assert.eq(parsed.error, null)
+  @assert.eq(parsed.help, false)
+  required := @cli.withOption(cmd, @cli.option("mode", "m", "MODE", "mode", false, "check"))
+  result := @cli.parseOrExit(required)
+  @assert.eq(result.error, null)
+  @assert.eq(result.values.getOr("mode", ""), "check")
+}

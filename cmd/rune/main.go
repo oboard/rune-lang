@@ -318,7 +318,12 @@ func testCmd() *cobra.Command {
 			if len(args) > 1 {
 				pattern = args[1]
 			}
-			_, err := tester.Run(path, pattern, cmd.OutOrStdout())
+			var err error
+			if backendFlagChanged(cmd) {
+				_, err = tester.RunWithBackend(path, pattern, backend, cmd.OutOrStdout())
+			} else {
+				_, err = tester.Run(path, pattern, cmd.OutOrStdout())
+			}
 			return err
 		},
 	}
@@ -695,8 +700,8 @@ func compileMoonBitProjectToTemp(path string) (string, func(), error) {
 	}
 	files := map[string]string{
 		"main.mbt": src,
-		"moon.mod": "name = \"oboard/rune_mbt\"\n",
-		"moon.pkg": "import {\n  \"moonbitlang/core/env\"\n}\n\noptions(\n  \"is-main\": true,\n)\n",
+		"moon.mod": moonBitMod(src),
+		"moon.pkg": moonBitPkg(src),
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
@@ -705,6 +710,105 @@ func compileMoonBitProjectToTemp(path string) (string, func(), error) {
 		}
 	}
 	return dir, cleanup, nil
+}
+
+func moonBitMod(src string) string {
+	if !moonBitUsesAsync(src) {
+		return "name = \"oboard/rune_mbt\"\n"
+	}
+	var b strings.Builder
+	b.WriteString("name = \"oboard/rune_mbt\"\n\nimport {\n")
+	b.WriteString("  \"moonbitlang/async@0.19.3\",\n")
+	if moonBitUsesBikallemCompress(src) {
+		b.WriteString("  \"bikallem/compress@0.3.4\",\n")
+	}
+	b.WriteString("}\n\npreferred_target = \"native\"\n")
+	return b.String()
+}
+
+func moonBitPkg(src string) string {
+	imports := []string{
+		"moonbitlang/core/env",
+		"moonbitlang/core/string",
+	}
+	if moonBitUsesBigInt(src) {
+		imports = append(imports, "moonbitlang/core/bigint")
+	}
+	if moonBitUsesJSON(src) {
+		imports = append(imports, "moonbitlang/core/json")
+	}
+	if moonBitUsesAsync(src) {
+		imports = append(imports, "moonbitlang/async")
+	}
+	if moonBitUsesAsyncFS(src) {
+		imports = append(imports, "moonbitlang/async/fs")
+	}
+	if moonBitUsesAsyncIO(src) {
+		imports = append(imports, "moonbitlang/async/io")
+	}
+	if moonBitUsesAsyncGzip(src) {
+		imports = append(imports, "moonbitlang/async/gzip")
+	}
+	if moonBitUsesBikallemCompress(src) {
+		imports = append(imports,
+			"moonbitlang/core/encoding/utf8",
+			"bikallem/compress/flate",
+			"bikallem/compress/brotli",
+			"bikallem/compress/zstd",
+		)
+	}
+	var b strings.Builder
+	b.WriteString("import {\n")
+	for i, imp := range imports {
+		b.WriteString("  \"")
+		b.WriteString(imp)
+		b.WriteString("\"")
+		if i < len(imports)-1 {
+			b.WriteString(",")
+		}
+		b.WriteString("\n")
+	}
+	b.WriteString("}\n\n")
+	b.WriteString("warnings = \"-1-7-23-67\"\n\n")
+	if moonBitUsesAsyncFS(src) || moonBitUsesAsyncGzip(src) {
+		b.WriteString("supported_targets = \"+native\"\n\n")
+	}
+	b.WriteString("options(\n  \"is-main\": true,\n)\n")
+	return b.String()
+}
+
+func moonBitUsesAsync(src string) bool {
+	return strings.Contains(src, "async fn")
+}
+
+func moonBitUsesAsyncFS(src string) bool {
+	return strings.Contains(src, "@fs.")
+}
+
+func moonBitUsesAsyncIO(src string) bool {
+	return strings.Contains(src, "@io.")
+}
+
+func moonBitUsesAsyncGzip(src string) bool {
+	return strings.Contains(src, "@gzip.")
+}
+
+func moonBitUsesBigInt(src string) bool {
+	return strings.Contains(src, "BigInt")
+}
+
+func moonBitUsesJSON(src string) bool {
+	return strings.Contains(src, "@json.") ||
+		strings.Contains(src, "Json::") ||
+		strings.Contains(src, "Object(") ||
+		strings.Contains(src, "Array(")
+}
+
+func moonBitUsesBikallemCompress(src string) bool {
+	return strings.Contains(src, "@flate.") ||
+		strings.Contains(src, "@brotli.") ||
+		strings.Contains(src, "@zstd.") ||
+		strings.Contains(src, "@utf8.")
 }
 
 func buildMoonBit(path string, target string, output string) error {

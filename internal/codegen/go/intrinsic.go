@@ -38,7 +38,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	if fn.Intrinsic == "" && fn.Go == nil {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "cli" && fn.Body != nil {
-				return g.cliModuleCall(fn, args, call.ResultType()), true
+				return g.cliModuleCall(fn, g.intrinsicArgsForParams(call.Args, fn.Params), call.ResultType()), true
 			}
 		}
 		if fn.Body != nil {
