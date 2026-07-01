@@ -35,6 +35,27 @@ RuneCliArgsEntry: {
   )
 }
 
++ runCliMain(
+  args: Array[String]
+) -> Int => {
+  result := runCli(args)
+  (
+    result.output.isEmpty() ? 0
+      : hostWriteStdout(result.output)
+  )
+  (
+    result.ok ? 0
+      : renderFailure(result.errors)
+  )
+}
+
+renderFailure(
+  errors: Array[String]
+) -> Int => {
+  errors.each((message) => hostWriteStderr(message + "\n"))
+  1
+}
+
 executeInvocation(
   invocation: RuneCliInvocation
 ) -> RuneCliExecution => invocation.command {
@@ -102,6 +123,14 @@ failureExecution(
   output: "",
   errors: errors
 }
+
+hostWriteStdout(
+  text: String
+) -> Int => @go.expr("runeCliHostWriteStdout($text)")
+
+hostWriteStderr(
+  text: String
+) -> Int => @go.expr("runeCliHostWriteStderr($text)")
 
 hostResolveRunEntry(
   path: String

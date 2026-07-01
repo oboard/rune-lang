@@ -757,6 +757,14 @@ var runeCliHostRepl = func() __RuneCliExecution {
 var runeCliHostLsp = func() __RuneCliExecution {
 	return runeCliHostUnavailable()
 }
+
+var runeCliHostWriteStdout = func(text string) int {
+	return 0
+}
+
+var runeCliHostWriteStderr = func(text string) int {
+	return 0
+}
 `
 	for _, line := range strings.Split(strings.Trim(src, "\n"), "\n") {
 		g.line(line)

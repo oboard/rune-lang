@@ -53,14 +53,7 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 	runeCLIStdout = stdout
 	runeCLIStderr = stderr
 	installRuneCLIHostHooks()
-	result := __runCli(args)
-	if result.__output != "" {
-		fmt.Fprint(stdout, result.__output)
-	}
-	if !result.__ok {
-		for _, message := range result.__errors {
-			fmt.Fprintln(stderr, message)
-		}
+	if code := __runCliMain(args); code != 0 {
 		return fmt.Errorf("rune command failed")
 	}
 	return nil
@@ -82,6 +75,8 @@ func installRuneCLIHostHooks() {
 	runeCliHostFmt = hostFmt
 	runeCliHostRepl = hostRepl
 	runeCliHostLsp = hostLsp
+	runeCliHostWriteStdout = hostWriteStdout
+	runeCliHostWriteStderr = hostWriteStderr
 }
 
 func cliSuccess(output string) __RuneCliExecution {
@@ -104,6 +99,16 @@ func cliStringFailure(err error) __RuneCliStringResult {
 		return cliStringSuccess("")
 	}
 	return __RuneCliStringResult{__ok: false, __value: "", __errors: []string{err.Error()}}
+}
+
+func hostWriteStdout(text string) int {
+	fmt.Fprint(runeCLIStdout, text)
+	return 0
+}
+
+func hostWriteStderr(text string) int {
+	fmt.Fprint(runeCLIStderr, text)
+	return 0
 }
 
 func hostResolveRunEntry(path string) __RuneCliStringResult {

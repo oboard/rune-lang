@@ -668,6 +668,14 @@ var runeCliHostLsp = func() __RuneCliExecution {
 	return runeCliHostUnavailable()
 }
 
+var runeCliHostWriteStdout = func(text string) int {
+	return 0
+}
+
+var runeCliHostWriteStderr = func(text string) int {
+	return 0
+}
+
 func __parseCli(__args []string) __RuneCliInvocation {
 	return runeCliParseRune(__runeCommand(), __runeCommands(), __runeAliases(), __args)
 }
@@ -685,6 +693,30 @@ func __runCli(__args []string) __RuneCliExecution {
 			return ____rune_private_5b8b8d7b_failureExecution(__invocation.__errors)
 		}()
 	}()
+}
+
+func __runCliMain(__args []string) int {
+	__result := __runCli(__args)
+	func() int {
+		if len(__result.__output) == 0 {
+			return 0
+		}
+		return ____rune_private_5b8b8d7b_hostWriteStdout(__result.__output)
+	}()
+	return func() int {
+		if __result.__ok {
+			return 0
+		}
+		return ____rune_private_5b8b8d7b_renderFailure(__result.__errors)
+	}()
+}
+
+func ____rune_private_5b8b8d7b_renderFailure(__errors []string) int {
+	for _, __message := range __errors {
+		_ = __message
+		____rune_private_5b8b8d7b_hostWriteStderr(__message + "\n")
+	}
+	return 1
 }
 
 func ____rune_private_5b8b8d7b_executeInvocation(__invocation __RuneCliInvocation) __RuneCliExecution {
@@ -763,6 +795,14 @@ func ____rune_private_5b8b8d7b_successExecution(__output string) __RuneCliExecut
 
 func ____rune_private_5b8b8d7b_failureExecution(__errors []string) __RuneCliExecution {
 	return __RuneCliExecution{__ok: false, __output: "", __errors: __errors}
+}
+
+func ____rune_private_5b8b8d7b_hostWriteStdout(__text string) int {
+	return runeCliHostWriteStdout(__text)
+}
+
+func ____rune_private_5b8b8d7b_hostWriteStderr(__text string) int {
+	return runeCliHostWriteStderr(__text)
 }
 
 func ____rune_private_5b8b8d7b_hostResolveRunEntry(__path string) __RuneCliStringResult {
