@@ -12,6 +12,7 @@ let testOutputChannel;
 let runTerminal;
 let testController;
 let macroExpansionProvider;
+let compileTimeDecoration;
 const testItemData = new Map();
 const revealOutputChannelOnError = 3;
 const maxProcessOutputBytes = 4 * 1024 * 1024;
@@ -35,10 +36,19 @@ function activate(context) {
   );
   const testFileWatcher = vscode.workspace.createFileSystemWatcher("**/*.rn");
   macroExpansionProvider = new MacroExpansionContentProvider();
+  compileTimeDecoration = vscode.window.createTextEditorDecorationType({
+    backgroundColor: new vscode.ThemeColor("editor.wordHighlightBackground"),
+    border: "1px solid",
+    borderColor: new vscode.ThemeColor("editor.wordHighlightStrongBorder"),
+    overviewRulerColor: new vscode.ThemeColor("editor.wordHighlightStrongBorder"),
+    overviewRulerLane: vscode.OverviewRulerLane.Right,
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
+  });
   context.subscriptions.push(outputChannel);
   context.subscriptions.push(testOutputChannel);
   context.subscriptions.push(testController);
   context.subscriptions.push(testFileWatcher);
+  context.subscriptions.push(compileTimeDecoration);
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(
       "rune-macro-expansion",
@@ -73,7 +83,13 @@ function activate(context) {
     testFileWatcher.onDidChange(updateFileTests),
     testFileWatcher.onDidDelete(removeFileTests),
     vscode.workspace.onDidOpenTextDocument(updateDocumentTests),
-    vscode.workspace.onDidChangeTextDocument((event) => updateDocumentTests(event.document)),
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      updateDocumentTests(event.document);
+      void updateCompileTimeDecorations(event.document);
+    }),
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      void updateCompileTimeDecorations(editor?.document);
+    }),
     vscode.window.onDidCloseTerminal((terminal) => {
       if (terminal === runTerminal) {
         runTerminal = undefined;
@@ -81,7 +97,9 @@ function activate(context) {
     })
   );
   void discoverOpenDocumentTests();
-  void startClient().catch(reportClientStartError);
+  void startClient()
+    .then(() => updateVisibleCompileTimeDecorations())
+    .catch(reportClientStartError);
 }
 
 async function deactivate() {
@@ -94,6 +112,76 @@ async function deactivate() {
 }
 
 module.exports = { activate, deactivate };
+
+async function updateVisibleCompileTimeDecorations() {
+  await Promise.all(
+    vscode.window.visibleTextEditors.map((editor) =>
+      updateCompileTimeDecorations(editor.document)
+    )
+  );
+}
+
+async function updateCompileTimeDecorations(document) {
+  if (!document || document.languageId !== "rune" || document.uri.scheme !== "file") {
+    clearCompileTimeDecorations(document);
+    return;
+  }
+  const editors = vscode.window.visibleTextEditors.filter(
+    (editor) => editor.document.uri.toString() === document.uri.toString()
+  );
+  if (editors.length === 0) {
+    return;
+  }
+  try {
+    await startClient();
+    const result = await client.sendRequest("rune/compileTimeRanges", {
+      textDocument: { uri: document.uri.toString() }
+    });
+    const decorations = Array.isArray(result)
+      ? result.map(compileTimeDecorationOption).filter(Boolean)
+      : [];
+    for (const editor of editors) {
+      editor.setDecorations(compileTimeDecoration, decorations);
+    }
+  } catch {
+    clearCompileTimeDecorations(document);
+  }
+}
+
+function compileTimeDecorationOption(item) {
+  const range = item?.range;
+  const start = range?.start;
+  const end = range?.end;
+  if (!isLSPPosition(start) || !isLSPPosition(end)) {
+    return undefined;
+  }
+  return {
+    range: new vscode.Range(
+      start.line,
+      start.character,
+      end.line,
+      end.character
+    ),
+    hoverMessage: "Compile-time expression"
+  };
+}
+
+function isLSPPosition(value) {
+  return (
+    Number.isInteger(value?.line) &&
+    Number.isInteger(value?.character) &&
+    value.line >= 0 &&
+    value.character >= 0
+  );
+}
+
+function clearCompileTimeDecorations(document) {
+  for (const editor of vscode.window.visibleTextEditors) {
+    if (!document || editor.document.uri.toString() === document.uri.toString()) {
+      editor.setDecorations(compileTimeDecoration, []);
+    }
+  }
+}
 
 class RuneCodeLensProvider {
   provideCodeLenses(document) {

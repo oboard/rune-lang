@@ -166,3 +166,15 @@ func walkFileStatements(file *ast.File, visit func(ast.Stmt)) {
 		}
 	})
 }
+
+func walkDocumentStatements(uri string, file *ast.File, visit func(ast.Stmt)) {
+	walkDocumentExprs(uri, file, func(expr ast.Expr) {
+		block, ok := expr.(*ast.BlockExpr)
+		if !ok {
+			return
+		}
+		for _, stmt := range block.Statements {
+			visit(stmt)
+		}
+	})
+}

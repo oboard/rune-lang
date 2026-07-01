@@ -58,6 +58,10 @@ type expandedMacroParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 }
 
+type compileTimeRangesParams struct {
+	TextDocument textDocumentIdentifier `json:"textDocument"`
+}
+
 type formattingParams struct {
 	TextDocument textDocumentIdentifier `json:"textDocument"`
 	Options      *formattingOptions     `json:"options,omitempty"`

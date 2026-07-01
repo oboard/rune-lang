@@ -219,6 +219,35 @@ main() => TokenKind.EOF
 	}
 }
 
+func TestSemanticTokensIgnoreImportedSourcePositions(t *testing.T) {
+	dir := t.TempDir()
+	helperPath := filepath.Join(dir, "helper.rn")
+	writeLSPFile(t, helperPath, `Imported: {
+  value: Int
+}
+
+~ importedTask() => {}
+`)
+	mainPath := filepath.Join(dir, "main.rn")
+	uri := fileURI(mainPath)
+	src := `@"helper.rn"
+
+main() => {
+  local := 1
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	resp := s.semanticTokens(uri).(map[string]any)
+	tokens := decodeSemanticTokenTypes(resp["data"].([]int))
+	if got := tokens[position{Line: 0, Character: 0}]; got != 0 {
+		t.Fatalf("import line semantic token = %d, want none from imported type; all tokens %#v", got, tokens)
+	}
+	if got := tokens[position{Line: 4, Character: 2}]; got != 0 {
+		t.Fatalf("main file got imported function token = %d, want none; all tokens %#v", got, tokens)
+	}
+}
+
 func TestTraitLSPFeatures(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `&Named: {
@@ -677,18 +706,16 @@ func TestAnonymousObjectDefinition(t *testing.T) {
 func TestInferredFunctionSignatureHover(t *testing.T) {
 	uri := "file:///tmp/complex_type.rn"
 	src := `fun(flag) => {
-  f := (flag {
-    true => ((x) => {
+  (
+    flag ? (x) => {
       k: x.value + 1,
       label: "left"
-    })
-    false => ((y) => {
-      k: y.value + 2,
-      label: "right"
-    })
-  })
-
-  f({
+    }
+      : (y) => {
+        k: y.value + 2,
+        label: "right"
+      }
+  )({
     value: 1
   }).k
 }
@@ -798,6 +825,25 @@ main() => double(21)'
 	pos := positionOf(src, "double(21)", "double")
 	if got[pos]&semanticTokenModifierCompileTime != 0 {
 		t.Fatalf("semantic modifiers at %+v = %d, want no compile-time recolor; all %#v", pos, got[pos], got)
+	}
+}
+
+func TestCompileTimeRangesWrapExpression(t *testing.T) {
+	uri := "file:///tmp/consteval.rn"
+	src := `double(value: Int) -> Int => value * 2
+
+main() => double(21)'
+`
+	s := &server{docs: map[string]string{uri: src}}
+	resp := s.compileTimeRanges(uri).([]any)
+	if len(resp) != 1 {
+		t.Fatalf("compileTimeRanges length = %d, want 1: %#v", len(resp), resp)
+	}
+	got := resp[0].(map[string]any)["range"].(map[string]any)
+	wantStart := positionOf(src, "double(21)", "double")
+	wantEnd := positionOf(src, ")'", "'")
+	if got["start"] != wantStart || got["end"] != wantEnd {
+		t.Fatalf("range = %#v, want start %+v end %+v", got, wantStart, wantEnd)
 	}
 }
 

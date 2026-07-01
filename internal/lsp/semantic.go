@@ -19,6 +19,9 @@ func (s *server) semanticTokens(uri string) any {
 	signals := signalGraph(prog.File)
 	var tokens []semanticToken
 	for _, trait := range prog.File.Traits {
+		if !sourceMatchesDocument(uri, trait.SourcePath) {
+			continue
+		}
 		tokens = append(tokens, semanticTokenFor(trait.NamePos, trait.Name, semanticTokenTypeInterface, 0))
 		for _, field := range trait.Fields {
 			tokens = append(tokens, semanticTokenFor(field.Pos, field.Name, semanticTokenTypeVariable, 0))
@@ -32,6 +35,9 @@ func (s *server) semanticTokens(uri string) any {
 		}
 	}
 	for _, typ := range prog.File.Types {
+		if !sourceMatchesDocument(uri, typ.SourcePath) {
+			continue
+		}
 		tokens = append(tokens, semanticToken{
 			line:      max(typ.NamePos.Line-1, 0),
 			character: max(typ.NamePos.Column-1, 0),
@@ -51,12 +57,18 @@ func (s *server) semanticTokens(uri string) any {
 		}
 	}
 	for _, enum := range prog.File.Enums {
+		if !sourceMatchesDocument(uri, enum.SourcePath) {
+			continue
+		}
 		tokens = append(tokens, semanticTokenFor(enum.NamePos, enum.Name, semanticTokenTypeEnum, 0))
 		for _, member := range enum.Members {
 			tokens = append(tokens, semanticTokenFor(member.Pos, member.Name, semanticTokenTypeEnumMember, 0))
 		}
 	}
 	for _, fn := range prog.File.Functions {
+		if !sourceMatchesDocument(uri, fn.SourcePath) {
+			continue
+		}
 		if !fn.Routine {
 			continue
 		}
@@ -68,7 +80,7 @@ func (s *server) semanticTokens(uri string) any {
 			modifiers: semanticTokenModifierAsync,
 		})
 	}
-	walkFileStatements(prog.File, func(stmt ast.Stmt) {
+	walkDocumentStatements(uri, prog.File, func(stmt ast.Stmt) {
 		switch stmt := stmt.(type) {
 		case *ast.LetStmt:
 			if _, ok := signals[stmt.Name]; !ok {
@@ -107,7 +119,7 @@ func (s *server) semanticTokens(uri string) any {
 			})
 		}
 	})
-	walkFileExprs(prog.File, func(expr ast.Expr) {
+	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
 		switch expr := expr.(type) {
 		case *ast.CallExpr:
 			if token, ok := asyncCallSemanticToken(prog, expr); ok {
@@ -138,23 +150,31 @@ func (s *server) semanticTokens(uri string) any {
 			tokens = append(tokens, enumSelectorSemanticTokens(prog, expr)...)
 		}
 	})
-	tokens = append(tokens, templateExpressionSemanticTokens(prog, signals)...)
+	tokens = append(tokens, templateExpressionSemanticTokens(uri, prog, signals)...)
 	tokens = normalizeSemanticTokens(tokens)
 	return map[string]any{"data": encodeSemanticTokens(tokens)}
 }
 
-func templateExpressionSemanticTokens(prog *compiler.Program, signals map[string][]string) []semanticToken {
+func templateExpressionSemanticTokens(uri string, prog *compiler.Program, signals map[string][]string) []semanticToken {
 	var tokens []semanticToken
-	walkTemplateExprs(prog.File, func(expr ast.Expr) {
-		switch expr := expr.(type) {
-		case *ast.CallExpr:
-			if token, ok := templateCallSemanticToken(prog, expr); ok {
-				tokens = append(tokens, token)
-			}
-		case *ast.Identifier:
-			if token, ok := templateIdentifierSemanticToken(prog, signals, expr); ok {
-				tokens = append(tokens, token)
-			}
+	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
+		lit, ok := expr.(*ast.TemplateLiteral)
+		if !ok {
+			return
+		}
+		for _, part := range lit.Parts {
+			ast.WalkExpr(part.Expr, func(expr ast.Expr) {
+				switch expr := expr.(type) {
+				case *ast.CallExpr:
+					if token, ok := templateCallSemanticToken(prog, expr); ok {
+						tokens = append(tokens, token)
+					}
+				case *ast.Identifier:
+					if token, ok := templateIdentifierSemanticToken(prog, signals, expr); ok {
+						tokens = append(tokens, token)
+					}
+				}
+			})
 		}
 	})
 	return tokens
