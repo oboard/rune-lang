@@ -608,7 +608,8 @@ func (g *generator) resultErrReturn(ret checker.Type, resultExpr string) string 
 }
 
 func (g *generator) returnExpr(expr ir.Expr, ret checker.Type) string {
-	return g.returnRawExpr(expr, ret, g.expr(expr))
+	raw := g.exprAs(expr, ret)
+	return g.returnRawExpr(expr, ret, raw)
 }
 
 func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) string {

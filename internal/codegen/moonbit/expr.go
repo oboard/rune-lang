@@ -373,6 +373,9 @@ func (g *generator) arrayLiteralAs(lit *ir.ArrayLiteral, expected checker.Type) 
 }
 
 func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
+	if expr.ResultType() == expected {
+		return g.expr(expr)
+	}
 	if inner, ok := parseNullableType(string(expected)); ok {
 		if _, ok := expr.(*ir.NullLiteral); ok {
 			return "None"
@@ -468,10 +471,7 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 	if out, ok := g.receiverIntrinsicCall(call); ok {
 		return out
 	}
-	args := make([]string, 0, len(call.Args))
-	for _, arg := range call.Args {
-		args = append(args, g.expr(arg))
-	}
+	args := g.callArgs(call)
 	if ident, ok := call.Callee.(*ir.Identifier); ok {
 		if (ident.Name == "Ok" || ident.Name == "Err") && isResultType(call.ResultType()) {
 			return ident.Name + "(" + strings.Join(args, ", ") + ")"
@@ -520,6 +520,35 @@ func (g *generator) enumSelectorConstructorCall(sel *ir.SelectorExpr, typ checke
 		}
 	}
 	return "", false
+}
+
+func (g *generator) callArgs(call *ir.CallExpr) []string {
+	params := g.callParamTypes(call)
+	args := make([]string, 0, len(call.Args))
+	for i, arg := range call.Args {
+		if i < len(params) {
+			args = append(args, g.exprAs(arg, params[i]))
+			continue
+		}
+		args = append(args, g.expr(arg))
+	}
+	return args
+}
+
+func (g *generator) callParamTypes(call *ir.CallExpr) []checker.Type {
+	if ident, ok := call.Callee.(*ir.Identifier); ok {
+		for _, fn := range g.file.Functions {
+			if fn.Name != ident.Name || len(fn.Params) != len(call.Args) {
+				continue
+			}
+			params := make([]checker.Type, 0, len(fn.Params))
+			for _, param := range fn.Params {
+				params = append(params, param.Type)
+			}
+			return params
+		}
+	}
+	return nil
 }
 
 func (g *generator) callCalleeExpr(expr ir.Expr) string {
