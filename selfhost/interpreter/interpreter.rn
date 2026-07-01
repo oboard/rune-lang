@@ -3027,6 +3027,7 @@ callCliModuleFunction(
     "parseOrExit" => cliParseOrExitResult(args[0])
     "parseArgs" => okResult(cliParseArgsValue(args[0], runtimeArray(args[1])))
     "parseCommandArgs" => okResult(cliParseCommandArgsValue(args[0], runtimeArray(args[1]), runtimeArray(args[2]), runtimeArray(args[3]), runtimeArray(args[4])))
+    "parseRuneCli" => okResult(runeCliParseRune(args[0], runtimeArray(args[1]), runtimeArray(args[2]), runtimeArray(args[3])))
     "help" => okResult(stringValue(cliHelpText(args[0])))
     "contains" => okResult(boolValue(cliContainsString(runtimeArray(args[0]), runtimeText(args[1]))))
     _ => callImportedModuleFunction(interpreter, env, "cli", name, children)
@@ -3890,6 +3891,85 @@ runeCliParseCli(
       : runeCliParseCommandAt(commandArgs, 0, backend, backendExplicit)
   )
 }
+
+runeCliParseRune(
+  rootCommand: RuntimeValue,
+  commands: Array[RuntimeValue],
+  aliases: Array[RuntimeValue],
+  args: Array[RuntimeValue]
+) -> RuntimeValue => {
+  parsed := cliParseCommandArgsValue(rootCommand, commands, aliases, [stringValue("run")], args)
+  root := cliField(parsed, "root")
+  backend := callMapGetOrString(cliField(root, "values"), "backend", "go")
+  errors := runeCliErrors(root)
+  commandError := cliField(parsed, "error")
+  (
+    runtimeKind(commandError) == RuntimeValueKind.String ? errors = pushRuntime(errors, commandError)
+      : errors = errors
+  )
+  invalidBackend := cliContainsString([stringValue("go"), stringValue("ts"), stringValue("mbt")], backend) == false
+  (
+    invalidBackend ? errors = pushRuntime(errors, stringValue("unsupported backend " + backend))
+      : errors = errors
+  )
+  backendExplicit := cliContainsString(runtimeArray(cliField(root, "explicitOptions")), "backend")
+  commandName := runtimeText(cliField(parsed, "commandName"))
+  (
+    errors.length() > 0 ? runeCliInvocation("", backend, "", "", "", "", false, false, false, emptyRuntimeArray(), errors, false, "")
+      : (
+        commandName.isEmpty() ? runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, emptyRuntimeArray(), emptyRuntimeArray(), true, cliHelpText(rootCommand))
+          : runeCliInvocationFromCommandResult(commandName, rootCommand, commands, backend, backendExplicit, cliField(parsed, "command"))
+      )
+  )
+}
+
+runeCliInvocationFromCommandResult(
+  name: String,
+  rootCommand: RuntimeValue,
+  commands: Array[RuntimeValue],
+  backend: String,
+  backendExplicit: Bool,
+  result: RuntimeValue
+) -> RuntimeValue => {
+  errors := runeCliErrors(result)
+  target := callMapGetOrString(cliField(result, "values"), "target", "")
+  target = runeCliDefaultTarget(name, backend, target)
+  errors = runeCliInvocationErrors(name, backend, target, errors)
+  runeCliInvocation(
+    name,
+    backend,
+    runeCliDefaultPath(name, callMapGetOrString(cliField(result, "positionals"), "path", "")),
+    callMapGetOrString(cliField(result, "values"), "output", ""),
+    target,
+    callMapGetOrString(cliField(result, "positionals"), "pattern", ""),
+    callMapGetOrBool(cliField(result, "flags"), "check", false),
+    callMapGetOrBool(cliField(result, "flags"), "stdout", false),
+    backendExplicit,
+    runtimeArray(cliField(result, "rest")),
+    errors,
+    runtimeBool(cliField(result, "help")),
+    cliHelpText(runeCliHelpCommand(rootCommand, commands, name))
+  )
+}
+
+runeCliHelpCommand(
+  rootCommand: RuntimeValue,
+  commands: Array[RuntimeValue],
+  name: String
+) -> RuntimeValue => runeCliHelpCommandAt(rootCommand, commands, name, 0)
+
+runeCliHelpCommandAt(
+  rootCommand: RuntimeValue,
+  commands: Array[RuntimeValue],
+  name: String,
+  index: Int
+) -> RuntimeValue => (
+  index >= commands.length() ? rootCommand
+    : (
+      runtimeText(cliField(commands[index], "name")) == name ? commands[index]
+        : runeCliHelpCommandAt(rootCommand, commands, name, index + 1)
+    )
+)
 
 runeCliSplitRoot(
   args: Array[RuntimeValue],

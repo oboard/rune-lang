@@ -1,20 +1,3 @@
-+ RuneCliInvocation: {
-  ok: Bool
-  command: String
-  backend: String
-  path: String
-  output: String
-  target: String
-  pattern: String
-  checkOnly: Bool
-  stdout: Bool
-  backendExplicit: Bool
-  runArgs: Array[String]
-  errors: Array[String]
-  help: Bool
-  helpText: String
-}
-
 + RuneCliExecution: {
   ok: Bool
   output: String
@@ -31,30 +14,7 @@ RuneCliArgsEntry: {
 
 + parseCli(
   args: Array[String]
-) -> RuneCliInvocation => {
-  parsed := @cli.parseCommandArgs(runeCommand(), runeCommands(), runeAliases(), ["run"], args)
-  root := parsed.root
-  backend := root.values.getOr("backend", "go")
-  errors := cliErrors(root)
-  commandError := parsed.error ?? ""
-  (
-    commandError.isEmpty() ? 0
-      : errors.push(commandError)
-  )
-  invalidBackend := @cli.contains(["go", "ts", "mbt"], backend) == false
-  (
-    invalidBackend ? errors.push("unsupported backend " + backend)
-      : 0
-  )
-  backendExplicit := @cli.contains(root.explicitOptions, "backend")
-  (
-    errors.length() > 0 ? errorInvocation("", backend, errors)
-      : (
-        parsed.commandName.isEmpty() ? helpInvocation(backend)
-          : invocationFromResult(parsed.commandName, backend, backendExplicit, parsed.command)
-      )
-  )
-}
+) -> RuneCliInvocation => @cli.parseRuneCli(runeCommand(), runeCommands(), runeAliases(), args)
 
 + runCli(
   args: Array[String]
@@ -210,132 +170,6 @@ hostLsp() -> RuneCliExecution => @go.expr("hostLsp()")
 + lspCommand() -> CliCommand => {
   command := @cli.command("lsp", "Start the Rune language server")
   @cli.withOption(command, @cli.flag("stdio", "", "serve LSP over stdin/stdout"))
-}
-
-invocationFromResult(
-  name: String,
-  backend: String,
-  backendExplicit: Bool,
-  result: CliParseResult
-) -> RuneCliInvocation => {
-  errors := cliErrors(result)
-  target := result.values.getOr("target", "")
-  target = defaultTargetForCommand(name, backend, target)
-  errors = invocationErrors(name, backend, target, errors)
-  RuneCliInvocation {
-    ok: errors.isEmpty(),
-    command: name,
-    backend: backend,
-    path: defaultPathForCommand(name, result.positionals.getOr("path", "")),
-    output: result.values.getOr("output", ""),
-    target: target,
-    pattern: result.positionals.getOr("pattern", ""),
-    checkOnly: result.flags.getOr("check", false),
-    stdout: result.flags.getOr("stdout", false),
-    backendExplicit: backendExplicit,
-    runArgs: result.rest,
-    errors: errors,
-    help: result.help,
-    helpText: invocationHelpText(name)
-  }
-}
-
-invocationErrors(
-  name: String,
-  backend: String,
-  target: String,
-  errors: Array[String]
-) -> Array[String] => (
-  (name == "build") && (@cli.contains(["go", "mbt"], backend) == false) ? [..errors, "rune build only supports --backend go or --backend mbt"]
-    : (
-      ((name == "run") && (target.isEmpty() == false)) && (backend != "mbt") ? [..errors, "rune run --target is only supported with --backend mbt"]
-        : errors
-    )
-)
-
-defaultTargetForCommand(
-  name: String,
-  backend: String,
-  target: String
-) -> String => (
-  ((name == "run") && (backend == "mbt")) && target.isEmpty() ? "native"
-    : target
-)
-
-defaultPathForCommand(
-  name: String,
-  path: String
-) -> String => (
-  (name == "test") && path.isEmpty() ? "tests"
-    : path
-)
-
-invocationHelpText(
-  name: String
-) -> String => name {
-  "run" => @cli.help(runCommand())
-  "build" => @cli.help(buildCommand())
-  "go" => @cli.help(emitCommand("go"))
-  "ts" => @cli.help(emitCommand("ts"))
-  "mbt" => @cli.help(emitCommand("mbt"))
-  "check" => @cli.help(singlePathCommand("check"))
-  "fmt" => @cli.help(fmtCommand())
-  "test" => @cli.help(testCommand())
-  "repl" => @cli.help(@cli.command("repl", ""))
-  "lsp" => @cli.help(lspCommand())
-  _ => @cli.help(runeCommand())
-}
-
-cliErrors(
-  result: CliParseResult
-) -> Array[String] => {
-  error := result.error ?? ""
-  errors := []
-  (
-    error.isEmpty() ? 0
-      : errors.push(error)
-  )
-  errors
-}
-
-helpInvocation(
-  backend: String
-) -> RuneCliInvocation => {
-  ok: true,
-  command: "",
-  backend: backend,
-  path: "",
-  output: "",
-  target: "",
-    pattern: "",
-    checkOnly: false,
-    stdout: false,
-    backendExplicit: false,
-    runArgs: [],
-    errors: [],
-    help: true,
-    helpText: @cli.help(runeCommand())
-}
-
-errorInvocation(
-  command: String,
-  backend: String,
-  errors: Array[String]
-) -> RuneCliInvocation => {
-  ok: false,
-  command: command,
-  backend: backend,
-  path: "",
-  output: "",
-  target: "",
-    pattern: "",
-    checkOnly: false,
-    stdout: false,
-    backendExplicit: false,
-    runArgs: [],
-    errors: errors,
-    help: false,
-    helpText: ""
 }
 
 #cli.main

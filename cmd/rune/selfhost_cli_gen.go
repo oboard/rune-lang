@@ -6,23 +6,6 @@ import (
 	"strings"
 )
 
-type __RuneCliInvocation struct {
-	__ok              bool
-	__command         string
-	__backend         string
-	__path            string
-	__output          string
-	__target          string
-	__pattern         string
-	__checkOnly       bool
-	__stdout          bool
-	__backendExplicit bool
-	__runArgs         []string
-	__errors          []string
-	__help            bool
-	__helpText        string
-}
-
 type __RuneCliExecution struct {
 	__ok     bool
 	__output string
@@ -80,6 +63,23 @@ type __CliCommandParseResult struct {
 	__commandName string
 	__commandArgs []string
 	__error       any
+}
+
+type __RuneCliInvocation struct {
+	__ok              bool
+	__command         string
+	__backend         string
+	__path            string
+	__output          string
+	__target          string
+	__pattern         string
+	__checkOnly       bool
+	__stdout          bool
+	__backendExplicit bool
+	__runArgs         []string
+	__errors          []string
+	__help            bool
+	__helpText        string
 }
 
 func runeCliCommand(name string, about string) __CliCommand {
@@ -302,6 +302,105 @@ func runeCliParseCommandArgs(root __CliCommand, commands []__CliCommand, aliases
 	return __CliCommandParseResult{__root: rootResult, __command: commandResult, __commandName: commandName, __commandArgs: commandArgs, __error: any(nil)}
 }
 
+func runeCliParseRune(root __CliCommand, commands []__CliCommand, aliases []__CliCommandAlias, args []string) __RuneCliInvocation {
+	parsed := runeCliParseCommandArgs(root, commands, aliases, []string{"run"}, args)
+	backend := runeCliMapGetString(parsed.__root.__values, "backend", "go")
+	errors := runeCliErrors(parsed.__root)
+	if message, ok := parsed.__error.(string); ok && message != "" {
+		errors = append(errors, message)
+	}
+	if !runeCliContains([]string{"go", "ts", "mbt"}, backend) {
+		errors = append(errors, "unsupported backend "+backend)
+	}
+	backendExplicit := runeCliContains(parsed.__root.__explicitOptions, "backend")
+	if len(errors) > 0 {
+		return runeCliInvocation("", backend, "", "", "", "", false, false, false, []string{}, errors, false, "")
+	}
+	if parsed.__commandName == "" {
+		return runeCliInvocation("", backend, "", "", "", "", false, false, backendExplicit, []string{}, []string{}, true, runeCliHelp(root))
+	}
+	return runeCliInvocationFromResult(parsed.__commandName, root, commands, backend, backendExplicit, parsed.__command)
+}
+
+func runeCliInvocationFromResult(name string, root __CliCommand, commands []__CliCommand, backend string, backendExplicit bool, result __CliParseResult) __RuneCliInvocation {
+	errors := runeCliErrors(result)
+	target := runeCliDefaultTarget(name, backend, runeCliMapGetString(result.__values, "target", ""))
+	errors = runeCliInvocationErrors(name, backend, target, errors)
+	return runeCliInvocation(
+		name,
+		backend,
+		runeCliDefaultPath(name, runeCliMapGetString(result.__positionals, "path", "")),
+		runeCliMapGetString(result.__values, "output", ""),
+		target,
+		runeCliMapGetString(result.__positionals, "pattern", ""),
+		runeCliMapGetBool(result.__flags, "check", false),
+		runeCliMapGetBool(result.__flags, "stdout", false),
+		backendExplicit,
+		result.__rest,
+		errors,
+		result.__help,
+		runeCliHelp(runeCliHelpCommand(root, commands, name)),
+	)
+}
+
+func runeCliInvocationErrors(name string, backend string, target string, errors []string) []string {
+	if name == "build" && !runeCliContains([]string{"go", "mbt"}, backend) {
+		return append(errors, "rune build only supports --backend go or --backend mbt")
+	}
+	if name == "run" && target != "" && backend != "mbt" {
+		return append(errors, "rune run --target is only supported with --backend mbt")
+	}
+	return errors
+}
+
+func runeCliDefaultTarget(name string, backend string, target string) string {
+	if name == "run" && backend == "mbt" && target == "" {
+		return "native"
+	}
+	return target
+}
+
+func runeCliDefaultPath(name string, path string) string {
+	if name == "test" && path == "" {
+		return "tests"
+	}
+	return path
+}
+
+func runeCliHelpCommand(root __CliCommand, commands []__CliCommand, name string) __CliCommand {
+	for _, command := range commands {
+		if command.__name == name {
+			return command
+		}
+	}
+	return root
+}
+
+func runeCliErrors(result __CliParseResult) []string {
+	if message, ok := result.__error.(string); ok && message != "" {
+		return []string{message}
+	}
+	return []string{}
+}
+
+func runeCliMapGetString(values map[string]string, key string, fallback string) string {
+	if value, ok := values[key]; ok {
+		return value
+	}
+	return fallback
+}
+
+func runeCliMapGetBool(values map[string]bool, key string, fallback bool) bool {
+	if value, ok := values[key]; ok {
+		return value
+	}
+	return fallback
+}
+
+func runeCliInvocation(command string, backend string, path string, output string, target string, pattern string, checkOnly bool, stdout bool, backendExplicit bool, runArgs []string, errors []string, help bool, helpText string) __RuneCliInvocation {
+	return __RuneCliInvocation{__ok: len(errors) == 0, __command: command, __backend: backend, __path: path, __output: output, __target: target, __pattern: pattern, __checkOnly: checkOnly, __stdout: stdout, __backendExplicit: backendExplicit, __runArgs: runArgs, __errors: errors, __help: help, __helpText: helpText}
+}
+
 func runeCliSplitCommandArgs(root __CliCommand, aliases []__CliCommandAlias, args []string) ([]string, string, []string) {
 	rootArgs := []string{}
 	commandArgs := []string{}
@@ -496,48 +595,7 @@ func runeCliContains(values []string, value string) bool {
 }
 
 func __parseCli(__args []string) __RuneCliInvocation {
-	__parsed := runeCliParseCommandArgs(__runeCommand(), __runeCommands(), __runeAliases(), []string{"run"}, __args)
-	__root := __parsed.__root
-	__backend := func() string {
-		value, ok := __root.__values["backend"]
-		if ok {
-			return value
-		}
-		return "go"
-	}()
-	__errors := ____rune_private_5b8b8d7b_cliErrors(__root)
-	__commandError := func() string {
-		__coalesce1 := __parsed.__error
-		if __coalesce1 != nil {
-			return __coalesce1.(string)
-		}
-		return ""
-	}()
-	func() int {
-		if len(__commandError) == 0 {
-			return 0
-		}
-		return func() int { __errors = append(__errors, __commandError); return len(__errors) }()
-	}()
-	__invalidBackend := runeCliContains([]string{"go", "ts", "mbt"}, __backend) == false
-	func() int {
-		if __invalidBackend {
-			return func() int { __errors = append(__errors, "unsupported backend "+__backend); return len(__errors) }()
-		}
-		return 0
-	}()
-	__backendExplicit := runeCliContains(__root.__explicitOptions, "backend")
-	return func() __RuneCliInvocation {
-		if len(__errors) > 0 {
-			return ____rune_private_5b8b8d7b_errorInvocation("", __backend, __errors)
-		}
-		return func() __RuneCliInvocation {
-			if len(__parsed.__commandName) == 0 {
-				return ____rune_private_5b8b8d7b_helpInvocation(__backend)
-			}
-			return ____rune_private_5b8b8d7b_invocationFromResult(__parsed.__commandName, __backend, __backendExplicit, __parsed.__command)
-		}()
-	}()
+	return runeCliParseRune(__runeCommand(), __runeCommands(), __runeAliases(), __args)
 }
 
 func __runCli(__args []string) __RuneCliExecution {
@@ -678,147 +736,6 @@ func __testCommand() __CliCommand {
 func __lspCommand() __CliCommand {
 	__command := runeCliCommand("lsp", "Start the Rune language server")
 	return runeCliWithOption(__command, runeCliFlag("stdio", "", "serve LSP over stdin/stdout"))
-}
-
-func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
-	__errors := ____rune_private_5b8b8d7b_cliErrors(__result)
-	__target := func() string {
-		value, ok := __result.__values["target"]
-		if ok {
-			return value
-		}
-		return ""
-	}()
-	__target = ____rune_private_5b8b8d7b_defaultTargetForCommand(__name, __backend, __target)
-	__errors = ____rune_private_5b8b8d7b_invocationErrors(__name, __backend, __target, __errors)
-	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_5b8b8d7b_defaultPathForCommand(__name, func() string {
-		value, ok := __result.__positionals["path"]
-		if ok {
-			return value
-		}
-		return ""
-	}()), __output: func() string {
-		value, ok := __result.__values["output"]
-		if ok {
-			return value
-		}
-		return ""
-	}(), __target: __target, __pattern: func() string {
-		value, ok := __result.__positionals["pattern"]
-		if ok {
-			return value
-		}
-		return ""
-	}(), __checkOnly: func() bool {
-		value, ok := __result.__flags["check"]
-		if ok {
-			return value
-		}
-		return false
-	}(), __stdout: func() bool {
-		value, ok := __result.__flags["stdout"]
-		if ok {
-			return value
-		}
-		return false
-	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: ____rune_private_5b8b8d7b_invocationHelpText(__name)}
-}
-
-func ____rune_private_5b8b8d7b_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
-	return func() []string {
-		if __name == "build" && runeCliContains([]string{"go", "mbt"}, __backend) == false {
-			return func() []string {
-				out := []string{}
-				out = append(out, __errors...)
-				out = append(out, "rune build only supports --backend go or --backend mbt")
-				return out
-			}()
-		}
-		return func() []string {
-			if __name == "run" && len(__target) == 0 == false && __backend != "mbt" {
-				return func() []string {
-					out := []string{}
-					out = append(out, __errors...)
-					out = append(out, "rune run --target is only supported with --backend mbt")
-					return out
-				}()
-			}
-			return __errors
-		}()
-	}()
-}
-
-func ____rune_private_5b8b8d7b_defaultTargetForCommand(__name string, __backend string, __target string) string {
-	return func() string {
-		if __name == "run" && __backend == "mbt" && len(__target) == 0 {
-			return "native"
-		}
-		return __target
-	}()
-}
-
-func ____rune_private_5b8b8d7b_defaultPathForCommand(__name string, __path string) string {
-	return func() string {
-		if __name == "test" && len(__path) == 0 {
-			return "tests"
-		}
-		return __path
-	}()
-}
-
-func ____rune_private_5b8b8d7b_invocationHelpText(__name string) string {
-	return func() string {
-		switch {
-		case __name == "run":
-			return runeCliHelp(__runCommand())
-		case __name == "build":
-			return runeCliHelp(__buildCommand())
-		case __name == "go":
-			return runeCliHelp(__emitCommand("go"))
-		case __name == "ts":
-			return runeCliHelp(__emitCommand("ts"))
-		case __name == "mbt":
-			return runeCliHelp(__emitCommand("mbt"))
-		case __name == "check":
-			return runeCliHelp(__singlePathCommand("check"))
-		case __name == "fmt":
-			return runeCliHelp(__fmtCommand())
-		case __name == "test":
-			return runeCliHelp(__testCommand())
-		case __name == "repl":
-			return runeCliHelp(runeCliCommand("repl", ""))
-		case __name == "lsp":
-			return runeCliHelp(__lspCommand())
-		default:
-			return runeCliHelp(__runeCommand())
-		}
-	}()
-}
-
-func ____rune_private_5b8b8d7b_cliErrors(__result __CliParseResult) []string {
-	__error := func() string {
-		__coalesce2 := __result.__error
-		if __coalesce2 != nil {
-			return __coalesce2.(string)
-		}
-		return ""
-	}()
-	__errors := []string{}
-	func() int {
-		if len(__error) == 0 {
-			return 0
-		}
-		return func() int { __errors = append(__errors, __error); return len(__errors) }()
-	}()
-	return __errors
-}
-
-func ____rune_private_5b8b8d7b_helpInvocation(__backend string) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: []string{}, __help: true, __helpText: runeCliHelp(__runeCommand())}
-}
-
-func ____rune_private_5b8b8d7b_errorInvocation(__command string, __backend string, __errors []string) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: false, __command: __command, __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
 }
 
 func ____rune_private_5b8b8d7b___cliMain(__args __RuneCliArgsEntry) {
