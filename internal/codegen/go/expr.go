@@ -1463,17 +1463,43 @@ func anonymousObjectFieldsForType(g *generator, obj *ir.AnonymousObjectLiteral, 
 		for _, field := range obj.Fields {
 			byName[field.Name] = field.Value
 		}
-		for _, field := range resultFields {
-			if value := byName[field.name]; value != nil {
-				fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.expr(value)))
+			for _, field := range resultFields {
+				if value := byName[field.name]; value != nil {
+					fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.anonymousObjectFieldExpr(value)))
+				}
 			}
-		}
 		return strings.Join(fields, ", ")
 	}
 	for _, field := range obj.Fields {
-		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.anonymousObjectFieldExpr(field.Value)))
 	}
 	return strings.Join(fields, ", ")
+}
+
+func (g *generator) anonymousObjectFieldExpr(expr ir.Expr) string {
+	if zero, ok := zeroFunctionValue(expr.ResultType()); ok {
+		return zero
+	}
+	return g.expr(expr)
+}
+
+func zeroFunctionValue(typ checker.Type) (string, bool) {
+	params, ret, ok := parseGoFuncType(string(typ))
+	if !ok {
+		return "", false
+	}
+	names := make([]string, 0, len(params))
+	for idx, param := range params {
+		names = append(names, fmt.Sprintf("_%d %s", idx, goType(checker.Type(param))))
+	}
+	out := "func(" + strings.Join(names, ", ") + ")"
+	if ret != string(checker.Void) {
+		retType := checker.Type(ret)
+		out += " " + goType(retType) + " { return " + zeroValue(retType) + " }"
+		return out, true
+	}
+	out += " {}"
+	return out, true
 }
 
 func goPrecedence(op lexer.Kind) int {

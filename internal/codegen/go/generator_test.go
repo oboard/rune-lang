@@ -1005,6 +1005,9 @@ main() => {
 	if strings.Contains(got, `json:"greet"`) {
 		t.Fatalf("generated Go should omit function fields:\n%s", got)
 	}
+	if strings.Contains(got, "__this") {
+		t.Fatalf("generated Go should not emit method bodies for omitted JSON function fields:\n%s", got)
+	}
 	if strings.Contains(got, "func() struct") {
 		t.Fatalf("generated Go should reuse named json types:\n%s", got)
 	}
