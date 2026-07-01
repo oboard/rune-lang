@@ -308,11 +308,25 @@ func (g *generator) withThisName(name string, fn func() string) string {
 }
 
 func (g *generator) anonymousObjectLiteral(lit *ir.AnonymousObjectLiteral) string {
+	return g.anonymousObjectLiteralAs(lit, lit.ResultType())
+}
+
+func (g *generator) anonymousObjectLiteralAs(lit *ir.AnonymousObjectLiteral, typ checker.Type) string {
+	expected := map[string]checker.Type{}
+	if fields, ok := parseObjectType(string(typ)); ok {
+		for _, field := range fields {
+			expected[field.name] = checker.Type(field.typ)
+		}
+	}
 	fields := make([]string, 0, len(lit.Fields))
 	for _, field := range lit.Fields {
-		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+		value := g.expr(field.Value)
+		if fieldType, ok := expected[field.Name]; ok {
+			value = g.exprAs(field.Value, fieldType)
+		}
+		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), value))
 	}
-	return fmt.Sprintf("%s::{ %s }", g.anonymousTypeName(lit.ResultType()), strings.Join(fields, ", "))
+	return fmt.Sprintf("%s::{ %s }", g.anonymousTypeName(typ), strings.Join(fields, ", "))
 }
 
 func (g *generator) anonymousObjectLiteralWithFunctionPlaceholders(lit *ir.AnonymousObjectLiteral) string {
@@ -376,6 +390,9 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 	if expr.ResultType() == expected {
 		return g.expr(expr)
 	}
+	if expected == checker.Object {
+		return g.jsonValueFromSource(g.expr(expr), expr.ResultType())
+	}
 	if inner, ok := parseNullableType(string(expected)); ok {
 		if _, ok := expr.(*ir.NullLiteral); ok {
 			return "None"
@@ -385,7 +402,30 @@ func (g *generator) exprAs(expr ir.Expr, expected checker.Type) string {
 	if lit, ok := expr.(*ir.ArrayLiteral); ok {
 		return g.arrayLiteralAs(lit, expected)
 	}
+	if lit, ok := expr.(*ir.AnonymousObjectLiteral); ok {
+		if _, ok := parseObjectType(string(expected)); ok {
+			return g.anonymousObjectLiteralAs(lit, expected)
+		}
+	}
+	if _, ok := parseObjectType(string(expected)); ok {
+		if _, sourceOk := parseObjectType(string(expr.ResultType())); sourceOk {
+			return g.objectAsExpected(expr, expected)
+		}
+	}
 	return g.expr(expr)
+}
+
+func (g *generator) objectAsExpected(expr ir.Expr, expected checker.Type) string {
+	fields, _ := parseObjectType(string(expected))
+	values := make([]string, 0, len(fields))
+	for _, field := range fields {
+		values = append(values, fmt.Sprintf("%s: %s", mangleIdent(field.name), g.exprAs(&ir.SelectorExpr{
+			ExprBase: ir.ExprBase{Type: checker.Type(field.typ)},
+			Receiver: expr,
+			Name:     field.name,
+		}, checker.Type(field.typ))))
+	}
+	return fmt.Sprintf("%s::{ %s }", g.anonymousTypeName(expected), strings.Join(values, ", "))
 }
 
 func (g *generator) errorLiteral(lit *ir.StructLiteral) string {
@@ -500,6 +540,11 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 			args = append([]string{g.expr(sel.Receiver)}, args...)
 			return mangleMethod(typ.Name, sel.Name) + "(" + strings.Join(args, ", ") + ")"
 		}
+		if fieldType, ok := g.selectorFieldType(sel.Receiver.ResultType(), sel.Name); ok {
+			if isFuncType(fieldType) {
+				return "(" + g.expr(sel) + ")(" + strings.Join(args, ", ") + ")"
+			}
+		}
 		return g.expr(sel.Receiver) + "." + mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
 	}
 	return g.callCalleeExpr(call.Callee) + "(" + strings.Join(args, ", ") + ")"
@@ -520,6 +565,17 @@ func (g *generator) enumSelectorConstructorCall(sel *ir.SelectorExpr, typ checke
 		}
 	}
 	return "", false
+}
+
+func (g *generator) selectorFieldType(receiver checker.Type, fieldName string) (checker.Type, bool) {
+	if fields, ok := parseObjectType(string(receiver)); ok {
+		for _, field := range fields {
+			if field.name == fieldName {
+				return checker.Type(field.typ), true
+			}
+		}
+	}
+	return g.structFieldType(string(receiver), fieldName)
 }
 
 func (g *generator) callArgs(call *ir.CallExpr) []string {

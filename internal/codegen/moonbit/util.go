@@ -321,6 +321,15 @@ func parseFuncType(name string) ([]string, string, bool) {
 	return splitTypeList(params), ret, ret != ""
 }
 
+func isFuncType(typ checker.Type) bool {
+	name := string(typ)
+	if base, _, ok := parseGenericType(name); ok && (base == "Func" || base == "AsyncFunc") {
+		return true
+	}
+	_, _, ok := parseFuncType(name)
+	return ok
+}
+
 type objectField struct {
 	name string
 	typ  string
