@@ -151,7 +151,11 @@ func (g *generator) mapEachExpr(receiver string, call *ir.CallExpr) string {
 	if len(lambda.Params) >= 3 {
 		callArgs = append(callArgs, receiver)
 	}
-	return fmt.Sprintf("func() { for key, value := range %s { %s(%s) } }()", receiver, g.expr(lambda), strings.Join(callArgs, ", "))
+	keyName := "_"
+	if len(lambda.Params) >= 2 {
+		keyName = "key"
+	}
+	return fmt.Sprintf("func() { for %s, value := range %s { %s(%s) } }()", keyName, receiver, g.expr(lambda), strings.Join(callArgs, ", "))
 }
 
 func (g *generator) setEachExpr(receiver string, call *ir.CallExpr) string {

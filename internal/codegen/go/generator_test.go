@@ -675,6 +675,8 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
   scores := @map.new("", 0)
   scores.set("rune", 10)
   @io.println(scores.getOr("rune", 0))
+  total ~= 0
+  scores.each((value) => total = total + value)
 
   seen := @set.new("")
   seen.add("rune")
@@ -697,9 +699,10 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 		`__scores := map[string]int{}`,
 		`__scores["rune"] = 10`,
 		`fmt.Println(func() int {`,
-		`value, ok := __scores["rune"]`,
-		`return 0`,
-		`__seen := map[string]struct{}{}`,
+			`value, ok := __scores["rune"]`,
+			`return 0`,
+			`for _, value := range __scores`,
+			`__seen := map[string]struct{}{}`,
 		`__seen["rune"] = struct{}{}`,
 		`fmt.Println(func() bool { _, ok := __seen["rune"]; return ok }())`,
 	}
