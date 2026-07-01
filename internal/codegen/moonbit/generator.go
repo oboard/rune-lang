@@ -308,7 +308,11 @@ func (g *generator) enumType(enum *ir.EnumType) {
 		}
 	}
 	g.indent--
-	g.line("} derive(Eq)")
+	if enumHasPayloadMembers(enum) {
+		g.line("}")
+	} else {
+		g.line("} derive(Eq)")
+	}
 	g.line("")
 	g.enumShowImpl(enum)
 }
@@ -342,6 +346,15 @@ func (g *generator) constDecl(constant *ir.ConstDecl) {
 func enumHasValueMembers(enum *ir.EnumType) bool {
 	for _, member := range enum.Members {
 		if member.HasValue {
+			return true
+		}
+	}
+	return false
+}
+
+func enumHasPayloadMembers(enum *ir.EnumType) bool {
+	for _, member := range enum.Members {
+		if len(member.Params) > 0 {
 			return true
 		}
 	}
@@ -432,6 +445,7 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) {
 	case *ir.PatternBlock:
 		g.patternBlock(fn, e, ret)
 	case *ir.BlockExpr:
+		g.mutableParamShadows(fn, e)
 		g.block(e, ret)
 	default:
 		if unwrap, ok := expr.(*ir.ResultUnwrapExpr); ok {
@@ -523,6 +537,11 @@ func assignedNames(block *ir.BlockExpr) map[string]bool {
 				if e.Name != "" {
 					assigned[e.Name] = true
 				}
+				if sel, ok := e.Target.(*ir.SelectorExpr); ok {
+					if ident, ok := sel.Receiver.(*ir.Identifier); ok {
+						assigned[ident.Name] = true
+					}
+				}
 			case *ir.PostfixExpr:
 				if ident, ok := e.Expr.(*ir.Identifier); ok {
 					assigned[ident.Name] = true
@@ -531,6 +550,16 @@ func assignedNames(block *ir.BlockExpr) map[string]bool {
 		})
 	}
 	return assigned
+}
+
+func (g *generator) mutableParamShadows(fn *ir.Function, block *ir.BlockExpr) {
+	assigned := assignedNames(block)
+	for _, param := range fn.Params {
+		if assigned[param.Name] {
+			name := mangleIdent(param.Name)
+			g.linef("let mut %s = %s", name, name)
+		}
+	}
 }
 
 func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
@@ -608,6 +637,9 @@ func (g *generator) discardExpr(expr ir.Expr, rendered string) string {
 			alt = g.discardExpr(ternary.Alternative, g.expr(ternary.Alternative))
 		}
 		return fmt.Sprintf("if %s { %s } else { %s }", g.expr(ternary.Condition), g.discardExpr(ternary.Consequence, g.expr(ternary.Consequence)), alt)
+	}
+	if assign, ok := expr.(*ir.AssignExpr); ok {
+		return g.assignExpr(assign, false)
 	}
 	if expr.ResultType() == checker.Void {
 		return rendered

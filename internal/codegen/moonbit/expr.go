@@ -124,14 +124,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return out
 	case *ir.AssignExpr:
-		if target, ok := e.Target.(*ir.IndexExpr); ok {
-			value := g.nextTemp("__value")
-			return fmt.Sprintf("{ let %s = %s; %s[%s] = %s; %s }", value, g.exprAs(e.Value, target.ResultType()), g.expr(target.Receiver), g.expr(target.Index), value, value)
-		}
-		if e.Target != nil && e.Name == "" {
-			return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
-		}
-		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
+		return g.assignExpr(e, true)
 	case *ir.CallExpr:
 		return g.callExpr(e)
 	case *ir.LambdaExpr:
@@ -198,9 +191,16 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.TypeName == string(checker.Error) {
 			return g.errorLiteral(e)
 		}
+		if e.TypeName == "Map" && len(e.Fields) == 0 {
+			return "{}"
+		}
 		fields := make([]string, 0, len(e.Fields))
 		for _, field := range e.Fields {
-			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), g.expr(field.Value)))
+			value := g.expr(field.Value)
+			if fieldType, ok := g.structFieldType(e.TypeName, field.Name); ok {
+				value = g.exprAs(field.Value, fieldType)
+			}
+			fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), value))
 		}
 		return fmt.Sprintf("%s::{ %s }", mangleType(e.TypeName), strings.Join(fields, ", "))
 	case *ir.AnonymousObjectLiteral:
@@ -327,6 +327,20 @@ func (g *generator) anonymousObjectLiteralWithFunctionPlaceholders(lit *ir.Anony
 	return fmt.Sprintf("%s::{ %s }", g.anonymousTypeName(lit.ResultType()), strings.Join(fields, ", "))
 }
 
+func (g *generator) structFieldType(typeName string, fieldName string) (checker.Type, bool) {
+	for _, typ := range g.file.Types {
+		if typ.Name != typeName {
+			continue
+		}
+		for _, field := range typ.Fields {
+			if field.Name == fieldName {
+				return field.Type, true
+			}
+		}
+	}
+	return checker.Unknown, false
+}
+
 func anonymousObjectHasFunctionFields(lit *ir.AnonymousObjectLiteral) bool {
 	for _, field := range lit.Fields {
 		if _, ok := zeroFunctionValue(field.Value.ResultType()); ok {
@@ -403,6 +417,40 @@ func (g *generator) showExpr(expr ir.Expr) string {
 	return fmt.Sprintf("(%s).to_string()", g.expr(expr))
 }
 
+func (g *generator) assignExpr(e *ir.AssignExpr, keepValue bool) string {
+	tail := "()"
+	if keepValue {
+		tail = "__value"
+	}
+	if target, ok := e.Target.(*ir.IndexExpr); ok {
+		value := g.nextTemp("__value")
+		tail = "()"
+		if keepValue {
+			tail = value
+		}
+		if _, _, ok := checker.MapKeyValue(target.Receiver.ResultType()); ok {
+			return fmt.Sprintf("{ let %s = %s; let _ = %s.set(%s, %s); %s }", value, g.exprAs(e.Value, target.ResultType()), g.selectorReceiverExpr(target.Receiver), g.expr(target.Index), value, tail)
+		}
+		return fmt.Sprintf("{ let %s = %s; let _ = { %s[%s] = %s }; %s }", value, g.exprAs(e.Value, target.ResultType()), g.expr(target.Receiver), g.expr(target.Index), value, tail)
+	}
+	if sel, ok := e.Target.(*ir.SelectorExpr); ok {
+		if ident, ok := sel.Receiver.(*ir.Identifier); ok {
+			if fieldType, found := g.structFieldType(string(sel.Receiver.ResultType()), sel.Name); found {
+				value := g.nextTemp("__value")
+				tail = "()"
+				if keepValue {
+					tail = value
+				}
+				return fmt.Sprintf("{ let %s = %s; %s = %s::{ ..%s, %s: %s }; %s }", value, g.exprAs(e.Value, fieldType), mangleIdent(ident.Name), mangleType(string(sel.Receiver.ResultType())), mangleIdent(ident.Name), mangleIdent(sel.Name), value, tail)
+			}
+		}
+	}
+	if e.Target != nil && e.Name == "" {
+		return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
+	}
+	return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
+}
+
 func selectorResolvedName(sel *ir.SelectorExpr) string {
 	if sel.ResolvedName != "" {
 		return sel.ResolvedName
@@ -433,6 +481,9 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 		}
 	}
 	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
+		if ctor, ok := g.enumSelectorConstructorCall(sel, call.ResultType()); ok {
+			return ctor + "(" + strings.Join(args, ", ") + ")"
+		}
 		if sel.ResolvedName != "" {
 			return mangleIdent(sel.ResolvedName) + "(" + strings.Join(args, ", ") + ")"
 		}
@@ -449,6 +500,23 @@ func (g *generator) callExpr(call *ir.CallExpr) string {
 		return g.expr(sel.Receiver) + "." + mangleIdent(sel.Name) + "(" + strings.Join(args, ", ") + ")"
 	}
 	return g.callCalleeExpr(call.Callee) + "(" + strings.Join(args, ", ") + ")"
+}
+
+func (g *generator) enumSelectorConstructorCall(sel *ir.SelectorExpr, typ checker.Type) (string, bool) {
+	ident, ok := sel.Receiver.(*ir.Identifier)
+	if !ok {
+		return "", false
+	}
+	enum := g.enumFromType(typ)
+	if enum == nil || enum.Name != ident.Name {
+		return "", false
+	}
+	for _, member := range enum.Members {
+		if member.Name == sel.Name {
+			return mangleType(enum.Name) + "::" + mangleType(member.Name), true
+		}
+	}
+	return "", false
 }
 
 func (g *generator) callCalleeExpr(expr ir.Expr) string {
@@ -613,7 +681,7 @@ func (g *generator) matchExpr(match *ir.MatchExpr) string {
 		}
 	}
 	if !hasDefault {
-		chain = append(chain, fmt.Sprintf("else { %s }", zeroValue(match.ResultType())))
+		chain = append(chain, fmt.Sprintf("else { %s }", g.zeroValue(match.ResultType())))
 	}
 	parts = append(parts, strings.Join(chain, " "))
 	return "{ " + strings.Join(parts, "; ") + " }"

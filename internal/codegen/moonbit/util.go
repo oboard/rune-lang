@@ -495,6 +495,13 @@ func zeroValue(typ checker.Type) string {
 	}
 }
 
+func (g *generator) zeroValue(typ checker.Type) string {
+	if enum := g.enumFromType(typ); enum != nil && len(enum.Members) > 0 && len(enum.Members[0].Params) == 0 {
+		return mangleType(enum.Name) + "::" + mangleType(enum.Members[0].Name)
+	}
+	return zeroValue(typ)
+}
+
 func zeroFunctionValue(typ checker.Type) (string, bool) {
 	name := string(typ)
 	if base, args, ok := parseGenericType(name); ok && (base == "Func" || base == "AsyncFunc") {
