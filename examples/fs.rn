@@ -1,0 +1,5 @@
+~ main() => {
+    @fs.writeFileText("test.txt", "Hello, Rune!")
+    @io.println(@fs.readFileText("test.txt"))
+    @fs.remove("test.txt")
+}

@@ -86,10 +86,36 @@
   @assert.eq(@path.extname("src/lexer.rn"), ".rn")
   @assert.eq(@path.dirname("src/lexer.rn"), "src")
   @assert.eq(@path.isAbsolute("src/lexer.rn"), false)
+  @assert.eq(@path.join(["src", "parser", "..", "lexer.rn"]), "src/lexer.rn")
+  @assert.eq(@path.normalize("/src/./parser/../lexer.rn"), "/src/lexer.rn")
+  @assert.eq(@path.resolve(["src", "parser", "..", "lexer.rn"]), "src/lexer.rn")
+  @assert.eq(@path.relative("src/parser", "src/lexer/token.rn"), "../lexer/token.rn")
+  @assert.eq(@path.joinParts(["src", "", "lexer.rn"], 0, ""), "src/lexer.rn")
+  @assert.eq(@path.appendPathPart("src", "lexer.rn"), "src/lexer.rn")
+  normalized := @path.normalizeParts(["src", ".", "parser", "..", "lexer.rn"], 0, false, [])
+  @assert.eq(normalized.length(), 2)
+  @assert.eq(normalized[0], "src")
+  @assert.eq(normalized[1], "lexer.rn")
+  @assert.eq(@path.normalizePart(["."], 0, false, []), [])
+  @assert.eq(@path.normalizeParent([".."], 0, false, []), [".."])
+  @assert.eq(@path.normalizePop([".."], 0, false, ["src"]), [])
+  @assert.eq(@path.normalizePush(["lexer.rn"], 0, false, ["src"], "lexer.rn"), ["src", "lexer.rn"])
+  @assert.eq(@path.pathParts("/src/lexer.rn"), ["src", "lexer.rn"])
+  @assert.eq(@path.collectPathParts(["", "src", "lexer.rn"], 0, []), ["src", "lexer.rn"])
+  @assert.eq(@path.collectPathPart(["src"], 0, []), ["src"])
+  @assert.eq(@path.relativeFromParts(["src", "parser"], ["src", "lexer", "token.rn"], 0), "../lexer/token.rn")
+  @assert.eq(@path.relativeTail(["src", "parser"], ["src", "lexer"], 1, 1, ""), "../lexer")
 }
 
 ? "process module helpers" {
+  @assert.eq(@process.argv().length() >= 0, true)
   @assert.eq(@process.platform().isEmpty(), false)
   @assert.eq(@process.cwd().isEmpty(), false)
   @assert.eq(@process.env("__RUNE_TEST_MISSING_ENV__"), null)
+}
+
+? "io input helpers" {
+  @assert.eq(@io.readAll(), "")
+  @assert.eq(@io.scan(), null)
+  @assert.eq(@io.scanLine(), null)
 }

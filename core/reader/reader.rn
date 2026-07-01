@@ -7,7 +7,7 @@
 
   remaining() -> Int => "%reader.remaining"
 
-  isEmpty() -> Bool => .remaining() == 0
+  isEmpty() -> Bool => "%reader.isEmpty"
 
   seek(position: Int) -> Int => "%reader.seek"
 

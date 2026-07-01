@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -13,13 +14,21 @@ import (
 )
 
 type generator struct {
-	buf       bytes.Buffer
-	file      *ir.File
-	indent    int
-	temp      int
-	errors    []error
-	thisNames []string
-	useCLI    bool
+	buf         bytes.Buffer
+	file        *ir.File
+	indent      int
+	temp        int
+	errors      []error
+	thisNames   []string
+	useCLI      bool
+	useFS       bool
+	useCompress bool
+	useRegex    bool
+	useString   bool
+	useReader   bool
+	hasRoutine  bool
+	anonTypes   map[string]string
+	anonOrder   []checker.Type
 }
 
 func Generate(file *ast.File, info *checker.Info) (string, error) {
@@ -33,7 +42,8 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("MoonBit backend does not support @go.import")
 	}
-	g := &generator{file: file}
+	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}}
+	g.collectAnonymousTypes()
 	for i, enum := range file.Enums {
 		if i > 0 {
 			g.line("")
@@ -53,14 +63,26 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.method(typ, method)
 		}
 	}
+	if len(g.anonOrder) > 0 && (len(file.Types) > 0 || len(file.Enums) > 0) {
+		g.line("")
+	}
+	for i, typ := range g.anonOrder {
+		if i > 0 {
+			g.line("")
+		}
+		g.anonymousStructType(typ)
+	}
 	if (len(file.Types) > 0 || len(file.Enums) > 0) && len(file.Functions) > 0 {
 		g.line("")
 	}
-	if g.keepaliveEnabled() {
-		g.keepaliveFunction()
-		if len(file.Functions) > 0 {
+	for i, constant := range file.Constants {
+		if i > 0 {
 			g.line("")
 		}
+		g.constDecl(constant)
+	}
+	if len(file.Constants) > 0 && len(file.Functions) > 0 {
+		g.line("")
 	}
 	for _, fn := range stdlibhelpers.BodyHelpers(file) {
 		g.function(fn)
@@ -76,6 +98,36 @@ func GenerateIR(file *ir.File) (string, error) {
 		return g.buf.String(), err
 	}
 	src := g.buf.String()
+	if g.useRegex {
+		var runtime generator
+		runtime.regexRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useString {
+		var runtime generator
+		runtime.stringRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useReader {
+		var runtime generator
+		runtime.readerRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useFS || g.useCompress {
+		var runtime generator
+		runtime.bytesRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useCompress {
+		var runtime generator
+		runtime.compressRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useFS {
+		var runtime generator
+		runtime.fsRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
 	if g.useCLI {
 		var runtime generator
 		runtime.cliRuntime()
@@ -109,21 +161,150 @@ func (g *generator) nextTemp(prefix string) string {
 	return fmt.Sprintf("%s%d", prefix, g.temp)
 }
 
+func (g *generator) collectAnonymousTypes() {
+	for _, typ := range g.file.Types {
+		for _, field := range typ.Fields {
+			g.addAnonymousType(field.Type, "")
+		}
+		for _, method := range typ.Methods {
+			g.collectFunctionAnonymousTypes(method)
+		}
+	}
+	for _, fn := range g.file.Functions {
+		g.collectFunctionAnonymousTypes(fn)
+	}
+	for _, test := range g.file.Tests {
+		g.collectExprAnonymousTypes(test.Body, "")
+	}
+}
+
+func (g *generator) collectFunctionAnonymousTypes(fn *ir.Function) {
+	for _, param := range fn.Params {
+		g.addAnonymousType(param.Type, param.Name)
+	}
+	g.addAnonymousType(fn.Return, fn.Name)
+	g.collectExprAnonymousTypes(fn.Body, "")
+}
+
+func (g *generator) collectExprAnonymousTypes(expr ir.Expr, binding string) {
+	if expr == nil {
+		return
+	}
+	if obj, ok := expr.(*ir.AnonymousObjectLiteral); ok {
+		g.addAnonymousType(obj.ResultType(), binding)
+	}
+	switch e := expr.(type) {
+	case *ir.BlockExpr:
+		for _, stmt := range e.Statements {
+			switch s := stmt.(type) {
+			case *ir.LetStmt:
+				g.collectExprAnonymousTypes(s.Value, s.Name)
+			case *ir.ObjectDestructureStmt:
+				g.collectExprAnonymousTypes(s.Value, "")
+			case *ir.AssignStmt:
+				g.collectExprAnonymousTypes(s.Value, s.Name)
+			case *ir.ExprStmt:
+				g.collectExprAnonymousTypes(s.Expr, "")
+			}
+		}
+	default:
+		ir.WalkExpr(expr, func(child ir.Expr) {
+			if child == expr {
+				return
+			}
+			if obj, ok := child.(*ir.AnonymousObjectLiteral); ok {
+				g.addAnonymousType(obj.ResultType(), "")
+			}
+		})
+	}
+}
+
+func (g *generator) addAnonymousType(typ checker.Type, hint string) {
+	if inner, ok := parseNullableType(string(typ)); ok {
+		g.addAnonymousType(checker.Type(inner), hint)
+		return
+	}
+	if elem, ok := checker.ArrayElement(typ); ok {
+		g.addAnonymousType(elem, hint)
+		return
+	}
+	if base, args, ok := parseGenericType(string(typ)); ok {
+		for _, arg := range args {
+			g.addAnonymousType(checker.Type(arg), hint)
+		}
+		if base != "Func" && base != "AsyncFunc" {
+			return
+		}
+	}
+	fields, ok := parseObjectType(string(typ))
+	if !ok {
+		return
+	}
+	key := string(typ)
+	if _, exists := g.anonTypes[key]; exists {
+		return
+	}
+	name := g.anonymousStructName(typ, hint)
+	g.anonTypes[key] = name
+	g.anonOrder = append(g.anonOrder, typ)
+	for _, field := range fields {
+		g.addAnonymousType(checker.Type(field.typ), field.name)
+	}
+}
+
+func (g *generator) anonymousTypeName(typ checker.Type) string {
+	if name, ok := g.anonTypes[string(typ)]; ok {
+		return name
+	}
+	return g.anonymousStructName(typ, "")
+}
+
+func (g *generator) anonymousStructName(typ checker.Type, hint string) string {
+	if hint == "" {
+		hint = "Object"
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(string(typ)))
+	return mangleType("Anon" + strings.Title(hint) + fmt.Sprintf("%08x", hash.Sum32()))
+}
+
 func (g *generator) structType(typ *ir.StructType) {
-	g.linef("struct %s {", mangleType(typ.Name))
+	g.linef("%sstruct %s {", g.visibilityPrefix(typ.Private), mangleType(typ.Name))
 	g.indent++
 	for _, field := range typ.Fields {
-		g.linef("%s : %s", mangleIdent(field.Name), mbtType(field.Type))
+		g.linef("%s : %s", mangleIdent(field.Name), g.mbtType(field.Type))
+	}
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) anonymousStructType(typ checker.Type) {
+	fields, ok := parseObjectType(string(typ))
+	if !ok {
+		return
+	}
+	g.linef("pub struct %s {", g.anonymousTypeName(typ))
+	g.indent++
+	for _, field := range fields {
+		g.linef("%s : %s", mangleIdent(field.name), g.mbtType(checker.Type(field.typ)))
 	}
 	g.indent--
 	g.line("}")
 }
 
 func (g *generator) enumType(enum *ir.EnumType) {
-	g.linef("enum %s {", mangleType(enum.Name))
+	g.linef("%senum %s {", g.visibilityPrefix(enum.Private), mangleType(enum.Name))
 	g.indent++
 	for _, member := range enum.Members {
-		g.line(mangleType(member.Name))
+		params := make([]string, 0, len(member.Params))
+		for _, param := range member.Params {
+			params = append(params, g.mbtType(param.Type))
+		}
+		if len(params) == 0 {
+			g.line(mangleType(member.Name))
+		} else {
+			g.linef("%s(%s)", mangleType(member.Name), strings.Join(params, ", "))
+		}
 	}
 	g.indent--
 	g.line("} derive(Eq)")
@@ -141,12 +322,20 @@ func (g *generator) enumShowImpl(enum *ir.EnumType) {
 		if member.HasValue {
 			value = member.Value
 		}
-		g.linef("%s => %d", mangleType(member.Name), value)
+		pattern := mangleType(member.Name)
+		if len(member.Params) > 0 {
+			pattern += "(" + strings.TrimSuffix(strings.Repeat("_, ", len(member.Params)), ", ") + ")"
+		}
+		g.linef("%s => %d", pattern, value)
 	}
 	g.indent--
 	g.line("}).output(logger)")
 	g.indent--
 	g.line("}")
+}
+
+func (g *generator) constDecl(constant *ir.ConstDecl) {
+	g.linef("let %s : %s = %s", mangleIdent(constant.Name), g.mbtType(constant.Type), g.exprAs(constant.Value, constant.Type))
 }
 
 func enumHasValueMembers(enum *ir.EnumType) bool {
@@ -158,15 +347,8 @@ func enumHasValueMembers(enum *ir.EnumType) bool {
 	return false
 }
 
-func (g *generator) hasKeepalive() bool {
-	return len(g.keepaliveLines()) > 0
-}
-
-func (g *generator) keepaliveEnabled() bool {
-	if !g.hasMain() {
-		return false
-	}
-	return g.hasKeepalive()
+func (g *generator) visibilityPrefix(private bool) string {
+	return "pub "
 }
 
 func (g *generator) hasMain() bool {
@@ -178,107 +360,23 @@ func (g *generator) hasMain() bool {
 	return false
 }
 
-func (g *generator) keepaliveFunction() {
-	lines := g.keepaliveLines()
-	if len(lines) == 0 {
-		return
-	}
-	g.line("fn __rune_keepalive() -> Unit {")
-	g.indent++
-	for _, line := range lines {
-		g.line(line)
-	}
-	g.indent--
-	g.line("}")
-}
-
-func (g *generator) keepaliveLines() []string {
-	var lines []string
-	for _, enum := range g.file.Enums {
-		if enumHasValueMembers(enum) {
-			continue
-		}
-		typeName := mangleType(enum.Name)
-		for _, member := range enum.Members {
-			if len(member.Params) > 0 {
-				continue
-			}
-			memberName := mangleType(member.Name)
-			lines = append(lines, fmt.Sprintf("match %s::%s { %s => (); _ => () }", typeName, memberName, memberName))
-		}
-	}
-	for _, typ := range g.file.Types {
-		literal, ok := g.keepaliveStructLiteral(typ)
-		if !ok {
-			continue
-		}
-		tmp := "__rune_keep_" + mangleIdent(typ.Name)
-		lines = append(lines, fmt.Sprintf("let %s = %s", tmp, literal))
-		for _, field := range typ.Fields {
-			lines = append(lines, fmt.Sprintf("ignore(%s.%s)", tmp, mangleIdent(field.Name)))
-		}
-		for _, method := range typ.Methods {
-			if len(method.Generics) == 0 {
-				lines = append(lines, fmt.Sprintf("ignore(%s)", mangleMethod(typ.Name, method.Name)))
-			}
-		}
-	}
-	for _, fn := range g.file.Functions {
-		if fn.Name == "main" || len(fn.Generics) > 0 {
-			continue
-		}
-		lines = append(lines, fmt.Sprintf("ignore(%s)", mangleIdent(fn.Name)))
-	}
-	return lines
-}
-
-func (g *generator) keepaliveStructLiteral(typ *ir.StructType) (string, bool) {
-	if len(typ.Generics) > 0 {
-		return "", false
-	}
-	fields := make([]string, 0, len(typ.Fields))
-	for _, field := range typ.Fields {
-		value, ok := g.keepaliveZeroValue(field.Type)
-		if !ok {
-			return "", false
-		}
-		fields = append(fields, fmt.Sprintf("%s: %s", mangleIdent(field.Name), value))
-	}
-	return fmt.Sprintf("%s::{ %s }", mangleType(typ.Name), strings.Join(fields, ", ")), true
-}
-
-func (g *generator) keepaliveZeroValue(typ checker.Type) (string, bool) {
-	if enum := g.enumFromType(typ); enum != nil && !enumHasValueMembers(enum) {
-		for _, member := range enum.Members {
-			if len(member.Params) == 0 {
-				return mangleType(enum.Name) + "::" + mangleType(member.Name), true
-			}
-		}
-		return "", false
-	}
-	value := zeroValue(typ)
-	if value == "()" && typ != checker.Void && typ != checker.Null && typ != checker.Never && typ != checker.Unknown {
-		return "", false
-	}
-	return value, true
-}
-
 func (g *generator) function(fn *ir.Function) {
 	params := make([]string, 0, len(fn.Params))
 	for _, param := range fn.Params {
-		params = append(params, fmt.Sprintf("%s : %s", mangleIdent(param.Name), mbtType(param.Type)))
+		params = append(params, fmt.Sprintf("%s : %s", mangleIdent(param.Name), g.mbtType(param.Type)))
 	}
 	ret := ""
 	if fn.Name == "main" && len(params) == 0 && len(fn.Generics) == 0 && ret == "" {
-		g.line("fn main {")
+		if g.hasRoutine {
+			g.line("async fn main {")
+		} else {
+			g.line("fn main {")
+		}
 	} else {
-		ret = " -> " + mbtType(fn.Return)
-		g.linef("%s %s(%s)%s {", mbtFnPrefix(fn.Generics), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
+		ret = " -> " + g.mbtType(fn.Return)
+		g.linef("%s%s %s(%s)%s {", g.visibilityPrefix(fn.Private), g.fnPrefix(fn), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	}
 	g.indent++
-	if fn.Name == "main" && len(params) == 0 && len(fn.Generics) == 0 && g.keepaliveEnabled() {
-		g.line("__rune_keepalive()")
-	}
 	g.body(fn, fn.Body, fn.Return)
 	g.indent--
 	g.line("}")
@@ -291,11 +389,11 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) {
 		g.thisNames = append(g.thisNames, "self")
 	}
 	for _, param := range fn.Params {
-		params = append(params, fmt.Sprintf("%s : %s", mangleIdent(param.Name), mbtType(param.Type)))
+		params = append(params, fmt.Sprintf("%s : %s", mangleIdent(param.Name), g.mbtType(param.Type)))
 	}
 	ret := ""
-	ret = " -> " + mbtType(fn.Return)
-	g.linef("%s %s(%s)%s {", mbtFnPrefix(fn.Generics), mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
+	ret = " -> " + g.mbtType(fn.Return)
+	g.linef("%s %s(%s)%s {", g.fnPrefix(fn), mangleMethod(typ.Name, fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
 	g.body(fn, fn.Body, fn.Return)
 	g.indent--
@@ -305,6 +403,29 @@ func (g *generator) method(typ *ir.StructType, fn *ir.Function) {
 	}
 }
 
+func (g *generator) fnPrefix(fn *ir.Function) string {
+	if fn.Routine {
+		return "async " + mbtFnPrefix(fn.Generics)
+	}
+	return mbtFnPrefix(fn.Generics)
+}
+
+func fileHasRoutine(file *ir.File) bool {
+	for _, fn := range file.Functions {
+		if fn.Routine {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if method.Routine {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) {
 	switch e := expr.(type) {
 	case *ir.PatternBlock:
@@ -312,13 +433,17 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) {
 	case *ir.BlockExpr:
 		g.block(e, ret)
 	default:
+		if unwrap, ok := expr.(*ir.ResultUnwrapExpr); ok {
+			g.resultUnwrapExprStmt(unwrap, ret, true)
+			return
+		}
 		if ret == checker.Void {
 			if expr := g.expr(expr); expr != "" {
 				g.line(expr)
 			}
 			return
 		}
-		g.line(g.expr(expr))
+		g.line(g.returnExpr(expr, ret))
 	}
 }
 
@@ -327,12 +452,31 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapLet(s.Name, unwrap, ret)
+				continue
+			}
 			mut := ""
 			if s.Mutable {
 				mut = "mut "
 			}
-			g.linef("let %s%s = %s", mut, mangleIdent(s.Name), g.expr(s.Value))
+			value := g.expr(s.Value)
+			if obj, ok := s.Value.(*ir.AnonymousObjectLiteral); ok {
+				selfName := mangleIdent(s.Name)
+				if anonymousObjectHasFunctionFields(obj) {
+					selfName = g.nextTemp("__object")
+					g.linef("let %s = %s", selfName, g.anonymousObjectLiteralWithFunctionPlaceholders(obj))
+				}
+				value = g.withThisName(selfName, func() string {
+					return g.expr(s.Value)
+				})
+			}
+			g.linef("let %s%s = %s", mut, mangleIdent(s.Name), value)
 		case *ir.ObjectDestructureStmt:
+			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapObjectDestructure(s, unwrap, ret)
+				continue
+			}
 			tmp := g.nextTemp("__object")
 			g.linef("let %s = %s", tmp, g.expr(s.Value))
 			for _, field := range s.Fields {
@@ -341,12 +485,16 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 		case *ir.AssignStmt:
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
+			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
+				g.resultUnwrapExprStmt(unwrap, ret, last)
+				continue
+			}
 			expr := g.expr(s.Expr)
 			if expr == "" {
 				continue
 			}
 			if last && ret != checker.Void {
-				g.line(expr)
+				g.line(g.returnExpr(s.Expr, ret))
 			} else {
 				g.line(g.discardExpr(s.Expr, expr))
 			}
@@ -355,6 +503,74 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 	if ret != checker.Void && len(block.Statements) == 0 {
 		g.line(zeroValue(ret))
 	}
+}
+
+func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("__result")
+	g.linef("let %s = %s", tmp, g.expr(unwrap.Expr))
+	g.linef("guard %s is Ok(%s) else {", tmp, mangleIdent(name))
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp))
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) resultUnwrapObjectDestructure(stmt *ir.ObjectDestructureStmt, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
+	tmp := g.nextTemp("__result")
+	value := g.nextTemp("__value")
+	g.linef("let %s = %s", tmp, g.expr(unwrap.Expr))
+	g.linef("guard %s is Ok(%s) else {", tmp, value)
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp))
+	g.indent--
+	g.line("}")
+	for _, field := range stmt.Fields {
+		g.linef("let %s = %s.%s", mangleIdent(field.Name), value, mangleIdent(field.Field))
+	}
+}
+
+func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {
+	tmp := g.nextTemp("__result")
+	g.linef("let %s = %s", tmp, g.expr(unwrap.Expr))
+	g.linef("guard %s is Ok(__value) else {", tmp)
+	g.indent++
+	g.linef("return %s", g.resultErrReturn(ret, tmp))
+	g.indent--
+	g.line("}")
+	if last && ret != checker.Void {
+		g.line(g.returnRawExpr(unwrap, ret, "__value"))
+	}
+}
+
+func (g *generator) resultErrReturn(ret checker.Type, resultExpr string) string {
+	okType, _ := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return zeroValue(ret)
+	}
+	return fmt.Sprintf("Err(match %s { Err(err) => err; Ok(_) => abort(\"unreachable result unwrap\") })", resultExpr)
+}
+
+func (g *generator) returnExpr(expr ir.Expr, ret checker.Type) string {
+	return g.returnRawExpr(expr, ret, g.expr(expr))
+}
+
+func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) string {
+	okType, _ := resultTypeArgs(ret)
+	if okType == checker.Unknown {
+		return raw
+	}
+	if expr != nil && expr.ResultType() == okType {
+		return "Ok(" + raw + ")"
+	}
+	return raw
+}
+
+func resultTypeArgs(typ checker.Type) (checker.Type, checker.Type) {
+	base, args, ok := parseGenericType(string(typ))
+	if !ok || base != "Result" || len(args) != 2 {
+		return checker.Unknown, checker.Unknown
+	}
+	return checker.Type(args[0]), checker.Type(args[1])
 }
 
 func (g *generator) discardExpr(expr ir.Expr, rendered string) string {

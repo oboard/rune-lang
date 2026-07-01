@@ -3,7 +3,7 @@
 
   byteLength() -> Int => "%buffer.length"
 
-  isEmpty() -> Bool => .length() == 0
+  isEmpty() -> Bool => "%buffer.isEmpty"
 
   clear() -> Void => "%buffer.clear"
 

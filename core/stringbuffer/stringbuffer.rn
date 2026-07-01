@@ -1,7 +1,7 @@
 + StringBuffer: {
   length() -> Int => "%stringbuffer.length"
 
-  isEmpty() -> Bool => .length() == 0
+  isEmpty() -> Bool => "%stringbuffer.isEmpty"
 
   clear() -> Void => "%stringbuffer.clear"
 

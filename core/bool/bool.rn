@@ -1,7 +1,7 @@
 + Bool: {
-  not() -> Bool => !this
+  not() -> Bool => "%bool.not"
 
-  xor(other: Bool) -> Bool => this != other
+  xor(other: Bool) -> Bool => "%bool.xor"
 
   toString() -> String => "%bool.toString"
 }

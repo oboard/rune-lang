@@ -111,3 +111,19 @@
   @assert.eq(5n + -2n, 3n)
   @assert.eq(-5n * -6n, 30n)
 }
+
+? "numeric module conversions" {
+  @assert.eq(@int.toDouble(7), 7.0)
+  @assert.eq(@int.toString(42), "42")
+  @assert.eq(@int.toBigInt(5), 5n)
+  @assert.eq(@bigint.fromInt(6), 6n)
+  @assert.eq(@bigint.toString(6n), "6")
+  @assert.eq(@bigint.toDouble(7n), 7.0)
+  @assert.eq(@double.trunc(3.7), 3)
+  @assert.eq(@double.floor(3.7), 3)
+  @assert.eq(@double.ceil(3.2), 4)
+  @assert.eq(@double.round(3.5), 4)
+  @assert.eq(@double.trunc(0.0 - 3.7), 0 - 3)
+  @assert.eq(@double.floor(0.0 - 3.2), 0 - 4)
+  @assert.eq(@double.ceil(0.0 - 3.7), 0 - 3)
+}
