@@ -25,6 +25,19 @@
   @assert.eq(result.output.includes("func main()"), true)
 }
 
+? "selfhost compiler emits moonbit functions" {
+  source := `+ add(a: Int, b: Int) -> Int => a + b
++ main() -> Int => add(20, 22)
+`
+  result := compileMoonBit(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("fn __add(__a : Int, __b : Int) -> Int"), true)
+  @assert.eq(result.output.includes("__a + __b"), true)
+  @assert.eq(result.output.includes("fn main {"), true)
+  @assert.eq(result.output.includes("__add(20, 22)"), true)
+}
+
 ? "selfhost compiler emits declarations and println" {
   source := `Status: {
   Ready = 1
@@ -39,14 +52,72 @@ main() => {
 `
   ts := compileTypeScript(source)
   go := compileGo(source)
+  mbt := compileMoonBit(source)
   @assert.eq(ts.ok, true)
   @assert.eq(go.ok, true)
+  @assert.eq(mbt.ok, true)
   @assert.eq(ts.output.includes("type __User = {"), true)
   @assert.eq(ts.output.includes("const __Status = {"), true)
   @assert.eq(ts.output.includes("console.log(__user.name, __Status.Ready);"), true)
-  @assert.eq(go.output.includes("import \"fmt\""), true)
+  @assert.eq(go.output.includes("\"fmt\""), true)
   @assert.eq(go.output.includes("type __User struct"), true)
   @assert.eq(go.output.includes("fmt.Println(__user.__name, __Status_Ready)"), true)
+  @assert.eq(mbt.output.includes("enum RuneStatus"), true)
+  @assert.eq(mbt.output.includes("struct RuneUser"), true)
+  @assert.eq(mbt.output.includes("RuneUser::{ __name: \"Rune\" }"), true)
+  @assert.eq(mbt.output.includes("println((__user.__name).to_string() + \" \" + (RuneStatus::RuneReady).to_string())"), true)
+}
+
+? "selfhost compiler emits go payload enums" {
+  source := `MaybeInt: {
+  None
+  Some(value: Int)
+}
+main() -> MaybeInt => Some(42)
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("type __MaybeInt struct"), true)
+  @assert.eq(result.output.includes("__tag int"), true)
+  @assert.eq(result.output.includes("__payload []any"), true)
+  @assert.eq(result.output.includes("__MaybeInt_Some_tag = 1"), true)
+  @assert.eq(result.output.includes("func __Some(__value int) __MaybeInt"), true)
+  @assert.eq(result.output.includes("return __MaybeInt{__tag: __MaybeInt_Some_tag, __payload: []any{__value}}"), true)
+}
+
+? "selfhost compiler emits result unwrap helpers" {
+  source := `Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+read() -> Result[Int, String] => Ok(41)
+
+main() -> Int => {
+  value := read()?
+  value + 1
+}
+`
+  go := compileGo(source)
+  ts := compileTypeScript(source)
+  mbt := compileMoonBit(source)
+  @assert.eq(go.ok, true)
+  @assert.eq(ts.ok, true)
+  @assert.eq(mbt.ok, true)
+  @assert.eq(go.output.includes("import ("), true)
+  @assert.eq(go.output.includes("\"reflect\""), true)
+  @assert.eq(go.output.includes("type __Result[__T any, __E any] struct"), true)
+  @assert.eq(go.output.includes("func __Ok[__T any, __E any](__value __T) __Result[__T, __E]"), true)
+  @assert.eq(go.output.includes("func __runeUnwrap(value any) any"), true)
+  @assert.eq(go.output.includes("__value := __runeUnwrap(__read()).(int)"), true)
+  @assert.eq(ts.output.includes("function __runeUnwrap(value: any): any"), true)
+  @assert.eq(ts.output.includes("type __Result<__T, __E> ="), true)
+  @assert.eq(ts.output.includes("function __Ok<__T, __E>(__value: __T): __Result<__T, __E>"), true)
+  @assert.eq(ts.output.includes("const __value = __runeUnwrap(__read());"), true)
+  @assert.eq(mbt.output.includes("enum RuneResult[T, E]"), true)
+  @assert.eq(mbt.output.includes("fn[T, E] rune_unwrap(value : RuneResult[T, E]) -> T"), true)
+  @assert.eq(mbt.output.includes("let __value = rune_unwrap(__read())"), true)
 }
 
 ? "selfhost compiler reports parser errors" {

@@ -49,6 +49,7 @@ ScannedString: {
   Dollar
   Dot
   DotDot
+  DotDotLess
   DotDotEqual
   DotDotDot
   Comma
@@ -196,6 +197,7 @@ canEndXmlLess(
   TokenKind.Dollar => "Dollar"
   TokenKind.Dot => "Dot"
   TokenKind.DotDot => "DotDot"
+  TokenKind.DotDotLess => "DotDotLess"
   TokenKind.DotDotEqual => "DotDotEqual"
   TokenKind.DotDotDot => "DotDotDot"
   TokenKind.Comma => "Comma"
@@ -258,7 +260,7 @@ charAt(
   source: String,
   index: Int
 ) -> Char => (
-  (index < 0) || (index >= source.length()) ? '\x00'
+  (index < 0) || (index >= source.length()) ? ' '
     : source.at(index)
 )
 
@@ -271,7 +273,7 @@ advanceState(
 ) -> LexState => advance(state).state
 
 advance(state: LexState) -> Advanced => (
-  atEnd(state) ? advanced(state, '\x00')
+  atEnd(state) ? advanced(state, ' ')
     : advanceChar(state, state.source.at(state.current))
 )
 
@@ -408,6 +410,7 @@ lexDot(state: LexState) -> Lexed => peek(state) {
 
 lexDotDot(state: LexState) -> Lexed => peek(state) {
   '.' => lexed(advanceState(state), TokenKind.DotDotDot)
+  '<' => lexed(advanceState(state), TokenKind.DotDotLess)
   '=' => lexed(advanceState(state), TokenKind.DotDotEqual)
   _ => lexed(state, TokenKind.DotDot)
 }

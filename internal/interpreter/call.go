@@ -21,6 +21,9 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		if at, ok := sel.Receiver.(*ir.AtExpr); ok {
 			return i.callAtSelector(at, sel, call.Args, call.ResultType(), env)
 		}
+		if value, ok, err := i.callQualifiedEnumConstructor(sel, call.Args, env); ok || err != nil {
+			return value, err
+		}
 		if sel.Static {
 			ident, ok := sel.Receiver.(*ir.Identifier)
 			if !ok {
@@ -130,6 +133,32 @@ func (i *Interpreter) callFunction(fn *ir.Function, args []ir.Expr, env *Env) (V
 		return nil, err
 	}
 	return i.callFunctionValue(fn, values)
+}
+
+func (i *Interpreter) callQualifiedEnumConstructor(sel *ir.SelectorExpr, args []ir.Expr, env *Env) (Value, bool, error) {
+	ident, ok := sel.Receiver.(*ir.Identifier)
+	if !ok {
+		return nil, false, nil
+	}
+	enum := i.enums[ident.Name]
+	if enum == nil {
+		return nil, false, nil
+	}
+	for idx := range enum.Members {
+		member := &enum.Members[idx]
+		if member.Name != sel.Name || member.HasValue {
+			continue
+		}
+		if len(args) != len(member.Params) {
+			return nil, true, fmt.Errorf("constructor %q expects %d args, got %d", sel.Name, len(member.Params), len(args))
+		}
+		values, err := i.evalArgs(args, env)
+		if err != nil {
+			return nil, true, err
+		}
+		return EnumValue{TypeName: enum.Name, Name: member.Name, Value: member.Value, Payload: values}, true, nil
+	}
+	return nil, false, nil
 }
 
 func (i *Interpreter) callEnumConstructor(name string, args []ir.Expr, env *Env) (Value, bool, error) {

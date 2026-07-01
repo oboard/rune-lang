@@ -57,6 +57,7 @@ type selfhostIRFile struct {
 	Imports   []selfhostIRImport `json:"imports"`
 	Structs   []selfhostIRStruct `json:"structs"`
 	Enums     []selfhostIREnum   `json:"enums"`
+	Constants []selfhostIRConst  `json:"constants"`
 	Functions []selfhostIRFunc   `json:"functions"`
 	Tests     []selfhostIRTest   `json:"tests"`
 	Errors    []selfhostParseErr `json:"errors"`
@@ -97,11 +98,12 @@ type selfhostIRField struct {
 }
 
 type selfhostIREnumMember struct {
-	Name    string `json:"name"`
-	Private bool   `json:"private"`
-	Value   string `json:"value"`
-	Line    int    `json:"line"`
-	Column  int    `json:"column"`
+	Name    string            `json:"name"`
+	Private bool              `json:"private"`
+	Value   string            `json:"value"`
+	Params  []selfhostIRParam `json:"params"`
+	Line    int               `json:"line"`
+	Column  int               `json:"column"`
 }
 
 type selfhostIRFunc struct {
@@ -127,9 +129,19 @@ type selfhostIRStruct struct {
 	Column   int               `json:"column"`
 }
 
+type selfhostIRConst struct {
+	Name     string         `json:"name"`
+	Private  bool           `json:"private"`
+	TypeName string         `json:"typeName"`
+	Value    selfhostIRExpr `json:"value"`
+	Line     int            `json:"line"`
+	Column   int            `json:"column"`
+}
+
 type selfhostIREnum struct {
 	Name    string                 `json:"name"`
 	Private bool                   `json:"private"`
+	Generics []string              `json:"generics"`
 	Members []selfhostIREnumMember `json:"members"`
 	Line    int                    `json:"line"`
 	Column  int                    `json:"column"`
@@ -153,6 +165,7 @@ func selfhostFile(file *ir.File) selfhostIRFile {
 		Imports:   []selfhostIRImport{},
 		Structs:   make([]selfhostIRStruct, 0, len(file.Types)),
 		Enums:     make([]selfhostIREnum, 0, len(file.Enums)),
+		Constants: make([]selfhostIRConst, 0, len(file.Constants)),
 		Functions: make([]selfhostIRFunc, 0, len(file.Functions)),
 		Tests:     make([]selfhostIRTest, 0, len(file.Tests)),
 		Errors:    []selfhostParseErr{},
@@ -162,6 +175,9 @@ func selfhostFile(file *ir.File) selfhostIRFile {
 	}
 	for _, enum := range file.Enums {
 		out.Enums = append(out.Enums, selfhostEnum(enum))
+	}
+	for _, constant := range file.Constants {
+		out.Constants = append(out.Constants, selfhostConst(constant))
 	}
 	for _, fn := range file.Functions {
 		out.Functions = append(out.Functions, selfhostFunc(fn))
@@ -202,13 +218,25 @@ func selfhostStruct(typ *ir.StructType) selfhostIRStruct {
 	return out
 }
 
+func selfhostConst(constant *ir.ConstDecl) selfhostIRConst {
+	return selfhostIRConst{
+		Name:     constant.Name,
+		Private:  constant.Private,
+		TypeName: string(constant.Type),
+		Value:    selfhostExpr(constant.Value),
+		Line:     constant.Pos.Line,
+		Column:   constant.Pos.Column,
+	}
+}
+
 func selfhostEnum(enum *ir.EnumType) selfhostIREnum {
 	out := selfhostIREnum{
-		Name:    enum.Name,
-		Private: enum.Private,
-		Members: make([]selfhostIREnumMember, 0, len(enum.Members)),
-		Line:    enum.Pos.Line,
-		Column:  enum.Pos.Column,
+		Name:     enum.Name,
+		Private:  enum.Private,
+		Generics: append([]string(nil), enum.Generics...),
+		Members:  make([]selfhostIREnumMember, 0, len(enum.Members)),
+		Line:     enum.Pos.Line,
+		Column:   enum.Pos.Column,
 	}
 	for _, member := range enum.Members {
 		value := ""
@@ -219,6 +247,7 @@ func selfhostEnum(enum *ir.EnumType) selfhostIREnum {
 			Name:    member.Name,
 			Private: member.Private,
 			Value:   value,
+			Params:  selfhostParams(member.Params),
 			Line:    member.Pos.Line,
 			Column:  member.Pos.Column,
 		})
@@ -286,7 +315,8 @@ func selfhostExpr(expr ir.Expr) selfhostIRExpr {
 		base.Value = strconv.Quote(e.Value)
 	case *ir.TemplateLiteral:
 		base.Kind = exprTemplate
-		base.Value = strconv.Quote(templateText(e.Parts))
+		base.Value = strconv.Quote(templateTextParts(e.Parts))
+		base.Children = templateExprs(e.Parts)
 	case *ir.CharLiteral:
 		base.Kind = exprChar
 		base.Value = strconv.QuoteRune(e.Value)
@@ -315,7 +345,10 @@ func selfhostExpr(expr ir.Expr) selfhostIRExpr {
 		base.Children = []selfhostIRExpr{selfhostExpr(e.Left), selfhostExpr(e.Right)}
 	case *ir.TernaryExpr:
 		base.Kind = exprTernary
-		base.Children = []selfhostIRExpr{selfhostExpr(e.Condition), selfhostExpr(e.Consequence), selfhostExpr(e.Alternative)}
+		base.Children = []selfhostIRExpr{selfhostExpr(e.Condition), selfhostExpr(e.Consequence)}
+		if e.Alternative != nil {
+			base.Children = append(base.Children, selfhostExpr(e.Alternative))
+		}
 	case *ir.AssignExpr:
 		base.Kind = exprAssign
 		base.Name = e.Name
@@ -433,6 +466,7 @@ func selfhostStmt(stmt ir.Stmt) selfhostIRExpr {
 	case *ir.LetStmt:
 		base.Kind = exprLet
 		base.Name = s.Name
+		base.Text = string(s.Type)
 		base.Children = []selfhostIRExpr{selfhostExpr(s.Value)}
 	case *ir.ObjectDestructureStmt:
 		base.Kind = exprObjectDestructure
@@ -518,22 +552,91 @@ func selfhostPatternText(pattern ir.Pattern) string {
 		return "_"
 	case *ir.BindingPattern:
 		if p.Constant {
-			return p.Name
+			return "=" + p.Name
 		}
-		return "_"
+		return p.Name
 	case *ir.LiteralPattern:
 		return selfhostLiteralPatternText(p.Value)
 	case *ir.RangePattern:
-		return selfhostLiteralPatternText(p.Start) + "..=" + selfhostLiteralPatternText(p.End)
+		op := "..<"
+		if p.Inclusive {
+			op = "..="
+		}
+		return selfhostRangePatternBound(p.Start) + op + selfhostRangePatternBound(p.End)
 	case *ir.OrPattern:
 		parts := make([]string, 0, len(p.Alternatives))
 		for _, alt := range p.Alternatives {
 			parts = append(parts, selfhostPatternText(alt))
 		}
 		return strings.Join(parts, " | ")
+	case *ir.ConstructorPattern:
+		args := make([]string, 0, len(p.Args))
+		for _, arg := range p.Args {
+			args = append(args, selfhostPatternText(arg))
+		}
+		if p.Rest {
+			args = append(args, "..")
+		}
+		return p.Name + "(" + strings.Join(args, ",") + ")"
+	case *ir.ArrayPattern:
+		parts := make([]string, 0, len(p.Elements)+1)
+		for idx, elem := range p.Elements {
+			if p.RestIndex == idx {
+				parts = append(parts, selfhostRestPatternText(p.RestBinding))
+			}
+			parts = append(parts, selfhostPatternText(elem))
+		}
+		if p.RestIndex == len(p.Elements) {
+			parts = append(parts, selfhostRestPatternText(p.RestBinding))
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	case *ir.SequenceSpreadPattern:
+		return ".. " + selfhostLiteralPatternText(p.Value)
+	case *ir.BitPattern:
+		prefix := "u"
+		if p.Signed {
+			prefix = "i"
+		}
+		return fmt.Sprintf("%s%d%s(%s)", prefix, p.Width, p.Endian, selfhostPatternText(p.Value))
+	case *ir.AsPattern:
+		return selfhostPatternText(p.Pattern) + " as " + p.Name
+	case *ir.MapPattern:
+		parts := make([]string, 0, len(p.Entries)+1)
+		for _, entry := range p.Entries {
+			key := selfhostMapKeyText(entry.Key)
+			if entry.Optional {
+				key += "?"
+			}
+			parts = append(parts, key+": "+selfhostPatternText(entry.Pattern))
+		}
+		if p.Rest {
+			parts = append(parts, "..")
+		}
+		return "{" + strings.Join(parts, ",") + "}"
 	default:
 		return "_"
 	}
+}
+
+func selfhostMapKeyText(expr ir.Expr) string {
+	if ident, ok := expr.(*ir.Identifier); ok {
+		return "=" + ident.Name
+	}
+	return selfhostLiteralPatternText(expr)
+}
+
+func selfhostRestPatternText(binding string) string {
+	if binding == "" {
+		return ".."
+	}
+	return ".." + binding
+}
+
+func selfhostRangePatternBound(expr ir.Expr) string {
+	if expr == nil {
+		return "_"
+	}
+	return selfhostLiteralPatternText(expr)
 }
 
 func selfhostLiteralPatternText(expr ir.Expr) string {
@@ -550,6 +653,11 @@ func selfhostLiteralPatternText(expr ir.Expr) string {
 		return "null"
 	case *ir.Identifier:
 		return e.Name
+	case *ir.SelectorExpr:
+		if ident, ok := e.Receiver.(*ir.Identifier); ok {
+			return ident.Name + "." + e.Name
+		}
+		return e.Name
 	default:
 		return "_"
 	}
@@ -563,10 +671,25 @@ func lambdaParams(names []string) []selfhostIRParam {
 	return out
 }
 
-func templateText(parts []ir.TemplatePart) string {
+func templateTextParts(parts []ir.TemplatePart) string {
 	var out strings.Builder
-	for _, part := range parts {
+	for idx, part := range parts {
+		if idx > 0 {
+			out.WriteString("<<<RUNE_TEMPLATE_PART>>>")
+		}
 		out.WriteString(part.Text)
 	}
 	return out.String()
+}
+
+func templateExprs(parts []ir.TemplatePart) []selfhostIRExpr {
+	out := make([]selfhostIRExpr, 0, len(parts))
+	for _, part := range parts {
+		if part.Expr == nil {
+			out = append(out, selfhostEmptyExpr())
+		} else {
+			out = append(out, selfhostExpr(part.Expr))
+		}
+	}
+	return out
 }

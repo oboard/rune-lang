@@ -29,6 +29,9 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 		return true, nil
 	case *ir.BindingPattern:
 		if p.Constant {
+			if enumValue, ok := subject.(EnumValue); ok && p.Type != "" {
+				return enumValue.Name == p.Name, nil
+			}
 			value, ok := env.Get(p.Name)
 			if !ok {
 				return false, fmt.Errorf("undefined constant %q", p.Name)
@@ -138,27 +141,30 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 	case *ir.ObjectPattern:
 		return i.matchObjectPattern(p, subject, env)
 	case *ir.ConstructorPattern:
+		value, ok := subject.(EnumValue)
+		if ok {
+			if value.Name != p.Name {
+				return false, nil
+			}
+			if p.Rest {
+				if len(value.Payload) < len(p.Args) {
+					return false, nil
+				}
+			} else if len(value.Payload) != len(p.Args) {
+				return false, nil
+			}
+			for idx, arg := range p.Args {
+				matched, err := i.matchPattern(arg, value.Payload[idx], env)
+				if err != nil || !matched {
+					return matched, err
+				}
+			}
+			return true, nil
+		}
 		if matched, handled, err := i.matchJSONConstructorPattern(p, subject, env); handled {
 			return matched, err
 		}
-		value, ok := subject.(EnumValue)
-		if !ok || value.Name != p.Name {
-			return false, nil
-		}
-		if p.Rest {
-			if len(value.Payload) < len(p.Args) {
-				return false, nil
-			}
-		} else if len(value.Payload) != len(p.Args) {
-			return false, nil
-		}
-		for idx, arg := range p.Args {
-			matched, err := i.matchPattern(arg, value.Payload[idx], env)
-			if err != nil || !matched {
-				return matched, err
-			}
-		}
-		return true, nil
+		return false, nil
 	default:
 		return false, fmt.Errorf("unsupported pattern %T", pattern)
 	}

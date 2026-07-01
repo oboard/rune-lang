@@ -1,0 +1,757 @@
+@"../ir/ir.rn"
+@"./common.rn"
+
++ generateMoonBit(file: IRFile) -> String => {
+  out ~= ""
+  file.enums.each((enumDecl) => out = (out + emitMoonBitEnum(enumDecl)) + "\n")
+  (
+    fileUsesUnwrap(file) ? out = out + emitMoonBitUnwrapHelper()
+  )
+  (
+    fileUsesPathFamily(file) ? out = out + emitMoonBitPathHelpers()
+  )
+  file.structs.each((typeDecl) => out = (out + emitMoonBitStruct(typeDecl)) + "\n")
+  file.structs.each((typeDecl) => out = out + emitMoonBitMethods(typeDecl))
+  file.functions.each((fn) => out = (out + emitMoonBitFunction(fn, "")) + "\n")
+  out
+}
+
+emitMoonBitUnwrapHelper() -> String => `fn[T, E] rune_unwrap(value : RuneResult[T, E]) -> T {
+  match value {
+    RuneOk(value) => value
+    RuneErr(_) => abort("Result.Err")
+  }
+}
+
+`
+
+emitMoonBitPathHelpers() -> String => `fn __rune_path_basename(path : String) -> String {
+  let index = path.rev_find("/").unwrap_or(-1)
+  if index < 0 {
+    path
+  } else if index == path.length() - 1 {
+    path
+  } else {
+    path[index + 1:].to_owned()
+  }
+}
+
+fn __rune_path_extname(path : String) -> String {
+  let base = __rune_path_basename(path)
+  let index = base.rev_find(".").unwrap_or(-1)
+  if index <= 0 { "" } else { base[index:].to_owned() }
+}
+
+fn __rune_path_dirname(path : String) -> String {
+  let index = path.rev_find("/").unwrap_or(-1)
+  if index < 0 {
+    "."
+  } else if index == 0 {
+    "/"
+  } else {
+    path[:index].to_owned()
+  }
+}
+
+fn __rune_path_join(parts : Array[String]) -> String {
+  __rune_path_normalize(__rune_path_join_parts(parts, 0, ""))
+}
+
+fn __rune_path_normalize(path : String) -> String {
+  let absolute = path.has_prefix("/")
+  let pieces = path.split("/").map(fn(part) { part.to_owned() }).to_array()
+  let out = __rune_path_normalize_parts(pieces, 0, absolute, [])
+  let joined = __rune_path_join_parts(out, 0, "")
+  if absolute {
+    "/" + joined
+  } else if joined.is_empty() {
+    "."
+  } else {
+    joined
+  }
+}
+
+fn __rune_path_resolve(parts : Array[String]) -> String {
+  if parts.length() == 0 { "." } else { __rune_path_normalize(__rune_path_join(parts)) }
+}
+
+fn __rune_path_relative(from : String, to : String) -> String {
+  let from_parts = __rune_path_parts(__rune_path_resolve([from]))
+  let to_parts = __rune_path_parts(__rune_path_resolve([to]))
+  __rune_path_relative_from_parts(from_parts, to_parts, 0)
+}
+
+fn __rune_path_join_parts(parts : Array[String], index : Int, out : String) -> String {
+  if index >= parts.length() {
+    out
+  } else {
+    __rune_path_join_parts(parts, index + 1, __rune_path_append_part(out, parts[index]))
+  }
+}
+
+fn __rune_path_append_part(out : String, part : String) -> String {
+  if out.is_empty() {
+    part
+  } else if part.is_empty() {
+    out
+  } else {
+    out + "/" + part
+  }
+}
+
+fn __rune_path_normalize_parts(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+  if index >= parts.length() {
+    out
+  } else {
+    let part = parts[index]
+    if part.is_empty() || part == "." {
+      __rune_path_normalize_parts(parts, index + 1, absolute, out)
+    } else if part == ".." {
+      __rune_path_normalize_parent(parts, index, absolute, out)
+    } else {
+      __rune_path_normalize_push(parts, index, absolute, out, part)
+    }
+  }
+}
+
+fn __rune_path_normalize_parent(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+  if out.length() > 0 {
+    __rune_path_normalize_pop(parts, index, absolute, out)
+  } else if absolute {
+    __rune_path_normalize_parts(parts, index + 1, absolute, out)
+  } else {
+    __rune_path_normalize_push(parts, index, absolute, out, "..")
+  }
+}
+
+fn __rune_path_normalize_pop(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+  __rune_path_normalize_parts(parts, index + 1, absolute, out[:out.length() - 1].to_owned())
+}
+
+fn __rune_path_normalize_push(parts : Array[String], index : Int, absolute : Bool, out : Array[String], part : String) -> Array[String] {
+  __rune_path_normalize_parts(parts, index + 1, absolute, [..out, part])
+}
+
+fn __rune_path_parts(path : String) -> Array[String] {
+  let pieces = __rune_path_normalize(path).split("/").map(fn(part) { part.to_owned() }).to_array()
+  __rune_path_collect_parts(pieces, 0, [])
+}
+
+fn __rune_path_collect_parts(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {
+  if index >= parts.length() {
+    out
+  } else if parts[index].is_empty() {
+    __rune_path_collect_parts(parts, index + 1, out)
+  } else {
+    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])
+  }
+}
+
+fn __rune_path_collect_part(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {
+  if index < parts.length() {
+    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])
+  } else {
+    out
+  }
+}
+
+fn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[String], index : Int) -> String {
+  if index < from_parts.length() && index < to_parts.length() && from_parts[index] == to_parts[index] {
+    __rune_path_relative_from_parts(from_parts, to_parts, index + 1)
+  } else {
+    __rune_path_relative_tail(from_parts, to_parts, index, index, "")
+  }
+}
+
+fn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String], from_index : Int, to_index : Int, out : String) -> String {
+  if from_index < from_parts.length() {
+    __rune_path_relative_tail(from_parts, to_parts, from_index + 1, to_index, __rune_path_append_part(out, ".."))
+  } else if to_index < to_parts.length() {
+    __rune_path_relative_tail(from_parts, to_parts, from_index, to_index + 1, __rune_path_append_part(out, to_parts[to_index]))
+  } else if out.is_empty() {
+    "."
+  } else {
+    out
+  }
+}
+
+`
+
+emitMoonBitEnum(
+  enumDecl: IREnumType
+) -> String => {
+  out ~= (("enum " + moonBitTypeIdent(enumDecl.name)) + emitMoonBitGenerics(enumDecl.generics)) + " {\n"
+  out = out + emitMoonBitEnumMembers(enumDecl.members, 0, "")
+  out + "} derive(Eq, Show)\n"
+}
+
+emitMoonBitEnumMembers(
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitMoonBitEnumMembers(members, index + 1, out + emitMoonBitEnumMember(members[index]))
+)
+
+emitMoonBitEnumMember(
+  member: IREnumMember
+) -> String => (
+  member.params.length() == 0 ? line(1, moonBitConstructorIdent(member.name))
+    : line(1, (moonBitConstructorIdent(member.name) + "(") + emitMoonBitParamTypes(member.params, 0, "") + ")")
+)
+
+emitMoonBitStruct(
+  typeDecl: IRStructType
+) -> String => {
+  out ~= ("struct " + moonBitTypeIdent(typeDecl.name)) + " {\n"
+  typeDecl.fields.each((field) => out = out + line(1, (mangleIdent(field.name) + " : ") + moonBitType(field.typeName)))
+  out + "}\n"
+}
+
+emitMoonBitMethods(
+  typeDecl: IRStructType
+) -> String => {
+  out ~= ""
+  typeDecl.methods.each((method) => out = (out + emitMoonBitFunction(methodWithMoonBitReceiver(typeDecl.name, method), "")) + "\n")
+  out
+}
+
+methodWithMoonBitReceiver(
+  typeName: String,
+  method: IRFunction
+) -> IRFunction => {
+  name: (typeName + "_") + method.name,
+  private: method.private,
+  routine: method.routine,
+  receiverType: method.receiverType,
+  generics: method.generics,
+  params: prependMoonBitSelfParam(typeName, method.params),
+  returnType: method.returnType,
+  body: method.body,
+  line: method.line,
+  column: method.column
+}
+
+prependMoonBitSelfParam(
+  typeName: String,
+  params: Array[IRParam]
+) -> Array[IRParam] => {
+  out := [IRParam {
+    name: "this",
+    typeName: typeName,
+    line: 0,
+    column: 0
+  }]
+  params.each((param) => out.push(param))
+  out
+}
+
+emitMoonBitFunction(
+  fn: IRFunction,
+  receiverType: String
+) -> String => {
+  params := emitMoonBitParams(fn.params, 0, "")
+  ret := (
+    returnsValue(fn.returnType) ? " -> " + moonBitType(fn.returnType)
+      : ""
+  )
+  name := mangleIdent(fn.name)
+  bodyReturns := returnsValue(fn.returnType) && (fn.name != "main")
+  head := (
+    (fn.name == "main") && (params == "") ? "fn main"
+      : (((("fn " + name) + emitMoonBitGenerics(fn.generics)) + "(") + params) + ")" + ret
+  )
+  out ~= head + " {\n"
+  out = out + emitMoonBitBody(fn.body, bodyReturns, fn.returnType, 1)
+  out + "}\n"
+}
+
+emitMoonBitBody(
+  expr: IRExpr,
+  returns: Bool,
+  returnType: String,
+  level: Int
+) -> String => expr.kind {
+  ExprKind.Block => emitMoonBitBlock(expr.children, 0, returns, returnType, level, "")
+  _ => line(level, (
+    returns ? emitMoonBitExpr(expr)
+      : emitMoonBitDiscard(expr)
+  ))
+}
+
+emitMoonBitBlock(
+  statements: Array[IRExpr],
+  index: Int,
+  returns: Bool,
+  returnType: String,
+  level: Int,
+  out: String
+) -> String => (
+  index >= statements.length() ? (
+    returns && (statements.length() == 0) ? out + line(level, moonBitZero(returnType))
+      : out
+  )
+    : emitMoonBitBlock(statements, index + 1, returns, returnType, level, out + emitMoonBitStatement(statements[index], index == (statements.length() - 1), returns, level))
+)
+
+emitMoonBitStatement(
+  expr: IRExpr,
+  last: Bool,
+  returns: Bool,
+  level: Int
+) -> String => expr.kind {
+  ExprKind.Let => emitMoonBitLet(expr, level)
+  ExprKind.ObjectDestructure => emitMoonBitObjectDestructure(expr, level)
+  _ => line(level, (
+    last && returns ? emitMoonBitExpr(expr)
+      : emitMoonBitDiscard(expr)
+  ))
+}
+
+emitMoonBitLet(
+  expr: IRExpr,
+  level: Int
+) -> String => line(level, ((moonBitLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitMoonBitExpr(expr.children[0]))
+
+moonBitLetKeyword(op: String) -> String => op {
+  "~=" => "let mut "
+  _ => "let "
+}
+
+emitMoonBitObjectDestructure(
+  expr: IRExpr,
+  level: Int
+) -> String => {
+  source := emitMoonBitExpr(expr.children[0])
+  tmp := mangleIdent("__object")
+  out ~= line(level, ("let " + tmp) + " = " + source)
+  expr.params.each((param) => out = out + line(level, (((("let " + mangleIdent(param.name)) + " = ") + tmp) + ".") + mangleIdent(param.typeName)))
+  out
+}
+
+emitMoonBitParams(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitMoonBitParams(params, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(params[index].name)) + " : ") + moonBitType(params[index].typeName))
+)
+
+emitMoonBitParamTypes(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitMoonBitParamTypes(params, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + moonBitType(params[index].typeName))
+)
+
+emitMoonBitGenerics(
+  generics: Array[String]
+) -> String => (
+  generics.length() == 0 ? ""
+    : ("[" + joinMoonBitGenericNames(generics, 0, "")) + "]"
+)
+
+emitMoonBitExpr(expr: IRExpr) -> String => expr.kind {
+  ExprKind.Identifier => moonBitValueIdent(expr.name)
+  ExprKind.At => "@" + expr.name
+  ExprKind.This => mangleIdent("this")
+  ExprKind.Int => expr.value
+  ExprKind.Double => expr.value
+  ExprKind.BigInt => bigintLiteralDigits(expr.value)
+  ExprKind.String => expr.value
+  ExprKind.Template => expr.value
+  ExprKind.Char => expr.value
+  ExprKind.Regex => expr.value
+  ExprKind.Bool => expr.value
+  ExprKind.Null => "None"
+  ExprKind.Unary => moonBitUnaryOp(expr.op) + emitMoonBitExpr(expr.children[0])
+  ExprKind.Postfix => emitMoonBitExpr(expr.children[0]) + moonBitPostfixOp(expr.op)
+  ExprKind.CompileTime => emitMoonBitExpr(expr.children[0])
+  ExprKind.Unwrap => "rune_unwrap(" + emitMoonBitExpr(expr.children[0]) + ")"
+  ExprKind.Binary => emitMoonBitBinary(expr)
+  ExprKind.Ternary => emitMoonBitTernary(expr)
+  ExprKind.Assign => emitMoonBitAssign(expr)
+  ExprKind.Call => emitMoonBitCall(expr)
+  ExprKind.Lambda => emitMoonBitLambda(expr)
+  ExprKind.Selector => emitMoonBitSelector(expr)
+  ExprKind.Index => ((emitMoonBitExpr(expr.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + "]"
+  ExprKind.Array => ("[" + emitMoonBitExprList(expr.children, 0, "")) + "]"
+  ExprKind.Tuple => ("(" + emitMoonBitExprList(expr.children, 0, "")) + ")"
+  ExprKind.Map => ("{" + emitMoonBitMapEntries(expr.children, 0, "")) + "}"
+  ExprKind.Spread => ".." + emitMoonBitExpr(expr.children[0])
+  ExprKind.Reactive => emitMoonBitExpr(expr.children[0])
+  ExprKind.Struct => (moonBitTypeIdent(expr.name) + "::{ ") + emitMoonBitFields(expr.children, 0, "") + " }"
+  ExprKind.Object => ("{ " + emitMoonBitFields(expr.children, 0, "")) + " }"
+  ExprKind.Block => ("{\n" + emitMoonBitBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}"
+  _ => "()"
+}
+
+emitMoonBitDiscard(
+  expr: IRExpr
+) -> String => (
+  expr.kind == ExprKind.Call ? emitMoonBitExpr(expr)
+    : "ignore(" + emitMoonBitExpr(expr) + ")"
+)
+
+emitMoonBitBinary(
+  expr: IRExpr
+) -> String => (((emitMoonBitExpr(expr.children[0]) + " ") + moonBitBinaryOp(expr.op)) + " ") + emitMoonBitExpr(expr.children[1])
+
+emitMoonBitTernary(
+  expr: IRExpr
+) -> String => ((((("if " + emitMoonBitExpr(expr.children[0])) + " { ") + emitMoonBitExpr(expr.children[1])) + " } else { ") + (
+  expr.children.length() > 2 ? emitMoonBitExpr(expr.children[2])
+    : "()"
+)) + " }"
+
+emitMoonBitAssign(
+  expr: IRExpr
+) -> String => (
+  expr.children.length() == 2 ? (emitMoonBitExpr(expr.children[0]) + " = ") + emitMoonBitExpr(expr.children[1])
+    : (mangleIdent(expr.name) + " = ") + emitMoonBitExpr(expr.children[0])
+)
+
+emitMoonBitCall(
+  expr: IRExpr
+) -> String => moduleCallKey(expr) {
+  "io.println" => ("println(" + emitMoonBitPrintArgs(expr.children, 1, "")) + ")"
+  "io.print" => ("print(" + emitMoonBitPrintArgs(expr.children, 1, "")) + ")"
+  "map.new" => "{}"
+  "set.new" => "Set::new()"
+  "path.isAbsolute" => emitMoonBitExpr(expr.children[1]) + ".has_prefix(\"/\")"
+  "path.basename" => "__rune_path_basename(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.extname" => "__rune_path_extname(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.dirname" => "__rune_path_dirname(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.join" => "__rune_path_join(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.normalize" => "__rune_path_normalize(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.resolve" => "__rune_path_resolve(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.relative" => ("__rune_path_relative(" + emitMoonBitExpr(expr.children[1]) + ", ") + emitMoonBitExpr(expr.children[2]) + ")"
+  "path.joinParts" => emitMoonBitRuntimeCall3("__rune_path_join_parts", expr.children[1], expr.children[2], expr.children[3])
+  "path.appendPathPart" => ("__rune_path_append_part(" + emitMoonBitExpr(expr.children[1]) + ", ") + emitMoonBitExpr(expr.children[2]) + ")"
+  "path.normalizeParts" => emitMoonBitRuntimeCall4("__rune_path_normalize_parts", expr.children[1], expr.children[2], expr.children[3], expr.children[4])
+  "path.normalizePart" => emitMoonBitRuntimeCall4("__rune_path_normalize_parts", expr.children[1], expr.children[2], expr.children[3], expr.children[4])
+  "path.normalizeParent" => emitMoonBitRuntimeCall4("__rune_path_normalize_parent", expr.children[1], expr.children[2], expr.children[3], expr.children[4])
+  "path.normalizePop" => emitMoonBitRuntimeCall4("__rune_path_normalize_pop", expr.children[1], expr.children[2], expr.children[3], expr.children[4])
+  "path.normalizePush" => emitMoonBitRuntimeCall5("__rune_path_normalize_push", expr.children[1], expr.children[2], expr.children[3], expr.children[4], expr.children[5])
+  "path.pathParts" => "__rune_path_parts(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "path.collectPathParts" => emitMoonBitRuntimeCall3("__rune_path_collect_parts", expr.children[1], expr.children[2], expr.children[3])
+  "path.collectPathPart" => emitMoonBitRuntimeCall3("__rune_path_collect_part", expr.children[1], expr.children[2], expr.children[3])
+  "path.relativeFromParts" => emitMoonBitRuntimeCall3("__rune_path_relative_from_parts", expr.children[1], expr.children[2], expr.children[3])
+  "path.relativeTail" => emitMoonBitRuntimeCall5("__rune_path_relative_tail", expr.children[1], expr.children[2], expr.children[3], expr.children[4], expr.children[5])
+  "process.platform" => "\"moonbit\""
+  "process.cwd" => "\".\""
+  "process.env" => "(None : String?)"
+  "process.argv" => "([] : Array[String])"
+  "int.toString" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_string()"
+  "int.toDouble" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_double()"
+  "int.toBigInt" => "BigInt::from_int(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "int4.fromInt" => "(fn(__value : Int) -> Int { let __n = __value & 0xf; if __n >= 8 { __n - 16 } else { __n } })(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "int8.fromInt" => "(fn(__value : Int) -> Int { let __n = __value & 0xff; if __n >= 128 { __n - 256 } else { __n } })(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "int16.fromInt" => "(fn(__value : Int) -> Int { let __n = __value & 0xffff; if __n >= 32768 { __n - 65536 } else { __n } })(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "int64.fromInt" => "Int64::from_int(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "uint.fromInt" | "uint8.fromInt" | "uint16.fromInt" => "(" + emitMoonBitExpr(expr.children[1]) + ").reinterpret_as_uint()"
+  "uint64.fromInt" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_uint64()"
+  "int4.toInt" | "int8.toInt" | "int16.toInt" => emitMoonBitExpr(expr.children[1])
+  "uint.toInt" | "uint8.toInt" | "uint16.toInt" => "(" + emitMoonBitExpr(expr.children[1]) + ").reinterpret_as_int()"
+  "int64.toInt" | "uint64.toInt" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_int()"
+  "float.fromDouble" => "Float::from_double(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "float.toDouble" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_double()"
+  "bigint.fromInt" => "BigInt::from_int(" + emitMoonBitExpr(expr.children[1]) + ")"
+  "bigint.toString" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_string()"
+  "bigint.toDouble" => "(" + emitMoonBitExpr(expr.children[1]) + ").to_double()"
+  "double.trunc" => "(" + emitMoonBitExpr(expr.children[1]) + ").trunc()"
+  "double.floor" => "(" + emitMoonBitExpr(expr.children[1]) + ").floor()"
+  "double.ceil" => "(" + emitMoonBitExpr(expr.children[1]) + ").ceil()"
+  "double.round" => "(" + emitMoonBitExpr(expr.children[1]) + ").round()"
+  _ => emitMoonBitMaybeCoreMethodCall(expr)
+}
+
+emitMoonBitRuntimeCall3(
+  name: String,
+  first: IRExpr,
+  second: IRExpr,
+  third: IRExpr
+) -> String => (((((name + "(") + emitMoonBitExpr(first)) + ", ") + emitMoonBitExpr(second)) + ", ") + emitMoonBitExpr(third) + ")"
+
+emitMoonBitRuntimeCall4(
+  name: String,
+  first: IRExpr,
+  second: IRExpr,
+  third: IRExpr,
+  fourth: IRExpr
+) -> String => (((((((name + "(") + emitMoonBitExpr(first)) + ", ") + emitMoonBitExpr(second)) + ", ") + emitMoonBitExpr(third)) + ", ") + emitMoonBitExpr(fourth) + ")"
+
+emitMoonBitRuntimeCall5(
+  name: String,
+  first: IRExpr,
+  second: IRExpr,
+  third: IRExpr,
+  fourth: IRExpr,
+  fifth: IRExpr
+) -> String => (((((((((name + "(") + emitMoonBitExpr(first)) + ", ") + emitMoonBitExpr(second)) + ", ") + emitMoonBitExpr(third)) + ", ") + emitMoonBitExpr(fourth)) + ", ") + emitMoonBitExpr(fifth) + ")"
+
+emitMoonBitMaybeCoreMethodCall(
+  expr: IRExpr
+) -> String => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? emitMoonBitCoreMethodCall(expr, expr.children[0])
+    : emitMoonBitDefaultCall(expr)
+)
+
+emitMoonBitCoreMethodCall(
+  expr: IRExpr,
+  selector: IRExpr
+) -> String => (
+  (selector.children.length() > 0) && (selector.children[0].kind != ExprKind.At) ? selector.name {
+    "length" | "byteLength" => emitMoonBitExpr(selector.children[0]) + ".length()"
+    "isEmpty" => ("(" + emitMoonBitExpr(selector.children[0])) + ".length() == 0)"
+    "at" => ((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + "]"
+    "slice" => ((((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + ":") + emitMoonBitExpr(expr.children[2])) + "].to_owned()"
+    _ => emitMoonBitDefaultCall(expr)
+  }
+    : emitMoonBitDefaultCall(expr)
+)
+
+emitMoonBitDefaultCall(
+  expr: IRExpr
+) -> String => ((emitMoonBitExpr(expr.children[0]) + "(") + emitMoonBitExprListFrom(expr.children, 1, "")) + ")"
+
+emitMoonBitPrintArgs(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= exprs.length() ? (
+    out == "" ? "\"\""
+      : out
+  )
+    : emitMoonBitPrintArgs(exprs, index + 1, (out + (
+      out == "" ? ""
+        : " + \" \" + "
+    )) + emitMoonBitShowExpr(exprs[index]))
+)
+
+emitMoonBitShowExpr(
+  expr: IRExpr
+) -> String => (
+  expr.text == "String" ? emitMoonBitExpr(expr)
+    : "(" + emitMoonBitExpr(expr) + ").to_string()"
+)
+
+emitMoonBitLambda(
+  expr: IRExpr
+) -> String => (("(" + emitMoonBitParams(expr.params, 0, "")) + ") => ") + emitMoonBitExpr(expr.children[0])
+
+emitMoonBitSelector(
+  expr: IRExpr
+) -> String => expr.children[0].kind {
+  ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
+  ExprKind.Identifier => (
+    moonBitLooksLikeTypeName(expr.children[0].name) ? (moonBitTypeIdent(expr.children[0].name) + "::") + moonBitConstructorIdent(expr.name)
+      : (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+  )
+  _ => (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+}
+
+emitMoonBitExprList(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => emitMoonBitExprListFrom(exprs, index, out)
+
+emitMoonBitExprListFrom(
+  exprs: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= exprs.length() ? out
+    : emitMoonBitExprListFrom(exprs, index + 1, (out + (
+      out == "" ? ""
+        : ", "
+    )) + emitMoonBitExpr(exprs[index]))
+)
+
+emitMoonBitMapEntries(
+  entries: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => {
+  index >= entries.length() ? out
+    : emitMoonBitMapEntries(entries, index + 1, (((out + (out == "" ? "" : ", ")) + emitMoonBitExpr(entries[index].children[0])) + ": ") + emitMoonBitExpr(entries[index].children[1]))
+}
+
+emitMoonBitFields(
+  fields: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= fields.length() ? out
+    : emitMoonBitFields(fields, index + 1, (((out + (
+      out == "" ? ""
+        : ", "
+    )) + mangleIdent(fields[index].name)) + ": ") + emitMoonBitExpr(fields[index].children[0]))
+)
+
+moonBitUnaryOp(op: String) -> String => op {
+  "!" => "!"
+  _ => op
+}
+
+moonBitPostfixOp(op: String) -> String => op
+
+moonBitBinaryOp(op: String) -> String => op {
+  "&&" => "&&"
+  "||" => "||"
+  _ => op
+}
+
+moonBitType(typeName: String) -> String => {
+  "" | "Void" => "Unit"
+  "Int" | "Int4" | "Int8" | "Int16" => "Int"
+  "UInt" | "UInt8" | "UInt16" => "UInt"
+  "Int64" => "Int64"
+  "UInt64" => "UInt64"
+  "Double" => "Double"
+  "Float" => "Float"
+  "BigInt" => "BigInt"
+  "String" => "String"
+  "Char" => "Char"
+  "Bool" => "Bool"
+  "Dynamic" | "Object" => "Unit"
+  "Data" | "@io.Data" => "Array[Int]"
+  _ => moonBitTypeFallback(typeName)
+}
+
+moonBitTypeFallback(
+  typeName: String
+) -> String => (
+  typeName.endsWith("?") ? moonBitType(typeName.slice(0, typeName.length() - 1)) + "?"
+    : (
+      genericInner(typeName, "Array") != "" ? ("Array[" + moonBitType(genericInner(typeName, "Array"))) + "]"
+        : (
+          genericInner(typeName, "ReadonlyArray") != "" ? ("Array[" + moonBitType(genericInner(typeName, "ReadonlyArray"))) + "]"
+            : (
+              genericInner(typeName, "Map") != "" ? ((("Map[" + moonBitType(typeArg(genericInner(typeName, "Map"), 0))) + ", ") + moonBitType(typeArg(genericInner(typeName, "Map"), 1))) + "]"
+                : (
+                  genericInner(typeName, "Set") != "" ? ("Set[" + moonBitType(genericInner(typeName, "Set"))) + "]"
+                    : moonBitNamedType(typeName)
+                )
+            )
+        )
+    )
+)
+
+moonBitNamedType(
+  typeName: String
+) -> String => {
+  open := typeName.indexOf("[")
+  (
+    open < 0 ? moonBitTypeIdent(typeName)
+      : (moonBitTypeIdent(typeName.slice(0, open)) + "[") + emitMoonBitTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + "]"
+  )
+}
+
+emitMoonBitTypeArgs(
+  args: String
+) -> String => emitMoonBitTypeArgList(args.split(","), 0, "")
+
+emitMoonBitTypeArgList(
+  args: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= args.length() ? out
+    : emitMoonBitTypeArgList(args, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + moonBitType(args[index].trim()))
+)
+
+moonBitZero(
+  typeName: String
+) -> String => typeName {
+  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" => "0"
+  "Int64" => "0L"
+  "UInt64" => "0UL"
+  "Double" | "Float" => "0.0"
+  "String" => "\"\""
+  "Bool" => "false"
+  _ => "()"
+}
+
+joinMoonBitStrings(
+  values: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= values.length() ? out
+    : joinMoonBitStrings(values, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + values[index])
+)
+
+joinMoonBitGenericNames(
+  values: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= values.length() ? out
+    : joinMoonBitGenericNames(values, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + moonBitTypeParamIdent(values[index]))
+)
+
+moonBitValueIdent(
+  name: String
+) -> String => (
+  moonBitLooksLikeTypeName(name) ? moonBitConstructorIdent(name)
+    : mangleIdent(name)
+)
+
+moonBitTypeIdent(
+  name: String
+) -> String => (
+  moonBitLooksGenericParam(name) ? moonBitTypeParamIdent(name)
+    : "Rune" + moonBitSanitizeIdent(name)
+)
+
+moonBitConstructorIdent(
+  name: String
+) -> String => "Rune" + moonBitSanitizeIdent(name)
+
+moonBitTypeParamIdent(
+  name: String
+) -> String => (
+  moonBitLooksLikeTypeName(name) ? name
+    : "T"
+)
+
+moonBitLooksGenericParam(
+  name: String
+) -> Bool => (name.length() == 1) && moonBitLooksLikeTypeName(name)
+
+moonBitSanitizeIdent(
+  name: String
+) -> String => name.replaceAll(".", "_").replaceAll("-", "_").replaceAll("@", "_")
+
+moonBitLooksLikeTypeName(
+  name: String
+) -> Bool => (
+  name.length() > 0 ? moonBitIsUpperLetter(name.at(0))
+    : false
+)
+
+moonBitIsUpperLetter(
+  ch: Char
+) -> Bool => (ch >= 'A') && (ch <= 'Z')

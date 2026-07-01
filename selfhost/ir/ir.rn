@@ -38,6 +38,7 @@
   name: String
   private: Bool
   value: String
+  params: Array[IRParam]
   line: Int
   column: Int
 }
@@ -55,6 +56,15 @@
   column: Int
 }
 
++ IRConst: {
+  name: String
+  private: Bool
+  typeName: String
+  value: IRExpr
+  line: Int
+  column: Int
+}
+
 + IRStructType: {
   name: String
   private: Bool
@@ -68,6 +78,7 @@
 + IREnumType: {
   name: String
   private: Bool
+  generics: Array[String]
   members: Array[IREnumMember]
   line: Int
   column: Int
@@ -84,6 +95,7 @@
   imports: Array[IRImport]
   structs: Array[IRStructType]
   enums: Array[IREnumType]
+  constants: Array[IRConst]
   functions: Array[IRFunction]
   tests: Array[IRTest]
   errors: Array[ParseError]
@@ -98,6 +110,7 @@
     imports: [],
     structs: [],
     enums: [],
+    constants: [],
     functions: [],
     tests: [],
     errors: file.errors
@@ -192,6 +205,7 @@ lowerEnumMember(
   name: member.name,
   private: member.private,
   value: member.value,
+  params: lowerParams(member.params),
   line: member.line,
   column: member.column
 }
@@ -228,6 +242,7 @@ lowerEnumType(
 ) -> IREnumType => {
   name: typeDecl.name,
   private: typeDecl.private,
+  generics: typeDecl.generics,
   members: lowerEnumMembers(typeDecl.members),
   line: typeDecl.line,
   column: typeDecl.column
@@ -288,6 +303,7 @@ lowerEnumMembers(
     name: "",
     private: false,
     value: "",
+    params: [],
     line: 0,
     column: 0
   }].slice(0, 0)

@@ -55,8 +55,9 @@
   get() -> T => .value
   - secret() -> T => .hidden
 }
-Status: {
+Status[E]: {
   Ready
+  Some(value: Int, name: String)
   + Hidden
 }
 `
@@ -72,9 +73,16 @@ Status: {
   @assert.eq(file.types[0].methods[0].private, false)
   @assert.eq(file.types[0].methods[1].private, true)
   @assert.eq(file.types[1].enum, true)
+  @assert.eq(file.types[1].generics[0], "E")
   @assert.eq(file.types[1].members[0].name, "Ready")
   @assert.eq(file.types[1].members[0].private, false)
-  @assert.eq(file.types[1].members[1].private, false)
+  @assert.eq(file.types[1].members[1].name, "Some")
+  @assert.eq(file.types[1].members[1].params.length(), 2)
+  @assert.eq(file.types[1].members[1].params[0].name, "value")
+  @assert.eq(file.types[1].members[1].params[0].typeRef.name, "Int")
+  @assert.eq(file.types[1].members[1].params[1].name, "name")
+  @assert.eq(file.types[1].members[1].params[1].typeRef.name, "String")
+  @assert.eq(file.types[1].members[2].private, false)
 }
 
 ? "selfhost parser reads map literals and index assignment" {

@@ -10,6 +10,29 @@
 
 + returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
 
++ bigintLiteralDigits(value: String) -> String => (
+  value.endsWith("n") ? value.slice(0, value.length() - 1)
+    : value
+)
+
++ fileUsesPathBasenameFamily(
+  file: IRFile
+) -> Bool => (
+  fileUsesModuleCall(file, "path.basename") || fileUsesModuleCall(file, "path.extname") || fileUsesModuleCall(file, "path.dirname")
+)
+
++ fileUsesPathFamily(
+  file: IRFile
+) -> Bool => (
+  fileUsesPathBasenameFamily(file) || fileUsesModuleCall(file, "path.join") || fileUsesModuleCall(file, "path.normalize") || fileUsesModuleCall(file, "path.resolve") || fileUsesModuleCall(file, "path.relative") || fileUsesPathHelperFamily(file)
+)
+
++ fileUsesPathHelperFamily(
+  file: IRFile
+) -> Bool => (
+  fileUsesModuleCall(file, "path.joinParts") || fileUsesModuleCall(file, "path.appendPathPart") || fileUsesModuleCall(file, "path.normalizeParts") || fileUsesModuleCall(file, "path.normalizePart") || fileUsesModuleCall(file, "path.normalizeParent") || fileUsesModuleCall(file, "path.normalizePop") || fileUsesModuleCall(file, "path.normalizePush") || fileUsesModuleCall(file, "path.pathParts") || fileUsesModuleCall(file, "path.collectPathParts") || fileUsesModuleCall(file, "path.collectPathPart") || fileUsesModuleCall(file, "path.relativeFromParts") || fileUsesModuleCall(file, "path.relativeTail")
+)
+
 + moduleCallKey(expr: IRExpr) -> String => (
   (expr.kind == ExprKind.Call) && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
     : ""
@@ -58,6 +81,100 @@
   level: Int,
   text: String
 ) -> String => (indent(level) + text) + "\n"
+
++ fileUsesUnwrap(
+  file: IRFile
+) -> Bool => (
+  functionsUseUnwrap(file.functions, 0) || structsUseUnwrap(file.structs, 0) || testsUseUnwrap(file.tests, 0)
+)
+
+functionsUseUnwrap(
+  functions: Array[IRFunction],
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : exprUsesUnwrap(functions[index].body) || functionsUseUnwrap(functions, index + 1)
+)
+
+testsUseUnwrap(
+  tests: Array[IRTest],
+  index: Int
+) -> Bool => (
+  index >= tests.length() ? false
+    : exprUsesUnwrap(tests[index].body) || testsUseUnwrap(tests, index + 1)
+)
+
+structsUseUnwrap(
+  structs: Array[IRStructType],
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : functionsUseUnwrap(structs[index].methods, 0) || structsUseUnwrap(structs, index + 1)
+)
+
++ exprUsesUnwrap(
+  expr: IRExpr
+) -> Bool => (
+  expr.kind == ExprKind.Unwrap ? true
+    : exprChildrenUseUnwrap(expr.children, 0)
+)
+
++ fileUsesModuleCall(
+  file: IRFile,
+  key: String
+) -> Bool => functionsUseModuleCall(file.functions, key, 0) || structsUseModuleCall(file.structs, key, 0) || testsUseModuleCall(file.tests, key, 0)
+
+functionsUseModuleCall(
+  functions: Array[IRFunction],
+  key: String,
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : exprUsesModuleCall(functions[index].body, key) || functionsUseModuleCall(functions, key, index + 1)
+)
+
+testsUseModuleCall(
+  tests: Array[IRTest],
+  key: String,
+  index: Int
+) -> Bool => (
+  index >= tests.length() ? false
+    : exprUsesModuleCall(tests[index].body, key) || testsUseModuleCall(tests, key, index + 1)
+)
+
+structsUseModuleCall(
+  structs: Array[IRStructType],
+  key: String,
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : functionsUseModuleCall(structs[index].methods, key, 0) || structsUseModuleCall(structs, key, index + 1)
+)
+
+exprUsesModuleCall(
+  expr: IRExpr,
+  key: String
+) -> Bool => (
+  moduleCallKey(expr) == key ? true
+    : exprChildrenUseModuleCall(expr.children, key, 0)
+)
+
+exprChildrenUseModuleCall(
+  children: Array[IRExpr],
+  key: String,
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : exprUsesModuleCall(children[index], key) || exprChildrenUseModuleCall(children, key, index + 1)
+)
+
+exprChildrenUseUnwrap(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : exprUsesUnwrap(children[index]) || exprChildrenUseUnwrap(children, index + 1)
+)
 
 + compilerIntToString(
   value: Int

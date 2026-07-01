@@ -3,20 +3,273 @@
 
 + generateGo(file: IRFile) -> String => {
   out ~= "package main\n\n"
+  out = out + emitGoImports(file)
   (
-    usesPrintFile(file) ? out = out + "import \"fmt\"\n\n"
+    fileUsesUnwrap(file) ? out = out + emitGoUnwrapHelper()
+  )
+  (
+    fileUsesPathFamily(file) ? out = out + emitGoPathHelpers()
   )
   file.enums.each((enumDecl) => out = (out + emitGoEnum(enumDecl)) + "\n")
   file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
-  file.structs.each((typeDecl) => out = out + emitGoMethods(typeDecl))
-  file.functions.each((fn) => out = (out + emitGoFunction(fn, "")) + "\n")
+  file.structs.each((typeDecl) => out = out + emitGoMethods(file, typeDecl))
+  file.functions.each((fn) => out = (out + emitGoFunction(file, fn, "")) + "\n")
   (
     hasMain(file) ? out = ((out + "func main() {\n\t") + mangleIdent("main")) + "()\n}\n"
   )
   out
 }
 
+emitGoImports(
+  file: IRFile
+) -> String => {
+  imports := []
+  (
+    usesPrintFile(file) ? imports.push("fmt")
+  )
+  (
+    fileUsesGoStrings(file) ? imports.push("strings")
+  )
+  (
+    fileUsesModuleCall(file, "process.platform") ? imports.push("runtime")
+  )
+  (
+    fileUsesDoubleMath(file) ? imports.push("math")
+  )
+  (
+    fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString") ? imports.push("strconv")
+  )
+  (
+    fileUsesUnwrap(file) ? imports.push("reflect")
+  )
+  imports.length() == 0 ? ""
+    : ("import (\n" + emitGoImportLines(imports, 0, "")) + ")\n\n"
+}
+
+emitGoImportLines(
+  imports: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= imports.length() ? out
+    : emitGoImportLines(imports, index + 1, ((out + "\t\"") + imports[index]) + "\"\n")
+)
+
+emitGoUnwrapHelper() -> String => `func __runeUnwrap(value any) any {
+	v := reflect.ValueOf(value)
+	if v.Kind() == reflect.Pointer {
+		v = v.Elem()
+	}
+	tag := v.FieldByName("__tag").Int()
+	payload := v.FieldByName("__payload")
+	if tag == 0 {
+		if payload.Len() == 0 {
+			return nil
+		}
+		return payload.Index(0).Interface()
+	}
+	if payload.Len() > 0 {
+		panic(payload.Index(0).Interface())
+	}
+	panic("Result.Err")
+}
+
+`
+
+emitGoPathHelpers() -> String => `func __runePathBasename(path string) string {
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return path
+	}
+	if index == len(path)-1 {
+		return path
+	}
+	return path[index+1:]
+}
+
+func __runePathExtname(path string) string {
+	base := __runePathBasename(path)
+	index := strings.LastIndex(base, ".")
+	if index <= 0 {
+		return ""
+	}
+	return base[index:]
+}
+
+func __runePathDirname(path string) string {
+	index := strings.LastIndex(path, "/")
+	if index < 0 {
+		return "."
+	}
+	if index == 0 {
+		return "/"
+	}
+	return path[:index]
+}
+
+func __runePathJoin(parts []any) string {
+	return __runePathNormalize(__runePathJoinParts(__runePathStringParts(parts), 0, ""))
+}
+
+func __runePathNormalize(path string) string {
+	absolute := strings.HasPrefix(path, "/")
+	out := __runePathNormalizeParts(strings.Split(path, "/"), 0, absolute, []string{})
+	joined := __runePathJoinParts(out, 0, "")
+	if absolute {
+		return "/" + joined
+	}
+	if joined == "" {
+		return "."
+	}
+	return joined
+}
+
+func __runePathResolve(parts []any) string {
+	if len(parts) == 0 {
+		return "."
+	}
+	return __runePathNormalize(__runePathJoin(parts))
+}
+
+func __runePathRelative(from string, to string) string {
+	fromParts := __runePathParts(__runePathResolve([]any{from}))
+	toParts := __runePathParts(__runePathResolve([]any{to}))
+	index := 0
+	for index < len(fromParts) && index < len(toParts) && fromParts[index] == toParts[index] {
+		index++
+	}
+	out := ""
+	for i := index; i < len(fromParts); i++ {
+		out = __runePathAppendPart(out, "..")
+	}
+	for i := index; i < len(toParts); i++ {
+		out = __runePathAppendPart(out, toParts[i])
+	}
+	if out == "" {
+		return "."
+	}
+	return out
+}
+
+func __runePathStringParts(parts []any) []string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		out = append(out, part.(string))
+	}
+	return out
+}
+
+func __runePathParts(path string) []string {
+	clean := __runePathNormalize(path)
+	out := []string{}
+	for _, part := range strings.Split(clean, "/") {
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
+
+func __runePathJoinParts(parts []string, index int, out string) string {
+	for index < len(parts) {
+		out = __runePathAppendPart(out, parts[index])
+		index++
+	}
+	return out
+}
+
+func __runePathAppendPart(out string, part string) string {
+	if out == "" {
+		return part
+	}
+	if part == "" {
+		return out
+	}
+	return out + "/" + part
+}
+
+func __runePathNormalizeParts(parts []string, index int, absolute bool, out []string) []string {
+	for index < len(parts) {
+		part := parts[index]
+		if part == "" || part == "." {
+			index++
+			continue
+		}
+		if part == ".." {
+			return __runePathNormalizeParent(parts, index, absolute, out)
+		}
+		return __runePathNormalizePush(parts, index, absolute, out, part)
+	}
+	return out
+}
+
+func __runePathNormalizeParent(parts []string, index int, absolute bool, out []string) []string {
+	if len(out) > 0 {
+		return __runePathNormalizePop(parts, index, absolute, out)
+	}
+	if absolute {
+		return __runePathNormalizeParts(parts, index+1, absolute, out)
+	}
+	return __runePathNormalizePush(parts, index, absolute, out, "..")
+}
+
+func __runePathNormalizePop(parts []string, index int, absolute bool, out []string) []string {
+	return __runePathNormalizeParts(parts, index+1, absolute, out[:len(out)-1])
+}
+
+func __runePathNormalizePush(parts []string, index int, absolute bool, out []string, part string) []string {
+	return __runePathNormalizeParts(parts, index+1, absolute, append(out, part))
+}
+
+func __runePathCollectParts(parts []string, index int, out []string) []string {
+	for index < len(parts) {
+		if parts[index] != "" {
+			out = append(out, parts[index])
+		}
+		index++
+	}
+	return out
+}
+
+func __runePathCollectPart(parts []string, index int, out []string) []string {
+	if index < len(parts) {
+		out = append(out, parts[index])
+	}
+	return __runePathCollectParts(parts, index+1, out)
+}
+
+func __runePathRelativeFromParts(fromParts []string, toParts []string, index int) string {
+	for index < len(fromParts) && index < len(toParts) && fromParts[index] == toParts[index] {
+		index++
+	}
+	return __runePathRelativeTail(fromParts, toParts, index, index, "")
+}
+
+func __runePathRelativeTail(fromParts []string, toParts []string, fromIndex int, toIndex int, out string) string {
+	for fromIndex < len(fromParts) {
+		out = __runePathAppendPart(out, "..")
+		fromIndex++
+	}
+	for toIndex < len(toParts) {
+		out = __runePathAppendPart(out, toParts[toIndex])
+		toIndex++
+	}
+	if out == "" {
+		return "."
+	}
+	return out
+}
+
+`
+
 emitGoEnum(
+  enumDecl: IREnumType
+) -> String => {
+  enumHasPayload(enumDecl.members) ? emitGoPayloadEnum(enumDecl)
+    : emitGoSimpleEnum(enumDecl)
+}
+
+emitGoSimpleEnum(
   enumDecl: IREnumType
 ) -> String => {
   out ~= ("type " + mangleIdent(enumDecl.name)) + " int\n\n"
@@ -24,6 +277,80 @@ emitGoEnum(
   out = out + emitGoEnumMembers(enumDecl.name, enumDecl.members, 0, "")
   out + ")\n"
 }
+
+emitGoPayloadEnum(
+  enumDecl: IREnumType
+) -> String => {
+  out ~= (("type " + mangleIdent(enumDecl.name)) + emitGoGenericsDecl(enumDecl.generics)) + " struct {\n"
+  out = out + "\t__tag int\n"
+  out = out + "\t__payload []any\n"
+  out = out + "}\n\n"
+  out = out + "const (\n"
+  out = out + emitGoPayloadEnumTags(enumDecl.name, enumDecl.members, 0, "")
+  out = out + ")\n\n"
+  out + emitGoPayloadEnumConstructors(enumDecl.name, enumDecl.generics, enumDecl.members, 0, "")
+}
+
+emitGoPayloadEnumTags(
+  enumName: String,
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitGoPayloadEnumTags(enumName, members, index + 1, (((out + "\t") + mangleIdent(((enumName + "_") + members[index].name) + "_tag")) + " = ") + enumValue(members[index], index) + "\n")
+)
+
+emitGoPayloadEnumConstructors(
+  enumName: String,
+  generics: Array[String],
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitGoPayloadEnumConstructors(enumName, generics, members, index + 1, out + emitGoPayloadEnumConstructor(enumName, generics, members[index]))
+)
+
+emitGoPayloadEnumConstructor(
+  enumName: String,
+  generics: Array[String],
+  member: IREnumMember
+) -> String => {
+  tagName := mangleIdent(((enumName + "_") + member.name) + "_tag")
+  typeName := mangleIdent(enumName) + emitGoGenericsUse(generics)
+  (
+    member.params.length() == 0 ? (((("var " + mangleIdent((enumName + "_") + member.name)) + " = ") + typeName) + "{__tag: ") + tagName + ", __payload: nil}\n"
+      : ((((((("func " + mangleIdent(member.name)) + emitGoGenericsDecl(generics)) + "(") + emitGoParams(member.params, 0, "")) + ") ") + typeName) + " {\n\treturn ") + typeName + "{__tag: " + tagName + ", __payload: []any{" + emitGoParamNames(member.params, 0, "") + "}}\n}\n"
+  )
+}
+
+emitGoParamNames(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitGoParamNames(params, index + 1, (out + (
+      out == "" ? ""
+        : ", "
+    )) + mangleIdent(params[index].name))
+)
+
+enumHasPayload(
+  members: Array[IREnumMember]
+) -> Bool => enumHasPayloadAt(members, 0)
+
+enumHasPayloadAt(
+  members: Array[IREnumMember],
+  index: Int
+) -> Bool => (
+  index >= members.length() ? false
+    : (
+      members[index].params.length() > 0 ? true
+        : enumHasPayloadAt(members, index + 1)
+    )
+)
 
 emitGoEnumMembers(
   enumName: String,
@@ -38,20 +365,22 @@ emitGoEnumMembers(
 emitGoStruct(
   typeDecl: IRStructType
 ) -> String => {
-  out ~= ("type " + mangleIdent(typeDecl.name)) + " struct {\n"
+  out ~= (("type " + mangleIdent(typeDecl.name)) + emitGoGenericsDecl(typeDecl.generics)) + " struct {\n"
   typeDecl.fields.each((field) => out = ((((out + "\t") + mangleIdent(field.name)) + " ") + goType(field.typeName)) + "\n")
   out + "}\n"
 }
 
 emitGoMethods(
+  file: IRFile,
   typeDecl: IRStructType
 ) -> String => {
   out ~= ""
-  typeDecl.methods.each((method) => out = (out + emitGoFunction(method, typeDecl.name)) + "\n")
+  typeDecl.methods.each((method) => out = (out + emitGoFunction(file, method, typeDecl.name)) + "\n")
   out
 }
 
 emitGoFunction(
+  file: IRFile,
   fn: IRFunction,
   receiverType: String
 ) -> String => {
@@ -69,24 +398,26 @@ emitGoFunction(
       : mangleIdent(fn.name)
   )
   out ~= (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
-  out = out + emitGoBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
+  out = out + emitGoBody(file, fn.body, returnsValue(fn.returnType), fn.returnType, 1)
   out + "}\n"
 }
 
 emitGoBody(
+  file: IRFile,
   expr: IRExpr,
   returns: Bool,
   returnType: String,
   level: Int
 ) -> String => expr.kind {
-  ExprKind.Block => emitGoBlock(expr.children, 0, returns, returnType, level, "")
+  ExprKind.Block => emitGoBlock(file, expr.children, 0, returns, returnType, level, "")
   _ => line(level, (
-    returns ? "return " + emitGoExpr(expr)
+    returns ? "return " + emitGoExprExpected(expr, returnType)
       : emitGoExpr(expr)
   ))
 }
 
 emitGoBlock(
+  file: IRFile,
   statements: Array[IRExpr],
   index: Int,
   returns: Bool,
@@ -98,27 +429,37 @@ emitGoBlock(
     returns && (statements.length() == 0) ? out + line(level, "return " + goZero(returnType))
       : out
   )
-    : emitGoBlock(statements, index + 1, returns, returnType, level, out + emitGoStatement(statements[index], index == (statements.length() - 1), returns, level))
+    : emitGoBlock(file, statements, index + 1, returns, returnType, level, out + emitGoStatement(file, statements[index], index == (statements.length() - 1), returns, returnType, level))
 )
 
 emitGoStatement(
+  file: IRFile,
   expr: IRExpr,
   last: Bool,
   returns: Bool,
+  returnType: String,
   level: Int
 ) -> String => expr.kind {
-  ExprKind.Let => emitGoLet(expr, level)
+  ExprKind.Let => emitGoLet(file, expr, level)
   ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
   _ => (
-    last && returns ? line(level, "return " + emitGoExpr(expr))
+    last && returns ? line(level, "return " + emitGoExprExpected(expr, returnType))
       : line(level, emitGoExpr(expr))
   )
 }
 
 emitGoLet(
+  file: IRFile,
   expr: IRExpr,
   level: Int
-) -> String => line(level, (mangleIdent(expr.name) + " := ") + emitGoExpr(expr.children[0])) + line(level, "_ = " + mangleIdent(expr.name))
+) -> String => {
+  value := emitGoExpr(expr.children[0])
+  payload := unwrapPayloadType(file, expr.children[0])
+  (
+    payload != "" ? value = (value + ".(") + goType(payload) + ")"
+  )
+  line(level, (mangleIdent(expr.name) + " := ") + value) + line(level, "_ = " + mangleIdent(expr.name))
+}
 
 emitGoObjectDestructure(
   expr: IRExpr,
@@ -148,7 +489,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.This => mangleIdent("this")
   ExprKind.Int => expr.value
   ExprKind.Double => expr.value
-  ExprKind.BigInt => "0"
+  ExprKind.BigInt => "int64(" + bigintLiteralDigits(expr.value) + ")"
   ExprKind.String => expr.value
   ExprKind.Template => "\"\""
   ExprKind.Char => expr.value
@@ -158,6 +499,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Unary => expr.op + emitGoExpr(expr.children[0])
   ExprKind.Postfix => emitGoExpr(expr.children[0]) + expr.op
   ExprKind.CompileTime => emitGoExpr(expr.children[0])
+  ExprKind.Unwrap => "__runeUnwrap(" + emitGoExpr(expr.children[0]) + ")"
   ExprKind.Binary => emitGoBinary(expr)
   ExprKind.Ternary => emitGoTernary(expr)
   ExprKind.Assign => emitGoAssign(expr)
@@ -172,8 +514,78 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Reactive => emitGoExpr(expr.children[0])
   ExprKind.Struct => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
   ExprKind.Object => "struct{}{}"
-  ExprKind.Block => ("func() any {\n" + emitGoBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
+  ExprKind.Block => ("func() any {\n" + emitGoBlockNoContext(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
   _ => "nil"
+}
+
+emitGoExprExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => expr.kind {
+  ExprKind.Call => emitGoCallExpected(expr, expected)
+  _ => emitGoExpr(expr)
+}
+
+emitGoCallExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  args := genericInner(expected, "Result")
+  (
+    (args != "") && isResultConstructorCall(expr) ? ((emitGoExpr(expr.children[0]) + "[") + emitGoTypeArgs(args)) + "](" + emitGoExprListFrom(expr.children, 1, "") + ")"
+      : emitGoCall(expr)
+  )
+}
+
+isResultConstructorCall(
+  expr: IRExpr
+) -> Bool => (
+  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
+)
+
+emitGoTypeArgs(
+  args: String
+) -> String => emitGoTypeArgList(args.split(","), 0, "")
+
+emitGoTypeArgList(
+  args: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= args.length() ? out
+    : emitGoTypeArgList(args, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + goType(args[index].trim()))
+)
+
+emitGoBlockNoContext(
+  statements: Array[IRExpr],
+  index: Int,
+  returns: Bool,
+  returnType: String,
+  level: Int,
+  out: String
+) -> String => (
+  index >= statements.length() ? (
+    returns && (statements.length() == 0) ? out + line(level, "return " + goZero(returnType))
+      : out
+  )
+    : emitGoBlockNoContext(statements, index + 1, returns, returnType, level, out + emitGoStatementNoContext(statements[index], index == (statements.length() - 1), returns, level))
+)
+
+emitGoStatementNoContext(
+  expr: IRExpr,
+  last: Bool,
+  returns: Bool,
+  level: Int
+) -> String => expr.kind {
+  ExprKind.Let => line(level, (mangleIdent(expr.name) + " := ") + emitGoExpr(expr.children[0])) + line(level, "_ = " + mangleIdent(expr.name))
+  ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
+  _ => (
+    last && returns ? line(level, "return " + emitGoExpr(expr))
+      : line(level, emitGoExpr(expr))
+  )
 }
 
 emitGoBinary(expr: IRExpr) -> String => (((emitGoExpr(expr.children[0]) + " ") + goBinaryOp(expr.op)) + " ") + emitGoExpr(expr.children[1])
@@ -192,8 +604,111 @@ emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("fmt.Println(" + emitGoExprListFrom(expr.children, 1, "")) + ")"
   "map.new" => "map[any]any{}"
   "set.new" => "map[any]struct{}{}"
-  _ => ((emitGoExpr(expr.children[0]) + "(") + emitGoExprListFrom(expr.children, 1, "")) + ")"
+  "path.isAbsolute" => "strings.HasPrefix(" + emitGoExpr(expr.children[1]) + ", \"/\")"
+  "path.basename" => "__runePathBasename(" + emitGoExpr(expr.children[1]) + ")"
+  "path.extname" => "__runePathExtname(" + emitGoExpr(expr.children[1]) + ")"
+  "path.dirname" => "__runePathDirname(" + emitGoExpr(expr.children[1]) + ")"
+  "path.join" => "__runePathJoin(" + emitGoExpr(expr.children[1]) + ")"
+  "path.normalize" => "__runePathNormalize(" + emitGoExpr(expr.children[1]) + ")"
+  "path.resolve" => "__runePathResolve(" + emitGoExpr(expr.children[1]) + ")"
+  "path.relative" => ("__runePathRelative(" + emitGoExpr(expr.children[1]) + ", ") + emitGoExpr(expr.children[2]) + ")"
+  "path.joinParts" => (((("__runePathJoinParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3]) + ")"
+  "path.appendPathPart" => ("__runePathAppendPart(" + emitGoExpr(expr.children[1]) + ", ") + emitGoExpr(expr.children[2]) + ")"
+  "path.normalizeParts" => (((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
+  "path.normalizePart" => (((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
+  "path.normalizeParent" => (((((("__runePathNormalizeParent(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
+  "path.normalizePop" => (((((("__runePathNormalizePop(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
+  "path.normalizePush" => ((((((((("__runePathNormalizePush(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "), ") + emitGoExpr(expr.children[5])) + ")"
+  "path.pathParts" => "__runePathParts(" + emitGoExpr(expr.children[1]) + ")"
+  "path.collectPathParts" => (((("__runePathCollectParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3]) + "))"
+  "path.collectPathPart" => (((("__runePathCollectPart(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3]) + "))"
+  "path.relativeFromParts" => (((("__runePathRelativeFromParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3]) + ")"
+  "path.relativeTail" => (((((("__runePathRelativeTail(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3])) + ", ") + emitGoExpr(expr.children[4]) + ", " + emitGoExpr(expr.children[5]) + ")"
+  "process.platform" => "runtime.GOOS"
+  "process.cwd" => "\".\""
+  "process.env" => "(*string)(nil)"
+  "process.argv" => "[]any{}"
+  "int.toString" => "strconv.Itoa(" + emitGoExpr(expr.children[1]) + ")"
+  "int.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
+  "int.toBigInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
+  "int4.fromInt" => "func() int8 { n := (" + emitGoExpr(expr.children[1]) + ") & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()"
+  "int8.fromInt" => "func() int8 { n := int(" + emitGoExpr(expr.children[1]) + "); return int8(n) }()"
+  "int16.fromInt" => "func() int16 { n := int(" + emitGoExpr(expr.children[1]) + "); return int16(n) }()"
+  "int64.fromInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
+  "uint.fromInt" => "uint(" + emitGoExpr(expr.children[1]) + ")"
+  "uint8.fromInt" => "func() uint8 { n := int(" + emitGoExpr(expr.children[1]) + "); return uint8(n) }()"
+  "uint16.fromInt" => "func() uint16 { n := int(" + emitGoExpr(expr.children[1]) + "); return uint16(n) }()"
+  "uint64.fromInt" => "uint64(" + emitGoExpr(expr.children[1]) + ")"
+  "float.fromDouble" => "float32(" + emitGoExpr(expr.children[1]) + ")"
+  "int4.toInt" | "int8.toInt" | "int16.toInt" | "int64.toInt" | "uint.toInt" | "uint8.toInt" | "uint16.toInt" | "uint64.toInt" => "int(" + emitGoExpr(expr.children[1]) + ")"
+  "float.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
+  "bigint.fromInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
+  "bigint.toString" => "strconv.FormatInt(" + emitGoExpr(expr.children[1]) + ", 10)"
+  "bigint.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
+  "double.trunc" => "int(math.Trunc(" + emitGoExpr(expr.children[1]) + "))"
+  "double.floor" => "int(math.Floor(" + emitGoExpr(expr.children[1]) + "))"
+  "double.ceil" => "int(math.Ceil(" + emitGoExpr(expr.children[1]) + "))"
+  "double.round" => "int(math.Round(" + emitGoExpr(expr.children[1]) + "))"
+  _ => emitGoMaybeCoreMethodCall(expr)
 }
+
+fileUsesDoubleMath(
+  file: IRFile
+) -> Bool => (
+  fileUsesModuleCall(file, "double.trunc") || fileUsesModuleCall(file, "double.floor") || fileUsesModuleCall(file, "double.ceil") || fileUsesModuleCall(file, "double.round")
+)
+
+fileUsesGoStrings(
+  file: IRFile
+) -> Bool => fileUsesModuleCall(file, "path.isAbsolute") || fileUsesPathFamily(file)
+
+emitGoMaybeCoreMethodCall(
+  expr: IRExpr
+) -> String => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? emitGoCoreMethodCall(expr, expr.children[0])
+    : emitGoDefaultCall(expr)
+)
+
+emitGoCoreMethodCall(
+  expr: IRExpr,
+  selector: IRExpr
+) -> String => (
+  (selector.children.length() > 0) && (selector.children[0].kind != ExprKind.At) ? selector.name {
+    "length" | "byteLength" => emitGoCoreLength(selector.children[0])
+    "isEmpty" => ("(" + emitGoCoreLength(selector.children[0])) + ") == 0"
+    "at" => emitGoCoreAt(expr, selector.children[0])
+    "slice" => emitGoCoreSlice(expr, selector.children[0])
+    _ => emitGoDefaultCall(expr)
+  }
+    : emitGoDefaultCall(expr)
+)
+
+emitGoCoreLength(
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? "len([]rune(" + emitGoExpr(receiver) + "))"
+    : "len(" + emitGoExpr(receiver) + ")"
+)
+
+emitGoCoreAt(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? ("[]rune(" + emitGoExpr(receiver) + ")[") + emitGoExpr(expr.children[1]) + "]"
+    : ((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + "]"
+)
+
+emitGoCoreSlice(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? ((((("func() string { runes := []rune(" + emitGoExpr(receiver)) + "); return string(runes[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2])) + "]) }()"
+    : (((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2]) + "]"
+)
+
+emitGoDefaultCall(
+  expr: IRExpr
+) -> String => ((emitGoExpr(expr.children[0]) + "(") + emitGoExprListFrom(expr.children, 1, "")) + ")"
 
 emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
 
@@ -318,6 +833,7 @@ goType(typeName: String) -> String => typeName {
   "Int4" | "Int8" => "int8"
   "Int16" => "int16"
   "Int64" => "int64"
+  "BigInt" => "int64"
   "UInt" => "uint"
   "UInt8" => "uint8"
   "UInt16" => "uint16"
@@ -344,15 +860,109 @@ goTypeFallback(
               genericInner(typeName, "Map") != "" ? (("map[" + goType(typeArg(genericInner(typeName, "Map"), 0))) + "]") + goType(typeArg(genericInner(typeName, "Map"), 1))
                 : (
                   genericInner(typeName, "Set") != "" ? ("map[" + goType(genericInner(typeName, "Set"))) + "]struct{}"
-                    : mangleIdent(typeName)
+                    : goNamedType(typeName)
                 )
             )
         )
     )
 )
 
+goNamedType(
+  typeName: String
+) -> String => {
+  open := typeName.indexOf("[")
+  (
+    open < 0 ? mangleIdent(typeName)
+      : (mangleIdent(typeName.slice(0, open)) + "[") + emitGoTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + "]"
+  )
+}
+
+emitGoGenericsDecl(
+  generics: Array[String]
+) -> String => (
+  generics.length() == 0 ? ""
+    : "[" + emitGoGenericDeclItems(generics, 0, "") + "]"
+)
+
+emitGoGenericDeclItems(
+  generics: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= generics.length() ? out
+    : emitGoGenericDeclItems(generics, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(generics[index])) + " any"))
+)
+
+emitGoGenericsUse(
+  generics: Array[String]
+) -> String => (
+  generics.length() == 0 ? ""
+    : "[" + emitGoGenericUseItems(generics, 0, "") + "]"
+)
+
+emitGoGenericUseItems(
+  generics: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= generics.length() ? out
+    : emitGoGenericUseItems(generics, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(generics[index]))
+)
+
+unwrapPayloadType(
+  file: IRFile,
+  expr: IRExpr
+) -> String => (
+  expr.kind == ExprKind.Unwrap ? resultPayloadType(unwrapSourceType(file, expr.children[0]))
+    : ""
+)
+
+unwrapSourceType(
+  file: IRFile,
+  expr: IRExpr
+) -> String => expr.kind {
+  ExprKind.Call => callReturnType(file, expr)
+  _ => ""
+}
+
+callReturnType(
+  file: IRFile,
+  expr: IRExpr
+) -> String => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) ? functionReturnType(file.functions, expr.children[0].name, 0)
+    : ""
+)
+
+functionReturnType(
+  functions: Array[IRFunction],
+  name: String,
+  index: Int
+) -> String => (
+  index >= functions.length() ? ""
+    : (
+      functions[index].name == name ? functions[index].returnType
+        : functionReturnType(functions, name, index + 1)
+    )
+)
+
+resultPayloadType(
+  typeName: String
+) -> String => {
+  args := genericInner(typeName, "Result")
+  (
+    args == "" ? ""
+      : typeArg(args, 0)
+  )
+}
+
 goZero(typeName: String) -> String => typeName {
-  "Int" | "Int4" | "Int8" | "Int16" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt64" => "0"
+  "Int" | "Int4" | "Int8" | "Int16" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt64" | "BigInt" => "0"
   "Double" | "Float" => "0.0"
   "String" => "\"\""
   "Char" => "'\\x00'"

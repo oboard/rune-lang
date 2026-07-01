@@ -5,14 +5,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 
-	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
@@ -39,17 +40,32 @@ func RunTestIR(file *ir.File, name string) Result {
 	return runSelfhostPayload("ir-test", payload, name)
 }
 
+func RunMainIR(file *ir.File) Result {
+	payload, err := marshalSelfhostIR(file)
+	if err != nil {
+		return Result{Err: err}
+	}
+	return runSelfhostPayload("ir-main", payload, "")
+}
+
 func RunMainSource(source string) Result {
 	return runSelfhost("main", source, "")
 }
 
 func selfhostInterpreterPath() (string, error) {
+	root, err := repoRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(root, "selfhost", "interpreter", "interpreter.rn"), nil
+}
+
+func repoRoot() (string, error) {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
 		return "", fmt.Errorf("cannot locate selfhost runner source")
 	}
-	root := filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
-	return filepath.Join(root, "selfhost", "interpreter", "interpreter.rn"), nil
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..")), nil
 }
 
 func runSelfhost(mode string, source string, name string) Result {
@@ -90,39 +106,200 @@ func selfhostDriverPath() (string, error) {
 }
 
 func compileSelfhostDriver() (string, error) {
-	interpreterPath, err := selfhostInterpreterPath()
-	if err != nil {
-		return "", err
-	}
-	goSource, diags := compiler.GenerateGoFile(interpreterPath)
-	if len(diags) > 0 {
-		return "", diagnosticsError(diags)
-	}
-	goSource = addGoDriverImports(goSource)
-	goSource += selfhostDriverSource()
 	dir, err := driverCacheDir()
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256([]byte(goSource))
-	key := hex.EncodeToString(sum[:])[:16]
-	binPath := filepath.Join(dir, "driver-"+key)
-	if _, err := os.Stat(binPath); err == nil {
-		return binPath, nil
-	}
-	goPath := filepath.Join(dir, "driver.go")
-	if err := os.WriteFile(goPath, []byte(goSource), 0o644); err != nil {
+	root, err := repoRoot()
+	if err != nil {
 		return "", err
 	}
-	tmpBin := filepath.Join(dir, fmt.Sprintf("driver-%s-%d.tmp", key, os.Getpid()))
-	cmd := exec.Command("go", "build", "-o", tmpBin, goPath)
+	key, err := selfhostDriverCacheKey(root)
+	if err != nil {
+		return "", err
+	}
+	binPath := filepath.Join(dir, "driver-"+key)
+	if _, err := os.Stat(binPath); err == nil {
+		cleanupSelfhostDriverCache(dir, binPath)
+		return binPath, nil
+	}
+	goCacheDir, cleanupGoCache, err := selfhostGoBuildCache(dir)
+	if err != nil {
+		return "", err
+	}
+	defer cleanupGoCache()
+	buildEnv := append(os.Environ(), "GOMAXPROCS=1", "GOCACHE="+goCacheDir)
+	interpreterPath, err := selfhostInterpreterPath()
+	if err != nil {
+		return "", err
+	}
+	goSource, err := generateSelfhostGoSource(interpreterPath, buildEnv)
+	if err != nil {
+		return "", err
+	}
+	goSource = addGoDriverImports(goSource)
+	goSource += selfhostDriverSource()
+	goFile, err := os.CreateTemp(dir, "driver-*.go")
+	if err != nil {
+		return "", err
+	}
+	goPath := goFile.Name()
+	tmpBin := ""
+	defer func() {
+		_ = os.Remove(goPath)
+		if tmpBin != "" {
+			_ = os.Remove(tmpBin)
+		}
+	}()
+	if _, err := goFile.Write([]byte(goSource)); err != nil {
+		_ = goFile.Close()
+		return "", err
+	}
+	if err := goFile.Close(); err != nil {
+		return "", err
+	}
+	tmpFile, err := os.CreateTemp(dir, fmt.Sprintf("driver-%s-*.tmp", key))
+	if err != nil {
+		return "", err
+	}
+	tmpBin = tmpFile.Name()
+	if err := tmpFile.Close(); err != nil {
+		return "", err
+	}
+	cmd := exec.Command("go", "build", "-p=1", "-gcflags=all=-l", "-o", tmpBin, goPath)
+	cmd.Env = buildEnv
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build selfhost interpreter: %w\n%s", err, out)
 	}
 	if err := os.Rename(tmpBin, binPath); err != nil {
 		return "", err
 	}
+	cleanupSelfhostDriverCache(dir, binPath)
 	return binPath, nil
+}
+
+func selfhostDriverCacheKey(root string) (string, error) {
+	h := sha256.New()
+	h.Write([]byte("rune-selfhost-driver-v2\n"))
+	dirs := []string{
+		"cmd/rune",
+		"core",
+		"internal",
+		"selfhost",
+	}
+	for _, file := range []string{"go.mod", "go.sum"} {
+		if err := hashCacheFile(h, root, file); err != nil {
+			return "", err
+		}
+	}
+	for _, dir := range dirs {
+		if err := hashCacheDir(h, root, dir); err != nil {
+			return "", err
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))[:16], nil
+}
+
+func hashCacheDir(h hashWriter, root string, dir string) error {
+	base := filepath.Join(root, dir)
+	var files []string
+	if err := filepath.WalkDir(base, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == ".git" || name == "node_modules" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := filepath.Ext(path)
+		if ext != ".go" && ext != ".rn" && ext != ".mod" && ext != ".sum" {
+			return nil
+		}
+		if strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		files = append(files, filepath.ToSlash(rel))
+		return nil
+	}); err != nil {
+		return err
+	}
+	sort.Strings(files)
+	for _, file := range files {
+		if err := hashCacheFile(h, root, file); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type hashWriter interface {
+	Write([]byte) (int, error)
+}
+
+func hashCacheFile(h hashWriter, root string, rel string) error {
+	data, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return err
+	}
+	h.Write([]byte(rel))
+	h.Write([]byte{0})
+	h.Write(data)
+	h.Write([]byte{0})
+	return nil
+}
+
+func cleanupSelfhostDriverCache(dir string, keepPath string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	keepPath = filepath.Clean(keepPath)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == "driver.go" || !strings.HasPrefix(name, "driver-") || strings.HasSuffix(name, ".tmp") || strings.HasSuffix(name, ".go") {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		if filepath.Clean(path) == keepPath {
+			continue
+		}
+		_ = os.Remove(path)
+	}
+}
+
+func selfhostGoBuildCache(dir string) (string, func(), error) {
+	goCacheDir, err := os.MkdirTemp(dir, "go-build-cache-*")
+	if err != nil {
+		return "", func() {}, err
+	}
+	return goCacheDir, func() {
+		_ = os.RemoveAll(goCacheDir)
+	}, nil
+}
+
+func generateSelfhostGoSource(interpreterPath string, env []string) (string, error) {
+	root, err := repoRoot()
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command("go", "run", "./cmd/rune", "go", interpreterPath)
+	cmd.Dir = root
+	cmd.Env = env
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("generate selfhost interpreter Go: %w\n%s", err, out)
+	}
+	return string(out), nil
 }
 
 func driverCacheDir() (string, error) {
@@ -158,13 +335,17 @@ func main() {
 		return
 	}
 	var result __InterpretResult
-	if mode == "ir-test" {
+	if mode == "ir-test" || mode == "ir-main" {
 		var fileJSON __runeSelfhostIRFile
 		if err := json.Unmarshal(input, &fileJSON); err != nil {
 			println("__RUNE_SELFHOST_ERROR__" + err.Error())
 			return
 		}
-		result = __runTestIR(__runeSelfhostFile(fileJSON), name)
+		if mode == "ir-test" {
+			result = __runTestIR(__runeSelfhostFile(fileJSON), name)
+		} else {
+			result = __runMainIR(__runeSelfhostFile(fileJSON))
+		}
 	} else if mode == "test" {
 		result = __interpretTest(string(input), name)
 	} else {
@@ -182,6 +363,7 @@ type __runeSelfhostIRFile struct {
 	Imports   []__runeSelfhostIRImport  ` + "`json:\"imports\"`" + `
 	Structs   []__runeSelfhostIRStruct  ` + "`json:\"structs\"`" + `
 	Enums     []__runeSelfhostIREnum    ` + "`json:\"enums\"`" + `
+	Constants []__runeSelfhostIRConst   ` + "`json:\"constants\"`" + `
 	Functions []__runeSelfhostIRFunc    ` + "`json:\"functions\"`" + `
 	Tests     []__runeSelfhostIRTest    ` + "`json:\"tests\"`" + `
 	Errors    []__runeSelfhostParseErr  ` + "`json:\"errors\"`" + `
@@ -225,6 +407,7 @@ type __runeSelfhostIREnumMember struct {
 	Name string ` + "`json:\"name\"`" + `
 	Private bool ` + "`json:\"private\"`" + `
 	Value string ` + "`json:\"value\"`" + `
+	Params []__runeSelfhostIRParam ` + "`json:\"params\"`" + `
 	Line int ` + "`json:\"line\"`" + `
 	Column int ` + "`json:\"column\"`" + `
 }
@@ -242,6 +425,15 @@ type __runeSelfhostIRFunc struct {
 	Column int ` + "`json:\"column\"`" + `
 }
 
+type __runeSelfhostIRConst struct {
+	Name string ` + "`json:\"name\"`" + `
+	Private bool ` + "`json:\"private\"`" + `
+	TypeName string ` + "`json:\"typeName\"`" + `
+	Value __runeSelfhostIRExpr ` + "`json:\"value\"`" + `
+	Line int ` + "`json:\"line\"`" + `
+	Column int ` + "`json:\"column\"`" + `
+}
+
 type __runeSelfhostIRStruct struct {
 	Name string ` + "`json:\"name\"`" + `
 	Private bool ` + "`json:\"private\"`" + `
@@ -255,6 +447,7 @@ type __runeSelfhostIRStruct struct {
 type __runeSelfhostIREnum struct {
 	Name string ` + "`json:\"name\"`" + `
 	Private bool ` + "`json:\"private\"`" + `
+	Generics []string ` + "`json:\"generics\"`" + `
 	Members []__runeSelfhostIREnumMember ` + "`json:\"members\"`" + `
 	Line int ` + "`json:\"line\"`" + `
 	Column int ` + "`json:\"column\"`" + `
@@ -278,10 +471,19 @@ func __runeSelfhostFile(in __runeSelfhostIRFile) __IRFile {
 		__imports: __runeSelfhostImports(in.Imports),
 		__structs: __runeSelfhostStructs(in.Structs),
 		__enums: __runeSelfhostEnums(in.Enums),
+		__constants: __runeSelfhostConsts(in.Constants),
 		__functions: __runeSelfhostFuncs(in.Functions),
 		__tests: __runeSelfhostTests(in.Tests),
 		__errors: __runeSelfhostErrors(in.Errors),
 	}
+}
+
+func __runeSelfhostConsts(in []__runeSelfhostIRConst) []__IRConst {
+	out := make([]__IRConst, 0, len(in))
+	for _, item := range in {
+		out = append(out, __IRConst{__name: item.Name, __private: item.Private, __typeName: item.TypeName, __value: __runeSelfhostExpr(item.Value), __line: item.Line, __column: item.Column})
+	}
+	return out
 }
 
 func __runeSelfhostImports(in []__runeSelfhostIRImport) []__IRImport {
@@ -333,7 +535,7 @@ func __runeSelfhostFields(in []__runeSelfhostIRField) []__IRField {
 func __runeSelfhostEnumMembers(in []__runeSelfhostIREnumMember) []__IREnumMember {
 	out := make([]__IREnumMember, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IREnumMember{__name: item.Name, __private: item.Private, __value: item.Value, __line: item.Line, __column: item.Column})
+		out = append(out, __IREnumMember{__name: item.Name, __private: item.Private, __value: item.Value, __params: __runeSelfhostParams(item.Params), __line: item.Line, __column: item.Column})
 	}
 	return out
 }
@@ -372,7 +574,7 @@ func __runeSelfhostStructs(in []__runeSelfhostIRStruct) []__IRStructType {
 func __runeSelfhostEnums(in []__runeSelfhostIREnum) []__IREnumType {
 	out := make([]__IREnumType, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IREnumType{__name: item.Name, __private: item.Private, __members: __runeSelfhostEnumMembers(item.Members), __line: item.Line, __column: item.Column})
+		out = append(out, __IREnumType{__name: item.Name, __private: item.Private, __generics: item.Generics, __members: __runeSelfhostEnumMembers(item.Members), __line: item.Line, __column: item.Column})
 	}
 	return out
 }
@@ -420,25 +622,6 @@ func splitSelfhostError(output string) (string, error) {
 		message = "selfhost interpreter failed"
 	}
 	return before, fmt.Errorf("%s", message)
-}
-
-func diagnosticsError(diags []compiler.Diagnostic) error {
-	msg := ""
-	for _, diag := range diags {
-		if msg != "" {
-			msg += "\n"
-		}
-		if diag.Path != "" && diag.Pos.Line > 0 {
-			msg += fmt.Sprintf("%s:%d:%d: %s", diag.Path, diag.Pos.Line, diag.Pos.Column, diag.Message)
-			continue
-		}
-		if diag.Path != "" {
-			msg += fmt.Sprintf("%s: %s", diag.Path, diag.Message)
-			continue
-		}
-		msg += diag.Message
-	}
-	return fmt.Errorf("%s", msg)
 }
 
 func typeScriptRuntimeCommand(path string, args ...string) (*exec.Cmd, error) {

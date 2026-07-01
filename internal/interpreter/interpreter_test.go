@@ -115,6 +115,36 @@ main() => {
 	}
 }
 
+func TestInterpreterRunsQualifiedEnumConstructorPayload(t *testing.T) {
+	src := `+ Box: {
+  Empty
+  Item(value: String)
+}
+
+unwrap(box: Box) -> String => box {
+  Empty => ""
+  Item(value) => value
+}
+
+main() => {
+  @io.println(unwrap(Box.Item("payload")))
+}
+`
+	prog, diags := compiler.AnalyzeSource("qualified_enum_constructor_payload.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "payload" {
+		t.Fatalf("output = %q, want enum payload output", got)
+	}
+}
+
 func TestInterpreterReadsInputIntrinsics(t *testing.T) {
 	src := `main() => {
   @io.println(@io.scan())

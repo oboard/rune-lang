@@ -5,6 +5,12 @@
   file: IRFile
 ) -> String => {
   out ~= ""
+  (
+    fileUsesUnwrap(file) ? out = out + emitTSUnwrapHelper()
+  )
+  (
+    fileUsesPathFamily(file) ? out = out + emitTSPathHelpers()
+  )
   file.enums.each((enumDecl) => out = (out + emitTSEnum(enumDecl)) + "\n")
   file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
@@ -12,7 +18,138 @@
   out + emitTSExports(file)
 }
 
+emitTSUnwrapHelper() -> String => `function __runeUnwrap(value: any): any {
+  if (value && value.__tag === 0) return value.__payload?.[0];
+  if (value && value.__payload && value.__payload.length > 0) throw value.__payload[0];
+  throw new Error("Result.Err");
+}
+
+`
+
+emitTSPathHelpers() -> String => `function __runePathBasename(path: string): string {
+  const index = path.lastIndexOf("/");
+  if (index < 0) return path;
+  if (index === path.length - 1) return path;
+  return path.slice(index + 1);
+}
+
+function __runePathExtname(path: string): string {
+  const base = __runePathBasename(path);
+  const index = base.lastIndexOf(".");
+  if (index <= 0) return "";
+  return base.slice(index);
+}
+
+function __runePathDirname(path: string): string {
+  const index = path.lastIndexOf("/");
+  if (index < 0) return ".";
+  if (index === 0) return "/";
+  return path.slice(0, index);
+}
+
+function __runePathJoin(parts: string[]): string {
+  return __runePathNormalize(__runePathJoinParts(parts, 0, ""));
+}
+
+function __runePathNormalize(path: string): string {
+  const absolute = path.startsWith("/");
+  const out = __runePathNormalizeParts(path.split("/"), 0, absolute, []);
+  const joined = __runePathJoinParts(out, 0, "");
+  if (absolute) return "/" + joined;
+  return joined === "" ? "." : joined;
+}
+
+function __runePathResolve(parts: string[]): string {
+  if (parts.length === 0) return ".";
+  return __runePathNormalize(__runePathJoin(parts));
+}
+
+function __runePathRelative(from: string, to: string): string {
+  const fromParts = __runePathParts(__runePathResolve([from]));
+  const toParts = __runePathParts(__runePathResolve([to]));
+  let index = 0;
+  while (index < fromParts.length && index < toParts.length && fromParts[index] === toParts[index]) index++;
+  let out = "";
+  for (let i = index; i < fromParts.length; i++) out = __runePathAppendPart(out, "..");
+  for (let i = index; i < toParts.length; i++) out = __runePathAppendPart(out, toParts[i]);
+  return out === "" ? "." : out;
+}
+
+function __runePathParts(path: string): string[] {
+  return __runePathNormalize(path).split("/").filter((part) => part !== "");
+}
+
+function __runePathJoinParts(parts: string[], index: number, out: string): string {
+  for (let i = index; i < parts.length; i++) out = __runePathAppendPart(out, parts[i]);
+  return out;
+}
+
+function __runePathAppendPart(out: string, part: string): string {
+  if (out === "") return part;
+  if (part === "") return out;
+  return out + "/" + part;
+}
+
+function __runePathNormalizeParts(parts: string[], index: number, absolute: boolean, out: string[]): string[] {
+  while (index < parts.length) {
+    const part = parts[index];
+    if (part === "" || part === ".") {
+      index++;
+      continue;
+    }
+    if (part === "..") return __runePathNormalizeParent(parts, index, absolute, out);
+    return __runePathNormalizePush(parts, index, absolute, out, part);
+  }
+  return out;
+}
+
+function __runePathNormalizeParent(parts: string[], index: number, absolute: boolean, out: string[]): string[] {
+  if (out.length > 0) return __runePathNormalizePop(parts, index, absolute, out);
+  if (absolute) return __runePathNormalizeParts(parts, index + 1, absolute, out);
+  return __runePathNormalizePush(parts, index, absolute, out, "..");
+}
+
+function __runePathNormalizePop(parts: string[], index: number, absolute: boolean, out: string[]): string[] {
+  return __runePathNormalizeParts(parts, index + 1, absolute, out.slice(0, out.length - 1));
+}
+
+function __runePathNormalizePush(parts: string[], index: number, absolute: boolean, out: string[], part: string): string[] {
+  return __runePathNormalizeParts(parts, index + 1, absolute, [...out, part]);
+}
+
+function __runePathCollectParts(parts: string[], index: number, out: string[]): string[] {
+  for (let i = index; i < parts.length; i++) {
+    if (parts[i] !== "") out.push(parts[i]);
+  }
+  return out;
+}
+
+function __runePathCollectPart(parts: string[], index: number, out: string[]): string[] {
+  if (index < parts.length) out.push(parts[index]);
+  return __runePathCollectParts(parts, index + 1, out);
+}
+
+function __runePathRelativeFromParts(fromParts: string[], toParts: string[], index: number): string {
+  while (index < fromParts.length && index < toParts.length && fromParts[index] === toParts[index]) index++;
+  return __runePathRelativeTail(fromParts, toParts, index, index, "");
+}
+
+function __runePathRelativeTail(fromParts: string[], toParts: string[], fromIndex: number, toIndex: number, out: string): string {
+  for (let i = fromIndex; i < fromParts.length; i++) out = __runePathAppendPart(out, "..");
+  for (let i = toIndex; i < toParts.length; i++) out = __runePathAppendPart(out, toParts[i]);
+  return out === "" ? "." : out;
+}
+
+`
+
 emitTSEnum(
+  enumDecl: IREnumType
+) -> String => {
+  tsEnumHasPayload(enumDecl.members, 0) ? emitTSPayloadEnum(enumDecl)
+    : emitTSSimpleEnum(enumDecl)
+}
+
+emitTSSimpleEnum(
   enumDecl: IREnumType
 ) -> String => {
   out ~= ("type " + mangleIdent(enumDecl.name)) + " = number;\n"
@@ -20,6 +157,102 @@ emitTSEnum(
   out = out + emitTSEnumMembers(enumDecl.members, 0, "")
   out + "} as const;\n"
 }
+
+emitTSPayloadEnum(
+  enumDecl: IREnumType
+) -> String => {
+  out ~= (("type " + mangleIdent(enumDecl.name)) + emitTSGenerics(enumDecl.generics)) + " =\n"
+  out = out + emitTSPayloadEnumMembers(enumDecl.members, 0, "")
+  out = out + ";\n\n"
+  out + emitTSPayloadEnumConstructors(enumDecl.name, enumDecl.generics, enumDecl.members, 0, "")
+}
+
+emitTSPayloadEnumMembers(
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitTSPayloadEnumMembers(members, index + 1, out + emitTSPayloadEnumMember(members[index], index, index == 0))
+)
+
+emitTSPayloadEnumMember(
+  member: IREnumMember,
+  index: Int,
+  first: Bool
+) -> String => {
+  prefix := (
+    first ? "  "
+      : "| "
+  )
+  (prefix + "{ __tag: ") + compilerIntToString(index) + "; __payload: " + emitTSPayloadTuple(member.params, 0, "") + " }\n"
+}
+
+emitTSPayloadTuple(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? "[" + out + "]"
+    : emitTSPayloadTuple(params, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + tsType(params[index].typeName))
+)
+
+emitTSPayloadEnumConstructors(
+  enumName: String,
+  generics: Array[String],
+  members: Array[IREnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? out
+    : emitTSPayloadEnumConstructors(enumName, generics, members, index + 1, out + emitTSPayloadEnumConstructor(enumName, generics, members[index], index))
+)
+
+emitTSPayloadEnumConstructor(
+  enumName: String,
+  generics: Array[String],
+  member: IREnumMember,
+  index: Int
+) -> String => {
+  typeName := mangleIdent(enumName) + emitTSGenericsUse(generics)
+  (
+    member.params.length() == 0 ? (((("const " + mangleIdent((enumName + "_") + member.name)) + ": ") + typeName) + " = { __tag: ") + compilerIntToString(index) + ", __payload: [] };\n"
+      : ((((((("function " + mangleIdent(member.name)) + emitTSGenerics(generics)) + "(") + emitTSParams(member.params, 0, "")) + "): ") + typeName) + " {\n") + line(1, ("return { __tag: " + compilerIntToString(index)) + ", __payload: [" + emitTSParamNames(member.params, 0, "") + "] };") + "}\n"
+  )
+}
+
+emitTSParamNames(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitTSParamNames(params, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(params[index].name))
+)
+
+tsEnumHasPayload(
+  members: Array[IREnumMember],
+  index: Int
+) -> Bool => (
+  index >= members.length() ? false
+    : (
+      members[index].params.length() > 0 ? true
+        : tsEnumHasPayload(members, index + 1)
+    )
+)
+
+emitTSGenericsUse(
+  generics: Array[String]
+) -> String => (
+  generics.length() == 0 ? ""
+    : "<" + emitTSGenericNames(generics, 0, "") + ">"
+)
 
 emitTSEnumMembers(
   members: Array[IREnumMember],
@@ -80,18 +313,19 @@ prependThisParam(
 emitTSFunction(fn: IRFunction) -> String => {
   ret := tsType(fn.returnType)
   out ~= (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
-  out = out + emitTSBody(fn.body, returnsValue(fn.returnType), 1)
+  out = out + emitTSBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
   out + "}\n"
 }
 
 emitTSBody(
   expr: IRExpr,
   returns: Bool,
+  returnType: String,
   level: Int
 ) -> String => expr.kind {
-  ExprKind.Block => emitTSBlock(expr.children, 0, returns, level, "")
+  ExprKind.Block => emitTSBlock(expr.children, 0, returns, returnType, level, "")
   _ => line(level, (
-    returns ? ("return " + emitTSExpr(expr)) + ";"
+    returns ? ("return " + emitTSExprExpected(expr, returnType)) + ";"
       : emitTSExpr(expr) + ";"
   ))
 }
@@ -100,6 +334,7 @@ emitTSBlock(
   statements: Array[IRExpr],
   index: Int,
   returns: Bool,
+  returnType: String,
   level: Int,
   out: String
 ) -> String => (
@@ -107,19 +342,20 @@ emitTSBlock(
     returns && (statements.length() == 0) ? out + line(level, "return undefined;")
       : out
   )
-    : emitTSBlock(statements, index + 1, returns, level, out + emitTSStatement(statements[index], index == (statements.length() - 1), returns, level))
+    : emitTSBlock(statements, index + 1, returns, returnType, level, out + emitTSStatement(statements[index], index == (statements.length() - 1), returns, returnType, level))
 )
 
 emitTSStatement(
   expr: IRExpr,
   last: Bool,
   returns: Bool,
+  returnType: String,
   level: Int
 ) -> String => expr.kind {
   ExprKind.Let => emitTSLet(expr, level)
   ExprKind.ObjectDestructure => emitTSObjectDestructure(expr, level)
   _ => (
-    last && returns ? line(level, ("return " + emitTSExpr(expr)) + ";")
+    last && returns ? line(level, ("return " + emitTSExprExpected(expr, returnType)) + ";")
       : line(level, emitTSExpr(expr) + ";")
   )
 }
@@ -167,7 +403,19 @@ emitTSGenerics(
   generics: Array[String]
 ) -> String => (
   generics.length() == 0 ? ""
-    : ("[" + joinStrings(generics, 0, "")) + "]"
+    : ("<" + emitTSGenericNames(generics, 0, "")) + ">"
+)
+
+emitTSGenericNames(
+  generics: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= generics.length() ? out
+    : emitTSGenericNames(generics, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(generics[index]))
 )
 
 emitTSExports(file: IRFile) -> String => {
@@ -199,7 +447,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.This => mangleIdent("this")
   ExprKind.Int => expr.value
   ExprKind.Double => expr.value
-  ExprKind.BigInt => expr.value + "n"
+  ExprKind.BigInt => bigintLiteralDigits(expr.value) + "n"
   ExprKind.String => expr.value
   ExprKind.Template => expr.value
   ExprKind.Char => expr.value
@@ -209,6 +457,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
   ExprKind.Postfix => emitTSExpr(expr.children[0]) + expr.op
   ExprKind.CompileTime => emitTSExpr(expr.children[0])
+  ExprKind.Unwrap => "__runeUnwrap(" + emitTSExpr(expr.children[0]) + ")"
   ExprKind.Binary => emitTSBinary(expr)
   ExprKind.Ternary => emitTSTernary(expr)
   ExprKind.Assign => emitTSAssign(expr)
@@ -223,9 +472,34 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Reactive => emitTSExpr(expr.children[0])
   ExprKind.Struct => ("{" + emitTSFields(expr.children, 0, "")) + "}"
   ExprKind.Object => ("{" + emitTSFields(expr.children, 0, "")) + "}"
-  ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, 1, "")) + "})()"
+  ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, "Dynamic", 1, "")) + "})()"
   _ => "undefined"
 }
+
+emitTSExprExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => expr.kind {
+  ExprKind.Call => emitTSCallExpected(expr, expected)
+  _ => emitTSExpr(expr)
+}
+
+emitTSCallExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  args := genericInner(expected, "Result")
+  (
+    (args != "") && isTSResultConstructorCall(expr) ? ((emitTSExpr(expr.children[0]) + "<") + emitTSTypeArgs(args)) + ">(" + emitTSExprListFrom(expr.children, 1, "") + ")"
+      : emitTSCall(expr)
+  )
+}
+
+isTSResultConstructorCall(
+  expr: IRExpr
+) -> Bool => (
+  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
+)
 
 emitTSBinary(expr: IRExpr) -> String => (((emitTSExpr(expr.children[0]) + " ") + tsBinaryOp(expr.op)) + " ") + emitTSExpr(expr.children[1])
 
@@ -243,8 +517,101 @@ emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("console.log(" + emitTSExprListFrom(expr.children, 1, "")) + ")"
   "map.new" => "new Map()"
   "set.new" => "new Set()"
-  _ => ((emitTSExpr(expr.children[0]) + "(") + emitTSExprListFrom(expr.children, 1, "")) + ")"
+  "path.isAbsolute" => emitTSExpr(expr.children[1]) + ".startsWith(\"/\")"
+  "path.basename" => "__runePathBasename(" + emitTSExpr(expr.children[1]) + ")"
+  "path.extname" => "__runePathExtname(" + emitTSExpr(expr.children[1]) + ")"
+  "path.dirname" => "__runePathDirname(" + emitTSExpr(expr.children[1]) + ")"
+  "path.join" => "__runePathJoin(" + emitTSExpr(expr.children[1]) + ")"
+  "path.normalize" => "__runePathNormalize(" + emitTSExpr(expr.children[1]) + ")"
+  "path.resolve" => "__runePathResolve(" + emitTSExpr(expr.children[1]) + ")"
+  "path.relative" => ("__runePathRelative(" + emitTSExpr(expr.children[1]) + ", ") + emitTSExpr(expr.children[2]) + ")"
+  "path.joinParts" => (((("__runePathJoinParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
+  "path.appendPathPart" => ("__runePathAppendPart(" + emitTSExpr(expr.children[1]) + ", ") + emitTSExpr(expr.children[2]) + ")"
+  "path.normalizeParts" => (((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
+  "path.normalizePart" => (((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
+  "path.normalizeParent" => (((((("__runePathNormalizeParent(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
+  "path.normalizePop" => (((((("__runePathNormalizePop(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
+  "path.normalizePush" => ((((((((("__runePathNormalizePush(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ", ") + emitTSExpr(expr.children[5])) + ")"
+  "path.pathParts" => "__runePathParts(" + emitTSExpr(expr.children[1]) + ")"
+  "path.collectPathParts" => (((("__runePathCollectParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
+  "path.collectPathPart" => (((("__runePathCollectPart(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
+  "path.relativeFromParts" => (((("__runePathRelativeFromParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
+  "path.relativeTail" => (((((("__runePathRelativeTail(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ", " + emitTSExpr(expr.children[5]) + ")"
+  "process.platform" => "\"js\""
+  "process.cwd" => "\".\""
+  "process.env" => "null"
+  "process.argv" => "[]"
+  "int.toString" => "String(" + emitTSExpr(expr.children[1]) + ")"
+  "int.toDouble" => emitTSExpr(expr.children[1])
+  "int.toBigInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
+  "int4.fromInt" => "((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(" + emitTSExpr(expr.children[1]) + ")"
+  "int8.fromInt" => "((__value: number): number => (__value << 24) >> 24)(" + emitTSExpr(expr.children[1]) + ")"
+  "int16.fromInt" => "((__value: number): number => (__value << 16) >> 16)(" + emitTSExpr(expr.children[1]) + ")"
+  "int64.fromInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
+  "uint.fromInt" => "(" + emitTSExpr(expr.children[1]) + " >>> 0)"
+  "uint8.fromInt" => "(" + emitTSExpr(expr.children[1]) + " & 0xff)"
+  "uint16.fromInt" => "(" + emitTSExpr(expr.children[1]) + " & 0xffff)"
+  "uint64.fromInt" => "BigInt.asUintN(64, BigInt(" + emitTSExpr(expr.children[1]) + "))"
+  "float.fromDouble" => "Math.fround(" + emitTSExpr(expr.children[1]) + ")"
+  "int4.toInt" | "int8.toInt" | "int16.toInt" | "uint.toInt" | "uint8.toInt" | "uint16.toInt" | "float.toDouble" => emitTSExpr(expr.children[1])
+  "int64.toInt" | "uint64.toInt" => "Number(" + emitTSExpr(expr.children[1]) + ")"
+  "bigint.fromInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
+  "bigint.toString" => "String(" + emitTSExpr(expr.children[1]) + ")"
+  "bigint.toDouble" => "Number(" + emitTSExpr(expr.children[1]) + ")"
+  "double.trunc" => "Math.trunc(" + emitTSExpr(expr.children[1]) + ")"
+  "double.floor" => "Math.floor(" + emitTSExpr(expr.children[1]) + ")"
+  "double.ceil" => "Math.ceil(" + emitTSExpr(expr.children[1]) + ")"
+  "double.round" => "Math.round(" + emitTSExpr(expr.children[1]) + ")"
+  _ => emitTSMaybeCoreMethodCall(expr)
 }
+
+emitTSMaybeCoreMethodCall(
+  expr: IRExpr
+) -> String => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? emitTSCoreMethodCall(expr, expr.children[0])
+    : emitTSDefaultCall(expr)
+)
+
+emitTSCoreMethodCall(
+  expr: IRExpr,
+  selector: IRExpr
+) -> String => (
+  (selector.children.length() > 0) && (selector.children[0].kind != ExprKind.At) ? selector.name {
+    "length" | "byteLength" => emitTSCoreLength(selector.children[0])
+    "isEmpty" => ("(" + emitTSCoreLength(selector.children[0])) + " === 0)"
+    "at" => emitTSCoreAt(expr, selector.children[0])
+    "slice" => emitTSCoreSlice(expr, selector.children[0])
+    _ => emitTSDefaultCall(expr)
+  }
+    : emitTSDefaultCall(expr)
+)
+
+emitTSCoreLength(
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? "Array.from(" + emitTSExpr(receiver) + ").length"
+    : emitTSExpr(receiver) + ".length"
+)
+
+emitTSCoreAt(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? ("(Array.from(" + emitTSExpr(receiver) + ")[") + emitTSExpr(expr.children[1]) + "] ?? \"\")"
+    : ((emitTSExpr(receiver) + "[") + emitTSExpr(expr.children[1])) + "]"
+)
+
+emitTSCoreSlice(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (
+  receiver.text == "String" ? (((("Array.from(" + emitTSExpr(receiver)) + ").slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2]) + ").join(\"\")"
+    : (((emitTSExpr(receiver) + ".slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2]) + ")"
+)
+
+emitTSDefaultCall(
+  expr: IRExpr
+) -> String => ((emitTSExpr(expr.children[0]) + "(") + emitTSExprListFrom(expr.children, 1, "")) + ")"
 
 emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
 
@@ -324,11 +691,37 @@ tsTypeFallback(
               genericInner(typeName, "Map") != "" ? ((("Map<" + tsType(typeArg(genericInner(typeName, "Map"), 0))) + ", ") + tsType(typeArg(genericInner(typeName, "Map"), 1))) + ">"
                 : (
                   genericInner(typeName, "Set") != "" ? ("Set<" + tsType(genericInner(typeName, "Set"))) + ">"
-                    : mangleIdent(typeName)
+                    : tsNamedType(typeName)
                 )
             )
         )
     )
+)
+
+tsNamedType(
+  typeName: String
+) -> String => {
+  open := typeName.indexOf("[")
+  (
+    open < 0 ? mangleIdent(typeName)
+      : (mangleIdent(typeName.slice(0, open)) + "<") + emitTSTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + ">"
+  )
+}
+
+emitTSTypeArgs(
+  args: String
+) -> String => emitTSTypeArgList(args.split(","), 0, "")
+
+emitTSTypeArgList(
+  args: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= args.length() ? out
+    : emitTSTypeArgList(args, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + tsType(args[index].trim()))
 )
 
 tsPropertyName(name: String) -> String => name

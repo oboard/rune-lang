@@ -1,6 +1,7 @@
 @"../ir/ir.rn"
 @"./common.rn"
 @"./go.rn"
+@"./mbt.rn"
 @"./ts.rn"
 
 + CompileResult: {
@@ -17,6 +18,10 @@
   source: String
 ) -> CompileResult => compile(source, "go")
 
++ compileMoonBit(
+  source: String
+) -> CompileResult => compile(source, "mbt")
+
 + compile(
   source: String,
   target: String
@@ -27,6 +32,7 @@
       : target {
         "ts" => compileResult(true, generateTypeScript(file), [])
         "go" => compileResult(true, generateGo(file), [])
+        "mbt" => compileResult(true, generateMoonBit(file), [])
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )

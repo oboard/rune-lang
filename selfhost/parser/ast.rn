@@ -62,6 +62,7 @@
   name: String
   private: Bool
   value: String
+  params: Array[ParsedParam]
   line: Int
   column: Int
 }

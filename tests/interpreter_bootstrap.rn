@@ -71,3 +71,144 @@ main() -> String => kind("Double")
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "number")
 }
+
+? "selfhost interpreter unwraps result values" {
+  source := `Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+read() -> Result[Int, String] => Ok(41)
+
+main() -> Int => {
+  value := read()?
+  value + 1
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "42")
+}
+
+? "selfhost interpreter reports result unwrap errors" {
+  source := `Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+read() -> Result[Int, String] => Err("boom")
+
+main() -> Int => {
+  value := read()?
+  value + 1
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.error, "boom")
+}
+
+? "selfhost interpreter runs virtual fs APIs" {
+  source := `main() -> String => {
+  @fs.mkdir("tmp")?
+  @fs.writeFileText("tmp/a.txt", "hello")?
+  text := @fs.readFileText("tmp/a.txt")?
+  exists := @fs.exists("tmp/a.txt")?
+  stat := @fs.stat("tmp/a.txt")?
+  entries := @fs.readdir("tmp")?
+  @io.println(exists, stat.size, stat.isFile, stat.isDirectory, entries.length())
+  @fs.writeFile("tmp/b.bin", @bytes.fromInts([7, 8, 9]))?
+  data := @fs.readFile("tmp/b.bin")?
+  ints := data.toInts()
+  @io.println(data.length(), ints[1])
+  @fs.remove("tmp/a.txt")?
+  after := @fs.exists("tmp/a.txt")?
+  @io.println(after)
+  text
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "hello")
+  @assert.eq(result.output.length(), 3)
+  @assert.eq(result.output[0], "true 5 true false 1")
+  @assert.eq(result.output[1], "3 8")
+  @assert.eq(result.output[2], "false")
+}
+
+? "selfhost interpreter runs virtual compress APIs" {
+  source := `main() -> String => {
+  gz := @compress.gzipText("rune gzip")?
+  gzipText := @compress.gunzipText(gz)?
+  brotli := @compress.brotliText("rune brotli")?
+  brotliText := @compress.unbrotliText(brotli)?
+  zstd := @compress.zstdText("rune zstd")?
+  zstdText := @compress.unzstdText(zstd)?
+  @io.println(gzipText, brotliText, zstdText)
+  bytes := @compress.gzip(@bytes.fromInts([1, 2, 3]))?
+  plain := @compress.gunzip(bytes)?
+  deflated := @compress.deflate(@bytes.fromInts([4, 5, 6]))?
+  inflated := @compress.inflate(deflated)?
+  brotliBytes := @compress.brotli(@bytes.fromInts([7, 8]))?
+  unbrotliBytes := @compress.unbrotli(brotliBytes)?
+  zstdBytes := @compress.zstd(@bytes.fromInts([9, 10]))?
+  unzstdBytes := @compress.unzstd(zstdBytes)?
+  @io.println(plain.length(), plain.toInts()[2], inflated.length(), inflated.toInts()[0])
+  @io.println(unbrotliBytes.length(), unbrotliBytes.toInts()[1], unzstdBytes.length(), unzstdBytes.toInts()[0])
+  gzipText
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "rune gzip")
+  @assert.eq(result.output.length(), 3)
+  @assert.eq(result.output[0], "rune gzip rune brotli rune zstd")
+  @assert.eq(result.output[1], "3 3 3 4")
+  @assert.eq(result.output[2], "2 8 2 9")
+}
+
+? "selfhost interpreter runs virtual net APIs" {
+  source := `main() -> Int => {
+  listener := @net.listen("loop:1")?
+  @io.println(listener.address())
+  conn := listener.accept()?
+  written := conn.write(@bytes.fromInts([10, 20, 30]))?
+  first := conn.read(2)?
+  second := conn.read(4)?
+  @io.println(written, first.length(), first.toInts()[1], second.length(), second.toInts()[0])
+  conn.close()?
+  listener.close()?
+  client := @net.connect("loop:2")?
+  @io.println(client.write(@bytes.fromInts([1, 2]))?)
+  client.close()?
+  written
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "3")
+  @assert.eq(result.output.length(), 3)
+  @assert.eq(result.output[0], "loop:1")
+  @assert.eq(result.output[1], "3 2 20 1 30")
+  @assert.eq(result.output[2], "2")
+}
+
+? "selfhost interpreter reports process exit" {
+  source := `main() -> Never => @process.exit(7)
+`
+  result := interpret(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.error, "process.exit(7)")
+
+  helpSource := `main() -> Never => @cli.exitHelp(@cli.command("noop", "No operation"))
+`
+  help := interpret(helpSource)
+  @assert.eq(help.ok, false)
+  @assert.eq(help.error, "process.exit(0)")
+
+  errorSource := `main() -> Never => @cli.exitError(@cli.command("noop", "No operation"), "boom")
+`
+  failed := interpret(errorSource)
+  @assert.eq(failed.ok, false)
+  @assert.eq(failed.error, "process.exit(2)")
+}

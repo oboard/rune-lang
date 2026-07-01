@@ -564,6 +564,30 @@ eval(expr: Expr) -> Int => expr {
 	}
 }
 
+func TestBareUppercasePatternParsesAsBinding(t *testing.T) {
+	file, errs := Parse(`State: {
+  Empty
+  Full(value: Int)
+}
+
+read(state: State) -> Int => state {
+  Empty => 0
+  Full(value) => value
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("body = %#v, want constructor pattern match", file.Functions[0].Body)
+	}
+	first, ok := match.Branches[0].Pattern.(*ast.BindingPattern)
+	if !ok || first.Name != "Empty" {
+		t.Fatalf("first pattern = %#v, want bare Empty binding", match.Branches[0].Pattern)
+	}
+}
+
 func TestRangePatternMatch(t *testing.T) {
 	file, errs := Parse(`isDigit(ch: Char) -> Bool => ch {
   '0'..='9' => true

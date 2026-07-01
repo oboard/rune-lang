@@ -193,6 +193,7 @@ emptyMember() -> ParsedEnumMember => {
   name: "",
   private: true,
   value: "",
+  params: [],
   line: 0,
   column: 0
 }
@@ -377,12 +378,22 @@ parserErrorAt(
   token: Token,
   message: String
 ) -> ParserState => {
-  state.errors.push(ParseError {
+  tokens: state.tokens,
+  current: state.current,
+  errors: appendParseError(state.errors, ParseError {
     message: message,
     line: token.line,
     column: token.column
   })
-  state
+}
+
+appendParseError(
+  errors: Array[ParseError],
+  error: ParseError
+) -> Array[ParseError] => {
+  out := errors
+  out.push(error)
+  out
 }
 
 parserSkipNewlines(
@@ -426,10 +437,21 @@ parseFileLoop(
 ) -> FileStep => (
   parserCheck(state, TokenKind.EOF) ? FileStep {
     state: state,
-    file: file
+    file: withFileErrors(file, state.errors)
   }
     : parseTopLevel(state, file)
 )
+
+withFileErrors(
+  file: ParsedFile,
+  errors: Array[ParseError]
+) -> ParsedFile => {
+  imports: file.imports,
+  types: file.types,
+  functions: file.functions,
+  tests: file.tests,
+  errors: errors
+}
 
 parseTopLevel(
   state: ParserState,
@@ -650,7 +672,7 @@ parseTypeDecl(
   open := parserConsume(openStart, TokenKind.LBrace, "expected '{' after type declaration")
   bodyStart := parserSkipNewlines(open.state)
   (
-    looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private)
+    looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private, generics.values)
       : parseStructTypeBody(bodyStart, name.token, private, generics.values)
   )
 }
@@ -767,12 +789,13 @@ finishType(
 parseEnumTypeBody(
   state: ParserState,
   name: Token,
-  private: Bool
+  private: Bool,
+  generics: Array[String]
 ) -> TypeStep => parseEnumTypeLoop(state, ParsedType {
   name: name.lexeme,
   private: private,
   enum: true,
-  generics: [],
+  generics: generics,
   fields: [],
   methods: [],
   members: [],
@@ -807,23 +830,70 @@ parseEnumMember(
   publicStep := parsePublicModifier(state)
   name := parserConsume(publicStep.state, TokenKind.Ident, "expected enum member name")
   current := parserSkipNewlines(name.state)
-  assign := parserMatch(current, TokenKind.Assign)
-  value := (
-    assign.ok ? parseEnumValue(parserSkipNewlines(assign.state))
-      : StringStep {
-        state: current,
-        value: ""
-      }
-  )
+  parsed := parseEnumMemberPayload(current)
   EnumMemberStep {
-    state: value.state,
+    state: parsed.state,
     member: ParsedEnumMember {
       name: name.token.lexeme,
       private: false,
-      value: value.value,
+      value: parsed.value,
+      params: parsed.params,
       line: name.token.line,
       column: name.token.column
     }
+  }
+}
+
+parseEnumMemberPayload(
+  state: ParserState
+) -> EnumMemberPayloadStep => {
+  assign := parserMatch(state, TokenKind.Assign)
+  (
+    assign.ok ? parseEnumMemberValue(parserSkipNewlines(assign.state))
+      : parseEnumMemberParams(state)
+  )
+}
+
+EnumMemberPayloadStep: {
+  state: ParserState
+  value: String
+  params: Array[ParsedParam]
+}
+
+parseEnumMemberValue(
+  state: ParserState
+) -> EnumMemberPayloadStep => {
+  value := parseEnumValue(state)
+  EnumMemberPayloadStep {
+    state: value.state,
+    value: value.value,
+    params: []
+  }
+}
+
+parseEnumMemberParams(
+  state: ParserState
+) -> EnumMemberPayloadStep => {
+  open := parserMatch(state, TokenKind.LParen)
+  (
+    open.ok ? parseEnumMemberParamList(parserSkipNewlines(open.state))
+      : EnumMemberPayloadStep {
+        state: state,
+        value: "",
+        params: []
+      }
+  )
+}
+
+parseEnumMemberParamList(
+  state: ParserState
+) -> EnumMemberPayloadStep => {
+  params := parseParamList(state)
+  close := parserConsume(params.state, TokenKind.RParen, "expected ')' after enum constructor parameters")
+  EnumMemberPayloadStep {
+    state: close.state,
+    value: "",
+    params: params.params
   }
 }
 
@@ -985,26 +1055,31 @@ parseGenericNameValue(
   state: ParserState,
   values: Array[String]
 ) -> StringListStep => {
-  afterName := (
+  nameStep := (
     parserCheck(state, TokenKind.Ident) ? appendGenericName(state, values)
-      : parserAdvance(state).state
+      : StringListStep {
+        state: parserAdvance(state).state,
+        values: values
+      }
   )
-  colon := parserMatch(parserSkipNewlines(afterName), TokenKind.Colon)
+  colon := parserMatch(parserSkipNewlines(nameStep.state), TokenKind.Colon)
   current := (
     colon.ok ? parseTypeRef(parserSkipNewlines(colon.state)).state
-      : afterName
+      : nameStep.state
   )
   comma := parserMatch(parserSkipNewlines(current), TokenKind.Comma)
-  parseGenericNameLoop(comma.state, values)
+  parseGenericNameLoop(comma.state, nameStep.values)
 }
 
 appendGenericName(
   state: ParserState,
   values: Array[String]
-) -> ParserState => {
+) -> StringListStep => {
   step := parserAdvance(state)
-  values.push(step.token.lexeme)
-  step.state
+  StringListStep {
+    state: step.state,
+    values: appendString(values, step.token.lexeme)
+  }
 }
 
 parseTypeRef(
@@ -1715,52 +1790,24 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  (
-    token.kind == TokenKind.Int ? parseLiteral(state, ExprKind.Int)
-      : (
-        token.kind == TokenKind.Double ? parseLiteral(state, ExprKind.Double)
-          : (
-            token.kind == TokenKind.BigInt ? parseLiteral(state, ExprKind.BigInt)
-              : (
-                token.kind == TokenKind.String ? parseLiteral(state, ExprKind.String)
-                  : (
-                    token.kind == TokenKind.TemplateString ? parseLiteral(state, ExprKind.Template)
-                      : (
-                        token.kind == TokenKind.Char ? parseLiteral(state, ExprKind.Char)
-                          : (
-                            token.kind == TokenKind.Regex ? parseLiteral(state, ExprKind.Regex)
-                              : (
-                                token.kind == TokenKind.XMLText ? parseLiteral(state, ExprKind.XMLText)
-                                  : (
-                                    token.kind == TokenKind.Ident ? parseIdentifierPrimary(state)
-                                      : (
-                                        token.kind == TokenKind.At ? parseAtExpression(state)
-                                          : (
-                                            token.kind == TokenKind.Dot ? parseThisSelector(state)
-                                              : (
-                                                token.kind == TokenKind.LBracket ? parseArrayLiteral(state)
-                                                  : (
-                                                    token.kind == TokenKind.Dollar ? parseDollarExpression(state)
-                                                      : (
-                                                        token.kind == TokenKind.LBrace ? parseBraceLiteral(state)
-                                                          : (
-                                                            token.kind == TokenKind.LParen ? parseParenOrTuple(state)
-                                                              : parsePrimaryError(state)
-                                                          )
-                                                      )
-                                                  )
-                                              )
-                                          )
-                                      )
-                                  )
-                              )
-                          )
-                      )
-                  )
-              )
-          )
-      )
-  )
+  token.kind {
+    TokenKind.Int => parseLiteral(state, ExprKind.Int)
+    TokenKind.Double => parseLiteral(state, ExprKind.Double)
+    TokenKind.BigInt => parseLiteral(state, ExprKind.BigInt)
+    TokenKind.String => parseLiteral(state, ExprKind.String)
+    TokenKind.TemplateString => parseLiteral(state, ExprKind.Template)
+    TokenKind.Char => parseLiteral(state, ExprKind.Char)
+    TokenKind.Regex => parseLiteral(state, ExprKind.Regex)
+    TokenKind.XMLText => parseLiteral(state, ExprKind.XMLText)
+    TokenKind.Ident => parseIdentifierPrimary(state)
+    TokenKind.At => parseAtExpression(state)
+    TokenKind.Dot => parseThisSelector(state)
+    TokenKind.LBracket => parseArrayLiteral(state)
+    TokenKind.Dollar => parseDollarExpression(state)
+    TokenKind.LBrace => parseBraceLiteral(state)
+    TokenKind.LParen => parseParenOrTuple(state)
+    _ => parsePrimaryError(state)
+  }
 }
 
 parseLiteral(
@@ -2410,9 +2457,15 @@ looksLikeEnumMember(
     parserCheck(state, TokenKind.Plus) ? skipNewlinesAt(state, state.current + 1)
       : state.current
   )
+  token := parserTokenAt(state, start)
   next := parserKindAt(state, skipNewlinesAt(state, start + 1))
-  (parserKindAt(state, start) == TokenKind.Ident) && ((next == TokenKind.Assign) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
+  (token.kind == TokenKind.Ident) && ((next == TokenKind.Assign) || ((next == TokenKind.LParen) && startsWithUpper(token.lexeme)) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
 }
+
+startsWithUpper(name: String) -> Bool => (
+  name.length() > 0 ? (name.at(0) >= 'A') && (name.at(0) <= 'Z')
+    : false
+)
 
 looksLikeObjectDestructureDecl(
   state: ParserState
@@ -2498,7 +2551,7 @@ skipOrPatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => (
-  (index >= 0) && (parserKindAt(state, index) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index + 1))
+  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, skipNewlinesAt(state, index) + 1))
     : index
 )
 
@@ -2516,8 +2569,11 @@ skipSinglePatternLookahead(
               : (
                 kind == TokenKind.LParen ? skipBalancedAt(state, index, TokenKind.LParen, TokenKind.RParen)
                   : (
-                    kind == TokenKind.LBrace ? skipBalancedAt(state, index, TokenKind.LBrace, TokenKind.RBrace)
-                      : -1
+                    kind == TokenKind.LBracket ? skipBalancedAt(state, index, TokenKind.LBracket, TokenKind.RBracket)
+                      : (
+                        kind == TokenKind.LBrace ? skipBalancedAt(state, index, TokenKind.LBrace, TokenKind.RBrace)
+                          : -1
+                      )
                   )
               )
           )
@@ -2531,7 +2587,13 @@ skipRangePatternLookahead(
   index: Int
 ) -> Int => (
   (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotEqual) ? skipRangePatternEnd(state, index + 1)
-    : index
+    : (
+      (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotLess) ? skipRangePatternEnd(state, index + 1)
+        : (
+          (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDot) && (parserKindAt(state, index + 1) == TokenKind.Less) ? skipRangePatternEnd(state, index + 2)
+            : index
+        )
+    )
 )
 
 skipRangePatternEnd(
@@ -2540,10 +2602,21 @@ skipRangePatternEnd(
 ) -> Int => {
   kind := parserKindAt(state, index)
   (
-    (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1
-      : -1
+    kind == TokenKind.Underscore ? index + 1
+      : (
+        (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? skipIdentifierRangeEnd(state, index)
+          : -1
+      )
   )
 }
+
+skipIdentifierRangeEnd(
+  state: ParserState,
+  index: Int
+) -> Int => (
+  (parserKindAt(state, index) == TokenKind.Ident) && (parserKindAt(state, index + 1) == TokenKind.Dot) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
+    : index + 1
+)
 
 skipIdentifierPatternLookahead(
   state: ParserState,

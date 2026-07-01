@@ -1,7 +1,6 @@
 package compiler
 
 import (
-	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,8 +9,8 @@ import (
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
-	"github.com/oboard/rune-lang/internal/interpreter"
 	"github.com/oboard/rune-lang/internal/ir"
+	"github.com/oboard/rune-lang/internal/selfhostrunner"
 )
 
 func TestAnalyzeCoreSourceDoesNotDuplicateOwnTypes(t *testing.T) {
@@ -96,12 +95,7 @@ main() => @io.println(inc(41))
 		t.Fatalf("imported function inc was not collected")
 	}
 
-	var out bytes.Buffer
-	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
-	if err := runner.RunMain(); err != nil {
-		t.Fatalf("RunMain() error = %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "42" {
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "42" {
 		t.Fatalf("output = %q, want 42", got)
 	}
 }
@@ -124,12 +118,7 @@ privateGreeting(name: String) -> String => "hello, " + name
 		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
 	}
 
-	var out bytes.Buffer
-	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
-	if err := runner.RunMain(); err != nil {
-		t.Fatalf("RunMain() error = %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "hello, Alice" {
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "hello, Alice" {
 		t.Fatalf("output = %q, want hello, Alice", got)
 	}
 }
@@ -342,12 +331,7 @@ main() => {
 		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
 	}
 
-	var out bytes.Buffer
-	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
-	if err := runner.RunMain(); err != nil {
-		t.Fatalf("RunMain() error = %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "Rune!\n42" {
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "Rune!\n42" {
 		t.Fatalf("output = %q, want Rune!\\n42", got)
 	}
 }
@@ -393,12 +377,7 @@ main() => @io.println(sum(20, 22))
 		t.Fatalf("private function add was not collected: %#v", prog.Info.Functions["add"])
 	}
 
-	var out bytes.Buffer
-	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
-	if err := runner.RunMain(); err != nil {
-		t.Fatalf("RunMain() error = %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "42" {
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "42" {
 		t.Fatalf("output = %q, want 42", got)
 	}
 }
@@ -436,12 +415,7 @@ main() => @io.println(private())
 	if len(diags) > 0 {
 		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
 	}
-	var out bytes.Buffer
-	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out))
-	if err := runner.RunMain(); err != nil {
-		t.Fatalf("RunMain() error = %v", err)
-	}
-	if got := strings.TrimSpace(out.String()); got != "this is real function" {
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "this is real function" {
 		t.Fatalf("output = %q, want local function", got)
 	}
 }
@@ -783,6 +757,15 @@ main(args: Args) => args.target
 func writeRuneFile(t *testing.T, path string, src string) {
 	t.Helper()
 	writeTextFile(t, path, src)
+}
+
+func runMainIROutput(t *testing.T, prog *Program) string {
+	t.Helper()
+	result := selfhostrunner.RunMainIR(prog.IR)
+	if result.Err != nil {
+		t.Fatalf("RunMainIR() error = %v, output = %q", result.Err, result.Output)
+	}
+	return result.Output
 }
 
 func writeTextFile(t *testing.T, path string, src string) {
