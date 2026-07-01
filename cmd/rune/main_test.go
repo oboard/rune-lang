@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -114,6 +115,35 @@ func TestGeneratedCLIParsesFormatAlias(t *testing.T) {
 	if invocation.__command != "fmt" || !invocation.__checkOnly || invocation.__path != "main.rn" {
 		t.Fatalf("__parseCli(format) = %#v", invocation)
 	}
+}
+
+func TestSelfhostCLIGeneratedGoIsCurrent(t *testing.T) {
+	root := repoRootForCommandTest(t)
+	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/cli/cli.rn")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generate selfhost CLI failed: %v\n%s", err, out)
+	}
+	got := normalizeGeneratedCLIForHost(string(out))
+	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_cli_gen.go")
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
+	}
+	if got != string(want) {
+		t.Fatalf("selfhost_cli_gen.go is stale; regenerate it with rune go selfhost/cli/cli.rn")
+	}
+}
+
+func normalizeGeneratedCLIForHost(src string) string {
+	src = strings.ReplaceAll(src, "func __main()", "func selfhostCliGeneratedMain()")
+	src = strings.Replace(src, "func main() {\n\t__main()\n}\n", "func selfhostCliGeneratedEntrypoint() {\n\tselfhostCliGeneratedMain()\n}\n", 1)
+	formatted, err := format.Source([]byte(src))
+	if err != nil {
+		return src
+	}
+	return string(formatted)
 }
 
 func TestRunRuneCLIForwardsProgramArgs(t *testing.T) {
@@ -416,5 +446,23 @@ func writeTestFile(t *testing.T, path string, data string) {
 	}
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
+	}
+}
+
+func repoRootForCommandTest(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("repo root not found")
+		}
+		dir = parent
 	}
 }
