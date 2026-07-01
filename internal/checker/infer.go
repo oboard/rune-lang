@@ -849,6 +849,9 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 	}
 	c.expectedType = callExpected
 	if sel, ok := call.Callee.(*ast.SelectorExpr); ok {
+		if typ, ok := c.inferQualifiedEnumConstructor(sel, call, argTypes, env); ok {
+			return typ
+		}
 		if sel.Static {
 			ident, ok := sel.Receiver.(*ast.Identifier)
 			if !ok {
@@ -1036,6 +1039,54 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		c.applyExpectedType(call.Callee, refined)
 	}
 	return ret
+}
+
+func (c *checker) inferQualifiedEnumConstructor(sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok || sel.Static {
+		return Unknown, false
+	}
+	if _, shadowed := env[ident.Name]; shadowed {
+		return Unknown, false
+	}
+	enum := c.info.Enums[ident.Name]
+	if enum == nil {
+		return Unknown, false
+	}
+	member, ok := enum.ByName[sel.Name]
+	if !ok || len(member.Params) == 0 {
+		return Unknown, false
+	}
+	if !c.checkPrivateAccess("enum", enum.Name, enum.Private, enum.SourcePath, sel.Pos) {
+		return Unknown, true
+	}
+	if !c.checkPrivateAccess("enum constructor", enum.Name+"."+sel.Name, member.Private, member.SourcePath, sel.NamePos) {
+		return Unknown, true
+	}
+	if len(member.Params) != len(call.Args) {
+		c.errorf(call.Pos, "constructor %q expects %d args, got %d", sel.Name, len(member.Params), len(call.Args))
+		return Unknown, true
+	}
+	bindings := enumConstructorBindings(enum.Generics, member.Params, argTypes)
+	for idx, param := range member.Params {
+		expected := substituteTypeParams(param.Type, bindings)
+		if idx < len(argTypes) && !c.typesCompatible(expected, argTypes[idx], nil) {
+			c.errorf(call.Args[idx].Position(), "argument %d to %q has type %s, expected %s", idx+1, sel.Name, argTypes[idx], expected)
+		}
+	}
+	c.info.ExprTypes[ident] = Type(enum.Name)
+	if len(enum.Generics) == 0 {
+		return Type(enum.Name), true
+	}
+	args := make([]Type, 0, len(enum.Generics))
+	for _, generic := range enum.Generics {
+		if typ, ok := bindings[generic]; ok {
+			args = append(args, typ)
+		} else {
+			args = append(args, Unknown)
+		}
+	}
+	return genericTypeOf(enum.Name, args), true
 }
 
 func (c *checker) traitInfo(typ Type) *TraitInfo {

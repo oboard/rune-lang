@@ -851,6 +851,9 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 	switch p := pattern.(type) {
 	case *ast.WildcardPattern:
 	case *ast.BindingPattern:
+		if c.checkEnumMemberBindingPattern(p, subject) {
+			return
+		}
 		if value := c.patternConstantInfo(p); value != nil {
 			p.Constant = true
 			p.Type = string(value.Type)
@@ -921,6 +924,23 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 	case *ast.ObjectPattern:
 		c.checkObjectPattern(p, subject, env, optional)
 	}
+}
+
+func (c *checker) checkEnumMemberBindingPattern(pattern *ast.BindingPattern, subject Type) bool {
+	enum := c.info.Enums[baseTypeName(subject)]
+	if enum == nil {
+		return false
+	}
+	member, ok := enum.ByName[pattern.Name]
+	if !ok || member.HasValue || len(member.Params) > 0 {
+		return false
+	}
+	if !c.checkPrivateAccess("enum member", enum.Name+"."+pattern.Name, member.Private, member.SourcePath, pattern.Pos) {
+		return true
+	}
+	pattern.Constant = true
+	pattern.Type = string(subject)
+	return true
 }
 
 func (c *checker) patternConstantInfo(pattern *ast.BindingPattern) *ExternalValueInfo {
