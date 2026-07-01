@@ -9,6 +9,12 @@
   @assert.eq(invocation.runArgs.length(), 4)
   @assert.eq(invocation.runArgs[0], "-v")
   @assert.eq(invocation.runArgs[3], "core")
+  implicitArgs := cli.parseCli(["run", "examples/cli.rn", "-v", "core"])
+  @assert.eq(implicitArgs.ok, true)
+  @assert.eq(implicitArgs.path, "examples/cli.rn")
+  @assert.eq(implicitArgs.runArgs.length(), 2)
+  @assert.eq(implicitArgs.runArgs[0], "-v")
+  @assert.eq(implicitArgs.runArgs[1], "core")
 }
 
 ? "selfhost cli parses build fmt and test commands" {
@@ -32,6 +38,9 @@
   @assert.eq(backendAfterCommand.ok, true)
   @assert.eq(backendAfterCommand.backend, "go")
   @assert.eq(backendAfterCommand.path, "tests/cli_bootstrap.rn")
+  lsp := cli.parseCli(["lsp", "--stdio"])
+  @assert.eq(lsp.ok, true)
+  @assert.eq(lsp.command, "lsp")
 }
 
 ? "selfhost cli reports unknown commands and backends" {

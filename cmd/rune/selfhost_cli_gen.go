@@ -484,8 +484,10 @@ func ____rune_private_5b8b8d7b_dispatchCommand(__command string, __args []string
 			return ____rune_private_5b8b8d7b_parseTest(__args, __backend)
 		case (__command == "ts") || (__command == "go") || (__command == "mbt"):
 			return ____rune_private_5b8b8d7b_parseEmit(__command, __args, __backend)
-		case (__command == "repl") || (__command == "lsp"):
+		case __command == "repl":
 			return ____rune_private_5b8b8d7b_parseNoArgs(__command, __args, __backend)
+		case __command == "lsp":
+			return ____rune_private_5b8b8d7b_parseLsp(__args, __backend)
 		default:
 			return ____rune_private_5b8b8d7b_errorInvocation(__command, __backend, []string{"unknown command " + __command})
 		}
@@ -493,8 +495,68 @@ func ____rune_private_5b8b8d7b_dispatchCommand(__command string, __args []string
 }
 
 func ____rune_private_5b8b8d7b_parseRun(__args []string, __backend string) __RuneCliInvocation {
-	__result := runeCliParseArgs(__runCommand(), __args)
+	__result := runeCliParseArgs(__runCommand(), ____rune_private_5b8b8d7b_normalizeRunArgs(__args))
 	return ____rune_private_5b8b8d7b_invocationFromResult("run", __backend, __result, __result.__rest, false, false)
+}
+
+func ____rune_private_5b8b8d7b_normalizeRunArgs(__args []string) []string {
+	return ____rune_private_5b8b8d7b_normalizeRunArgsAt(__args, 0, []string{}, false, false)
+}
+
+func ____rune_private_5b8b8d7b_normalizeRunArgsAt(__args []string, __index int, __out []string, __seenPath bool, __skipValue bool) []string {
+	return func() []string {
+		if __index >= len(__args) {
+			return __out
+		}
+		return ____rune_private_5b8b8d7b_normalizeRunArgAt(__args, __index, __out, __seenPath, __skipValue)
+	}()
+}
+
+func ____rune_private_5b8b8d7b_normalizeRunArgAt(__args []string, __index int, __out []string, __seenPath bool, __skipValue bool) []string {
+	__arg := __args[__index]
+	return func() []string {
+		if __seenPath && __arg != "--" {
+			return ____rune_private_5b8b8d7b_appendRunRest(__args, __index, func() []string { out := []string{}; out = append(out, __out...); out = append(out, "--"); return out }())
+		}
+		return func() []string {
+			if __arg == "--" {
+				return ____rune_private_5b8b8d7b_appendRunRest(__args, __index, __out)
+			}
+			return ____rune_private_5b8b8d7b_normalizeRunArgBeforeRest(__args, __index, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __seenPath, __skipValue)
+		}()
+	}()
+}
+
+func ____rune_private_5b8b8d7b_normalizeRunArgBeforeRest(__args []string, __index int, __out []string, __seenPath bool, __skipValue bool) []string {
+	return func() []string {
+		if __skipValue {
+			return ____rune_private_5b8b8d7b_normalizeRunArgsAt(__args, __index+1, __out, __seenPath, false)
+		}
+		return func() []string {
+			if ____rune_private_5b8b8d7b_isRunOptionValueArg(__args[__index]) {
+				return ____rune_private_5b8b8d7b_normalizeRunArgsAt(__args, __index+1, __out, __seenPath, true)
+			}
+			return ____rune_private_5b8b8d7b_normalizeRunArgsAt(__args, __index+1, __out, __seenPath || !strings.HasPrefix(__args[__index], "-"), false)
+		}()
+	}()
+}
+
+func ____rune_private_5b8b8d7b_isRunOptionValueArg(__arg string) bool {
+	return __arg == "--target"
+}
+
+func ____rune_private_5b8b8d7b_appendRunRest(__args []string, __index int, __out []string) []string {
+	return func() []string {
+		if __index >= len(__args) {
+			return __out
+		}
+		return ____rune_private_5b8b8d7b_appendRunRest(__args, __index+1, func() []string {
+			out := []string{}
+			out = append(out, __out...)
+			out = append(out, __args[__index])
+			return out
+		}())
+	}()
 }
 
 func __runCommand() __CliCommand {
@@ -574,6 +636,16 @@ func __testCommand() __CliCommand {
 func ____rune_private_5b8b8d7b_parseNoArgs(__name string, __args []string, __backend string) __RuneCliInvocation {
 	__result := runeCliParseArgs(runeCliCommand(__name, ""), __args)
 	return ____rune_private_5b8b8d7b_invocationFromResult(__name, __backend, __result, []string{}, false, false)
+}
+
+func ____rune_private_5b8b8d7b_parseLsp(__args []string, __backend string) __RuneCliInvocation {
+	__result := runeCliParseArgs(__lspCommand(), __args)
+	return ____rune_private_5b8b8d7b_invocationFromResult("lsp", __backend, __result, []string{}, false, false)
+}
+
+func __lspCommand() __CliCommand {
+	__command := runeCliCommand("lsp", "Start the Rune language server")
+	return runeCliWithOption(__command, runeCliFlag("stdio", "", "serve LSP over stdin/stdout"))
 }
 
 func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __backend string, __result __CliParseResult, __runArgs []string, __checkOnly bool, __stdout bool) __RuneCliInvocation {

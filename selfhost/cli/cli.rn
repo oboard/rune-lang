@@ -197,7 +197,8 @@ dispatchCommand(
   "fmt" | "format" => parseFmt(args, backend)
   "test" => parseTest(args, backend)
   "ts" | "go" | "mbt" => parseEmit(command, args, backend)
-  "repl" | "lsp" => parseNoArgs(command, args, backend)
+  "repl" => parseNoArgs(command, args, backend)
+  "lsp" => parseLsp(args, backend)
   _ => errorInvocation(command, backend, ["unknown command " + command])
 }
 
@@ -205,9 +206,68 @@ parseRun(
   args: Array[String],
   backend: String
 ) -> RuneCliInvocation => {
-  result := @cli.parseArgs(runCommand(), args)
+  result := @cli.parseArgs(runCommand(), normalizeRunArgs(args))
   invocationFromResult("run", backend, result, result.rest, false, false)
 }
+
+normalizeRunArgs(
+  args: Array[String]
+) -> Array[String] => normalizeRunArgsAt(args, 0, [], false, false)
+
+normalizeRunArgsAt(
+  args: Array[String],
+  index: Int,
+  out: Array[String],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[String] => (
+  index >= args.length() ? out
+    : normalizeRunArgAt(args, index, out, seenPath, skipValue)
+)
+
+normalizeRunArgAt(
+  args: Array[String],
+  index: Int,
+  out: Array[String],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[String] => {
+  arg := args[index]
+  (
+    seenPath && (arg != "--") ? appendRunRest(args, index, [..out, "--"])
+      : (
+        arg == "--" ? appendRunRest(args, index, out)
+          : normalizeRunArgBeforeRest(args, index, [..out, arg], seenPath, skipValue)
+      )
+  )
+}
+
+normalizeRunArgBeforeRest(
+  args: Array[String],
+  index: Int,
+  out: Array[String],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[String] => (
+  skipValue ? normalizeRunArgsAt(args, index + 1, out, seenPath, false)
+    : (
+      isRunOptionValueArg(args[index]) ? normalizeRunArgsAt(args, index + 1, out, seenPath, true)
+        : normalizeRunArgsAt(args, index + 1, out, seenPath || !args[index].startsWith("-"), false)
+    )
+)
+
+isRunOptionValueArg(
+  arg: String
+) -> Bool => arg == "--target"
+
+appendRunRest(
+  args: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= args.length() ? out
+    : appendRunRest(args, index + 1, [..out, args[index]])
+)
 
 + runCommand() -> CliCommand => {
   command := @cli.command("run", "Compile and run a Rune program")
@@ -299,6 +359,19 @@ parseNoArgs(
 ) -> RuneCliInvocation => {
   result := @cli.parseArgs(@cli.command(name, ""), args)
   invocationFromResult(name, backend, result, [], false, false)
+}
+
+parseLsp(
+  args: Array[String],
+  backend: String
+) -> RuneCliInvocation => {
+  result := @cli.parseArgs(lspCommand(), args)
+  invocationFromResult("lsp", backend, result, [], false, false)
+}
+
++ lspCommand() -> CliCommand => {
+  command := @cli.command("lsp", "Start the Rune language server")
+  @cli.withOption(command, @cli.flag("stdio", "", "serve LSP over stdin/stdout"))
 }
 
 invocationFromResult(

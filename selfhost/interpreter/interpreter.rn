@@ -3740,7 +3740,10 @@ runeCliDispatchCommand(
               command == "format" ? runeCliParseFmt(args, backend)
                 : (
                   command == "test" ? runeCliParseTest(args, backend)
-                    : runeCliInvocation(command, backend, "", "", "", "", false, false, emptyRuntimeArray(), [stringValue("unknown command " + command)], false)
+                    : (
+                      command == "lsp" ? runeCliParseLsp(args, backend)
+                        : runeCliInvocation(command, backend, "", "", "", "", false, false, emptyRuntimeArray(), [stringValue("unknown command " + command)], false)
+                    )
                 )
             )
         )
@@ -3751,9 +3754,64 @@ runeCliParseRun(
   args: Array[RuntimeValue],
   backend: String
 ) -> RuntimeValue => {
-  result := cliParseArgsValue(runeCliRunCommand(), args)
+  result := cliParseArgsValue(runeCliRunCommand(), runeCliNormalizeRunArgs(args))
   runeCliInvocationFromResult("run", backend, result, runtimeArray(cliField(result, "rest")), false, false)
 }
+
+runeCliNormalizeRunArgs(
+  args: Array[RuntimeValue]
+) -> Array[RuntimeValue] => runeCliNormalizeRunArgsAt(args, 0, emptyRuntimeArray(), false, false)
+
+runeCliNormalizeRunArgsAt(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[RuntimeValue] => (
+  index >= args.length() ? out
+    : runeCliNormalizeRunArgAt(args, index, out, seenPath, skipValue)
+)
+
+runeCliNormalizeRunArgAt(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[RuntimeValue] => {
+  arg := runtimeText(args[index])
+  (
+    seenPath && (arg != "--") ? runeCliAppendRunRest(args, index, pushRuntime(out, stringValue("--")))
+      : (
+        arg == "--" ? runeCliAppendRunRest(args, index, out)
+          : runeCliNormalizeRunArgBeforeRest(args, index, pushRuntime(out, args[index]), seenPath, skipValue)
+      )
+  )
+}
+
+runeCliNormalizeRunArgBeforeRest(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue],
+  seenPath: Bool,
+  skipValue: Bool
+) -> Array[RuntimeValue] => (
+  skipValue ? runeCliNormalizeRunArgsAt(args, index + 1, out, seenPath, false)
+    : (
+      runtimeText(args[index]) == "--target" ? runeCliNormalizeRunArgsAt(args, index + 1, out, seenPath, true)
+        : runeCliNormalizeRunArgsAt(args, index + 1, out, seenPath || !runtimeText(args[index]).startsWith("-"), false)
+    )
+)
+
+runeCliAppendRunRest(
+  args: Array[RuntimeValue],
+  index: Int,
+  out: Array[RuntimeValue]
+) -> Array[RuntimeValue] => (
+  index >= args.length() ? out
+    : runeCliAppendRunRest(args, index + 1, pushRuntime(out, args[index]))
+)
 
 runeCliParseBuild(
   args: Array[RuntimeValue],
@@ -3777,6 +3835,14 @@ runeCliParseTest(
 ) -> RuntimeValue => {
   result := cliParseArgsValue(runeCliTestCommand(), args)
   runeCliInvocationFromResult("test", backend, result, emptyRuntimeArray(), false, false)
+}
+
+runeCliParseLsp(
+  args: Array[RuntimeValue],
+  backend: String
+) -> RuntimeValue => {
+  result := cliParseArgsValue(runeCliLspCommand(), args)
+  runeCliInvocationFromResult("lsp", backend, result, emptyRuntimeArray(), false, false)
 }
 
 runeCliInvocationFromResult(
@@ -3863,6 +3929,11 @@ runeCliFmtCommand() -> RuntimeValue => cliWithArgument(
 runeCliTestCommand() -> RuntimeValue => cliWithArgument(
   cliWithArgument(cliCommandValue("test", "Run Rune tests"), cliArgumentValue("path", "Rune test path", false)),
   cliArgumentValue("pattern", "test name pattern", false)
+)
+
+runeCliLspCommand() -> RuntimeValue => cliWithOption(
+  cliCommandValue("lsp", "Start the Rune language server"),
+  cliFlagValue("stdio", "", "serve LSP over stdin/stdout")
 )
 
 runeCliIsBackend(value: String) -> Bool => ((value == "go") || (value == "ts")) || (value == "mbt")
