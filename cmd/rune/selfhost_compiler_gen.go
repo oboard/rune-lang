@@ -9695,6 +9695,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkAssignExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_PatternBlock:
 			return ____rune_private_0d2ebf0f_checkPatternBlockExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Match:
+			return ____rune_private_0d2ebf0f_checkMatchExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierExpr(__expr, __callables, __bindings, __errors)
 		case __expr.__kind == __ExprKind_This:
@@ -9928,6 +9930,19 @@ func ____rune_private_0d2ebf0f_checkAssignmentType(__expected string, __actual s
 
 func ____rune_private_0d2ebf0f_checkPatternBlockExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	return ____rune_private_0d2ebf0f_checkPatternBlockBranches(__expr.__children, 0, __structs, __callables, __errors, __bindings, "")
+}
+
+func ____rune_private_0d2ebf0f_checkMatchExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__hasSubject := len(__expr.__children) > 0
+	__checked := func() []string {
+		switch {
+		case __hasSubject == true:
+			return ____rune_private_0d2ebf0f_checkExpr(__expr.__children[0], __structs, __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkPatternBlockBranches(__expr.__children, 1, __structs, __callables, __checked, __bindings, "")
 }
 
 func ____rune_private_0d2ebf0f_checkPatternBlockBranches(__branches []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __expected string) []string {
@@ -12052,6 +12067,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_PatternBlock:
 			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Match:
+			return ____rune_private_0d2ebf0f_inferCompilerMatchType(__expr, __callables, __bindings)
 		default:
 			return ""
 		}
@@ -12067,6 +12084,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr __IRExpr,
 			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
 		case __expr.__kind == __ExprKind_PatternBlock:
 			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Match:
+			return ____rune_private_0d2ebf0f_inferCompilerMatchTypeWithStructs(__expr, __structs, __callables, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr, __callables, __bindings)
 		}
@@ -12238,6 +12257,14 @@ func ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr __IRExpr, __callabl
 
 func ____rune_private_0d2ebf0f_inferCompilerPatternBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{____rune_private_0d2ebf0f_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMatchType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerMatchTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{____rune_private_0d2ebf0f_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMatchTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__expr.__children, 1, __structs, __callables, __bindings, "")
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {

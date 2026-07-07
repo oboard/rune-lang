@@ -672,6 +672,7 @@ checkExpr(
   ExprKind.Lambda => checkLambdaExpr(expr, structs, callables, errors, bindings)
   ExprKind.Assign => checkAssignExpr(expr, structs, callables, errors, bindings)
   ExprKind.PatternBlock => checkPatternBlockExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Match => checkMatchExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
@@ -915,6 +916,21 @@ checkPatternBlockExpr(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => checkPatternBlockBranches(expr.children, 0, structs, callables, errors, bindings, "")
+
+checkMatchExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasSubject := expr.children.length() > 0
+  checked := hasSubject {
+    true => checkExpr(expr.children[0], structs, callables, errors, bindings)
+    _ => errors
+  }
+  checkPatternBlockBranches(expr.children, 1, structs, callables, checked, bindings, "")
+}
 
 checkPatternBlockBranches(
   branches: Array[IRExpr],
@@ -2944,6 +2960,7 @@ inferCompilerExprType(
   ExprKind.Spread => inferCompilerSpreadType(expr, callables, bindings)
   ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
   ExprKind.PatternBlock => inferCompilerPatternBlockType(expr, callables, bindings)
+  ExprKind.Match => inferCompilerMatchType(expr, callables, bindings)
   _ => ""
 }
 
@@ -2956,6 +2973,7 @@ inferCompilerExprTypeWithStructs(
   ExprKind.Selector => inferCompilerSelectorTypeWithStructs(expr, structs, callables, bindings)
   ExprKind.Block => inferCompilerBlockTypeWithStructs(expr, structs, callables, bindings)
   ExprKind.PatternBlock => inferCompilerPatternBlockTypeWithStructs(expr, structs, callables, bindings)
+  ExprKind.Match => inferCompilerMatchTypeWithStructs(expr, structs, callables, bindings)
   _ => inferCompilerExprType(expr, callables, bindings)
 }
 
@@ -3142,6 +3160,19 @@ inferCompilerPatternBlockType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => inferCompilerPatternBlockTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+
+inferCompilerMatchType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerMatchTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+
+inferCompilerMatchTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerPatternBranchTypesWithStructs(expr.children, 1, structs, callables, bindings, "")
 
 inferCompilerPatternBlockTypeWithStructs(
   expr: IRExpr,
