@@ -12130,6 +12130,22 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 				}
 			}()
 		default:
+			return ____rune_private_0d2ebf0f_checkUndefinedIdentifierCall(__name, __bindings, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkUndefinedIdentifierCall(__name string, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __name, 0).__typeName == "MacroFunction":
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, __name+" is a macro and can only be used with '#'")
+				return out
+			}()
+		default:
 			return func() []string {
 				out := []string{}
 				out = append(out, __errors...)
@@ -13314,6 +13330,7 @@ func ____rune_private_0d2ebf0f_compilerParamBindings(__params []__IRParam) []__C
 
 func ____rune_private_0d2ebf0f_compilerInitialBindings(__file __IRFile, __callables []__CompilerCallable) []__CompilerTypeBinding {
 	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...)
+	__bindings = ____rune_private_0d2ebf0f_compilerMacroFunctionBindings(__file.__functions, __bindings)
 	for _, __constant := range __file.__constants {
 		_ = __constant
 		__bindings = ____rune_private_0d2ebf0f_compilerConstBinding(__file.__structs, __callables, __bindings, __constant)
@@ -13323,6 +13340,26 @@ func ____rune_private_0d2ebf0f_compilerInitialBindings(__file __IRFile, __callab
 		__bindings = ____rune_private_0d2ebf0f_compilerImportValueBindings(__importDecl.__values, __bindings)
 	}
 	return __bindings
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroFunctionBindings(__functions []__IRFunction, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__out := __bindings
+	for _, __fn := range __functions {
+		_ = __fn
+		__out = ____rune_private_0d2ebf0f_compilerMacroFunctionBinding(__fn, __out)
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroFunctionBinding(__fn __IRFunction, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __fn.__macro == true:
+			return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __fn.__name, "MacroFunction")
+		default:
+			return __bindings
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerConstBinding(__structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __constant __IRConst) []__CompilerTypeBinding {

@@ -2813,8 +2813,17 @@ checkIdentifierCall(
       true => checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
       _ => [..errors, ("function \"" + name) + "\" is private"]
     }
-    _ => [..errors, "undefined function " + name]
+    _ => checkUndefinedIdentifierCall(name, bindings, errors)
   }
+}
+
+checkUndefinedIdentifierCall(
+  name: String,
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => findCompilerTypeBinding(bindings, name, 0).typeName {
+  "MacroFunction" => [..errors, (name + " is a macro and can only be used with '#'")]
+  _ => [..errors, "undefined function " + name]
 }
 
 checkCallableVisibility(
@@ -3954,9 +3963,27 @@ compilerInitialBindings(
   callables: Array[CompilerCallable]
 ) -> Array[CompilerTypeBinding] => {
   bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  bindings = compilerMacroFunctionBindings(file.functions, bindings)
   file.constants.each((constant) => bindings = compilerConstBinding(file.structs, callables, bindings, constant))
   file.tsImports.each((importDecl) => bindings = compilerImportValueBindings(importDecl.values, bindings))
   bindings
+}
+
+compilerMacroFunctionBindings(
+  functions: Array[IRFunction],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  out := bindings
+  functions.each((fn) => out = compilerMacroFunctionBinding(fn, out))
+  out
+}
+
+compilerMacroFunctionBinding(
+  fn: IRFunction,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => fn.macro {
+  true => addCompilerTypeBinding(bindings, fn.name, "MacroFunction")
+  _ => bindings
 }
 
 compilerConstBinding(

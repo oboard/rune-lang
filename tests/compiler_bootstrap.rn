@@ -530,6 +530,17 @@ main() -> Int => 1
   @assert.eq(mbt.output.includes("__tag"), false)
 }
 
+? "selfhost compiler rejects runtime macro calls" {
+  source := `#tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+
+main() => tag()
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "tag is a macro and can only be used with '#'")
+}
+
 ? "selfhost compiler rejects legacy macro signatures" {
   source := `#tag(name: String) -> String => name
 
