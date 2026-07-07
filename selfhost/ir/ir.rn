@@ -56,6 +56,7 @@
   name: String
   private: Bool
   routine: Bool
+  macro: Bool
   receiverType: String
   generics: Array[String]
   params: Array[IRParam]
@@ -174,6 +175,7 @@ pushEnumType(
   name: "",
   private: false,
   routine: false,
+  macro: false,
   receiverType: "",
   generics: [],
   params: [],
@@ -228,6 +230,7 @@ lowerFunction(
   name: fn.name,
   private: fn.private,
   routine: fn.routine,
+  macro: fn.macro,
   receiverType: fn.receiverType,
   generics: fn.generics,
   params: lowerParams(fn.params),

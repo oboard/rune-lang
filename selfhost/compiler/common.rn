@@ -93,7 +93,10 @@ functionsUseUnwrap(
   index: Int
 ) -> Bool => (
   index >= functions.length() ? false
-    : exprUsesUnwrap(functions[index].body) || functionsUseUnwrap(functions, index + 1)
+    : (
+      functions[index].macro ? functionsUseUnwrap(functions, index + 1)
+        : exprUsesUnwrap(functions[index].body) || functionsUseUnwrap(functions, index + 1)
+    )
 )
 
 testsUseUnwrap(
@@ -138,7 +141,10 @@ functionsUseModuleCall(
   index: Int
 ) -> Bool => (
   index >= functions.length() ? false
-    : exprUsesModuleCall(functions[index].body, key) || functionsUseModuleCall(functions, key, index + 1)
+    : (
+      functions[index].macro ? functionsUseModuleCall(functions, key, index + 1)
+        : exprUsesModuleCall(functions[index].body, key) || functionsUseModuleCall(functions, key, index + 1)
+    )
 )
 
 testsUseModuleCall(

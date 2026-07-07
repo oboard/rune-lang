@@ -13,7 +13,10 @@
   )
   file.structs.each((typeDecl) => out = (out + emitMoonBitStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitMoonBitMethods(typeDecl))
-  file.functions.each((fn) => out = (out + emitMoonBitFunction(fn, "")) + "\n")
+  file.functions.each((fn) => out = (
+    fn.macro ? out
+      : (out + emitMoonBitFunction(fn, "")) + "\n"
+  ))
   out
 }
 
@@ -233,6 +236,7 @@ methodWithMoonBitReceiver(
   name: (typeName + "_") + method.name,
   private: method.private,
   routine: method.routine,
+  macro: method.macro,
   receiverType: method.receiverType,
   generics: method.generics,
   params: prependMoonBitSelfParam(typeName, method.params),

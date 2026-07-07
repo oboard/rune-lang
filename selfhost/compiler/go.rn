@@ -14,7 +14,10 @@
   file.enums.each((enumDecl) => out = out + emitGoEnumMethods(file, enumDecl))
   file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitGoMethods(file, typeDecl))
-  file.functions.each((fn) => out = (out + emitGoFunction(file, fn, "")) + "\n")
+  file.functions.each((fn) => out = (
+    fn.macro ? out
+      : (out + emitGoFunction(file, fn, "")) + "\n"
+  ))
   (
     hasMain(file) ? out = ((out + "func main() {\n\t") + mangleIdent("main")) + "()\n}\n"
   )
@@ -963,7 +966,7 @@ hasFunction(
 ) -> Bool => (
   index >= functions.length() ? false
     : (
-      functions[index].name == name ? true
+      (functions[index].macro == false) && (functions[index].name == name) ? true
         : hasFunction(functions, name, index + 1)
     )
 )
@@ -976,7 +979,8 @@ functionsUsePrint(
 ) -> Bool => (
   index >= functions.length() ? false
     : (
-      exprUsesPrint(functions[index].body) ? true
+      functions[index].macro ? functionsUsePrint(functions, index + 1)
+        : exprUsesPrint(functions[index].body) ? true
         : functionsUsePrint(functions, index + 1)
     )
 )
@@ -1139,7 +1143,7 @@ functionReturnType(
 ) -> String => (
   index >= functions.length() ? ""
     : (
-      functions[index].name == name ? functions[index].returnType
+      (functions[index].macro == false) && (functions[index].name == name) ? functions[index].returnType
         : functionReturnType(functions, name, index + 1)
     )
 )

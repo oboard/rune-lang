@@ -86,7 +86,10 @@ checkFileErrors(
 ) -> Array[String] => {
   names := compilerCallableNames(file)
   errors := [""].slice(0, 0)
-  file.functions.each((fn) => errors = checkExpr(fn.body, names, errors))
+  file.functions.each((fn) => errors = (
+    fn.macro ? errors
+      : checkExpr(fn.body, names, errors)
+  ))
   file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, names, errors))
@@ -97,7 +100,10 @@ compilerCallableNames(
   file: IRFile
 ) -> Array[String] => {
   names := [""].slice(0, 0)
-  file.functions.each((fn) => names.push(fn.name))
+  file.functions.each((fn) => (
+    fn.macro ? 0
+      : names.push(fn.name)
+  ))
   file.tsImports.each((importDecl) => importDecl.functions.each((fn) => names.push(fn.name)))
   file.enums.each((typeDecl) => typeDecl.members.each((member) => names.push(member.name)))
   names
@@ -248,6 +254,7 @@ pushTypeScriptFunction(
         name: name,
         private: false,
         routine: routine,
+        macro: false,
         receiverType: "",
         generics: [],
         params: (

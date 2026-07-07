@@ -15,7 +15,10 @@
   file.enums.each((enumDecl) => out = out + emitTSEnumMethods(enumDecl))
   file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
-  file.functions.each((fn) => out = (out + emitTSFunction(fn)) + "\n")
+  file.functions.each((fn) => out = (
+    fn.macro ? out
+      : (out + emitTSFunction(fn)) + "\n"
+  ))
   out + emitTSExports(file)
 }
 
@@ -350,6 +353,7 @@ methodWithReceiver(
   name: (typeName + "_") + method.name,
   private: method.private,
   routine: method.routine,
+  macro: method.macro,
   receiverType: method.receiverType,
   generics: method.generics,
   params: prependThisParam(typeName, method.params),
@@ -496,7 +500,7 @@ emitTSExportNames(
 ) -> String => (
   index >= functions.length() ? out
     : (
-      functions[index].private ? emitTSExportNames(functions, index + 1, out)
+      functions[index].macro || functions[index].private ? emitTSExportNames(functions, index + 1, out)
         : emitTSExportNames(functions, index + 1, (((out + (
           out == "" ? ""
             : ", "
