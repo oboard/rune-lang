@@ -50,6 +50,11 @@
   lsp := cli.parseCli(["lsp", "--stdio"])
   @assert.eq(lsp.ok, true)
   @assert.eq(lsp.command, "lsp")
+  dts := cli.parseCli(["dts", "-o", "math.rn.d.ts", "math.rn"])
+  @assert.eq(dts.ok, true)
+  @assert.eq(dts.command, "dts")
+  @assert.eq(dts.output, "math.rn.d.ts")
+  @assert.eq(dts.path, "math.rn")
 }
 
 ? "selfhost cli reports unknown commands and backends" {

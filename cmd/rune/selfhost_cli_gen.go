@@ -679,7 +679,7 @@ func __runeCommand() __CliCommand {
 }
 
 func __runeCommands() []__CliCommand {
-	return []__CliCommand{__runCommand(), __buildCommand(), __emitCommand("go"), __emitCommand("ts"), __emitCommand("mbt"), __singlePathCommand("check"), __fmtCommand(), __testCommand(), runeCliCommand("repl", ""), __lspCommand()}
+	return []__CliCommand{__runCommand(), __buildCommand(), __emitCommand("go"), __emitCommand("ts"), __emitCommand("dts"), __emitCommand("mbt"), __singlePathCommand("check"), __fmtCommand(), __testCommand(), runeCliCommand("repl", ""), __lspCommand()}
 }
 
 func __runeAliases() []__CliCommandAlias {

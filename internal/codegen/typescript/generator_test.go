@@ -60,6 +60,36 @@ main() => @io.println(add(1, 2))
 	}
 }
 
+func TestGenerateExportsPublicTypesEnumsAndConstants(t *testing.T) {
+	src := `+ User: {
+  name: String
+}
+
++ Status: {
+  Ready = 1
+  Done = 2
+}
+
++ const answer: Int = 42
+
++ add(a: Int, b: Int) -> Int => a + b
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`type __User = {`,
+		`const __Status = {`,
+		`const __answer: number = 42;`,
+		`function __add(__a: number, __b: number): number`,
+		`export type { __User as User, __Status as Status };`,
+		`export { __Status as Status, __answer as answer, __add as add };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateWebComponentFromXMLLiteral(t *testing.T) {
 	src := `+ HelloWorld() -> WebComponent => {
   <div>hello world</div>

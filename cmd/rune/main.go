@@ -69,6 +69,8 @@ func executeRuneCLIInvocation(invocation __RuneCliInvocation, stdin io.Reader, s
 		return emitGo(invocation.__path, invocation.__output, stdout)
 	case "ts":
 		return emitTypeScript(invocation.__path, invocation.__output, stdout)
+	case "dts":
+		return emitTypeScriptDeclaration(invocation.__path, invocation.__output, stdout)
 	case "mbt":
 		return emitMoonBit(invocation.__path, invocation.__output, stdout)
 	case "check":
@@ -222,6 +224,19 @@ func emitGo(path string, output string, stdout io.Writer) error {
 
 func emitTypeScript(path string, output string, stdout io.Writer) error {
 	src, diags := compiler.GenerateTypeScriptFile(path)
+	if len(diags) > 0 {
+		printDiagnostics(path, diags)
+		return fmt.Errorf("compile failed")
+	}
+	if output == "" {
+		fmt.Fprint(stdout, src)
+		return nil
+	}
+	return os.WriteFile(output, []byte(src), 0o644)
+}
+
+func emitTypeScriptDeclaration(path string, output string, stdout io.Writer) error {
+	src, diags := compiler.GenerateTypeScriptDeclarationFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return fmt.Errorf("compile failed")

@@ -52,6 +52,7 @@ rune fmt <path>        Format a file or directory (alias: format)
 rune run <path>        Run a file, or a directory with one main
 rune build <file.rn>   Compile a Rune program to an executable
 rune ts <file.rn>      Compile a Rune program to TypeScript
+rune dts <file.rn>     Emit TypeScript declarations for a Rune module
 rune repl              Start the Rune REPL
 rune lsp               Start the Rune language server
 ```

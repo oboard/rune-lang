@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "playground"
+    "playground",
+    "packages/*"
   ],
   "scripts": {
     "dev": "vitepress dev docs --host 0.0.0.0",

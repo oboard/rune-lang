@@ -258,6 +258,55 @@ func TestGenerateTypeScriptFileImportsNamespaceReferences(t *testing.T) {
 	}
 }
 
+func TestGenerateTypeScriptDeclarationFileExportsPublicAPI(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `+ User: {
+  name: String
+  age: Int
+}
+
++ Status: {
+  Ready = 1
+  Done = 2
+}
+
++ const answer: Int = 42
+
++ add(a: Int, b: Int) -> Int => a + b
+
+hidden() -> Int => 0
+`)
+
+	got, diags := GenerateTypeScriptDeclarationFile(filepath.Join(dir, "math.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateTypeScriptDeclarationFile() diagnostics = %#v", diags)
+	}
+	wantParts := []string{
+		"type __User = {",
+		"name: string;",
+		"age: number;",
+		"type __Status = number;",
+		"declare const __Status: {",
+		"readonly Ready: 1;",
+		"readonly Done: 2;",
+		"declare const __answer: number;",
+		"declare function __add(__a: number, __b: number): number;",
+		"export type User = __User;",
+		"export type Status = __Status;",
+		"export declare const Status: typeof __Status;",
+		"export declare const answer: typeof __answer;",
+		"export declare const add: typeof __add;",
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated declaration missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "hidden") {
+		t.Fatalf("generated declaration exported private function:\n%s", got)
+	}
+}
+
 func TestGenerateGoFileRejectsTypeScriptImports(t *testing.T) {
 	dir := t.TempDir()
 	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string { return name }\n")

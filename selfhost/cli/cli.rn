@@ -191,6 +191,7 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
   buildCommand(),
   emitCommand("go"),
   emitCommand("ts"),
+  emitCommand("dts"),
   emitCommand("mbt"),
   singlePathCommand("check"),
   fmtCommand(),

@@ -542,6 +542,18 @@ func GenerateTypeScriptFile(path string) (string, []Diagnostic) {
 	return src, nil
 }
 
+func GenerateTypeScriptDeclarationFile(path string) (string, []Diagnostic) {
+	prog, diags := AnalyzeFile(path)
+	if len(diags) > 0 {
+		return "", diags
+	}
+	src, err := tscodegen.GenerateDeclarationsIR(prog.IR)
+	if err != nil {
+		return "", []Diagnostic{{Message: err.Error()}}
+	}
+	return src, nil
+}
+
 func GenerateMoonBitFile(path string) (string, []Diagnostic) {
 	prog, diags := AnalyzeFile(path)
 	if len(diags) > 0 {

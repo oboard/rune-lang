@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
@@ -144,21 +145,59 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	if len(file.Functions) > 0 {
 		g.line("")
-		exports := make([]string, 0, len(file.Functions))
-		for _, fn := range file.Functions {
-			if fn.Private {
-				continue
-			}
-			exports = append(exports, fmt.Sprintf("%s as %s", FunctionSymbolName(fn), tsExportName(fn.SourceName)))
-		}
-		if len(exports) > 0 {
-			g.linef("export { %s };", join(exports, ", "))
-		}
 	}
+	g.exports()
 	if err := g.codegenError(); err != nil {
 		return g.buf.String(), err
 	}
 	return g.buf.String(), nil
+}
+
+func (g *generator) exports() {
+	typeExports := make([]string, 0, len(g.file.Types)+len(g.file.Enums))
+	for _, typ := range g.file.Types {
+		if typ.Private {
+			continue
+		}
+		typeExports = append(typeExports, fmt.Sprintf("%s as %s", mangleIdent(typ.Name), tsExportName(typ.Name)))
+	}
+	for _, enum := range g.file.Enums {
+		if enum.Private {
+			continue
+		}
+		typeExports = append(typeExports, fmt.Sprintf("%s as %s", mangleIdent(enum.Name), tsExportName(enum.Name)))
+	}
+	valueExports := make([]string, 0, len(g.file.Enums)+len(g.file.Constants)+len(g.file.Functions))
+	for _, enum := range g.file.Enums {
+		if enum.Private {
+			continue
+		}
+		valueExports = append(valueExports, fmt.Sprintf("%s as %s", mangleIdent(enum.Name), tsExportName(enum.Name)))
+	}
+	for _, constant := range g.file.Constants {
+		if constant.Private {
+			continue
+		}
+		valueExports = append(valueExports, fmt.Sprintf("%s as %s", mangleIdent(constant.Name), tsExportName(constant.Name)))
+	}
+	for _, fn := range g.file.Functions {
+		if fn.Private {
+			continue
+		}
+		valueExports = append(valueExports, fmt.Sprintf("%s as %s", FunctionSymbolName(fn), tsExportName(fn.SourceName)))
+	}
+	if len(typeExports) == 0 && len(valueExports) == 0 {
+		return
+	}
+	if !strings.HasSuffix(g.buf.String(), "\n\n") {
+		g.line("")
+	}
+	if len(typeExports) > 0 {
+		g.linef("export type { %s };", join(typeExports, ", "))
+	}
+	if len(valueExports) > 0 {
+		g.linef("export { %s };", join(valueExports, ", "))
+	}
 }
 
 func fileWithHelpers(file *ir.File, helpers []*ir.Function) *ir.File {
