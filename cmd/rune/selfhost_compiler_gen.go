@@ -5357,33 +5357,95 @@ func __generateGo(__file __IRFile) string {
 }
 
 func ____rune_private_8ddf8596_emitGoImports(__file __IRFile) string {
-	__imports := []string{}
-	if ____rune_private_8ddf8596_usesPrintFile(__file) {
-		func() int { __imports = append(__imports, "fmt"); return len(__imports) }()
-	}
-	if ____rune_private_8ddf8596_fileUsesGoStrings(__file) {
-		func() int { __imports = append(__imports, "strings"); return len(__imports) }()
-	}
-	if __fileUsesModuleCall(__file, "process.platform") {
-		func() int { __imports = append(__imports, "runtime"); return len(__imports) }()
-	}
-	if __fileUsesModuleCall(__file, "process.argv") || __fileUsesModuleCall(__file, "process.exit") {
-		func() int { __imports = append(__imports, "os"); return len(__imports) }()
-	}
-	if ____rune_private_8ddf8596_fileUsesDoubleMath(__file) {
-		func() int { __imports = append(__imports, "math"); return len(__imports) }()
-	}
-	if __fileUsesModuleCall(__file, "int.toString") || __fileUsesModuleCall(__file, "bigint.toString") {
-		func() int { __imports = append(__imports, "strconv"); return len(__imports) }()
-	}
-	if __fileUsesUnwrap(__file) {
-		func() int { __imports = append(__imports, "reflect"); return len(__imports) }()
-	}
+	__imports := ____rune_private_8ddf8596_appendGoImportDecls([]string{}, __file.__imports, 0)
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, ____rune_private_8ddf8596_usesPrintFile(__file), "fmt")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, ____rune_private_8ddf8596_fileUsesGoStrings(__file), "strings")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesModuleCall(__file, "process.platform"), "runtime")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesModuleCall(__file, "process.argv") || __fileUsesModuleCall(__file, "process.exit"), "os")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, ____rune_private_8ddf8596_fileUsesDoubleMath(__file), "math")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesModuleCall(__file, "int.toString") || __fileUsesModuleCall(__file, "bigint.toString"), "strconv")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesUnwrap(__file), "reflect")
+	__empty := len(__imports) == 0
 	return func() string {
-		if len(__imports) == 0 {
+		switch {
+		case __empty == true:
 			return ""
+		default:
+			return "import (\n" + ____rune_private_8ddf8596_emitGoImportLines(__imports, 0, "") + ")\n\n"
 		}
-		return "import (\n" + ____rune_private_8ddf8596_emitGoImportLines(__imports, 0, "") + ")\n\n"
+	}()
+}
+
+func ____rune_private_8ddf8596_appendGoImportDecls(__imports []string, __importDecls []__IRImport, __index int) []string {
+	__done := __index >= len(__importDecls)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __imports
+		default:
+			return func() []string {
+				__importDecl := __importDecls[__index]
+				__next := func() []string {
+					switch {
+					case __importDecl.__go == true:
+						return ____rune_private_8ddf8596_appendGoImport(__imports, __importDecl.__path)
+					default:
+						return __imports
+					}
+				}()
+				return ____rune_private_8ddf8596_appendGoImportDecls(__next, __importDecls, __index+1)
+			}()
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_appendGoImport(__imports []string, __path string) []string {
+	__found := ____rune_private_8ddf8596_goImportContains(__imports, __path, 0)
+	return func() []string {
+		switch {
+		case __found == true:
+			return __imports
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __imports...)
+				out = append(out, __path)
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_appendGoImportIf(__imports []string, __condition bool, __path string) []string {
+	return func() []string {
+		switch {
+		case __condition == true:
+			return ____rune_private_8ddf8596_appendGoImport(__imports, __path)
+		default:
+			return __imports
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goImportContains(__imports []string, __path string, __index int) bool {
+	__done := __index >= len(__imports)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				__matched := __imports[__index] == __path
+				return func() bool {
+					switch {
+					case __matched == true:
+						return true
+					default:
+						return ____rune_private_8ddf8596_goImportContains(__imports, __path, __index+1)
+					}
+				}()
+			}()
+		}
 	}()
 }
 

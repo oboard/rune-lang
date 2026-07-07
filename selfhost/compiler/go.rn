@@ -27,30 +27,76 @@
 emitGoImports(
   file: IRFile
 ) -> String => {
-  imports := []
-  (
-    usesPrintFile(file) ? imports.push("fmt")
-  )
-  (
-    fileUsesGoStrings(file) ? imports.push("strings")
-  )
-  (
-    fileUsesModuleCall(file, "process.platform") ? imports.push("runtime")
-  )
-  (
-    fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit") ? imports.push("os")
-  )
-  (
-    fileUsesDoubleMath(file) ? imports.push("math")
-  )
-  (
-    fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString") ? imports.push("strconv")
-  )
-  (
-    fileUsesUnwrap(file) ? imports.push("reflect")
-  )
-  imports.length() == 0 ? ""
-    : ("import (\n" + emitGoImportLines(imports, 0, "")) + ")\n\n"
+  imports :=: appendGoImportDecls([], file.imports, 0)
+  imports = appendGoImportIf(imports, usesPrintFile(file), "fmt")
+  imports = appendGoImportIf(imports, fileUsesGoStrings(file), "strings")
+  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.platform"), "runtime")
+  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit"), "os")
+  imports = appendGoImportIf(imports, fileUsesDoubleMath(file), "math")
+  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString"), "strconv")
+  imports = appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
+  empty := imports.length() == 0
+  empty {
+    true => ""
+    _ => ("import (\n" + emitGoImportLines(imports, 0, "")) + ")\n\n"
+  }
+}
+
+appendGoImportDecls(
+  imports: Array[String],
+  importDecls: Array[IRImport],
+  index: Int
+) -> Array[String] => {
+  done := index >= importDecls.length()
+  done {
+    true => imports
+    _ => {
+      importDecl := importDecls[index]
+      next := importDecl.go {
+        true => appendGoImport(imports, importDecl.path)
+        _ => imports
+      }
+      appendGoImportDecls(next, importDecls, index + 1)
+    }
+  }
+}
+
+appendGoImport(
+  imports: Array[String],
+  path: String
+) -> Array[String] => {
+  found := goImportContains(imports, path, 0)
+  found {
+    true => imports
+    _ => [..imports, path]
+  }
+}
+
+appendGoImportIf(
+  imports: Array[String],
+  condition: Bool,
+  path: String
+) -> Array[String] => condition {
+  true => appendGoImport(imports, path)
+  _ => imports
+}
+
+goImportContains(
+  imports: Array[String],
+  path: String,
+  index: Int
+) -> Bool => {
+  done := index >= imports.length()
+  done {
+    true => false
+    _ => {
+      matched := imports[index] == path
+      matched {
+        true => true
+        _ => goImportContains(imports, path, index + 1)
+      }
+    }
+  }
 }
 
 emitGoImportLines(
