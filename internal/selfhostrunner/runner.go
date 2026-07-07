@@ -399,6 +399,8 @@ type __runeSelfhostIRField struct {
 	Name string ` + "`json:\"name\"`" + `
 	Private bool ` + "`json:\"private\"`" + `
 	TypeName string ` + "`json:\"typeName\"`" + `
+	JSONName string ` + "`json:\"jsonName\"`" + `
+	JSONIgnore bool ` + "`json:\"jsonIgnore\"`" + `
 	Line int ` + "`json:\"line\"`" + `
 	Column int ` + "`json:\"column\"`" + `
 }
@@ -528,7 +530,7 @@ func __runeSelfhostExpr(in __runeSelfhostIRExpr) __IRExpr {
 func __runeSelfhostFields(in []__runeSelfhostIRField) []__IRField {
 	out := make([]__IRField, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRField{__name: item.Name, __private: item.Private, __typeName: item.TypeName, __line: item.Line, __column: item.Column})
+		out = append(out, __IRField{__name: item.Name, __private: item.Private, __typeName: item.TypeName, __jsonName: item.JSONName, __jsonIgnore: item.JSONIgnore, __line: item.Line, __column: item.Column})
 	}
 	return out
 }

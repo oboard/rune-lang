@@ -39,6 +39,8 @@
   name: String
   private: Bool
   typeName: String
+  jsonName: String
+  jsonIgnore: Bool
   line: Int
   column: Int
 }
@@ -211,8 +213,90 @@ lowerField(
   name: field.name,
   private: field.private,
   typeName: typeRefToString(field.typeRef),
+  jsonName: lowerJsonFieldName(field),
+  jsonIgnore: lowerHasAnnotation(field.annotations, "#", "json", "ignore", 0),
   line: field.line,
   column: field.column
+}
+
+lowerJsonFieldName(
+  field: ParsedField
+) -> String => lowerJsonFieldNameAt(field.annotations, field.name, 0)
+
+lowerJsonFieldNameAt(
+  annotations: Array[ParsedAnnotation],
+  fallback: String,
+  index: Int
+) -> String => {
+  done := index >= annotations.length()
+  done {
+    true => fallback
+    _ => lowerJsonFieldNameStep(annotations, fallback, index)
+  }
+}
+
+lowerJsonFieldNameStep(
+  annotations: Array[ParsedAnnotation],
+  fallback: String,
+  index: Int
+) -> String => {
+  annotation := annotations[index]
+  matched := (((annotation.marker == "#") && (annotation.module == "json")) && (annotation.name == "name")) && (annotation.args.length() > 0)
+  matched {
+    true => lowerAnnotationStringArg(annotation, 0, fallback)
+    _ => lowerJsonFieldNameAt(annotations, fallback, index + 1)
+  }
+}
+
+lowerHasAnnotation(
+  annotations: Array[ParsedAnnotation],
+  marker: String,
+  module: String,
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= annotations.length()
+  done {
+    true => false
+    _ => lowerHasAnnotationStep(annotations, marker, module, name, index)
+  }
+}
+
+lowerHasAnnotationStep(
+  annotations: Array[ParsedAnnotation],
+  marker: String,
+  module: String,
+  name: String,
+  index: Int
+) -> Bool => {
+  annotation := annotations[index]
+  matched := ((annotation.marker == marker) && (annotation.module == module)) && (annotation.name == name)
+  matched {
+    true => true
+    _ => lowerHasAnnotation(annotations, marker, module, name, index + 1)
+  }
+}
+
+lowerAnnotationStringArg(
+  annotation: ParsedAnnotation,
+  index: Int,
+  fallback: String
+) -> String => {
+  valid := (index < annotation.args.length()) && (annotation.args[index].kind == ExprKind.String)
+  valid {
+    true => lowerUnquoteString(annotation.args[index].value)
+    _ => fallback
+  }
+}
+
+lowerUnquoteString(
+  raw: String
+) -> String => {
+  quoted := raw.length() >= 2
+  quoted {
+    true => raw.slice(1, raw.length() - 1)
+    _ => raw
+  }
 }
 
 lowerEnumMember(
@@ -395,6 +479,8 @@ lowerFields(
     name: "",
     private: false,
     typeName: "",
+    jsonName: "",
+    jsonIgnore: false,
     line: 0,
     column: 0
   }].slice(0, 0)

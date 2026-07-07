@@ -436,11 +436,13 @@ type __IRExpr struct {
 }
 
 type __IRField struct {
-	__name     string
-	__private  bool
-	__typeName string
-	__line     int
-	__column   int
+	__name       string
+	__private    bool
+	__typeName   string
+	__jsonName   string
+	__jsonIgnore bool
+	__line       int
+	__column     int
 }
 
 type __IREnumMember struct {
@@ -4855,7 +4857,85 @@ func ____rune_private_44103c8f_lowerParam(__param __ParsedParam) __IRParam {
 }
 
 func ____rune_private_44103c8f_lowerField(__field __ParsedField) __IRField {
-	return __IRField{__name: __field.__name, __private: __field.__private, __typeName: __typeRefToString(__field.__typeRef), __line: __field.__line, __column: __field.__column}
+	return __IRField{__name: __field.__name, __private: __field.__private, __typeName: __typeRefToString(__field.__typeRef), __jsonName: ____rune_private_44103c8f_lowerJsonFieldName(__field), __jsonIgnore: ____rune_private_44103c8f_lowerHasAnnotation(__field.__annotations, "#", "json", "ignore", 0), __line: __field.__line, __column: __field.__column}
+}
+
+func ____rune_private_44103c8f_lowerJsonFieldName(__field __ParsedField) string {
+	return ____rune_private_44103c8f_lowerJsonFieldNameAt(__field.__annotations, __field.__name, 0)
+}
+
+func ____rune_private_44103c8f_lowerJsonFieldNameAt(__annotations []__ParsedAnnotation, __fallback string, __index int) string {
+	__done := __index >= len(__annotations)
+	return func() string {
+		switch {
+		case __done == true:
+			return __fallback
+		default:
+			return ____rune_private_44103c8f_lowerJsonFieldNameStep(__annotations, __fallback, __index)
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_lowerJsonFieldNameStep(__annotations []__ParsedAnnotation, __fallback string, __index int) string {
+	__annotation := __annotations[__index]
+	__matched := __annotation.__marker == "#" && __annotation.__module == "json" && __annotation.__name == "name" && len(__annotation.__args) > 0
+	return func() string {
+		switch {
+		case __matched == true:
+			return ____rune_private_44103c8f_lowerAnnotationStringArg(__annotation, 0, __fallback)
+		default:
+			return ____rune_private_44103c8f_lowerJsonFieldNameAt(__annotations, __fallback, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_lowerHasAnnotation(__annotations []__ParsedAnnotation, __marker string, __module string, __name string, __index int) bool {
+	__done := __index >= len(__annotations)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_44103c8f_lowerHasAnnotationStep(__annotations, __marker, __module, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_lowerHasAnnotationStep(__annotations []__ParsedAnnotation, __marker string, __module string, __name string, __index int) bool {
+	__annotation := __annotations[__index]
+	__matched := __annotation.__marker == __marker && __annotation.__module == __module && __annotation.__name == __name
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_44103c8f_lowerHasAnnotation(__annotations, __marker, __module, __name, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_lowerAnnotationStringArg(__annotation __ParsedAnnotation, __index int, __fallback string) string {
+	__valid := __index < len(__annotation.__args) && __annotation.__args[__index].__kind == __ExprKind_String
+	return func() string {
+		switch {
+		case __valid == true:
+			return ____rune_private_44103c8f_lowerUnquoteString(__annotation.__args[__index].__value)
+		default:
+			return __fallback
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_lowerUnquoteString(__raw string) string {
+	__quoted := len([]rune(__raw)) >= 2
+	return func() string {
+		switch {
+		case __quoted == true:
+			return func() string { runes := []rune(__raw); return string(runes[1 : len([]rune(__raw))-1]) }()
+		default:
+			return __raw
+		}
+	}()
 }
 
 func ____rune_private_44103c8f_lowerEnumMember(__member __ParsedEnumMember) __IREnumMember {
@@ -5006,7 +5086,7 @@ func ____rune_private_44103c8f_lowerParams(__params []__ParsedParam) []__IRParam
 }
 
 func ____rune_private_44103c8f_lowerFields(__fields []__ParsedField) []__IRField {
-	__out := append([]__IRField{}, []__IRField{__IRField{__name: "", __private: false, __typeName: "", __line: 0, __column: 0}}[0:0]...)
+	__out := append([]__IRField{}, []__IRField{__IRField{__name: "", __private: false, __typeName: "", __jsonName: "", __jsonIgnore: false, __line: 0, __column: 0}}[0:0]...)
 	for _, __field := range __fields {
 		_ = __field
 		func() int { __out = append(__out, ____rune_private_44103c8f_lowerField(__field)); return len(__out) }()

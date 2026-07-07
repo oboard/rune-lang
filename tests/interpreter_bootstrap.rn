@@ -90,6 +90,33 @@ main() -> Int => {
   @assert.eq(formatRuntimeValue(result.value), "42")
 }
 
+? "selfhost interpreter uses json field metadata" {
+  source := `Account: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+
+main() -> String => {
+  account := Account {
+    name: "Ada",
+    password: "secret"
+  }
+  text := @json.stringify({
+    display_name: "Grace",
+    password: "drop"
+  })
+  parsed := Account::fromJson(text)
+  @json.stringify(account) + "|" + parsed.name + "|" + parsed.password
+}
+`
+  result := interpret(source)
+  @assert.eq(result.error, "")
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "{\"display_name\":\"Ada\"}|Grace|")
+}
+
 ? "selfhost interpreter reports result unwrap errors" {
   source := `Result[T, E]: {
   Ok(value: T)

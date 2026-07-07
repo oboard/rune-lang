@@ -2603,7 +2603,7 @@ callJsonModuleFunction(
   args := evalArgs(interpreter, env, children, 1)
   name {
     "parse" => jsonParse(runtimeText(args[0]))
-    "stringify" => okResult(stringValue(jsonStringify(args[0])))
+    "stringify" => okResult(stringValue(jsonStringify(interpreter, args[0])))
     _ => callImportedModuleFunction(interpreter, env, "json", name, children)
   }
 }
@@ -4385,7 +4385,10 @@ jsonParse(text: String) -> EvalResult => {
   )
 }
 
-jsonStringify(value: RuntimeValue) -> String => value {
+jsonStringify(
+  interpreter: Interpreter,
+  value: RuntimeValue
+) -> String => value {
   Void => ""
   Null => "null"
   Bool(raw) => (
@@ -4396,60 +4399,65 @@ jsonStringify(value: RuntimeValue) -> String => value {
   Double(raw, text, typeName) => text
   String(raw, typeName) => jsonQuote(raw)
   Char(raw) => jsonQuote(raw.toString())
-  Array(values) => "[" + jsonStringifyValues(values, 0, "") + "]"
-  Tuple(values) => "[" + jsonStringifyValues(values, 0, "") + "]"
-  Map(entries) => "{" + jsonStringifyEntries(entries, 0, "") + "}"
-  Set(entries) => "[" + jsonStringifySetEntries(entries, 0, "") + "]"
-  Struct(typeName, fields) => "{" + jsonStringifyFields(typeName, fields, 0, "") + "}"
+  Array(values) => "[" + jsonStringifyValues(interpreter, values, 0, "") + "]"
+  Tuple(values) => "[" + jsonStringifyValues(interpreter, values, 0, "") + "]"
+  Map(entries) => "{" + jsonStringifyEntries(interpreter, entries, 0, "") + "}"
+  Set(entries) => "[" + jsonStringifySetEntries(interpreter, entries, 0, "") + "]"
+  Struct(typeName, fields) => "{" + jsonStringifyFields(interpreter, typeName, fields, 0, "") + "}"
   Enum(typeName, name, value, payload) => jsonQuote(name)
   Module(name) => "null"
   Closure(index) => "null"
 }
 
 jsonStringifyValues(
+  interpreter: Interpreter,
   values: Array[RuntimeValue],
   index: Int,
   out: String
 ) -> String => (
   index >= values.length() ? out
-    : jsonStringifyValues(values, index + 1, jsonAppendValue(out, jsonStringify(values[index])))
+    : jsonStringifyValues(interpreter, values, index + 1, jsonAppendValue(out, jsonStringify(interpreter, values[index])))
 )
 
 jsonStringifyEntries(
+  interpreter: Interpreter,
   entries: Array[RuntimeEntry],
   index: Int,
   out: String
 ) -> String => (
   index >= entries.length() ? out
     : (
-      entryIsDeleted(entries[index]) ? jsonStringifyEntries(entries, index + 1, out)
-        : jsonStringifyEntries(entries, index + 1, jsonAppendValue(out, (jsonStringify(entries[index].key) + ":") + jsonStringify(entries[index].value)))
+      entryIsDeleted(entries[index]) ? jsonStringifyEntries(interpreter, entries, index + 1, out)
+        : jsonStringifyEntries(interpreter, entries, index + 1, jsonAppendValue(out, (jsonStringify(interpreter, entries[index].key) + ":") + jsonStringify(interpreter, entries[index].value)))
     )
 )
 
 jsonStringifySetEntries(
+  interpreter: Interpreter,
   entries: Array[RuntimeEntry],
   index: Int,
   out: String
 ) -> String => (
   index >= entries.length() ? out
     : (
-      entryIsDeleted(entries[index]) ? jsonStringifySetEntries(entries, index + 1, out)
-        : jsonStringifySetEntries(entries, index + 1, jsonAppendValue(out, jsonStringify(entries[index].value)))
+      entryIsDeleted(entries[index]) ? jsonStringifySetEntries(interpreter, entries, index + 1, out)
+        : jsonStringifySetEntries(interpreter, entries, index + 1, jsonAppendValue(out, jsonStringify(interpreter, entries[index].value)))
     )
 )
 
 jsonStringifyFields(
+  interpreter: Interpreter,
   typeName: String,
   fields: Array[RuntimeField],
   index: Int,
   out: String
 ) -> String => (
   index >= fields.length() ? out
-    : jsonStringifyField(typeName, fields, index, out)
+    : jsonStringifyField(interpreter, typeName, fields, index, out)
 )
 
 jsonStringifyField(
+  interpreter: Interpreter,
   typeName: String,
   fields: Array[RuntimeField],
   index: Int,
@@ -4457,8 +4465,8 @@ jsonStringifyField(
 ) -> String => {
   field := fields[index]
   (
-    jsonFieldIgnored(typeName, field.name) || (runtimeKind(field.value) == RuntimeValueKind.Closure) ? jsonStringifyFields(typeName, fields, index + 1, out)
-      : jsonStringifyFields(typeName, fields, index + 1, jsonAppendValue(out, (jsonQuote(jsonFieldName(typeName, field.name)) + ":") + jsonStringify(field.value)))
+    jsonRuntimeFieldIgnored(interpreter, typeName, field.name) || (runtimeKind(field.value) == RuntimeValueKind.Closure) ? jsonStringifyFields(interpreter, typeName, fields, index + 1, out)
+      : jsonStringifyFields(interpreter, typeName, fields, index + 1, jsonAppendValue(out, (jsonQuote(jsonRuntimeFieldName(interpreter, typeName, field.name)) + ":") + jsonStringify(interpreter, field.value)))
   )
 }
 
@@ -4548,10 +4556,10 @@ jsonDecodeField(
   typeName: String,
   field: IRField
 ) -> RuntimeField => {
-  key := stringValue(jsonFieldName(typeName, field.name))
+  key := stringValue(jsonIRFieldName(field))
   idx := mapEntryIndex(runtimeEntries(value), key, 0)
   raw := (
-    jsonFieldIgnored(typeName, field.name) || (idx < 0) ? jsonDefaultValue(interpreter, field.typeName)
+    field.jsonIgnore || (idx < 0) ? jsonDefaultValue(interpreter, field.typeName)
       : runtimeEntries(value)[idx].value
   )
   RuntimeField {
@@ -4606,20 +4614,71 @@ jsonDefaultScalar(typeName: String) -> RuntimeValue => typeName {
   _ => nullValue()
 }
 
-jsonFieldName(
+jsonRuntimeFieldName(
+  interpreter: Interpreter,
   typeName: String,
   fieldName: String
-) -> String => (
-  ((typeName == "JsonAccount") || (typeName == "JsonDocument")) && (fieldName == "name") ? "display_name"
-    : fieldName
-)
+) -> String => {
+  field := findJsonStructField(interpreter, typeName, fieldName)
+  missing := field.name == ""
+  missing {
+    true => fieldName
+    _ => jsonIRFieldName(field)
+  }
+}
 
-jsonFieldIgnored(
+jsonRuntimeFieldIgnored(
+  interpreter: Interpreter,
   typeName: String,
   fieldName: String
-) -> Bool => (
-  ((typeName == "JsonAccount") && (fieldName == "password")) || ((typeName == "JsonDocument") && (fieldName == "token"))
-)
+) -> Bool => findJsonStructField(interpreter, typeName, fieldName).jsonIgnore
+
+jsonIRFieldName(
+  field: IRField
+) -> String => field.jsonName {
+  "" => field.name
+  _ => field.jsonName
+}
+
+findJsonStructField(
+  interpreter: Interpreter,
+  typeName: String,
+  fieldName: String
+) -> IRField => findJsonStructFieldAt(findStruct(interpreter, typeName).fields, fieldName, 0)
+
+findJsonStructFieldAt(
+  fields: Array[IRField],
+  fieldName: String,
+  index: Int
+) -> IRField => {
+  done := index >= fields.length()
+  done {
+    true => emptyJsonIRField()
+    _ => findJsonStructFieldStep(fields, fieldName, index)
+  }
+}
+
+findJsonStructFieldStep(
+  fields: Array[IRField],
+  fieldName: String,
+  index: Int
+) -> IRField => {
+  matched := fields[index].name == fieldName
+  matched {
+    true => fields[index]
+    _ => findJsonStructFieldAt(fields, fieldName, index + 1)
+  }
+}
+
+emptyJsonIRField() -> IRField => {
+  name: "",
+  private: false,
+  typeName: "",
+  jsonName: "",
+  jsonIgnore: false,
+  line: 0,
+  column: 0
+}
 
 regexValue(
   source: String,

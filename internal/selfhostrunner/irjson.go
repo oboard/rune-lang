@@ -90,11 +90,13 @@ type selfhostIRExpr struct {
 }
 
 type selfhostIRField struct {
-	Name     string `json:"name"`
-	Private  bool   `json:"private"`
-	TypeName string `json:"typeName"`
-	Line     int    `json:"line"`
-	Column   int    `json:"column"`
+	Name       string `json:"name"`
+	Private    bool   `json:"private"`
+	TypeName   string `json:"typeName"`
+	JSONName   string `json:"jsonName"`
+	JSONIgnore bool   `json:"jsonIgnore"`
+	Line       int    `json:"line"`
+	Column     int    `json:"column"`
 }
 
 type selfhostIREnumMember struct {
@@ -206,11 +208,13 @@ func selfhostStruct(typ *ir.StructType) selfhostIRStruct {
 	}
 	for _, field := range typ.Fields {
 		out.Fields = append(out.Fields, selfhostIRField{
-			Name:     field.Name,
-			Private:  field.Private,
-			TypeName: string(field.Type),
-			Line:     field.Pos.Line,
-			Column:   field.Pos.Column,
+			Name:       field.Name,
+			Private:    field.Private,
+			TypeName:   string(field.Type),
+			JSONName:   field.JSONName,
+			JSONIgnore: field.JSONIgnore,
+			Line:       field.Pos.Line,
+			Column:     field.Pos.Column,
 		})
 	}
 	for _, method := range typ.Methods {

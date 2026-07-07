@@ -39,6 +39,23 @@ main() -> Int => Box { value: 41 }.get() + Status.Ready
   @assert.eq(file.structs[0].methods[0].static, true)
 }
 
+? "selfhost ir preserves json field metadata" {
+  file := lower(`Account: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+`)
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(file.structs[0].fields[0].name, "name")
+  @assert.eq(file.structs[0].fields[0].jsonName, "display_name")
+  @assert.eq(file.structs[0].fields[0].jsonIgnore, false)
+  @assert.eq(file.structs[0].fields[1].name, "password")
+  @assert.eq(file.structs[0].fields[1].jsonName, "password")
+  @assert.eq(file.structs[0].fields[1].jsonIgnore, true)
+}
+
 ? "selfhost ir lowers nested expressions" {
   file := lower(`main() => {
   values := [1, 2, 3]
