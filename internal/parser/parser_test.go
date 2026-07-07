@@ -784,6 +784,27 @@ func TestArrayPatternStringSpread(t *testing.T) {
 	}
 }
 
+func TestPatternBranchBodyBlock(t *testing.T) {
+	file, errs := Parse(`score(values: Array[Int]) -> Int => values {
+  [x] => {
+    y := x + 1
+    y
+  }
+  _ => 0
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	match, ok := file.Functions[0].Body.(*ast.MatchExpr)
+	if !ok || len(match.Branches) != 2 {
+		t.Fatalf("body = %#v, want match with two branches", file.Functions[0].Body)
+	}
+	if _, ok := match.Branches[0].Expr.(*ast.BlockExpr); !ok {
+		t.Fatalf("branch body = %T, want BlockExpr", match.Branches[0].Expr)
+	}
+}
+
 func TestNullCoalesceExpression(t *testing.T) {
 	file, errs := Parse(`fallback(value: String?) -> String => value ?? "missing"
 `)

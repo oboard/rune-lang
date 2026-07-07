@@ -2528,7 +2528,7 @@ parsePatternBranch(
 ) -> ExprStep => {
   pattern := parsePatternText(state)
   arrow := parserConsume(pattern.state, TokenKind.FatArrow, "expected '=>' after pattern")
-  value := parseExpression(parserSkipNewlines(arrow.state), 1)
+  value := parseBody(parserSkipNewlines(arrow.state))
   branch := makeExpr(ExprKind.Branch, pattern.expr.text, "", "", "=>", [], [pattern.expr, value.expr], pattern.expr.line, pattern.expr.column)
   nextBlock := appendChild(block, branch)
   parsePatternBlock(consumeStatementEnd(value.state), nextBlock)

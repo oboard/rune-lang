@@ -299,6 +299,22 @@ name\``)
   @assert.eq(body.children[5].children[0].text, "{\"b\"?:None,\"a\":x,..}")
 }
 
+? "selfhost parser reads pattern branch block bodies" {
+  source := `score(values: Array[Int]) -> Int => values {
+  [x] => {
+    y := x + 1
+    y
+  }
+  _ => 0
+}
+`
+  file := parse(source)
+  body := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(body.kind, ExprKind.Match)
+  @assert.eq(body.children[1].children[1].kind, ExprKind.Block)
+}
+
 ? "selfhost parser reads lambdas and tests" {
   source := `? "works" {
   values := [1, 2, 3]

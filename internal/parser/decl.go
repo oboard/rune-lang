@@ -688,7 +688,7 @@ func (p *Parser) parseBlock() ast.Expr {
 			pattern := p.parsePattern()
 			p.consume(lexer.FatArrow, "expected '=>' after pattern")
 			p.skipNewlines()
-			expr := p.parseExpression(1)
+			expr := p.parseBody()
 			block.Branches = append(block.Branches, ast.PatternBranch{
 				Pattern: pattern,
 				Expr:    expr,

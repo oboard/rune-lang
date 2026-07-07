@@ -172,7 +172,7 @@ func (p *Parser) parseMatchExpr(subject ast.Expr) ast.Expr {
 		pattern := p.parsePattern()
 		p.consume(lexer.FatArrow, "expected '=>' after pattern")
 		p.skipNewlines()
-		expr := p.parseExpression(1)
+		expr := p.parseBody()
 		match.Branches = append(match.Branches, ast.PatternBranch{
 			Pattern: pattern,
 			Expr:    expr,
