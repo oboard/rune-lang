@@ -495,6 +495,17 @@ parseTopLevelAfterMacro(
   state: ParserState,
   file: ParsedFile
 ) -> FileStep => {
+  goImport := looksLikeGoImportDecl(state)
+  goImport {
+    true => parseTopLevelAfterResult(parseTopLevelImport(state, file))
+    _ => parseTopLevelAfterAnnotations(state, file)
+  }
+}
+
+parseTopLevelAfterAnnotations(
+  state: ParserState,
+  file: ParsedFile
+) -> FileStep => {
   annotationStep := parseAnnotations(state)
   publicStep := parsePublicModifier(annotationStep.state)
   current :=: publicStep.state
@@ -517,6 +528,36 @@ parseTopLevelAfterMacro(
       )
   )
   parseFileLoop(parserSkipNewlines(result.state), result.file)
+}
+
+looksLikeGoImportDecl(
+  state: ParserState
+) -> Bool => {
+  marker := parserCheck(state, TokenKind.At)
+  marker {
+    true => looksLikeGoImportAfterMarker(state)
+    _ => false
+  }
+}
+
+looksLikeGoImportAfterMarker(
+  state: ParserState
+) -> Bool => {
+  module := (parserKindAt(state, state.current + 1) == TokenKind.Ident) && (parserTokenAt(state, state.current + 1).lexeme == "go")
+  module {
+    true => looksLikeGoImportAfterModule(state)
+    _ => false
+  }
+}
+
+looksLikeGoImportAfterModule(
+  state: ParserState
+) -> Bool => {
+  dot := parserKindAt(state, state.current + 2) == TokenKind.Dot
+  dot {
+    true => (parserKindAt(state, state.current + 3) == TokenKind.Ident) && (parserTokenAt(state, state.current + 3).lexeme == "import")
+    _ => false
+  }
 }
 
 parseMacroFunction(

@@ -1993,6 +1993,18 @@ func ____rune_private_b990f3d7_parseTopLevelAfterResult(__result __FileStep) __F
 }
 
 func ____rune_private_b990f3d7_parseTopLevelAfterMacro(__state __ParserState, __file __ParsedFile) __FileStep {
+	__goImport := ____rune_private_b990f3d7_looksLikeGoImportDecl(__state)
+	return func() __FileStep {
+		switch {
+		case __goImport == true:
+			return ____rune_private_b990f3d7_parseTopLevelAfterResult(____rune_private_b990f3d7_parseTopLevelImport(__state, __file))
+		default:
+			return ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state, __file)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state __ParserState, __file __ParsedFile) __FileStep {
 	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
 	__publicStep := ____rune_private_b990f3d7_parsePublicModifier(__annotationStep.__state)
 	__current := __publicStep.__state
@@ -2025,6 +2037,42 @@ func ____rune_private_b990f3d7_parseTopLevelAfterMacro(__state __ParserState, __
 		}()
 	}()
 	return ____rune_private_b990f3d7_parseFileLoop(____rune_private_b990f3d7_parserSkipNewlines(__result.__state), __result.__file)
+}
+
+func ____rune_private_b990f3d7_looksLikeGoImportDecl(__state __ParserState) bool {
+	__marker := ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_At)
+	return func() bool {
+		switch {
+		case __marker == true:
+			return ____rune_private_b990f3d7_looksLikeGoImportAfterMarker(__state)
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeGoImportAfterMarker(__state __ParserState) bool {
+	__module := ____rune_private_b990f3d7_parserKindAt(__state, __state.__current+1) == __TokenKind_Ident && ____rune_private_b990f3d7_parserTokenAt(__state, __state.__current+1).__lexeme == "go"
+	return func() bool {
+		switch {
+		case __module == true:
+			return ____rune_private_b990f3d7_looksLikeGoImportAfterModule(__state)
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeGoImportAfterModule(__state __ParserState) bool {
+	__dot := ____rune_private_b990f3d7_parserKindAt(__state, __state.__current+2) == __TokenKind_Dot
+	return func() bool {
+		switch {
+		case __dot == true:
+			return ____rune_private_b990f3d7_parserKindAt(__state, __state.__current+3) == __TokenKind_Ident && ____rune_private_b990f3d7_parserTokenAt(__state, __state.__current+3).__lexeme == "import"
+		default:
+			return false
+		}
+	}()
 }
 
 func ____rune_private_b990f3d7_parseMacroFunction(__state __ParserState, __file __ParsedFile) __FileStep {
@@ -8239,9 +8287,16 @@ func ____rune_private_0d2ebf0f_compileFile(__file __IRFile, __target string) __C
 
 func ____rune_private_0d2ebf0f_compileCheckedFile(__file __IRFile, __target string) __CompileResult {
 	__errors := ____rune_private_0d2ebf0f_checkFileErrors(__file)
+	__targetErrors := ____rune_private_0d2ebf0f_checkTargetFileErrors(__file, __target)
+	__allErrors := func() []string {
+		out := []string{}
+		out = append(out, __errors...)
+		out = append(out, __targetErrors...)
+		return out
+	}()
 	return func() __CompileResult {
-		if len(__errors) > 0 {
-			return ____rune_private_0d2ebf0f_compileResult(false, "", __errors)
+		if len(__allErrors) > 0 {
+			return ____rune_private_0d2ebf0f_compileResult(false, "", __allErrors)
 		}
 		return func() __CompileResult {
 			switch {
@@ -8255,6 +8310,99 @@ func ____rune_private_0d2ebf0f_compileCheckedFile(__file __IRFile, __target stri
 				return ____rune_private_0d2ebf0f_compileResult(false, "", ____rune_private_0d2ebf0f_unsupportedTargetErrors(__target))
 			}
 		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTargetFileErrors(__file __IRFile, __target string) []string {
+	return func() []string {
+		switch {
+		case __target == "ts":
+			return ____rune_private_0d2ebf0f_checkTypeScriptTargetFileErrors(__file)
+		case __target == "go":
+			return ____rune_private_0d2ebf0f_checkGoTargetFileErrors(__file)
+		case __target == "mbt":
+			return ____rune_private_0d2ebf0f_checkMoonBitTargetFileErrors(__file)
+		default:
+			return []string{}
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTypeScriptTargetFileErrors(__file __IRFile) []string {
+	__hasGoImports := ____rune_private_0d2ebf0f_fileHasGoImports(__file)
+	return func() []string {
+		switch {
+		case __hasGoImports == true:
+			return []string{"TypeScript backend does not support @go.import"}
+		default:
+			return []string{}
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoTargetFileErrors(__file __IRFile) []string {
+	__hasTypeScriptImports := len(__file.__tsImports) > 0
+	return func() []string {
+		switch {
+		case __hasTypeScriptImports == true:
+			return []string{"Go backend does not support TypeScript imports"}
+		default:
+			return []string{}
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMoonBitTargetFileErrors(__file __IRFile) []string {
+	__errors := append([]string{}, []string{""}[0:0]...)
+	__hasTypeScriptImports := len(__file.__tsImports) > 0
+	func() int {
+		switch {
+		case __hasTypeScriptImports == true:
+			return func() int {
+				__errors = append(__errors, "MoonBit backend does not support TypeScript imports")
+				return len(__errors)
+			}()
+		}
+		return 0
+	}()
+	__hasGoImports := ____rune_private_0d2ebf0f_fileHasGoImports(__file)
+	func() int {
+		switch {
+		case __hasGoImports == true:
+			return func() int {
+				__errors = append(__errors, "MoonBit backend does not support @go.import")
+				return len(__errors)
+			}()
+		}
+		return 0
+	}()
+	return __errors
+}
+
+func ____rune_private_0d2ebf0f_fileHasGoImports(__file __IRFile) bool {
+	return ____rune_private_0d2ebf0f_fileHasGoImportsAt(__file.__imports, 0)
+}
+
+func ____rune_private_0d2ebf0f_fileHasGoImportsAt(__imports []__IRImport, __index int) bool {
+	__done := __index >= len(__imports)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_fileHasGoImportAt(__imports, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_fileHasGoImportAt(__imports []__IRImport, __index int) bool {
+	return func() bool {
+		switch {
+		case __imports[__index].__go == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_fileHasGoImportsAt(__imports, __index+1)
+		}
 	}()
 }
 

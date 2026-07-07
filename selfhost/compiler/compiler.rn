@@ -82,8 +82,10 @@ compileCheckedFile(
   target: String
 ) -> CompileResult => {
   errors := checkFileErrors(file)
+  targetErrors := checkTargetFileErrors(file, target)
+  allErrors := [..errors, ..targetErrors]
   (
-    errors.length() > 0 ? compileResult(false, "", errors)
+    allErrors.length() > 0 ? compileResult(false, "", allErrors)
       : target {
         "ts" => compileResult(true, generateTypeScript(file), [])
         "go" => compileResult(true, generateGo(file), [])
@@ -91,6 +93,74 @@ compileCheckedFile(
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )
+}
+
+checkTargetFileErrors(
+  file: IRFile,
+  target: String
+) -> Array[String] => target {
+  "ts" => checkTypeScriptTargetFileErrors(file)
+  "go" => checkGoTargetFileErrors(file)
+  "mbt" => checkMoonBitTargetFileErrors(file)
+  _ => []
+}
+
+checkTypeScriptTargetFileErrors(
+  file: IRFile
+) -> Array[String] => {
+  hasGoImports := fileHasGoImports(file)
+  hasGoImports {
+    true => ["TypeScript backend does not support @go.import"]
+    _ => []
+  }
+}
+
+checkGoTargetFileErrors(
+  file: IRFile
+) -> Array[String] => {
+  hasTypeScriptImports := file.tsImports.length() > 0
+  hasTypeScriptImports {
+    true => ["Go backend does not support TypeScript imports"]
+    _ => []
+  }
+}
+
+checkMoonBitTargetFileErrors(
+  file: IRFile
+) -> Array[String] => {
+  errors := [""].slice(0, 0)
+  hasTypeScriptImports := file.tsImports.length() > 0
+  hasTypeScriptImports {
+    true => errors.push("MoonBit backend does not support TypeScript imports")
+  }
+  hasGoImports := fileHasGoImports(file)
+  hasGoImports {
+    true => errors.push("MoonBit backend does not support @go.import")
+  }
+  errors
+}
+
+fileHasGoImports(
+  file: IRFile
+) -> Bool => fileHasGoImportsAt(file.imports, 0)
+
+fileHasGoImportsAt(
+  imports: Array[IRImport],
+  index: Int
+) -> Bool => {
+  done := index >= imports.length()
+  done {
+    true => false
+    _ => fileHasGoImportAt(imports, index)
+  }
+}
+
+fileHasGoImportAt(
+  imports: Array[IRImport],
+  index: Int
+) -> Bool => imports[index].go {
+  true => true
+  _ => fileHasGoImportsAt(imports, index + 1)
 }
 
 checkFileErrors(
