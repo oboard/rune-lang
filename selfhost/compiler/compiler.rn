@@ -670,6 +670,7 @@ checkExpr(
   ExprKind.Call => checkCallExpr(expr, structs, callables, errors, bindings)
   ExprKind.Selector => checkSelectorValueExpr(expr, structs, callables, errors, bindings)
   ExprKind.Lambda => checkLambdaExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Assign => checkAssignExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
@@ -795,6 +796,113 @@ checkLambdaExpr(
   hasBody := expr.children.length() > 0
   hasBody {
     true => checkExpr(expr.children[0], structs, callables, errors, compilerFunctionBindings(expr.params, bindings))
+    _ => errors
+  }
+}
+
+checkAssignExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  named := expr.name != ""
+  named {
+    true => checkNamedAssignExpr(expr, structs, callables, errors, bindings)
+    _ => checkAssignExpressionExpr(expr, structs, callables, errors, bindings)
+  }
+}
+
+checkNamedAssignExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  complete := expr.children.length() > 0
+  complete {
+    true => checkIdentifierAssignExpr(expr, expr.children[0], structs, callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkAssignExpressionExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkAssignTargetExpr(expr.children[0], expr.children[1], structs, callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkAssignTargetExpr(
+  target: IRExpr,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => target.kind {
+  ExprKind.Identifier => checkIdentifierAssignExpr(target, value, structs, callables, errors, bindings)
+  ExprKind.Index => checkIndexAssignExpr(target, value, structs, callables, errors, bindings)
+  _ => checkTargetAssignExpr(target, value, structs, callables, errors, bindings)
+}
+
+checkIdentifierAssignExpr(
+  target: IRExpr,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  binding := findCompilerTypeBinding(bindings, target.name, 0)
+  checked := checkExpr(value, structs, callables, errors, bindings)
+  binding.name {
+    "" => [..checked, ("cannot assign undefined name \"" + target.name) + "\""]
+    _ => checkAssignmentType(binding.typeName, inferCompilerExprTypeWithStructs(value, structs, callables, bindings), checked)
+  }
+}
+
+checkIndexAssignExpr(
+  target: IRExpr,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkIndexExpr(target, structs, callables, checkExpr(value, structs, callables, errors, bindings), bindings)
+  checkAssignmentType(inferCompilerIndexType(target, callables, bindings), inferCompilerExprTypeWithStructs(value, structs, callables, bindings), checked)
+}
+
+checkTargetAssignExpr(
+  target: IRExpr,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExpr(value, structs, callables, checkExpr(target, structs, callables, errors, bindings), bindings)
+  checkAssignmentType(inferCompilerExprTypeWithStructs(target, structs, callables, bindings), inferCompilerExprTypeWithStructs(value, structs, callables, bindings), checked)
+}
+
+checkAssignmentType(
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, (("assignment has type " + actual) + ", expected ") + expected]
     _ => errors
   }
 }

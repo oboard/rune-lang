@@ -9691,6 +9691,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkSelectorValueExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Lambda:
 			return ____rune_private_0d2ebf0f_checkLambdaExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Assign:
+			return ____rune_private_0d2ebf0f_checkAssignExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierExpr(__expr, __callables, __bindings, __errors)
 		case __expr.__kind == __ExprKind_This:
@@ -9822,6 +9824,100 @@ func ____rune_private_0d2ebf0f_checkLambdaExpr(__expr __IRExpr, __structs []__IR
 		switch {
 		case __hasBody == true:
 			return ____rune_private_0d2ebf0f_checkExpr(__expr.__children[0], __structs, __callables, __errors, ____rune_private_0d2ebf0f_compilerFunctionBindings(__expr.__params, __bindings))
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkAssignExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__named := __expr.__name != ""
+	return func() []string {
+		switch {
+		case __named == true:
+			return ____rune_private_0d2ebf0f_checkNamedAssignExpr(__expr, __structs, __callables, __errors, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_checkAssignExpressionExpr(__expr, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkNamedAssignExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__complete := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkIdentifierAssignExpr(__expr, __expr.__children[0], __structs, __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkAssignExpressionExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkAssignTargetExpr(__expr.__children[0], __expr.__children[1], __structs, __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkAssignTargetExpr(__target __IRExpr, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	return func() []string {
+		switch {
+		case __target.__kind == __ExprKind_Identifier:
+			return ____rune_private_0d2ebf0f_checkIdentifierAssignExpr(__target, __value, __structs, __callables, __errors, __bindings)
+		case __target.__kind == __ExprKind_Index:
+			return ____rune_private_0d2ebf0f_checkIndexAssignExpr(__target, __value, __structs, __callables, __errors, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_checkTargetAssignExpr(__target, __value, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkIdentifierAssignExpr(__target __IRExpr, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__binding := ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __target.__name, 0)
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, __errors, __bindings)
+	return func() []string {
+		switch {
+		case __binding.__name == "":
+			return func() []string {
+				out := []string{}
+				out = append(out, __checked...)
+				out = append(out, "cannot assign undefined name \""+__target.__name+"\"")
+				return out
+			}()
+		default:
+			return ____rune_private_0d2ebf0f_checkAssignmentType(__binding.__typeName, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings), __checked)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkIndexAssignExpr(__target __IRExpr, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkIndexExpr(__target, __structs, __callables, ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, __errors, __bindings), __bindings)
+	return ____rune_private_0d2ebf0f_checkAssignmentType(____rune_private_0d2ebf0f_inferCompilerIndexType(__target, __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings), __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkTargetAssignExpr(__target __IRExpr, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, ____rune_private_0d2ebf0f_checkExpr(__target, __structs, __callables, __errors, __bindings), __bindings)
+	return ____rune_private_0d2ebf0f_checkAssignmentType(____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__target, __structs, __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings), __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkAssignmentType(__expected string, __actual string, __errors []string) []string {
+	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "assignment has type "+__actual+", expected "+__expected)
+				return out
+			}()
 		default:
 			return __errors
 		}
