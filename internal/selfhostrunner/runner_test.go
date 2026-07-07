@@ -268,6 +268,7 @@ func selfhostCoreAPITestSpecs() []selfhostAPITestSpec {
 			"selfhost compiler emits go functions",
 			"selfhost compiler emits moonbit functions",
 			"selfhost compiler emits declarations and println",
+			"selfhost compiler expands json object macro",
 			"selfhost compiler emits go payload enums",
 			"selfhost compiler emits result unwrap helpers",
 			"selfhost compiler reports parser errors",

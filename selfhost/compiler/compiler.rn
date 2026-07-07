@@ -778,6 +778,7 @@ expandCompilerMacros(
 expandCompilerTypeMacros(
   typeDecl: ParsedType
 ) -> ParsedType => {
+  typeName := compilerRenameDeclarationName(typeDecl.annotations, typeDecl.name)
   fields := typeDecl.fields.slice(0, 0)
   methods := typeDecl.methods.slice(0, 0)
   members := typeDecl.members.slice(0, 0)
@@ -785,16 +786,218 @@ expandCompilerTypeMacros(
   typeDecl.methods.each((method) => methods.push(expandCompilerFunctionMacros(method)))
   typeDecl.members.each((member) => members.push(expandCompilerEnumMemberMacros(member)))
   ParsedType {
-    name: compilerRenameDeclarationName(typeDecl.annotations, typeDecl.name),
+    name: typeName,
     private: typeDecl.private,
     enum: typeDecl.enum,
     annotations: typeDecl.annotations,
     generics: typeDecl.generics,
     fields: fields,
-    methods: methods,
+    methods: expandCompilerTypeMacroMethods(typeDecl, typeName, methods),
     members: members,
     line: typeDecl.line,
     column: typeDecl.column
+  }
+}
+
+expandCompilerTypeMacroMethods(
+  typeDecl: ParsedType,
+  typeName: String,
+  methods: Array[ParsedFunction]
+) -> Array[ParsedFunction] => typeDecl.enum {
+  true => methods
+  _ => expandCompilerStructMacroMethods(typeDecl, typeName, methods)
+}
+
+expandCompilerStructMacroMethods(
+  typeDecl: ParsedType,
+  typeName: String,
+  methods: Array[ParsedFunction]
+) -> Array[ParsedFunction] => {
+  shouldAddFromJson := compilerHasAnnotation(typeDecl.annotations, "#", "json", "object") && (compilerHasFromJsonMethod(methods, 0) == false)
+  shouldAddFromJson {
+    true => [..methods, compilerJsonFromJsonMethod(typeDecl, typeName)]
+    _ => methods
+  }
+}
+
+compilerJsonFromJsonMethod(
+  typeDecl: ParsedType,
+  typeName: String
+) -> ParsedFunction => {
+  name: "fromJson",
+  private: false,
+  static: true,
+  routine: false,
+  macro: false,
+  annotations: compilerEmptyAnnotations(),
+  receiverType: typeName,
+  generics: [],
+  params: [ParsedParam {
+    name: "text",
+    typeRef: compilerTypeRef("String", typeDecl.line, typeDecl.column),
+    line: typeDecl.line,
+    column: typeDecl.column
+  }],
+  returnType: compilerGenericTypeRef(typeName, typeDecl.generics, typeDecl.line, typeDecl.column),
+  body: compilerJsonParseExpr(typeDecl.line, typeDecl.column),
+  line: typeDecl.line,
+  column: typeDecl.column
+}
+
+compilerJsonParseExpr(
+  line: Int,
+  column: Int
+) -> ParsedExpr => {
+  jsonModule := compilerParsedExpr(ExprKind.At, "@", "json", "", "", [], [], line, column)
+  parseSelector := compilerParsedExpr(ExprKind.Selector, "parse", "parse", "", ".", [], [jsonModule], line, column)
+  textArg := compilerParsedExpr(ExprKind.Identifier, "text", "text", "", "", [], [], line, column)
+  compilerParsedExpr(ExprKind.Call, "parse", "", "", "", [], [parseSelector, textArg], line, column)
+}
+
+compilerEmptyAnnotations() -> Array[ParsedAnnotation] => [ParsedAnnotation {
+  marker: "",
+  module: "",
+  name: "",
+  args: [],
+  line: 0,
+  column: 0
+}].slice(0, 0)
+
+compilerParsedExpr(
+  kind: ExprKind,
+  text: String,
+  name: String,
+  value: String,
+  op: String,
+  params: Array[ParsedParam],
+  children: Array[ParsedExpr],
+  line: Int,
+  column: Int
+) -> ParsedExpr => {
+  kind: kind,
+  text: text,
+  name: name,
+  value: value,
+  op: op,
+  params: params,
+  children: children,
+  line: line,
+  column: column
+}
+
+compilerGenericTypeRef(
+  name: String,
+  generics: Array[String],
+  line: Int,
+  column: Int
+) -> ParsedTypeRef => {
+  args := compilerGenericTypeRefArgs(generics, 0, line, column, [emptyParsedTypeRef()].slice(0, 0))
+  compilerTypeRefWithArgs(name, args, line, column)
+}
+
+compilerGenericTypeRefArgs(
+  generics: Array[String],
+  index: Int,
+  line: Int,
+  column: Int,
+  out: Array[ParsedTypeRef]
+) -> Array[ParsedTypeRef] => {
+  done := index >= generics.length()
+  done {
+    true => out
+    _ => compilerGenericTypeRefArgsStep(generics, index, line, column, out)
+  }
+}
+
+compilerGenericTypeRefArgsStep(
+  generics: Array[String],
+  index: Int,
+  line: Int,
+  column: Int,
+  out: Array[ParsedTypeRef]
+) -> Array[ParsedTypeRef] => {
+  out.push(compilerTypeRef(generics[index], line, column))
+  compilerGenericTypeRefArgs(generics, index + 1, line, column, out)
+}
+
+compilerTypeRef(
+  name: String,
+  line: Int,
+  column: Int
+) -> ParsedTypeRef => compilerTypeRefWithArgs(name, [emptyParsedTypeRef()].slice(0, 0), line, column)
+
+compilerTypeRefWithArgs(
+  name: String,
+  args: Array[ParsedTypeRef],
+  line: Int,
+  column: Int
+) -> ParsedTypeRef => {
+  kind: TypeRefKind.Name,
+  name: name,
+  module: "",
+  nullable: false,
+  args: args,
+  params: [],
+  returnTypes: [],
+  line: line,
+  column: column
+}
+
+compilerHasFromJsonMethod(
+  methods: Array[ParsedFunction],
+  index: Int
+) -> Bool => {
+  done := index >= methods.length()
+  done {
+    true => false
+    _ => compilerHasFromJsonMethodAt(methods, index)
+  }
+}
+
+compilerHasFromJsonMethodAt(
+  methods: Array[ParsedFunction],
+  index: Int
+) -> Bool => {
+  matched := methods[index].name == "fromJson"
+  matched {
+    true => true
+    _ => compilerHasFromJsonMethod(methods, index + 1)
+  }
+}
+
+compilerHasAnnotation(
+  annotations: Array[ParsedAnnotation],
+  marker: String,
+  module: String,
+  name: String
+) -> Bool => compilerHasAnnotationAt(annotations, marker, module, name, 0)
+
+compilerHasAnnotationAt(
+  annotations: Array[ParsedAnnotation],
+  marker: String,
+  module: String,
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= annotations.length()
+  done {
+    true => false
+    _ => compilerHasAnnotationStep(annotations, marker, module, name, index)
+  }
+}
+
+compilerHasAnnotationStep(
+  annotations: Array[ParsedAnnotation],
+  marker: String,
+  module: String,
+  name: String,
+  index: Int
+) -> Bool => {
+  annotation := annotations[index]
+  matched := ((annotation.marker == marker) && (annotation.module == module)) && (annotation.name == name)
+  matched {
+    true => true
+    _ => compilerHasAnnotationAt(annotations, marker, module, name, index + 1)
   }
 }
 

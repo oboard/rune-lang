@@ -9194,6 +9194,7 @@ func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __Parse
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerTypeMacros(__typeDecl __ParsedType) __ParsedType {
+	__typeName := ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__typeDecl.__annotations, __typeDecl.__name)
 	__fields := append([]__ParsedField{}, __typeDecl.__fields[0:0]...)
 	__methods := append([]__ParsedFunction{}, __typeDecl.__methods[0:0]...)
 	__members := append([]__ParsedEnumMember{}, __typeDecl.__members[0:0]...)
@@ -9218,7 +9219,137 @@ func ____rune_private_0d2ebf0f_expandCompilerTypeMacros(__typeDecl __ParsedType)
 			return len(__members)
 		}()
 	}
-	return __ParsedType{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__typeDecl.__annotations, __typeDecl.__name), __private: __typeDecl.__private, __enum: __typeDecl.__enum, __annotations: __typeDecl.__annotations, __generics: __typeDecl.__generics, __fields: __fields, __methods: __methods, __members: __members, __line: __typeDecl.__line, __column: __typeDecl.__column}
+	return __ParsedType{__name: __typeName, __private: __typeDecl.__private, __enum: __typeDecl.__enum, __annotations: __typeDecl.__annotations, __generics: __typeDecl.__generics, __fields: __fields, __methods: ____rune_private_0d2ebf0f_expandCompilerTypeMacroMethods(__typeDecl, __typeName, __methods), __members: __members, __line: __typeDecl.__line, __column: __typeDecl.__column}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerTypeMacroMethods(__typeDecl __ParsedType, __typeName string, __methods []__ParsedFunction) []__ParsedFunction {
+	return func() []__ParsedFunction {
+		switch {
+		case __typeDecl.__enum == true:
+			return __methods
+		default:
+			return ____rune_private_0d2ebf0f_expandCompilerStructMacroMethods(__typeDecl, __typeName, __methods)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerStructMacroMethods(__typeDecl __ParsedType, __typeName string, __methods []__ParsedFunction) []__ParsedFunction {
+	__shouldAddFromJson := ____rune_private_0d2ebf0f_compilerHasAnnotation(__typeDecl.__annotations, "#", "json", "object") && ____rune_private_0d2ebf0f_compilerHasFromJsonMethod(__methods, 0) == false
+	return func() []__ParsedFunction {
+		switch {
+		case __shouldAddFromJson == true:
+			return func() []__ParsedFunction {
+				out := []__ParsedFunction{}
+				out = append(out, __methods...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerJsonFromJsonMethod(__typeDecl, __typeName))
+				return out
+			}()
+		default:
+			return __methods
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerJsonFromJsonMethod(__typeDecl __ParsedType, __typeName string) __ParsedFunction {
+	return __ParsedFunction{__name: "fromJson", __private: false, __static: true, __routine: false, __macro: false, __annotations: ____rune_private_0d2ebf0f_compilerEmptyAnnotations(), __receiverType: __typeName, __generics: []string{}, __params: []__ParsedParam{__ParsedParam{__name: "text", __typeRef: ____rune_private_0d2ebf0f_compilerTypeRef("String", __typeDecl.__line, __typeDecl.__column), __line: __typeDecl.__line, __column: __typeDecl.__column}}, __returnType: ____rune_private_0d2ebf0f_compilerGenericTypeRef(__typeName, __typeDecl.__generics, __typeDecl.__line, __typeDecl.__column), __body: ____rune_private_0d2ebf0f_compilerJsonParseExpr(__typeDecl.__line, __typeDecl.__column), __line: __typeDecl.__line, __column: __typeDecl.__column}
+}
+
+func ____rune_private_0d2ebf0f_compilerJsonParseExpr(__line int, __column int) __ParsedExpr {
+	__jsonModule := ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_At, "@", "json", "", "", []__ParsedParam{}, []__ParsedExpr{}, __line, __column)
+	__parseSelector := ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Selector, "parse", "parse", "", ".", []__ParsedParam{}, []__ParsedExpr{__jsonModule}, __line, __column)
+	__textArg := ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Identifier, "text", "text", "", "", []__ParsedParam{}, []__ParsedExpr{}, __line, __column)
+	return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Call, "parse", "", "", "", []__ParsedParam{}, []__ParsedExpr{__parseSelector, __textArg}, __line, __column)
+}
+
+func ____rune_private_0d2ebf0f_compilerEmptyAnnotations() []__ParsedAnnotation {
+	return append([]__ParsedAnnotation{}, []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}[0:0]...)
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedExpr(__kind __ExprKind, __text string, __name string, __value string, __op string, __params []__ParsedParam, __children []__ParsedExpr, __line int, __column int) __ParsedExpr {
+	return __ParsedExpr{__kind: __kind, __text: __text, __name: __name, __value: __value, __op: __op, __params: __params, __children: __children, __line: __line, __column: __column}
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericTypeRef(__name string, __generics []string, __line int, __column int) __ParsedTypeRef {
+	__args := ____rune_private_0d2ebf0f_compilerGenericTypeRefArgs(__generics, 0, __line, __column, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...))
+	return ____rune_private_0d2ebf0f_compilerTypeRefWithArgs(__name, __args, __line, __column)
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericTypeRefArgs(__generics []string, __index int, __line int, __column int, __out []__ParsedTypeRef) []__ParsedTypeRef {
+	__done := __index >= len(__generics)
+	return func() []__ParsedTypeRef {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerGenericTypeRefArgsStep(__generics, __index, __line, __column, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericTypeRefArgsStep(__generics []string, __index int, __line int, __column int, __out []__ParsedTypeRef) []__ParsedTypeRef {
+	__out = append(__out, ____rune_private_0d2ebf0f_compilerTypeRef(__generics[__index], __line, __column))
+	return ____rune_private_0d2ebf0f_compilerGenericTypeRefArgs(__generics, __index+1, __line, __column, __out)
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeRef(__name string, __line int, __column int) __ParsedTypeRef {
+	return ____rune_private_0d2ebf0f_compilerTypeRefWithArgs(__name, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...), __line, __column)
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeRefWithArgs(__name string, __args []__ParsedTypeRef, __line int, __column int) __ParsedTypeRef {
+	return __ParsedTypeRef{__kind: __TypeRefKind_Name, __name: __name, __module: "", __nullable: false, __args: __args, __params: []__ParsedTypeParam{}, __returnTypes: []__ParsedTypeRef{}, __line: __line, __column: __column}
+}
+
+func ____rune_private_0d2ebf0f_compilerHasFromJsonMethod(__methods []__ParsedFunction, __index int) bool {
+	__done := __index >= len(__methods)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerHasFromJsonMethodAt(__methods, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerHasFromJsonMethodAt(__methods []__ParsedFunction, __index int) bool {
+	__matched := __methods[__index].__name == "fromJson"
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerHasFromJsonMethod(__methods, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerHasAnnotation(__annotations []__ParsedAnnotation, __marker string, __module string, __name string) bool {
+	return ____rune_private_0d2ebf0f_compilerHasAnnotationAt(__annotations, __marker, __module, __name, 0)
+}
+
+func ____rune_private_0d2ebf0f_compilerHasAnnotationAt(__annotations []__ParsedAnnotation, __marker string, __module string, __name string, __index int) bool {
+	__done := __index >= len(__annotations)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerHasAnnotationStep(__annotations, __marker, __module, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerHasAnnotationStep(__annotations []__ParsedAnnotation, __marker string, __module string, __name string, __index int) bool {
+	__annotation := __annotations[__index]
+	__matched := __annotation.__marker == __marker && __annotation.__module == __module && __annotation.__name == __name
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerHasAnnotationAt(__annotations, __marker, __module, __name, __index+1)
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerFieldMacros(__field __ParsedField) __ParsedField {
