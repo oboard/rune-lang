@@ -18,6 +18,7 @@
 CompilerCallable: {
   name: String
   arity: Int
+  returnType: String
 }
 
 + compileTypeScript(
@@ -93,10 +94,10 @@ checkFileErrors(
   errors := [""].slice(0, 0)
   file.functions.each((fn) => errors = (
     fn.macro ? errors
-      : checkExpr(fn.body, callables, errors)
+      : checkFunctionErrors(fn, callables, errors)
   ))
-  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, callables, errors)))
-  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, callables, errors)))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors))
   errors
 }
@@ -107,12 +108,18 @@ compilerCallables(
   callables := [emptyCompilerCallable()].slice(0, 0)
   file.functions.each((fn) => (
     fn.macro ? 0
-      : callables.push(compilerCallable(fn.name, fn.params.length()))
+      : callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType))
   ))
-  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length()))))
-  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length()))))
+  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType))))
+  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name))))
   callables
 }
+
+checkFunctionErrors(
+  fn: IRFunction,
+  callables: Array[CompilerCallable],
+  errors: Array[String]
+) -> Array[String] => checkFunctionReturn(fn, callables, checkExpr(fn.body, callables, errors))
 
 checkExpr(
   expr: IRExpr,
@@ -162,6 +169,141 @@ checkCallableArity(
   }
 }
 
+checkFunctionReturn(
+  fn: IRFunction,
+  callables: Array[CompilerCallable],
+  errors: Array[String]
+) -> Array[String] => {
+  expected := fn.returnType
+  actual := inferCompilerExprType(fn.body, callables)
+  shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
+  shouldCheck {
+    true => checkFunctionReturnType(fn.name, expected, actual, errors)
+    _ => errors
+  }
+}
+
+checkFunctionReturnType(
+  name: String,
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  ok := compilerTypesCompatible(expected, actual)
+  ok {
+    true => errors
+    _ => [..errors, (((("function \"" + name) + "\" returns ") + actual) + ", expected ") + expected]
+  }
+}
+
+compilerTypesCompatible(
+  expected: String,
+  actual: String
+) -> Bool => (expected == actual) || (compilerTypeBase(expected) == actual)
+
+compilerTypeBase(
+  typeName: String
+) -> String => {
+  generic := typeName.indexOf("[")
+  generic < 0 ? typeName
+    : typeName.slice(0, generic)
+}
+
+inferCompilerExprType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => expr.kind {
+  ExprKind.String => "String"
+  ExprKind.Template => "String"
+  ExprKind.Int => "Int"
+  ExprKind.Double => "Double"
+  ExprKind.BigInt => "BigInt"
+  ExprKind.Char => "Char"
+  ExprKind.Bool => "Bool"
+  ExprKind.Null => "Null"
+  ExprKind.Call => inferCompilerCallType(expr, callables)
+  ExprKind.Block => inferCompilerBlockType(expr, callables)
+  ExprKind.Ternary => inferCompilerTernaryType(expr, callables)
+  ExprKind.Binary => inferCompilerBinaryType(expr, callables)
+  _ => ""
+}
+
+inferCompilerCallType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  identifierCall := ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier))
+  identifierCall {
+    true => findCompilerCallable(callables, expr.children[0].name, 0).returnType
+    _ => ""
+  }
+}
+
+inferCompilerBlockType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  empty := expr.children.length() == 0
+  empty {
+    true => "Void"
+    _ => inferCompilerExprType(expr.children[expr.children.length() - 1], callables)
+  }
+}
+
+inferCompilerTernaryType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  complete := expr.children.length() >= 3
+  complete {
+    true => inferCompilerCommonType(inferCompilerExprType(expr.children[1], callables), inferCompilerExprType(expr.children[2], callables))
+    _ => ""
+  }
+}
+
+inferCompilerBinaryType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  comparison := (((expr.op == "==") || (expr.op == "!=")) || ((expr.op == "<") || (expr.op == "<="))) || ((expr.op == ">") || (expr.op == ">="))
+  boolOp := (expr.op == "&&") || (expr.op == "||")
+  knownBool := comparison || boolOp
+  knownBool {
+    true => "Bool"
+    _ => inferCompilerNumericBinaryType(expr, callables)
+  }
+}
+
+inferCompilerNumericBinaryType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  numeric := (((expr.op == "+") || (expr.op == "-")) || (expr.op == "*")) || ((expr.op == "/") || (expr.op == "%"))
+  numeric {
+    true => inferCompilerNumericPairType(inferCompilerExprType(expr.children[0], callables), inferCompilerExprType(expr.children[1], callables))
+    _ => ""
+  }
+}
+
+inferCompilerNumericPairType(
+  left: String,
+  right: String
+) -> String => (
+  (left == "") || (right == "") ? ""
+    : (
+      (left == "Double") || (right == "Double") ? "Double"
+        : inferCompilerCommonType(left, right)
+    )
+)
+
+inferCompilerCommonType(
+  left: String,
+  right: String
+) -> String => (
+  left == right ? left
+    : ""
+)
+
 findCompilerCallable(
   callables: Array[CompilerCallable],
   name: String,
@@ -188,13 +330,15 @@ findCompilerCallableAt(
 
 compilerCallable(
   name: String,
-  arity: Int
+  arity: Int,
+  returnType: String
 ) -> CompilerCallable => {
   name: name,
-  arity: arity
+  arity: arity,
+  returnType: returnType
 }
 
-emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0)
+emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0, "")
 
 compilerContains(
   values: Array[String],

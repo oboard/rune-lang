@@ -525,8 +525,9 @@ type __SourceFile struct {
 }
 
 type __CompilerCallable struct {
-	__name  string
-	__arity int
+	__name       string
+	__arity      int
+	__returnType string
 }
 
 func runeTemplateString(value any) string {
@@ -8260,7 +8261,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 			if __fn.__macro {
 				return __errors
 			}
-			return ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors)
+			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __callables, __errors)
 		}()
 	}
 	for _, __typeDecl := range __file.__structs {
@@ -8268,7 +8269,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __callables, __errors)
 			}
 		}()
 	}
@@ -8277,7 +8278,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __callables, __errors)
 			}
 		}()
 	}
@@ -8297,7 +8298,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 				return 0
 			}
 			return func() int {
-				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params)))
+				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType))
 				return len(__callables)
 			}()
 		}()
@@ -8308,7 +8309,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __fn := range __importDecl.__functions {
 				_ = __fn
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params)))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType))
 					return len(__callables)
 				}()
 			}
@@ -8320,13 +8321,17 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __member := range __typeDecl.__members {
 				_ = __member
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params)))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params), __typeDecl.__name))
 					return len(__callables)
 				}()
 			}
 		}()
 	}
 	return __callables
+}
+
+func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
+	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors))
 }
 
 func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string) []string {
@@ -8385,6 +8390,169 @@ func ____rune_private_0d2ebf0f_checkCallableArity(__callable __CompilerCallable,
 	}()
 }
 
+func ____rune_private_0d2ebf0f_checkFunctionReturn(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
+	__expected := __fn.__returnType
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__fn.__body, __callables)
+	__shouldCheck := __expected != "" && __expected != "Dynamic" && __actual != ""
+	return func() []string {
+		switch {
+		case __shouldCheck == true:
+			return ____rune_private_0d2ebf0f_checkFunctionReturnType(__fn.__name, __expected, __actual, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkFunctionReturnType(__name string, __expected string, __actual string, __errors []string) []string {
+	__ok := ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual)
+	return func() []string {
+		switch {
+		case __ok == true:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "function \""+__name+"\" returns "+__actual+", expected "+__expected)
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected string, __actual string) bool {
+	return __expected == __actual || ____rune_private_0d2ebf0f_compilerTypeBase(__expected) == __actual
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeBase(__typeName string) string {
+	__generic := strings.Index(__typeName, "[")
+	return func() string {
+		if __generic < 0 {
+			return __typeName
+		}
+		return func() string { runes := []rune(__typeName); return string(runes[0:__generic]) }()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_String:
+			return "String"
+		case __expr.__kind == __ExprKind_Template:
+			return "String"
+		case __expr.__kind == __ExprKind_Int:
+			return "Int"
+		case __expr.__kind == __ExprKind_Double:
+			return "Double"
+		case __expr.__kind == __ExprKind_BigInt:
+			return "BigInt"
+		case __expr.__kind == __ExprKind_Char:
+			return "Char"
+		case __expr.__kind == __ExprKind_Bool:
+			return "Bool"
+		case __expr.__kind == __ExprKind_Null:
+			return "Null"
+		case __expr.__kind == __ExprKind_Call:
+			return ____rune_private_0d2ebf0f_inferCompilerCallType(__expr, __callables)
+		case __expr.__kind == __ExprKind_Block:
+			return ____rune_private_0d2ebf0f_inferCompilerBlockType(__expr, __callables)
+		case __expr.__kind == __ExprKind_Ternary:
+			return ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr, __callables)
+		case __expr.__kind == __ExprKind_Binary:
+			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerCallType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	__identifierCall := len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier
+	return func() string {
+		switch {
+		case __identifierCall == true:
+			return ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __expr.__children[0].__name, 0).__returnType
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBlockType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	__empty := len(__expr.__children) == 0
+	return func() string {
+		switch {
+		case __empty == true:
+			return "Void"
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[len(__expr.__children)-1], __callables)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	__complete := len(__expr.__children) >= 3
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerCommonType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[2], __callables))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	__comparison := __expr.__op == "==" || __expr.__op == "!=" || (__expr.__op == "<" || __expr.__op == "<=") || (__expr.__op == ">" || __expr.__op == ">=")
+	__boolOp := __expr.__op == "&&" || __expr.__op == "||"
+	__knownBool := __comparison || __boolOp
+	return func() string {
+		switch {
+		case __knownBool == true:
+			return "Bool"
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerNumericBinaryType(__expr, __callables)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerNumericBinaryType(__expr __IRExpr, __callables []__CompilerCallable) string {
+	__numeric := __expr.__op == "+" || __expr.__op == "-" || __expr.__op == "*" || (__expr.__op == "/" || __expr.__op == "%")
+	return func() string {
+		switch {
+		case __numeric == true:
+			return ____rune_private_0d2ebf0f_inferCompilerNumericPairType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerNumericPairType(__left string, __right string) string {
+	return func() string {
+		if __left == "" || __right == "" {
+			return ""
+		}
+		return func() string {
+			if __left == "Double" || __right == "Double" {
+				return "Double"
+			}
+			return ____rune_private_0d2ebf0f_inferCompilerCommonType(__left, __right)
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerCommonType(__left string, __right string) string {
+	return func() string {
+		if __left == __right {
+			return __left
+		}
+		return ""
+	}()
+}
+
 func ____rune_private_0d2ebf0f_findCompilerCallable(__callables []__CompilerCallable, __name string, __index int) __CompilerCallable {
 	__done := __index >= len(__callables)
 	return func() __CompilerCallable {
@@ -8409,12 +8577,12 @@ func ____rune_private_0d2ebf0f_findCompilerCallableAt(__callables []__CompilerCa
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int) __CompilerCallable {
-	return __CompilerCallable{__name: __name, __arity: __arity}
+func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int, __returnType string) __CompilerCallable {
+	return __CompilerCallable{__name: __name, __arity: __arity, __returnType: __returnType}
 }
 
 func ____rune_private_0d2ebf0f_emptyCompilerCallable() __CompilerCallable {
-	return ____rune_private_0d2ebf0f_compilerCallable("", 0)
+	return ____rune_private_0d2ebf0f_compilerCallable("", 0, "")
 }
 
 func ____rune_private_0d2ebf0f_compilerContains(__values []string, __value string) bool {
