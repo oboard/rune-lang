@@ -261,6 +261,7 @@ checkDuplicateDeclarations(
 ) -> Array[String] => {
   next := checkDuplicateStructTypeNames(file.structs, 0, errors)
   next = checkDuplicateEnumTypeNames(file.enums, file.structs, 0, next)
+  next = checkDuplicateConstantNames(file.constants, 0, next)
   next = checkDuplicateFunctionNames(file.functions, 0, next)
   file.structs.each((typeDecl) => next = checkDuplicateStructMembers(typeDecl, next))
   file.enums.each((typeDecl) => next = checkDuplicateEnumMembers(typeDecl, next))
@@ -342,6 +343,31 @@ checkDuplicateFunctionName(
     _ => errors
   }
   checkDuplicateFunctionNames(functions, index + 1, next)
+}
+
+checkDuplicateConstantNames(
+  constants: Array[IRConst],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= constants.length()
+  done {
+    true => errors
+    _ => checkDuplicateConstantName(constants, index, errors)
+  }
+}
+
+checkDuplicateConstantName(
+  constants: Array[IRConst],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerConstNameAppearsBefore(constants, constants[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, ("duplicate declaration \"" + constants[index].name) + "\""]
+    _ => errors
+  }
+  checkDuplicateConstantNames(constants, index + 1, next)
 }
 
 checkDuplicateStructMembers(
@@ -4142,6 +4168,30 @@ compilerFunctionNameAppearsBeforeAt(
   matched {
     true => true
     _ => compilerFunctionNameAppearsBefore(functions, name, macro, index - 1)
+  }
+}
+
+compilerConstNameAppearsBefore(
+  constants: Array[IRConst],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => compilerConstNameAppearsBeforeAt(constants, name, index)
+  }
+}
+
+compilerConstNameAppearsBeforeAt(
+  constants: Array[IRConst],
+  name: String,
+  index: Int
+) -> Bool => {
+  matched := constants[index].name == name
+  matched {
+    true => true
+    _ => compilerConstNameAppearsBefore(constants, name, index - 1)
   }
 }
 

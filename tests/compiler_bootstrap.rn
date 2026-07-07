@@ -966,6 +966,18 @@ run() -> Int => 2
   @assert.eq(result.errors[1], "duplicate function \"run\"")
 }
 
+? "selfhost compiler reports duplicate constant declarations" {
+  source := `const answer: Int = 1
+const answer: Int = 2
+
+main() => @io.println(answer)
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "duplicate declaration \"answer\"")
+}
+
 ? "selfhost compiler reports duplicate type members" {
   source := `User: {
   name: String

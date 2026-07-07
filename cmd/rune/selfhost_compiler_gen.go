@@ -9397,6 +9397,7 @@ func ____rune_private_0d2ebf0f_compilerBuiltinTypes() []string {
 func ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file __IRFile, __errors []string) []string {
 	__next := ____rune_private_0d2ebf0f_checkDuplicateStructTypeNames(__file.__structs, 0, __errors)
 	__next = ____rune_private_0d2ebf0f_checkDuplicateEnumTypeNames(__file.__enums, __file.__structs, 0, __next)
+	__next = ____rune_private_0d2ebf0f_checkDuplicateConstantNames(__file.__constants, 0, __next)
 	__next = ____rune_private_0d2ebf0f_checkDuplicateFunctionNames(__file.__functions, 0, __next)
 	for _, __typeDecl := range __file.__structs {
 		_ = __typeDecl
@@ -9497,6 +9498,36 @@ func ____rune_private_0d2ebf0f_checkDuplicateFunctionName(__functions []__IRFunc
 		}
 	}()
 	return ____rune_private_0d2ebf0f_checkDuplicateFunctionNames(__functions, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateConstantNames(__constants []__IRConst, __index int, __errors []string) []string {
+	__done := __index >= len(__constants)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateConstantName(__constants, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateConstantName(__constants []__IRConst, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerConstNameAppearsBefore(__constants, __constants[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate declaration \""+__constants[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateConstantNames(__constants, __index+1, __next)
 }
 
 func ____rune_private_0d2ebf0f_checkDuplicateStructMembers(__typeDecl __IRStructType, __errors []string) []string {
@@ -13491,6 +13522,30 @@ func ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBeforeAt(__functions [
 			return true
 		default:
 			return ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBefore(__functions, __name, __macro, __index-1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerConstNameAppearsBefore(__constants []__IRConst, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerConstNameAppearsBeforeAt(__constants, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerConstNameAppearsBeforeAt(__constants []__IRConst, __name string, __index int) bool {
+	__matched := __constants[__index].__name == __name
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerConstNameAppearsBefore(__constants, __name, __index-1)
 		}
 	}()
 }
