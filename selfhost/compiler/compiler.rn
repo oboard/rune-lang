@@ -1325,12 +1325,13 @@ expandCompilerMacros(
   file: ParsedFile
 ) -> ParsedFile => {
   imports := compilerMergeParsedImports(file.imports, compilerImportExpressions(file), 0)
+  errors := compilerMacroErrors(file, file.errors)
   out := ParsedFile {
     imports: imports,
     types: [],
     functions: [],
     tests: [],
-    errors: file.errors
+    errors: errors
   }
   file.types.each((typeDecl) => out.types.push(expandCompilerTypeMacros(typeDecl)))
   file.functions.each((fn) => out.functions.push(expandCompilerFunctionMacros(fn)))
@@ -1603,6 +1604,52 @@ expandCompilerFunctionMacros(
   body: expandCompilerNamespaceAliases(fn.body, [emptyCompilerNamespaceAlias()].slice(0, 0)),
   line: fn.line,
   column: fn.column
+}
+
+compilerMacroErrors(
+  file: ParsedFile,
+  errors: Array[ParseError]
+) -> Array[ParseError] => compilerMacroFunctionErrors(file.functions, 0, errors)
+
+compilerMacroFunctionErrors(
+  functions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= functions.length()
+  done {
+    true => errors
+    _ => compilerMacroFunctionErrors(functions, index + 1, compilerMacroFunctionError(functions[index], errors))
+  }
+}
+
+compilerMacroFunctionError(
+  fn: ParsedFunction,
+  errors: Array[ParseError]
+) -> Array[ParseError] => fn.macro {
+  true => compilerSyntaxMacroSignatureOk(fn) {
+    true => errors
+    _ => [..errors, compilerParseError((("macro " + fn.name) + " must accept SyntaxFile and MacroContext first and return SyntaxFile"), fn.line, fn.column)]
+  }
+  _ => errors
+}
+
+compilerSyntaxMacroSignatureOk(
+  fn: ParsedFunction
+) -> Bool => {
+  returnOk := typeRefToString(fn.returnType) == "SyntaxFile"
+  paramsOk := (fn.params.length() >= 2) && ((typeRefToString(fn.params[0].typeRef) == "SyntaxFile") && (typeRefToString(fn.params[1].typeRef) == "MacroContext"))
+  returnOk && paramsOk
+}
+
+compilerParseError(
+  message: String,
+  line: Int,
+  column: Int
+) -> ParseError => {
+  message: message,
+  line: line,
+  column: column
 }
 
 expandCompilerTestMacros(

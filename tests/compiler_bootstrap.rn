@@ -290,6 +290,17 @@ main() -> Int => 1
   @assert.eq(mbt.output.includes("__tag"), false)
 }
 
+? "selfhost compiler rejects legacy macro signatures" {
+  source := `#tag(name: String) -> String => name
+
+main() -> Int => 1
+`
+  result := compileTypeScript(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0].includes("macro tag must accept SyntaxFile and MacroContext first and return SyntaxFile"), true)
+}
+
 ? "selfhost compiler expands rename declaration macro" {
   source := `#macro.renameDeclaration("RenamedArgs")
 Args: {

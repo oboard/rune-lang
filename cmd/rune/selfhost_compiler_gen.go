@@ -10194,7 +10194,8 @@ func ____rune_private_0d2ebf0f_lowerCompilerSource(__source string) __IRFile {
 
 func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __ParsedFile {
 	__imports := ____rune_private_0d2ebf0f_compilerMergeParsedImports(__file.__imports, ____rune_private_0d2ebf0f_compilerImportExpressions(__file), 0)
-	__out := __ParsedFile{__imports: __imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __file.__errors}
+	__errors := ____rune_private_0d2ebf0f_compilerMacroErrors(__file, __file.__errors)
+	__out := __ParsedFile{__imports: __imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __errors}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		func() int {
@@ -10388,6 +10389,55 @@ func ____rune_private_0d2ebf0f_expandCompilerEnumMemberMacros(__member __ParsedE
 
 func ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn __ParsedFunction) __ParsedFunction {
 	return __ParsedFunction{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__fn.__body, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...)), __line: __fn.__line, __column: __fn.__column}
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroErrors(__file __ParsedFile, __errors []__ParseError) []__ParseError {
+	return ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__file.__functions, 0, __errors)
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__functions)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__functions, __index+1, ____rune_private_0d2ebf0f_compilerMacroFunctionError(__functions[__index], __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroFunctionError(__fn __ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __fn.__macro == true:
+			return func() []__ParseError {
+				switch {
+				case ____rune_private_0d2ebf0f_compilerSyntaxMacroSignatureOk(__fn) == true:
+					return __errors
+				default:
+					return func() []__ParseError {
+						out := []__ParseError{}
+						out = append(out, __errors...)
+						out = append(out, ____rune_private_0d2ebf0f_compilerParseError("macro "+__fn.__name+" must accept SyntaxFile and MacroContext first and return SyntaxFile", __fn.__line, __fn.__column))
+						return out
+					}()
+				}
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerSyntaxMacroSignatureOk(__fn __ParsedFunction) bool {
+	__returnOk := __typeRefToString(__fn.__returnType) == "SyntaxFile"
+	__paramsOk := len(__fn.__params) >= 2 && (__typeRefToString(__fn.__params[0].__typeRef) == "SyntaxFile" && __typeRefToString(__fn.__params[1].__typeRef) == "MacroContext")
+	return __returnOk && __paramsOk
+}
+
+func ____rune_private_0d2ebf0f_compilerParseError(__message string, __line int, __column int) __ParseError {
+	return __ParseError{__message: __message, __line: __line, __column: __column}
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerTestMacros(__testDecl __ParsedTest) __ParsedTest {
