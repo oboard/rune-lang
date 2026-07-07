@@ -571,7 +571,7 @@ emitMoonBitLambda(
 emitMoonBitSelector(
   expr: IRExpr
 ) -> String => expr.children[0].kind {
-  ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
+  ExprKind.At => emitMoonBitAtSelector(expr)
   ExprKind.Identifier => expr.op {
     "::" => mangleIdent((expr.children[0].name + "_") + expr.name)
     _ => (
@@ -580,6 +580,16 @@ emitMoonBitSelector(
     )
   }
   _ => (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+}
+
+emitMoonBitAtSelector(
+  expr: IRExpr
+) -> String => {
+  imported := expr.children[0].value != ""
+  imported {
+    true => mangleIdent(expr.name)
+    _ => (("@" + expr.children[0].name) + ".") + expr.name
+  }
 }
 
 emitMoonBitExprList(

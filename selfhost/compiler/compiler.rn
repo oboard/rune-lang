@@ -975,9 +975,24 @@ checkSelectorCallReceiver(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => receiver.kind {
-  ExprKind.At => errors
+  ExprKind.At => checkAtSelectorCall(expr, selector, receiver, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierSelectorCall(expr, selector, receiver, callables, errors, bindings)
   _ => checkInstanceSelectorCall(expr, selector, receiver, callables, errors, bindings)
+}
+
+checkAtSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  importPath := compilerIRAtImportPath(receiver)
+  (importPath == "") {
+    true => errors
+    _ => checkIdentifierCall(expr, selector.name, expr.children.length() - 1, callables, errors, bindings)
+  }
 }
 
 checkIdentifierSelectorCall(
@@ -1187,6 +1202,7 @@ inferCompilerExprType(
   bindings: Array[CompilerTypeBinding]
 ) -> String => expr.kind {
   ExprKind.Identifier => findCompilerTypeBinding(bindings, expr.name, 0).typeName
+  ExprKind.Selector => inferCompilerSelectorType(expr, callables, bindings)
   ExprKind.String => "String"
   ExprKind.Template => "String"
   ExprKind.Int => "Int"
@@ -1258,9 +1274,47 @@ inferCompilerSelectorCallTypeFromReceiver(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => receiver.kind {
-  ExprKind.At => expr.text
+  ExprKind.At => inferCompilerAtSelectorCallType(expr, selector, receiver, callables)
   ExprKind.Identifier => inferCompilerIdentifierSelectorCallType(expr, selector, receiver, callables, bindings)
   _ => inferCompilerInstanceSelectorCallType(expr, selector, receiver, callables, bindings)
+}
+
+inferCompilerAtSelectorCallType(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable]
+) -> String => {
+  importPath := compilerIRAtImportPath(receiver)
+  (importPath == "") {
+    true => expr.text
+    _ => compilerCallableReturnOrText(findCompilerCallable(callables, selector.name, 0), expr.text)
+  }
+}
+
+inferCompilerSelectorType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  hasReceiver := expr.children.length() > 0
+  hasReceiver {
+    true => inferCompilerSelectorTypeFromReceiver(expr, expr.children[0], callables, bindings)
+    _ => ""
+  }
+}
+
+inferCompilerSelectorTypeFromReceiver(
+  expr: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => receiver.kind {
+  ExprKind.At => compilerIRAtImportPath(receiver) {
+    "" => ""
+    _ => findCompilerTypeBinding(bindings, expr.name, 0).typeName
+  }
+  _ => ""
 }
 
 inferCompilerIdentifierSelectorCallType(
@@ -2289,6 +2343,13 @@ compilerNamespaceAliasFromAt(
 
 compilerAtImportPath(
   expr: ParsedExpr
+) -> String => (
+  (expr.kind == ExprKind.At) && (expr.value != "") ? compilerUnquoteString(expr.value)
+    : ""
+)
+
+compilerIRAtImportPath(
+  expr: IRExpr
 ) -> String => (
   (expr.kind == ExprKind.At) && (expr.value != "") ? compilerUnquoteString(expr.value)
     : ""

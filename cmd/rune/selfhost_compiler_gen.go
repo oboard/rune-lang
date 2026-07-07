@@ -6404,7 +6404,7 @@ func ____rune_private_8ddf8596_emitGoSelector(__expr __IRExpr) string {
 	return func() string {
 		switch {
 		case __expr.__children[0].__kind == __ExprKind_At:
-			return __expr.__children[0].__name + "." + __expr.__name
+			return ____rune_private_8ddf8596_emitGoAtSelector(__expr)
 		case __expr.__children[0].__kind == __ExprKind_Identifier:
 			return func() string {
 				if ____rune_private_8ddf8596_looksLikeTypeName(__expr.__children[0].__name) {
@@ -6414,6 +6414,18 @@ func ____rune_private_8ddf8596_emitGoSelector(__expr __IRExpr) string {
 			}()
 		default:
 			return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "." + __mangleIdent(__expr.__name)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoAtSelector(__expr __IRExpr) string {
+	__imported := __expr.__children[0].__value != ""
+	return func() string {
+		switch {
+		case __imported == true:
+			return __mangleIdent(__expr.__name)
+		default:
+			return __expr.__children[0].__name + "." + __expr.__name
 		}
 	}()
 }
@@ -7660,7 +7672,7 @@ func ____rune_private_3050a3c7_emitMoonBitSelector(__expr __IRExpr) string {
 	return func() string {
 		switch {
 		case __expr.__children[0].__kind == __ExprKind_At:
-			return "@" + __expr.__children[0].__name + "." + __expr.__name
+			return ____rune_private_3050a3c7_emitMoonBitAtSelector(__expr)
 		case __expr.__children[0].__kind == __ExprKind_Identifier:
 			return func() string {
 				switch {
@@ -7677,6 +7689,18 @@ func ____rune_private_3050a3c7_emitMoonBitSelector(__expr __IRExpr) string {
 			}()
 		default:
 			return ____rune_private_3050a3c7_emitMoonBitExpr(__expr.__children[0]) + "." + __mangleIdent(__expr.__name)
+		}
+	}()
+}
+
+func ____rune_private_3050a3c7_emitMoonBitAtSelector(__expr __IRExpr) string {
+	__imported := __expr.__children[0].__value != ""
+	return func() string {
+		switch {
+		case __imported == true:
+			return __mangleIdent(__expr.__name)
+		default:
+			return "@" + __expr.__children[0].__name + "." + __expr.__name
 		}
 	}()
 }
@@ -8670,7 +8694,7 @@ func ____rune_private_68c6e3cf_emitTSSelector(__expr __IRExpr) string {
 	return func() string {
 		switch {
 		case __expr.__children[0].__kind == __ExprKind_At:
-			return "@" + __expr.__children[0].__name + "." + __expr.__name
+			return ____rune_private_68c6e3cf_emitTSAtSelector(__expr)
 		case __expr.__children[0].__kind == __ExprKind_Identifier:
 			return func() string {
 				switch {
@@ -8682,6 +8706,18 @@ func ____rune_private_68c6e3cf_emitTSSelector(__expr __IRExpr) string {
 			}()
 		default:
 			return ____rune_private_68c6e3cf_emitTSExpr(__expr.__children[0]) + "." + ____rune_private_68c6e3cf_tsPropertyName(__expr.__name)
+		}
+	}()
+}
+
+func ____rune_private_68c6e3cf_emitTSAtSelector(__expr __IRExpr) string {
+	__imported := __expr.__children[0].__value != ""
+	return func() string {
+		switch {
+		case __imported == true:
+			return __mangleIdent(__expr.__name)
+		default:
+			return "@" + __expr.__children[0].__name + "." + __expr.__name
 		}
 	}()
 }
@@ -9877,11 +9913,23 @@ func ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr __IRExpr, __sele
 	return func() []string {
 		switch {
 		case __receiver.__kind == __ExprKind_At:
-			return __errors
+			return ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
 		case __receiver.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
+	return func() []string {
+		switch {
+		case __importPath == "" == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __callables, __errors, __bindings)
 		}
 	}()
 }
@@ -10087,6 +10135,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 		switch {
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __expr.__name, 0).__typeName
+		case __expr.__kind == __ExprKind_Selector:
+			return ____rune_private_0d2ebf0f_inferCompilerSelectorType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_String:
 			return "String"
 		case __expr.__kind == __ExprKind_Template:
@@ -10171,11 +10221,53 @@ func ____rune_private_0d2ebf0f_inferCompilerSelectorCallTypeFromReceiver(__expr 
 	return func() string {
 		switch {
 		case __receiver.__kind == __ExprKind_At:
-			return __expr.__text
+			return ____rune_private_0d2ebf0f_inferCompilerAtSelectorCallType(__expr, __selector, __receiver, __callables)
 		case __receiver.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_inferCompilerIdentifierSelectorCallType(__expr, __selector, __receiver, __callables, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_inferCompilerInstanceSelectorCallType(__expr, __selector, __receiver, __callables, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerAtSelectorCallType(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable) string {
+	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
+	return func() string {
+		switch {
+		case __importPath == "" == true:
+			return __expr.__text
+		default:
+			return ____rune_private_0d2ebf0f_compilerCallableReturnOrText(____rune_private_0d2ebf0f_findCompilerCallable(__callables, __selector.__name, 0), __expr.__text)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerSelectorType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__hasReceiver := len(__expr.__children) > 0
+	return func() string {
+		switch {
+		case __hasReceiver == true:
+			return ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiver(__expr, __expr.__children[0], __callables, __bindings)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiver(__expr __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case __receiver.__kind == __ExprKind_At:
+			return func() string {
+				switch {
+				case ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver) == "":
+					return ""
+				default:
+					return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __expr.__name, 0).__typeName
+				}
+			}()
+		default:
+			return ""
 		}
 	}()
 }
@@ -11149,6 +11241,15 @@ func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromAt(__name string, __exp
 }
 
 func ____rune_private_0d2ebf0f_compilerAtImportPath(__expr __ParsedExpr) string {
+	return func() string {
+		if __expr.__kind == __ExprKind_At && __expr.__value != "" {
+			return ____rune_private_0d2ebf0f_compilerUnquoteString(__expr.__value)
+		}
+		return ""
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerIRAtImportPath(__expr __IRExpr) string {
 	return func() string {
 		if __expr.__kind == __ExprKind_At && __expr.__value != "" {
 			return ____rune_private_0d2ebf0f_compilerUnquoteString(__expr.__value)

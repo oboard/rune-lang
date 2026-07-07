@@ -689,12 +689,22 @@ emitTSDefaultCall(
 emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
 
 emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
-  ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
+  ExprKind.At => emitTSAtSelector(expr)
   ExprKind.Identifier => expr.op {
     "::" => mangleIdent((expr.children[0].name + "_") + expr.name)
     _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
   }
   _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
+}
+
+emitTSAtSelector(
+  expr: IRExpr
+) -> String => {
+  imported := expr.children[0].value != ""
+  imported {
+    true => mangleIdent(expr.name)
+    _ => (("@" + expr.children[0].name) + ".") + expr.name
+  }
 }
 
 emitTSExprList(

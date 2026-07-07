@@ -1013,12 +1013,22 @@ emitGoDefaultCall(
 emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
 
 emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
-  ExprKind.At => (expr.children[0].name + ".") + expr.name
+  ExprKind.At => emitGoAtSelector(expr)
   ExprKind.Identifier => (
     looksLikeTypeName(expr.children[0].name) ? mangleIdent((expr.children[0].name + "_") + expr.name)
       : (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
   )
   _ => (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+}
+
+emitGoAtSelector(
+  expr: IRExpr
+) -> String => {
+  imported := expr.children[0].value != ""
+  imported {
+    true => mangleIdent(expr.name)
+    _ => (expr.children[0].name + ".") + expr.name
+  }
 }
 
 emitGoExprList(
