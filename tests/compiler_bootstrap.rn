@@ -375,3 +375,19 @@ main() -> Int => label()
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
 }
+
+? "selfhost compiler reports parameter return type errors" {
+  result := compileGo(`identity(value: Int) -> String => value
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"identity\" returns Int, expected String")
+}
+
+? "selfhost compiler infers parameter binary return types" {
+  result := compileGo(`add(a: Int, b: Int) -> String => a + b
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"add\" returns Int, expected String")
+}

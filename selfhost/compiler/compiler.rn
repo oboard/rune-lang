@@ -21,6 +21,11 @@ CompilerCallable: {
   returnType: String
 }
 
+CompilerTypeBinding: {
+  name: String
+  typeName: String
+}
+
 + compileTypeScript(
   source: String
 ) -> CompileResult => compile(source, "ts")
@@ -175,7 +180,7 @@ checkFunctionReturn(
   errors: Array[String]
 ) -> Array[String] => {
   expected := fn.returnType
-  actual := inferCompilerExprType(fn.body, callables)
+  actual := inferCompilerExprType(fn.body, callables, compilerParamBindings(fn.params))
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
     true => checkFunctionReturnType(fn.name, expected, actual, errors)
@@ -211,8 +216,10 @@ compilerTypeBase(
 
 inferCompilerExprType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => expr.kind {
+  ExprKind.Identifier => findCompilerTypeBinding(bindings, expr.name, 0).typeName
   ExprKind.String => "String"
   ExprKind.Template => "String"
   ExprKind.Int => "Int"
@@ -222,9 +229,9 @@ inferCompilerExprType(
   ExprKind.Bool => "Bool"
   ExprKind.Null => "Null"
   ExprKind.Call => inferCompilerCallType(expr, callables)
-  ExprKind.Block => inferCompilerBlockType(expr, callables)
-  ExprKind.Ternary => inferCompilerTernaryType(expr, callables)
-  ExprKind.Binary => inferCompilerBinaryType(expr, callables)
+  ExprKind.Block => inferCompilerBlockType(expr, callables, bindings)
+  ExprKind.Ternary => inferCompilerTernaryType(expr, callables, bindings)
+  ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
   _ => ""
 }
 
@@ -241,46 +248,50 @@ inferCompilerCallType(
 
 inferCompilerBlockType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => {
   empty := expr.children.length() == 0
   empty {
     true => "Void"
-    _ => inferCompilerExprType(expr.children[expr.children.length() - 1], callables)
+    _ => inferCompilerExprType(expr.children[expr.children.length() - 1], callables, bindings)
   }
 }
 
 inferCompilerTernaryType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => {
   complete := expr.children.length() >= 3
   complete {
-    true => inferCompilerCommonType(inferCompilerExprType(expr.children[1], callables), inferCompilerExprType(expr.children[2], callables))
+    true => inferCompilerCommonType(inferCompilerExprType(expr.children[1], callables, bindings), inferCompilerExprType(expr.children[2], callables, bindings))
     _ => ""
   }
 }
 
 inferCompilerBinaryType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => {
   comparison := (((expr.op == "==") || (expr.op == "!=")) || ((expr.op == "<") || (expr.op == "<="))) || ((expr.op == ">") || (expr.op == ">="))
   boolOp := (expr.op == "&&") || (expr.op == "||")
   knownBool := comparison || boolOp
   knownBool {
     true => "Bool"
-    _ => inferCompilerNumericBinaryType(expr, callables)
+    _ => inferCompilerNumericBinaryType(expr, callables, bindings)
   }
 }
 
 inferCompilerNumericBinaryType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => {
   numeric := (((expr.op == "+") || (expr.op == "-")) || (expr.op == "*")) || ((expr.op == "/") || (expr.op == "%"))
   numeric {
-    true => inferCompilerNumericPairType(inferCompilerExprType(expr.children[0], callables), inferCompilerExprType(expr.children[1], callables))
+    true => inferCompilerNumericPairType(inferCompilerExprType(expr.children[0], callables, bindings), inferCompilerExprType(expr.children[1], callables, bindings))
     _ => ""
   }
 }
@@ -339,6 +350,48 @@ compilerCallable(
 }
 
 emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0, "")
+
+compilerParamBindings(
+  params: Array[IRParam]
+) -> Array[CompilerTypeBinding] => {
+  bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  params.each((param) => bindings.push(compilerTypeBinding(param.name, param.typeName)))
+  bindings
+}
+
+compilerTypeBinding(
+  name: String,
+  typeName: String
+) -> CompilerTypeBinding => {
+  name: name,
+  typeName: typeName
+}
+
+emptyCompilerTypeBinding() -> CompilerTypeBinding => compilerTypeBinding("", "")
+
+findCompilerTypeBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int
+) -> CompilerTypeBinding => {
+  done := index >= bindings.length()
+  done {
+    true => emptyCompilerTypeBinding()
+    _ => findCompilerTypeBindingAt(bindings, name, index)
+  }
+}
+
+findCompilerTypeBindingAt(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int
+) -> CompilerTypeBinding => {
+  matched := bindings[index].name == name
+  matched {
+    true => bindings[index]
+    _ => findCompilerTypeBinding(bindings, name, index + 1)
+  }
+}
 
 compilerContains(
   values: Array[String],
