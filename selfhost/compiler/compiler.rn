@@ -208,7 +208,16 @@ compilerKnownTypes(
 
 compilerBuiltinTypes() -> Array[String] => [
   "Int",
+  "Int4",
+  "Int8",
+  "Int16",
+  "Int64",
+  "UInt",
+  "UInt8",
+  "UInt16",
+  "UInt64",
   "Double",
+  "Float",
   "Bool",
   "String",
   "Char",
@@ -766,6 +775,7 @@ checkUnaryExpr(
   expr.op {
     "!" => checkBoolOperand("!", expr.children[0], callables, bindings, checked)
     "-" => checkNumericUnaryOperand(expr, callables, bindings, checked)
+    "~" => checkBitwiseUnaryOperand(expr, callables, bindings, checked)
     _ => checked
   }
 }
@@ -781,7 +791,7 @@ checkBinaryExpr(
   boolOp := (expr.op == "&&") || (expr.op == "||")
   boolOp {
     true => checkBinaryBoolOperands(expr, callables, bindings, checked)
-    _ => checkNumericBinaryExpr(expr, callables, bindings, checkOrderedComparisonExpr(expr, callables, bindings, checked))
+    _ => checkBitwiseBinaryExpr(expr, callables, bindings, checkNumericBinaryExpr(expr, callables, bindings, checkOrderedComparisonExpr(expr, callables, bindings, checked)))
   }
 }
 
@@ -872,8 +882,8 @@ compilerOrderedComparisonOp(
 compilerOrderedComparisonType(
   typeName: String
 ) -> Bool => {
+  numeric := compilerNumericType(typeName)
   base := compilerTypeBase(typeName)
-  numeric := (((base == "Int") || (base == "Double")) || (base == "BigInt")) || (base == "Float")
   numeric || ((base == "String") || (base == "Char"))
 }
 
@@ -891,6 +901,20 @@ checkNumericUnaryOperand(
   }
 }
 
+checkBitwiseUnaryOperand(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(expr.children[0], callables, bindings)
+  mismatch := (actual != "") && (compilerBitwiseType(actual) == false)
+  mismatch {
+    true => [..errors, "operator '~' expects an integer type, got " + actual]
+    _ => errors
+  }
+}
+
 checkNumericBinaryExpr(
   expr: IRExpr,
   callables: Array[CompilerCallable],
@@ -898,6 +922,16 @@ checkNumericBinaryExpr(
   errors: Array[String]
 ) -> Array[String] => compilerArithmeticOp(expr.op) {
   true => checkArithmeticOperands(expr, callables, bindings, errors)
+  _ => errors
+}
+
+checkBitwiseBinaryExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => compilerBitwiseOp(expr.op) {
+  true => checkBitwiseOperands(expr, callables, bindings, errors)
   _ => errors
 }
 
@@ -914,6 +948,19 @@ checkArithmeticOperands(
   }
 }
 
+checkBitwiseOperands(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkBitwiseOperandTypes(expr, callables, bindings, errors)
+    _ => errors
+  }
+}
+
 checkArithmeticOperandTypes(
   expr: IRExpr,
   callables: Array[CompilerCallable],
@@ -926,6 +973,19 @@ checkArithmeticOperandTypes(
     "+" => checkPlusOperandTypes(left, right, errors)
     _ => checkNumericOperandTypes(expr.op, left, right, errors)
   }
+}
+
+checkBitwiseOperandTypes(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  left := inferCompilerExprType(expr.children[0], callables, bindings)
+  right := inferCompilerExprType(expr.children[1], callables, bindings)
+  checked := checkBitwiseOperand(right, checkBitwiseOperand(left, errors))
+  withUnsigned := checkUnsignedShiftLeftOperand(expr.op, left, checked)
+  checkBitwiseOperandMatch(left, right, withUnsigned)
 }
 
 checkPlusOperandTypes(
@@ -956,6 +1016,42 @@ checkStringConcatOperand(
   mismatch := (actual != "") && (actual != "String")
   mismatch {
     true => [..errors, "string concatenation expects String, got " + actual]
+    _ => errors
+  }
+}
+
+checkBitwiseOperand(
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (actual != "") && (compilerBitwiseType(actual) == false)
+  mismatch {
+    true => [..errors, "bitwise operator expects integer operands, got " + actual]
+    _ => errors
+  }
+}
+
+checkUnsignedShiftLeftOperand(
+  op: String,
+  left: String,
+  errors: Array[String]
+) -> Array[String] => {
+  invalid := ((op == ">>>") && (left != "")) && (compilerUnsignedIntegerType(left) == false)
+  invalid {
+    true => [..errors, "operator '>>>' expects an unsigned integer left operand, got " + left]
+    _ => errors
+  }
+}
+
+checkBitwiseOperandMatch(
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  shouldCheck := ((left != "") && (right != "")) && (compilerBitwiseType(left) && compilerBitwiseType(right))
+  mismatch := shouldCheck && (left != right)
+  mismatch {
+    true => [..errors, ((("bitwise operator requires matching integer types, got " + left) + " and ") + right)]
     _ => errors
   }
 }
@@ -1013,12 +1109,35 @@ compilerArithmeticOp(
   op: String
 ) -> Bool => (((op == "+") || (op == "-")) || (op == "*")) || ((op == "/") || (op == "%"))
 
+compilerBitwiseOp(
+  op: String
+) -> Bool => (((op == "&") || (op == "|")) || ((op == "^") || (op == "<<"))) || ((op == ">>") || (op == ">>>"))
+
 compilerNumericType(
   typeName: String
 ) -> Bool => {
   base := compilerTypeBase(typeName)
-  (((base == "Int") || (base == "Double")) || (base == "BigInt")) || (base == "Float")
+  (compilerIntegerType(base) || (base == "BigInt")) || ((base == "Double") || (base == "Float"))
 }
+
+compilerBitwiseType(
+  typeName: String
+) -> Bool => {
+  base := compilerTypeBase(typeName)
+  compilerIntegerType(base) || (base == "BigInt")
+}
+
+compilerIntegerType(
+  base: String
+) -> Bool => compilerSignedIntegerType(base) || compilerUnsignedIntegerType(base)
+
+compilerSignedIntegerType(
+  base: String
+) -> Bool => (((base == "Int") || (base == "Int4")) || ((base == "Int8") || (base == "Int16"))) || (base == "Int64")
+
+compilerUnsignedIntegerType(
+  base: String
+) -> Bool => (((base == "UInt") || (base == "UInt8")) || (base == "UInt16")) || (base == "UInt64")
 
 checkLetExpr(
   expr: IRExpr,
@@ -1875,18 +1994,52 @@ inferCompilerBinaryType(
   knownBool := comparison || boolOp
   knownBool {
     true => "Bool"
-    _ => inferCompilerNumericBinaryType(expr, callables, bindings)
+    _ => inferCompilerBinaryValueType(expr, callables, bindings)
   }
+}
+
+inferCompilerBinaryValueType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerArithmeticOp(expr.op) {
+  true => inferCompilerNumericBinaryType(expr, callables, bindings)
+  _ => inferCompilerBitwiseBinaryType(expr, callables, bindings)
 }
 
 inferCompilerNumericBinaryType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerNumericPairType(inferCompilerExprType(expr.children[0], callables, bindings), inferCompilerExprType(expr.children[1], callables, bindings))
+
+inferCompilerBitwiseBinaryType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerBitwiseOp(expr.op) {
+  true => inferCompilerBitwisePairType(inferCompilerExprType(expr.children[0], callables, bindings), inferCompilerExprType(expr.children[1], callables, bindings))
+  _ => ""
+}
+
+inferCompilerBitwisePairType(
+  left: String,
+  right: String
 ) -> String => {
-  numeric := (((expr.op == "+") || (expr.op == "-")) || (expr.op == "*")) || ((expr.op == "/") || (expr.op == "%"))
-  numeric {
-    true => inferCompilerNumericPairType(inferCompilerExprType(expr.children[0], callables, bindings), inferCompilerExprType(expr.children[1], callables, bindings))
+  missing := (left == "") || (right == "")
+  missing {
+    true => ""
+    _ => inferCompilerMatchingPairType(left, right)
+  }
+}
+
+inferCompilerMatchingPairType(
+  left: String,
+  right: String
+) -> String => {
+  matched := left == right
+  matched {
+    true => left
     _ => ""
   }
 }

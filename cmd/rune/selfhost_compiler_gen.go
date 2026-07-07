@@ -9129,7 +9129,7 @@ func ____rune_private_0d2ebf0f_compilerKnownTypes(__file __IRFile) []string {
 }
 
 func ____rune_private_0d2ebf0f_compilerBuiltinTypes() []string {
-	return []string{"Int", "Double", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"}
+	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"}
 }
 
 func ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file __IRFile, __errors []string) []string {
@@ -9753,6 +9753,8 @@ func ____rune_private_0d2ebf0f_checkUnaryExpr(__expr __IRExpr, __structs []__IRS
 			return ____rune_private_0d2ebf0f_checkBoolOperand("!", __expr.__children[0], __callables, __bindings, __checked)
 		case __expr.__op == "-":
 			return ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr, __callables, __bindings, __checked)
+		case __expr.__op == "~":
+			return ____rune_private_0d2ebf0f_checkBitwiseUnaryOperand(__expr, __callables, __bindings, __checked)
 		default:
 			return __checked
 		}
@@ -9767,7 +9769,7 @@ func ____rune_private_0d2ebf0f_checkBinaryExpr(__expr __IRExpr, __structs []__IR
 		case __boolOp == true:
 			return ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr, __callables, __bindings, __checked)
 		default:
-			return ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked))
+			return ____rune_private_0d2ebf0f_checkBitwiseBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked)))
 		}
 	}()
 }
@@ -9867,8 +9869,8 @@ func ____rune_private_0d2ebf0f_compilerOrderedComparisonOp(__op string) bool {
 }
 
 func ____rune_private_0d2ebf0f_compilerOrderedComparisonType(__typeName string) bool {
+	__numeric := ____rune_private_0d2ebf0f_compilerNumericType(__typeName)
 	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
-	__numeric := __base == "Int" || __base == "Double" || __base == "BigInt" || __base == "Float"
 	return __numeric || (__base == "String" || __base == "Char")
 }
 
@@ -9890,11 +9892,40 @@ func ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr __IRExpr, __calla
 	}()
 }
 
+func ____rune_private_0d2ebf0f_checkBitwiseUnaryOperand(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerBitwiseType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '~' expects an integer type, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	return func() []string {
 		switch {
 		case ____rune_private_0d2ebf0f_compilerArithmeticOp(__expr.__op) == true:
 			return ____rune_private_0d2ebf0f_checkArithmeticOperands(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBitwiseBinaryExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerBitwiseOp(__expr.__op) == true:
+			return ____rune_private_0d2ebf0f_checkBitwiseOperands(__expr, __callables, __bindings, __errors)
 		default:
 			return __errors
 		}
@@ -9913,6 +9944,18 @@ func ____rune_private_0d2ebf0f_checkArithmeticOperands(__expr __IRExpr, __callab
 	}()
 }
 
+func ____rune_private_0d2ebf0f_checkBitwiseOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkBitwiseOperandTypes(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_checkArithmeticOperandTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
 	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
@@ -9924,6 +9967,14 @@ func ____rune_private_0d2ebf0f_checkArithmeticOperandTypes(__expr __IRExpr, __ca
 			return ____rune_private_0d2ebf0f_checkNumericOperandTypes(__expr.__op, __left, __right, __errors)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBitwiseOperandTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
+	__checked := ____rune_private_0d2ebf0f_checkBitwiseOperand(__right, ____rune_private_0d2ebf0f_checkBitwiseOperand(__left, __errors))
+	__withUnsigned := ____rune_private_0d2ebf0f_checkUnsignedShiftLeftOperand(__expr.__op, __left, __checked)
+	return ____rune_private_0d2ebf0f_checkBitwiseOperandMatch(__left, __right, __withUnsigned)
 }
 
 func ____rune_private_0d2ebf0f_checkPlusOperandTypes(__left string, __right string, __errors []string) []string {
@@ -9952,6 +10003,58 @@ func ____rune_private_0d2ebf0f_checkStringConcatOperand(__actual string, __error
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "string concatenation expects String, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBitwiseOperand(__actual string, __errors []string) []string {
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerBitwiseType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "bitwise operator expects integer operands, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkUnsignedShiftLeftOperand(__op string, __left string, __errors []string) []string {
+	__invalid := __op == ">>>" && __left != "" && ____rune_private_0d2ebf0f_compilerUnsignedIntegerType(__left) == false
+	return func() []string {
+		switch {
+		case __invalid == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '>>>' expects an unsigned integer left operand, got "+__left)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBitwiseOperandMatch(__left string, __right string, __errors []string) []string {
+	__shouldCheck := __left != "" && __right != "" && (____rune_private_0d2ebf0f_compilerBitwiseType(__left) && ____rune_private_0d2ebf0f_compilerBitwiseType(__right))
+	__mismatch := __shouldCheck && __left != __right
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "bitwise operator requires matching integer types, got "+__left+" and "+__right)
 				return out
 			}()
 		default:
@@ -10022,9 +10125,30 @@ func ____rune_private_0d2ebf0f_compilerArithmeticOp(__op string) bool {
 	return __op == "+" || __op == "-" || __op == "*" || (__op == "/" || __op == "%")
 }
 
+func ____rune_private_0d2ebf0f_compilerBitwiseOp(__op string) bool {
+	return __op == "&" || __op == "|" || (__op == "^" || __op == "<<") || (__op == ">>" || __op == ">>>")
+}
+
 func ____rune_private_0d2ebf0f_compilerNumericType(__typeName string) bool {
 	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
-	return __base == "Int" || __base == "Double" || __base == "BigInt" || __base == "Float"
+	return ____rune_private_0d2ebf0f_compilerIntegerType(__base) || __base == "BigInt" || (__base == "Double" || __base == "Float")
+}
+
+func ____rune_private_0d2ebf0f_compilerBitwiseType(__typeName string) bool {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	return ____rune_private_0d2ebf0f_compilerIntegerType(__base) || __base == "BigInt"
+}
+
+func ____rune_private_0d2ebf0f_compilerIntegerType(__base string) bool {
+	return ____rune_private_0d2ebf0f_compilerSignedIntegerType(__base) || ____rune_private_0d2ebf0f_compilerUnsignedIntegerType(__base)
+}
+
+func ____rune_private_0d2ebf0f_compilerSignedIntegerType(__base string) bool {
+	return __base == "Int" || __base == "Int4" || (__base == "Int8" || __base == "Int16") || __base == "Int64"
+}
+
+func ____rune_private_0d2ebf0f_compilerUnsignedIntegerType(__base string) bool {
+	return __base == "UInt" || __base == "UInt8" || __base == "UInt16" || __base == "UInt64"
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -10879,17 +11003,55 @@ func ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr __IRExpr, __callab
 		case __knownBool == true:
 			return "Bool"
 		default:
+			return ____rune_private_0d2ebf0f_inferCompilerBinaryValueType(__expr, __callables, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBinaryValueType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerArithmeticOp(__expr.__op) == true:
 			return ____rune_private_0d2ebf0f_inferCompilerNumericBinaryType(__expr, __callables, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerBitwiseBinaryType(__expr, __callables, __bindings)
 		}
 	}()
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerNumericBinaryType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	__numeric := __expr.__op == "+" || __expr.__op == "-" || __expr.__op == "*" || (__expr.__op == "/" || __expr.__op == "%")
+	return ____rune_private_0d2ebf0f_inferCompilerNumericPairType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings))
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBitwiseBinaryType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return func() string {
 		switch {
-		case __numeric == true:
-			return ____rune_private_0d2ebf0f_inferCompilerNumericPairType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings))
+		case ____rune_private_0d2ebf0f_compilerBitwiseOp(__expr.__op) == true:
+			return ____rune_private_0d2ebf0f_inferCompilerBitwisePairType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBitwisePairType(__left string, __right string) string {
+	__missing := __left == "" || __right == ""
+	return func() string {
+		switch {
+		case __missing == true:
+			return ""
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerMatchingPairType(__left, __right)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMatchingPairType(__left string, __right string) string {
+	__matched := __left == __right
+	return func() string {
+		switch {
+		case __matched == true:
+			return __left
 		default:
 			return ""
 		}

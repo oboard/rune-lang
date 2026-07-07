@@ -903,6 +903,13 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "ordered comparison requires matching types, got Int and String")
 }
 
+? "selfhost compiler accepts widened integer comparisons" {
+  result := compileGo(`main(left: Int8, right: Int8) -> Bool => left < right
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler reports unary numeric type errors" {
   result := compileGo(`main() -> Int => -"wrong"
 `)
@@ -926,6 +933,38 @@ main() -> MaybeInt => Some()
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "string concatenation expects String, got Int")
+}
+
+? "selfhost compiler reports unary bitwise type errors" {
+  result := compileGo(`main() -> String => ~"wrong"
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '~' expects an integer type, got String")
+}
+
+? "selfhost compiler reports bitwise operand type errors" {
+  result := compileGo(`main() -> Int => 1 & "wrong"
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "bitwise operator expects integer operands, got String")
+}
+
+? "selfhost compiler reports bitwise operand match errors" {
+  result := compileGo(`main(left: UInt8, right: UInt) -> UInt8 => left & right
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "bitwise operator requires matching integer types, got UInt8 and UInt")
+}
+
+? "selfhost compiler reports unsigned shift type errors" {
+  result := compileGo(`main(value: Int, shift: Int) -> Int => value >>> shift
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '>>>' expects an unsigned integer left operand, got Int")
 }
 
 ? "selfhost compiler reports call return type errors" {
