@@ -391,3 +391,63 @@ main() -> Int => label()
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "function \"add\" returns Int, expected String")
 }
+
+? "selfhost compiler reports call argument type errors" {
+  result := compileGo(`takesString(name: String) -> Int => 1
+main() -> Int => takesString(1)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int, expected String")
+}
+
+? "selfhost compiler accepts nullable null arguments" {
+  result := compileGo(`fallback(value: String?) -> String => "ok"
+main() -> String => fallback(null)
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
+? "selfhost compiler reports parameter argument type errors" {
+  result := compileGo(`takesInt(value: Int) -> Int => value
+main(flag: Bool) -> Int => takesInt(flag)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type Bool, expected Int")
+}
+
+? "selfhost compiler reports imported argument type errors" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
+main() -> Int => importedAnswer(1)
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `importedAnswer(label: String) -> Int => 42
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"importedAnswer\" has type Int, expected String")
+}
+
+? "selfhost compiler reports constructor argument type errors" {
+  result := compileGo(`MaybeInt: {
+  None
+  Some(value: Int)
+}
+
+main() -> MaybeInt => Some("x")
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"Some\" has type String, expected Int")
+}

@@ -528,6 +528,7 @@ type __CompilerCallable struct {
 	__name       string
 	__arity      int
 	__returnType string
+	__paramTypes []string
 }
 
 type __CompilerTypeBinding struct {
@@ -8289,7 +8290,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	}
 	for _, __testDecl := range __file.__tests {
 		_ = __testDecl
-		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __callables, __errors)
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __callables, __errors, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
 	}
 	return __errors
 }
@@ -8303,7 +8304,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 				return 0
 			}
 			return func() int {
-				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType))
+				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params)))
 				return len(__callables)
 			}()
 		}()
@@ -8314,7 +8315,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __fn := range __importDecl.__functions {
 				_ = __fn
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params)))
 					return len(__callables)
 				}()
 			}
@@ -8326,7 +8327,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __member := range __typeDecl.__members {
 				_ = __member
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params), __typeDecl.__name))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params), __typeDecl.__name, ____rune_private_0d2ebf0f_compilerParamTypeNames(__member.__params)))
 					return len(__callables)
 				}()
 			}
@@ -8336,37 +8337,38 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 }
 
 func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
-	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors))
+	__bindings := ____rune_private_0d2ebf0f_compilerParamBindings(__fn.__params)
+	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors, __bindings))
 }
 
-func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string) []string {
-	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors)
+func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors, __bindings)
 	for _, __child := range __expr.__children {
 		_ = __child
-		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __callables, __next)
+		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __callables, __next, __bindings)
 	}
 	return __next
 }
 
-func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__identifierCall := __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier
 	return func() []string {
 		switch {
 		case __identifierCall == true:
-			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr.__children[0].__name, len(__expr.__children)-1, __callables, __errors)
+			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __expr.__children[0].__name, len(__expr.__children)-1, __callables, __errors, __bindings)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkIdentifierCall(__name string, __arity int, __callables []__CompilerCallable, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name string, __arity int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__callable := ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, 0)
 	__found := __callable.__name != ""
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableArity(__callable, __arity, __errors)
+			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __callables, __bindings, __errors)
 		default:
 			return func() []string {
 				out := []string{}
@@ -8374,6 +8376,18 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__name string, __arity int, _
 				out = append(out, "undefined function "+__name)
 				return out
 			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCallableCall(__callable __CompilerCallable, __expr __IRExpr, __arity int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__arityOk := __callable.__arity == __arity
+	return func() []string {
+		switch {
+		case __arityOk == true:
+			return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __callables, __bindings, __errors, 0)
+		default:
+			return ____rune_private_0d2ebf0f_checkCallableArity(__callable, __arity, __errors)
 		}
 	}()
 }
@@ -8393,6 +8407,50 @@ func ____rune_private_0d2ebf0f_checkCallableArity(__callable __CompilerCallable,
 			}()
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable __CompilerCallable, __expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
+	__done := __index >= len(__callable.__paramTypes)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkCallableArgType(__callable, __expr, __callables, __bindings, __errors, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCallableArgType(__callable __CompilerCallable, __expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
+	__expected := __callable.__paramTypes[__index]
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[__index+1], __callables, __bindings)
+	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	__next := func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerArgumentTypeError(__callable.__name, __index+1, __actual, __expected))
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __callables, __bindings, __next, __index+1)
+}
+
+func ____rune_private_0d2ebf0f_compilerArgumentTypeError(__name string, __index int, __actual string, __expected string) string {
+	return "argument " + __compilerIntToString(__index) + " to \"" + __name + "\" has type " + __actual + ", expected " + __expected
+}
+
+func ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected string, __actual string) bool {
+	return __expected != "" && (__expected != "Dynamic" && __actual != "") && ____rune_private_0d2ebf0f_compilerTypeIsGenericPlaceholder(__expected) == false
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeIsGenericPlaceholder(__typeName string) bool {
+	return len([]rune(__typeName)) == 1 && ([]rune(__typeName)[0] >= 'A' && []rune(__typeName)[0] <= 'Z')
 }
 
 func ____rune_private_0d2ebf0f_checkFunctionReturn(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
@@ -8427,7 +8485,15 @@ func ____rune_private_0d2ebf0f_checkFunctionReturnType(__name string, __expected
 }
 
 func ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected string, __actual string) bool {
-	return __expected == __actual || ____rune_private_0d2ebf0f_compilerTypeBase(__expected) == __actual
+	__nullable := strings.HasSuffix(__expected, "?")
+	return func() bool {
+		switch {
+		case __nullable == true:
+			return __actual == "Null" || ____rune_private_0d2ebf0f_compilerTypesCompatible(func() string { runes := []rune(__expected); return string(runes[0 : len([]rune(__expected))-1]) }(), __actual)
+		default:
+			return __expected == __actual || ____rune_private_0d2ebf0f_compilerTypeBase(__expected) == __actual
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerTypeBase(__typeName string) string {
@@ -8584,12 +8650,21 @@ func ____rune_private_0d2ebf0f_findCompilerCallableAt(__callables []__CompilerCa
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int, __returnType string) __CompilerCallable {
-	return __CompilerCallable{__name: __name, __arity: __arity, __returnType: __returnType}
+func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int, __returnType string, __paramTypes []string) __CompilerCallable {
+	return __CompilerCallable{__name: __name, __arity: __arity, __returnType: __returnType, __paramTypes: __paramTypes}
 }
 
 func ____rune_private_0d2ebf0f_emptyCompilerCallable() __CompilerCallable {
-	return ____rune_private_0d2ebf0f_compilerCallable("", 0, "")
+	return ____rune_private_0d2ebf0f_compilerCallable("", 0, "", []string{})
+}
+
+func ____rune_private_0d2ebf0f_compilerParamTypeNames(__params []__IRParam) []string {
+	__names := append([]string{}, []string{""}[0:0]...)
+	for _, __param := range __params {
+		_ = __param
+		func() int { __names = append(__names, __param.__typeName); return len(__names) }()
+	}
+	return __names
 }
 
 func ____rune_private_0d2ebf0f_compilerParamBindings(__params []__IRParam) []__CompilerTypeBinding {

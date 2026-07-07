@@ -19,6 +19,7 @@ CompilerCallable: {
   name: String
   arity: Int
   returnType: String
+  paramTypes: Array[String]
 }
 
 CompilerTypeBinding: {
@@ -103,7 +104,7 @@ checkFileErrors(
   ))
   file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
-  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors))
+  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors, [emptyCompilerTypeBinding()].slice(0, 0)))
   errors
 }
 
@@ -113,10 +114,10 @@ compilerCallables(
   callables := [emptyCompilerCallable()].slice(0, 0)
   file.functions.each((fn) => (
     fn.macro ? 0
-      : callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType))
+      : callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))
   ))
-  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType))))
-  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name))))
+  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))))
+  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name, compilerParamTypeNames(member.params)))))
   callables
 }
 
@@ -124,41 +125,63 @@ checkFunctionErrors(
   fn: IRFunction,
   callables: Array[CompilerCallable],
   errors: Array[String]
-) -> Array[String] => checkFunctionReturn(fn, callables, checkExpr(fn.body, callables, errors))
+) -> Array[String] => {
+  bindings := compilerParamBindings(fn.params)
+  checkFunctionReturn(fn, callables, checkExpr(fn.body, callables, errors, bindings))
+}
 
 checkExpr(
   expr: IRExpr,
   callables: Array[CompilerCallable],
-  errors: Array[String]
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  next := checkExprCall(expr, callables, errors)
-  expr.children.each((child) => next = checkExpr(child, callables, next))
+  next := checkExprCall(expr, callables, errors, bindings)
+  expr.children.each((child) => next = checkExpr(child, callables, next, bindings))
   next
 }
 
 checkExprCall(
   expr: IRExpr,
   callables: Array[CompilerCallable],
-  errors: Array[String]
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   identifierCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)
   identifierCall {
-    true => checkIdentifierCall(expr.children[0].name, expr.children.length() - 1, callables, errors)
+    true => checkIdentifierCall(expr, expr.children[0].name, expr.children.length() - 1, callables, errors, bindings)
     _ => errors
   }
 }
 
 checkIdentifierCall(
+  expr: IRExpr,
   name: String,
   arity: Int,
   callables: Array[CompilerCallable],
-  errors: Array[String]
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableArity(callable, arity, errors)
+    true => checkCallableCall(callable, expr, arity, callables, bindings, errors)
     _ => [..errors, "undefined function " + name]
+  }
+}
+
+checkCallableCall(
+  callable: CompilerCallable,
+  expr: IRExpr,
+  arity: Int,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  arityOk := callable.arity == arity
+  arityOk {
+    true => checkCallableArgTypes(callable, expr, callables, bindings, errors, 0)
+    _ => checkCallableArity(callable, arity, errors)
   }
 }
 
@@ -173,6 +196,55 @@ checkCallableArity(
     _ => [..errors, (((("function \"" + callable.name) + "\" expects ") + compilerIntToString(callable.arity)) + " args, got ") + compilerIntToString(arity)]
   }
 }
+
+checkCallableArgTypes(
+  callable: CompilerCallable,
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int
+) -> Array[String] => {
+  done := index >= callable.paramTypes.length()
+  done {
+    true => errors
+    _ => checkCallableArgType(callable, expr, callables, bindings, errors, index)
+  }
+}
+
+checkCallableArgType(
+  callable: CompilerCallable,
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int
+) -> Array[String] => {
+  expected := callable.paramTypes[index]
+  actual := inferCompilerExprType(expr.children[index + 1], callables, bindings)
+  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  next := mismatch {
+    true => [..errors, compilerArgumentTypeError(callable.name, index + 1, actual, expected)]
+    _ => errors
+  }
+  checkCallableArgTypes(callable, expr, callables, bindings, next, index + 1)
+}
+
+compilerArgumentTypeError(
+  name: String,
+  index: Int,
+  actual: String,
+  expected: String
+) -> String => ((((((("argument " + compilerIntToString(index)) + " to \"") + name) + "\" has type ") + actual) + ", expected ") + expected)
+
+compilerShouldCheckArgType(
+  expected: String,
+  actual: String
+) -> Bool => ((expected != "") && ((expected != "Dynamic") && (actual != ""))) && (compilerTypeIsGenericPlaceholder(expected) == false)
+
+compilerTypeIsGenericPlaceholder(
+  typeName: String
+) -> Bool => (typeName.length() == 1) && ((typeName.at(0) >= 'A') && (typeName.at(0) <= 'Z'))
 
 checkFunctionReturn(
   fn: IRFunction,
@@ -204,7 +276,13 @@ checkFunctionReturnType(
 compilerTypesCompatible(
   expected: String,
   actual: String
-) -> Bool => (expected == actual) || (compilerTypeBase(expected) == actual)
+) -> Bool => {
+  nullable := expected.endsWith("?")
+  nullable {
+    true => (actual == "Null") || compilerTypesCompatible(expected.slice(0, expected.length() - 1), actual)
+    _ => (expected == actual) || (compilerTypeBase(expected) == actual)
+  }
+}
 
 compilerTypeBase(
   typeName: String
@@ -342,14 +420,24 @@ findCompilerCallableAt(
 compilerCallable(
   name: String,
   arity: Int,
-  returnType: String
+  returnType: String,
+  paramTypes: Array[String]
 ) -> CompilerCallable => {
   name: name,
   arity: arity,
-  returnType: returnType
+  returnType: returnType,
+  paramTypes: paramTypes
 }
 
-emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0, "")
+emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0, "", [])
+
+compilerParamTypeNames(
+  params: Array[IRParam]
+) -> Array[String] => {
+  names := [""].slice(0, 0)
+  params.each((param) => names.push(param.typeName))
+  names
+}
 
 compilerParamBindings(
   params: Array[IRParam]
