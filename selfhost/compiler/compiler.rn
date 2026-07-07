@@ -82,10 +82,8 @@ compileFile(
   file: IRFile,
   target: String
 ) -> CompileResult => (
-  (
-    file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
-      : compileCheckedFile(file, target)
-  )
+  file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
+    : compileCheckedFile(file, target)
 )
 
 compileCheckedFile(
@@ -156,9 +154,7 @@ compilerAppendErrorIf(
   _ => errors
 }
 
-fileHasGoImports(
-  file: IRFile
-) -> Bool => fileHasGoImportsAt(file.imports, 0)
+fileHasGoImports(file: IRFile) -> Bool => fileHasGoImportsAt(file.imports, 0)
 
 fileHasGoImportsAt(
   imports: Array[IRImport],
@@ -206,38 +202,7 @@ compilerKnownTypes(
   names
 }
 
-compilerBuiltinTypes() -> Array[String] => [
-  "Int",
-  "Int4",
-  "Int8",
-  "Int16",
-  "Int64",
-  "UInt",
-  "UInt8",
-  "UInt16",
-  "UInt64",
-  "Double",
-  "Float",
-  "Bool",
-  "String",
-  "Char",
-  "BigInt",
-  "Byte",
-  "Bytes",
-  "Object",
-  "Dynamic",
-  "Void",
-  "Null",
-  "Error",
-  "Regex",
-  "Symbol",
-  "MacroContext",
-  "Array",
-  "ReadonlyArray",
-  "Map",
-  "Set",
-  "Result"
-]
+compilerBuiltinTypes() -> Array[String] => ["Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"]
 
 checkDuplicateDeclarations(
   file: IRFile,
@@ -270,7 +235,7 @@ checkDuplicateStructTypeName(
 ) -> Array[String] => {
   duplicate := compilerStructNameAppearsAfter(structs, structs[index].name, index + 1)
   next := duplicate {
-    true => [..errors, "duplicate type \"" + structs[index].name + "\""]
+    true => [..errors, ("duplicate type \"" + structs[index].name) + "\""]
     _ => errors
   }
   checkDuplicateStructTypeNames(structs, index + 1, next)
@@ -297,7 +262,7 @@ checkDuplicateEnumTypeName(
 ) -> Array[String] => {
   duplicate := compilerEnumNameAppearsAfter(enums, enums[index].name, index + 1) || compilerStructNameAppearsAfter(structs, enums[index].name, 0)
   next := duplicate {
-    true => [..errors, "duplicate type \"" + enums[index].name + "\""]
+    true => [..errors, ("duplicate type \"" + enums[index].name) + "\""]
     _ => errors
   }
   checkDuplicateEnumTypeNames(enums, structs, index + 1, next)
@@ -322,7 +287,7 @@ checkDuplicateFunctionName(
 ) -> Array[String] => {
   duplicate := compilerFunctionNameAppearsBefore(functions, functions[index].name, functions[index].macro, index - 1)
   next := duplicate {
-    true => [..errors, "duplicate function \"" + functions[index].name + "\""]
+    true => [..errors, ("duplicate function \"" + functions[index].name) + "\""]
     _ => errors
   }
   checkDuplicateFunctionNames(functions, index + 1, next)
@@ -355,7 +320,7 @@ checkDuplicateStructField(
 ) -> Array[String] => {
   duplicate := compilerFieldNameAppearsBefore(fields, fields[index].name, index - 1)
   next := duplicate {
-    true => [..errors, "duplicate field \"" + fields[index].name + "\""]
+    true => [..errors, ("duplicate field \"" + fields[index].name) + "\""]
     _ => errors
   }
   checkDuplicateStructFields(fields, index + 1, next)
@@ -382,7 +347,7 @@ checkDuplicateStructMethod(
 ) -> Array[String] => {
   duplicate := compilerMethodNameAppearsBefore(methods, methods[index].name, index - 1)
   next := duplicate {
-    true => [..errors, ("duplicate method " + typeName) + "." + methods[index].name]
+    true => [..errors, (("duplicate method " + typeName) + ".") + methods[index].name]
     _ => errors
   }
   checkDuplicateStructMethods(typeName, methods, index + 1, next)
@@ -417,7 +382,7 @@ checkDuplicateEnumConstructor(
 ) -> Array[String] => {
   duplicate := compilerEnumMemberNameAppearsBefore(members, members[index].name, index - 1)
   next := duplicate {
-    true => [..errors, ("duplicate enum member " + enumName) + "." + members[index].name]
+    true => [..errors, (("duplicate enum member " + enumName) + ".") + members[index].name]
     _ => errors
   }
   checkDuplicateEnumConstructors(enumName, members, index + 1, next)
@@ -444,7 +409,7 @@ checkDuplicateEnumMethod(
 ) -> Array[String] => {
   duplicate := compilerMethodNameAppearsBefore(methods, methods[index].name, index - 1)
   next := duplicate {
-    true => [..errors, ("duplicate method " + enumName) + "." + methods[index].name]
+    true => [..errors, (("duplicate method " + enumName) + ".") + methods[index].name]
     _ => errors
   }
   checkDuplicateEnumMethods(enumName, methods, index + 1, next)
@@ -522,7 +487,7 @@ checkDuplicateParam(
 ) -> Array[String] => {
   duplicate := compilerParamNameAppearsBefore(params, params[index].name, index - 1)
   next := duplicate {
-    true => [..errors, "duplicate parameter \"" + params[index].name + "\""]
+    true => [..errors, ("duplicate parameter \"" + params[index].name) + "\""]
     _ => errors
   }
   checkDuplicateParams(params, index + 1, next)
@@ -575,7 +540,7 @@ checkCompilerNamedType(
   known := compilerContains(knownTypes, base) || compilerContains(generics, base)
   known {
     true => checkCompilerTypeArgs(typeName, knownTypes, generics, errors)
-    _ => [..errors, "unknown type \"" + base + "\""]
+    _ => [..errors, ("unknown type \"" + base) + "\""]
   }
 }
 
@@ -680,6 +645,8 @@ checkExpr(
   ExprKind.Ternary => checkTernaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Unary => checkUnaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Binary => checkBinaryExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Array => checkArrayExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Index => checkIndexExpr(expr, structs, callables, errors, bindings)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
 
@@ -830,7 +797,194 @@ checkBoolOperand(
   actual := inferCompilerExprType(operand, callables, bindings)
   mismatch := (actual != "") && (actual != "Bool")
   mismatch {
-    true => [..errors, ((("operator '" + op) + "' expects Bool, got ") + actual)]
+    true => [..errors, (("operator '" + op) + "' expects Bool, got ") + actual]
+    _ => errors
+  }
+}
+
+checkArrayExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  checkArrayElementTypes(expr.children, callables, bindings, checked, 0, "")
+}
+
+checkArrayElementTypes(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int,
+  expected: String
+) -> Array[String] => {
+  done := index >= elements.length()
+  done {
+    true => errors
+    _ => checkArrayElementType(elements, callables, bindings, errors, index, expected)
+  }
+}
+
+checkArrayElementType(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int,
+  expected: String
+) -> Array[String] => {
+  elem := elements[index]
+  actual := inferCompilerArrayLiteralElementType(elem, callables, bindings)
+  nextExpected := compilerNextArrayElementType(expected, actual)
+  nextErrors := checkArrayElementTypeError(elem, expected, actual, callables, bindings, errors)
+  checkArrayElementTypes(elements, callables, bindings, nextErrors, index + 1, nextExpected)
+}
+
+compilerNextArrayElementType(
+  expected: String,
+  actual: String
+) -> String => expected {
+  "" => actual
+  _ => expected
+}
+
+checkArrayElementTypeError(
+  elem: IRExpr,
+  expected: String,
+  actual: String,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  spreadErrors := checkArraySpreadElementType(elem, callables, bindings, errors)
+  mismatch := ((expected != "") && (actual != "")) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..spreadErrors, (("array element has type " + actual) + ", expected ") + expected]
+    _ => spreadErrors
+  }
+}
+
+checkArraySpreadElementType(
+  elem: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => elem.kind {
+  ExprKind.Spread => checkArraySpreadReceiverType(elem, callables, bindings, errors)
+  _ => errors
+}
+
+checkArraySpreadReceiverType(
+  elem: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(elem.children[0], callables, bindings)
+  mismatch := (actual != "") && (compilerArrayElementType(actual) == "")
+  mismatch {
+    true => [..errors, "spread expects Array, got " + actual]
+    _ => errors
+  }
+}
+
+checkIndexExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkIndexExprTypes(expr, callables, bindings, checked)
+    _ => checked
+  }
+}
+
+checkIndexExprTypes(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  receiver := inferCompilerExprType(expr.children[0], callables, bindings)
+  index := inferCompilerExprType(expr.children[1], callables, bindings)
+  checkIndexReceiverType(receiver, index, errors)
+}
+
+checkIndexReceiverType(
+  receiver: String,
+  index: String,
+  errors: Array[String]
+) -> Array[String] => {
+  arrayElem := compilerArrayElementType(receiver)
+  mapKey := compilerMapKeyType(receiver)
+  tuple := compilerTupleType(receiver)
+  arrayElem {
+    "" => checkNonArrayIndexReceiver(receiver, mapKey, tuple, index, errors)
+    _ => checkArrayIndexType(index, errors)
+  }
+}
+
+checkNonArrayIndexReceiver(
+  receiver: String,
+  mapKey: String,
+  tuple: Bool,
+  index: String,
+  errors: Array[String]
+) -> Array[String] => mapKey {
+  "" => checkTupleOrUnknownIndexReceiver(receiver, tuple, index, errors)
+  _ => checkMapIndexType(mapKey, index, errors)
+}
+
+checkTupleOrUnknownIndexReceiver(
+  receiver: String,
+  tuple: Bool,
+  index: String,
+  errors: Array[String]
+) -> Array[String] => tuple {
+  true => checkTupleIndexType(index, errors)
+  _ => receiver {
+    "" => errors
+    _ => [..errors, ("type " + receiver) + " is not indexable"]
+  }
+}
+
+checkArrayIndexType(
+  index: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (index != "") && (index != "Int")
+  mismatch {
+    true => [..errors, "array index expects Int, got " + index]
+    _ => errors
+  }
+}
+
+checkMapIndexType(
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := ((expected != "") && (actual != "")) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, (("map index has type " + actual) + ", expected ") + expected]
+    _ => errors
+  }
+}
+
+checkTupleIndexType(
+  index: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (index != "") && (index != "Int")
+  mismatch {
+    true => [..errors, "tuple index expects an integer literal"]
     _ => errors
   }
 }
@@ -920,7 +1074,7 @@ checkOrderedComparisonMatch(
   right := inferCompilerExprType(expr.children[1], callables, bindings)
   mismatch := ((left != "") && (right != "")) && (left != right)
   mismatch {
-    true => [..errors, ((("ordered comparison requires matching types, got " + left) + " and ") + right)]
+    true => [..errors, (("ordered comparison requires matching types, got " + left) + " and ") + right]
     _ => errors
   }
 }
@@ -1105,7 +1259,7 @@ checkBitwiseOperandMatch(
   shouldCheck := ((left != "") && (right != "")) && (compilerBitwiseType(left) && compilerBitwiseType(right))
   mismatch := shouldCheck && (left != right)
   mismatch {
-    true => [..errors, ((("bitwise operator requires matching integer types, got " + left) + " and ") + right)]
+    true => [..errors, (("bitwise operator requires matching integer types, got " + left) + " and ") + right]
     _ => errors
   }
 }
@@ -1140,7 +1294,7 @@ checkNumericOperandMatch(
   shouldCheck := ((left != "") && (right != "")) && (compilerNumericType(left) && compilerNumericType(right))
   mismatch := shouldCheck && (left != right)
   withMatch := mismatch {
-    true => [..errors, ((("arithmetic requires matching numeric types, got " + left) + " and ") + right)]
+    true => [..errors, (("arithmetic requires matching numeric types, got " + left) + " and ") + right]
     _ => errors
   }
   checkModuloOperand(op, left, right, withMatch)
@@ -1159,13 +1313,9 @@ checkModuloOperand(
   }
 }
 
-compilerArithmeticOp(
-  op: String
-) -> Bool => (((op == "+") || (op == "-")) || (op == "*")) || ((op == "/") || (op == "%"))
+compilerArithmeticOp(op: String) -> Bool => (((op == "+") || (op == "-")) || (op == "*")) || ((op == "/") || (op == "%"))
 
-compilerBitwiseOp(
-  op: String
-) -> Bool => (((op == "&") || (op == "|")) || ((op == "^") || (op == "<<"))) || ((op == ">>") || (op == ">>>"))
+compilerBitwiseOp(op: String) -> Bool => (((op == "&") || (op == "|")) || ((op == "^") || (op == "<<"))) || ((op == ">>") || (op == ">>>"))
 
 compilerNumericType(
   typeName: String
@@ -1254,7 +1404,7 @@ checkLetDeclaredType(
   actual := inferCompilerExprType(value, callables, bindings)
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
-    true => [..errors, ((((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected)]
+    true => [..errors, (((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected]
     _ => errors
   }
 }
@@ -1370,7 +1520,7 @@ checkStructExprUnknownType(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  next := [..errors, "unknown type \"" + expr.name + "\""]
+  next := [..errors, ("unknown type \"" + expr.name) + "\""]
   expr.children.each((field) => next = checkExpr(field.children[0], structs, callables, next, bindings))
   next
 }
@@ -1423,7 +1573,7 @@ checkStructExprFieldValue(
       checkedValue := checkExprExpected(value, expected.typeName, structs, callables, errors, bindings)
       checkStructFieldType(typeName, field.name, value, expected.typeName, callables, bindings, checkedValue)
     }
-    _ => [..checkExpr(value, structs, callables, errors, bindings), ("type " + typeName) + " has no field \"" + field.name + "\""]
+    _ => [..checkExpr(value, structs, callables, errors, bindings), ((("type " + typeName) + " has no field \"") + field.name) + "\""]
   }
   checkStructExprFieldValues(typeName, fields, expectedFields, index + 1, structs, callables, next, bindings)
 }
@@ -1440,7 +1590,7 @@ checkStructFieldType(
   actual := inferCompilerExprType(value, callables, bindings)
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
-    true => [..errors, (((("field " + typeName) + ".") + fieldName) + " has type " + actual) + ", expected " + expected]
+    true => [..errors, (((((("field " + typeName) + ".") + fieldName) + " has type ") + actual) + ", expected ") + expected]
     _ => errors
   }
 }
@@ -1470,7 +1620,7 @@ checkStructMissingField(
   present := compilerExprFieldContains(fields, field.name, 0)
   present {
     true => checkStructMissingFields(typeName, expectedFields, fields, index + 1, errors)
-    _ => checkStructMissingFields(typeName, expectedFields, fields, index + 1, [..errors, ("missing field " + typeName) + "." + field.name])
+    _ => checkStructMissingFields(typeName, expectedFields, fields, index + 1, [..errors, (("missing field " + typeName) + ".") + field.name])
   }
 }
 
@@ -1777,7 +1927,7 @@ compilerArgumentTypeError(
   index: Int,
   actual: String,
   expected: String
-) -> String => ((((((("argument " + compilerIntToString(index)) + " to \"") + name) + "\" has type ") + actual) + ", expected ") + expected)
+) -> String => (((((("argument " + compilerIntToString(index)) + " to \"") + name) + "\" has type ") + actual) + ", expected ") + expected
 
 compilerShouldCheckArgType(
   expected: String,
@@ -1825,7 +1975,72 @@ compilerTypesCompatible(
   nullable := expected.endsWith("?")
   nullable {
     true => (actual == "Null") || compilerTypesCompatible(expected.slice(0, expected.length() - 1), actual)
-    _ => (expected == actual) || (compilerTypeBase(expected) == actual)
+    _ => compilerNonNullableTypesCompatible(expected, actual)
+  }
+}
+
+compilerNonNullableTypesCompatible(
+  expected: String,
+  actual: String
+) -> Bool => {
+  same := expected == actual
+  same {
+    true => true
+    _ => compilerGenericTypesCompatible(expected, actual)
+  }
+}
+
+compilerGenericTypesCompatible(
+  expected: String,
+  actual: String
+) -> Bool => {
+  expectedBase := compilerTypeBase(expected)
+  actualBase := compilerTypeBase(actual)
+  sameBase := expectedBase == actualBase
+  sameBase {
+    true => compilerGenericTypeArgsCompatible(expected, actual)
+    _ => expectedBase == actual
+  }
+}
+
+compilerGenericTypeArgsCompatible(
+  expected: String,
+  actual: String
+) -> Bool => {
+  expectedArgs := compilerGenericArgs(expected)
+  actualArgs := compilerGenericArgs(actual)
+  hasExpected := expectedArgs.length() > 0
+  hasActual := actualArgs.length() > 0
+  hasExpected {
+    true => hasActual {
+      true => compilerGenericArgListsCompatible(expectedArgs, actualArgs, 0)
+      _ => true
+    }
+    _ => true
+  }
+}
+
+compilerGenericArgListsCompatible(
+  expected: Array[String],
+  actual: Array[String],
+  index: Int
+) -> Bool => {
+  lengthMismatch := expected.length() != actual.length()
+  lengthMismatch {
+    true => false
+    _ => compilerGenericArgListsCompatibleAt(expected, actual, index)
+  }
+}
+
+compilerGenericArgListsCompatibleAt(
+  expected: Array[String],
+  actual: Array[String],
+  index: Int
+) -> Bool => {
+  done := index >= expected.length()
+  done {
+    true => true
+    _ => compilerTypesCompatible(expected[index].trim(), actual[index].trim()) && compilerGenericArgListsCompatibleAt(expected, actual, index + 1)
   }
 }
 
@@ -1899,8 +2114,81 @@ compilerTypeBase(
   typeName: String
 ) -> String => {
   generic := typeName.indexOf("[")
-  generic < 0 ? typeName
-    : typeName.slice(0, generic)
+  (
+    generic < 0 ? typeName
+      : typeName.slice(0, generic)
+  )
+}
+
+compilerGenericArgs(
+  typeName: String
+) -> Array[String] => {
+  inner := compilerGenericInner(typeName)
+  inner {
+    "" => []
+    _ => inner.split(",")
+  }
+}
+
+compilerArrayType(
+  elem: String
+) -> String => elem {
+  "" => "Array"
+  _ => ("Array[" + elem) + "]"
+}
+
+compilerNullableType(
+  inner: String
+) -> String => inner {
+  "" => ""
+  "Null" => "Null"
+  _ => inner.endsWith("?") {
+    true => inner
+    _ => inner + "?"
+  }
+}
+
+compilerArrayElementType(
+  typeName: String
+) -> String => {
+  base := compilerTypeBase(typeName)
+  args := compilerGenericArgs(typeName)
+  valid := (base == "Array") && (args.length() == 1)
+  valid {
+    true => args[0].trim()
+    _ => ""
+  }
+}
+
+compilerMapKeyType(
+  typeName: String
+) -> String => {
+  base := compilerTypeBase(typeName)
+  args := compilerGenericArgs(typeName)
+  valid := (base == "Map") && (args.length() == 2)
+  valid {
+    true => args[0].trim()
+    _ => ""
+  }
+}
+
+compilerMapValueType(
+  typeName: String
+) -> String => {
+  base := compilerTypeBase(typeName)
+  args := compilerGenericArgs(typeName)
+  valid := (base == "Map") && (args.length() == 2)
+  valid {
+    true => args[1].trim()
+    _ => ""
+  }
+}
+
+compilerTupleType(
+  typeName: String
+) -> Bool => {
+  base := compilerTypeBase(typeName)
+  (base == "Tuple") || (base == "ReadonlyTuple")
 }
 
 inferCompilerExprType(
@@ -1924,7 +2212,86 @@ inferCompilerExprType(
   ExprKind.Ternary => inferCompilerTernaryType(expr, callables, bindings)
   ExprKind.Unary => inferCompilerUnaryType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
+  ExprKind.Array => inferCompilerArrayType(expr, callables, bindings)
+  ExprKind.Spread => inferCompilerSpreadType(expr, callables, bindings)
+  ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
   _ => ""
+}
+
+inferCompilerArrayType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerArrayType(inferCompilerArrayElementType(expr.children, callables, bindings, 0, ""))
+
+inferCompilerArrayElementType(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  expected: String
+) -> String => {
+  done := index >= elements.length()
+  done {
+    true => expected
+    _ => inferCompilerArrayElementTypeAt(elements, callables, bindings, index, expected)
+  }
+}
+
+inferCompilerArrayElementTypeAt(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  expected: String
+) -> String => {
+  actual := inferCompilerArrayLiteralElementType(elements[index], callables, bindings)
+  next := compilerNextArrayElementType(expected, actual)
+  inferCompilerArrayElementType(elements, callables, bindings, index + 1, next)
+}
+
+inferCompilerArrayLiteralElementType(
+  elem: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => elem.kind {
+  ExprKind.Spread => compilerArrayElementType(inferCompilerExprType(elem.children[0], callables, bindings))
+  _ => inferCompilerExprType(elem, callables, bindings)
+}
+
+inferCompilerSpreadType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := expr.children.length() > 0
+  complete {
+    true => inferCompilerExprType(expr.children[0], callables, bindings)
+    _ => ""
+  }
+}
+
+inferCompilerIndexType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => inferCompilerIndexReceiverType(inferCompilerExprType(expr.children[0], callables, bindings))
+    _ => ""
+  }
+}
+
+inferCompilerIndexReceiverType(
+  receiverType: String
+) -> String => {
+  arrayElem := compilerArrayElementType(receiverType)
+  mapValue := compilerMapValueType(receiverType)
+  arrayElem {
+    "" => compilerNullableType(mapValue)
+    _ => arrayElem
+  }
 }
 
 inferCompilerCallType(
@@ -1932,7 +2299,7 @@ inferCompilerCallType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
-  identifierCall := ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier))
+  identifierCall := (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier)
   identifierCall {
     true => compilerCallableReturnOrText(findCompilerCallable(callables, expr.children[0].name, 0), expr.text)
     _ => inferCompilerSelectorCallType(expr, callables, bindings)
@@ -1955,7 +2322,7 @@ inferCompilerSelectorCallType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
-  selectorCall := ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector))
+  selectorCall := (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector)
   selectorCall {
     true => inferCompilerSelectorCallTypeFromSelector(expr, expr.children[0], callables, bindings)
     _ => expr.text
@@ -2219,7 +2586,8 @@ compilerCallable(
   paramTypes: paramTypes
 }
 
-emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0, "", [])
+emptyCompilerCallable(
+) -> CompilerCallable => compilerCallable("", 0, "", [])
 
 compilerParamTypeNames(
   params: Array[IRParam]
@@ -2269,7 +2637,8 @@ compilerTypeBinding(
   typeName: typeName
 }
 
-emptyCompilerTypeBinding() -> CompilerTypeBinding => compilerTypeBinding("", "")
+emptyCompilerTypeBinding(
+) -> CompilerTypeBinding => compilerTypeBinding("", "")
 
 findCompilerTypeBinding(
   bindings: Array[CompilerTypeBinding],
@@ -2604,7 +2973,8 @@ compilerJsonParseExpr(
   compilerParsedExpr(ExprKind.Call, "parse", "", "", "", [], [parseSelector, textArg], line, column)
 }
 
-compilerEmptyAnnotations() -> Array[ParsedAnnotation] => [ParsedAnnotation {
+compilerEmptyAnnotations(
+) -> Array[ParsedAnnotation] => [ParsedAnnotation {
   marker: "",
   module: "",
   name: "",
@@ -2818,7 +3188,7 @@ compilerMacroFunctionError(
 ) -> Array[ParseError] => fn.macro {
   true => compilerSyntaxMacroSignatureOk(fn) {
     true => errors
-    _ => [..errors, compilerParseError((("macro " + fn.name) + " must accept SyntaxFile and MacroContext first and return SyntaxFile"), fn.line, fn.column)]
+    _ => [..errors, compilerParseError(("macro " + fn.name) + " must accept SyntaxFile and MacroContext first and return SyntaxFile", fn.line, fn.column)]
   }
   _ => errors
 }
@@ -2970,8 +3340,8 @@ compilerUnknownModuleMacroError(
   annotation: ParsedAnnotation,
   errors: Array[ParseError]
 ) -> Array[ParseError] => compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) {
-  true => [..errors, compilerParseError((("#" + annotation.module) + ".") + annotation.name + " refers to a function that is not a macro", annotation.line, annotation.column)]
-  _ => [..errors, compilerParseError("unknown macro #" + annotation.module + "." + annotation.name, annotation.line, annotation.column)]
+  true => [..errors, compilerParseError(((("#" + annotation.module) + ".") + annotation.name) + " refers to a function that is not a macro", annotation.line, annotation.column)]
+  _ => [..errors, compilerParseError((("unknown macro #" + annotation.module) + ".") + annotation.name, annotation.line, annotation.column)]
 }
 
 compilerAnnotationArgErrors(
@@ -3145,7 +3515,8 @@ compilerMacroBinding(
   paramTypes: paramTypes
 }
 
-emptyCompilerMacroBinding() -> CompilerMacroBinding => compilerMacroBinding("", false, [])
+emptyCompilerMacroBinding(
+) -> CompilerMacroBinding => compilerMacroBinding("", false, [])
 
 compilerParseError(
   message: String,
@@ -3207,13 +3578,15 @@ compilerAppendImportExpr(
   expr: ParsedExpr
 ) -> Array[ParsedImport] => {
   path := compilerAtImportPath(expr)
-  path == "" ? imports
-    : compilerAppendParsedImportIfMissing(imports, ParsedImport {
-      path: path,
-      go: false,
-      line: expr.line,
-      column: expr.column
-    })
+  (
+    path == "" ? imports
+      : compilerAppendParsedImportIfMissing(imports, ParsedImport {
+        path: path,
+        go: false,
+        line: expr.line,
+        column: expr.column
+      })
+  )
 }
 
 compilerMergeParsedImports(
@@ -3246,7 +3619,8 @@ compilerParsedImportContains(
     )
 )
 
-compilerEmptyParsedImport() -> ParsedImport => {
+compilerEmptyParsedImport(
+) -> ParsedImport => {
   path: "",
   go: false,
   line: 0,
@@ -3404,11 +3778,13 @@ compilerNamespaceAliasFromAt(
   expr: ParsedExpr
 ) -> CompilerNamespaceAlias => {
   importPath := compilerAtImportPath(expr)
-  importPath != "" ? compilerNamespaceAlias(name, "")
-    : (
-      expr.name != "" ? compilerNamespaceAlias(name, expr.name)
-        : emptyCompilerNamespaceAlias()
-    )
+  (
+    importPath != "" ? compilerNamespaceAlias(name, "")
+      : (
+        expr.name != "" ? compilerNamespaceAlias(name, expr.name)
+          : emptyCompilerNamespaceAlias()
+      )
+  )
 }
 
 compilerAtImportPath(
@@ -3444,7 +3820,8 @@ compilerNamespaceAlias(
   module: module
 }
 
-emptyCompilerNamespaceAlias() -> CompilerNamespaceAlias => compilerNamespaceAlias("", "")
+emptyCompilerNamespaceAlias(
+) -> CompilerNamespaceAlias => compilerNamespaceAlias("", "")
 
 addCompilerNamespaceAlias(
   aliases: Array[CompilerNamespaceAlias],
@@ -3741,7 +4118,7 @@ findSourceFileBasenameAt(
   }
 }
 
-emptySourceFile() -> SourceFile => SourceFile {
+emptySourceFile() -> SourceFile => {
   path: "",
   source: ""
 }
@@ -3777,11 +4154,13 @@ compilerPathDirname(
   path: String
 ) -> String => {
   slash := path.lastIndexOf("/")
-  slash < 0 ? ""
-    : (
-      slash == 0 ? "/"
-        : path.slice(0, slash)
-    )
+  (
+    slash < 0 ? ""
+      : (
+        slash == 0 ? "/"
+          : path.slice(0, slash)
+      )
+  )
 }
 
 compilerPathJoin(
@@ -3828,11 +4207,13 @@ compilerPathNormalizePart(
   out: Array[String]
 ) -> Array[String] => {
   part := parts[index]
-  part.isEmpty() || (part == ".") ? compilerPathNormalizeParts(parts, index + 1, absolute, out)
-    : (
-      part == ".." ? compilerPathNormalizeParent(parts, index, absolute, out)
-        : compilerPathNormalizeParts(parts, index + 1, absolute, [..out, part])
-    )
+  (
+    part.isEmpty() || (part == ".") ? compilerPathNormalizeParts(parts, index + 1, absolute, out)
+      : (
+        part == ".." ? compilerPathNormalizeParent(parts, index, absolute, out)
+          : compilerPathNormalizeParts(parts, index + 1, absolute, [..out, part])
+      )
+  )
 }
 
 compilerPathNormalizeParent(
@@ -3878,7 +4259,7 @@ typeScriptImportSpecifier(
 ) -> String => (
   index >= imports.length() ? ""
     : (
-      (imports[index].path.endsWith(".ts") && compilerPathBasename(path) == compilerPathBasename(imports[index].path)) ? imports[index].path
+      imports[index].path.endsWith(".ts") && (compilerPathBasename(path) == compilerPathBasename(imports[index].path)) ? imports[index].path
         : typeScriptImportSpecifier(path, imports, index + 1)
     )
 )
@@ -3944,22 +4325,22 @@ pushTypeScriptFunction(
   returnType := typeScriptReturnTypeName(text)
   (
     name != "" ? imports.functions.push(IRFunction {
-        name: name,
-        private: false,
-        static: false,
-        routine: routine,
-        macro: false,
-        receiverType: "",
-        generics: [],
-        params: (
-          (open >= 0) && (close > open) ? parseTypeScriptParams(text.slice(open + 1, close))
-            : [emptyIRParam()].slice(0, 0)
-        ),
-        returnType: returnType,
-        body: emptyIRExpr(),
-        line: 0,
-        column: 0
-      })
+      name: name,
+      private: false,
+      static: false,
+      routine: routine,
+      macro: false,
+      receiverType: "",
+      generics: [],
+      params: (
+        (open >= 0) && (close > open) ? parseTypeScriptParams(text.slice(open + 1, close))
+          : [emptyIRParam()].slice(0, 0)
+      ),
+      returnType: returnType,
+      body: emptyIRExpr(),
+      line: 0,
+      column: 0
+    })
   )
   imports
 }
@@ -3973,20 +4354,18 @@ pushTypeScriptValue(
   typeName := typeScriptValueTypeName(text)
   (
     name != "" ? imports.values.push(IRConst {
-        name: name,
-        private: false,
-        typeName: typeName,
-        value: emptyIRExpr(),
-        line: 0,
-        column: 0
-      })
+      name: name,
+      private: false,
+      typeName: typeName,
+      value: emptyIRExpr(),
+      line: 0,
+      column: 0
+    })
   )
   imports
 }
 
-typeScriptNameEnd(
-  text: String
-) -> Int => {
+typeScriptNameEnd(text: String) -> Int => {
   colon := text.indexOf(":")
   equal := text.indexOf("=")
   (
@@ -4007,7 +4386,7 @@ typeScriptReturnTypeName(
       : -1
   )
   (
-    (close >= 0) && (colon >= 0) ? typeScriptTextType(text.slice(close + 1 + colon + 1, typeScriptReturnTypeEnd(text)).trim())
+    (close >= 0) && (colon >= 0) ? typeScriptTextType(text.slice(((close + 1) + colon) + 1, typeScriptReturnTypeEnd(text)).trim())
       : "Dynamic"
   )
 }
@@ -4032,7 +4411,7 @@ typeScriptValueTypeName(
   colon := text.indexOf(":")
   (
     colon < 0 ? "Dynamic"
-      : typeScriptTextType(text.slice(colon + 1, typeScriptNameEnd(text.slice(colon + 1, text.length())) + colon + 1).trim())
+      : typeScriptTextType(text.slice(colon + 1, (typeScriptNameEnd(text.slice(colon + 1, text.length())) + colon) + 1).trim())
   )
 }
 

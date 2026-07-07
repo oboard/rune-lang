@@ -9662,6 +9662,10 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkUnaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_0d2ebf0f_checkBinaryExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Array:
+			return ____rune_private_0d2ebf0f_checkArrayExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Index:
+			return ____rune_private_0d2ebf0f_checkIndexExpr(__expr, __structs, __callables, __errors, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
 		}
@@ -9803,6 +9807,207 @@ func ____rune_private_0d2ebf0f_checkBoolOperand(__op string, __operand __IRExpr,
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "operator '"+__op+"' expects Bool, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArrayExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	return ____rune_private_0d2ebf0f_checkArrayElementTypes(__expr.__children, __callables, __bindings, __checked, 0, "")
+}
+
+func ____rune_private_0d2ebf0f_checkArrayElementTypes(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int, __expected string) []string {
+	__done := __index >= len(__elements)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkArrayElementType(__elements, __callables, __bindings, __errors, __index, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArrayElementType(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int, __expected string) []string {
+	__elem := __elements[__index]
+	__actual := ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elem, __callables, __bindings)
+	__nextExpected := ____rune_private_0d2ebf0f_compilerNextArrayElementType(__expected, __actual)
+	__nextErrors := ____rune_private_0d2ebf0f_checkArrayElementTypeError(__elem, __expected, __actual, __callables, __bindings, __errors)
+	return ____rune_private_0d2ebf0f_checkArrayElementTypes(__elements, __callables, __bindings, __nextErrors, __index+1, __nextExpected)
+}
+
+func ____rune_private_0d2ebf0f_compilerNextArrayElementType(__expected string, __actual string) string {
+	return func() string {
+		switch {
+		case __expected == "":
+			return __actual
+		default:
+			return __expected
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArrayElementTypeError(__elem __IRExpr, __expected string, __actual string, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__spreadErrors := ____rune_private_0d2ebf0f_checkArraySpreadElementType(__elem, __callables, __bindings, __errors)
+	__mismatch := __expected != "" && __actual != "" && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __spreadErrors...)
+				out = append(out, "array element has type "+__actual+", expected "+__expected)
+				return out
+			}()
+		default:
+			return __spreadErrors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArraySpreadElementType(__elem __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __elem.__kind == __ExprKind_Spread:
+			return ____rune_private_0d2ebf0f_checkArraySpreadReceiverType(__elem, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArraySpreadReceiverType(__elem __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__elem.__children[0], __callables, __bindings)
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerArrayElementType(__actual) == ""
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "spread expects Array, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkIndexExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkIndexExprTypes(__expr, __callables, __bindings, __checked)
+		default:
+			return __checked
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkIndexExprTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__receiver := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__index := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
+	return ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver, __index, __errors)
+}
+
+func ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver string, __index string, __errors []string) []string {
+	__arrayElem := ____rune_private_0d2ebf0f_compilerArrayElementType(__receiver)
+	__mapKey := ____rune_private_0d2ebf0f_compilerMapKeyType(__receiver)
+	__tuple := ____rune_private_0d2ebf0f_compilerTupleType(__receiver)
+	return func() []string {
+		switch {
+		case __arrayElem == "":
+			return ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver, __mapKey, __tuple, __index, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_checkArrayIndexType(__index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver string, __mapKey string, __tuple bool, __index string, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __mapKey == "":
+			return ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver, __tuple, __index, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_checkMapIndexType(__mapKey, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver string, __tuple bool, __index string, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __tuple == true:
+			return ____rune_private_0d2ebf0f_checkTupleIndexType(__index, __errors)
+		default:
+			return func() []string {
+				switch {
+				case __receiver == "":
+					return __errors
+				default:
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "type "+__receiver+" is not indexable")
+						return out
+					}()
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArrayIndexType(__index string, __errors []string) []string {
+	__mismatch := __index != "" && __index != "Int"
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "array index expects Int, got "+__index)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapIndexType(__expected string, __actual string, __errors []string) []string {
+	__mismatch := __expected != "" && __actual != "" && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "map index has type "+__actual+", expected "+__expected)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTupleIndexType(__index string, __errors []string) []string {
+	__mismatch := __index != "" && __index != "Int"
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "tuple index expects an integer literal")
 				return out
 			}()
 		default:
@@ -10818,7 +11023,79 @@ func ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected string, __actu
 		case __nullable == true:
 			return __actual == "Null" || ____rune_private_0d2ebf0f_compilerTypesCompatible(func() string { runes := []rune(__expected); return string(runes[0 : len([]rune(__expected))-1]) }(), __actual)
 		default:
-			return __expected == __actual || ____rune_private_0d2ebf0f_compilerTypeBase(__expected) == __actual
+			return ____rune_private_0d2ebf0f_compilerNonNullableTypesCompatible(__expected, __actual)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNonNullableTypesCompatible(__expected string, __actual string) bool {
+	__same := __expected == __actual
+	return func() bool {
+		switch {
+		case __same == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerGenericTypesCompatible(__expected, __actual)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericTypesCompatible(__expected string, __actual string) bool {
+	__expectedBase := ____rune_private_0d2ebf0f_compilerTypeBase(__expected)
+	__actualBase := ____rune_private_0d2ebf0f_compilerTypeBase(__actual)
+	__sameBase := __expectedBase == __actualBase
+	return func() bool {
+		switch {
+		case __sameBase == true:
+			return ____rune_private_0d2ebf0f_compilerGenericTypeArgsCompatible(__expected, __actual)
+		default:
+			return __expectedBase == __actual
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericTypeArgsCompatible(__expected string, __actual string) bool {
+	__expectedArgs := ____rune_private_0d2ebf0f_compilerGenericArgs(__expected)
+	__actualArgs := ____rune_private_0d2ebf0f_compilerGenericArgs(__actual)
+	__hasExpected := len(__expectedArgs) > 0
+	__hasActual := len(__actualArgs) > 0
+	return func() bool {
+		switch {
+		case __hasExpected == true:
+			return func() bool {
+				switch {
+				case __hasActual == true:
+					return ____rune_private_0d2ebf0f_compilerGenericArgListsCompatible(__expectedArgs, __actualArgs, 0)
+				default:
+					return true
+				}
+			}()
+		default:
+			return true
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericArgListsCompatible(__expected []string, __actual []string, __index int) bool {
+	__lengthMismatch := len(__expected) != len(__actual)
+	return func() bool {
+		switch {
+		case __lengthMismatch == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerGenericArgListsCompatibleAt(__expected, __actual, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericArgListsCompatibleAt(__expected []string, __actual []string, __index int) bool {
+	__done := __index >= len(__expected)
+	return func() bool {
+		switch {
+		case __done == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerTypesCompatible(strings.TrimSpace(__expected[__index]), strings.TrimSpace(__actual[__index])) && ____rune_private_0d2ebf0f_compilerGenericArgListsCompatibleAt(__expected, __actual, __index+1)
 		}
 	}()
 }
@@ -10905,6 +11182,96 @@ func ____rune_private_0d2ebf0f_compilerTypeBase(__typeName string) string {
 	}()
 }
 
+func ____rune_private_0d2ebf0f_compilerGenericArgs(__typeName string) []string {
+	__inner := ____rune_private_0d2ebf0f_compilerGenericInner(__typeName)
+	return func() []string {
+		switch {
+		case __inner == "":
+			return []string{}
+		default:
+			return func() []string { parts := strings.Split(__inner, ","); return parts }()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerArrayType(__elem string) string {
+	return func() string {
+		switch {
+		case __elem == "":
+			return "Array"
+		default:
+			return "Array[" + __elem + "]"
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNullableType(__inner string) string {
+	return func() string {
+		switch {
+		case __inner == "":
+			return ""
+		case __inner == "Null":
+			return "Null"
+		default:
+			return func() string {
+				switch {
+				case strings.HasSuffix(__inner, "?") == true:
+					return __inner
+				default:
+					return __inner + "?"
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerArrayElementType(__typeName string) string {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	__args := ____rune_private_0d2ebf0f_compilerGenericArgs(__typeName)
+	__valid := __base == "Array" && len(__args) == 1
+	return func() string {
+		switch {
+		case __valid == true:
+			return strings.TrimSpace(__args[0])
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMapKeyType(__typeName string) string {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	__args := ____rune_private_0d2ebf0f_compilerGenericArgs(__typeName)
+	__valid := __base == "Map" && len(__args) == 2
+	return func() string {
+		switch {
+		case __valid == true:
+			return strings.TrimSpace(__args[0])
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMapValueType(__typeName string) string {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	__args := ____rune_private_0d2ebf0f_compilerGenericArgs(__typeName)
+	__valid := __base == "Map" && len(__args) == 2
+	return func() string {
+		switch {
+		case __valid == true:
+			return strings.TrimSpace(__args[1])
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTupleType(__typeName string) bool {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	return __base == "Tuple" || __base == "ReadonlyTuple"
+}
+
 func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return func() string {
 		switch {
@@ -10940,8 +11307,84 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerUnaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Array:
+			return ____rune_private_0d2ebf0f_inferCompilerArrayType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Spread:
+			return ____rune_private_0d2ebf0f_inferCompilerSpreadType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Index:
+			return ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr, __callables, __bindings)
 		default:
 			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerArrayType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_compilerArrayType(____rune_private_0d2ebf0f_inferCompilerArrayElementType(__expr.__children, __callables, __bindings, 0, ""))
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerArrayElementType(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __index int, __expected string) string {
+	__done := __index >= len(__elements)
+	return func() string {
+		switch {
+		case __done == true:
+			return __expected
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerArrayElementTypeAt(__elements, __callables, __bindings, __index, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerArrayElementTypeAt(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __index int, __expected string) string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elements[__index], __callables, __bindings)
+	__next := ____rune_private_0d2ebf0f_compilerNextArrayElementType(__expected, __actual)
+	return ____rune_private_0d2ebf0f_inferCompilerArrayElementType(__elements, __callables, __bindings, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elem __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case __elem.__kind == __ExprKind_Spread:
+			return ____rune_private_0d2ebf0f_compilerArrayElementType(____rune_private_0d2ebf0f_inferCompilerExprType(__elem.__children[0], __callables, __bindings))
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__elem, __callables, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerSpreadType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__expr.__children) > 0
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__expr.__children) >= 2
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(__receiverType string) string {
+	__arrayElem := ____rune_private_0d2ebf0f_compilerArrayElementType(__receiverType)
+	__mapValue := ____rune_private_0d2ebf0f_compilerMapValueType(__receiverType)
+	return func() string {
+		switch {
+		case __arrayElem == "":
+			return ____rune_private_0d2ebf0f_compilerNullableType(__mapValue)
+		default:
+			return __arrayElem
 		}
 	}()
 }
