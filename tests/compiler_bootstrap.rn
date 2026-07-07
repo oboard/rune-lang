@@ -407,6 +407,69 @@ main() -> Int => 1
   @assert.eq(result.errors[0].includes("macro tag must accept SyntaxFile and MacroContext first and return SyntaxFile"), true)
 }
 
+? "selfhost compiler accepts local macro annotations" {
+  source := `#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
+
+#tag("command")
+Args: {
+  value: Int
+}
+
+main() -> Int => 1
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
+? "selfhost compiler rejects unknown local macro annotations" {
+  result := compileTypeScript(`#missing
+Args: {
+  value: Int
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0].includes("unknown macro #missing"), true)
+}
+
+? "selfhost compiler rejects non-macro annotations" {
+  result := compileTypeScript(`tag(name: String) -> String => name
+
+#tag("command")
+Args: {
+  value: Int
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0].includes("#tag refers to a function that is not a macro"), true)
+}
+
+? "selfhost compiler checks local macro annotation args" {
+  result := compileTypeScript(`#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
+
+#tag(1)
+Args: {
+  value: Int
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int, expected String"), true)
+}
+
+? "selfhost compiler checks builtin macro annotation arity" {
+  result := compileTypeScript(`#cli.flag("v")
+Args: {
+  verbose: Bool
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0].includes("function \"flag\" expects 2 args, got 1"), true)
+}
+
 ? "selfhost compiler expands rename declaration macro" {
   source := `#macro.renameDeclaration("RenamedArgs")
 Args: {

@@ -539,6 +539,12 @@ type __CompilerCallable struct {
 	__paramTypes []string
 }
 
+type __CompilerMacroBinding struct {
+	__name       string
+	__macro      bool
+	__paramTypes []string
+}
+
 type __CompilerTypeBinding struct {
 	__name     string
 	__typeName string
@@ -11073,7 +11079,8 @@ func ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn __ParsedFunctio
 }
 
 func ____rune_private_0d2ebf0f_compilerMacroErrors(__file __ParsedFile, __errors []__ParseError) []__ParseError {
-	return ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__file.__functions, 0, __errors)
+	__functionErrors := ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__file.__functions, 0, __errors)
+	return ____rune_private_0d2ebf0f_compilerAnnotationErrors(__file, __functionErrors)
 }
 
 func ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
@@ -11115,6 +11122,400 @@ func ____rune_private_0d2ebf0f_compilerSyntaxMacroSignatureOk(__fn __ParsedFunct
 	__returnOk := __typeRefToString(__fn.__returnType) == "SyntaxFile"
 	__paramsOk := len(__fn.__params) >= 2 && (__typeRefToString(__fn.__params[0].__typeRef) == "SyntaxFile" && __typeRefToString(__fn.__params[1].__typeRef) == "MacroContext")
 	return __returnOk && __paramsOk
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationErrors(__file __ParsedFile, __errors []__ParseError) []__ParseError {
+	__next := ____rune_private_0d2ebf0f_compilerTypeAnnotationErrors(__file.__types, __file.__functions, 0, __errors)
+	return ____rune_private_0d2ebf0f_compilerFunctionAnnotationErrors(__file.__functions, __file.__functions, 0, __next)
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeAnnotationErrors(__types []__ParsedType, __functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__types)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerTypeAnnotationErrors(__types, __functions, __index+1, ____rune_private_0d2ebf0f_compilerTypeAnnotationError(__types[__index], __functions, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTypeAnnotationError(__typeDecl __ParsedType, __functions []__ParsedFunction, __errors []__ParseError) []__ParseError {
+	__next := ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__typeDecl.__annotations, __functions, 0, __errors)
+	__next = ____rune_private_0d2ebf0f_compilerFieldAnnotationErrors(__typeDecl.__fields, __functions, 0, __next)
+	__next = ____rune_private_0d2ebf0f_compilerEnumMemberAnnotationErrors(__typeDecl.__members, __functions, 0, __next)
+	return ____rune_private_0d2ebf0f_compilerFunctionAnnotationErrors(__typeDecl.__methods, __functions, 0, __next)
+}
+
+func ____rune_private_0d2ebf0f_compilerFieldAnnotationErrors(__fields []__ParsedField, __functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__fields)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerFieldAnnotationErrors(__fields, __functions, __index+1, ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__fields[__index].__annotations, __functions, 0, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerEnumMemberAnnotationErrors(__members []__ParsedEnumMember, __functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__members)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerEnumMemberAnnotationErrors(__members, __functions, __index+1, ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__members[__index].__annotations, __functions, 0, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerFunctionAnnotationErrors(__functions []__ParsedFunction, __topLevelFunctions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__functions)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerFunctionAnnotationErrors(__functions, __topLevelFunctions, __index+1, ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__functions[__index].__annotations, __topLevelFunctions, 0, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__annotations []__ParsedAnnotation, __functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__annotations)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerAnnotationListErrors(__annotations, __functions, __index+1, ____rune_private_0d2ebf0f_compilerAnnotationError(__annotations[__index], __functions, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationError(__annotation __ParsedAnnotation, __functions []__ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __annotation.__marker == "#":
+			return ____rune_private_0d2ebf0f_compilerHashAnnotationError(__annotation, __functions, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerHashAnnotationError(__annotation __ParsedAnnotation, __functions []__ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __annotation.__module == "":
+			return ____rune_private_0d2ebf0f_compilerLocalAnnotationError(__annotation, __functions, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_compilerModuleAnnotationError(__annotation, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerLocalAnnotationError(__annotation __ParsedAnnotation, __functions []__ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __annotation.__name == "":
+			return __errors
+		case __annotation.__name == "alias":
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerResolvedLocalAnnotationError(__annotation, ____rune_private_0d2ebf0f_findCompilerMacroBinding(__functions, __annotation.__name, 0), __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerResolvedLocalAnnotationError(__annotation __ParsedAnnotation, __binding __CompilerMacroBinding, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __binding.__name == "":
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("unknown macro #"+__annotation.__name, __annotation.__line, __annotation.__column))
+				return out
+			}()
+		default:
+			return func() []__ParseError {
+				switch {
+				case __binding.__macro == true:
+					return ____rune_private_0d2ebf0f_compilerAnnotationArgErrors(__annotation, __binding, __errors)
+				default:
+					return func() []__ParseError {
+						out := []__ParseError{}
+						out = append(out, __errors...)
+						out = append(out, ____rune_private_0d2ebf0f_compilerParseError("#"+__annotation.__name+" refers to a function that is not a macro", __annotation.__line, __annotation.__column))
+						return out
+					}()
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerModuleAnnotationError(__annotation __ParsedAnnotation, __errors []__ParseError) []__ParseError {
+	__binding := ____rune_private_0d2ebf0f_compilerBuiltinMacroBinding(__annotation.__module, __annotation.__name)
+	return func() []__ParseError {
+		switch {
+		case __binding.__name == "":
+			return ____rune_private_0d2ebf0f_compilerUnknownModuleMacroError(__annotation, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_compilerAnnotationArgErrors(__annotation, __binding, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerUnknownModuleMacroError(__annotation __ParsedAnnotation, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerKnownOrdinaryAnnotationFunction(__annotation.__module, __annotation.__name) == true:
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("#"+__annotation.__module+"."+__annotation.__name+" refers to a function that is not a macro", __annotation.__line, __annotation.__column))
+				return out
+			}()
+		default:
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("unknown macro #"+__annotation.__module+"."+__annotation.__name, __annotation.__line, __annotation.__column))
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationArgErrors(__annotation __ParsedAnnotation, __binding __CompilerMacroBinding, __errors []__ParseError) []__ParseError {
+	__arityOk := len(__annotation.__args) == len(__binding.__paramTypes)
+	return func() []__ParseError {
+		switch {
+		case __arityOk == true:
+			return ____rune_private_0d2ebf0f_compilerAnnotationArgTypeErrors(__annotation, __binding, 0, __errors)
+		default:
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("function \""+__binding.__name+"\" expects "+__compilerIntToString(len(__binding.__paramTypes))+" args, got "+__compilerIntToString(len(__annotation.__args)), __annotation.__line, __annotation.__column))
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationArgTypeErrors(__annotation __ParsedAnnotation, __binding __CompilerMacroBinding, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__binding.__paramTypes)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerAnnotationArgTypeErrors(__annotation, __binding, __index+1, ____rune_private_0d2ebf0f_compilerAnnotationArgTypeError(__annotation, __binding, __index, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationArgTypeError(__annotation __ParsedAnnotation, __binding __CompilerMacroBinding, __index int, __errors []__ParseError) []__ParseError {
+	__expected := __binding.__paramTypes[__index]
+	__actual := ____rune_private_0d2ebf0f_compilerParsedAnnotationArgType(__annotation.__args[__index])
+	__shouldCheck := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual)
+	__mismatch := __shouldCheck && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []__ParseError {
+		switch {
+		case __mismatch == true:
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError(____rune_private_0d2ebf0f_compilerArgumentTypeError(__binding.__name, __index+1, __actual, __expected), __annotation.__line, __annotation.__column))
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedAnnotationArgType(__expr __ParsedExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_String:
+			return "String"
+		case __expr.__kind == __ExprKind_Template:
+			return "String"
+		case __expr.__kind == __ExprKind_Int:
+			return "Int"
+		case __expr.__kind == __ExprKind_Double:
+			return "Double"
+		case __expr.__kind == __ExprKind_BigInt:
+			return "BigInt"
+		case __expr.__kind == __ExprKind_Char:
+			return "Char"
+		case __expr.__kind == __ExprKind_Bool:
+			return "Bool"
+		case __expr.__kind == __ExprKind_Null:
+			return "Null"
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerMacroBinding(__functions []__ParsedFunction, __name string, __index int) __CompilerMacroBinding {
+	__done := __index >= len(__functions)
+	return func() __CompilerMacroBinding {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptyCompilerMacroBinding()
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerMacroBindingAt(__functions, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerMacroBindingAt(__functions []__ParsedFunction, __name string, __index int) __CompilerMacroBinding {
+	__matched := __functions[__index].__name == __name
+	return func() __CompilerMacroBinding {
+		switch {
+		case __matched == true:
+			return ____rune_private_0d2ebf0f_compilerMacroBindingFromFunction(__functions[__index])
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerMacroBinding(__functions, __name, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroBindingFromFunction(__fn __ParsedFunction) __CompilerMacroBinding {
+	return __CompilerMacroBinding{__name: __fn.__name, __macro: __fn.__macro, __paramTypes: func() []string {
+		switch {
+		case __fn.__macro == true:
+			return ____rune_private_0d2ebf0f_compilerVisibleMacroParamTypes(__fn.__params, 2, append([]string{}, []string{""}[0:0]...))
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedParamTypeNames(__fn.__params, 0, append([]string{}, []string{""}[0:0]...))
+		}
+	}()}
+}
+
+func ____rune_private_0d2ebf0f_compilerVisibleMacroParamTypes(__params []__ParsedParam, __index int, __out []string) []string {
+	__done := __index >= len(__params)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerVisibleMacroParamTypes(__params, __index+1, func() []string {
+				out := []string{}
+				out = append(out, __out...)
+				out = append(out, __typeRefToString(__params[__index].__typeRef))
+				return out
+			}())
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedParamTypeNames(__params []__ParsedParam, __index int, __out []string) []string {
+	__done := __index >= len(__params)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedParamTypeNames(__params, __index+1, func() []string {
+				out := []string{}
+				out = append(out, __out...)
+				out = append(out, __typeRefToString(__params[__index].__typeRef))
+				return out
+			}())
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerBuiltinMacroBinding(__module string, __name string) __CompilerMacroBinding {
+	return func() __CompilerMacroBinding {
+		switch {
+		case __module == "macro":
+			return ____rune_private_0d2ebf0f_compilerMacroModuleBinding(__name)
+		case __module == "json":
+			return ____rune_private_0d2ebf0f_compilerJsonModuleMacroBinding(__name)
+		case __module == "cli":
+			return ____rune_private_0d2ebf0f_compilerCliModuleMacroBinding(__name)
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerMacroBinding()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroModuleBinding(__name string) __CompilerMacroBinding {
+	return func() __CompilerMacroBinding {
+		switch {
+		case __name == "renameDeclaration":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("renameDeclaration", true, []string{"String"})
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerMacroBinding()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerJsonModuleMacroBinding(__name string) __CompilerMacroBinding {
+	return func() __CompilerMacroBinding {
+		switch {
+		case __name == "object":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("object", true, []string{})
+		case __name == "name":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("name", true, []string{"String"})
+		case __name == "ignore":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("ignore", true, []string{})
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerMacroBinding()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerCliModuleMacroBinding(__name string) __CompilerMacroBinding {
+	return func() __CompilerMacroBinding {
+		switch {
+		case __name == "command":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("command", true, []string{"String", "String", "String"})
+		case __name == "flag":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("flag", true, []string{"String", "String"})
+		case __name == "option":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("option", true, []string{"String", "String", "String", "String"})
+		case __name == "arg":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("arg", true, []string{"String"})
+		case __name == "parser":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("parser", true, []string{"String", "String", "String", "String", "String"})
+		case __name == "main":
+			return ____rune_private_0d2ebf0f_compilerMacroBinding("main", true, []string{})
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerMacroBinding()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerKnownOrdinaryAnnotationFunction(__module string, __name string) bool {
+	return func() bool {
+		switch {
+		case __module == "json":
+			return __name == "parse" || __name == "stringify"
+		case __module == "go":
+			return __name == "import" || __name == "stmt" || __name == "expr"
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroBinding(__name string, __macro bool, __paramTypes []string) __CompilerMacroBinding {
+	return __CompilerMacroBinding{__name: __name, __macro: __macro, __paramTypes: __paramTypes}
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerMacroBinding() __CompilerMacroBinding {
+	return ____rune_private_0d2ebf0f_compilerMacroBinding("", false, []string{})
 }
 
 func ____rune_private_0d2ebf0f_compilerParseError(__message string, __line int, __column int) __ParseError {

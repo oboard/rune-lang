@@ -22,6 +22,12 @@ CompilerCallable: {
   paramTypes: Array[String]
 }
 
+CompilerMacroBinding: {
+  name: String
+  macro: Bool
+  paramTypes: Array[String]
+}
+
 CompilerTypeBinding: {
   name: String
   typeName: String
@@ -2169,7 +2175,10 @@ expandCompilerFunctionMacros(
 compilerMacroErrors(
   file: ParsedFile,
   errors: Array[ParseError]
-) -> Array[ParseError] => compilerMacroFunctionErrors(file.functions, 0, errors)
+) -> Array[ParseError] => {
+  functionErrors := compilerMacroFunctionErrors(file.functions, 0, errors)
+  compilerAnnotationErrors(file, functionErrors)
+}
 
 compilerMacroFunctionErrors(
   functions: Array[ParsedFunction],
@@ -2201,6 +2210,322 @@ compilerSyntaxMacroSignatureOk(
   paramsOk := (fn.params.length() >= 2) && ((typeRefToString(fn.params[0].typeRef) == "SyntaxFile") && (typeRefToString(fn.params[1].typeRef) == "MacroContext"))
   returnOk && paramsOk
 }
+
+compilerAnnotationErrors(
+  file: ParsedFile,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  next := compilerTypeAnnotationErrors(file.types, file.functions, 0, errors)
+  compilerFunctionAnnotationErrors(file.functions, file.functions, 0, next)
+}
+
+compilerTypeAnnotationErrors(
+  types: Array[ParsedType],
+  functions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= types.length()
+  done {
+    true => errors
+    _ => compilerTypeAnnotationErrors(types, functions, index + 1, compilerTypeAnnotationError(types[index], functions, errors))
+  }
+}
+
+compilerTypeAnnotationError(
+  typeDecl: ParsedType,
+  functions: Array[ParsedFunction],
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  next := compilerAnnotationListErrors(typeDecl.annotations, functions, 0, errors)
+  next = compilerFieldAnnotationErrors(typeDecl.fields, functions, 0, next)
+  next = compilerEnumMemberAnnotationErrors(typeDecl.members, functions, 0, next)
+  compilerFunctionAnnotationErrors(typeDecl.methods, functions, 0, next)
+}
+
+compilerFieldAnnotationErrors(
+  fields: Array[ParsedField],
+  functions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= fields.length()
+  done {
+    true => errors
+    _ => compilerFieldAnnotationErrors(fields, functions, index + 1, compilerAnnotationListErrors(fields[index].annotations, functions, 0, errors))
+  }
+}
+
+compilerEnumMemberAnnotationErrors(
+  members: Array[ParsedEnumMember],
+  functions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= members.length()
+  done {
+    true => errors
+    _ => compilerEnumMemberAnnotationErrors(members, functions, index + 1, compilerAnnotationListErrors(members[index].annotations, functions, 0, errors))
+  }
+}
+
+compilerFunctionAnnotationErrors(
+  functions: Array[ParsedFunction],
+  topLevelFunctions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= functions.length()
+  done {
+    true => errors
+    _ => compilerFunctionAnnotationErrors(functions, topLevelFunctions, index + 1, compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, 0, errors))
+  }
+}
+
+compilerAnnotationListErrors(
+  annotations: Array[ParsedAnnotation],
+  functions: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= annotations.length()
+  done {
+    true => errors
+    _ => compilerAnnotationListErrors(annotations, functions, index + 1, compilerAnnotationError(annotations[index], functions, errors))
+  }
+}
+
+compilerAnnotationError(
+  annotation: ParsedAnnotation,
+  functions: Array[ParsedFunction],
+  errors: Array[ParseError]
+) -> Array[ParseError] => annotation.marker {
+  "#" => compilerHashAnnotationError(annotation, functions, errors)
+  _ => errors
+}
+
+compilerHashAnnotationError(
+  annotation: ParsedAnnotation,
+  functions: Array[ParsedFunction],
+  errors: Array[ParseError]
+) -> Array[ParseError] => annotation.module {
+  "" => compilerLocalAnnotationError(annotation, functions, errors)
+  _ => compilerModuleAnnotationError(annotation, errors)
+}
+
+compilerLocalAnnotationError(
+  annotation: ParsedAnnotation,
+  functions: Array[ParsedFunction],
+  errors: Array[ParseError]
+) -> Array[ParseError] => annotation.name {
+  "" => errors
+  "alias" => errors
+  _ => compilerResolvedLocalAnnotationError(annotation, findCompilerMacroBinding(functions, annotation.name, 0), errors)
+}
+
+compilerResolvedLocalAnnotationError(
+  annotation: ParsedAnnotation,
+  binding: CompilerMacroBinding,
+  errors: Array[ParseError]
+) -> Array[ParseError] => binding.name {
+  "" => [..errors, compilerParseError("unknown macro #" + annotation.name, annotation.line, annotation.column)]
+  _ => binding.macro {
+    true => compilerAnnotationArgErrors(annotation, binding, errors)
+    _ => [..errors, compilerParseError(("#" + annotation.name) + " refers to a function that is not a macro", annotation.line, annotation.column)]
+  }
+}
+
+compilerModuleAnnotationError(
+  annotation: ParsedAnnotation,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  binding := compilerBuiltinMacroBinding(annotation.module, annotation.name)
+  binding.name {
+    "" => compilerUnknownModuleMacroError(annotation, errors)
+    _ => compilerAnnotationArgErrors(annotation, binding, errors)
+  }
+}
+
+compilerUnknownModuleMacroError(
+  annotation: ParsedAnnotation,
+  errors: Array[ParseError]
+) -> Array[ParseError] => compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) {
+  true => [..errors, compilerParseError((("#" + annotation.module) + ".") + annotation.name + " refers to a function that is not a macro", annotation.line, annotation.column)]
+  _ => [..errors, compilerParseError("unknown macro #" + annotation.module + "." + annotation.name, annotation.line, annotation.column)]
+}
+
+compilerAnnotationArgErrors(
+  annotation: ParsedAnnotation,
+  binding: CompilerMacroBinding,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  arityOk := annotation.args.length() == binding.paramTypes.length()
+  arityOk {
+    true => compilerAnnotationArgTypeErrors(annotation, binding, 0, errors)
+    _ => [..errors, compilerParseError((((("function \"" + binding.name) + "\" expects ") + compilerIntToString(binding.paramTypes.length())) + " args, got ") + compilerIntToString(annotation.args.length()), annotation.line, annotation.column)]
+  }
+}
+
+compilerAnnotationArgTypeErrors(
+  annotation: ParsedAnnotation,
+  binding: CompilerMacroBinding,
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= binding.paramTypes.length()
+  done {
+    true => errors
+    _ => compilerAnnotationArgTypeErrors(annotation, binding, index + 1, compilerAnnotationArgTypeError(annotation, binding, index, errors))
+  }
+}
+
+compilerAnnotationArgTypeError(
+  annotation: ParsedAnnotation,
+  binding: CompilerMacroBinding,
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  expected := binding.paramTypes[index]
+  actual := compilerParsedAnnotationArgType(annotation.args[index])
+  shouldCheck := compilerShouldCheckArgType(expected, actual)
+  mismatch := shouldCheck && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, compilerParseError(compilerArgumentTypeError(binding.name, index + 1, actual, expected), annotation.line, annotation.column)]
+    _ => errors
+  }
+}
+
+compilerParsedAnnotationArgType(
+  expr: ParsedExpr
+) -> String => expr.kind {
+  ExprKind.String => "String"
+  ExprKind.Template => "String"
+  ExprKind.Int => "Int"
+  ExprKind.Double => "Double"
+  ExprKind.BigInt => "BigInt"
+  ExprKind.Char => "Char"
+  ExprKind.Bool => "Bool"
+  ExprKind.Null => "Null"
+  _ => ""
+}
+
+findCompilerMacroBinding(
+  functions: Array[ParsedFunction],
+  name: String,
+  index: Int
+) -> CompilerMacroBinding => {
+  done := index >= functions.length()
+  done {
+    true => emptyCompilerMacroBinding()
+    _ => findCompilerMacroBindingAt(functions, name, index)
+  }
+}
+
+findCompilerMacroBindingAt(
+  functions: Array[ParsedFunction],
+  name: String,
+  index: Int
+) -> CompilerMacroBinding => {
+  matched := functions[index].name == name
+  matched {
+    true => compilerMacroBindingFromFunction(functions[index])
+    _ => findCompilerMacroBinding(functions, name, index + 1)
+  }
+}
+
+compilerMacroBindingFromFunction(
+  fn: ParsedFunction
+) -> CompilerMacroBinding => {
+  name: fn.name,
+  macro: fn.macro,
+  paramTypes: fn.macro {
+    true => compilerVisibleMacroParamTypes(fn.params, 2, [""].slice(0, 0))
+    _ => compilerParsedParamTypeNames(fn.params, 0, [""].slice(0, 0))
+  }
+}
+
+compilerVisibleMacroParamTypes(
+  params: Array[ParsedParam],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  done := index >= params.length()
+  done {
+    true => out
+    _ => compilerVisibleMacroParamTypes(params, index + 1, [..out, typeRefToString(params[index].typeRef)])
+  }
+}
+
+compilerParsedParamTypeNames(
+  params: Array[ParsedParam],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  done := index >= params.length()
+  done {
+    true => out
+    _ => compilerParsedParamTypeNames(params, index + 1, [..out, typeRefToString(params[index].typeRef)])
+  }
+}
+
+compilerBuiltinMacroBinding(
+  module: String,
+  name: String
+) -> CompilerMacroBinding => module {
+  "macro" => compilerMacroModuleBinding(name)
+  "json" => compilerJsonModuleMacroBinding(name)
+  "cli" => compilerCliModuleMacroBinding(name)
+  _ => emptyCompilerMacroBinding()
+}
+
+compilerMacroModuleBinding(
+  name: String
+) -> CompilerMacroBinding => name {
+  "renameDeclaration" => compilerMacroBinding("renameDeclaration", true, ["String"])
+  _ => emptyCompilerMacroBinding()
+}
+
+compilerJsonModuleMacroBinding(
+  name: String
+) -> CompilerMacroBinding => name {
+  "object" => compilerMacroBinding("object", true, [])
+  "name" => compilerMacroBinding("name", true, ["String"])
+  "ignore" => compilerMacroBinding("ignore", true, [])
+  _ => emptyCompilerMacroBinding()
+}
+
+compilerCliModuleMacroBinding(
+  name: String
+) -> CompilerMacroBinding => name {
+  "command" => compilerMacroBinding("command", true, ["String", "String", "String"])
+  "flag" => compilerMacroBinding("flag", true, ["String", "String"])
+  "option" => compilerMacroBinding("option", true, ["String", "String", "String", "String"])
+  "arg" => compilerMacroBinding("arg", true, ["String"])
+  "parser" => compilerMacroBinding("parser", true, ["String", "String", "String", "String", "String"])
+  "main" => compilerMacroBinding("main", true, [])
+  _ => emptyCompilerMacroBinding()
+}
+
+compilerKnownOrdinaryAnnotationFunction(
+  module: String,
+  name: String
+) -> Bool => module {
+  "json" => (name == "parse") || (name == "stringify")
+  "go" => ((name == "import") || (name == "stmt")) || (name == "expr")
+  _ => false
+}
+
+compilerMacroBinding(
+  name: String,
+  macro: Bool,
+  paramTypes: Array[String]
+) -> CompilerMacroBinding => {
+  name: name,
+  macro: macro,
+  paramTypes: paramTypes
+}
+
+emptyCompilerMacroBinding() -> CompilerMacroBinding => compilerMacroBinding("", false, [])
 
 compilerParseError(
   message: String,
