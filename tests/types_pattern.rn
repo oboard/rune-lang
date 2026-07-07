@@ -5,7 +5,7 @@ const PatternKeyA = "a"
 const PatternKeyB = "b"
 
 patternScore(values: Array[Int]) -> Int => values {
-  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   [] => 0
   _ => 1
 }
@@ -107,7 +107,7 @@ patternJSONKinds(value: Object) -> Int => value {
   _ => 0
 }
 
-? "moonbit-style array and as patterns" {
+? "moonbit-style array and alias patterns" {
   @assert.eq(patternScore([1, 2, 3, 4]), 11)
   @assert.eq(patternScore([]), 0)
   @assert.eq(patternScore([9]), 1)

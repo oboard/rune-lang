@@ -607,7 +607,7 @@ func selfhostPatternText(pattern ir.Pattern) string {
 		}
 		return fmt.Sprintf("%s%d%s(%s)", prefix, p.Width, p.Endian, selfhostPatternText(p.Value))
 	case *ir.AsPattern:
-		return selfhostPatternText(p.Pattern) + " as " + p.Name
+		return selfhostPatternText(p.Pattern) + "@" + p.Name
 	case *ir.MapPattern:
 		parts := make([]string, 0, len(p.Entries)+1)
 		for _, entry := range p.Entries {

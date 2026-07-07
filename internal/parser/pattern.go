@@ -11,14 +11,14 @@ import (
 )
 
 func (p *Parser) parsePattern() ast.Pattern {
-	pattern := p.parseAsPattern()
+	pattern := p.parseAliasPattern()
 	if !p.match(lexer.BitOr) {
 		return pattern
 	}
 	out := &ast.OrPattern{Alternatives: []ast.Pattern{pattern}, Pos: pattern.Position()}
 	for {
 		p.skipNewlines()
-		out.Alternatives = append(out.Alternatives, p.parseAsPattern())
+		out.Alternatives = append(out.Alternatives, p.parseAliasPattern())
 		p.skipNewlines()
 		if !p.match(lexer.BitOr) {
 			break
@@ -27,11 +27,10 @@ func (p *Parser) parsePattern() ast.Pattern {
 	return out
 }
 
-func (p *Parser) parseAsPattern() ast.Pattern {
+func (p *Parser) parseAliasPattern() ast.Pattern {
 	pattern := p.parseRangePattern()
-	if p.check(lexer.Ident) && p.peek().Lexeme == "as" {
-		p.advance()
-		name := p.consume(lexer.Ident, "expected binding name after 'as'")
+	if p.match(lexer.At) {
+		name := p.consume(lexer.Ident, "expected binding name after '@'")
 		return &ast.AsPattern{Pattern: pattern, Name: name.Lexeme, NamePos: name.Pos, Pos: pattern.Position()}
 	}
 	return pattern

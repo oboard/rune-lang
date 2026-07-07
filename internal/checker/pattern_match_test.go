@@ -8,9 +8,9 @@ import (
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
-func TestArrayAndAsPatternBindings(t *testing.T) {
+func TestArrayAndAliasPatternBindings(t *testing.T) {
 	src := `score(values: Array[Int]) -> Int => values {
-  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   _ => 0
 }
 `
@@ -25,7 +25,7 @@ func TestArrayAndAsPatternBindings(t *testing.T) {
 	match := file.Functions[0].Body.(*ast.MatchExpr)
 	asPattern := match.Branches[0].Pattern.(*ast.AsPattern)
 	if got, want := asPattern.Type, "Array[Int]"; got != want {
-		t.Fatalf("as binding type = %q, want %q", got, want)
+		t.Fatalf("alias binding type = %q, want %q", got, want)
 	}
 	arrayPattern := asPattern.Pattern.(*ast.ArrayPattern)
 	if got, want := arrayPattern.RestType, "Array[Int]"; got != want {

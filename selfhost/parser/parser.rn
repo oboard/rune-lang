@@ -2555,7 +2555,7 @@ parsePredicatePatternText(
 
 parsePattern(
   state: ParserState
-) -> ExprStep => parseOrPatternRest(parseAsPattern(state))
+) -> ExprStep => parseOrPatternRest(parseAliasPattern(state))
 
 parseOrPatternRest(
   left: ExprStep
@@ -2575,21 +2575,21 @@ parseOrPatternRight(
   left: ExprStep,
   state: ParserState
 ) -> ExprStep => {
-  right := parseAsPattern(parserSkipNewlines(state))
+  right := parseAliasPattern(parserSkipNewlines(state))
   ExprStep {
     state: right.state,
     expr: withText(left.expr, (left.expr.text + "|") + right.expr.text)
   }
 }
 
-parseAsPattern(
+parseAliasPattern(
   state: ParserState
 ) -> ExprStep => {
   pattern := parseRangePattern(state)
   current := parserSkipNewlines(pattern.state)
-  isAs := parserCheck(current, TokenKind.Ident) && (parserPeek(current).lexeme == "as")
-  isAs {
-    true => parseAsPatternName(pattern, parserAdvance(current).state)
+  alias := parserCheck(current, TokenKind.At)
+  alias {
+    true => parseAliasPatternName(pattern, parserAdvance(current).state)
     _ => ExprStep {
       state: current,
       expr: pattern.expr
@@ -2597,14 +2597,14 @@ parseAsPattern(
   }
 }
 
-parseAsPatternName(
+parseAliasPatternName(
   pattern: ExprStep,
   state: ParserState
 ) -> ExprStep => {
-  name := parserConsume(parserSkipNewlines(state), TokenKind.Ident, "expected binding name after 'as'")
+  name := parserConsume(parserSkipNewlines(state), TokenKind.Ident, "expected binding name after '@'")
   ExprStep {
     state: name.state,
-    expr: withText(pattern.expr, (pattern.expr.text + " as ") + name.token.lexeme)
+    expr: withText(pattern.expr, (pattern.expr.text + "@") + name.token.lexeme)
   }
 }
 
@@ -3448,21 +3448,21 @@ tokensLookLikePatternBranch(
 skipPatternLookahead(
   state: ParserState,
   index: Int
-) -> Int => skipOrPatternLookahead(state, skipAsPatternLookahead(state, skipSinglePatternLookahead(state, index)))
+) -> Int => skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index))
 
 skipOrPatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => (
-  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipAsPatternLookahead(state, skipSinglePatternLookahead(state, skipNewlinesAt(state, index) + 1)))
+  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, skipNewlinesAt(state, index) + 1))
     : index
 )
 
-skipAsPatternLookahead(
+skipAliasPatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => (
-  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.Ident) && (parserTokenAt(state, skipNewlinesAt(state, index)).lexeme == "as") ? skipNewlinesAt(state, index) + 2
+  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.At) && (parserKindAt(state, skipNewlinesAt(state, index) + 1) == TokenKind.Ident) ? skipNewlinesAt(state, index) + 2
     : index
 )
 
@@ -3490,7 +3490,7 @@ skipSinglePatternLookahead(
           )
       )
   )
-  skipRangePatternLookahead(state, after)
+  skipAliasPatternLookahead(state, skipRangePatternLookahead(state, after))
 }
 
 skipRangePatternLookahead(

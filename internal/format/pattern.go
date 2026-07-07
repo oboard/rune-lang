@@ -52,6 +52,8 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 		return "[" + strings.Join(parts, ", ") + "]"
 	case *ast.SequenceSpreadPattern:
 		return ".. " + f.expr(p.Value)
+	case *ast.AsPattern:
+		return f.pattern(p.Pattern) + " @ " + p.Name
 	case *ast.ConstructorPattern:
 		binding := p.Binding
 		if binding == "" {

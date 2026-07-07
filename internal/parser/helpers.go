@@ -304,9 +304,6 @@ func (p *Parser) skipSinglePatternLookahead(i int) int {
 	default:
 		return -1
 	}
-	if i+1 < len(p.tokens) && p.tokens[i].Kind == lexer.Ident && p.tokens[i].Lexeme == "as" && p.tokens[i+1].Kind == lexer.Ident {
-		i += 2
-	}
 	canRange := rangeStart || (i > 0 && p.tokens[i-1].Kind == lexer.Underscore)
 	if canRange && i < len(p.tokens) && (p.tokens[i].Kind == lexer.DotDotEqual || p.tokens[i].Kind == lexer.DotDotLess || (i+1 < len(p.tokens) && p.tokens[i].Kind == lexer.DotDot && p.tokens[i+1].Kind == lexer.Less)) {
 		if p.tokens[i].Kind == lexer.DotDot {
@@ -329,6 +326,9 @@ func (p *Parser) skipSinglePatternLookahead(i int) int {
 		default:
 			return -1
 		}
+	}
+	if i+1 < len(p.tokens) && p.tokens[i].Kind == lexer.At && p.tokens[i+1].Kind == lexer.Ident {
+		i += 2
 	}
 	return i
 }

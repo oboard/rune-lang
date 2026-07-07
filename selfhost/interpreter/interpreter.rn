@@ -8679,7 +8679,7 @@ matchNonWildcardPatternText(
 ) -> PatternMatchResult => (
   text.startsWith("=") ? matchConstantPatternText(subject, text.slice(1, text.length()), env)
     : (
-      isAsPatternText(text) ? matchAsPatternText(subject, text, env)
+      isAliasPatternText(text) ? matchAliasPatternText(subject, text, env)
         : (
           isOrPatternText(text) ? matchOrPatternTextEnv(subject, text.split("|"), 0, env)
             : (
@@ -8942,21 +8942,21 @@ quotedPatternEndsAt(
     )
 )
 
-isAsPatternText(
+isAliasPatternText(
   text: String
-) -> Bool => topLevelAsIndex(text, 0, 0, '\x00') >= 0
+) -> Bool => topLevelAliasIndex(text, 0, 0, '\x00') >= 0
 
-topLevelAsIndex(
+topLevelAliasIndex(
   text: String,
   index: Int,
   depth: Int,
   quote: Char
 ) -> Int => (
   index >= text.length() ? -1
-    : topLevelAsIndexStep(text, index, depth, quote)
+    : topLevelAliasIndexStep(text, index, depth, quote)
 )
 
-topLevelAsIndexStep(
+topLevelAliasIndexStep(
   text: String,
   index: Int,
   depth: Int,
@@ -8965,21 +8965,21 @@ topLevelAsIndexStep(
   ch := text.at(index)
   (
     quote != '\x00' ? (
-      ch == '\\' ? topLevelAsIndex(text, index + 2, depth, quote)
+      ch == '\\' ? topLevelAliasIndex(text, index + 2, depth, quote)
         : (
-          ch == quote ? topLevelAsIndex(text, index + 1, depth, '\x00')
-            : topLevelAsIndex(text, index + 1, depth, quote)
+          ch == quote ? topLevelAliasIndex(text, index + 1, depth, '\x00')
+            : topLevelAliasIndex(text, index + 1, depth, quote)
         )
     )
       : (
-        ((depth == 0) && startsWithAt(text, index, " as ")) ? index
+        ((depth == 0) && (ch == '@')) ? index
           : (
-            (ch == '"') || (ch == '\'') ? topLevelAsIndex(text, index + 1, depth, ch)
+            (ch == '"') || (ch == '\'') ? topLevelAliasIndex(text, index + 1, depth, ch)
               : (
-                isPatternOpenChar(ch) ? topLevelAsIndex(text, index + 1, depth + 1, '\x00')
+                isPatternOpenChar(ch) ? topLevelAliasIndex(text, index + 1, depth + 1, '\x00')
                   : (
-                    isPatternCloseChar(ch) ? topLevelAsIndex(text, index + 1, depth - 1, '\x00')
-                      : topLevelAsIndex(text, index + 1, depth, '\x00')
+                    isPatternCloseChar(ch) ? topLevelAliasIndex(text, index + 1, depth - 1, '\x00')
+                      : topLevelAliasIndex(text, index + 1, depth, '\x00')
                   )
               )
           )
@@ -8996,15 +8996,15 @@ startsWithAt(
     : text.slice(index, index + needle.length()) == needle
 )
 
-matchAsPatternText(
+matchAliasPatternText(
   subject: RuntimeValue,
   text: String,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  index := topLevelAsIndex(text, 0, 0, '\x00')
+  index := topLevelAliasIndex(text, 0, 0, '\x00')
   matched := matchPatternTextEnv(subject, text.slice(0, index).trim(), env)
   (
-    matched.matched ? patternMatched(envDefine(matched.env, text.slice(index + 4, text.length()).trim(), subject))
+    matched.matched ? patternMatched(envDefine(matched.env, text.slice(index + 1, text.length()).trim(), subject))
       : matched
   )
 }

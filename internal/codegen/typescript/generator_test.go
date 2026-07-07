@@ -210,9 +210,9 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	}
 }
 
-func TestGenerateArrayAsAndOpenRangePatterns(t *testing.T) {
+func TestGenerateArrayAliasAndOpenRangePatterns(t *testing.T) {
 	src := `score(values: Array[Int]) -> Int => values {
-  [head, ..rest, tail] as whole => head + tail + rest.length() + whole.length()
+  [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   [] => 0
   _ => 1
 }

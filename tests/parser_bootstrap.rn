@@ -280,7 +280,7 @@ name\``)
 
 ? "selfhost parser reads moonbit-style pattern syntax" {
   source := `classify(values: Array[Int]) -> Int => values {
-  [0, ..rest, last] as whole => rest.length() + last + whole.length()
+  [0, ..rest, last] @ whole => rest.length() + last + whole.length()
   _..<0 => -1
   10..<_ => 1
   [.. "yes", ..] => 2
@@ -292,11 +292,21 @@ name\``)
   body := file.functions[0].body
   @assert.eq(file.errors.length(), 0)
   @assert.eq(body.kind, ExprKind.Match)
-  @assert.eq(body.children[1].children[0].text, "[0,..rest,last] as whole")
+  @assert.eq(body.children[1].children[0].text, "[0,..rest,last]@whole")
   @assert.eq(body.children[2].children[0].text, "_..<0")
   @assert.eq(body.children[3].children[0].text, "10..<_")
   @assert.eq(body.children[4].children[0].text, "[..\"yes\",..]")
   @assert.eq(body.children[5].children[0].text, "{\"b\"?:None,\"a\":x,..}")
+}
+
+? "selfhost parser rejects pattern as keyword" {
+  source := `classify(values: Array[Int]) -> Int => values {
+  [0] as whole => whole.length()
+  _ => 0
+}
+`
+  file := parse(source)
+  @assert.eq(file.errors.length() > 0, true)
 }
 
 ? "selfhost parser reads pattern branch block bodies" {

@@ -227,7 +227,7 @@ func selfhostCoreAPITestSpecs() []selfhostAPITestSpec {
 			"record like anonymous object inference",
 		}},
 		{"types_pattern.rn", []string{
-			"moonbit-style array and as patterns",
+			"moonbit-style array and alias patterns",
 			"moonbit-style string and open range patterns",
 			"moonbit-style constructor payload patterns",
 			"moonbit-style string spread array patterns",
