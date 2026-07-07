@@ -4243,7 +4243,103 @@ func ____rune_private_44103c8f_lowerTest(__testDecl __ParsedTest) __IRTest {
 }
 
 func ____rune_private_44103c8f_lowerExpr(__expr __ParsedExpr) __IRExpr {
-	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: ____rune_private_44103c8f_lowerParams(__expr.__params), __children: ____rune_private_44103c8f_lowerExprs(__expr.__children), __line: __expr.__line, __column: __expr.__column}
+	__children := ____rune_private_44103c8f_lowerExprs(__expr.__children)
+	return __IRExpr{__kind: __expr.__kind, __text: ____rune_private_44103c8f_inferIRExprText(__expr, __children), __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: ____rune_private_44103c8f_lowerParams(__expr.__params), __children: __children, __line: __expr.__line, __column: __expr.__column}
+}
+
+func ____rune_private_44103c8f_inferIRExprText(__expr __ParsedExpr, __children []__IRExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Binary:
+			return ____rune_private_44103c8f_inferIRBinaryText(__expr, __children)
+		case __expr.__kind == __ExprKind_Call:
+			return ____rune_private_44103c8f_inferIRCallText(__children)
+		case __expr.__kind == __ExprKind_String:
+			return "String"
+		case __expr.__kind == __ExprKind_Template:
+			return "String"
+		case __expr.__kind == __ExprKind_Int:
+			return "Int"
+		case __expr.__kind == __ExprKind_Double:
+			return "Double"
+		case __expr.__kind == __ExprKind_BigInt:
+			return "BigInt"
+		case __expr.__kind == __ExprKind_Char:
+			return "Char"
+		case __expr.__kind == __ExprKind_Bool:
+			return "Bool"
+		case __expr.__kind == __ExprKind_Null:
+			return "Null"
+		default:
+			return func() string {
+				if __expr.__text != "" {
+					return __expr.__text
+				}
+				return ""
+			}()
+		}
+	}()
+}
+
+func ____rune_private_44103c8f_inferIRBinaryText(__expr __ParsedExpr, __children []__IRExpr) string {
+	return func() string {
+		if __expr.__op == "??" {
+			return ____rune_private_44103c8f_inferIRCoalesceText(__children)
+		}
+		return ""
+	}()
+}
+
+func ____rune_private_44103c8f_inferIRCoalesceText(__children []__IRExpr) string {
+	return func() string {
+		if len(__children) < 2 {
+			return ""
+		}
+		return func() string {
+			if __children[1].__text != "" && __children[1].__text != "Null" {
+				return __children[1].__text
+			}
+			return __children[0].__text
+		}()
+	}()
+}
+
+func ____rune_private_44103c8f_inferIRCallText(__children []__IRExpr) string {
+	return func() string {
+		if len(__children) == 0 {
+			return ""
+		}
+		return func() string {
+			if __children[0].__kind == __ExprKind_Selector {
+				return ____rune_private_44103c8f_inferIRSelectorCallText(__children[0], __children)
+			}
+			return ""
+		}()
+	}()
+}
+
+func ____rune_private_44103c8f_inferIRSelectorCallText(__selector __IRExpr, __children []__IRExpr) string {
+	return func() string {
+		switch {
+		case __selector.__name == "getOr":
+			return func() string {
+				if len(__children) > 2 {
+					return __children[2].__text
+				}
+				return ""
+			}()
+		case __selector.__name == "isEmpty":
+			return "Bool"
+		case (__selector.__name == "length") || (__selector.__name == "byteLength") || (__selector.__name == "size") || (__selector.__name == "push"):
+			return "Int"
+		case (__selector.__name == "includes") || (__selector.__name == "contains") || (__selector.__name == "startsWith") || (__selector.__name == "endsWith"):
+			return "Bool"
+		case (__selector.__name == "toString") || (__selector.__name == "trim") || (__selector.__name == "toUpperCase") || (__selector.__name == "toLowerCase"):
+			return "String"
+		default:
+			return ""
+		}
+	}()
 }
 
 func ____rune_private_44103c8f_lowerParams(__params []__ParsedParam) []__IRParam {
@@ -5048,6 +5144,8 @@ func ____rune_private_8ddf8596_emitGoExprExpected(__expr __IRExpr, __expected st
 		switch {
 		case __expr.__kind == __ExprKind_Call:
 			return ____rune_private_8ddf8596_emitGoCallExpected(__expr, __expected)
+		case __expr.__kind == __ExprKind_Binary:
+			return ____rune_private_8ddf8596_emitGoBinaryExpected(__expr, __expected)
 		default:
 			return ____rune_private_8ddf8596_emitGoExpr(__expr)
 		}
@@ -5119,7 +5217,56 @@ func ____rune_private_8ddf8596_emitGoStatementNoContext(__expr __IRExpr, __last 
 }
 
 func ____rune_private_8ddf8596_emitGoBinary(__expr __IRExpr) string {
-	return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + " " + ____rune_private_8ddf8596_goBinaryOp(__expr.__op) + " " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1])
+	return func() string {
+		if __expr.__op == "??" {
+			return ____rune_private_8ddf8596_emitGoNullCoalesce(__expr, __expr.__text)
+		}
+		return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + " " + ____rune_private_8ddf8596_goBinaryOp(__expr.__op) + " " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1])
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoBinaryExpected(__expr __IRExpr, __expected string) string {
+	return func() string {
+		if __expr.__op == "??" {
+			return ____rune_private_8ddf8596_emitGoNullCoalesce(__expr, __expected)
+		}
+		return ____rune_private_8ddf8596_emitGoBinary(__expr)
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoNullCoalesce(__expr __IRExpr, __expected string) string {
+	__resultType := ____rune_private_8ddf8596_goCoalesceResultType(__expr, __expected)
+	return func() string {
+		if len(__expr.__children) < 2 || __expr.__children[0].__kind == __ExprKind_Null {
+			return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1])
+		}
+		return func() string {
+			if __resultType == "" {
+				return "func() any { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce }; return " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + " }()"
+			}
+			return "func() " + ____rune_private_8ddf8596_goType(__resultType) + " { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce.(" + ____rune_private_8ddf8596_goType(__resultType) + ") }; return " + ____rune_private_8ddf8596_emitGoExprExpected(__expr.__children[1], __resultType) + " }()"
+		}()
+	}()
+}
+
+func ____rune_private_8ddf8596_goCoalesceResultType(__expr __IRExpr, __expected string) string {
+	__candidate := func() string {
+		if __expected != "" && __expected != "Dynamic" {
+			return __expected
+		}
+		return __expr.__text
+	}()
+	return func() string {
+		if strings.HasSuffix(__candidate, "?") {
+			return func() string { runes := []rune(__candidate); return string(runes[0 : len([]rune(__candidate))-1]) }()
+		}
+		return func() string {
+			if __candidate == "Null" {
+				return ""
+			}
+			return __candidate
+		}()
+	}()
 }
 
 func ____rune_private_8ddf8596_emitGoTernary(__expr __IRExpr) string {
@@ -5277,6 +5424,12 @@ func ____rune_private_8ddf8596_emitGoCoreMethodCall(__expr __IRExpr, __selector 
 					return ____rune_private_8ddf8596_emitGoCoreAt(__expr, __selector.__children[0])
 				case __selector.__name == "slice":
 					return ____rune_private_8ddf8596_emitGoCoreSlice(__expr, __selector.__children[0])
+				case __selector.__name == "push":
+					return ____rune_private_8ddf8596_emitGoCorePush(__expr, __selector.__children[0])
+				case __selector.__name == "set":
+					return ____rune_private_8ddf8596_emitGoCoreSet(__expr, __selector.__children[0])
+				case __selector.__name == "getOr":
+					return ____rune_private_8ddf8596_emitGoCoreGetOr(__expr, __selector.__children[0])
 				default:
 					return ____rune_private_8ddf8596_emitGoDefaultCall(__expr)
 				}
@@ -5310,6 +5463,24 @@ func ____rune_private_8ddf8596_emitGoCoreSlice(__expr __IRExpr, __receiver __IRE
 			return "func() string { runes := []rune(" + ____rune_private_8ddf8596_emitGoExpr(__receiver) + "); return string(runes[" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + ":" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[2]) + "]) }()"
 		}
 		return ____rune_private_8ddf8596_emitGoExpr(__receiver) + "[" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + ":" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[2]) + "]"
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoCorePush(__expr __IRExpr, __receiver __IRExpr) string {
+	return "func() int { " + ____rune_private_8ddf8596_emitGoExpr(__receiver) + " = append(" + ____rune_private_8ddf8596_emitGoExpr(__receiver) + ", " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "); return len(" + ____rune_private_8ddf8596_emitGoExpr(__receiver) + ") }()"
+}
+
+func ____rune_private_8ddf8596_emitGoCoreSet(__expr __IRExpr, __receiver __IRExpr) string {
+	return "func() any { " + ____rune_private_8ddf8596_emitGoExpr(__receiver) + "[" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "] = " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[2]) + "; return " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[2]) + " }()"
+}
+
+func ____rune_private_8ddf8596_emitGoCoreGetOr(__expr __IRExpr, __receiver __IRExpr) string {
+	__resultType := ____rune_private_8ddf8596_goCoalesceResultType(__expr, __expr.__text)
+	return func() string {
+		if __resultType == "" {
+			return "func() any { if __value, ok := " + ____rune_private_8ddf8596_emitGoExpr(__receiver) + "[" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "]; ok { return __value }; return " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[2]) + " }()"
+		}
+		return "func() " + ____rune_private_8ddf8596_goType(__resultType) + " { if __value, ok := " + ____rune_private_8ddf8596_emitGoExpr(__receiver) + "[" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "]; ok { return __value.(" + ____rune_private_8ddf8596_goType(__resultType) + ") }; return " + ____rune_private_8ddf8596_emitGoExprExpected(__expr.__children[2], __resultType) + " }()"
 	}()
 }
 

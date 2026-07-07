@@ -271,15 +271,83 @@ lowerTest(
 }
 
 lowerExpr(expr: ParsedExpr) -> IRExpr => {
-  kind: expr.kind,
-  text: expr.text,
-  name: expr.name,
-  value: expr.value,
-  op: expr.op,
-  params: lowerParams(expr.params),
-  children: lowerExprs(expr.children),
-  line: expr.line,
-  column: expr.column
+  children := lowerExprs(expr.children)
+  IRExpr {
+    kind: expr.kind,
+    text: inferIRExprText(expr, children),
+    name: expr.name,
+    value: expr.value,
+    op: expr.op,
+    params: lowerParams(expr.params),
+    children: children,
+    line: expr.line,
+    column: expr.column
+  }
+}
+
+inferIRExprText(
+  expr: ParsedExpr,
+  children: Array[IRExpr]
+) -> String => (
+  expr.kind {
+    ExprKind.Binary => inferIRBinaryText(expr, children)
+    ExprKind.Call => inferIRCallText(children)
+    ExprKind.String => "String"
+    ExprKind.Template => "String"
+    ExprKind.Int => "Int"
+    ExprKind.Double => "Double"
+    ExprKind.BigInt => "BigInt"
+    ExprKind.Char => "Char"
+    ExprKind.Bool => "Bool"
+    ExprKind.Null => "Null"
+    _ => (
+      expr.text != "" ? expr.text
+        : ""
+    )
+  }
+)
+
+inferIRBinaryText(
+  expr: ParsedExpr,
+  children: Array[IRExpr]
+) -> String => (
+  expr.op == "??" ? inferIRCoalesceText(children)
+    : ""
+)
+
+inferIRCoalesceText(
+  children: Array[IRExpr]
+) -> String => (
+  children.length() < 2 ? ""
+    : (
+      (children[1].text != "") && (children[1].text != "Null") ? children[1].text
+        : children[0].text
+    )
+)
+
+inferIRCallText(
+  children: Array[IRExpr]
+) -> String => (
+  children.length() == 0 ? ""
+    : (
+      children[0].kind == ExprKind.Selector ? inferIRSelectorCallText(children[0], children)
+        : ""
+    )
+)
+
+inferIRSelectorCallText(
+  selector: IRExpr,
+  children: Array[IRExpr]
+) -> String => selector.name {
+  "getOr" => (
+    children.length() > 2 ? children[2].text
+      : ""
+  )
+  "isEmpty" => "Bool"
+  "length" | "byteLength" | "size" | "push" => "Int"
+  "includes" | "contains" | "startsWith" | "endsWith" => "Bool"
+  "toString" | "trim" | "toUpperCase" | "toLowerCase" => "String"
+  _ => ""
 }
 
 lowerParams(

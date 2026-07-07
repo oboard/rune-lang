@@ -179,6 +179,54 @@ main() => {
 	}
 }
 
+func TestGeneratedSelfhostCompilerBuildsNullCoalesceGo(t *testing.T) {
+	assertGeneratedSelfhostGoBuilds(t, `fallback(value: String?) -> String => value ?? "missing"
+
+main() => @io.println(fallback(null))
+	`)
+}
+
+func TestGeneratedSelfhostCompilerBuildsCollectionMethodsGo(t *testing.T) {
+	assertGeneratedSelfhostGoBuilds(t, `main() => {
+  values := ["go"]
+  values.push("ts")
+  names := @map.new("", "")
+  names.set("backend", values.at(0))
+  backend := names.getOr("backend", "go")
+  flags := @map.new("", false)
+  flags.set("check", true)
+  check := flags.getOr("check", false)
+  @io.println(backend, check)
+}
+	`)
+}
+
+func assertGeneratedSelfhostGoBuilds(t *testing.T, source string) {
+	t.Helper()
+	result := __compileGo(source)
+	if !result.__ok {
+		t.Fatalf("__compileGo() errors = %v", result.__errors)
+	}
+	assertGeneratedGoBuilds(t, result.__output)
+}
+
+func assertGeneratedGoBuilds(t *testing.T, source string) {
+	t.Helper()
+	formatted, err := format.Source([]byte(source))
+	if err != nil {
+		t.Fatalf("format generated Go error = %v\n%s", err, source)
+	}
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", goFile, err)
+	}
+	cmd := exec.Command("go", "test", goFile)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("generated Go build failed: %v\n%s\n%s", err, out, formatted)
+	}
+}
+
 func normalizeGeneratedCLIForHost(src string) string {
 	src = strings.ReplaceAll(src, "func __main()", "func selfhostCliGeneratedMain()")
 	src = strings.Replace(src, "func main() {\n\t__main()\n}\n", "func selfhostCliGeneratedEntrypoint() {\n\tselfhostCliGeneratedMain()\n}\n", 1)

@@ -637,6 +637,7 @@ emitGoExprExpected(
   expected: String
 ) -> String => expr.kind {
   ExprKind.Call => emitGoCallExpected(expr, expected)
+  ExprKind.Binary => emitGoBinaryExpected(expr, expected)
   _ => emitGoExpr(expr)
 }
 
@@ -702,7 +703,49 @@ emitGoStatementNoContext(
   )
 }
 
-emitGoBinary(expr: IRExpr) -> String => (((emitGoExpr(expr.children[0]) + " ") + goBinaryOp(expr.op)) + " ") + emitGoExpr(expr.children[1])
+emitGoBinary(expr: IRExpr) -> String => (
+  expr.op == "??" ? emitGoNullCoalesce(expr, expr.text)
+    : (((emitGoExpr(expr.children[0]) + " ") + goBinaryOp(expr.op)) + " ") + emitGoExpr(expr.children[1])
+)
+
+emitGoBinaryExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => (
+  expr.op == "??" ? emitGoNullCoalesce(expr, expected)
+    : emitGoBinary(expr)
+)
+
+emitGoNullCoalesce(
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  resultType := goCoalesceResultType(expr, expected)
+  (
+    (expr.children.length() < 2) || (expr.children[0].kind == ExprKind.Null) ? emitGoExpr(expr.children[1])
+      : (
+        resultType == "" ? (((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()")
+          : ((((((("func() " + goType(resultType)) + " { __coalesce := ") + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[1], resultType)) + " }()"
+      )
+  )
+}
+
+goCoalesceResultType(
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  candidate := (
+    (expected != "") && (expected != "Dynamic") ? expected
+      : expr.text
+  )
+  (
+    candidate.endsWith("?") ? candidate.slice(0, candidate.length() - 1)
+      : (
+        candidate == "Null" ? ""
+          : candidate
+      )
+  )
+}
 
 emitGoTernary(expr: IRExpr) -> String => ((((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
   expr.children.length() > 2 ? emitGoExpr(expr.children[2])
@@ -793,6 +836,9 @@ emitGoCoreMethodCall(
     "isEmpty" => ("(" + emitGoCoreLength(selector.children[0])) + ") == 0"
     "at" => emitGoCoreAt(expr, selector.children[0])
     "slice" => emitGoCoreSlice(expr, selector.children[0])
+    "push" => emitGoCorePush(expr, selector.children[0])
+    "set" => emitGoCoreSet(expr, selector.children[0])
+    "getOr" => emitGoCoreGetOr(expr, selector.children[0])
     _ => emitGoDefaultCall(expr)
   }
     : emitGoDefaultCall(expr)
@@ -820,6 +866,27 @@ emitGoCoreSlice(
   receiver.text == "String" ? ((((("func() string { runes := []rune(" + emitGoExpr(receiver)) + "); return string(runes[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2])) + "]) }()"
     : (((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2]) + "]"
 )
+
+emitGoCorePush(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (((("func() int { " + emitGoExpr(receiver)) + " = append(") + emitGoExpr(receiver)) + ", ") + emitGoExpr(expr.children[1]) + "); return len(" + emitGoExpr(receiver) + ") }()"
+
+emitGoCoreSet(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (((((("func() any { " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "] = ") + emitGoExpr(expr.children[2])) + "; return ") + emitGoExpr(expr.children[2]) + " }()"
+
+emitGoCoreGetOr(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => {
+  resultType := goCoalesceResultType(expr, expr.text)
+  (
+    resultType == "" ? (((((("func() any { if __value, ok := " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value }; return ") + emitGoExpr(expr.children[2])) + " }()")
+      : (((((((("func() " + goType(resultType)) + " { if __value, ok := ") + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[2], resultType) + " }()"
+  )
+}
 
 emitGoDefaultCall(
   expr: IRExpr
