@@ -1264,6 +1264,41 @@ main(user: User) -> Int => user.age
   @assert.eq(result.errors[0], "type User has no field \"age\"")
 }
 
+? "selfhost compiler binds method field selectors" {
+  result := compileGo(`User: {
+  name: String
+
+  label() -> Int => .name
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int")
+}
+
+? "selfhost compiler binds method selector locals" {
+  result := compileGo(`User: {
+  name: String
+
+  label() -> Int => {
+    value := .name
+    value
+  }
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int")
+}
+
+? "selfhost compiler rejects implicit this outside methods" {
+  result := compileGo(`main() -> String => .name
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "implicit this selector can only be used inside a method")
+}
+
 ? "selfhost compiler reports imported argument type errors" {
   files := [
     SourceFile {

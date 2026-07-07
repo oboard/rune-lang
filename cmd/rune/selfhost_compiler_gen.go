@@ -9095,7 +9095,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors, __bindings)
+				__errors = ____rune_private_0d2ebf0f_checkMethodErrors(__typeDecl.__name, __method, __file.__structs, __callables, __errors, __bindings)
 			}
 		}()
 	}
@@ -9104,7 +9104,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors, __bindings)
+				__errors = ____rune_private_0d2ebf0f_checkMethodErrors(__typeDecl.__name, __method, __file.__structs, __callables, __errors, __bindings)
 			}
 		}()
 	}
@@ -9647,6 +9647,21 @@ func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __structs 
 	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __structs, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __structs, __callables, __errors, __bindings), __bindings)
 }
 
+func ____rune_private_0d2ebf0f_checkMethodErrors(__typeName string, __method __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __baseBindings []__CompilerTypeBinding) []string {
+	return ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __structs, __callables, __errors, ____rune_private_0d2ebf0f_compilerMethodBaseBindings(__typeName, __method, __baseBindings))
+}
+
+func ____rune_private_0d2ebf0f_compilerMethodBaseBindings(__typeName string, __method __IRFunction, __baseBindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __method.__static == true:
+			return __baseBindings
+		default:
+			return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__baseBindings, "this", __typeName)
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	return func() []string {
 		switch {
@@ -9670,8 +9685,26 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkMapExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Index:
 			return ____rune_private_0d2ebf0f_checkIndexExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_This:
+			return ____rune_private_0d2ebf0f_checkThisExpr(__bindings, __errors)
 		default:
 			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkThisExpr(__bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, "this", 0).__typeName == "":
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "implicit this selector can only be used inside a method")
+				return out
+			}()
+		default:
+			return __errors
 		}
 	}()
 }
@@ -11668,6 +11701,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 		switch {
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __expr.__name, 0).__typeName
+		case __expr.__kind == __ExprKind_This:
+			return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, "this", 0).__typeName
 		case __expr.__kind == __ExprKind_Selector:
 			return ____rune_private_0d2ebf0f_inferCompilerSelectorType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_String:

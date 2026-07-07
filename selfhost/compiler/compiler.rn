@@ -187,8 +187,8 @@ checkFileErrors(
     fn.macro ? errors
       : checkFunctionErrors(fn, file.structs, callables, errors, bindings)
   ))
-  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors, bindings)))
-  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors, bindings)))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, bindings))
   errors
 }
@@ -632,6 +632,24 @@ checkFunctionErrors(
   checkFunctionReturn(fn, structs, callables, checkExpr(fn.body, structs, callables, errors, bindings), bindings)
 }
 
+checkMethodErrors(
+  typeName: String,
+  method: IRFunction,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  baseBindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkFunctionErrors(method, structs, callables, errors, compilerMethodBaseBindings(typeName, method, baseBindings))
+
+compilerMethodBaseBindings(
+  typeName: String,
+  method: IRFunction,
+  baseBindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => method.static {
+  true => baseBindings
+  _ => addCompilerTypeBinding(baseBindings, "this", typeName)
+}
+
 checkExpr(
   expr: IRExpr,
   structs: Array[IRStructType],
@@ -649,7 +667,16 @@ checkExpr(
   ExprKind.Array => checkArrayExpr(expr, structs, callables, errors, bindings)
   ExprKind.Map => checkMapExpr(expr, structs, callables, errors, bindings)
   ExprKind.Index => checkIndexExpr(expr, structs, callables, errors, bindings)
+  ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
+}
+
+checkThisExpr(
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => findCompilerTypeBinding(bindings, "this", 0).typeName {
+  "" => [..errors, "implicit this selector can only be used inside a method"]
+  _ => errors
 }
 
 checkExprDefault(
@@ -2568,6 +2595,7 @@ inferCompilerExprType(
   bindings: Array[CompilerTypeBinding]
 ) -> String => expr.kind {
   ExprKind.Identifier => findCompilerTypeBinding(bindings, expr.name, 0).typeName
+  ExprKind.This => findCompilerTypeBinding(bindings, "this", 0).typeName
   ExprKind.Selector => inferCompilerSelectorType(expr, callables, bindings)
   ExprKind.String => "String"
   ExprKind.Template => "String"
