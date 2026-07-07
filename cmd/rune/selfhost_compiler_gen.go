@@ -9129,7 +9129,7 @@ func ____rune_private_0d2ebf0f_compilerKnownTypes(__file __IRFile) []string {
 }
 
 func ____rune_private_0d2ebf0f_compilerBuiltinTypes() []string {
-	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"}
+	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"}
 }
 
 func ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file __IRFile, __errors []string) []string {
@@ -10011,39 +10011,39 @@ func ____rune_private_0d2ebf0f_checkIndexExpr(__expr __IRExpr, __structs []__IRS
 func ____rune_private_0d2ebf0f_checkIndexExprTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	__receiver := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
 	__index := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
-	return ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver, __index, __errors)
+	return ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver, __index, __expr.__children[1], __errors)
 }
 
-func ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver string, __index string, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkIndexReceiverType(__receiver string, __index string, __indexExpr __IRExpr, __errors []string) []string {
 	__arrayElem := ____rune_private_0d2ebf0f_compilerArrayElementType(__receiver)
 	__mapKey := ____rune_private_0d2ebf0f_compilerMapKeyType(__receiver)
-	__tuple := ____rune_private_0d2ebf0f_compilerTupleType(__receiver)
+	__tuple := ____rune_private_0d2ebf0f_compilerTupleElementTypes(__receiver)
 	return func() []string {
 		switch {
 		case __arrayElem == "":
-			return ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver, __mapKey, __tuple, __index, __errors)
+			return ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver, __mapKey, __tuple, __index, __indexExpr, __errors)
 		default:
 			return ____rune_private_0d2ebf0f_checkArrayIndexType(__index, __errors)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver string, __mapKey string, __tuple bool, __index string, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkNonArrayIndexReceiver(__receiver string, __mapKey string, __tuple []string, __index string, __indexExpr __IRExpr, __errors []string) []string {
 	return func() []string {
 		switch {
 		case __mapKey == "":
-			return ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver, __tuple, __index, __errors)
+			return ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver, __tuple, __index, __indexExpr, __errors)
 		default:
 			return ____rune_private_0d2ebf0f_checkMapIndexType(__mapKey, __index, __errors)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver string, __tuple bool, __index string, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkTupleOrUnknownIndexReceiver(__receiver string, __tuple []string, __index string, __indexExpr __IRExpr, __errors []string) []string {
 	return func() []string {
 		switch {
-		case __tuple == true:
-			return ____rune_private_0d2ebf0f_checkTupleIndexType(__index, __errors)
+		case len(__tuple) > 0 == true:
+			return ____rune_private_0d2ebf0f_checkTupleIndexType(__tuple, __index, __indexExpr, __errors)
 		default:
 			return func() []string {
 				switch {
@@ -10096,7 +10096,7 @@ func ____rune_private_0d2ebf0f_checkMapIndexType(__expected string, __actual str
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkTupleIndexType(__index string, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkTupleIndexType(__tuple []string, __index string, __indexExpr __IRExpr, __errors []string) []string {
 	__mismatch := __index != "" && __index != "Int"
 	return func() []string {
 		switch {
@@ -10105,6 +10105,39 @@ func ____rune_private_0d2ebf0f_checkTupleIndexType(__index string, __errors []st
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "tuple index expects an integer literal")
+				return out
+			}()
+		default:
+			return ____rune_private_0d2ebf0f_checkTupleIndexLiteral(__tuple, __indexExpr, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTupleIndexLiteral(__tuple []string, __indexExpr __IRExpr, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __indexExpr.__kind == __ExprKind_Int:
+			return ____rune_private_0d2ebf0f_checkTupleIndexRange(__tuple, ____rune_private_0d2ebf0f_compilerParseIntText(__indexExpr.__value), __errors)
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "tuple index expects an integer literal")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTupleIndexRange(__tuple []string, __index int, __errors []string) []string {
+	__outOfRange := __index < 0 || __index >= len(__tuple)
+	return func() []string {
+		switch {
+		case __outOfRange == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "tuple index "+__compilerIntToString(__index)+" out of range")
 				return out
 			}()
 		default:
@@ -10509,6 +10542,58 @@ func ____rune_private_0d2ebf0f_compilerUnsignedIntegerType(__base string) bool {
 func ____rune_private_0d2ebf0f_compilerSupportedMapKeyType(__typeName string) bool {
 	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
 	return __base == "String" || __base == "Char" || (__base == "Bool" || ____rune_private_0d2ebf0f_compilerIntegerType(__base)) || (__base == "Double" || __base == "Float")
+}
+
+func ____rune_private_0d2ebf0f_compilerParseIntText(__text string) int {
+	return func() int {
+		switch {
+		case strings.HasPrefix(__text, "-") == true:
+			return 0 - ____rune_private_0d2ebf0f_compilerParseUnsignedIntText(__text, 1, 0)
+		default:
+			return ____rune_private_0d2ebf0f_compilerParseUnsignedIntText(__text, 0, 0)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParseUnsignedIntText(__text string, __index int, __out int) int {
+	__done := __index >= len([]rune(__text))
+	return func() int {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerParseUnsignedIntText(__text, __index+1, __out*10+____rune_private_0d2ebf0f_compilerDigitValue([]rune(__text)[__index]))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerDigitValue(__ch rune) int {
+	return func() int {
+		switch {
+		case __ch == '0':
+			return 0
+		case __ch == '1':
+			return 1
+		case __ch == '2':
+			return 2
+		case __ch == '3':
+			return 3
+		case __ch == '4':
+			return 4
+		case __ch == '5':
+			return 5
+		case __ch == '6':
+			return 6
+		case __ch == '7':
+			return 7
+		case __ch == '8':
+			return 8
+		case __ch == '9':
+			return 9
+		default:
+			return 0
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -11319,6 +11404,33 @@ func ____rune_private_0d2ebf0f_compilerMapType(__key string, __value string) str
 	}()
 }
 
+func ____rune_private_0d2ebf0f_compilerTupleLiteralType(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return "Tuple[" + ____rune_private_0d2ebf0f_compilerTupleLiteralTypes(__elements, __callables, __bindings, 0, "") + "]"
+}
+
+func ____rune_private_0d2ebf0f_compilerTupleLiteralTypes(__elements []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __index int, __out string) string {
+	__done := __index >= len(__elements)
+	return func() string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerTupleLiteralTypes(__elements, __callables, __bindings, __index+1, __out+____rune_private_0d2ebf0f_compilerTupleTypeSeparator(__index)+____rune_private_0d2ebf0f_inferCompilerExprType(__elements[__index], __callables, __bindings))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTupleTypeSeparator(__index int) string {
+	return func() string {
+		switch {
+		case __index == 0:
+			return ""
+		default:
+			return ","
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_compilerNullableType(__inner string) string {
 	return func() string {
 		switch {
@@ -11381,9 +11493,35 @@ func ____rune_private_0d2ebf0f_compilerMapValueType(__typeName string) string {
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerTupleType(__typeName string) bool {
+func ____rune_private_0d2ebf0f_compilerTupleElementTypes(__typeName string) []string {
 	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
-	return __base == "Tuple" || __base == "ReadonlyTuple"
+	__args := ____rune_private_0d2ebf0f_compilerGenericArgs(__typeName)
+	__valid := (__base == "Tuple" || __base == "ReadonlyTuple") && len(__args) > 0
+	return func() []string {
+		switch {
+		case __valid == true:
+			return ____rune_private_0d2ebf0f_compilerTrimTypes(__args, 0, []string{})
+		default:
+			return []string{}
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTrimTypes(__types []string, __index int, __out []string) []string {
+	__done := __index >= len(__types)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_compilerTrimTypes(__types, __index+1, func() []string {
+				out := []string{}
+				out = append(out, __out...)
+				out = append(out, strings.TrimSpace(__types[__index]))
+				return out
+			}())
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
@@ -11423,6 +11561,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Array:
 			return ____rune_private_0d2ebf0f_inferCompilerArrayType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Tuple:
+			return ____rune_private_0d2ebf0f_inferCompilerTupleType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Map:
 			return ____rune_private_0d2ebf0f_inferCompilerMapType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Spread:
@@ -11466,6 +11606,10 @@ func ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elem __IRE
 			return ____rune_private_0d2ebf0f_inferCompilerExprType(__elem, __callables, __bindings)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerTupleType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_compilerTupleLiteralType(__expr.__children, __callables, __bindings)
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerMapType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
@@ -11537,22 +11681,68 @@ func ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr __IRExpr, __callabl
 	return func() string {
 		switch {
 		case __complete == true:
-			return ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings))
+			return ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), __expr.__children[1])
 		default:
 			return ""
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(__receiverType string) string {
+func ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(__receiverType string, __indexExpr __IRExpr) string {
 	__arrayElem := ____rune_private_0d2ebf0f_compilerArrayElementType(__receiverType)
 	__mapValue := ____rune_private_0d2ebf0f_compilerMapValueType(__receiverType)
+	__tuple := ____rune_private_0d2ebf0f_compilerTupleElementTypes(__receiverType)
 	return func() string {
 		switch {
 		case __arrayElem == "":
-			return ____rune_private_0d2ebf0f_compilerNullableType(__mapValue)
+			return ____rune_private_0d2ebf0f_inferCompilerNonArrayIndexReceiverType(__mapValue, __tuple, __indexExpr)
 		default:
 			return __arrayElem
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerNonArrayIndexReceiverType(__mapValue string, __tuple []string, __indexExpr __IRExpr) string {
+	return func() string {
+		switch {
+		case __mapValue == "":
+			return ____rune_private_0d2ebf0f_inferCompilerTupleIndexReceiverType(__tuple, __indexExpr)
+		default:
+			return ____rune_private_0d2ebf0f_compilerNullableType(__mapValue)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerTupleIndexReceiverType(__tuple []string, __indexExpr __IRExpr) string {
+	return func() string {
+		switch {
+		case len(__tuple) > 0 == true:
+			return ____rune_private_0d2ebf0f_inferCompilerTupleIndexLiteralType(__tuple, __indexExpr)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerTupleIndexLiteralType(__tuple []string, __indexExpr __IRExpr) string {
+	return func() string {
+		switch {
+		case __indexExpr.__kind == __ExprKind_Int:
+			return ____rune_private_0d2ebf0f_inferCompilerTupleIndexElementType(__tuple, ____rune_private_0d2ebf0f_compilerParseIntText(__indexExpr.__value))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerTupleIndexElementType(__tuple []string, __index int) string {
+	__outOfRange := __index < 0 || __index >= len(__tuple)
+	return func() string {
+		switch {
+		case __outOfRange == true:
+			return ""
+		default:
+			return __tuple[__index]
 		}
 	}()
 }

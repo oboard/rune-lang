@@ -1045,6 +1045,30 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "map key type Array[Int] is not supported")
 }
 
+? "selfhost compiler reports tuple literal return type errors" {
+  result := compileGo(`main() -> Tuple[Int,String] => (1, 2)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns Tuple[Int,Int], expected Tuple[Int,String]")
+}
+
+? "selfhost compiler infers tuple index return types" {
+  result := compileGo(`main(value: Tuple[Int,String]) -> String => value[0]
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+}
+
+? "selfhost compiler reports tuple index range errors" {
+  result := compileGo(`main(value: Tuple[Int,String]) -> Int => value[2]
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "tuple index 2 out of range")
+}
+
 ? "selfhost compiler reports array index type errors" {
   result := compileGo(`main(values: Array[Int]) -> Int => values["wrong"]
 `)

@@ -202,7 +202,7 @@ compilerKnownTypes(
   names
 }
 
-compilerBuiltinTypes() -> Array[String] => ["Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"]
+compilerBuiltinTypes() -> Array[String] => ["Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"]
 
 checkDuplicateDeclarations(
   file: IRFile,
@@ -1016,19 +1016,20 @@ checkIndexExprTypes(
 ) -> Array[String] => {
   receiver := inferCompilerExprType(expr.children[0], callables, bindings)
   index := inferCompilerExprType(expr.children[1], callables, bindings)
-  checkIndexReceiverType(receiver, index, errors)
+  checkIndexReceiverType(receiver, index, expr.children[1], errors)
 }
 
 checkIndexReceiverType(
   receiver: String,
   index: String,
+  indexExpr: IRExpr,
   errors: Array[String]
 ) -> Array[String] => {
   arrayElem := compilerArrayElementType(receiver)
   mapKey := compilerMapKeyType(receiver)
-  tuple := compilerTupleType(receiver)
+  tuple := compilerTupleElementTypes(receiver)
   arrayElem {
-    "" => checkNonArrayIndexReceiver(receiver, mapKey, tuple, index, errors)
+    "" => checkNonArrayIndexReceiver(receiver, mapKey, tuple, index, indexExpr, errors)
     _ => checkArrayIndexType(index, errors)
   }
 }
@@ -1036,21 +1037,23 @@ checkIndexReceiverType(
 checkNonArrayIndexReceiver(
   receiver: String,
   mapKey: String,
-  tuple: Bool,
+  tuple: Array[String],
   index: String,
+  indexExpr: IRExpr,
   errors: Array[String]
 ) -> Array[String] => mapKey {
-  "" => checkTupleOrUnknownIndexReceiver(receiver, tuple, index, errors)
+  "" => checkTupleOrUnknownIndexReceiver(receiver, tuple, index, indexExpr, errors)
   _ => checkMapIndexType(mapKey, index, errors)
 }
 
 checkTupleOrUnknownIndexReceiver(
   receiver: String,
-  tuple: Bool,
+  tuple: Array[String],
   index: String,
+  indexExpr: IRExpr,
   errors: Array[String]
-) -> Array[String] => tuple {
-  true => checkTupleIndexType(index, errors)
+) -> Array[String] => (tuple.length() > 0) {
+  true => checkTupleIndexType(tuple, index, indexExpr, errors)
   _ => receiver {
     "" => errors
     _ => [..errors, ("type " + receiver) + " is not indexable"]
@@ -1081,12 +1084,35 @@ checkMapIndexType(
 }
 
 checkTupleIndexType(
+  tuple: Array[String],
   index: String,
+  indexExpr: IRExpr,
   errors: Array[String]
 ) -> Array[String] => {
   mismatch := (index != "") && (index != "Int")
   mismatch {
     true => [..errors, "tuple index expects an integer literal"]
+    _ => checkTupleIndexLiteral(tuple, indexExpr, errors)
+  }
+}
+
+checkTupleIndexLiteral(
+  tuple: Array[String],
+  indexExpr: IRExpr,
+  errors: Array[String]
+) -> Array[String] => indexExpr.kind {
+  ExprKind.Int => checkTupleIndexRange(tuple, compilerParseIntText(indexExpr.value), errors)
+  _ => [..errors, "tuple index expects an integer literal"]
+}
+
+checkTupleIndexRange(
+  tuple: Array[String],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  outOfRange := (index < 0) || (index >= tuple.length())
+  outOfRange {
+    true => [..errors, (("tuple index " + compilerIntToString(index)) + " out of range")]
     _ => errors
   }
 }
@@ -1450,6 +1476,41 @@ compilerSupportedMapKeyType(
 ) -> Bool => {
   base := compilerTypeBase(typeName)
   (((base == "String") || (base == "Char")) || ((base == "Bool") || compilerIntegerType(base))) || ((base == "Double") || (base == "Float"))
+}
+
+compilerParseIntText(
+  text: String
+) -> Int => text.startsWith("-") {
+  true => 0 - compilerParseUnsignedIntText(text, 1, 0)
+  _ => compilerParseUnsignedIntText(text, 0, 0)
+}
+
+compilerParseUnsignedIntText(
+  text: String,
+  index: Int,
+  out: Int
+) -> Int => {
+  done := index >= text.length()
+  done {
+    true => out
+    _ => compilerParseUnsignedIntText(text, index + 1, (out * 10) + compilerDigitValue(text.at(index)))
+  }
+}
+
+compilerDigitValue(
+  ch: Char
+) -> Int => ch {
+  '0' => 0
+  '1' => 1
+  '2' => 2
+  '3' => 3
+  '4' => 4
+  '5' => 5
+  '6' => 6
+  '7' => 7
+  '8' => 8
+  '9' => 9
+  _ => 0
 }
 
 checkLetExpr(
@@ -2257,6 +2318,33 @@ compilerMapType(
   }
 }
 
+compilerTupleLiteralType(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => ("Tuple[" + compilerTupleLiteralTypes(elements, callables, bindings, 0, "")) + "]"
+
+compilerTupleLiteralTypes(
+  elements: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  out: String
+) -> String => {
+  done := index >= elements.length()
+  done {
+    true => out
+    _ => compilerTupleLiteralTypes(elements, callables, bindings, index + 1, (out + compilerTupleTypeSeparator(index)) + inferCompilerExprType(elements[index], callables, bindings))
+  }
+}
+
+compilerTupleTypeSeparator(
+  index: Int
+) -> String => index {
+  0 => ""
+  _ => ","
+}
+
 compilerNullableType(
   inner: String
 ) -> String => inner {
@@ -2304,11 +2392,28 @@ compilerMapValueType(
   }
 }
 
-compilerTupleType(
+compilerTupleElementTypes(
   typeName: String
-) -> Bool => {
+) -> Array[String] => {
   base := compilerTypeBase(typeName)
-  (base == "Tuple") || (base == "ReadonlyTuple")
+  args := compilerGenericArgs(typeName)
+  valid := ((base == "Tuple") || (base == "ReadonlyTuple")) && (args.length() > 0)
+  valid {
+    true => compilerTrimTypes(args, 0, [])
+    _ => []
+  }
+}
+
+compilerTrimTypes(
+  types: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  done := index >= types.length()
+  done {
+    true => out
+    _ => compilerTrimTypes(types, index + 1, [..out, types[index].trim()])
+  }
 }
 
 inferCompilerExprType(
@@ -2333,6 +2438,7 @@ inferCompilerExprType(
   ExprKind.Unary => inferCompilerUnaryType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
   ExprKind.Array => inferCompilerArrayType(expr, callables, bindings)
+  ExprKind.Tuple => inferCompilerTupleType(expr, callables, bindings)
   ExprKind.Map => inferCompilerMapType(expr, callables, bindings)
   ExprKind.Spread => inferCompilerSpreadType(expr, callables, bindings)
   ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
@@ -2379,6 +2485,12 @@ inferCompilerArrayLiteralElementType(
   ExprKind.Spread => compilerArrayElementType(inferCompilerExprType(elem.children[0], callables, bindings))
   _ => inferCompilerExprType(elem, callables, bindings)
 }
+
+inferCompilerTupleType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerTupleLiteralType(expr.children, callables, bindings)
 
 inferCompilerMapType(
   expr: IRExpr,
@@ -2457,19 +2569,57 @@ inferCompilerIndexType(
 ) -> String => {
   complete := expr.children.length() >= 2
   complete {
-    true => inferCompilerIndexReceiverType(inferCompilerExprType(expr.children[0], callables, bindings))
+    true => inferCompilerIndexReceiverType(inferCompilerExprType(expr.children[0], callables, bindings), expr.children[1])
     _ => ""
   }
 }
 
 inferCompilerIndexReceiverType(
-  receiverType: String
+  receiverType: String,
+  indexExpr: IRExpr
 ) -> String => {
   arrayElem := compilerArrayElementType(receiverType)
   mapValue := compilerMapValueType(receiverType)
+  tuple := compilerTupleElementTypes(receiverType)
   arrayElem {
-    "" => compilerNullableType(mapValue)
+    "" => inferCompilerNonArrayIndexReceiverType(mapValue, tuple, indexExpr)
     _ => arrayElem
+  }
+}
+
+inferCompilerNonArrayIndexReceiverType(
+  mapValue: String,
+  tuple: Array[String],
+  indexExpr: IRExpr
+) -> String => mapValue {
+  "" => inferCompilerTupleIndexReceiverType(tuple, indexExpr)
+  _ => compilerNullableType(mapValue)
+}
+
+inferCompilerTupleIndexReceiverType(
+  tuple: Array[String],
+  indexExpr: IRExpr
+) -> String => (tuple.length() > 0) {
+  true => inferCompilerTupleIndexLiteralType(tuple, indexExpr)
+  _ => ""
+}
+
+inferCompilerTupleIndexLiteralType(
+  tuple: Array[String],
+  indexExpr: IRExpr
+) -> String => indexExpr.kind {
+  ExprKind.Int => inferCompilerTupleIndexElementType(tuple, compilerParseIntText(indexExpr.value))
+  _ => ""
+}
+
+inferCompilerTupleIndexElementType(
+  tuple: Array[String],
+  index: Int
+) -> String => {
+  outOfRange := (index < 0) || (index >= tuple.length())
+  outOfRange {
+    true => ""
+    _ => tuple[index]
   }
 }
 
