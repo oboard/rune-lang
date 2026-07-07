@@ -206,6 +206,63 @@ main() -> Int => hiddenAnswer()
   @assert.eq(result.errors[0], "function \"hiddenAnswer\" is private")
 }
 
+? "selfhost compiler rejects imported private types" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
+main() => {
+  hidden := Hidden { value: 1 }
+}
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `Hidden: {
+  value: Int
+}
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "type \"Hidden\" is private")
+}
+
+? "selfhost compiler rejects imported private members" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"user.rn"
+
+main() => {
+  user := User { name: "Rune", token: "secret" }
+  @io.println(user.token)
+  @io.println(user.secret())
+}
+`
+    },
+    SourceFile {
+      path: "user.rn",
+      source: `+ User: {
+  name: String
+  - token: String
+
+  - secret() -> String => .token
+}
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 3)
+  @assert.eq(result.errors[0], "field \"User.token\" is private")
+  @assert.eq(result.errors[1], "field \"User.token\" is private")
+  @assert.eq(result.errors[2], "method \"User.secret\" is private")
+}
+
 ? "selfhost compiler allows same-file private functions" {
   files := [
     SourceFile {

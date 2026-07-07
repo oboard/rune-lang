@@ -2184,13 +2184,14 @@ checkSelectorReceiverExpr(
   errors: Array[String]
 ) -> Array[String] => receiver.kind {
   ExprKind.At => errors
-  _ => checkStructSelectorExpr(expr, inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings), structs, errors)
+  _ => checkStructSelectorExpr(expr, inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings), structs, bindings, errors)
 }
 
 checkStructSelectorExpr(
   expr: IRExpr,
   receiverType: String,
   structs: Array[IRStructType],
+  bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => receiverType {
   "" => errors
@@ -2198,7 +2199,10 @@ checkStructSelectorExpr(
     typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
     found := typeDecl.name != ""
     found {
-      true => checkStructSelectorField(expr, receiverType, typeDecl, errors)
+      true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
+        true => checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
+        _ => [..errors, ("type \"" + typeDecl.name) + "\" is private"]
+      }
       _ => [..errors, ("type " + receiverType) + " has no fields"]
     }
   }
@@ -2208,12 +2212,13 @@ checkStructSelectorField(
   expr: IRExpr,
   receiverType: String,
   typeDecl: IRStructType,
+  bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => {
   field := findCompilerStructField(typeDecl.fields, expr.name, 0)
   found := field.name != ""
   found {
-    true => errors
+    true => checkCompilerPrivateAccess("field", (typeDecl.name + ".") + field.name, field.private, typeDecl.sourcePath, bindings, errors)
     _ => [..errors, ((("type " + receiverType) + " has no field \"") + expr.name) + "\""]
   }
 }
@@ -2334,7 +2339,10 @@ checkStructExpr(
   typeDecl := findCompilerStruct(structs, expr.name, 0)
   found := typeDecl.name != ""
   found {
-    true => checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
+    true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
+      true => checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
+      _ => [..errors, ("type \"" + expr.name) + "\" is private"]
+    }
     _ => checkStructExprUnknownType(expr, structs, callables, errors, bindings)
   }
 }
@@ -2359,14 +2367,14 @@ checkStructExprFields(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  checked := checkStructExprFieldValues(expr.name, expr.children, typeDecl.fields, 0, structs, callables, errors, bindings)
+  checked := checkStructExprFieldValues(expr.name, expr.children, typeDecl, 0, structs, callables, errors, bindings)
   checkStructMissingFields(expr.name, typeDecl.fields, expr.children, 0, checked)
 }
 
 checkStructExprFieldValues(
   typeName: String,
   fields: Array[IRExpr],
-  expectedFields: Array[IRField],
+  typeDecl: IRStructType,
   index: Int,
   structs: Array[IRStructType],
   callables: Array[CompilerCallable],
@@ -2376,14 +2384,14 @@ checkStructExprFieldValues(
   done := index >= fields.length()
   done {
     true => errors
-    _ => checkStructExprFieldValue(typeName, fields, expectedFields, index, structs, callables, errors, bindings)
+    _ => checkStructExprFieldValue(typeName, fields, typeDecl, index, structs, callables, errors, bindings)
   }
 }
 
 checkStructExprFieldValue(
   typeName: String,
   fields: Array[IRExpr],
-  expectedFields: Array[IRField],
+  typeDecl: IRStructType,
   index: Int,
   structs: Array[IRStructType],
   callables: Array[CompilerCallable],
@@ -2392,16 +2400,17 @@ checkStructExprFieldValue(
 ) -> Array[String] => {
   field := fields[index]
   value := field.children[0]
-  expected := findCompilerStructField(expectedFields, field.name, 0)
+  expected := findCompilerStructField(typeDecl.fields, field.name, 0)
   found := expected.name != ""
   next := found {
     true => {
-      checkedValue := checkExprExpected(value, expected.typeName, structs, callables, errors, bindings)
+      checkedField := checkCompilerPrivateAccess("field", (typeName + ".") + field.name, expected.private, typeDecl.sourcePath, bindings, errors)
+      checkedValue := checkExprExpected(value, expected.typeName, structs, callables, checkedField, bindings)
       checkStructFieldType(typeName, field.name, value, expected.typeName, structs, callables, bindings, checkedValue)
     }
     _ => [..checkExpr(value, structs, callables, errors, bindings), ((("type " + typeName) + " has no field \"") + field.name) + "\""]
   }
-  checkStructExprFieldValues(typeName, fields, expectedFields, index + 1, structs, callables, next, bindings)
+  checkStructExprFieldValues(typeName, fields, typeDecl, index + 1, structs, callables, next, bindings)
 }
 
 checkStructFieldType(
@@ -2692,7 +2701,10 @@ checkStaticSelectorCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+    true => checkCallableVisibility(callable, bindings) {
+      true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+      _ => [..errors, ("static method \"" + name) + "\" is private"]
+    }
     _ => errors
   }
 }
@@ -2727,7 +2739,10 @@ checkKnownInstanceSelectorCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+    true => checkCallableVisibility(callable, bindings) {
+      true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+      _ => [..errors, ("method \"" + name) + "\" is private"]
+    }
     _ => errors
   }
 }
@@ -2744,7 +2759,7 @@ checkIdentifierCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableVisibility(callable, bindings, errors) {
+    true => checkCallableVisibility(callable, bindings) {
       true => checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
       _ => [..errors, ("function \"" + name) + "\" is private"]
     }
@@ -2754,12 +2769,31 @@ checkIdentifierCall(
 
 checkCallableVisibility(
   callable: CompilerCallable,
+  bindings: Array[CompilerTypeBinding]
+) -> Bool => compilerCanAccessPrivate(callable.private, callable.sourcePath, bindings)
+
+checkCompilerPrivateAccess(
+  kind: String,
+  name: String,
+  private: Bool,
+  sourcePath: String,
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
-) -> Bool => {
-  current := compilerCurrentSourcePath(bindings)
-  privateAcrossFiles := callable.private && ((callable.sourcePath != "") && ((current != "") && (current != callable.sourcePath)))
-  privateAcrossFiles == false
+) -> Array[String] => compilerCanAccessPrivate(private, sourcePath, bindings) {
+  true => errors
+  _ => [..errors, (((kind + " \"") + name) + "\" is private")]
+}
+
+compilerCanAccessPrivate(
+  private: Bool,
+  sourcePath: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Bool => private {
+  false => true
+  _ => {
+    current := compilerCurrentSourcePath(bindings)
+    (sourcePath == "") || ((current == "") || (current == sourcePath))
+  }
 }
 
 compilerCurrentSourcePath(
@@ -3956,6 +3990,7 @@ emptyCompilerStruct() -> IRStructType => {
   generics: [],
   fields: [],
   methods: [],
+  sourcePath: "",
   line: 0,
   column: 0
 }

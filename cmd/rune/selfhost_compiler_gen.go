@@ -482,23 +482,25 @@ type __IRConst struct {
 }
 
 type __IRStructType struct {
-	__name     string
-	__private  bool
-	__generics []string
-	__fields   []__IRField
-	__methods  []__IRFunction
-	__line     int
-	__column   int
+	__name       string
+	__private    bool
+	__generics   []string
+	__fields     []__IRField
+	__methods    []__IRFunction
+	__sourcePath string
+	__line       int
+	__column     int
 }
 
 type __IREnumType struct {
-	__name     string
-	__private  bool
-	__generics []string
-	__members  []__IREnumMember
-	__methods  []__IRFunction
-	__line     int
-	__column   int
+	__name       string
+	__private    bool
+	__generics   []string
+	__members    []__IREnumMember
+	__methods    []__IRFunction
+	__sourcePath string
+	__line       int
+	__column     int
 }
 
 type __IRTest struct {
@@ -5035,7 +5037,7 @@ func ____rune_private_44103c8f_withIRFunctionSourcePaths(__functions []__IRFunct
 }
 
 func ____rune_private_44103c8f_withIRStructSourcePath(__typeDecl __IRStructType, __sourcePath string) __IRStructType {
-	return __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: __typeDecl.__fields, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __line: __typeDecl.__line, __column: __typeDecl.__column}
+	return __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: __typeDecl.__fields, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __sourcePath: __sourcePath, __line: __typeDecl.__line, __column: __typeDecl.__column}
 }
 
 func ____rune_private_44103c8f_withIRStructSourcePaths(__structs []__IRStructType, __sourcePath string) []__IRStructType {
@@ -5051,7 +5053,7 @@ func ____rune_private_44103c8f_withIRStructSourcePaths(__structs []__IRStructTyp
 }
 
 func ____rune_private_44103c8f_withIREnumSourcePath(__typeDecl __IREnumType, __sourcePath string) __IREnumType {
-	return __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: __typeDecl.__members, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __line: __typeDecl.__line, __column: __typeDecl.__column}
+	return __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: __typeDecl.__members, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __sourcePath: __sourcePath, __line: __typeDecl.__line, __column: __typeDecl.__column}
 }
 
 func ____rune_private_44103c8f_withIREnumSourcePaths(__enums []__IREnumType, __sourcePath string) []__IREnumType {
@@ -5085,11 +5087,11 @@ func ____rune_private_44103c8f_typeRefIsSyntaxOnly(__typeRef __ParsedTypeRef) bo
 }
 
 func ____rune_private_44103c8f_lowerStructType(__typeDecl __ParsedType) __IRStructType {
-	return __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: ____rune_private_44103c8f_lowerFields(__typeDecl.__fields), __methods: ____rune_private_44103c8f_lowerFunctions(__typeDecl.__methods), __line: __typeDecl.__line, __column: __typeDecl.__column}
+	return __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: ____rune_private_44103c8f_lowerFields(__typeDecl.__fields), __methods: ____rune_private_44103c8f_lowerFunctions(__typeDecl.__methods), __sourcePath: "", __line: __typeDecl.__line, __column: __typeDecl.__column}
 }
 
 func ____rune_private_44103c8f_lowerEnumType(__typeDecl __ParsedType) __IREnumType {
-	return __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: ____rune_private_44103c8f_lowerEnumMembers(__typeDecl.__members), __methods: ____rune_private_44103c8f_lowerFunctions(__typeDecl.__methods), __line: __typeDecl.__line, __column: __typeDecl.__column}
+	return __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: ____rune_private_44103c8f_lowerEnumMembers(__typeDecl.__members), __methods: ____rune_private_44103c8f_lowerFunctions(__typeDecl.__methods), __sourcePath: "", __line: __typeDecl.__line, __column: __typeDecl.__column}
 }
 
 func ____rune_private_44103c8f_lowerTest(__testDecl __ParsedTest) __IRTest {
@@ -11326,12 +11328,12 @@ func ____rune_private_0d2ebf0f_checkSelectorReceiverExpr(__expr __IRExpr, __rece
 		case __receiver.__kind == __ExprKind_At:
 			return __errors
 		default:
-			return ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__receiver, __structs, __callables, __bindings), __structs, __errors)
+			return ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__receiver, __structs, __callables, __bindings), __structs, __bindings, __errors)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr __IRExpr, __receiverType string, __structs []__IRStructType, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr __IRExpr, __receiverType string, __structs []__IRStructType, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	return func() []string {
 		switch {
 		case __receiverType == "":
@@ -11343,7 +11345,19 @@ func ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr __IRExpr, __receiv
 				return func() []string {
 					switch {
 					case __found == true:
-						return ____rune_private_0d2ebf0f_checkStructSelectorField(__expr, __receiverType, __typeDecl, __errors)
+						return func() []string {
+							switch {
+							case ____rune_private_0d2ebf0f_compilerCanAccessPrivate(__typeDecl.__private, __typeDecl.__sourcePath, __bindings) == true:
+								return ____rune_private_0d2ebf0f_checkStructSelectorField(__expr, __receiverType, __typeDecl, __bindings, __errors)
+							default:
+								return func() []string {
+									out := []string{}
+									out = append(out, __errors...)
+									out = append(out, "type \""+__typeDecl.__name+"\" is private")
+									return out
+								}()
+							}
+						}()
 					default:
 						return func() []string {
 							out := []string{}
@@ -11358,13 +11372,13 @@ func ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr __IRExpr, __receiv
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkStructSelectorField(__expr __IRExpr, __receiverType string, __typeDecl __IRStructType, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkStructSelectorField(__expr __IRExpr, __receiverType string, __typeDecl __IRStructType, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	__field := ____rune_private_0d2ebf0f_findCompilerStructField(__typeDecl.__fields, __expr.__name, 0)
 	__found := __field.__name != ""
 	return func() []string {
 		switch {
 		case __found == true:
-			return __errors
+			return ____rune_private_0d2ebf0f_checkCompilerPrivateAccess("field", __typeDecl.__name+"."+__field.__name, __field.__private, __typeDecl.__sourcePath, __bindings, __errors)
 		default:
 			return func() []string {
 				out := []string{}
@@ -11499,7 +11513,19 @@ func ____rune_private_0d2ebf0f_checkStructExpr(__expr __IRExpr, __structs []__IR
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkStructExprFields(__expr, __typeDecl, __structs, __callables, __errors, __bindings)
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_compilerCanAccessPrivate(__typeDecl.__private, __typeDecl.__sourcePath, __bindings) == true:
+					return ____rune_private_0d2ebf0f_checkStructExprFields(__expr, __typeDecl, __structs, __callables, __errors, __bindings)
+				default:
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "type \""+__expr.__name+"\" is private")
+						return out
+					}()
+				}
+			}()
 		default:
 			return ____rune_private_0d2ebf0f_checkStructExprUnknownType(__expr, __structs, __callables, __errors, __bindings)
 		}
@@ -11521,32 +11547,33 @@ func ____rune_private_0d2ebf0f_checkStructExprUnknownType(__expr __IRExpr, __str
 }
 
 func ____rune_private_0d2ebf0f_checkStructExprFields(__expr __IRExpr, __typeDecl __IRStructType, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__checked := ____rune_private_0d2ebf0f_checkStructExprFieldValues(__expr.__name, __expr.__children, __typeDecl.__fields, 0, __structs, __callables, __errors, __bindings)
+	__checked := ____rune_private_0d2ebf0f_checkStructExprFieldValues(__expr.__name, __expr.__children, __typeDecl, 0, __structs, __callables, __errors, __bindings)
 	return ____rune_private_0d2ebf0f_checkStructMissingFields(__expr.__name, __typeDecl.__fields, __expr.__children, 0, __checked)
 }
 
-func ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName string, __fields []__IRExpr, __expectedFields []__IRField, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName string, __fields []__IRExpr, __typeDecl __IRStructType, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__done := __index >= len(__fields)
 	return func() []string {
 		switch {
 		case __done == true:
 			return __errors
 		default:
-			return ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName, __fields, __expectedFields, __index, __structs, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName, __fields, __typeDecl, __index, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fields []__IRExpr, __expectedFields []__IRField, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fields []__IRExpr, __typeDecl __IRStructType, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__field := __fields[__index]
 	__value := __field.__children[0]
-	__expected := ____rune_private_0d2ebf0f_findCompilerStructField(__expectedFields, __field.__name, 0)
+	__expected := ____rune_private_0d2ebf0f_findCompilerStructField(__typeDecl.__fields, __field.__name, 0)
 	__found := __expected.__name != ""
 	__next := func() []string {
 		switch {
 		case __found == true:
 			return func() []string {
-				__checkedValue := ____rune_private_0d2ebf0f_checkExprExpected(__value, __expected.__typeName, __structs, __callables, __errors, __bindings)
+				__checkedField := ____rune_private_0d2ebf0f_checkCompilerPrivateAccess("field", __typeName+"."+__field.__name, __expected.__private, __typeDecl.__sourcePath, __bindings, __errors)
+				__checkedValue := ____rune_private_0d2ebf0f_checkExprExpected(__value, __expected.__typeName, __structs, __callables, __checkedField, __bindings)
 				return ____rune_private_0d2ebf0f_checkStructFieldType(__typeName, __field.__name, __value, __expected.__typeName, __structs, __callables, __bindings, __checkedValue)
 			}()
 		default:
@@ -11558,7 +11585,7 @@ func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fi
 			}()
 		}
 	}()
-	return ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName, __fields, __expectedFields, __index+1, __structs, __callables, __next, __bindings)
+	return ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName, __fields, __typeDecl, __index+1, __structs, __callables, __next, __bindings)
 }
 
 func ____rune_private_0d2ebf0f_checkStructFieldType(__typeName string, __fieldName string, __value __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
@@ -11842,7 +11869,19 @@ func ____rune_private_0d2ebf0f_checkStaticSelectorCall(__expr __IRExpr, __select
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_checkCallableVisibility(__callable, __bindings) == true:
+					return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
+				default:
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "static method \""+__name+"\" is private")
+						return out
+					}()
+				}
+			}()
 		default:
 			return __errors
 		}
@@ -11869,7 +11908,19 @@ func ____rune_private_0d2ebf0f_checkKnownInstanceSelectorCall(__expr __IRExpr, _
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_checkCallableVisibility(__callable, __bindings) == true:
+					return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
+				default:
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "method \""+__name+"\" is private")
+						return out
+					}()
+				}
+			}()
 		default:
 			return __errors
 		}
@@ -11884,7 +11935,7 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 		case __found == true:
 			return func() []string {
 				switch {
-				case ____rune_private_0d2ebf0f_checkCallableVisibility(__callable, __bindings, __errors) == true:
+				case ____rune_private_0d2ebf0f_checkCallableVisibility(__callable, __bindings) == true:
 					return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __structs, __callables, __bindings, __errors)
 				default:
 					return func() []string {
@@ -11906,10 +11957,38 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkCallableVisibility(__callable __CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) bool {
-	__current := ____rune_private_0d2ebf0f_compilerCurrentSourcePath(__bindings)
-	__privateAcrossFiles := __callable.__private && (__callable.__sourcePath != "" && (__current != "" && __current != __callable.__sourcePath))
-	return __privateAcrossFiles == false
+func ____rune_private_0d2ebf0f_checkCallableVisibility(__callable __CompilerCallable, __bindings []__CompilerTypeBinding) bool {
+	return ____rune_private_0d2ebf0f_compilerCanAccessPrivate(__callable.__private, __callable.__sourcePath, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_checkCompilerPrivateAccess(__kind string, __name string, __private bool, __sourcePath string, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerCanAccessPrivate(__private, __sourcePath, __bindings) == true:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, __kind+" \""+__name+"\" is private")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerCanAccessPrivate(__private bool, __sourcePath string, __bindings []__CompilerTypeBinding) bool {
+	return func() bool {
+		switch {
+		case __private == false:
+			return true
+		default:
+			return func() bool {
+				__current := ____rune_private_0d2ebf0f_compilerCurrentSourcePath(__bindings)
+				return __sourcePath == "" || (__current == "" || __current == __sourcePath)
+			}()
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerCurrentSourcePath(__bindings []__CompilerTypeBinding) string {
@@ -13134,7 +13213,7 @@ func ____rune_private_0d2ebf0f_findCompilerStructAt(__structs []__IRStructType, 
 }
 
 func ____rune_private_0d2ebf0f_emptyCompilerStruct() __IRStructType {
-	return __IRStructType{__name: "", __private: false, __generics: []string{}, __fields: []__IRField{}, __methods: []__IRFunction{}, __line: 0, __column: 0}
+	return __IRStructType{__name: "", __private: false, __generics: []string{}, __fields: []__IRField{}, __methods: []__IRFunction{}, __sourcePath: "", __line: 0, __column: 0}
 }
 
 func ____rune_private_0d2ebf0f_findCompilerStructField(__fields []__IRField, __name string, __index int) __IRField {

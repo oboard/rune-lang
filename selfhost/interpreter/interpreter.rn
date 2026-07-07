@@ -8085,6 +8085,7 @@ emptyIRStructType() -> IRStructType => {
   generics: [],
   fields: [],
   methods: [],
+  sourcePath: "",
   line: 0,
   column: 0
 }
@@ -8095,6 +8096,7 @@ emptyIREnumType() -> IREnumType => {
   generics: [],
   members: [],
   methods: [],
+  sourcePath: "",
   line: 0,
   column: 0
 }
