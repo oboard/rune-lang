@@ -15,14 +15,6 @@
   helpText: String
 }
 
-#cli.command("rune-selfhost", "Self-hosted Rune CLI entry point", "0.0.0")
-RuneCliArgsEntry: {
-  #cli.option("b", "BACKEND", "target backend", "go")
-  backend: String
-  #cli.arg("rune command")
-  command: String
-}
-
 #cli.parser("runeCommand", "runeCommands", "runeAliases", "runeTrailingRest", "invocationFromParsed")
 + parseCli(
   args: Array[String]
@@ -252,9 +244,9 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
   @cli.withOption(command, @cli.flag("stdio", "", "serve LSP over stdin/stdout"))
 }
 
-#cli.main
-main(args: RuneCliArgsEntry) => {
-  invocation := parseCli(["--backend=" + args.backend, args.command])
+main() => {
+  argv := @process.argv()
+  invocation := parseCli(argv.slice(1, argv.length()))
   (
     invocation.help ? @io.print(@cli.help(runeCommand()))
       : @io.println(invocation.command)

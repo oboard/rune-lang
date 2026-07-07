@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -23,10 +24,23 @@ type __RuneCliInvocation struct {
 	__helpText        string
 }
 
-type __RuneCliArgsEntry struct {
-	__backend string
-	__command string
+func runeProcessArgv() []string { return append([]string(nil), os.Args...) }
+func runeProcessCwd() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return cwd
 }
+func runeProcessEnv(name string) any {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return any(nil)
+	}
+	return value
+}
+func runeProcessExit(code int) struct{} { os.Exit(code); return struct{}{} }
+func runeProcessPlatform() string       { return runtime.GOOS }
 
 type __CliCommand struct {
 	__name      string
@@ -732,8 +746,9 @@ func __lspCommand() __CliCommand {
 	return runeCliWithOption(__command, runeCliFlag("stdio", "", "serve LSP over stdin/stdout"))
 }
 
-func ____rune_private_5b8b8d7b___cliMain(__args __RuneCliArgsEntry) {
-	__invocation := __parseCli([]string{"--backend=" + __args.__backend, __args.__command})
+func selfhostCliGeneratedMain() {
+	__argv := runeProcessArgv()
+	__invocation := __parseCli(append([]string{}, __argv[1:len(__argv)]...))
 	func() {
 		if __invocation.__help {
 			fmt.Print(runeCliHelp(__runeCommand()))
@@ -741,23 +756,6 @@ func ____rune_private_5b8b8d7b___cliMain(__args __RuneCliArgsEntry) {
 		}
 		fmt.Println(__invocation.__command)
 	}()
-}
-
-func selfhostCliGeneratedMain() {
-	__result := runeCliParseOrExit(runeCliWithArgument(runeCliWithOption(runeCliWithVersion(runeCliCommand("rune-selfhost", "Self-hosted Rune CLI entry point"), "0.0.0"), runeCliOption("backend", "b", "BACKEND", "target backend", false, "go")), runeCliArgument("command", "rune command", true)))
-	____rune_private_5b8b8d7b___cliMain(__RuneCliArgsEntry{__backend: func() string {
-		value, ok := __result.__values["backend"]
-		if ok {
-			return value
-		}
-		return "go"
-	}(), __command: func() string {
-		value, ok := __result.__positionals["command"]
-		if ok {
-			return value
-		}
-		return ""
-	}()})
 }
 
 func selfhostCliGeneratedEntrypoint() {

@@ -136,6 +136,34 @@ func TestSelfhostCLIGeneratedGoIsCurrent(t *testing.T) {
 	}
 }
 
+func TestGeneratedSelfhostCLIStandaloneParsesArgs(t *testing.T) {
+	root := repoRootForCommandTest(t)
+	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/cli/cli.rn")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generate selfhost CLI failed: %v\n%s", err, out)
+	}
+	formatted, err := format.Source(out)
+	if err != nil {
+		t.Fatalf("format generated CLI error = %v\n%s", err, out)
+	}
+	dir := t.TempDir()
+	goFile := filepath.Join(dir, "main.go")
+	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", goFile, err)
+	}
+	run := exec.Command("go", "run", goFile, "--backend=go", "format", "--check", "main.rn")
+	run.Dir = root
+	got, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generated CLI run failed: %v\n%s", err, got)
+	}
+	if string(got) != "fmt\n" {
+		t.Fatalf("generated CLI output = %q, want fmt", got)
+	}
+}
+
 func TestSelfhostCompilerGeneratedGoIsCurrent(t *testing.T) {
 	root := repoRootForCommandTest(t)
 	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/compiler/compiler.rn")
