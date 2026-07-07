@@ -9303,12 +9303,125 @@ func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __callable
 }
 
 func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	return func() []string {
+		switch {
+		case __expr.__kind == __ExprKind_Block:
+			return ____rune_private_0d2ebf0f_checkBlockExpr(__expr.__children, 0, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Let:
+			return ____rune_private_0d2ebf0f_checkLetExpr(__expr, __callables, __errors, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkExprDefault(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors, __bindings)
 	for _, __child := range __expr.__children {
 		_ = __child
 		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __callables, __next, __bindings)
 	}
 	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__hasValue := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __hasValue == true:
+			return ____rune_private_0d2ebf0f_checkExpr(__expr.__children[0], __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBlockExpr(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__done := __index >= len(__statements)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkBlockExprStep(__statements, __index, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBlockExprStep(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__statement := __statements[__index]
+	__nextErrors := ____rune_private_0d2ebf0f_checkExpr(__statement, __callables, __errors, __bindings)
+	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __callables, __bindings)
+	return ____rune_private_0d2ebf0f_checkBlockExpr(__statements, __index+1, __callables, __nextErrors, __nextBindings)
+}
+
+func ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __statement.__kind == __ExprKind_Let:
+			return ____rune_private_0d2ebf0f_bindCompilerLet(__statement, __callables, __bindings)
+		default:
+			return __bindings
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_bindCompilerLet(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__hasValue := len(__expr.__children) > 0
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __hasValue == true:
+			return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __expr.__name, ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings))
+		default:
+			return __bindings
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
+	__known := __typeName != ""
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __known == true:
+			return func() []__CompilerTypeBinding {
+				out := []__CompilerTypeBinding{}
+				out = append(out, ____rune_private_0d2ebf0f_dropCompilerTypeBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerTypeBinding(__name, __typeName))
+				return out
+			}()
+		default:
+			return __bindings
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_dropCompilerTypeBinding(__bindings []__CompilerTypeBinding, __name string, __index int, __out []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__done := __index >= len(__bindings)
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_dropCompilerTypeBindingStep(__bindings, __name, __index, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_dropCompilerTypeBindingStep(__bindings []__CompilerTypeBinding, __name string, __index int, __out []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__matched := __bindings[__index].__name == __name
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __matched == true:
+			return ____rune_private_0d2ebf0f_dropCompilerTypeBinding(__bindings, __name, __index+1, __out)
+		default:
+			return ____rune_private_0d2ebf0f_dropCompilerTypeBinding(__bindings, __name, __index+1, func() []__CompilerTypeBinding {
+				out := []__CompilerTypeBinding{}
+				out = append(out, __out...)
+				out = append(out, __bindings[__index])
+				return out
+			}())
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -9679,15 +9792,26 @@ func ____rune_private_0d2ebf0f_inferCompilerInstanceSelectorCallType(__expr __IR
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	__empty := len(__expr.__children) == 0
+	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__expr.__children, 0, __callables, __bindings, "Void")
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __lastType string) string {
+	__done := __index >= len(__statements)
 	return func() string {
 		switch {
-		case __empty == true:
-			return "Void"
+		case __done == true:
+			return __lastType
 		default:
-			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[len(__expr.__children)-1], __callables, __bindings)
+			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeStep(__statements, __index, __callables, __bindings)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBlockTypeStep(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__statement := __statements[__index]
+	__statementType := ____rune_private_0d2ebf0f_inferCompilerExprType(__statement, __callables, __bindings)
+	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __callables, __bindings)
+	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__statements, __index+1, __callables, __nextBindings, __statementType)
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {

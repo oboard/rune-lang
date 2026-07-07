@@ -411,10 +411,120 @@ checkExpr(
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
+) -> Array[String] => expr.kind {
+  ExprKind.Block => checkBlockExpr(expr.children, 0, callables, errors, bindings)
+  ExprKind.Let => checkLetExpr(expr, callables, errors, bindings)
+  _ => checkExprDefault(expr, callables, errors, bindings)
+}
+
+checkExprDefault(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   next := checkExprCall(expr, callables, errors, bindings)
   expr.children.each((child) => next = checkExpr(child, callables, next, bindings))
   next
+}
+
+checkLetExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasValue := expr.children.length() > 0
+  hasValue {
+    true => checkExpr(expr.children[0], callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkBlockExpr(
+  statements: Array[IRExpr],
+  index: Int,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  done := index >= statements.length()
+  done {
+    true => errors
+    _ => checkBlockExprStep(statements, index, callables, errors, bindings)
+  }
+}
+
+checkBlockExprStep(
+  statements: Array[IRExpr],
+  index: Int,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  statement := statements[index]
+  nextErrors := checkExpr(statement, callables, errors, bindings)
+  nextBindings := blockBindingsAfterStatement(statement, callables, bindings)
+  checkBlockExpr(statements, index + 1, callables, nextErrors, nextBindings)
+}
+
+blockBindingsAfterStatement(
+  statement: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => statement.kind {
+  ExprKind.Let => bindCompilerLet(statement, callables, bindings)
+  _ => bindings
+}
+
+bindCompilerLet(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  hasValue := expr.children.length() > 0
+  hasValue {
+    true => addCompilerTypeBinding(bindings, expr.name, inferCompilerExprType(expr.children[0], callables, bindings))
+    _ => bindings
+  }
+}
+
+addCompilerTypeBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  typeName: String
+) -> Array[CompilerTypeBinding] => {
+  known := typeName != ""
+  known {
+    true => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+    _ => bindings
+  }
+}
+
+dropCompilerTypeBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int,
+  out: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  done := index >= bindings.length()
+  done {
+    true => out
+    _ => dropCompilerTypeBindingStep(bindings, name, index, out)
+  }
+}
+
+dropCompilerTypeBindingStep(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int,
+  out: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  matched := bindings[index].name == name
+  matched {
+    true => dropCompilerTypeBinding(bindings, name, index + 1, out)
+    _ => dropCompilerTypeBinding(bindings, name, index + 1, [..out, bindings[index]])
+  }
 }
 
 checkExprCall(
@@ -782,12 +892,32 @@ inferCompilerBlockType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerBlockTypeAt(expr.children, 0, callables, bindings, "Void")
+
+inferCompilerBlockTypeAt(
+  statements: Array[IRExpr],
+  index: Int,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  lastType: String
 ) -> String => {
-  empty := expr.children.length() == 0
-  empty {
-    true => "Void"
-    _ => inferCompilerExprType(expr.children[expr.children.length() - 1], callables, bindings)
+  done := index >= statements.length()
+  done {
+    true => lastType
+    _ => inferCompilerBlockTypeStep(statements, index, callables, bindings)
   }
+}
+
+inferCompilerBlockTypeStep(
+  statements: Array[IRExpr],
+  index: Int,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  statement := statements[index]
+  statementType := inferCompilerExprType(statement, callables, bindings)
+  nextBindings := blockBindingsAfterStatement(statement, callables, bindings)
+  inferCompilerBlockTypeAt(statements, index + 1, callables, nextBindings, statementType)
 }
 
 inferCompilerTernaryType(

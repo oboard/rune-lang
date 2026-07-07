@@ -518,6 +518,29 @@ main(flag: Bool) -> Int => takesInt(flag)
   @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type Bool, expected Int")
 }
 
+? "selfhost compiler reports local argument type errors" {
+  result := compileGo(`takesString(value: String) -> Int => 1
+main() -> Int => {
+  value := 1
+  takesString(value)
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int, expected String")
+}
+
+? "selfhost compiler reports local return type errors" {
+  result := compileGo(`main() -> String => {
+  value := 1
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+}
+
 ? "selfhost compiler reports imported argument type errors" {
   files := [
     SourceFile {
@@ -574,6 +597,23 @@ main() -> User => User::make(1)
 }
 
 main(user: User) -> User => user.rename(1)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"User.rename\" has type Int, expected String")
+}
+
+? "selfhost compiler checks local receiver method calls" {
+  result := compileGo(`User: {
+  name: String
+
+  rename(name: String) -> User => User { name: name }
+}
+
+main() -> User => {
+  user := User { name: "Rune" }
+  user.rename(1)
+}
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
