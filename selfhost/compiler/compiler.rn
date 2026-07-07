@@ -149,16 +149,156 @@ compilerContainsAt(
 
 lowerFiles(
   files: Array[SourceFile]
+) -> IRFile => (
+  files.length() == 0 ? emptyCompilerIRFile()
+    : lowerReachableTypeScriptFiles(files, lowerReachableRuneFiles(files, [files[0].path], [], emptyCompilerIRFile()))
+)
+
+lowerReachableRuneFiles(
+  files: Array[SourceFile],
+  pending: Array[String],
+  seen: Array[String],
+  out: IRFile
 ) -> IRFile => {
-  out := emptyCompilerIRFile()
-  files.each((file) => out = (
-    sourceFileIsTypeScript(file) ? out
-      : mergeCompilerIRFile(out, lower(file.source))
-  ))
+  empty := pending.length() == 0
+  empty {
+    true => out
+    _ => lowerReachableRuneFile(files, pending[0], pending.slice(1, pending.length()), seen, out)
+  }
+}
+
+lowerReachableRuneFile(
+  files: Array[SourceFile],
+  path: String,
+  rest: Array[String],
+  seen: Array[String],
+  out: IRFile
+) -> IRFile => {
+  alreadySeen := compilerContains(seen, path)
+  alreadySeen {
+    true => lowerReachableRuneFiles(files, rest, seen, out)
+    _ => lowerUnseenRuneFile(files, path, rest, [..seen, path], out)
+  }
+}
+
+lowerUnseenRuneFile(
+  files: Array[SourceFile],
+  path: String,
+  rest: Array[String],
+  seen: Array[String],
+  out: IRFile
+) -> IRFile => {
+  file := findSourceFile(files, path, 0)
+  missing := file.path.isEmpty()
+  missing {
+    true => lowerReachableRuneFiles(files, rest, seen, mergeCompilerIRFile(out, missingImportFile(path)))
+    _ => lowerFoundSourceFile(files, file, rest, seen, out)
+  }
+}
+
+lowerFoundSourceFile(
+  files: Array[SourceFile],
+  file: SourceFile,
+  rest: Array[String],
+  seen: Array[String],
+  out: IRFile
+) -> IRFile => {
+  typeScript := sourceFileIsTypeScript(file)
+  typeScript {
+    true => lowerReachableRuneFiles(files, rest, seen, out)
+    _ => lowerFoundRuneSourceFile(files, file, rest, seen, out)
+  }
+}
+
+lowerFoundRuneSourceFile(
+  files: Array[SourceFile],
+  file: SourceFile,
+  rest: Array[String],
+  seen: Array[String],
+  out: IRFile
+) -> IRFile => {
+  lowered := lower(file.source)
+  lowerReachableRuneFiles(files, appendImportPaths(rest, lowered.imports, 0), seen, mergeCompilerIRFile(out, lowered))
+}
+
+lowerReachableTypeScriptFiles(
+  files: Array[SourceFile],
+  out: IRFile
+) -> IRFile => {
   files.each((file) => out = (
     sourceFileIsTypeScript(file) ? mergeCompilerIRFile(out, lowerTypeScriptSourceFile(file, out.imports))
       : out
   ))
+  out
+}
+
+appendImportPaths(
+  pending: Array[String],
+  imports: Array[IRImport],
+  index: Int
+) -> Array[String] => {
+  done := index >= imports.length()
+  done {
+    true => pending
+    _ => appendImportPath(pending, imports, index)
+  }
+}
+
+appendImportPath(
+  pending: Array[String],
+  imports: Array[IRImport],
+  index: Int
+) -> Array[String] => {
+  goImport := imports[index].go
+  goImport {
+    true => appendImportPaths(pending, imports, index + 1)
+    _ => appendImportPaths([..pending, imports[index].path], imports, index + 1)
+  }
+}
+
+findSourceFile(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> SourceFile => {
+  done := index >= files.length()
+  done {
+    true => emptySourceFile()
+    _ => findSourceFileAt(files, path, index)
+  }
+}
+
+findSourceFileAt(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> SourceFile => {
+  matched := sourceFileMatches(files[index], path)
+  matched {
+    true => files[index]
+    _ => findSourceFile(files, path, index + 1)
+  }
+}
+
+sourceFileMatches(
+  file: SourceFile,
+  path: String
+) -> Bool => (file.path == path) || (compilerPathBasename(file.path) == compilerPathBasename(path))
+
+emptySourceFile() -> SourceFile => SourceFile {
+  path: "",
+  source: ""
+}
+
+missingImportFile(
+  path: String
+) -> IRFile => {
+  out := emptyCompilerIRFile()
+  out.errors.push(ParseError {
+    message: "missing import " + path,
+    line: 0,
+    column: 0
+  })
   out
 }
 

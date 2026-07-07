@@ -75,6 +75,25 @@ importedAnswer() -> Int => 42
   @assert.eq(mbt.output.includes("struct RuneImportedUser"), true)
 }
 
+? "selfhost compiler keeps unimported files private" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `main() -> Int => hiddenAnswer()
+`
+    },
+    SourceFile {
+      path: "hidden.rn",
+      source: `hiddenAnswer() -> Int => 42
+`
+    }
+  ]
+  go := compileGoFiles(files)
+  @assert.eq(go.ok, false)
+  @assert.eq(go.errors.length(), 1)
+  @assert.eq(go.errors[0], "undefined function hiddenAnswer")
+}
+
 ? "selfhost compiler reads TypeScript import exports" {
   files := [
     SourceFile {

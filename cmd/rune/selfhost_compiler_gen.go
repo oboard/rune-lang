@@ -7788,16 +7788,74 @@ func ____rune_private_0d2ebf0f_compilerContainsAt(__values []string, __value str
 }
 
 func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
-	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
-	for _, __file := range __files {
-		_ = __file
-		__out = func() __IRFile {
-			if ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file) {
-				return __out
-			}
-			return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lower(__file.__source))
-		}()
-	}
+	return func() __IRFile {
+		if len(__files) == 0 {
+			return ____rune_private_0d2ebf0f_emptyCompilerIRFile()
+		}
+		return ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files, ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, []string{__files[0].__path}, []string{}, ____rune_private_0d2ebf0f_emptyCompilerIRFile()))
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files []__SourceFile, __pending []string, __seen []string, __out __IRFile) __IRFile {
+	__empty := len(__pending) == 0
+	return func() __IRFile {
+		switch {
+		case __empty == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_lowerReachableRuneFile(__files, __pending[0], append([]string{}, __pending[1:len(__pending)]...), __seen, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerReachableRuneFile(__files []__SourceFile, __path string, __rest []string, __seen []string, __out __IRFile) __IRFile {
+	__alreadySeen := ____rune_private_0d2ebf0f_compilerContains(__seen, __path)
+	return func() __IRFile {
+		switch {
+		case __alreadySeen == true:
+			return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, __rest, __seen, __out)
+		default:
+			return ____rune_private_0d2ebf0f_lowerUnseenRuneFile(__files, __path, __rest, func() []string {
+				out := []string{}
+				out = append(out, __seen...)
+				out = append(out, __path)
+				return out
+			}(), __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerUnseenRuneFile(__files []__SourceFile, __path string, __rest []string, __seen []string, __out __IRFile) __IRFile {
+	__file := ____rune_private_0d2ebf0f_findSourceFile(__files, __path, 0)
+	__missing := len(__file.__path) == 0
+	return func() __IRFile {
+		switch {
+		case __missing == true:
+			return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, __rest, __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, ____rune_private_0d2ebf0f_missingImportFile(__path)))
+		default:
+			return ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files, __file, __rest, __seen, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
+	__typeScript := ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file)
+	return func() __IRFile {
+		switch {
+		case __typeScript == true:
+			return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, __rest, __seen, __out)
+		default:
+			return ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files, __file, __rest, __seen, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
+	__lowered := __lower(__file.__source)
+	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __lowered.__imports, 0), __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered))
+}
+
+func ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files []__SourceFile, __out __IRFile) __IRFile {
 	for _, __file := range __files {
 		_ = __file
 		__out = func() __IRFile {
@@ -7807,6 +7865,73 @@ func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
 			return __out
 		}()
 	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_appendImportPaths(__pending []string, __imports []__IRImport, __index int) []string {
+	__done := __index >= len(__imports)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __pending
+		default:
+			return ____rune_private_0d2ebf0f_appendImportPath(__pending, __imports, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __imports []__IRImport, __index int) []string {
+	__goImport := __imports[__index].__go
+	return func() []string {
+		switch {
+		case __goImport == true:
+			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __imports, __index+1)
+		default:
+			return ____rune_private_0d2ebf0f_appendImportPaths(func() []string {
+				out := []string{}
+				out = append(out, __pending...)
+				out = append(out, __imports[__index].__path)
+				return out
+			}(), __imports, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findSourceFile(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__done := __index >= len(__files)
+	return func() __SourceFile {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptySourceFile()
+		default:
+			return ____rune_private_0d2ebf0f_findSourceFileAt(__files, __path, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findSourceFileAt(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__matched := ____rune_private_0d2ebf0f_sourceFileMatches(__files[__index], __path)
+	return func() __SourceFile {
+		switch {
+		case __matched == true:
+			return __files[__index]
+		default:
+			return ____rune_private_0d2ebf0f_findSourceFile(__files, __path, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_sourceFileMatches(__file __SourceFile, __path string) bool {
+	return __file.__path == __path || ____rune_private_0d2ebf0f_compilerPathBasename(__file.__path) == ____rune_private_0d2ebf0f_compilerPathBasename(__path)
+}
+
+func ____rune_private_0d2ebf0f_emptySourceFile() __SourceFile {
+	return __SourceFile{__path: "", __source: ""}
+}
+
+func ____rune_private_0d2ebf0f_missingImportFile(__path string) __IRFile {
+	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
+	__out.__errors = append(__out.__errors, __ParseError{__message: "missing import " + __path, __line: 0, __column: 0})
 	return __out
 }
 
