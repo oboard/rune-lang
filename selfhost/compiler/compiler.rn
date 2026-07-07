@@ -668,6 +668,7 @@ checkExpr(
   ExprKind.Block => checkBlockExpr(expr.children, 0, structs, callables, errors, bindings)
   ExprKind.Let => checkLetExpr(expr, structs, callables, errors, bindings)
   ExprKind.Struct => checkStructExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Ternary => checkTernaryExpr(expr, structs, callables, errors, bindings)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
 
@@ -681,6 +682,75 @@ checkExprDefault(
   next := checkExprCall(expr, callables, errors, bindings)
   expr.children.each((child) => next = checkExpr(child, structs, callables, next, bindings))
   next
+}
+
+checkTernaryExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  withCondition := checkTernaryCondition(expr, callables, bindings, checked)
+  checkTernaryBranches(expr, callables, bindings, withCondition)
+}
+
+checkTernaryCondition(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() > 0
+  complete {
+    true => checkTernaryConditionType(expr.children[0], callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkTernaryConditionType(
+  condition: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(condition, callables, bindings)
+  mismatch := (actual != "") && (actual != "Bool")
+  mismatch {
+    true => [..errors, "ternary condition expects Bool, got " + actual]
+    _ => errors
+  }
+}
+
+checkTernaryBranches(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 3
+  complete {
+    true => checkTernaryBranchTypes(expr.children[1], expr.children[2], callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkTernaryBranchTypes(
+  consequence: IRExpr,
+  alternative: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  left := inferCompilerExprType(consequence, callables, bindings)
+  right := inferCompilerExprType(alternative, callables, bindings)
+  shouldCheck := (left != "") && (right != "")
+  mismatch := shouldCheck && (inferCompilerCommonType(left, right) == "")
+  mismatch {
+    true => [..errors, (("ternary branches return " + left) + " and ") + right]
+    _ => errors
+  }
 }
 
 checkLetExpr(

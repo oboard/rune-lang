@@ -863,6 +863,22 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
 }
 
+? "selfhost compiler reports ternary condition type errors" {
+  result := compileGo(`main() -> Int => 1 ? 2 : 3
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "ternary condition expects Bool, got Int")
+}
+
+? "selfhost compiler reports ternary branch type errors" {
+  result := compileGo(`main(flag: Bool) => flag ? 1 : "wrong"
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "ternary branches return Int and String")
+}
+
 ? "selfhost compiler reports call return type errors" {
   result := compileGo(`label() -> String => "rune"
 main() -> Int => label()

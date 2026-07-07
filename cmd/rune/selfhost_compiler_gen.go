@@ -9656,6 +9656,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkLetExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Struct:
 			return ____rune_private_0d2ebf0f_checkStructExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Ternary:
+			return ____rune_private_0d2ebf0f_checkTernaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
 		}
@@ -9669,6 +9671,74 @@ func ____rune_private_0d2ebf0f_checkExprDefault(__expr __IRExpr, __structs []__I
 		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __structs, __callables, __next, __bindings)
 	}
 	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkTernaryExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	__withCondition := ____rune_private_0d2ebf0f_checkTernaryCondition(__expr, __callables, __bindings, __checked)
+	return ____rune_private_0d2ebf0f_checkTernaryBranches(__expr, __callables, __bindings, __withCondition)
+}
+
+func ____rune_private_0d2ebf0f_checkTernaryCondition(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkTernaryConditionType(__expr.__children[0], __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTernaryConditionType(__condition __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__condition, __callables, __bindings)
+	__mismatch := __actual != "" && __actual != "Bool"
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "ternary condition expects Bool, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTernaryBranches(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 3
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkTernaryBranchTypes(__expr.__children[1], __expr.__children[2], __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTernaryBranchTypes(__consequence __IRExpr, __alternative __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__consequence, __callables, __bindings)
+	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__alternative, __callables, __bindings)
+	__shouldCheck := __left != "" && __right != ""
+	__mismatch := __shouldCheck && ____rune_private_0d2ebf0f_inferCompilerCommonType(__left, __right) == ""
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "ternary branches return "+__left+" and "+__right)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
