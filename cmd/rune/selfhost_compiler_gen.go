@@ -4228,7 +4228,25 @@ func ____rune_private_44103c8f_lowerEnumMember(__member __ParsedEnumMember) __IR
 }
 
 func ____rune_private_44103c8f_lowerFunction(__fn __ParsedFunction) __IRFunction {
-	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __line: __fn.__line, __column: __fn.__column}
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __routine: __fn.__routine, __macro: ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn), __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __line: __fn.__line, __column: __fn.__column}
+}
+
+func ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn __ParsedFunction) bool {
+	return __fn.__macro || ____rune_private_44103c8f_typeRefIsSyntaxOnly(__fn.__returnType) || ____rune_private_44103c8f_paramsUseSyntaxOnly(__fn.__params, 0)
+}
+
+func ____rune_private_44103c8f_paramsUseSyntaxOnly(__params []__ParsedParam, __index int) bool {
+	return func() bool {
+		if __index >= len(__params) {
+			return false
+		}
+		return ____rune_private_44103c8f_typeRefIsSyntaxOnly(__params[__index].__typeRef) || ____rune_private_44103c8f_paramsUseSyntaxOnly(__params, __index+1)
+	}()
+}
+
+func ____rune_private_44103c8f_typeRefIsSyntaxOnly(__typeRef __ParsedTypeRef) bool {
+	__name := __typeRefToString(__typeRef)
+	return strings.HasPrefix(__name, "Syntax") || __name == "MacroContext"
 }
 
 func ____rune_private_44103c8f_lowerStructType(__typeDecl __ParsedType) __IRStructType {

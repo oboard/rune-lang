@@ -230,7 +230,7 @@ lowerFunction(
   name: fn.name,
   private: fn.private,
   routine: fn.routine,
-  macro: fn.macro,
+  macro: parsedFunctionCompileTimeOnly(fn),
   receiverType: fn.receiverType,
   generics: fn.generics,
   params: lowerParams(fn.params),
@@ -238,6 +238,25 @@ lowerFunction(
   body: lowerExpr(fn.body),
   line: fn.line,
   column: fn.column
+}
+
+parsedFunctionCompileTimeOnly(
+  fn: ParsedFunction
+) -> Bool => fn.macro || typeRefIsSyntaxOnly(fn.returnType) || paramsUseSyntaxOnly(fn.params, 0)
+
+paramsUseSyntaxOnly(
+  params: Array[ParsedParam],
+  index: Int
+) -> Bool => (
+  index >= params.length() ? false
+    : typeRefIsSyntaxOnly(params[index].typeRef) || paramsUseSyntaxOnly(params, index + 1)
+)
+
+typeRefIsSyntaxOnly(
+  typeRef: ParsedTypeRef
+) -> Bool => {
+  name := typeRefToString(typeRef)
+  name.startsWith("Syntax") || (name == "MacroContext")
 }
 
 lowerStructType(
