@@ -4609,11 +4609,105 @@ compilerMacroFunctionError(
   fn: ParsedFunction,
   errors: Array[ParseError]
 ) -> Array[ParseError] => fn.macro {
-  true => compilerSyntaxMacroSignatureOk(fn) {
-    true => errors
-    _ => [..errors, compilerParseError(("macro " + fn.name) + " must accept SyntaxFile and MacroContext first and return SyntaxFile", fn.line, fn.column)]
+  true => {
+    next := compilerSyntaxMacroSignatureOk(fn) {
+      true => errors
+      _ => [..errors, compilerParseError(("macro " + fn.name) + " must accept SyntaxFile and MacroContext first and return SyntaxFile", fn.line, fn.column)]
+    }
+    compilerMacroPurityError(fn, next)
   }
   _ => errors
+}
+
+compilerMacroPurityError(
+  fn: ParsedFunction,
+  errors: Array[ParseError]
+) -> Array[ParseError] => compilerParsedMacroPurityMessage(fn.body) {
+  "" => errors
+  message => [..errors, compilerParseError((("macro " + fn.name) + " is not pure: ") + message, fn.line, fn.column)]
+}
+
+compilerParsedMacroPurityMessage(
+  expr: ParsedExpr
+) -> String => {
+  current := compilerParsedMacroCallPurityMessage(expr)
+  current {
+    "" => compilerParsedMacroChildPurityMessage(expr.children, 0)
+    _ => current
+  }
+}
+
+compilerParsedMacroChildPurityMessage(
+  children: Array[ParsedExpr],
+  index: Int
+) -> String => {
+  done := index >= children.length()
+  done {
+    true => ""
+    _ => compilerParsedMacroChildPurityMessageAt(children, index)
+  }
+}
+
+compilerParsedMacroChildPurityMessageAt(
+  children: Array[ParsedExpr],
+  index: Int
+) -> String => {
+  message := compilerParsedMacroPurityMessage(children[index])
+  message {
+    "" => compilerParsedMacroChildPurityMessage(children, index + 1)
+    _ => message
+  }
+}
+
+compilerParsedMacroCallPurityMessage(
+  expr: ParsedExpr
+) -> String => expr.kind {
+  ExprKind.Call => compilerParsedCallPurityMessage(expr)
+  _ => ""
+}
+
+compilerParsedCallPurityMessage(
+  expr: ParsedExpr
+) -> String => expr.children.length() {
+  0 => "cannot prove dynamic call is pure"
+  _ => compilerParsedCalleePurityMessage(expr.children[0])
+}
+
+compilerParsedCalleePurityMessage(
+  callee: ParsedExpr
+) -> String => callee.kind {
+  ExprKind.Selector => compilerParsedSelectorPurityMessage(callee)
+  _ => ""
+}
+
+compilerParsedSelectorPurityMessage(
+  selector: ParsedExpr
+) -> String => selector.children.length() {
+  0 => ""
+  _ => compilerParsedAtSelectorPurityMessage(selector, selector.children[0])
+}
+
+compilerParsedAtSelectorPurityMessage(
+  selector: ParsedExpr,
+  receiver: ParsedExpr
+) -> String => receiver.kind {
+  ExprKind.At => compilerParsedModuleSelectorPurityMessage(receiver.name, selector.name)
+  _ => ""
+}
+
+compilerParsedModuleSelectorPurityMessage(
+  module: String,
+  name: String
+) -> String => module {
+  "io" => compilerParsedIOSelectorPurityMessage(name)
+  _ => ""
+}
+
+compilerParsedIOSelectorPurityMessage(
+  name: String
+) -> String => name {
+  "println" => "calls impure function @io.println"
+  _ => ""
 }
 
 compilerSyntaxMacroSignatureOk(

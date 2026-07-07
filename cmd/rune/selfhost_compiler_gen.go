@@ -13901,20 +13901,156 @@ func ____rune_private_0d2ebf0f_compilerMacroFunctionError(__fn __ParsedFunction,
 		switch {
 		case __fn.__macro == true:
 			return func() []__ParseError {
-				switch {
-				case ____rune_private_0d2ebf0f_compilerSyntaxMacroSignatureOk(__fn) == true:
-					return __errors
-				default:
-					return func() []__ParseError {
-						out := []__ParseError{}
-						out = append(out, __errors...)
-						out = append(out, ____rune_private_0d2ebf0f_compilerParseError("macro "+__fn.__name+" must accept SyntaxFile and MacroContext first and return SyntaxFile", __fn.__line, __fn.__column))
-						return out
-					}()
-				}
+				__next := func() []__ParseError {
+					switch {
+					case ____rune_private_0d2ebf0f_compilerSyntaxMacroSignatureOk(__fn) == true:
+						return __errors
+					default:
+						return func() []__ParseError {
+							out := []__ParseError{}
+							out = append(out, __errors...)
+							out = append(out, ____rune_private_0d2ebf0f_compilerParseError("macro "+__fn.__name+" must accept SyntaxFile and MacroContext first and return SyntaxFile", __fn.__line, __fn.__column))
+							return out
+						}()
+					}
+				}()
+				return ____rune_private_0d2ebf0f_compilerMacroPurityError(__fn, __next)
 			}()
 		default:
 			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroPurityError(__fn __ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		__match2 := ____rune_private_0d2ebf0f_compilerParsedMacroPurityMessage(__fn.__body)
+		switch {
+		case __match2 == "":
+			return __errors
+		case true:
+			__message := __match2
+			_ = __message
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("macro "+__fn.__name+" is not pure: "+__message, __fn.__line, __fn.__column))
+				return out
+			}()
+		}
+		return nil
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedMacroPurityMessage(__expr __ParsedExpr) string {
+	__current := ____rune_private_0d2ebf0f_compilerParsedMacroCallPurityMessage(__expr)
+	return func() string {
+		switch {
+		case __current == "":
+			return ____rune_private_0d2ebf0f_compilerParsedMacroChildPurityMessage(__expr.__children, 0)
+		default:
+			return __current
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedMacroChildPurityMessage(__children []__ParsedExpr, __index int) string {
+	__done := __index >= len(__children)
+	return func() string {
+		switch {
+		case __done == true:
+			return ""
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedMacroChildPurityMessageAt(__children, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedMacroChildPurityMessageAt(__children []__ParsedExpr, __index int) string {
+	__message := ____rune_private_0d2ebf0f_compilerParsedMacroPurityMessage(__children[__index])
+	return func() string {
+		switch {
+		case __message == "":
+			return ____rune_private_0d2ebf0f_compilerParsedMacroChildPurityMessage(__children, __index+1)
+		default:
+			return __message
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedMacroCallPurityMessage(__expr __ParsedExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Call:
+			return ____rune_private_0d2ebf0f_compilerParsedCallPurityMessage(__expr)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedCallPurityMessage(__expr __ParsedExpr) string {
+	return func() string {
+		switch {
+		case len(__expr.__children) == 0:
+			return "cannot prove dynamic call is pure"
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedCalleePurityMessage(__expr.__children[0])
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedCalleePurityMessage(__callee __ParsedExpr) string {
+	return func() string {
+		switch {
+		case __callee.__kind == __ExprKind_Selector:
+			return ____rune_private_0d2ebf0f_compilerParsedSelectorPurityMessage(__callee)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedSelectorPurityMessage(__selector __ParsedExpr) string {
+	return func() string {
+		switch {
+		case len(__selector.__children) == 0:
+			return ""
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedAtSelectorPurityMessage(__selector, __selector.__children[0])
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedAtSelectorPurityMessage(__selector __ParsedExpr, __receiver __ParsedExpr) string {
+	return func() string {
+		switch {
+		case __receiver.__kind == __ExprKind_At:
+			return ____rune_private_0d2ebf0f_compilerParsedModuleSelectorPurityMessage(__receiver.__name, __selector.__name)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedModuleSelectorPurityMessage(__module string, __name string) string {
+	return func() string {
+		switch {
+		case __module == "io":
+			return ____rune_private_0d2ebf0f_compilerParsedIOSelectorPurityMessage(__name)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedIOSelectorPurityMessage(__name string) string {
+	return func() string {
+		switch {
+		case __name == "println":
+			return "calls impure function @io.println"
+		default:
+			return ""
 		}
 	}()
 }
