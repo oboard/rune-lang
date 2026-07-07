@@ -483,6 +483,11 @@ type __CompileResult struct {
 	__errors []string
 }
 
+type __SourceFile struct {
+	__path   string
+	__source string
+}
+
 func runeTemplateString(value any) string {
 	switch v := value.(type) {
 	case nil:
@@ -7200,6 +7205,27 @@ func __compileMoonBit(__source string) __CompileResult {
 
 func __compile(__source string, __target string) __CompileResult {
 	__file := __lower(__source)
+	return ____rune_private_0d2ebf0f_compileFile(__file, __target)
+}
+
+func __compileTypeScriptFiles(__files []__SourceFile) __CompileResult {
+	return __compileFiles(__files, "ts")
+}
+
+func __compileGoFiles(__files []__SourceFile) __CompileResult {
+	return __compileFiles(__files, "go")
+}
+
+func __compileMoonBitFiles(__files []__SourceFile) __CompileResult {
+	return __compileFiles(__files, "mbt")
+}
+
+func __compileFiles(__files []__SourceFile, __target string) __CompileResult {
+	__file := ____rune_private_0d2ebf0f_lowerFiles(__files)
+	return ____rune_private_0d2ebf0f_compileFile(__file, __target)
+}
+
+func ____rune_private_0d2ebf0f_compileFile(__file __IRFile, __target string) __CompileResult {
 	return func() __CompileResult {
 		if len(__file.__errors) > 0 {
 			return ____rune_private_0d2ebf0f_compileResult(false, "", ____rune_private_0d2ebf0f_parseErrorMessages(__file.__errors))
@@ -7217,6 +7243,51 @@ func __compile(__source string, __target string) __CompileResult {
 			}
 		}()
 	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
+	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
+	for _, __file := range __files {
+		_ = __file
+		__out = ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lower(__file.__source))
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerIRFile() __IRFile {
+	return __IRFile{__imports: []__IRImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: []__ParseError{}}
+}
+
+func ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out __IRFile, __file __IRFile) __IRFile {
+	for _, __importDecl := range __file.__imports {
+		_ = __importDecl
+		func() int { __out.__imports = append(__out.__imports, __importDecl); return len(__out.__imports) }()
+	}
+	for _, __typeDecl := range __file.__structs {
+		_ = __typeDecl
+		func() int { __out.__structs = append(__out.__structs, __typeDecl); return len(__out.__structs) }()
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		func() int { __out.__enums = append(__out.__enums, __typeDecl); return len(__out.__enums) }()
+	}
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		func() int { __out.__constants = append(__out.__constants, __constant); return len(__out.__constants) }()
+	}
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		func() int { __out.__functions = append(__out.__functions, __fn); return len(__out.__functions) }()
+	}
+	for _, __testDecl := range __file.__tests {
+		_ = __testDecl
+		func() int { __out.__tests = append(__out.__tests, __testDecl); return len(__out.__tests) }()
+	}
+	for _, __error := range __file.__errors {
+		_ = __error
+		func() int { __out.__errors = append(__out.__errors, __error); return len(__out.__errors) }()
+	}
+	return __out
 }
 
 func ____rune_private_0d2ebf0f_compileResult(__ok bool, __output string, __errors []string) __CompileResult {

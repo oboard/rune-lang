@@ -44,6 +44,37 @@ main() => {
   @assert.eq(result.output.includes("return __fib(__n - 1) + __fib(__n - 2)"), true)
 }
 
+? "selfhost compiler merges source file imports" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
+main() -> Int => importedAnswer()
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `ImportedUser: {
+  name: String
+}
+
+importedAnswer() -> Int => 42
+`
+    }
+  ]
+  go := compileGoFiles(files)
+  ts := compileTypeScriptFiles(files)
+  mbt := compileMoonBitFiles(files)
+  @assert.eq(go.ok, true)
+  @assert.eq(ts.ok, true)
+  @assert.eq(mbt.ok, true)
+  @assert.eq(go.output.includes("type __ImportedUser struct"), true)
+  @assert.eq(go.output.includes("func __importedAnswer() int"), true)
+  @assert.eq(ts.output.includes("type __ImportedUser = {"), true)
+  @assert.eq(mbt.output.includes("struct RuneImportedUser"), true)
+}
+
 ? "selfhost compiler emits moonbit functions" {
   source := `+ add(a: Int, b: Int) -> Int => a + b
 + main() -> Int => add(20, 22)

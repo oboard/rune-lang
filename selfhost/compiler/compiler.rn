@@ -10,6 +10,11 @@
   errors: Array[String]
 }
 
++ SourceFile: {
+  path: String
+  source: String
+}
+
 + compileTypeScript(
   source: String
 ) -> CompileResult => compile(source, "ts")
@@ -27,6 +32,33 @@
   target: String
 ) -> CompileResult => {
   file := lower(source)
+  compileFile(file, target)
+}
+
++ compileTypeScriptFiles(
+  files: Array[SourceFile]
+) -> CompileResult => compileFiles(files, "ts")
+
++ compileGoFiles(
+  files: Array[SourceFile]
+) -> CompileResult => compileFiles(files, "go")
+
++ compileMoonBitFiles(
+  files: Array[SourceFile]
+) -> CompileResult => compileFiles(files, "mbt")
+
++ compileFiles(
+  files: Array[SourceFile],
+  target: String
+) -> CompileResult => {
+  file := lowerFiles(files)
+  compileFile(file, target)
+}
+
+compileFile(
+  file: IRFile,
+  target: String
+) -> CompileResult => (
   (
     file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
       : target {
@@ -36,6 +68,38 @@
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )
+)
+
+lowerFiles(
+  files: Array[SourceFile]
+) -> IRFile => {
+  out := emptyCompilerIRFile()
+  files.each((file) => out = mergeCompilerIRFile(out, lower(file.source)))
+  out
+}
+
+emptyCompilerIRFile() -> IRFile => {
+  imports: [],
+  structs: [],
+  enums: [],
+  constants: [],
+  functions: [],
+  tests: [],
+  errors: []
+}
+
+mergeCompilerIRFile(
+  out: IRFile,
+  file: IRFile
+) -> IRFile => {
+  file.imports.each((importDecl) => out.imports.push(importDecl))
+  file.structs.each((typeDecl) => out.structs.push(typeDecl))
+  file.enums.each((typeDecl) => out.enums.push(typeDecl))
+  file.constants.each((constant) => out.constants.push(constant))
+  file.functions.each((fn) => out.functions.push(fn))
+  file.tests.each((testDecl) => out.tests.push(testDecl))
+  file.errors.each((error) => out.errors.push(error))
+  out
 }
 
 compileResult(
