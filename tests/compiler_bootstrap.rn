@@ -895,6 +895,14 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "operator '!' expects Bool, got Int")
 }
 
+? "selfhost compiler reports ordered comparison type errors" {
+  result := compileGo(`main() -> Bool => 1 < "wrong"
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "ordered comparison requires matching types, got Int and String")
+}
+
 ? "selfhost compiler reports call return type errors" {
   result := compileGo(`label() -> String => "rune"
 main() -> Int => label()

@@ -9765,7 +9765,7 @@ func ____rune_private_0d2ebf0f_checkBinaryExpr(__expr __IRExpr, __structs []__IR
 		case __boolOp == true:
 			return ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr, __callables, __bindings, __checked)
 		default:
-			return __checked
+			return ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked)
 		}
 	}()
 }
@@ -9798,6 +9798,76 @@ func ____rune_private_0d2ebf0f_checkBoolOperand(__op string, __operand __IRExpr,
 			return __errors
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerOrderedComparisonOp(__expr.__op) == true:
+			return ____rune_private_0d2ebf0f_checkOrderedComparisonOperands(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkOrderedComparisonOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkOrderedComparisonMatch(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonOperand(__expr.__children[1], __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonOperand(__expr.__children[0], __callables, __bindings, __errors)))
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkOrderedComparisonOperand(__operand __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__operand, __callables, __bindings)
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerOrderedComparisonType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "ordered comparison expects a numeric type or String, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkOrderedComparisonMatch(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
+	__mismatch := __left != "" && __right != "" && __left != __right
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "ordered comparison requires matching types, got "+__left+" and "+__right)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerOrderedComparisonOp(__op string) bool {
+	return __op == "<" || __op == "<=" || __op == ">" || __op == ">="
+}
+
+func ____rune_private_0d2ebf0f_compilerOrderedComparisonType(__typeName string) bool {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	__numeric := __base == "Int" || __base == "Double" || __base == "BigInt" || __base == "Float"
+	return __numeric || (__base == "String" || __base == "Char")
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {

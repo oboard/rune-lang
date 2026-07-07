@@ -780,7 +780,7 @@ checkBinaryExpr(
   boolOp := (expr.op == "&&") || (expr.op == "||")
   boolOp {
     true => checkBinaryBoolOperands(expr, callables, bindings, checked)
-    _ => checked
+    _ => checkOrderedComparisonExpr(expr, callables, bindings, checked)
   }
 }
 
@@ -810,6 +810,70 @@ checkBoolOperand(
     true => [..errors, ((("operator '" + op) + "' expects Bool, got ") + actual)]
     _ => errors
   }
+}
+
+checkOrderedComparisonExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => compilerOrderedComparisonOp(expr.op) {
+  true => checkOrderedComparisonOperands(expr, callables, bindings, errors)
+  _ => errors
+}
+
+checkOrderedComparisonOperands(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkOrderedComparisonMatch(expr, callables, bindings, checkOrderedComparisonOperand(expr.children[1], callables, bindings, checkOrderedComparisonOperand(expr.children[0], callables, bindings, errors)))
+    _ => errors
+  }
+}
+
+checkOrderedComparisonOperand(
+  operand: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(operand, callables, bindings)
+  mismatch := (actual != "") && (compilerOrderedComparisonType(actual) == false)
+  mismatch {
+    true => [..errors, "ordered comparison expects a numeric type or String, got " + actual]
+    _ => errors
+  }
+}
+
+checkOrderedComparisonMatch(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  left := inferCompilerExprType(expr.children[0], callables, bindings)
+  right := inferCompilerExprType(expr.children[1], callables, bindings)
+  mismatch := ((left != "") && (right != "")) && (left != right)
+  mismatch {
+    true => [..errors, ((("ordered comparison requires matching types, got " + left) + " and ") + right)]
+    _ => errors
+  }
+}
+
+compilerOrderedComparisonOp(
+  op: String
+) -> Bool => (((op == "<") || (op == "<=")) || (op == ">")) || (op == ">=")
+
+compilerOrderedComparisonType(
+  typeName: String
+) -> Bool => {
+  base := compilerTypeBase(typeName)
+  numeric := (((base == "Int") || (base == "Double")) || (base == "BigInt")) || (base == "Float")
+  numeric || ((base == "String") || (base == "Char"))
 }
 
 checkLetExpr(
