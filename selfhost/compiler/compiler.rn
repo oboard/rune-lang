@@ -671,6 +671,7 @@ checkExpr(
   ExprKind.Selector => checkSelectorValueExpr(expr, structs, callables, errors, bindings)
   ExprKind.Lambda => checkLambdaExpr(expr, structs, callables, errors, bindings)
   ExprKind.Assign => checkAssignExpr(expr, structs, callables, errors, bindings)
+  ExprKind.PatternBlock => checkPatternBlockExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
@@ -903,6 +904,84 @@ checkAssignmentType(
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
     true => [..errors, (("assignment has type " + actual) + ", expected ") + expected]
+    _ => errors
+  }
+}
+
+checkPatternBlockExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkPatternBlockBranches(expr.children, 0, structs, callables, errors, bindings, "")
+
+checkPatternBlockBranches(
+  branches: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> Array[String] => {
+  done := index >= branches.length()
+  done {
+    true => errors
+    _ => checkPatternBlockBranch(branches, index, structs, callables, errors, bindings, expected)
+  }
+}
+
+checkPatternBlockBranch(
+  branches: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> Array[String] => {
+  branch := branches[index]
+  complete := branch.children.length() >= 2
+  complete {
+    true => checkPatternBlockBranchValue(branches, index, branch.children[1], structs, callables, errors, bindings, expected)
+    _ => checkPatternBlockBranches(branches, index + 1, structs, callables, errors, bindings, expected)
+  }
+}
+
+checkPatternBlockBranchValue(
+  branches: Array[IRExpr],
+  index: Int,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> Array[String] => {
+  checked := checkExpr(value, structs, callables, errors, bindings)
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+  nextExpected := compilerNextPatternBranchType(expected, actual)
+  nextErrors := checkPatternBranchTypeError(expected, actual, checked)
+  checkPatternBlockBranches(branches, index + 1, structs, callables, nextErrors, bindings, nextExpected)
+}
+
+compilerNextPatternBranchType(
+  expected: String,
+  actual: String
+) -> String => expected {
+  "" => actual
+  _ => expected
+}
+
+checkPatternBranchTypeError(
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, (("pattern branch returns " + actual) + ", expected ") + expected]
     _ => errors
   }
 }
@@ -2864,6 +2943,7 @@ inferCompilerExprType(
   ExprKind.Map => inferCompilerMapType(expr, callables, bindings)
   ExprKind.Spread => inferCompilerSpreadType(expr, callables, bindings)
   ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
+  ExprKind.PatternBlock => inferCompilerPatternBlockType(expr, callables, bindings)
   _ => ""
 }
 
@@ -2875,6 +2955,7 @@ inferCompilerExprTypeWithStructs(
 ) -> String => expr.kind {
   ExprKind.Selector => inferCompilerSelectorTypeWithStructs(expr, structs, callables, bindings)
   ExprKind.Block => inferCompilerBlockTypeWithStructs(expr, structs, callables, bindings)
+  ExprKind.PatternBlock => inferCompilerPatternBlockTypeWithStructs(expr, structs, callables, bindings)
   _ => inferCompilerExprType(expr, callables, bindings)
 }
 
@@ -3053,6 +3134,75 @@ inferCompilerIndexType(
   complete {
     true => inferCompilerIndexReceiverType(inferCompilerExprType(expr.children[0], callables, bindings), expr.children[1])
     _ => ""
+  }
+}
+
+inferCompilerPatternBlockType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerPatternBlockTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+
+inferCompilerPatternBlockTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerPatternBranchTypesWithStructs(expr.children, 0, structs, callables, bindings, "")
+
+inferCompilerPatternBranchTypesWithStructs(
+  branches: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> String => {
+  done := index >= branches.length()
+  done {
+    true => expected
+    _ => inferCompilerPatternBranchTypeWithStructs(branches, index, structs, callables, bindings, expected)
+  }
+}
+
+inferCompilerPatternBranchTypeWithStructs(
+  branches: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> String => {
+  branch := branches[index]
+  complete := branch.children.length() >= 2
+  complete {
+    true => inferCompilerPatternBranchValueTypeWithStructs(branches, index, branch.children[1], structs, callables, bindings, expected)
+    _ => inferCompilerPatternBranchTypesWithStructs(branches, index + 1, structs, callables, bindings, expected)
+  }
+}
+
+inferCompilerPatternBranchValueTypeWithStructs(
+  branches: Array[IRExpr],
+  index: Int,
+  value: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  expected: String
+) -> String => {
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+  next := inferCompilerPatternCommonType(expected, actual)
+  inferCompilerPatternBranchTypesWithStructs(branches, index + 1, structs, callables, bindings, next)
+}
+
+inferCompilerPatternCommonType(
+  expected: String,
+  actual: String
+) -> String => expected {
+  "" => actual
+  _ => actual {
+    "" => expected
+    _ => inferCompilerCommonType(expected, actual)
   }
 }
 

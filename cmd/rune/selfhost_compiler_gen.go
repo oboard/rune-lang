@@ -9693,6 +9693,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkLambdaExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Assign:
 			return ____rune_private_0d2ebf0f_checkAssignExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_PatternBlock:
+			return ____rune_private_0d2ebf0f_checkPatternBlockExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierExpr(__expr, __callables, __bindings, __errors)
 		case __expr.__kind == __ExprKind_This:
@@ -9916,6 +9918,71 @@ func ____rune_private_0d2ebf0f_checkAssignmentType(__expected string, __actual s
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "assignment has type "+__actual+", expected "+__expected)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPatternBlockExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	return ____rune_private_0d2ebf0f_checkPatternBlockBranches(__expr.__children, 0, __structs, __callables, __errors, __bindings, "")
+}
+
+func ____rune_private_0d2ebf0f_checkPatternBlockBranches(__branches []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __expected string) []string {
+	__done := __index >= len(__branches)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkPatternBlockBranch(__branches, __index, __structs, __callables, __errors, __bindings, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPatternBlockBranch(__branches []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __expected string) []string {
+	__branch := __branches[__index]
+	__complete := len(__branch.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkPatternBlockBranchValue(__branches, __index, __branch.__children[1], __structs, __callables, __errors, __bindings, __expected)
+		default:
+			return ____rune_private_0d2ebf0f_checkPatternBlockBranches(__branches, __index+1, __structs, __callables, __errors, __bindings, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPatternBlockBranchValue(__branches []__IRExpr, __index int, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __expected string) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, __errors, __bindings)
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
+	__nextExpected := ____rune_private_0d2ebf0f_compilerNextPatternBranchType(__expected, __actual)
+	__nextErrors := ____rune_private_0d2ebf0f_checkPatternBranchTypeError(__expected, __actual, __checked)
+	return ____rune_private_0d2ebf0f_checkPatternBlockBranches(__branches, __index+1, __structs, __callables, __nextErrors, __bindings, __nextExpected)
+}
+
+func ____rune_private_0d2ebf0f_compilerNextPatternBranchType(__expected string, __actual string) string {
+	return func() string {
+		switch {
+		case __expected == "":
+			return __actual
+		default:
+			return __expected
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPatternBranchTypeError(__expected string, __actual string, __errors []string) []string {
+	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "pattern branch returns "+__actual+", expected "+__expected)
 				return out
 			}()
 		default:
@@ -11983,6 +12050,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerSpreadType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Index:
 			return ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_PatternBlock:
+			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockType(__expr, __callables, __bindings)
 		default:
 			return ""
 		}
@@ -11996,6 +12065,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr __IRExpr,
 			return ____rune_private_0d2ebf0f_inferCompilerSelectorTypeWithStructs(__expr, __structs, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Block:
 			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
+		case __expr.__kind == __ExprKind_PatternBlock:
+			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr, __callables, __bindings)
 		}
@@ -12161,6 +12232,63 @@ func ____rune_private_0d2ebf0f_inferCompilerIndexType(__expr __IRExpr, __callabl
 			return ____rune_private_0d2ebf0f_inferCompilerIndexReceiverType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), __expr.__children[1])
 		default:
 			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{____rune_private_0d2ebf0f_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__expr.__children, 0, __structs, __callables, __bindings, "")
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__branches []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __expected string) string {
+	__done := __index >= len(__branches)
+	return func() string {
+		switch {
+		case __done == true:
+			return __expected
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypeWithStructs(__branches, __index, __structs, __callables, __bindings, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypeWithStructs(__branches []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __expected string) string {
+	__branch := __branches[__index]
+	__complete := len(__branch.__children) >= 2
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerPatternBranchValueTypeWithStructs(__branches, __index, __branch.__children[1], __structs, __callables, __bindings, __expected)
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__branches, __index+1, __structs, __callables, __bindings, __expected)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternBranchValueTypeWithStructs(__branches []__IRExpr, __index int, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __expected string) string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
+	__next := ____rune_private_0d2ebf0f_inferCompilerPatternCommonType(__expected, __actual)
+	return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__branches, __index+1, __structs, __callables, __bindings, __next)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPatternCommonType(__expected string, __actual string) string {
+	return func() string {
+		switch {
+		case __expected == "":
+			return __actual
+		default:
+			return func() string {
+				switch {
+				case __actual == "":
+					return __expected
+				default:
+					return ____rune_private_0d2ebf0f_inferCompilerCommonType(__expected, __actual)
+				}
+			}()
 		}
 	}()
 }

@@ -920,6 +920,27 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "ternary branches return Int and String")
 }
 
+? "selfhost compiler reports pattern branch type errors" {
+  result := compileGo(`main(n: Int) => {
+  0 => 0
+  _ => "wrong"
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "pattern branch returns String, expected Int")
+}
+
+? "selfhost compiler infers pattern block return types" {
+  result := compileGo(`main(n: Int) -> Int => {
+  _ => "wrong"
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+}
+
 ? "selfhost compiler reports boolean binary operand type errors" {
   result := compileGo(`main() -> Bool => 1 && true
 `)
