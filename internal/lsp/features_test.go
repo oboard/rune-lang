@@ -847,6 +847,28 @@ main() => double(21)'
 	}
 }
 
+func TestCompileTimeRangesIncludeLeadingGroupingParens(t *testing.T) {
+	uri := "file:///tmp/consteval.rn"
+	src := `main() => {
+  str := ("Hello " + "World!")'
+  num := ((1 + 2) * 3)'
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	resp := s.compileTimeRanges(uri).([]any)
+	if len(resp) != 2 {
+		t.Fatalf("compileTimeRanges length = %d, want 2: %#v", len(resp), resp)
+	}
+	first := resp[0].(map[string]any)["range"].(map[string]any)
+	if got, want := first["start"], positionOf(src, `("Hello "`, "("); got != want {
+		t.Fatalf("first range start = %+v, want %+v", got, want)
+	}
+	second := resp[1].(map[string]any)["range"].(map[string]any)
+	if got, want := second["start"], positionOf(src, "((1 + 2)", "("); got != want {
+		t.Fatalf("second range start = %+v, want %+v", got, want)
+	}
+}
+
 func TestDefinitionFindsStdlibCallBeforeCompileTimeMarker(t *testing.T) {
 	uri := "file:///tmp/consteval.rn"
 	src := `main() => @process.platform()'

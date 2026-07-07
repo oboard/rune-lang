@@ -51,16 +51,6 @@
             "fontStyle": "italic underline"
           }
         }
-      },
-      "editor.tokenColorCustomizations": {
-        "textMateRules": [
-          {
-            "scope": "punctuation.definition.character.unmatched.rune",
-            "settings": {
-              "fontStyle": "underline"
-            }
-          }
-        ]
       }
     },
     "commands": [
