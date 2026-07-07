@@ -659,7 +659,7 @@ checkExprDefault(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  next := checkExprCall(expr, callables, errors, bindings)
+  next := checkExprCall(expr, structs, callables, errors, bindings)
   expr.children.each((child) => next = checkExpr(child, structs, callables, next, bindings))
   next
 }
@@ -1576,7 +1576,7 @@ checkLetValueExpr(
 ) -> Array[String] => {
   value := expr.children[0]
   checked := checkExprExpected(value, expr.value, structs, callables, errors, bindings)
-  checkLetDeclaredType(expr.name, value, expr.value, callables, bindings, checked)
+  checkLetDeclaredType(expr.name, value, expr.value, structs, callables, bindings, checked)
 }
 
 checkExprExpected(
@@ -1598,20 +1598,107 @@ checkExpectedExprType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
-) -> Array[String] => moduleCallKey(expr) {
-  "json.parse" => checkJsonParseTarget(expected, structs, errors)
+) -> Array[String] => {
+  checked := moduleCallKey(expr) {
+    "json.parse" => checkJsonParseTarget(expected, structs, errors)
+    _ => errors
+  }
+  checkExpectedSelectorExpr(expr, structs, callables, bindings, checked)
+}
+
+checkExpectedSelectorExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => expr.kind {
+  ExprKind.Selector => checkSelectorExpr(expr, structs, callables, bindings, errors)
+  ExprKind.Block => checkExpectedBlockSelectorExpr(expr.children, structs, callables, bindings, errors)
   _ => errors
+}
+
+checkExpectedBlockSelectorExpr(
+  statements: Array[IRExpr],
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  empty := statements.length() == 0
+  empty {
+    true => errors
+    _ => checkExpectedSelectorExpr(statements[statements.length() - 1], structs, callables, bindings, errors)
+  }
+}
+
+checkSelectorExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  hasReceiver := expr.children.length() > 0
+  hasReceiver {
+    true => checkSelectorReceiverExpr(expr, expr.children[0], structs, callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkSelectorReceiverExpr(
+  expr: IRExpr,
+  receiver: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => receiver.kind {
+  ExprKind.At => errors
+  _ => checkStructSelectorExpr(expr, inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings), structs, errors)
+}
+
+checkStructSelectorExpr(
+  expr: IRExpr,
+  receiverType: String,
+  structs: Array[IRStructType],
+  errors: Array[String]
+) -> Array[String] => receiverType {
+  "" => errors
+  _ => {
+    typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
+    found := typeDecl.name != ""
+    found {
+      true => checkStructSelectorField(expr, receiverType, typeDecl, errors)
+      _ => [..errors, ("type " + receiverType) + " has no fields"]
+    }
+  }
+}
+
+checkStructSelectorField(
+  expr: IRExpr,
+  receiverType: String,
+  typeDecl: IRStructType,
+  errors: Array[String]
+) -> Array[String] => {
+  field := findCompilerStructField(typeDecl.fields, expr.name, 0)
+  found := field.name != ""
+  found {
+    true => errors
+    _ => [..errors, ((("type " + receiverType) + " has no field \"") + expr.name) + "\""]
+  }
 }
 
 checkLetDeclaredType(
   name: String,
   value: IRExpr,
   expected: String,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => {
-  actual := inferCompilerExprType(value, callables, bindings)
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
     true => [..errors, (((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected]
@@ -1704,7 +1791,7 @@ checkBlockExprStep(
 ) -> Array[String] => {
   statement := statements[index]
   nextErrors := checkExpr(statement, structs, callables, errors, bindings)
-  nextBindings := blockBindingsAfterStatement(statement, callables, bindings)
+  nextBindings := blockBindingsAfterStatement(statement, structs, callables, bindings)
   checkBlockExpr(statements, index + 1, structs, callables, nextErrors, nextBindings)
 }
 
@@ -1781,7 +1868,7 @@ checkStructExprFieldValue(
   next := found {
     true => {
       checkedValue := checkExprExpected(value, expected.typeName, structs, callables, errors, bindings)
-      checkStructFieldType(typeName, field.name, value, expected.typeName, callables, bindings, checkedValue)
+      checkStructFieldType(typeName, field.name, value, expected.typeName, structs, callables, bindings, checkedValue)
     }
     _ => [..checkExpr(value, structs, callables, errors, bindings), ((("type " + typeName) + " has no field \"") + field.name) + "\""]
   }
@@ -1793,11 +1880,12 @@ checkStructFieldType(
   fieldName: String,
   value: IRExpr,
   expected: String,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => {
-  actual := inferCompilerExprType(value, callables, bindings)
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
     true => [..errors, (((((("field " + typeName) + ".") + fieldName) + " has type ") + actual) + ", expected ") + expected]
@@ -1860,31 +1948,34 @@ compilerExprFieldContainsAt(
 
 blockBindingsAfterStatement(
   statement: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => statement.kind {
-  ExprKind.Let => bindCompilerLet(statement, callables, bindings)
+  ExprKind.Let => bindCompilerLet(statement, structs, callables, bindings)
   _ => bindings
 }
 
 bindCompilerLet(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => {
   hasValue := expr.children.length() > 0
   hasValue {
-    true => addCompilerTypeBinding(bindings, expr.name, compilerLetBindingType(expr, callables, bindings))
+    true => addCompilerTypeBinding(bindings, expr.name, compilerLetBindingType(expr, structs, callables, bindings))
     _ => bindings
   }
 }
 
 compilerLetBindingType(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => expr.value {
-  "" => inferCompilerExprType(expr.children[0], callables, bindings)
+  "" => inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings)
   _ => expr.value
 }
 
@@ -1928,26 +2019,28 @@ dropCompilerTypeBindingStep(
 
 checkExprCall(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   identifierCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)
   identifierCall {
-    true => checkIdentifierCall(expr, expr.children[0].name, expr.children.length() - 1, callables, errors, bindings)
-    _ => checkSelectorCall(expr, callables, errors, bindings)
+    true => checkIdentifierCall(expr, expr.children[0].name, expr.children.length() - 1, structs, callables, errors, bindings)
+    _ => checkSelectorCall(expr, structs, callables, errors, bindings)
   }
 }
 
 checkSelectorCall(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   selectorCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Selector)
   selectorCall {
-    true => checkSelectorCallExpr(expr, expr.children[0], callables, errors, bindings)
+    true => checkSelectorCallExpr(expr, expr.children[0], structs, callables, errors, bindings)
     _ => errors
   }
 }
@@ -1955,13 +2048,14 @@ checkSelectorCall(
 checkSelectorCallExpr(
   expr: IRExpr,
   selector: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   hasReceiver := selector.children.length() > 0
   hasReceiver {
-    true => checkSelectorCallReceiver(expr, selector, selector.children[0], callables, errors, bindings)
+    true => checkSelectorCallReceiver(expr, selector, selector.children[0], structs, callables, errors, bindings)
     _ => errors
   }
 }
@@ -1970,19 +2064,21 @@ checkSelectorCallReceiver(
   expr: IRExpr,
   selector: IRExpr,
   receiver: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => receiver.kind {
-  ExprKind.At => checkAtSelectorCall(expr, selector, receiver, callables, errors, bindings)
-  ExprKind.Identifier => checkIdentifierSelectorCall(expr, selector, receiver, callables, errors, bindings)
-  _ => checkInstanceSelectorCall(expr, selector, receiver, callables, errors, bindings)
+  ExprKind.At => checkAtSelectorCall(expr, selector, receiver, structs, callables, errors, bindings)
+  ExprKind.Identifier => checkIdentifierSelectorCall(expr, selector, receiver, structs, callables, errors, bindings)
+  _ => checkInstanceSelectorCall(expr, selector, receiver, structs, callables, errors, bindings)
 }
 
 checkAtSelectorCall(
   expr: IRExpr,
   selector: IRExpr,
   receiver: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
@@ -1990,7 +2086,7 @@ checkAtSelectorCall(
   importPath := compilerIRAtImportPath(receiver)
   (importPath == "") {
     true => errors
-    _ => checkIdentifierCall(expr, selector.name, expr.children.length() - 1, callables, errors, bindings)
+    _ => checkIdentifierCall(expr, selector.name, expr.children.length() - 1, structs, callables, errors, bindings)
   }
 }
 
@@ -1998,18 +2094,20 @@ checkIdentifierSelectorCall(
   expr: IRExpr,
   selector: IRExpr,
   receiver: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => selector.op {
-  "::" => checkStaticSelectorCall(expr, selector, receiver.name, callables, errors, bindings)
-  _ => checkInstanceSelectorCall(expr, selector, receiver, callables, errors, bindings)
+  "::" => checkStaticSelectorCall(expr, selector, receiver.name, structs, callables, errors, bindings)
+  _ => checkInstanceSelectorCall(expr, selector, receiver, structs, callables, errors, bindings)
 }
 
 checkStaticSelectorCall(
   expr: IRExpr,
   selector: IRExpr,
   receiverType: String,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
@@ -2018,7 +2116,7 @@ checkStaticSelectorCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, expr.children.length() - 1, callables, bindings, errors)
+    true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
     _ => errors
   }
 }
@@ -2027,14 +2125,15 @@ checkInstanceSelectorCall(
   expr: IRExpr,
   selector: IRExpr,
   receiver: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  receiverType := inferCompilerExprType(receiver, callables, bindings)
+  receiverType := inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings)
   known := receiverType != ""
   known {
-    true => checkKnownInstanceSelectorCall(expr, selector, compilerTypeBase(receiverType), callables, errors, bindings)
+    true => checkKnownInstanceSelectorCall(expr, selector, compilerTypeBase(receiverType), structs, callables, errors, bindings)
     _ => errors
   }
 }
@@ -2043,6 +2142,7 @@ checkKnownInstanceSelectorCall(
   expr: IRExpr,
   selector: IRExpr,
   receiverType: String,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
@@ -2051,7 +2151,7 @@ checkKnownInstanceSelectorCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, expr.children.length() - 1, callables, bindings, errors)
+    true => checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
     _ => errors
   }
 }
@@ -2060,6 +2160,7 @@ checkIdentifierCall(
   expr: IRExpr,
   name: String,
   arity: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
@@ -2067,7 +2168,7 @@ checkIdentifierCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, arity, callables, bindings, errors)
+    true => checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
     _ => [..errors, "undefined function " + name]
   }
 }
@@ -2076,13 +2177,14 @@ checkCallableCall(
   callable: CompilerCallable,
   expr: IRExpr,
   arity: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => {
   arityOk := callable.arity == arity
   arityOk {
-    true => checkCallableArgTypes(callable, expr, callables, bindings, errors, 0)
+    true => checkCallableArgTypes(callable, expr, structs, callables, bindings, errors, 0)
     _ => checkCallableArity(callable, arity, errors)
   }
 }
@@ -2102,6 +2204,7 @@ checkCallableArity(
 checkCallableArgTypes(
   callable: CompilerCallable,
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String],
@@ -2110,26 +2213,29 @@ checkCallableArgTypes(
   done := index >= callable.paramTypes.length()
   done {
     true => errors
-    _ => checkCallableArgType(callable, expr, callables, bindings, errors, index)
+    _ => checkCallableArgType(callable, expr, structs, callables, bindings, errors, index)
   }
 }
 
 checkCallableArgType(
   callable: CompilerCallable,
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String],
   index: Int
 ) -> Array[String] => {
   expected := callable.paramTypes[index]
-  actual := inferCompilerExprType(expr.children[index + 1], callables, bindings)
+  arg := expr.children[index + 1]
+  checked := checkExpectedExprType(arg, expected, structs, callables, bindings, errors)
+  actual := inferCompilerExprTypeWithStructs(arg, structs, callables, bindings)
   mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   next := mismatch {
-    true => [..errors, compilerArgumentTypeError(callable.name, index + 1, actual, expected)]
-    _ => errors
+    true => [..checked, compilerArgumentTypeError(callable.name, index + 1, actual, expected)]
+    _ => checked
   }
-  checkCallableArgTypes(callable, expr, callables, bindings, next, index + 1)
+  checkCallableArgTypes(callable, expr, structs, callables, bindings, next, index + 1)
 }
 
 compilerArgumentTypeError(
@@ -2157,7 +2263,7 @@ checkFunctionReturn(
 ) -> Array[String] => {
   expected := fn.returnType
   checked := checkExpectedExprType(fn.body, expected, structs, callables, bindings, errors)
-  actual := inferCompilerExprType(fn.body, callables, bindings)
+  actual := inferCompilerExprTypeWithStructs(fn.body, structs, callables, bindings)
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
     true => checkFunctionReturnType(fn.name, expected, actual, checked)
@@ -2486,6 +2592,54 @@ inferCompilerExprType(
   _ => ""
 }
 
+inferCompilerExprTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => expr.kind {
+  ExprKind.Selector => inferCompilerSelectorTypeWithStructs(expr, structs, callables, bindings)
+  ExprKind.Block => inferCompilerBlockTypeWithStructs(expr, structs, callables, bindings)
+  _ => inferCompilerExprType(expr, callables, bindings)
+}
+
+inferCompilerSelectorTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  hasReceiver := expr.children.length() > 0
+  hasReceiver {
+    true => inferCompilerSelectorTypeFromReceiverWithStructs(expr, expr.children[0], structs, callables, bindings)
+    _ => ""
+  }
+}
+
+inferCompilerSelectorTypeFromReceiverWithStructs(
+  expr: IRExpr,
+  receiver: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => receiver.kind {
+  ExprKind.At => inferCompilerSelectorTypeFromReceiver(expr, receiver, callables, bindings)
+  _ => inferCompilerStructSelectorType(expr, inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings), structs)
+}
+
+inferCompilerStructSelectorType(
+  expr: IRExpr,
+  receiverType: String,
+  structs: Array[IRStructType]
+) -> String => receiverType {
+  "" => ""
+  _ => {
+    typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
+    field := findCompilerStructField(typeDecl.fields, expr.name, 0)
+    field.typeName
+  }
+}
+
 inferCompilerArrayType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
@@ -2804,11 +2958,19 @@ inferCompilerBlockType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => inferCompilerBlockTypeAt(expr.children, 0, callables, bindings, "Void")
+) -> String => inferCompilerBlockTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
 
-inferCompilerBlockTypeAt(
+inferCompilerBlockTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerBlockTypeAtWithStructs(expr.children, 0, structs, callables, bindings, "Void")
+
+inferCompilerBlockTypeAtWithStructs(
   statements: Array[IRExpr],
   index: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   lastType: String
@@ -2816,20 +2978,21 @@ inferCompilerBlockTypeAt(
   done := index >= statements.length()
   done {
     true => lastType
-    _ => inferCompilerBlockTypeStep(statements, index, callables, bindings)
+    _ => inferCompilerBlockTypeStepWithStructs(statements, index, structs, callables, bindings)
   }
 }
 
-inferCompilerBlockTypeStep(
+inferCompilerBlockTypeStepWithStructs(
   statements: Array[IRExpr],
   index: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
   statement := statements[index]
-  statementType := inferCompilerExprType(statement, callables, bindings)
-  nextBindings := blockBindingsAfterStatement(statement, callables, bindings)
-  inferCompilerBlockTypeAt(statements, index + 1, callables, nextBindings, statementType)
+  statementType := inferCompilerExprTypeWithStructs(statement, structs, callables, bindings)
+  nextBindings := blockBindingsAfterStatement(statement, structs, callables, bindings)
+  inferCompilerBlockTypeAtWithStructs(statements, index + 1, structs, callables, nextBindings, statementType)
 }
 
 inferCompilerTernaryType(

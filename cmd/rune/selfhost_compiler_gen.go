@@ -9677,7 +9677,7 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 }
 
 func ____rune_private_0d2ebf0f_checkExprDefault(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors, __bindings)
+	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __structs, __callables, __errors, __bindings)
 	for _, __child := range __expr.__children {
 		_ = __child
 		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __structs, __callables, __next, __bindings)
@@ -10654,7 +10654,7 @@ func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStr
 func ____rune_private_0d2ebf0f_checkLetValueExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__value := __expr.__children[0]
 	__checked := ____rune_private_0d2ebf0f_checkExprExpected(__value, __expr.__value, __structs, __callables, __errors, __bindings)
-	return ____rune_private_0d2ebf0f_checkLetDeclaredType(__expr.__name, __value, __expr.__value, __callables, __bindings, __checked)
+	return ____rune_private_0d2ebf0f_checkLetDeclaredType(__expr.__name, __value, __expr.__value, __structs, __callables, __bindings, __checked)
 }
 
 func ____rune_private_0d2ebf0f_checkExprExpected(__expr __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -10663,7 +10663,7 @@ func ____rune_private_0d2ebf0f_checkExprExpected(__expr __IRExpr, __expected str
 }
 
 func ____rune_private_0d2ebf0f_checkExpectedExprType(__expr __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
-	return func() []string {
+	__checked := func() []string {
 		switch {
 		case __moduleCallKey(__expr) == "json.parse":
 			return ____rune_private_0d2ebf0f_checkJsonParseTarget(__expected, __structs, __errors)
@@ -10671,10 +10671,104 @@ func ____rune_private_0d2ebf0f_checkExpectedExprType(__expr __IRExpr, __expected
 			return __errors
 		}
 	}()
+	return ____rune_private_0d2ebf0f_checkExpectedSelectorExpr(__expr, __structs, __callables, __bindings, __checked)
 }
 
-func ____rune_private_0d2ebf0f_checkLetDeclaredType(__name string, __value __IRExpr, __expected string, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
-	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__value, __callables, __bindings)
+func ____rune_private_0d2ebf0f_checkExpectedSelectorExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __expr.__kind == __ExprKind_Selector:
+			return ____rune_private_0d2ebf0f_checkSelectorExpr(__expr, __structs, __callables, __bindings, __errors)
+		case __expr.__kind == __ExprKind_Block:
+			return ____rune_private_0d2ebf0f_checkExpectedBlockSelectorExpr(__expr.__children, __structs, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkExpectedBlockSelectorExpr(__statements []__IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__empty := len(__statements) == 0
+	return func() []string {
+		switch {
+		case __empty == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkExpectedSelectorExpr(__statements[len(__statements)-1], __structs, __callables, __bindings, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkSelectorExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__hasReceiver := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __hasReceiver == true:
+			return ____rune_private_0d2ebf0f_checkSelectorReceiverExpr(__expr, __expr.__children[0], __structs, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkSelectorReceiverExpr(__expr __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __receiver.__kind == __ExprKind_At:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__receiver, __structs, __callables, __bindings), __structs, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructSelectorExpr(__expr __IRExpr, __receiverType string, __structs []__IRStructType, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __receiverType == "":
+			return __errors
+		default:
+			return func() []string {
+				__typeDecl := ____rune_private_0d2ebf0f_findCompilerStruct(__structs, ____rune_private_0d2ebf0f_compilerTypeBase(__receiverType), 0)
+				__found := __typeDecl.__name != ""
+				return func() []string {
+					switch {
+					case __found == true:
+						return ____rune_private_0d2ebf0f_checkStructSelectorField(__expr, __receiverType, __typeDecl, __errors)
+					default:
+						return func() []string {
+							out := []string{}
+							out = append(out, __errors...)
+							out = append(out, "type "+__receiverType+" has no fields")
+							return out
+						}()
+					}
+				}()
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructSelectorField(__expr __IRExpr, __receiverType string, __typeDecl __IRStructType, __errors []string) []string {
+	__field := ____rune_private_0d2ebf0f_findCompilerStructField(__typeDecl.__fields, __expr.__name, 0)
+	__found := __field.__name != ""
+	return func() []string {
+		switch {
+		case __found == true:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "type "+__receiverType+" has no field \""+__expr.__name+"\"")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkLetDeclaredType(__name string, __value __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
 	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
 	return func() []string {
 		switch {
@@ -10786,7 +10880,7 @@ func ____rune_private_0d2ebf0f_checkBlockExpr(__statements []__IRExpr, __index i
 func ____rune_private_0d2ebf0f_checkBlockExprStep(__statements []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__statement := __statements[__index]
 	__nextErrors := ____rune_private_0d2ebf0f_checkExpr(__statement, __structs, __callables, __errors, __bindings)
-	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __callables, __bindings)
+	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __structs, __callables, __bindings)
 	return ____rune_private_0d2ebf0f_checkBlockExpr(__statements, __index+1, __structs, __callables, __nextErrors, __nextBindings)
 }
 
@@ -10844,7 +10938,7 @@ func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fi
 		case __found == true:
 			return func() []string {
 				__checkedValue := ____rune_private_0d2ebf0f_checkExprExpected(__value, __expected.__typeName, __structs, __callables, __errors, __bindings)
-				return ____rune_private_0d2ebf0f_checkStructFieldType(__typeName, __field.__name, __value, __expected.__typeName, __callables, __bindings, __checkedValue)
+				return ____rune_private_0d2ebf0f_checkStructFieldType(__typeName, __field.__name, __value, __expected.__typeName, __structs, __callables, __bindings, __checkedValue)
 			}()
 		default:
 			return func() []string {
@@ -10858,8 +10952,8 @@ func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fi
 	return ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName, __fields, __expectedFields, __index+1, __structs, __callables, __next, __bindings)
 }
 
-func ____rune_private_0d2ebf0f_checkStructFieldType(__typeName string, __fieldName string, __value __IRExpr, __expected string, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
-	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__value, __callables, __bindings)
+func ____rune_private_0d2ebf0f_checkStructFieldType(__typeName string, __fieldName string, __value __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
 	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
 	return func() []string {
 		switch {
@@ -10930,34 +11024,34 @@ func ____rune_private_0d2ebf0f_compilerExprFieldContainsAt(__fields []__IRExpr, 
 	}()
 }
 
-func ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+func ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
 	return func() []__CompilerTypeBinding {
 		switch {
 		case __statement.__kind == __ExprKind_Let:
-			return ____rune_private_0d2ebf0f_bindCompilerLet(__statement, __callables, __bindings)
+			return ____rune_private_0d2ebf0f_bindCompilerLet(__statement, __structs, __callables, __bindings)
 		default:
 			return __bindings
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_bindCompilerLet(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+func ____rune_private_0d2ebf0f_bindCompilerLet(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
 	__hasValue := len(__expr.__children) > 0
 	return func() []__CompilerTypeBinding {
 		switch {
 		case __hasValue == true:
-			return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __expr.__name, ____rune_private_0d2ebf0f_compilerLetBindingType(__expr, __callables, __bindings))
+			return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __expr.__name, ____rune_private_0d2ebf0f_compilerLetBindingType(__expr, __structs, __callables, __bindings))
 		default:
 			return __bindings
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerLetBindingType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+func ____rune_private_0d2ebf0f_compilerLetBindingType(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return func() string {
 		switch {
 		case __expr.__value == "":
-			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+			return ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr.__children[0], __structs, __callables, __bindings)
 		default:
 			return __expr.__value
 		}
@@ -11010,126 +11104,126 @@ func ____rune_private_0d2ebf0f_dropCompilerTypeBindingStep(__bindings []__Compil
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__identifierCall := __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier
 	return func() []string {
 		switch {
 		case __identifierCall == true:
-			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __expr.__children[0].__name, len(__expr.__children)-1, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __expr.__children[0].__name, len(__expr.__children)-1, __structs, __callables, __errors, __bindings)
 		default:
-			return ____rune_private_0d2ebf0f_checkSelectorCall(__expr, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkSelectorCall(__expr, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkSelectorCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkSelectorCall(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__selectorCall := __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Selector
 	return func() []string {
 		switch {
 		case __selectorCall == true:
-			return ____rune_private_0d2ebf0f_checkSelectorCallExpr(__expr, __expr.__children[0], __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkSelectorCallExpr(__expr, __expr.__children[0], __structs, __callables, __errors, __bindings)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkSelectorCallExpr(__expr __IRExpr, __selector __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkSelectorCallExpr(__expr __IRExpr, __selector __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__hasReceiver := len(__selector.__children) > 0
 	return func() []string {
 		switch {
 		case __hasReceiver == true:
-			return ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr, __selector, __selector.__children[0], __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr, __selector, __selector.__children[0], __structs, __callables, __errors, __bindings)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	return func() []string {
 		switch {
 		case __receiver.__kind == __ExprKind_At:
-			return ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr, __selector, __receiver, __structs, __callables, __errors, __bindings)
 		case __receiver.__kind == __ExprKind_Identifier:
-			return ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr, __selector, __receiver, __structs, __callables, __errors, __bindings)
 		default:
-			return ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr, __selector, __receiver, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
 	return func() []string {
 		switch {
 		case __importPath == "" == true:
 			return __errors
 		default:
-			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	return func() []string {
 		switch {
 		case __selector.__op == "::":
-			return ____rune_private_0d2ebf0f_checkStaticSelectorCall(__expr, __selector, __receiver.__name, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkStaticSelectorCall(__expr, __selector, __receiver.__name, __structs, __callables, __errors, __bindings)
 		default:
-			return ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr, __selector, __receiver, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr, __selector, __receiver, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkStaticSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiverType string, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkStaticSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiverType string, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__name := ____rune_private_0d2ebf0f_compilerStaticMethodName(__receiverType, __selector.__name)
 	__callable := ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, 0)
 	__found := __callable.__name != ""
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __callables, __bindings, __errors)
+			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__receiverType := ____rune_private_0d2ebf0f_inferCompilerExprType(__receiver, __callables, __bindings)
+func ____rune_private_0d2ebf0f_checkInstanceSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__receiverType := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__receiver, __structs, __callables, __bindings)
 	__known := __receiverType != ""
 	return func() []string {
 		switch {
 		case __known == true:
-			return ____rune_private_0d2ebf0f_checkKnownInstanceSelectorCall(__expr, __selector, ____rune_private_0d2ebf0f_compilerTypeBase(__receiverType), __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkKnownInstanceSelectorCall(__expr, __selector, ____rune_private_0d2ebf0f_compilerTypeBase(__receiverType), __structs, __callables, __errors, __bindings)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkKnownInstanceSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiverType string, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkKnownInstanceSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiverType string, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__name := ____rune_private_0d2ebf0f_compilerInstanceMethodName(__receiverType, __selector.__name)
 	__callable := ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, 0)
 	__found := __callable.__name != ""
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __callables, __bindings, __errors)
+			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, len(__expr.__children)-1, __structs, __callables, __bindings, __errors)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name string, __arity int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name string, __arity int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__callable := ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, 0)
 	__found := __callable.__name != ""
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __callables, __bindings, __errors)
+			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __structs, __callables, __bindings, __errors)
 		default:
 			return func() []string {
 				out := []string{}
@@ -11141,12 +11235,12 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkCallableCall(__callable __CompilerCallable, __expr __IRExpr, __arity int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkCallableCall(__callable __CompilerCallable, __expr __IRExpr, __arity int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	__arityOk := __callable.__arity == __arity
 	return func() []string {
 		switch {
 		case __arityOk == true:
-			return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __callables, __bindings, __errors, 0)
+			return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __structs, __callables, __bindings, __errors, 0)
 		default:
 			return ____rune_private_0d2ebf0f_checkCallableArity(__callable, __arity, __errors)
 		}
@@ -11170,36 +11264,38 @@ func ____rune_private_0d2ebf0f_checkCallableArity(__callable __CompilerCallable,
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable __CompilerCallable, __expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
+func ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable __CompilerCallable, __expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
 	__done := __index >= len(__callable.__paramTypes)
 	return func() []string {
 		switch {
 		case __done == true:
 			return __errors
 		default:
-			return ____rune_private_0d2ebf0f_checkCallableArgType(__callable, __expr, __callables, __bindings, __errors, __index)
+			return ____rune_private_0d2ebf0f_checkCallableArgType(__callable, __expr, __structs, __callables, __bindings, __errors, __index)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkCallableArgType(__callable __CompilerCallable, __expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
+func ____rune_private_0d2ebf0f_checkCallableArgType(__callable __CompilerCallable, __expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int) []string {
 	__expected := __callable.__paramTypes[__index]
-	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[__index+1], __callables, __bindings)
+	__arg := __expr.__children[__index+1]
+	__checked := ____rune_private_0d2ebf0f_checkExpectedExprType(__arg, __expected, __structs, __callables, __bindings, __errors)
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__arg, __structs, __callables, __bindings)
 	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
 	__next := func() []string {
 		switch {
 		case __mismatch == true:
 			return func() []string {
 				out := []string{}
-				out = append(out, __errors...)
+				out = append(out, __checked...)
 				out = append(out, ____rune_private_0d2ebf0f_compilerArgumentTypeError(__callable.__name, __index+1, __actual, __expected))
 				return out
 			}()
 		default:
-			return __errors
+			return __checked
 		}
 	}()
-	return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __callables, __bindings, __next, __index+1)
+	return ____rune_private_0d2ebf0f_checkCallableArgTypes(__callable, __expr, __structs, __callables, __bindings, __next, __index+1)
 }
 
 func ____rune_private_0d2ebf0f_compilerArgumentTypeError(__name string, __index int, __actual string, __expected string) string {
@@ -11217,7 +11313,7 @@ func ____rune_private_0d2ebf0f_compilerTypeIsGenericPlaceholder(__typeName strin
 func ____rune_private_0d2ebf0f_checkFunctionReturn(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__expected := __fn.__returnType
 	__checked := ____rune_private_0d2ebf0f_checkExpectedExprType(__fn.__body, __expected, __structs, __callables, __bindings, __errors)
-	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__fn.__body, __callables, __bindings)
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__fn.__body, __structs, __callables, __bindings)
 	__shouldCheck := __expected != "" && __expected != "Dynamic" && __actual != ""
 	return func() []string {
 		switch {
@@ -11620,6 +11716,57 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 	}()
 }
 
+func ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Selector:
+			return ____rune_private_0d2ebf0f_inferCompilerSelectorTypeWithStructs(__expr, __structs, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Block:
+			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr, __callables, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerSelectorTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__hasReceiver := len(__expr.__children) > 0
+	return func() string {
+		switch {
+		case __hasReceiver == true:
+			return ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiverWithStructs(__expr, __expr.__children[0], __structs, __callables, __bindings)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiverWithStructs(__expr __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case __receiver.__kind == __ExprKind_At:
+			return ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiver(__expr, __receiver, __callables, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerStructSelectorType(__expr, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__receiver, __structs, __callables, __bindings), __structs)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerStructSelectorType(__expr __IRExpr, __receiverType string, __structs []__IRStructType) string {
+	return func() string {
+		switch {
+		case __receiverType == "":
+			return ""
+		default:
+			return func() string {
+				__typeDecl := ____rune_private_0d2ebf0f_findCompilerStruct(__structs, ____rune_private_0d2ebf0f_compilerTypeBase(__receiverType), 0)
+				__field := ____rune_private_0d2ebf0f_findCompilerStructField(__typeDecl.__fields, __expr.__name, 0)
+				return __field.__typeName
+			}()
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_inferCompilerArrayType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return ____rune_private_0d2ebf0f_compilerArrayType(____rune_private_0d2ebf0f_inferCompilerArrayElementType(__expr.__children, __callables, __bindings, 0, ""))
 }
@@ -11932,26 +12079,30 @@ func ____rune_private_0d2ebf0f_inferCompilerInstanceSelectorCallType(__expr __IR
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__expr.__children, 0, __callables, __bindings, "Void")
+	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{____rune_private_0d2ebf0f_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
 }
 
-func ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __lastType string) string {
+func ____rune_private_0d2ebf0f_inferCompilerBlockTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAtWithStructs(__expr.__children, 0, __structs, __callables, __bindings, "Void")
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerBlockTypeAtWithStructs(__statements []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __lastType string) string {
 	__done := __index >= len(__statements)
 	return func() string {
 		switch {
 		case __done == true:
 			return __lastType
 		default:
-			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeStep(__statements, __index, __callables, __bindings)
+			return ____rune_private_0d2ebf0f_inferCompilerBlockTypeStepWithStructs(__statements, __index, __structs, __callables, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_inferCompilerBlockTypeStep(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+func ____rune_private_0d2ebf0f_inferCompilerBlockTypeStepWithStructs(__statements []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	__statement := __statements[__index]
-	__statementType := ____rune_private_0d2ebf0f_inferCompilerExprType(__statement, __callables, __bindings)
-	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __callables, __bindings)
-	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAt(__statements, __index+1, __callables, __nextBindings, __statementType)
+	__statementType := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__statement, __structs, __callables, __bindings)
+	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __structs, __callables, __bindings)
+	return ____rune_private_0d2ebf0f_inferCompilerBlockTypeAtWithStructs(__statements, __index+1, __structs, __callables, __nextBindings, __statementType)
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {

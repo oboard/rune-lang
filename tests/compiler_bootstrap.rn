@@ -1212,6 +1212,58 @@ main() -> User => User { name: "Rune" }
   @assert.eq(result.errors[0], "missing field User.active")
 }
 
+? "selfhost compiler infers field selector returns" {
+  result := compileGo(`User: {
+  name: String
+}
+
+main(user: User) -> Int => user.name
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+}
+
+? "selfhost compiler binds field selector locals" {
+  result := compileGo(`User: {
+  name: String
+}
+
+main(user: User) -> Int => {
+  name := user.name
+  name
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+}
+
+? "selfhost compiler checks field selector arguments" {
+  result := compileGo(`User: {
+  name: String
+}
+
+takesInt(value: Int) -> Int => value
+main(user: User) -> Int => takesInt(user.name)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int")
+}
+
+? "selfhost compiler reports unknown selector fields" {
+  result := compileGo(`User: {
+  name: String
+}
+
+main(user: User) -> Int => user.age
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "type User has no field \"age\"")
+}
+
 ? "selfhost compiler reports imported argument type errors" {
   files := [
     SourceFile {
