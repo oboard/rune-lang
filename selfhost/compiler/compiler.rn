@@ -15,6 +15,11 @@
   source: String
 }
 
+CompilerCallable: {
+  name: String
+  arity: Int
+}
+
 + compileTypeScript(
   source: String
 ) -> CompileResult => compile(source, "ts")
@@ -84,51 +89,112 @@ compileCheckedFile(
 checkFileErrors(
   file: IRFile
 ) -> Array[String] => {
-  names := compilerCallableNames(file)
+  callables := compilerCallables(file)
   errors := [""].slice(0, 0)
   file.functions.each((fn) => errors = (
     fn.macro ? errors
-      : checkExpr(fn.body, names, errors)
+      : checkExpr(fn.body, callables, errors)
   ))
-  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
-  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
-  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, names, errors))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, callables, errors)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, callables, errors)))
+  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors))
   errors
 }
 
-compilerCallableNames(
+compilerCallables(
   file: IRFile
-) -> Array[String] => {
-  names := [""].slice(0, 0)
+) -> Array[CompilerCallable] => {
+  callables := [emptyCompilerCallable()].slice(0, 0)
   file.functions.each((fn) => (
     fn.macro ? 0
-      : names.push(fn.name)
+      : callables.push(compilerCallable(fn.name, fn.params.length()))
   ))
-  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => names.push(fn.name)))
-  file.enums.each((typeDecl) => typeDecl.members.each((member) => names.push(member.name)))
-  names
+  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length()))))
+  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length()))))
+  callables
 }
 
 checkExpr(
   expr: IRExpr,
-  names: Array[String],
+  callables: Array[CompilerCallable],
   errors: Array[String]
 ) -> Array[String] => {
-  next := (
-    isUnknownFunctionCall(expr, names) ? [..errors, "undefined function " + expr.children[0].name]
-      : errors
-  )
-  expr.children.each((child) => next = checkExpr(child, names, next))
+  next := checkExprCall(expr, callables, errors)
+  expr.children.each((child) => next = checkExpr(child, callables, next))
   next
 }
 
-isUnknownFunctionCall(
+checkExprCall(
   expr: IRExpr,
-  names: Array[String]
-) -> Bool => (
-  ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier) ? compilerContains(names, expr.children[0].name) == false
-    : false
-)
+  callables: Array[CompilerCallable],
+  errors: Array[String]
+) -> Array[String] => {
+  identifierCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)
+  identifierCall {
+    true => checkIdentifierCall(expr.children[0].name, expr.children.length() - 1, callables, errors)
+    _ => errors
+  }
+}
+
+checkIdentifierCall(
+  name: String,
+  arity: Int,
+  callables: Array[CompilerCallable],
+  errors: Array[String]
+) -> Array[String] => {
+  callable := findCompilerCallable(callables, name, 0)
+  found := callable.name != ""
+  found {
+    true => checkCallableArity(callable, arity, errors)
+    _ => [..errors, "undefined function " + name]
+  }
+}
+
+checkCallableArity(
+  callable: CompilerCallable,
+  arity: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  ok := callable.arity == arity
+  ok {
+    true => errors
+    _ => [..errors, (((("function \"" + callable.name) + "\" expects ") + compilerIntToString(callable.arity)) + " args, got ") + compilerIntToString(arity)]
+  }
+}
+
+findCompilerCallable(
+  callables: Array[CompilerCallable],
+  name: String,
+  index: Int
+) -> CompilerCallable => {
+  done := index >= callables.length()
+  done {
+    true => emptyCompilerCallable()
+    _ => findCompilerCallableAt(callables, name, index)
+  }
+}
+
+findCompilerCallableAt(
+  callables: Array[CompilerCallable],
+  name: String,
+  index: Int
+) -> CompilerCallable => {
+  matched := callables[index].name == name
+  matched {
+    true => callables[index]
+    _ => findCompilerCallable(callables, name, index + 1)
+  }
+}
+
+compilerCallable(
+  name: String,
+  arity: Int
+) -> CompilerCallable => {
+  name: name,
+  arity: arity
+}
+
+emptyCompilerCallable() -> CompilerCallable => compilerCallable("", 0)
 
 compilerContains(
   values: Array[String],

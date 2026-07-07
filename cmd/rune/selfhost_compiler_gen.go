@@ -524,6 +524,11 @@ type __SourceFile struct {
 	__source string
 }
 
+type __CompilerCallable struct {
+	__name  string
+	__arity int
+}
+
 func runeTemplateString(value any) string {
 	switch v := value.(type) {
 	case nil:
@@ -3486,7 +3491,7 @@ func ____rune_private_b990f3d7_parsePatternBlock(__state __ParserState, __block 
 func ____rune_private_b990f3d7_parsePatternBranch(__state __ParserState, __block __ParsedExpr) __ExprStep {
 	__pattern := ____rune_private_b990f3d7_parsePatternText(__state)
 	__arrow := ____rune_private_b990f3d7_parserConsume(__pattern.__state, __TokenKind_FatArrow, "expected '=>' after pattern")
-	__value := ____rune_private_b990f3d7_parseExpression(____rune_private_b990f3d7_parserSkipNewlines(__arrow.__state), 1)
+	__value := ____rune_private_b990f3d7_parseBody(____rune_private_b990f3d7_parserSkipNewlines(__arrow.__state))
 	__branch := ____rune_private_b990f3d7_makeExpr(__ExprKind_Branch, __pattern.__expr.__text, "", "", "=>", []__ParsedParam{}, []__ParsedExpr{__pattern.__expr, __value.__expr}, __pattern.__expr.__line, __pattern.__expr.__column)
 	__nextBlock := ____rune_private_b990f3d7_appendChild(__block, __branch)
 	return ____rune_private_b990f3d7_parsePatternBlock(____rune_private_b990f3d7_consumeStatementEnd(__value.__state), __nextBlock)
@@ -3498,69 +3503,524 @@ func ____rune_private_b990f3d7_finishPatternBlock(__state __ParserState, __block
 }
 
 func ____rune_private_b990f3d7_parsePatternText(__state __ParserState) __ExprStep {
-	return ____rune_private_b990f3d7_parsePatternTextLoop(__state, "", ____rune_private_b990f3d7_parserPeek(__state), 0, false)
+	return ____rune_private_b990f3d7_parsePattern(__state)
 }
 
 func ____rune_private_b990f3d7_parsePredicatePatternText(__state __ParserState) __ExprStep {
-	return ____rune_private_b990f3d7_parsePredicatePatternTextLoop(__state, "", ____rune_private_b990f3d7_parserPeek(__state), 0, false)
+	return ____rune_private_b990f3d7_parsePattern(__state)
 }
 
-func ____rune_private_b990f3d7_parsePredicatePatternTextLoop(__state __ParserState, __text string, __start __Token, __depth int, __consumed bool) __ExprStep {
+func ____rune_private_b990f3d7_parsePattern(__state __ParserState) __ExprStep {
+	return ____rune_private_b990f3d7_parseOrPatternRest(____rune_private_b990f3d7_parseAsPattern(__state))
+}
+
+func ____rune_private_b990f3d7_parseOrPatternRest(__left __ExprStep) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__left.__state)
+	__op := ____rune_private_b990f3d7_parserMatch(__current, __TokenKind_BitOr)
 	return func() __ExprStep {
-		if __depth == 0 && ____rune_private_b990f3d7_predicatePatternEnd(____rune_private_b990f3d7_parserPeek(__state).__kind) {
-			return __ExprStep{__state: func() __ParserState {
-				if __consumed {
-					return __state
-				}
-				return ____rune_private_b990f3d7_parserErrorAt(__state, ____rune_private_b990f3d7_parserPeek(__state), "expected pattern")
-			}(), __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __start), __text)}
+		switch {
+		case __op.__ok == true:
+			return ____rune_private_b990f3d7_parseOrPatternRest(____rune_private_b990f3d7_parseOrPatternRight(__left, __op.__state))
+		default:
+			return __ExprStep{__state: __current, __expr: __left.__expr}
 		}
-		return ____rune_private_b990f3d7_parsePredicatePatternTextToken(__state, __text, __start, __depth)
 	}()
 }
 
-func ____rune_private_b990f3d7_parsePredicatePatternTextToken(__state __ParserState, __text string, __start __Token, __depth int) __ExprStep {
-	__token := ____rune_private_b990f3d7_parserPeek(__state)
-	__step := ____rune_private_b990f3d7_parserAdvance(__state)
-	return ____rune_private_b990f3d7_parsePredicatePatternTextLoop(__step.__state, __text+__token.__lexeme, __start, ____rune_private_b990f3d7_patternNextDepth(__depth, __token.__kind), true)
+func ____rune_private_b990f3d7_parseOrPatternRight(__left __ExprStep, __state __ParserState) __ExprStep {
+	__right := ____rune_private_b990f3d7_parseAsPattern(____rune_private_b990f3d7_parserSkipNewlines(__state))
+	return __ExprStep{__state: __right.__state, __expr: ____rune_private_b990f3d7_withText(__left.__expr, __left.__expr.__text+"|"+__right.__expr.__text)}
 }
 
-func ____rune_private_b990f3d7_predicatePatternEnd(__kind __TokenKind) bool {
-	return __kind == __TokenKind_EOF || __kind == __TokenKind_Newline || __kind == __TokenKind_Comma || __kind == __TokenKind_RParen || __kind == __TokenKind_RBracket || __kind == __TokenKind_RBrace
-}
-
-func ____rune_private_b990f3d7_parsePatternTextLoop(__state __ParserState, __text string, __start __Token, __depth int, __consumed bool) __ExprStep {
+func ____rune_private_b990f3d7_parseAsPattern(__state __ParserState) __ExprStep {
+	__pattern := ____rune_private_b990f3d7_parseRangePattern(__state)
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__pattern.__state)
+	__isAs := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_Ident) && ____rune_private_b990f3d7_parserPeek(__current).__lexeme == "as"
 	return func() __ExprStep {
-		if __depth == 0 && (____rune_private_b990f3d7_parserCheck(__state, __TokenKind_FatArrow) || ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_EOF)) {
-			return __ExprStep{__state: func() __ParserState {
-				if __consumed {
-					return __state
-				}
-				return ____rune_private_b990f3d7_parserErrorAt(__state, ____rune_private_b990f3d7_parserPeek(__state), "expected pattern")
-			}(), __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __start), __text)}
+		switch {
+		case __isAs == true:
+			return ____rune_private_b990f3d7_parseAsPatternName(__pattern, ____rune_private_b990f3d7_parserAdvance(__current).__state)
+		default:
+			return __ExprStep{__state: __current, __expr: __pattern.__expr}
 		}
-		return ____rune_private_b990f3d7_parsePatternTextToken(__state, __text, __start, __depth)
 	}()
 }
 
-func ____rune_private_b990f3d7_parsePatternTextToken(__state __ParserState, __text string, __start __Token, __depth int) __ExprStep {
+func ____rune_private_b990f3d7_parseAsPatternName(__pattern __ExprStep, __state __ParserState) __ExprStep {
+	__name := ____rune_private_b990f3d7_parserConsume(____rune_private_b990f3d7_parserSkipNewlines(__state), __TokenKind_Ident, "expected binding name after 'as'")
+	return __ExprStep{__state: __name.__state, __expr: ____rune_private_b990f3d7_withText(__pattern.__expr, __pattern.__expr.__text+" as "+__name.__token.__lexeme)}
+}
+
+func ____rune_private_b990f3d7_parseRangePattern(__state __ParserState) __ExprStep {
+	__pattern := ____rune_private_b990f3d7_parsePatternAtom(__state)
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__pattern.__state)
+	return func() __ExprStep {
+		switch {
+		case ____rune_private_b990f3d7_parserPeek(__current).__kind == __TokenKind_DotDotEqual:
+			return ____rune_private_b990f3d7_parseRangePatternEnd(__pattern, ____rune_private_b990f3d7_parserAdvance(__current), "..=")
+		case ____rune_private_b990f3d7_parserPeek(__current).__kind == __TokenKind_DotDotLess:
+			return ____rune_private_b990f3d7_parseRangePatternEnd(__pattern, ____rune_private_b990f3d7_parserAdvance(__current), "..<")
+		case ____rune_private_b990f3d7_parserPeek(__current).__kind == __TokenKind_DotDot:
+			return ____rune_private_b990f3d7_parseDotDotRangePattern(__pattern, ____rune_private_b990f3d7_parserAdvance(__current))
+		default:
+			return __ExprStep{__state: __current, __expr: __pattern.__expr}
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseDotDotRangePattern(__pattern __ExprStep, __op __TokenStep) __ExprStep {
+	__less := ____rune_private_b990f3d7_parserConsume(__op.__state, __TokenKind_Less, "expected '<' after '..' in range pattern")
+	return ____rune_private_b990f3d7_parseRangePatternEnd(__pattern, __less, "..<")
+}
+
+func ____rune_private_b990f3d7_parseRangePatternEnd(__pattern __ExprStep, __op __TokenStep, __text string) __ExprStep {
+	__bound := ____rune_private_b990f3d7_parseRangeBoundPattern(____rune_private_b990f3d7_parserSkipNewlines(__op.__state))
+	return __ExprStep{__state: __bound.__state, __expr: ____rune_private_b990f3d7_withText(__pattern.__expr, __pattern.__expr.__text+__text+__bound.__expr.__text)}
+}
+
+func ____rune_private_b990f3d7_parseRangeBoundPattern(__state __ParserState) __ExprStep {
 	__token := ____rune_private_b990f3d7_parserPeek(__state)
-	__step := ____rune_private_b990f3d7_parserAdvance(__state)
-	return ____rune_private_b990f3d7_parsePatternTextLoop(__step.__state, __text+__token.__lexeme, __start, ____rune_private_b990f3d7_patternNextDepth(__depth, __token.__kind), true)
+	return func() __ExprStep {
+		switch {
+		case __token.__kind == __TokenKind_Underscore:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Int:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Double:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_BigInt:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_String:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Char:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Ident:
+			return ____rune_private_b990f3d7_parseIdentifierRangeBoundPattern(__state)
+		default:
+			return ____rune_private_b990f3d7_parsePatternError(__state)
+		}
+	}()
 }
 
-func ____rune_private_b990f3d7_patternNextDepth(__depth int, __kind __TokenKind) int {
-	return func() int {
-		if __kind == __TokenKind_LParen || __kind == __TokenKind_LBracket || __kind == __TokenKind_LBrace {
-			return __depth + 1
+func ____rune_private_b990f3d7_parseIdentifierRangeBoundPattern(__state __ParserState) __ExprStep {
+	__name := ____rune_private_b990f3d7_parserAdvance(__state)
+	__dotted := ____rune_private_b990f3d7_parserMatch(__name.__state, __TokenKind_Dot)
+	return func() __ExprStep {
+		switch {
+		case __dotted.__ok == true:
+			return ____rune_private_b990f3d7_parseDottedPatternName(__name.__token, __dotted.__state)
+		default:
+			return __ExprStep{__state: __name.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __name.__token), __name.__token.__lexeme)}
 		}
-		return func() int {
-			if (__kind == __TokenKind_RParen || __kind == __TokenKind_RBracket || __kind == __TokenKind_RBrace) && __depth > 0 {
-				return __depth - 1
-			}
-			return __depth
-		}()
 	}()
+}
+
+func ____rune_private_b990f3d7_parsePatternAtom(__state __ParserState) __ExprStep {
+	__token := ____rune_private_b990f3d7_parserPeek(__state)
+	return func() __ExprStep {
+		switch {
+		case __token.__kind == __TokenKind_Underscore:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Int:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Double:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_BigInt:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_String:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Char:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		case __token.__kind == __TokenKind_Ident:
+			return ____rune_private_b990f3d7_parseIdentifierPattern(__state)
+		case __token.__kind == __TokenKind_Less:
+			return ____rune_private_b990f3d7_parseComparePattern(__state)
+		case __token.__kind == __TokenKind_LessEqual:
+			return ____rune_private_b990f3d7_parseComparePattern(__state)
+		case __token.__kind == __TokenKind_Greater:
+			return ____rune_private_b990f3d7_parseComparePattern(__state)
+		case __token.__kind == __TokenKind_GreaterEqual:
+			return ____rune_private_b990f3d7_parseComparePattern(__state)
+		case __token.__kind == __TokenKind_LBrace:
+			return ____rune_private_b990f3d7_parseMapOrObjectPattern(__state)
+		case __token.__kind == __TokenKind_LBracket:
+			return ____rune_private_b990f3d7_parseArrayPattern(__state)
+		case __token.__kind == __TokenKind_LParen:
+			return ____rune_private_b990f3d7_parseTupleOrGroupedPattern(__state)
+		default:
+			return ____rune_private_b990f3d7_parsePatternError(__state)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parsePatternToken(__state __ParserState) __ExprStep {
+	__step := ____rune_private_b990f3d7_parserAdvance(__state)
+	return __ExprStep{__state: __step.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __step.__token), __step.__token.__lexeme)}
+}
+
+func ____rune_private_b990f3d7_parseIdentifierPattern(__state __ParserState) __ExprStep {
+	__constructor := ____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_LParen)
+	return func() __ExprStep {
+		switch {
+		case __constructor == true:
+			return ____rune_private_b990f3d7_parseConstructorPattern(__state)
+		default:
+			return ____rune_private_b990f3d7_parseIdentifierPatternNonConstructor(__state)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseIdentifierPatternNonConstructor(__state __ParserState) __ExprStep {
+	__qualified := ____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_Dot)
+	return func() __ExprStep {
+		switch {
+		case __qualified == true:
+			return ____rune_private_b990f3d7_parseQualifiedIdentifierPattern(__state)
+		default:
+			return ____rune_private_b990f3d7_parsePatternToken(__state)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseQualifiedIdentifierPattern(__state __ParserState) __ExprStep {
+	__name := ____rune_private_b990f3d7_parserAdvance(__state)
+	__dot := ____rune_private_b990f3d7_parserConsume(__name.__state, __TokenKind_Dot, "expected '.' after pattern qualifier")
+	return ____rune_private_b990f3d7_parseDottedPatternName(__name.__token, __dot.__state)
+}
+
+func ____rune_private_b990f3d7_parseDottedPatternName(__first __Token, __state __ParserState) __ExprStep {
+	__second := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Ident, "expected name after '.'")
+	return __ExprStep{__state: __second.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __first), __first.__lexeme+"."+__second.__token.__lexeme)}
+}
+
+func ____rune_private_b990f3d7_parseComparePattern(__state __ParserState) __ExprStep {
+	__op := ____rune_private_b990f3d7_parserAdvance(__state)
+	__value := ____rune_private_b990f3d7_parseRangeBoundPattern(____rune_private_b990f3d7_parserSkipNewlines(__op.__state))
+	return __ExprStep{__state: __value.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __op.__token), __op.__token.__lexeme+__value.__expr.__text)}
+}
+
+func ____rune_private_b990f3d7_parseConstructorPattern(__state __ParserState) __ExprStep {
+	__name := ____rune_private_b990f3d7_parserAdvance(__state)
+	__open := ____rune_private_b990f3d7_parserConsume(__name.__state, __TokenKind_LParen, "expected '(' after pattern constructor")
+	__args := ____rune_private_b990f3d7_parseConstructorPatternArgs(____rune_private_b990f3d7_parserSkipNewlines(__open.__state), "")
+	__close := ____rune_private_b990f3d7_parserConsume(__args.__state, __TokenKind_RParen, "expected ')' after constructor pattern")
+	return __ExprStep{__state: __close.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __name.__token), __name.__token.__lexeme+"("+__args.__expr.__text+")")}
+}
+
+func ____rune_private_b990f3d7_parseConstructorPatternArgs(__state __ParserState, __out string) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__done := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_RParen) || ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_EOF)
+	return func() __ExprStep {
+		switch {
+		case __done == true:
+			return __ExprStep{__state: __current, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__current)), __out)}
+		default:
+			return ____rune_private_b990f3d7_parseConstructorPatternArg(__current, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseConstructorPatternArg(__state __ParserState, __out string) __ExprStep {
+	__rest := ____rune_private_b990f3d7_parserMatch(__state, __TokenKind_DotDot)
+	return func() __ExprStep {
+		switch {
+		case __rest.__ok == true:
+			return ____rune_private_b990f3d7_parseConstructorPatternAfterArg(__rest.__state, ____rune_private_b990f3d7_appendPatternPart(__out, ".."), true)
+		default:
+			return ____rune_private_b990f3d7_parseConstructorPatternValue(__state, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseConstructorPatternValue(__state __ParserState, __out string) __ExprStep {
+	__arg := ____rune_private_b990f3d7_parsePattern(__state)
+	return ____rune_private_b990f3d7_parseConstructorPatternAfterArg(__arg.__state, ____rune_private_b990f3d7_appendPatternPart(__out, __arg.__expr.__text), false)
+}
+
+func ____rune_private_b990f3d7_parseConstructorPatternAfterArg(__state __ParserState, __out string, __rest bool) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__comma := ____rune_private_b990f3d7_parserMatch(__current, __TokenKind_Comma)
+	__done := __rest || __comma.__ok == false
+	return func() __ExprStep {
+		switch {
+		case __done == true:
+			return __ExprStep{__state: __comma.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__comma.__state)), __out)}
+		default:
+			return ____rune_private_b990f3d7_parseConstructorPatternArgs(__comma.__state, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseArrayPattern(__state __ParserState) __ExprStep {
+	__open := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_LBracket, "expected '[' before array pattern")
+	__parts := ____rune_private_b990f3d7_parseArrayPatternParts(____rune_private_b990f3d7_parserSkipNewlines(__open.__state), "")
+	__close := ____rune_private_b990f3d7_parserConsume(__parts.__state, __TokenKind_RBracket, "expected ']' after array pattern")
+	return __ExprStep{__state: __close.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __open.__token), "["+__parts.__expr.__text+"]")}
+}
+
+func ____rune_private_b990f3d7_parseArrayPatternParts(__state __ParserState, __out string) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__done := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_RBracket) || ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_EOF)
+	return func() __ExprStep {
+		switch {
+		case __done == true:
+			return __ExprStep{__state: __current, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__current)), __out)}
+		default:
+			return ____rune_private_b990f3d7_parseArrayPatternPart(__current, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseArrayPatternPart(__state __ParserState, __out string) __ExprStep {
+	__spread := ____rune_private_b990f3d7_parserMatch(__state, __TokenKind_DotDot)
+	return func() __ExprStep {
+		switch {
+		case __spread.__ok == true:
+			return ____rune_private_b990f3d7_parseArraySpreadPattern(__spread.__state, __out)
+		default:
+			return ____rune_private_b990f3d7_parseArrayValuePattern(__state, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseArraySpreadPattern(__state __ParserState, __out string) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	return func() __ExprStep {
+		switch {
+		case ____rune_private_b990f3d7_parserPeek(__current).__kind == __TokenKind_String:
+			return ____rune_private_b990f3d7_parseArraySpreadValue(__current, __out)
+		case ____rune_private_b990f3d7_parserPeek(__current).__kind == __TokenKind_Ident:
+			return ____rune_private_b990f3d7_parseArraySpreadIdentifier(__current, __out)
+		default:
+			return ____rune_private_b990f3d7_parseArrayPatternAfterPart(__current, ____rune_private_b990f3d7_appendPatternPart(__out, ".."))
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseArraySpreadIdentifier(__state __ParserState, __out string) __ExprStep {
+	__identifier := ____rune_private_b990f3d7_parserAdvance(__state)
+	__constantSpread := ____rune_private_b990f3d7_isPatternSpreadIdentifier(__identifier.__token.__lexeme)
+	__text := func() string {
+		switch {
+		case __constantSpread == true:
+			return ".. " + __identifier.__token.__lexeme
+		default:
+			return ".." + __identifier.__token.__lexeme
+		}
+	}()
+	return ____rune_private_b990f3d7_parseArrayPatternAfterPart(__identifier.__state, ____rune_private_b990f3d7_appendPatternPart(__out, __text))
+}
+
+func ____rune_private_b990f3d7_parseArraySpreadValue(__state __ParserState, __out string) __ExprStep {
+	__value := ____rune_private_b990f3d7_parserAdvance(__state)
+	return ____rune_private_b990f3d7_parseArrayPatternAfterPart(__value.__state, ____rune_private_b990f3d7_appendPatternPart(__out, ".."+__value.__token.__lexeme))
+}
+
+func ____rune_private_b990f3d7_parseArrayValuePattern(__state __ParserState, __out string) __ExprStep {
+	__value := ____rune_private_b990f3d7_parsePattern(__state)
+	return ____rune_private_b990f3d7_parseArrayPatternAfterPart(__value.__state, ____rune_private_b990f3d7_appendPatternPart(__out, __value.__expr.__text))
+}
+
+func ____rune_private_b990f3d7_parseArrayPatternAfterPart(__state __ParserState, __out string) __ExprStep {
+	__comma := ____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_parserSkipNewlines(__state), __TokenKind_Comma)
+	return func() __ExprStep {
+		switch {
+		case __comma.__ok == true:
+			return ____rune_private_b990f3d7_parseArrayPatternParts(__comma.__state, __out)
+		default:
+			return __ExprStep{__state: __comma.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__comma.__state)), __out)}
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseMapOrObjectPattern(__state __ParserState) __ExprStep {
+	__open := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_LBrace, "expected '{' before pattern")
+	__parts := ____rune_private_b990f3d7_parseMapOrObjectPatternParts(____rune_private_b990f3d7_parserSkipNewlines(__open.__state), "")
+	__close := ____rune_private_b990f3d7_parserConsume(__parts.__state, __TokenKind_RBrace, "expected '}' after pattern")
+	return __ExprStep{__state: __close.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __open.__token), "{"+__parts.__expr.__text+"}")}
+}
+
+func ____rune_private_b990f3d7_parseMapOrObjectPatternParts(__state __ParserState, __out string) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__done := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_RBrace) || ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_EOF)
+	return func() __ExprStep {
+		switch {
+		case __done == true:
+			return __ExprStep{__state: __current, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__current)), __out)}
+		default:
+			return ____rune_private_b990f3d7_parseMapOrObjectPatternPart(__current, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseMapOrObjectPatternPart(__state __ParserState, __out string) __ExprStep {
+	__rest := ____rune_private_b990f3d7_parserMatch(__state, __TokenKind_DotDot)
+	return func() __ExprStep {
+		switch {
+		case __rest.__ok == true:
+			return ____rune_private_b990f3d7_parseMapOrObjectPatternAfterPart(__rest.__state, ____rune_private_b990f3d7_appendPatternPart(__out, ".."))
+		default:
+			return ____rune_private_b990f3d7_parseMapOrObjectEntryPattern(__state, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseMapOrObjectEntryPattern(__state __ParserState, __out string) __ExprStep {
+	__objectField := ____rune_private_b990f3d7_parserPatternLooksLikeObjectField(__state)
+	return func() __ExprStep {
+		switch {
+		case __objectField == true:
+			return ____rune_private_b990f3d7_parseObjectFieldPattern(__state, __out)
+		default:
+			return ____rune_private_b990f3d7_parseMapEntryPattern(__state, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseObjectFieldPattern(__state __ParserState, __out string) __ExprStep {
+	__field := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Ident, "expected object pattern field")
+	__optional := ____rune_private_b990f3d7_parserMatch(__field.__state, __TokenKind_Question)
+	__colon := ____rune_private_b990f3d7_parserMatch(__optional.__state, __TokenKind_Colon)
+	return func() __ExprStep {
+		switch {
+		case __colon.__ok == true:
+			return ____rune_private_b990f3d7_parseObjectFieldValuePattern(__field.__token, __optional.__ok, __colon.__state, __out)
+		default:
+			return ____rune_private_b990f3d7_parseMapOrObjectPatternAfterPart(__optional.__state, ____rune_private_b990f3d7_appendPatternPart(__out, ____rune_private_b990f3d7_objectFieldPatternText(__field.__token.__lexeme, __optional.__ok, __field.__token.__lexeme)))
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseObjectFieldValuePattern(__field __Token, __optional bool, __state __ParserState, __out string) __ExprStep {
+	__value := ____rune_private_b990f3d7_parsePattern(____rune_private_b990f3d7_parserSkipNewlines(__state))
+	return ____rune_private_b990f3d7_parseMapOrObjectPatternAfterPart(__value.__state, ____rune_private_b990f3d7_appendPatternPart(__out, ____rune_private_b990f3d7_objectFieldPatternText(__field.__lexeme, __optional, __value.__expr.__text)))
+}
+
+func ____rune_private_b990f3d7_objectFieldPatternText(__name string, __optional bool, __value string) string {
+	return func() string {
+		switch {
+		case __optional == true:
+			return __name + "?:" + __value
+		default:
+			return __name + ":" + __value
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseMapEntryPattern(__state __ParserState, __out string) __ExprStep {
+	__key := ____rune_private_b990f3d7_parseMapPatternKey(__state)
+	__optional := ____rune_private_b990f3d7_parserMatch(__key.__state, __TokenKind_Question)
+	__colon := ____rune_private_b990f3d7_parserConsume(__optional.__state, __TokenKind_Colon, "expected ':' after map pattern key")
+	__value := ____rune_private_b990f3d7_parsePattern(____rune_private_b990f3d7_parserSkipNewlines(__colon.__state))
+	__entry := func() string {
+		switch {
+		case __optional.__ok == true:
+			return __key.__expr.__text + "?:" + __value.__expr.__text
+		default:
+			return __key.__expr.__text + ":" + __value.__expr.__text
+		}
+	}()
+	return ____rune_private_b990f3d7_parseMapOrObjectPatternAfterPart(__value.__state, ____rune_private_b990f3d7_appendPatternPart(__out, __entry))
+}
+
+func ____rune_private_b990f3d7_parseMapPatternKey(__state __ParserState) __ExprStep {
+	return ____rune_private_b990f3d7_parseRangeBoundPattern(__state)
+}
+
+func ____rune_private_b990f3d7_parseMapOrObjectPatternAfterPart(__state __ParserState, __out string) __ExprStep {
+	__comma := ____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_parserSkipNewlines(__state), __TokenKind_Comma)
+	return func() __ExprStep {
+		switch {
+		case __comma.__ok == true:
+			return ____rune_private_b990f3d7_parseMapOrObjectPatternParts(__comma.__state, __out)
+		default:
+			return __ExprStep{__state: __comma.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, ____rune_private_b990f3d7_parserPeek(__comma.__state)), __out)}
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseTupleOrGroupedPattern(__state __ParserState) __ExprStep {
+	__open := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_LParen, "expected '(' before pattern")
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__open.__state)
+	__empty := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_RParen)
+	return func() __ExprStep {
+		switch {
+		case __empty == true:
+			return ____rune_private_b990f3d7_finishEmptyTuplePattern(__open.__token, __current)
+		default:
+			return ____rune_private_b990f3d7_parseTupleOrGroupedPatternFirst(__open.__token, __current)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_finishEmptyTuplePattern(__open __Token, __state __ParserState) __ExprStep {
+	__close := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_RParen, "expected ')' after tuple pattern")
+	return __ExprStep{__state: __close.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __open), "()")}
+}
+
+func ____rune_private_b990f3d7_parseTupleOrGroupedPatternFirst(__open __Token, __state __ParserState) __ExprStep {
+	__first := ____rune_private_b990f3d7_parsePattern(__state)
+	__comma := ____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_parserSkipNewlines(__first.__state), __TokenKind_Comma)
+	return func() __ExprStep {
+		switch {
+		case __comma.__ok == true:
+			return ____rune_private_b990f3d7_parseTuplePatternRest(__open, __comma.__state, __first.__expr.__text)
+		default:
+			return ____rune_private_b990f3d7_finishGroupedPattern(__first)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_finishGroupedPattern(__first __ExprStep) __ExprStep {
+	__close := ____rune_private_b990f3d7_parserConsume(____rune_private_b990f3d7_parserSkipNewlines(__first.__state), __TokenKind_RParen, "expected ')' after pattern")
+	return __ExprStep{__state: __close.__state, __expr: __first.__expr}
+}
+
+func ____rune_private_b990f3d7_parseTuplePatternRest(__open __Token, __state __ParserState, __out string) __ExprStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__done := ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_RParen) || ____rune_private_b990f3d7_parserCheck(__current, __TokenKind_EOF)
+	return func() __ExprStep {
+		switch {
+		case __done == true:
+			return ____rune_private_b990f3d7_finishTuplePattern(__open, __current, __out)
+		default:
+			return ____rune_private_b990f3d7_parseTuplePatternPart(__open, __current, __out)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseTuplePatternPart(__open __Token, __state __ParserState, __out string) __ExprStep {
+	__value := ____rune_private_b990f3d7_parsePattern(__state)
+	__next := ____rune_private_b990f3d7_appendPatternPart(__out, __value.__expr.__text)
+	__comma := ____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_parserSkipNewlines(__value.__state), __TokenKind_Comma)
+	return func() __ExprStep {
+		switch {
+		case __comma.__ok == true:
+			return ____rune_private_b990f3d7_parseTuplePatternRest(__open, __comma.__state, __next)
+		default:
+			return ____rune_private_b990f3d7_finishTuplePattern(__open, __comma.__state, __next)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_finishTuplePattern(__open __Token, __state __ParserState, __out string) __ExprStep {
+	__close := ____rune_private_b990f3d7_parserConsume(____rune_private_b990f3d7_parserSkipNewlines(__state), __TokenKind_RParen, "expected ')' after tuple pattern")
+	return __ExprStep{__state: __close.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __open), "("+__out+")")}
+}
+
+func ____rune_private_b990f3d7_appendPatternPart(__out string, __part string) string {
+	return func() string {
+		if __out == "" {
+			return __part
+		}
+		return __out + "," + __part
+	}()
+}
+
+func ____rune_private_b990f3d7_parsePatternError(__state __ParserState) __ExprStep {
+	__token := ____rune_private_b990f3d7_parserPeek(__state)
+	__step := ____rune_private_b990f3d7_parserAdvance(____rune_private_b990f3d7_parserErrorAt(__state, __token, "expected pattern"))
+	return __ExprStep{__state: __step.__state, __expr: ____rune_private_b990f3d7_withText(____rune_private_b990f3d7_node(__ExprKind_Pattern, __token), "_")}
 }
 
 func ____rune_private_b990f3d7_functionToExpr(__fn __ParsedFunction) __ParsedExpr {
@@ -3889,13 +4349,22 @@ func ____rune_private_b990f3d7_tokensLookLikePatternBranch(__state __ParserState
 }
 
 func ____rune_private_b990f3d7_skipPatternLookahead(__state __ParserState, __index int) int {
-	return ____rune_private_b990f3d7_skipOrPatternLookahead(__state, ____rune_private_b990f3d7_skipSinglePatternLookahead(__state, __index))
+	return ____rune_private_b990f3d7_skipOrPatternLookahead(__state, ____rune_private_b990f3d7_skipAsPatternLookahead(__state, ____rune_private_b990f3d7_skipSinglePatternLookahead(__state, __index)))
 }
 
 func ____rune_private_b990f3d7_skipOrPatternLookahead(__state __ParserState, __index int) int {
 	return func() int {
 		if __index >= 0 && ____rune_private_b990f3d7_parserKindAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)) == __TokenKind_BitOr {
-			return ____rune_private_b990f3d7_skipOrPatternLookahead(__state, ____rune_private_b990f3d7_skipSinglePatternLookahead(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)+1))
+			return ____rune_private_b990f3d7_skipOrPatternLookahead(__state, ____rune_private_b990f3d7_skipAsPatternLookahead(__state, ____rune_private_b990f3d7_skipSinglePatternLookahead(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)+1)))
+		}
+		return __index
+	}()
+}
+
+func ____rune_private_b990f3d7_skipAsPatternLookahead(__state __ParserState, __index int) int {
+	return func() int {
+		if __index >= 0 && ____rune_private_b990f3d7_parserKindAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)) == __TokenKind_Ident && ____rune_private_b990f3d7_parserTokenAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)).__lexeme == "as" {
+			return ____rune_private_b990f3d7_skipNewlinesAt(__state, __index) + 2
 		}
 		return __index
 	}()
@@ -3989,12 +4458,7 @@ func ____rune_private_b990f3d7_skipIdentifierPatternLookahead(__state __ParserSt
 			if ____rune_private_b990f3d7_parserKindAt(__state, __index+1) == __TokenKind_Dot && ____rune_private_b990f3d7_parserKindAt(__state, __index+2) == __TokenKind_Ident {
 				return __index + 3
 			}
-			return func() int {
-				if ____rune_private_b990f3d7_isLiteralIdentifier(____rune_private_b990f3d7_parserTokenAt(__state, __index).__lexeme) {
-					return __index + 1
-				}
-				return -1
-			}()
+			return __index + 1
 		}()
 	}()
 }
@@ -4072,6 +4536,64 @@ func ____rune_private_b990f3d7_scanMapLiteralColon(__state __ParserState, __inde
 
 func ____rune_private_b990f3d7_isLiteralIdentifier(__name string) bool {
 	return __name == "true" || __name == "false" || __name == "null"
+}
+
+func ____rune_private_b990f3d7_parserPatternLooksLikeObjectField(__state __ParserState) bool {
+	__token := ____rune_private_b990f3d7_parserPeek(__state)
+	return func() bool {
+		switch {
+		case __token.__kind == __TokenKind_Ident:
+			return ____rune_private_b990f3d7_parserPatternIdentLooksLikeObjectField(__state, __token.__lexeme)
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parserPatternIdentLooksLikeObjectField(__state __ParserState, __name string) bool {
+	__spread := ____rune_private_b990f3d7_isPatternSpreadIdentifier(__name)
+	return func() bool {
+		switch {
+		case __spread == true:
+			return false
+		default:
+			return ____rune_private_b990f3d7_parserPatternObjectFieldTail(__state)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parserPatternObjectFieldTail(__state __ParserState) bool {
+	__kind := ____rune_private_b990f3d7_parserKindAt(__state, __state.__current+1)
+	return func() bool {
+		switch {
+		case __kind == __TokenKind_Colon:
+			return true
+		case __kind == __TokenKind_Question:
+			return true
+		case __kind == __TokenKind_Comma:
+			return true
+		case __kind == __TokenKind_RBrace:
+			return true
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_isPatternSpreadIdentifier(__name string) bool {
+	__empty := len([]rune(__name)) == 0
+	return func() bool {
+		switch {
+		case __empty == true:
+			return false
+		default:
+			return ____rune_private_b990f3d7_isUpperAsciiLetter([]rune(__name)[0])
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_isUpperAsciiLetter(__ch rune) bool {
+	return __ch >= 'A' && __ch <= 'Z'
 }
 
 func ____rune_private_b990f3d7_skipNewlinesAt(__state __ParserState, __index int) int {
@@ -7673,7 +8195,7 @@ func ____rune_private_0d2ebf0f_compileCheckedFile(__file __IRFile, __target stri
 }
 
 func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
-	__names := ____rune_private_0d2ebf0f_compilerCallableNames(__file)
+	__callables := ____rune_private_0d2ebf0f_compilerCallables(__file)
 	__errors := append([]string{}, []string{""}[0:0]...)
 	for _, __fn := range __file.__functions {
 		_ = __fn
@@ -7681,7 +8203,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 			if __fn.__macro {
 				return __errors
 			}
-			return ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __names, __errors)
+			return ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors)
 		}()
 	}
 	for _, __typeDecl := range __file.__structs {
@@ -7689,7 +8211,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __names, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __callables, __errors)
 			}
 		}()
 	}
@@ -7698,26 +8220,29 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __names, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __callables, __errors)
 			}
 		}()
 	}
 	for _, __testDecl := range __file.__tests {
 		_ = __testDecl
-		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __names, __errors)
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __callables, __errors)
 	}
 	return __errors
 }
 
-func ____rune_private_0d2ebf0f_compilerCallableNames(__file __IRFile) []string {
-	__names := append([]string{}, []string{""}[0:0]...)
+func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCallable {
+	__callables := append([]__CompilerCallable{}, []__CompilerCallable{____rune_private_0d2ebf0f_emptyCompilerCallable()}[0:0]...)
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		func() int {
 			if __fn.__macro {
 				return 0
 			}
-			return func() int { __names = append(__names, __fn.__name); return len(__names) }()
+			return func() int {
+				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params)))
+				return len(__callables)
+			}()
 		}()
 	}
 	for _, __importDecl := range __file.__tsImports {
@@ -7725,7 +8250,10 @@ func ____rune_private_0d2ebf0f_compilerCallableNames(__file __IRFile) []string {
 		func() {
 			for _, __fn := range __importDecl.__functions {
 				_ = __fn
-				func() int { __names = append(__names, __fn.__name); return len(__names) }()
+				func() int {
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params)))
+					return len(__callables)
+				}()
 			}
 		}()
 	}
@@ -7734,39 +8262,102 @@ func ____rune_private_0d2ebf0f_compilerCallableNames(__file __IRFile) []string {
 		func() {
 			for _, __member := range __typeDecl.__members {
 				_ = __member
-				func() int { __names = append(__names, __member.__name); return len(__names) }()
+				func() int {
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params)))
+					return len(__callables)
+				}()
 			}
 		}()
 	}
-	return __names
+	return __callables
 }
 
-func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __names []string, __errors []string) []string {
-	__next := func() []string {
-		if ____rune_private_0d2ebf0f_isUnknownFunctionCall(__expr, __names) {
-			return func() []string {
-				out := []string{}
-				out = append(out, __errors...)
-				out = append(out, "undefined function "+__expr.__children[0].__name)
-				return out
-			}()
-		}
-		return __errors
-	}()
+func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string) []string {
+	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors)
 	for _, __child := range __expr.__children {
 		_ = __child
-		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __names, __next)
+		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __callables, __next)
 	}
 	return __next
 }
 
-func ____rune_private_0d2ebf0f_isUnknownFunctionCall(__expr __IRExpr, __names []string) bool {
-	return func() bool {
-		if __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier {
-			return ____rune_private_0d2ebf0f_compilerContains(__names, __expr.__children[0].__name) == false
+func ____rune_private_0d2ebf0f_checkExprCall(__expr __IRExpr, __callables []__CompilerCallable, __errors []string) []string {
+	__identifierCall := __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier
+	return func() []string {
+		switch {
+		case __identifierCall == true:
+			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr.__children[0].__name, len(__expr.__children)-1, __callables, __errors)
+		default:
+			return __errors
 		}
-		return false
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkIdentifierCall(__name string, __arity int, __callables []__CompilerCallable, __errors []string) []string {
+	__callable := ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, 0)
+	__found := __callable.__name != ""
+	return func() []string {
+		switch {
+		case __found == true:
+			return ____rune_private_0d2ebf0f_checkCallableArity(__callable, __arity, __errors)
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "undefined function "+__name)
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCallableArity(__callable __CompilerCallable, __arity int, __errors []string) []string {
+	__ok := __callable.__arity == __arity
+	return func() []string {
+		switch {
+		case __ok == true:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "function \""+__callable.__name+"\" expects "+__compilerIntToString(__callable.__arity)+" args, got "+__compilerIntToString(__arity))
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerCallable(__callables []__CompilerCallable, __name string, __index int) __CompilerCallable {
+	__done := __index >= len(__callables)
+	return func() __CompilerCallable {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptyCompilerCallable()
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerCallableAt(__callables, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerCallableAt(__callables []__CompilerCallable, __name string, __index int) __CompilerCallable {
+	__matched := __callables[__index].__name == __name
+	return func() __CompilerCallable {
+		switch {
+		case __matched == true:
+			return __callables[__index]
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerCallable(__callables, __name, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int) __CompilerCallable {
+	return __CompilerCallable{__name: __name, __arity: __arity}
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerCallable() __CompilerCallable {
+	return ____rune_private_0d2ebf0f_compilerCallable("", 0)
 }
 
 func ____rune_private_0d2ebf0f_compilerContains(__values []string, __value string) bool {

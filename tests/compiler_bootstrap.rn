@@ -258,3 +258,46 @@ main() -> Int => {
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "undefined function missing")
 }
+
+? "selfhost compiler reports function call arity errors" {
+  result := compileGo(`add(a: Int, b: Int) -> Int => a + b
+main() -> Int => add(1)
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"add\" expects 2 args, got 1")
+}
+
+? "selfhost compiler reports imported call arity errors" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
+main() -> Int => importedAnswer()
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `importedAnswer(offset: Int) -> Int => offset + 42
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"importedAnswer\" expects 1 args, got 0")
+}
+
+? "selfhost compiler reports enum constructor arity errors" {
+  result := compileGo(`MaybeInt: {
+  None
+  Some(value: Int)
+}
+
+main() -> MaybeInt => Some()
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"Some\" expects 1 args, got 0")
+}
