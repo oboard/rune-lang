@@ -748,6 +748,35 @@ main() -> Int => {
   @assert.eq(mbt.output.includes("let __value = rune_unwrap(__read())"), true)
 }
 
+? "selfhost compiler infers result unwrap payloads" {
+  result := compileGo(`Result[T, E]: {
+  Ok(value: T)
+  Err(error: E)
+}
+
+read() -> Result[Int, String] => Ok(41)
+
+main() -> String => {
+  value := read()?
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+}
+
+? "selfhost compiler rejects unwrap on non-results" {
+  result := compileGo(`main() -> Int => {
+  value := 1?
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '?' expects Result, got Int")
+}
+
 ? "selfhost compiler reports parser errors" {
   result := compileGo("main( => 1\n")
   @assert.eq(result.ok, false)

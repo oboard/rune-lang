@@ -674,6 +674,7 @@ checkExpr(
   ExprKind.PatternBlock => checkPatternBlockExpr(expr, structs, callables, errors, bindings)
   ExprKind.Match => checkMatchExpr(expr, structs, callables, errors, bindings)
   ExprKind.ObjectDestructure => checkObjectDestructureExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Unwrap => checkUnwrapExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
@@ -1102,6 +1103,43 @@ compilerDestructureFieldAppearsBeforeAt(
   matched {
     true => true
     _ => compilerDestructureFieldAppearsBefore(params, name, index - 1)
+  }
+}
+
+checkUnwrapExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  complete := expr.children.length() > 0
+  complete {
+    true => checkUnwrapSourceExpr(expr.children[0], structs, callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkUnwrapSourceExpr(
+  source: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExpr(source, structs, callables, errors, bindings)
+  sourceType := inferCompilerExprTypeWithStructs(source, structs, callables, bindings)
+  checkUnwrapSourceType(sourceType, checked)
+}
+
+checkUnwrapSourceType(
+  sourceType: String,
+  errors: Array[String]
+) -> Array[String] => sourceType {
+  "" => errors
+  _ => compilerResultOkType(sourceType) {
+    "" => [..errors, ("operator '?' expects Result, got " + sourceType)]
+    _ => errors
   }
 }
 
@@ -3092,6 +3130,7 @@ inferCompilerExprType(
   ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
   ExprKind.PatternBlock => inferCompilerPatternBlockType(expr, callables, bindings)
   ExprKind.Match => inferCompilerMatchType(expr, callables, bindings)
+  ExprKind.Unwrap => inferCompilerUnwrapType(expr, callables, bindings)
   _ => ""
 }
 
@@ -3105,6 +3144,7 @@ inferCompilerExprTypeWithStructs(
   ExprKind.Block => inferCompilerBlockTypeWithStructs(expr, structs, callables, bindings)
   ExprKind.PatternBlock => inferCompilerPatternBlockTypeWithStructs(expr, structs, callables, bindings)
   ExprKind.Match => inferCompilerMatchTypeWithStructs(expr, structs, callables, bindings)
+  ExprKind.Unwrap => inferCompilerUnwrapTypeWithStructs(expr, structs, callables, bindings)
   _ => inferCompilerExprType(expr, callables, bindings)
 }
 
@@ -3304,6 +3344,37 @@ inferCompilerMatchTypeWithStructs(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => inferCompilerPatternBranchTypesWithStructs(expr.children, 1, structs, callables, bindings, "")
+
+inferCompilerUnwrapType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => inferCompilerUnwrapTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+
+inferCompilerUnwrapTypeWithStructs(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := expr.children.length() > 0
+  complete {
+    true => compilerResultOkType(inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings))
+    _ => ""
+  }
+}
+
+compilerResultOkType(
+  sourceType: String
+) -> String => {
+  base := compilerTypeBase(sourceType)
+  args := compilerGenericArgs(sourceType)
+  valid := (base == "Result") && (args.length() == 2)
+  valid {
+    true => args[0].trim()
+    _ => ""
+  }
+}
 
 inferCompilerPatternBlockTypeWithStructs(
   expr: IRExpr,

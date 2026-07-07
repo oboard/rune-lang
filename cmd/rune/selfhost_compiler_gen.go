@@ -9699,6 +9699,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkMatchExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_ObjectDestructure:
 			return ____rune_private_0d2ebf0f_checkObjectDestructureExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Unwrap:
+			return ____rune_private_0d2ebf0f_checkUnwrapExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierExpr(__expr, __callables, __bindings, __errors)
 		case __expr.__kind == __ExprKind_This:
@@ -10118,6 +10120,47 @@ func ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBeforeAt(__params 
 			return true
 		default:
 			return ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBefore(__params, __name, __index-1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkUnwrapExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__complete := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkUnwrapSourceExpr(__expr.__children[0], __structs, __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkUnwrapSourceExpr(__source __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__source, __structs, __callables, __errors, __bindings)
+	__sourceType := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__source, __structs, __callables, __bindings)
+	return ____rune_private_0d2ebf0f_checkUnwrapSourceType(__sourceType, __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkUnwrapSourceType(__sourceType string, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __sourceType == "":
+			return __errors
+		default:
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_compilerResultOkType(__sourceType) == "":
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "operator '?' expects Result, got "+__sourceType)
+						return out
+					}()
+				default:
+					return __errors
+				}
+			}()
 		}
 	}()
 }
@@ -12212,6 +12255,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Match:
 			return ____rune_private_0d2ebf0f_inferCompilerMatchType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Unwrap:
+			return ____rune_private_0d2ebf0f_inferCompilerUnwrapType(__expr, __callables, __bindings)
 		default:
 			return ""
 		}
@@ -12229,6 +12274,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr __IRExpr,
 			return ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr, __structs, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Match:
 			return ____rune_private_0d2ebf0f_inferCompilerMatchTypeWithStructs(__expr, __structs, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Unwrap:
+			return ____rune_private_0d2ebf0f_inferCompilerUnwrapTypeWithStructs(__expr, __structs, __callables, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr, __callables, __bindings)
 		}
@@ -12408,6 +12455,36 @@ func ____rune_private_0d2ebf0f_inferCompilerMatchType(__expr __IRExpr, __callabl
 
 func ____rune_private_0d2ebf0f_inferCompilerMatchTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return ____rune_private_0d2ebf0f_inferCompilerPatternBranchTypesWithStructs(__expr.__children, 1, __structs, __callables, __bindings, "")
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerUnwrapType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_inferCompilerUnwrapTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{____rune_private_0d2ebf0f_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerUnwrapTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__expr.__children) > 0
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_compilerResultOkType(____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr.__children[0], __structs, __callables, __bindings))
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerResultOkType(__sourceType string) string {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__sourceType)
+	__args := ____rune_private_0d2ebf0f_compilerGenericArgs(__sourceType)
+	__valid := __base == "Result" && len(__args) == 2
+	return func() string {
+		switch {
+		case __valid == true:
+			return strings.TrimSpace(__args[0])
+		default:
+			return ""
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerPatternBlockTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
