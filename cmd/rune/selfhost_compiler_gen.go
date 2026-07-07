@@ -9660,6 +9660,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkTernaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Unary:
 			return ____rune_private_0d2ebf0f_checkUnaryExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Postfix:
+			return ____rune_private_0d2ebf0f_checkPostfixExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_0d2ebf0f_checkBinaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Array:
@@ -9761,6 +9763,18 @@ func ____rune_private_0d2ebf0f_checkUnaryExpr(__expr __IRExpr, __structs []__IRS
 			return ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr, __callables, __bindings, __checked)
 		case __expr.__op == "~":
 			return ____rune_private_0d2ebf0f_checkBitwiseUnaryOperand(__expr, __callables, __bindings, __checked)
+		default:
+			return __checked
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPostfixExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	return func() []string {
+		switch {
+		case __expr.__op == "++":
+			return ____rune_private_0d2ebf0f_checkPostfixNumericOperand(__expr, __callables, __bindings, __checked)
 		default:
 			return __checked
 		}
@@ -10272,6 +10286,35 @@ func ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr __IRExpr, __calla
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "operator '-' expects a numeric type, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPostfixNumericOperand(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkPostfixNumericOperandType(__expr.__op, ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings), __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPostfixNumericOperandType(__op string, __actual string, __errors []string) []string {
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerNumericType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '"+__op+"' expects a numeric type, got "+__actual)
 				return out
 			}()
 		default:
@@ -11557,6 +11600,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Unary:
 			return ____rune_private_0d2ebf0f_inferCompilerUnaryType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Postfix:
+			return ____rune_private_0d2ebf0f_inferCompilerPostfixType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Array:
@@ -11610,6 +11655,18 @@ func ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elem __IRE
 
 func ____rune_private_0d2ebf0f_inferCompilerTupleType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return ____rune_private_0d2ebf0f_compilerTupleLiteralType(__expr.__children, __callables, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerPostfixType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__expr.__children) > 0
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+		default:
+			return ""
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerMapType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {

@@ -934,6 +934,22 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[1], "function \"main\" returns String, expected Int")
 }
 
+? "selfhost compiler reports postfix numeric type errors" {
+  result := compileGo(`main(flag: Bool) -> Bool => flag++
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '++' expects a numeric type, got Bool")
+}
+
+? "selfhost compiler infers postfix return types" {
+  result := compileGo(`main(value: Int) -> String => value++
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+}
+
 ? "selfhost compiler reports arithmetic operand type errors" {
   result := compileGo(`main() -> Int => "wrong" - 1
 `)

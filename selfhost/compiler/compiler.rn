@@ -644,6 +644,7 @@ checkExpr(
   ExprKind.Struct => checkStructExpr(expr, structs, callables, errors, bindings)
   ExprKind.Ternary => checkTernaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Unary => checkUnaryExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Postfix => checkPostfixExpr(expr, structs, callables, errors, bindings)
   ExprKind.Binary => checkBinaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Array => checkArrayExpr(expr, structs, callables, errors, bindings)
   ExprKind.Map => checkMapExpr(expr, structs, callables, errors, bindings)
@@ -744,6 +745,20 @@ checkUnaryExpr(
     "!" => checkBoolOperand("!", expr.children[0], callables, bindings, checked)
     "-" => checkNumericUnaryOperand(expr, callables, bindings, checked)
     "~" => checkBitwiseUnaryOperand(expr, callables, bindings, checked)
+    _ => checked
+  }
+}
+
+checkPostfixExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  expr.op {
+    "++" => checkPostfixNumericOperand(expr, callables, bindings, checked)
     _ => checked
   }
 }
@@ -1233,6 +1248,31 @@ checkNumericUnaryOperand(
   mismatch := (actual != "") && (compilerNumericType(actual) == false)
   mismatch {
     true => [..errors, "operator '-' expects a numeric type, got " + actual]
+    _ => errors
+  }
+}
+
+checkPostfixNumericOperand(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() > 0
+  complete {
+    true => checkPostfixNumericOperandType(expr.op, inferCompilerExprType(expr.children[0], callables, bindings), errors)
+    _ => errors
+  }
+}
+
+checkPostfixNumericOperandType(
+  op: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (actual != "") && (compilerNumericType(actual) == false)
+  mismatch {
+    true => [..errors, ((("operator '" + op) + "' expects a numeric type, got ") + actual)]
     _ => errors
   }
 }
@@ -2436,6 +2476,7 @@ inferCompilerExprType(
   ExprKind.Block => inferCompilerBlockType(expr, callables, bindings)
   ExprKind.Ternary => inferCompilerTernaryType(expr, callables, bindings)
   ExprKind.Unary => inferCompilerUnaryType(expr, callables, bindings)
+  ExprKind.Postfix => inferCompilerPostfixType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
   ExprKind.Array => inferCompilerArrayType(expr, callables, bindings)
   ExprKind.Tuple => inferCompilerTupleType(expr, callables, bindings)
@@ -2491,6 +2532,18 @@ inferCompilerTupleType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => compilerTupleLiteralType(expr.children, callables, bindings)
+
+inferCompilerPostfixType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := expr.children.length() > 0
+  complete {
+    true => inferCompilerExprType(expr.children[0], callables, bindings)
+    _ => ""
+  }
+}
 
 inferCompilerMapType(
   expr: IRExpr,
