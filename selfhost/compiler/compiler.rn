@@ -667,8 +667,31 @@ checkExpr(
   ExprKind.Array => checkArrayExpr(expr, structs, callables, errors, bindings)
   ExprKind.Map => checkMapExpr(expr, structs, callables, errors, bindings)
   ExprKind.Index => checkIndexExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Call => checkCallExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Selector => checkSelectorValueExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Lambda => checkLambdaExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
+}
+
+checkIdentifierExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => compilerIdentifierDefined(expr.name, callables, bindings) {
+  true => errors
+  _ => [..errors, ("undefined name \"" + expr.name) + "\""]
+}
+
+compilerIdentifierDefined(
+  name: String,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> Bool => findCompilerTypeBinding(bindings, name, 0).name {
+  "" => findCompilerCallable(callables, name, 0).name != ""
+  _ => true
 }
 
 checkThisExpr(
@@ -677,6 +700,103 @@ checkThisExpr(
 ) -> Array[String] => findCompilerTypeBinding(bindings, "this", 0).typeName {
   "" => [..errors, "implicit this selector can only be used inside a method"]
   _ => errors
+}
+
+checkCallExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkCallArgExprs(expr.children, 1, structs, callables, checkExprCall(expr, structs, callables, errors, bindings), bindings)
+
+checkCallArgExprs(
+  args: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  done := index >= args.length()
+  done {
+    true => errors
+    _ => checkCallArgExprs(args, index + 1, structs, callables, checkExpr(args[index], structs, callables, errors, bindings), bindings)
+  }
+}
+
+checkSelectorValueExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkSelectorReceiverValueExpr(expr, structs, callables, bindings, checkSelectorExpr(expr, structs, callables, bindings, errors))
+
+checkSelectorReceiverValueExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  hasReceiver := expr.children.length() > 0
+  hasReceiver {
+    true => checkSelectorReceiverValue(expr, expr.children[0], structs, callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkSelectorReceiverValue(
+  expr: IRExpr,
+  receiver: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  staticTypeReceiver := compilerStaticSelectorReceiver(expr, receiver)
+  skipReceiver := staticTypeReceiver || (receiver.kind == ExprKind.At)
+  skipReceiver {
+    true => errors
+    _ => checkExpr(receiver, structs, callables, errors, bindings)
+  }
+}
+
+compilerStaticSelectorReceiver(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> Bool => receiver.kind {
+  ExprKind.Identifier => (expr.op == "::") || compilerLooksLikeTypeName(receiver.name)
+  _ => false
+}
+
+compilerLooksLikeTypeName(
+  name: String
+) -> Bool => {
+  empty := name.length() == 0
+  empty {
+    true => false
+    _ => compilerUppercaseChar(name.at(0))
+  }
+}
+
+compilerUppercaseChar(
+  ch: Char
+) -> Bool => (ch >= 'A') && (ch <= 'Z')
+
+checkLambdaExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasBody := expr.children.length() > 0
+  hasBody {
+    true => checkExpr(expr.children[0], structs, callables, errors, compilerFunctionBindings(expr.params, bindings))
+    _ => errors
+  }
 }
 
 checkExprDefault(
@@ -1630,7 +1750,7 @@ checkExpectedExprType(
     "json.parse" => checkJsonParseTarget(expected, structs, errors)
     _ => errors
   }
-  checkExpectedSelectorExpr(expr, structs, callables, bindings, checked)
+  checked
 }
 
 checkExpectedSelectorExpr(
@@ -1980,6 +2100,7 @@ blockBindingsAfterStatement(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => statement.kind {
   ExprKind.Let => bindCompilerLet(statement, structs, callables, bindings)
+  ExprKind.ObjectDestructure => bindCompilerObjectDestructure(statement.params, 0, bindings)
   _ => bindings
 }
 
@@ -1991,7 +2112,7 @@ bindCompilerLet(
 ) -> Array[CompilerTypeBinding] => {
   hasValue := expr.children.length() > 0
   hasValue {
-    true => addCompilerTypeBinding(bindings, expr.name, compilerLetBindingType(expr, structs, callables, bindings))
+    true => addCompilerValueBinding(bindings, expr.name, compilerLetBindingType(expr, structs, callables, bindings))
     _ => bindings
   }
 }
@@ -2015,6 +2136,24 @@ addCompilerTypeBinding(
   known {
     true => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
     _ => bindings
+  }
+}
+
+addCompilerValueBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  typeName: String
+) -> Array[CompilerTypeBinding] => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+
+bindCompilerObjectDestructure(
+  params: Array[IRParam],
+  index: Int,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  done := index >= params.length()
+  done {
+    true => bindings
+    _ => bindCompilerObjectDestructure(params, index + 1, addCompilerValueBinding(bindings, params[index].name, ""))
   }
 }
 
@@ -3198,7 +3337,7 @@ compilerFunctionBindings(
   baseBindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => {
   bindings := baseBindings
-  params.each((param) => bindings = addCompilerTypeBinding(bindings, param.name, param.typeName))
+  params.each((param) => bindings = addCompilerValueBinding(bindings, param.name, param.typeName))
   bindings
 }
 

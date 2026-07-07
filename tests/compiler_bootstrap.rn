@@ -555,8 +555,8 @@ Document: {
   name: String
 }
 
-main() => {
-  value := @json.parse("{\"name\":\"Rune\"}") : Plain
+main(text: String) => {
+  value := @json.parse(text) : Plain
   value
 }
 `)
@@ -587,8 +587,8 @@ Wrong: {
   static fromJson(value: Int) -> Wrong => Wrong { name: "" }
 }
 
-main() => {
-  value := @json.parse("{\"name\":\"Rune\"}") : Wrong
+main(text: String) => {
+  value := @json.parse(text) : Wrong
   value
 }
 `)
@@ -603,8 +603,8 @@ Document: {
   name: String
 }
 
-main() => {
-  value := @json.parse("{\"name\":\"Rune\"}") : Document
+main(text: String) => {
+  value := @json.parse(text) : Document
   @io.println(value.name)
 }
 `)
@@ -810,6 +810,24 @@ Status: {
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "undefined function missing")
+}
+
+? "selfhost compiler reports undefined identifiers" {
+  result := compileGo("main() -> Int => missing\n")
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "undefined name \"missing\"")
+}
+
+? "selfhost compiler keeps errored locals bound" {
+  result := compileGo(`main() -> Int => {
+  value := missing
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "undefined name \"missing\"")
 }
 
 ? "selfhost compiler reports function call arity errors" {
