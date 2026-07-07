@@ -152,6 +152,49 @@ export const version: string = "1"
   @assert.eq(ts.output.includes(`console.log(__greet("Rune"))`), true)
 }
 
+? "selfhost compiler checks imported TypeScript value types" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"./values.ts"
+
+takesInt(value: Int) -> Int => value
+main() -> Int => takesInt(version)
+`
+    },
+    SourceFile {
+      path: "values.ts",
+      source: `export const version: string = "1"
+`
+    }
+  ]
+  result := compileTypeScriptFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int")
+}
+
+? "selfhost compiler checks imported TypeScript return types" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"./values.ts"
+
+main() -> Int => version
+`
+    },
+    SourceFile {
+      path: "values.ts",
+      source: `export const version: string = "1"
+`
+    }
+  ]
+  result := compileTypeScriptFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+}
+
 ? "selfhost compiler resolves TypeScript imports relative to source file" {
   files := [
     SourceFile {

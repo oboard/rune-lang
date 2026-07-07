@@ -9005,6 +9005,7 @@ func ____rune_private_0d2ebf0f_fileHasGoImportAt(__imports []__IRImport, __index
 
 func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	__callables := ____rune_private_0d2ebf0f_compilerCallables(__file)
+	__bindings := ____rune_private_0d2ebf0f_compilerInitialBindings(__file)
 	__knownTypes := ____rune_private_0d2ebf0f_compilerKnownTypes(__file)
 	__errors := ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file, append([]string{}, []string{""}[0:0]...))
 	__errors = ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, __errors)
@@ -9014,7 +9015,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 			if __fn.__macro {
 				return __errors
 			}
-			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __file.__structs, __callables, __errors)
+			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __file.__structs, __callables, __errors, __bindings)
 		}()
 	}
 	for _, __typeDecl := range __file.__structs {
@@ -9022,7 +9023,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors, __bindings)
 			}
 		}()
 	}
@@ -9031,13 +9032,13 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors, __bindings)
 			}
 		}()
 	}
 	for _, __testDecl := range __file.__tests {
 		_ = __testDecl
-		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __file.__structs, __callables, __errors, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __file.__structs, __callables, __errors, __bindings)
 	}
 	return __errors
 }
@@ -9569,9 +9570,9 @@ func ____rune_private_0d2ebf0f_compilerInstanceMethodName(__typeName string, __m
 	return __typeName + "." + __methodName
 }
 
-func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string) []string {
-	__bindings := ____rune_private_0d2ebf0f_compilerParamBindings(__fn.__params)
-	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __structs, __callables, __errors, __bindings))
+func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __baseBindings []__CompilerTypeBinding) []string {
+	__bindings := ____rune_private_0d2ebf0f_compilerFunctionBindings(__fn.__params, __baseBindings)
+	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __structs, __callables, __errors, __bindings), __bindings)
 }
 
 func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -10028,9 +10029,9 @@ func ____rune_private_0d2ebf0f_compilerTypeIsGenericPlaceholder(__typeName strin
 	return len([]rune(__typeName)) == 1 && ([]rune(__typeName)[0] >= 'A' && []rune(__typeName)[0] <= 'Z')
 }
 
-func ____rune_private_0d2ebf0f_checkFunctionReturn(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkFunctionReturn(__fn __IRFunction, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__expected := __fn.__returnType
-	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__fn.__body, __callables, ____rune_private_0d2ebf0f_compilerParamBindings(__fn.__params))
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__fn.__body, __callables, __bindings)
 	__shouldCheck := __expected != "" && __expected != "Dynamic" && __actual != ""
 	return func() []string {
 		switch {
@@ -10329,13 +10330,32 @@ func ____rune_private_0d2ebf0f_compilerParamTypeNames(__params []__IRParam) []st
 }
 
 func ____rune_private_0d2ebf0f_compilerParamBindings(__params []__IRParam) []__CompilerTypeBinding {
+	return ____rune_private_0d2ebf0f_compilerFunctionBindings(__params, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
+}
+
+func ____rune_private_0d2ebf0f_compilerInitialBindings(__file __IRFile) []__CompilerTypeBinding {
 	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...)
+	for _, __importDecl := range __file.__tsImports {
+		_ = __importDecl
+		__bindings = ____rune_private_0d2ebf0f_compilerImportValueBindings(__importDecl.__values, __bindings)
+	}
+	return __bindings
+}
+
+func ____rune_private_0d2ebf0f_compilerImportValueBindings(__values []__IRConst, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__out := __bindings
+	for _, __value := range __values {
+		_ = __value
+		__out = ____rune_private_0d2ebf0f_addCompilerTypeBinding(__out, __value.__name, __value.__typeName)
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_compilerFunctionBindings(__params []__IRParam, __baseBindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__bindings := __baseBindings
 	for _, __param := range __params {
 		_ = __param
-		func() int {
-			__bindings = append(__bindings, ____rune_private_0d2ebf0f_compilerTypeBinding(__param.__name, __param.__typeName))
-			return len(__bindings)
-		}()
+		__bindings = ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __param.__name, __param.__typeName)
 	}
 	return __bindings
 }

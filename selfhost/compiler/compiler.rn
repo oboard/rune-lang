@@ -177,16 +177,17 @@ checkFileErrors(
   file: IRFile
 ) -> Array[String] => {
   callables := compilerCallables(file)
+  bindings := compilerInitialBindings(file)
   knownTypes := compilerKnownTypes(file)
   errors := checkDuplicateDeclarations(file, [""].slice(0, 0))
   errors = checkDeclarationTypes(file, knownTypes, errors)
   file.functions.each((fn) => errors = (
     fn.macro ? errors
-      : checkFunctionErrors(fn, file.structs, callables, errors)
+      : checkFunctionErrors(fn, file.structs, callables, errors, bindings)
   ))
-  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors)))
-  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors)))
-  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, [emptyCompilerTypeBinding()].slice(0, 0)))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors, bindings)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors, bindings)))
+  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, bindings))
   errors
 }
 
@@ -644,10 +645,11 @@ checkFunctionErrors(
   fn: IRFunction,
   structs: Array[IRStructType],
   callables: Array[CompilerCallable],
-  errors: Array[String]
+  errors: Array[String],
+  baseBindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  bindings := compilerParamBindings(fn.params)
-  checkFunctionReturn(fn, callables, checkExpr(fn.body, structs, callables, errors, bindings))
+  bindings := compilerFunctionBindings(fn.params, baseBindings)
+  checkFunctionReturn(fn, callables, checkExpr(fn.body, structs, callables, errors, bindings), bindings)
 }
 
 checkExpr(
@@ -1135,10 +1137,11 @@ compilerTypeIsGenericPlaceholder(
 checkFunctionReturn(
   fn: IRFunction,
   callables: Array[CompilerCallable],
-  errors: Array[String]
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   expected := fn.returnType
-  actual := inferCompilerExprType(fn.body, callables, compilerParamBindings(fn.params))
+  actual := inferCompilerExprType(fn.body, callables, bindings)
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
     true => checkFunctionReturnType(fn.name, expected, actual, errors)
@@ -1424,8 +1427,32 @@ compilerParamTypeNames(
 compilerParamBindings(
   params: Array[IRParam]
 ) -> Array[CompilerTypeBinding] => {
+  compilerFunctionBindings(params, [emptyCompilerTypeBinding()].slice(0, 0))
+}
+
+compilerInitialBindings(
+  file: IRFile
+) -> Array[CompilerTypeBinding] => {
   bindings := [emptyCompilerTypeBinding()].slice(0, 0)
-  params.each((param) => bindings.push(compilerTypeBinding(param.name, param.typeName)))
+  file.tsImports.each((importDecl) => bindings = compilerImportValueBindings(importDecl.values, bindings))
+  bindings
+}
+
+compilerImportValueBindings(
+  values: Array[IRConst],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  out := bindings
+  values.each((value) => out = addCompilerTypeBinding(out, value.name, value.typeName))
+  out
+}
+
+compilerFunctionBindings(
+  params: Array[IRParam],
+  baseBindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  bindings := baseBindings
+  params.each((param) => bindings = addCompilerTypeBinding(bindings, param.name, param.typeName))
   bindings
 }
 
