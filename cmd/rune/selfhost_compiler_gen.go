@@ -10179,7 +10179,7 @@ func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
 		if len(__files) == 0 {
 			return ____rune_private_0d2ebf0f_emptyCompilerIRFile()
 		}
-		return ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files, ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, []string{__files[0].__path}, []string{}, ____rune_private_0d2ebf0f_emptyCompilerIRFile()))
+		return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, []string{__files[0].__path}, []string{}, ____rune_private_0d2ebf0f_emptyCompilerIRFile())
 	}()
 }
 
@@ -10483,20 +10483,50 @@ func ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files []__SourceFile, __fi
 
 func ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
 	__lowered := ____rune_private_0d2ebf0f_lowerCompilerSource(__file.__source)
-	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __file.__path, __lowered.__imports, 0), __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered))
+	__merged := ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered)
+	__withTypeScript := ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files, __file.__path, __lowered.__imports, 0, __merged)
+	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __file.__path, __lowered.__imports, 0), __seen, __withTypeScript)
 }
 
-func ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files []__SourceFile, __out __IRFile) __IRFile {
-	for _, __file := range __files {
-		_ = __file
-		__out = func() __IRFile {
-			if ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file) {
-				return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file, __out.__imports))
-			}
+func ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files []__SourceFile, __basePath string, __imports []__IRImport, __index int, __out __IRFile) __IRFile {
+	__done := __index >= len(__imports)
+	return func() __IRFile {
+		switch {
+		case __done == true:
 			return __out
-		}()
-	}
-	return __out
+		default:
+			return ____rune_private_0d2ebf0f_lowerTypeScriptImportForRuneFile(__files, __basePath, __imports, __index, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerTypeScriptImportForRuneFile(__files []__SourceFile, __basePath string, __imports []__IRImport, __index int, __out __IRFile) __IRFile {
+	__importDecl := __imports[__index]
+	__shouldLoad := __importDecl.__go == false && strings.HasSuffix(__importDecl.__path, ".ts")
+	return func() __IRFile {
+		switch {
+		case __shouldLoad == true:
+			return ____rune_private_0d2ebf0f_lowerTypeScriptImportPathForRuneFile(__files, __basePath, __imports, __index, __out)
+		default:
+			return ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files, __basePath, __imports, __index+1, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_lowerTypeScriptImportPathForRuneFile(__files []__SourceFile, __basePath string, __imports []__IRImport, __index int, __out __IRFile) __IRFile {
+	__importDecl := __imports[__index]
+	__resolved := ____rune_private_0d2ebf0f_resolveCompilerImportPath(__basePath, __importDecl.__path)
+	__file := ____rune_private_0d2ebf0f_findSourceFile(__files, __resolved, 0)
+	__missing := len(__file.__path) == 0
+	__next := func() __IRFile {
+		switch {
+		case __missing == true:
+			return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, ____rune_private_0d2ebf0f_missingImportFile(__resolved))
+		default:
+			return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file, __importDecl.__path))
+		}
+	}()
+	return ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files, __basePath, __imports, __index+1, __next)
 }
 
 func ____rune_private_0d2ebf0f_appendImportPaths(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
@@ -10516,6 +10546,18 @@ func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __basePath s
 	return func() []string {
 		switch {
 		case __goImport == true:
+			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __basePath, __imports, __index+1)
+		default:
+			return ____rune_private_0d2ebf0f_appendImportPathIfRune(__pending, __basePath, __imports, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_appendImportPathIfRune(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
+	__typeScript := strings.HasSuffix(__imports[__index].__path, ".ts")
+	return func() []string {
+		switch {
+		case __typeScript == true:
 			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __basePath, __imports, __index+1)
 		default:
 			return ____rune_private_0d2ebf0f_appendImportPaths(func() []string {
@@ -10714,9 +10756,8 @@ func ____rune_private_0d2ebf0f_compilerPathJoinParts(__parts []string, __index i
 	}()
 }
 
-func ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file __SourceFile, __imports []__IRImport) __IRFile {
+func ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file __SourceFile, __specifier string) __IRFile {
 	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
-	__specifier := ____rune_private_0d2ebf0f_typeScriptImportSpecifier(__file.__path, __imports, 0)
 	if __specifier != "" {
 		func() int {
 			__out.__tsImports = append(__out.__tsImports, ____rune_private_0d2ebf0f_parseTypeScriptImport(__file.__path, __specifier, __file.__source))

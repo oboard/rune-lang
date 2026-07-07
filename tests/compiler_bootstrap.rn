@@ -152,6 +152,34 @@ export const version: string = "1"
   @assert.eq(ts.output.includes(`console.log(__greet("Rune"))`), true)
 }
 
+? "selfhost compiler resolves TypeScript imports relative to source file" {
+  files := [
+    SourceFile {
+      path: "app/main.rn",
+      source: `@"./helper.ts"
+
+main() => @io.println(greet("Rune"))
+`
+    },
+    SourceFile {
+      path: "other/helper.ts",
+      source: `export function hidden(): string { return "wrong" }
+`
+    },
+    SourceFile {
+      path: "app/helper.ts",
+      source: `export function greet(name: string): string { return name }
+`
+    }
+  ]
+  ts := compileTypeScriptFiles(files)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.errors.length(), 0)
+  @assert.eq(ts.output.includes(`import { greet as __greet } from "./helper.ts";`), true)
+  @assert.eq(ts.output.includes("__hidden"), false)
+  @assert.eq(ts.output.includes(`console.log(__greet("Rune"))`), true)
+}
+
 ? "selfhost compiler rejects Go imports outside Go backend" {
   source := `@go.import("fmt")
 

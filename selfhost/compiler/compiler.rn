@@ -1309,7 +1309,7 @@ lowerFiles(
   files: Array[SourceFile]
 ) -> IRFile => (
   files.length() == 0 ? emptyCompilerIRFile()
-    : lowerReachableTypeScriptFiles(files, lowerReachableRuneFiles(files, [files[0].path], [], emptyCompilerIRFile()))
+    : lowerReachableRuneFiles(files, [files[0].path], [], emptyCompilerIRFile())
 )
 
 lowerCompilerSource(
@@ -1711,18 +1711,56 @@ lowerFoundRuneSourceFile(
   out: IRFile
 ) -> IRFile => {
   lowered := lowerCompilerSource(file.source)
-  lowerReachableRuneFiles(files, appendImportPaths(rest, file.path, lowered.imports, 0), seen, mergeCompilerIRFile(out, lowered))
+  merged := mergeCompilerIRFile(out, lowered)
+  withTypeScript := lowerTypeScriptImportsForRuneFile(files, file.path, lowered.imports, 0, merged)
+  lowerReachableRuneFiles(files, appendImportPaths(rest, file.path, lowered.imports, 0), seen, withTypeScript)
 }
 
-lowerReachableTypeScriptFiles(
+lowerTypeScriptImportsForRuneFile(
   files: Array[SourceFile],
+  basePath: String,
+  imports: Array[IRImport],
+  index: Int,
   out: IRFile
 ) -> IRFile => {
-  files.each((file) => out = (
-    sourceFileIsTypeScript(file) ? mergeCompilerIRFile(out, lowerTypeScriptSourceFile(file, out.imports))
-      : out
-  ))
-  out
+  done := index >= imports.length()
+  done {
+    true => out
+    _ => lowerTypeScriptImportForRuneFile(files, basePath, imports, index, out)
+  }
+}
+
+lowerTypeScriptImportForRuneFile(
+  files: Array[SourceFile],
+  basePath: String,
+  imports: Array[IRImport],
+  index: Int,
+  out: IRFile
+) -> IRFile => {
+  importDecl := imports[index]
+  shouldLoad := (importDecl.go == false) && importDecl.path.endsWith(".ts")
+  shouldLoad {
+    true => lowerTypeScriptImportPathForRuneFile(files, basePath, imports, index, out)
+    _ => lowerTypeScriptImportsForRuneFile(files, basePath, imports, index + 1, out)
+  }
+}
+
+lowerTypeScriptImportPathForRuneFile(
+  files: Array[SourceFile],
+  basePath: String,
+  imports: Array[IRImport],
+  index: Int,
+  out: IRFile
+) -> IRFile => {
+  importDecl := imports[index]
+  resolved := resolveCompilerImportPath(basePath, importDecl.path)
+  file := findSourceFile(files, resolved, 0)
+  missing := file.path.isEmpty()
+  next := missing {
+    true => mergeCompilerIRFile(out, missingImportFile(resolved))
+    _ => mergeCompilerIRFile(out, lowerTypeScriptSourceFile(file, importDecl.path))
+  }
+  lowerTypeScriptImportsForRuneFile(files, basePath, imports, index + 1, next)
 }
 
 appendImportPaths(
@@ -1746,6 +1784,19 @@ appendImportPath(
 ) -> Array[String] => {
   goImport := imports[index].go
   goImport {
+    true => appendImportPaths(pending, basePath, imports, index + 1)
+    _ => appendImportPathIfRune(pending, basePath, imports, index)
+  }
+}
+
+appendImportPathIfRune(
+  pending: Array[String],
+  basePath: String,
+  imports: Array[IRImport],
+  index: Int
+) -> Array[String] => {
+  typeScript := imports[index].path.endsWith(".ts")
+  typeScript {
     true => appendImportPaths(pending, basePath, imports, index + 1)
     _ => appendImportPaths([..pending, resolveCompilerImportPath(basePath, imports[index].path)], basePath, imports, index + 1)
   }
@@ -1933,10 +1984,9 @@ compilerPathJoinParts(
 
 lowerTypeScriptSourceFile(
   file: SourceFile,
-  imports: Array[IRImport]
+  specifier: String
 ) -> IRFile => {
   out := emptyCompilerIRFile()
-  specifier := typeScriptImportSpecifier(file.path, imports, 0)
   (
     specifier != "" ? out.tsImports.push(parseTypeScriptImport(file.path, specifier, file.source))
   )
