@@ -646,6 +646,7 @@ checkExpr(
   ExprKind.Unary => checkUnaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Binary => checkBinaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Array => checkArrayExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Map => checkMapExpr(expr, structs, callables, errors, bindings)
   ExprKind.Index => checkIndexExpr(expr, structs, callables, errors, bindings)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
@@ -887,6 +888,107 @@ checkArraySpreadReceiverType(
   mismatch := (actual != "") && (compilerArrayElementType(actual) == "")
   mismatch {
     true => [..errors, "spread expects Array, got " + actual]
+    _ => errors
+  }
+}
+
+checkMapExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  checkMapEntryTypes(expr.children, callables, bindings, checked, 0, "", "")
+}
+
+checkMapEntryTypes(
+  entries: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int,
+  expectedKey: String,
+  expectedValue: String
+) -> Array[String] => {
+  done := index >= entries.length()
+  done {
+    true => errors
+    _ => checkMapEntryType(entries, callables, bindings, errors, index, expectedKey, expectedValue)
+  }
+}
+
+checkMapEntryType(
+  entries: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String],
+  index: Int,
+  expectedKey: String,
+  expectedValue: String
+) -> Array[String] => {
+  entry := entries[index]
+  key := inferCompilerMapEntryKeyType(entry, callables, bindings)
+  value := inferCompilerMapEntryValueType(entry, callables, bindings)
+  nextKey := compilerNextMapEntryType(expectedKey, key)
+  nextValue := compilerNextMapEntryType(expectedValue, value)
+  checked := checkMapEntryTypeErrors(entry, expectedKey, key, expectedValue, value, errors)
+  checkMapEntryTypes(entries, callables, bindings, checked, index + 1, nextKey, nextValue)
+}
+
+compilerNextMapEntryType(
+  expected: String,
+  actual: String
+) -> String => expected {
+  "" => actual
+  _ => expected
+}
+
+checkMapEntryTypeErrors(
+  entry: IRExpr,
+  expectedKey: String,
+  key: String,
+  expectedValue: String,
+  value: String,
+  errors: Array[String]
+) -> Array[String] => {
+  checked := checkMapEntryKeyTypeError(expectedKey, key, errors)
+  checkMapEntryValueTypeError(expectedValue, value, checked)
+}
+
+checkMapEntryKeyTypeError(
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  checked := checkMapKeySupported(actual, errors)
+  mismatch := ((expected != "") && (actual != "")) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..checked, (("map key has type " + actual) + ", expected ") + expected]
+    _ => checked
+  }
+}
+
+checkMapKeySupported(
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  invalid := (actual != "") && (compilerSupportedMapKeyType(actual) == false)
+  invalid {
+    true => [..errors, ("map key type " + actual) + " is not supported"]
+    _ => errors
+  }
+}
+
+checkMapEntryValueTypeError(
+  expected: String,
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := ((expected != "") && (actual != "")) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, (("map value has type " + actual) + ", expected ") + expected]
     _ => errors
   }
 }
@@ -1342,6 +1444,13 @@ compilerSignedIntegerType(
 compilerUnsignedIntegerType(
   base: String
 ) -> Bool => (((base == "UInt") || (base == "UInt8")) || (base == "UInt16")) || (base == "UInt64")
+
+compilerSupportedMapKeyType(
+  typeName: String
+) -> Bool => {
+  base := compilerTypeBase(typeName)
+  (((base == "String") || (base == "Char")) || ((base == "Bool") || compilerIntegerType(base))) || ((base == "Double") || (base == "Float"))
+}
 
 checkLetExpr(
   expr: IRExpr,
@@ -2137,6 +2246,17 @@ compilerArrayType(
   _ => ("Array[" + elem) + "]"
 }
 
+compilerMapType(
+  key: String,
+  value: String
+) -> String => {
+  complete := (key != "") && (value != "")
+  complete {
+    true => ((("Map[" + key) + ", ") + value) + "]"
+    _ => "Map"
+  }
+}
+
 compilerNullableType(
   inner: String
 ) -> String => inner {
@@ -2213,6 +2333,7 @@ inferCompilerExprType(
   ExprKind.Unary => inferCompilerUnaryType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
   ExprKind.Array => inferCompilerArrayType(expr, callables, bindings)
+  ExprKind.Map => inferCompilerMapType(expr, callables, bindings)
   ExprKind.Spread => inferCompilerSpreadType(expr, callables, bindings)
   ExprKind.Index => inferCompilerIndexType(expr, callables, bindings)
   _ => ""
@@ -2257,6 +2378,64 @@ inferCompilerArrayLiteralElementType(
 ) -> String => elem.kind {
   ExprKind.Spread => compilerArrayElementType(inferCompilerExprType(elem.children[0], callables, bindings))
   _ => inferCompilerExprType(elem, callables, bindings)
+}
+
+inferCompilerMapType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerMapType(inferCompilerMapKeyType(expr.children, callables, bindings, 0, ""), inferCompilerMapValueType(expr.children, callables, bindings, 0, ""))
+
+inferCompilerMapKeyType(
+  entries: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  expected: String
+) -> String => {
+  done := index >= entries.length()
+  done {
+    true => expected
+    _ => inferCompilerMapKeyType(entries, callables, bindings, index + 1, compilerNextMapEntryType(expected, inferCompilerMapEntryKeyType(entries[index], callables, bindings)))
+  }
+}
+
+inferCompilerMapValueType(
+  entries: Array[IRExpr],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  expected: String
+) -> String => {
+  done := index >= entries.length()
+  done {
+    true => expected
+    _ => inferCompilerMapValueType(entries, callables, bindings, index + 1, compilerNextMapEntryType(expected, inferCompilerMapEntryValueType(entries[index], callables, bindings)))
+  }
+}
+
+inferCompilerMapEntryKeyType(
+  entry: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := entry.children.length() > 0
+  complete {
+    true => inferCompilerExprType(entry.children[0], callables, bindings)
+    _ => ""
+  }
+}
+
+inferCompilerMapEntryValueType(
+  entry: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  complete := entry.children.length() > 1
+  complete {
+    true => inferCompilerExprType(entry.children[1], callables, bindings)
+    _ => ""
+  }
 }
 
 inferCompilerSpreadType(

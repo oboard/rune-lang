@@ -1004,6 +1004,47 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "spread expects Array, got Int")
 }
 
+? "selfhost compiler reports map key type errors" {
+  result := compileGo(`main() -> Int => {
+  values := {
+    "a": 1,
+    2: 3
+  }
+  1
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "map key has type Int, expected String")
+}
+
+? "selfhost compiler reports map value type errors" {
+  result := compileGo(`main() -> Int => {
+  values := {
+    "a": 1,
+    "b": "wrong"
+  }
+  1
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "map value has type String, expected Int")
+}
+
+? "selfhost compiler reports unsupported map key types" {
+  result := compileGo(`main() -> Int => {
+  values := {
+    [1]: 2
+  }
+  1
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "map key type Array[Int] is not supported")
+}
+
 ? "selfhost compiler reports array index type errors" {
   result := compileGo(`main(values: Array[Int]) -> Int => values["wrong"]
 `)

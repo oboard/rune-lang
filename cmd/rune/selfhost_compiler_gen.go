@@ -9664,6 +9664,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkBinaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Array:
 			return ____rune_private_0d2ebf0f_checkArrayExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Map:
+			return ____rune_private_0d2ebf0f_checkMapExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Index:
 			return ____rune_private_0d2ebf0f_checkIndexExpr(__expr, __structs, __callables, __errors, __bindings)
 		default:
@@ -9890,6 +9892,101 @@ func ____rune_private_0d2ebf0f_checkArraySpreadReceiverType(__elem __IRExpr, __c
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "spread expects Array, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	return ____rune_private_0d2ebf0f_checkMapEntryTypes(__expr.__children, __callables, __bindings, __checked, 0, "", "")
+}
+
+func ____rune_private_0d2ebf0f_checkMapEntryTypes(__entries []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int, __expectedKey string, __expectedValue string) []string {
+	__done := __index >= len(__entries)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkMapEntryType(__entries, __callables, __bindings, __errors, __index, __expectedKey, __expectedValue)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapEntryType(__entries []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string, __index int, __expectedKey string, __expectedValue string) []string {
+	__entry := __entries[__index]
+	__key := ____rune_private_0d2ebf0f_inferCompilerMapEntryKeyType(__entry, __callables, __bindings)
+	__value := ____rune_private_0d2ebf0f_inferCompilerMapEntryValueType(__entry, __callables, __bindings)
+	__nextKey := ____rune_private_0d2ebf0f_compilerNextMapEntryType(__expectedKey, __key)
+	__nextValue := ____rune_private_0d2ebf0f_compilerNextMapEntryType(__expectedValue, __value)
+	__checked := ____rune_private_0d2ebf0f_checkMapEntryTypeErrors(__entry, __expectedKey, __key, __expectedValue, __value, __errors)
+	return ____rune_private_0d2ebf0f_checkMapEntryTypes(__entries, __callables, __bindings, __checked, __index+1, __nextKey, __nextValue)
+}
+
+func ____rune_private_0d2ebf0f_compilerNextMapEntryType(__expected string, __actual string) string {
+	return func() string {
+		switch {
+		case __expected == "":
+			return __actual
+		default:
+			return __expected
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapEntryTypeErrors(__entry __IRExpr, __expectedKey string, __key string, __expectedValue string, __value string, __errors []string) []string {
+	__checked := ____rune_private_0d2ebf0f_checkMapEntryKeyTypeError(__expectedKey, __key, __errors)
+	return ____rune_private_0d2ebf0f_checkMapEntryValueTypeError(__expectedValue, __value, __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkMapEntryKeyTypeError(__expected string, __actual string, __errors []string) []string {
+	__checked := ____rune_private_0d2ebf0f_checkMapKeySupported(__actual, __errors)
+	__mismatch := __expected != "" && __actual != "" && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __checked...)
+				out = append(out, "map key has type "+__actual+", expected "+__expected)
+				return out
+			}()
+		default:
+			return __checked
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapKeySupported(__actual string, __errors []string) []string {
+	__invalid := __actual != "" && ____rune_private_0d2ebf0f_compilerSupportedMapKeyType(__actual) == false
+	return func() []string {
+		switch {
+		case __invalid == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "map key type "+__actual+" is not supported")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMapEntryValueTypeError(__expected string, __actual string, __errors []string) []string {
+	__mismatch := __expected != "" && __actual != "" && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "map value has type "+__actual+", expected "+__expected)
 				return out
 			}()
 		default:
@@ -10407,6 +10504,11 @@ func ____rune_private_0d2ebf0f_compilerSignedIntegerType(__base string) bool {
 
 func ____rune_private_0d2ebf0f_compilerUnsignedIntegerType(__base string) bool {
 	return __base == "UInt" || __base == "UInt8" || __base == "UInt16" || __base == "UInt64"
+}
+
+func ____rune_private_0d2ebf0f_compilerSupportedMapKeyType(__typeName string) bool {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	return __base == "String" || __base == "Char" || (__base == "Bool" || ____rune_private_0d2ebf0f_compilerIntegerType(__base)) || (__base == "Double" || __base == "Float")
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -11205,6 +11307,18 @@ func ____rune_private_0d2ebf0f_compilerArrayType(__elem string) string {
 	}()
 }
 
+func ____rune_private_0d2ebf0f_compilerMapType(__key string, __value string) string {
+	__complete := __key != "" && __value != ""
+	return func() string {
+		switch {
+		case __complete == true:
+			return "Map[" + __key + ", " + __value + "]"
+		default:
+			return "Map"
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_compilerNullableType(__inner string) string {
 	return func() string {
 		switch {
@@ -11309,6 +11423,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Array:
 			return ____rune_private_0d2ebf0f_inferCompilerArrayType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Map:
+			return ____rune_private_0d2ebf0f_inferCompilerMapType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Spread:
 			return ____rune_private_0d2ebf0f_inferCompilerSpreadType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Index:
@@ -11348,6 +11464,58 @@ func ____rune_private_0d2ebf0f_inferCompilerArrayLiteralElementType(__elem __IRE
 			return ____rune_private_0d2ebf0f_compilerArrayElementType(____rune_private_0d2ebf0f_inferCompilerExprType(__elem.__children[0], __callables, __bindings))
 		default:
 			return ____rune_private_0d2ebf0f_inferCompilerExprType(__elem, __callables, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMapType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_compilerMapType(____rune_private_0d2ebf0f_inferCompilerMapKeyType(__expr.__children, __callables, __bindings, 0, ""), ____rune_private_0d2ebf0f_inferCompilerMapValueType(__expr.__children, __callables, __bindings, 0, ""))
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMapKeyType(__entries []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __index int, __expected string) string {
+	__done := __index >= len(__entries)
+	return func() string {
+		switch {
+		case __done == true:
+			return __expected
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerMapKeyType(__entries, __callables, __bindings, __index+1, ____rune_private_0d2ebf0f_compilerNextMapEntryType(__expected, ____rune_private_0d2ebf0f_inferCompilerMapEntryKeyType(__entries[__index], __callables, __bindings)))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMapValueType(__entries []__IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __index int, __expected string) string {
+	__done := __index >= len(__entries)
+	return func() string {
+		switch {
+		case __done == true:
+			return __expected
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerMapValueType(__entries, __callables, __bindings, __index+1, ____rune_private_0d2ebf0f_compilerNextMapEntryType(__expected, ____rune_private_0d2ebf0f_inferCompilerMapEntryValueType(__entries[__index], __callables, __bindings)))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMapEntryKeyType(__entry __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__entry.__children) > 0
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__entry.__children[0], __callables, __bindings)
+		default:
+			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerMapEntryValueType(__entry __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	__complete := len(__entry.__children) > 1
+	return func() string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__entry.__children[1], __callables, __bindings)
+		default:
+			return ""
 		}
 	}()
 }
