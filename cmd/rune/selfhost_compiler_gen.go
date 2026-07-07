@@ -8093,6 +8093,10 @@ func ____rune_private_68c6e3cf_emitTSCall(__expr __IRExpr) string {
 		switch {
 		case __moduleCallKey(__expr) == "io.println":
 			return "console.log(" + ____rune_private_68c6e3cf_emitTSExprListFrom(__expr.__children, 1, "") + ")"
+		case __moduleCallKey(__expr) == "json.stringify":
+			return "JSON.stringify(" + ____rune_private_68c6e3cf_emitTSExpr(__expr.__children[1]) + ")"
+		case __moduleCallKey(__expr) == "json.parse":
+			return "JSON.parse(" + ____rune_private_68c6e3cf_emitTSExpr(__expr.__children[1]) + ")"
 		case __moduleCallKey(__expr) == "map.new":
 			return "new Map()"
 		case __moduleCallKey(__expr) == "set.new":

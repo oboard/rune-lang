@@ -586,6 +586,8 @@ emitTSAssign(expr: IRExpr) -> String => (
 
 emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("console.log(" + emitTSExprListFrom(expr.children, 1, "")) + ")"
+  "json.stringify" => "JSON.stringify(" + emitTSExpr(expr.children[1]) + ")"
+  "json.parse" => "JSON.parse(" + emitTSExpr(expr.children[1]) + ")"
   "map.new" => "new Map()"
   "set.new" => "new Set()"
   "path.isAbsolute" => emitTSExpr(expr.children[1]) + ".startsWith(\"/\")"

@@ -246,7 +246,8 @@ Document: {
   @assert.eq(go.output.includes("func __Document_fromJson(__text string) __Document"), true)
   @assert.eq(go.output.includes("json.parse(__text)"), true)
   @assert.eq(ts.output.includes("function __Document_fromJson(__text: string): __Document"), true)
-  @assert.eq(ts.output.includes("@json.parse(__text)"), true)
+  @assert.eq(ts.output.includes("JSON.parse(__text)"), true)
+  @assert.eq(ts.output.includes("@json.parse(__text)"), false)
   @assert.eq(mbt.output.includes("fn __Document_fromJson(__text : String) -> RuneDocument"), true)
   @assert.eq(mbt.output.includes("@json.parse(__text)"), true)
 }
