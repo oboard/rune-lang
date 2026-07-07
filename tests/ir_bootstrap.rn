@@ -26,6 +26,22 @@ main() -> Int => Box { value: 41 }.get() + Status.Ready
   @assert.eq(file.functions[0].body.kind, ExprKind.Binary)
 }
 
+? "selfhost ir lowers constants" {
+  file := lower(`+ const answer: Int = 42
+const label: String = "Rune"
+`)
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(file.constants.length(), 2)
+  @assert.eq(file.constants[0].name, "answer")
+  @assert.eq(file.constants[0].private, false)
+  @assert.eq(file.constants[0].typeName, "Int")
+  @assert.eq(file.constants[0].value.kind, ExprKind.Int)
+  @assert.eq(file.constants[1].name, "label")
+  @assert.eq(file.constants[1].private, true)
+  @assert.eq(file.constants[1].typeName, "String")
+  @assert.eq(file.constants[1].value.kind, ExprKind.String)
+}
+
 ? "selfhost ir preserves core module imports" {
   file := lower(`@syntax
 

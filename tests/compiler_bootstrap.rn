@@ -75,6 +75,46 @@ main() -> Int => importedAnswer()
   @assert.eq(mbt.output.includes("struct RuneImportedUser"), true)
 }
 
+? "selfhost compiler emits imported Rune constants" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
++ main() -> Int => answer + 1
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `+ const answer: Int = 42
+`
+    }
+  ]
+  go := compileGoFiles(files)
+  ts := compileTypeScriptFiles(files)
+  mbt := compileMoonBitFiles(files)
+  @assert.eq(go.ok, true)
+  @assert.eq(ts.ok, true)
+  @assert.eq(mbt.ok, true)
+  @assert.eq(go.output.includes("var __answer int = 42"), true)
+  @assert.eq(go.output.includes("return __answer + 1"), true)
+  @assert.eq(ts.output.includes("const __answer: number = 42;"), true)
+  @assert.eq(ts.output.includes("return __answer + 1;"), true)
+  @assert.eq(ts.output.includes("export { __main as main, __answer as answer };"), true)
+  @assert.eq(mbt.output.includes("let __answer : Int = 42"), true)
+  @assert.eq(mbt.output.includes("__answer + 1"), true)
+}
+
+? "selfhost compiler checks constant value types" {
+  result := compileGo(`const answer: Int = "bad"
+
+main() -> Int => 0
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "constant answer has type String, expected Int")
+}
+
 ? "selfhost compiler resolves imports relative to source file" {
   files := [
     SourceFile {

@@ -141,6 +141,7 @@
     errors: file.errors
   }
   file.imports.each((importDecl) => out.imports.push(lowerImport(importDecl)))
+  file.constants.each((constant) => out.constants.push(lowerConst(constant)))
   file.types.each((typeDecl) => out = lowerTypeInto(out, typeDecl))
   file.functions.each((fn) => out.functions.push(lowerFunction(fn)))
   file.tests.each((testDecl) => out.tests.push(lowerTest(testDecl)))
@@ -207,6 +208,17 @@ lowerImport(
   module: importDecl.module,
   line: importDecl.line,
   column: importDecl.column
+}
+
+lowerConst(
+  constDecl: ParsedConst
+) -> IRConst => {
+  name: constDecl.name,
+  private: constDecl.private,
+  typeName: typeRefToString(constDecl.typeRef),
+  value: lowerExpr(constDecl.value),
+  line: constDecl.line,
+  column: constDecl.column
 }
 
 lowerParam(

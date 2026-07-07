@@ -19,6 +19,7 @@ GoJSONDeclResult: {
   file.enums.each((enumDecl) => out = out + emitGoEnumMethods(file, enumDecl))
   file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitGoMethods(file, typeDecl))
+  file.constants.each((constant) => out = (out + emitGoConst(file, constant)) + "\n")
   file.functions.each((fn) => out = (
     fn.macro ? out
       : (out + emitGoFunction(file, fn, "")) + "\n"
@@ -28,6 +29,11 @@ GoJSONDeclResult: {
   )
   out
 }
+
+emitGoConst(
+  file: IRFile,
+  constant: IRConst
+) -> String => (((("var " + mangleIdent(constant.name)) + " ") + goType(constant.typeName)) + " = ") + emitGoExprExpectedForFile(file, constant.value, constant.typeName)
 
 emitGoImports(
   file: IRFile

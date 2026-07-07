@@ -198,6 +198,15 @@ type __ParsedImport struct {
 	__column int
 }
 
+type __ParsedConst struct {
+	__name    string
+	__private bool
+	__typeRef __ParsedTypeRef
+	__value   __ParsedExpr
+	__line    int
+	__column  int
+}
+
 type __ParsedAnnotation struct {
 	__marker string
 	__module string
@@ -283,6 +292,7 @@ type __ParsedTest struct {
 
 type __ParsedFile struct {
 	__imports   []__ParsedImport
+	__constants []__ParsedConst
 	__types     []__ParsedType
 	__functions []__ParsedFunction
 	__tests     []__ParsedTest
@@ -363,6 +373,11 @@ type __FileStep struct {
 type __ImportStep struct {
 	__state      __ParserState
 	__importDecl __ParsedImport
+}
+
+type __ConstStep struct {
+	__state     __ParserState
+	__constDecl __ParsedConst
 }
 
 type __FunctionStep struct {
@@ -1770,7 +1785,7 @@ func __parseTokens(__tokens []__Token) __ParsedFile {
 }
 
 func ____rune_private_b990f3d7_emptyFile(__errors []__ParseError) __ParsedFile {
-	return __ParsedFile{__imports: []__ParsedImport{}, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __errors}
+	return __ParsedFile{__imports: []__ParsedImport{}, __constants: []__ParsedConst{}, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __errors}
 }
 
 func ____rune_private_b990f3d7_emptyParseErrors() []__ParseError {
@@ -1799,6 +1814,10 @@ func ____rune_private_b990f3d7_emptyType() __ParsedType {
 
 func ____rune_private_b990f3d7_emptyImport() __ParsedImport {
 	return __ParsedImport{__path: "", __go: false, __module: false, __line: 0, __column: 0}
+}
+
+func ____rune_private_b990f3d7_emptyConst() __ParsedConst {
+	return __ParsedConst{__name: "", __private: true, __typeRef: __emptyParsedTypeRef(), __value: ____rune_private_b990f3d7_emptyExpr(), __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_emptyTest() __ParsedTest {
@@ -2002,7 +2021,7 @@ func ____rune_private_b990f3d7_parseFileLoop(__state __ParserState, __file __Par
 }
 
 func ____rune_private_b990f3d7_withFileErrors(__file __ParsedFile, __errors []__ParseError) __ParsedFile {
-	return __ParsedFile{__imports: __file.__imports, __types: __file.__types, __functions: __file.__functions, __tests: __file.__tests, __errors: __errors}
+	return __ParsedFile{__imports: __file.__imports, __constants: __file.__constants, __types: __file.__types, __functions: __file.__functions, __tests: __file.__tests, __errors: __errors}
 }
 
 func ____rune_private_b990f3d7_parseTopLevel(__state __ParserState, __file __ParsedFile) __FileStep {
@@ -2059,14 +2078,19 @@ func ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state __ParserSta
 				return ____rune_private_b990f3d7_parseTopLevelTest(__current, __file)
 			}
 			return func() __FileStep {
-				if ____rune_private_b990f3d7_looksLikeTypeDecl(__current) {
-					return ____rune_private_b990f3d7_parseTopLevelType(__current, __file, __private, __annotationStep.__annotations)
+				if ____rune_private_b990f3d7_looksLikeConstDecl(__current) {
+					return ____rune_private_b990f3d7_parseTopLevelConst(__current, __file, __private, __annotationStep.__annotations)
 				}
 				return func() __FileStep {
-					if ____rune_private_b990f3d7_looksLikeFunctionDecl(__current) {
-						return ____rune_private_b990f3d7_parseTopLevelFunction(__current, __file, __private, __annotationStep.__annotations)
+					if ____rune_private_b990f3d7_looksLikeTypeDecl(__current) {
+						return ____rune_private_b990f3d7_parseTopLevelType(__current, __file, __private, __annotationStep.__annotations)
 					}
-					return ____rune_private_b990f3d7_parseTopLevelError(__current, __file)
+					return func() __FileStep {
+						if ____rune_private_b990f3d7_looksLikeFunctionDecl(__current) {
+							return ____rune_private_b990f3d7_parseTopLevelFunction(__current, __file, __private, __annotationStep.__annotations)
+						}
+						return ____rune_private_b990f3d7_parseTopLevelError(__current, __file)
+					}()
 				}()
 			}()
 		}()
@@ -2141,6 +2165,50 @@ func ____rune_private_b990f3d7_parseTopLevelTest(__state __ParserState, __file _
 	__step := ____rune_private_b990f3d7_parseTestDecl(__state)
 	__file.__tests = append(__file.__tests, __step.__testDecl)
 	return __FileStep{__state: __step.__state, __file: __file}
+}
+
+func ____rune_private_b990f3d7_parseTopLevelConst(__state __ParserState, __file __ParsedFile, __private bool, __annotations []__ParsedAnnotation) __FileStep {
+	__current := __state
+	__current = ____rune_private_b990f3d7_parserRejectConstAnnotations(__current, __annotations)
+	__step := ____rune_private_b990f3d7_parseConstDecl(__current, __private)
+	__file.__constants = append(__file.__constants, __step.__constDecl)
+	return __FileStep{__state: __step.__state, __file: __file}
+}
+
+func ____rune_private_b990f3d7_parserRejectConstAnnotations(__state __ParserState, __annotations []__ParsedAnnotation) __ParserState {
+	return func() __ParserState {
+		switch {
+		case len(__annotations) == 0:
+			return __state
+		default:
+			return ____rune_private_b990f3d7_parserErrorAt(__state, ____rune_private_b990f3d7_parserPeek(__state), "annotations cannot be applied to constants")
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeConstDecl(__state __ParserState) bool {
+	return ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_Ident) && ____rune_private_b990f3d7_parserPeek(__state).__lexeme == "const"
+}
+
+func ____rune_private_b990f3d7_parseConstDecl(__state __ParserState, __private bool) __ConstStep {
+	__start := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Ident, "expected 'const'")
+	__name := ____rune_private_b990f3d7_parserConsume(__start.__state, __TokenKind_Ident, "expected constant name")
+	__typeStep := ____rune_private_b990f3d7_parseConstType(____rune_private_b990f3d7_parserSkipNewlines(__name.__state))
+	__assign := ____rune_private_b990f3d7_parserConsume(____rune_private_b990f3d7_parserSkipNewlines(__typeStep.__state), __TokenKind_Assign, "expected '=' after constant name")
+	__value := ____rune_private_b990f3d7_parseExpression(____rune_private_b990f3d7_parserSkipNewlines(__assign.__state), 1)
+	return __ConstStep{__state: __value.__state, __constDecl: __ParsedConst{__name: __name.__token.__lexeme, __private: __private, __typeRef: __typeStep.__typeRef, __value: __value.__expr, __line: __start.__token.__line, __column: __start.__token.__column}}
+}
+
+func ____rune_private_b990f3d7_parseConstType(__state __ParserState) __TypeRefStep {
+	__colon := ____rune_private_b990f3d7_parserMatch(__state, __TokenKind_Colon)
+	return func() __TypeRefStep {
+		switch {
+		case __colon.__ok == true:
+			return ____rune_private_b990f3d7_parseTypeRef(____rune_private_b990f3d7_parserSkipNewlines(__colon.__state))
+		default:
+			return __TypeRefStep{__state: __state, __typeRef: __emptyParsedTypeRef()}
+		}
+	}()
 }
 
 func ____rune_private_b990f3d7_parseTopLevelType(__state __ParserState, __file __ParsedFile, __private bool, __annotations []__ParsedAnnotation) __FileStep {
@@ -4870,6 +4938,13 @@ func __lowerParsed(__file __ParsedFile) __IRFile {
 			return len(__out.__imports)
 		}()
 	}
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		func() int {
+			__out.__constants = append(__out.__constants, ____rune_private_44103c8f_lowerConst(__constant))
+			return len(__out.__constants)
+		}()
+	}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		__out = ____rune_private_44103c8f_lowerTypeInto(__out, __typeDecl)
@@ -4920,6 +4995,10 @@ func __emptyIRFunction() __IRFunction {
 
 func ____rune_private_44103c8f_lowerImport(__importDecl __ParsedImport) __IRImport {
 	return __IRImport{__path: __importDecl.__path, __go: __importDecl.__go, __module: __importDecl.__module, __line: __importDecl.__line, __column: __importDecl.__column}
+}
+
+func ____rune_private_44103c8f_lowerConst(__constDecl __ParsedConst) __IRConst {
+	return __IRConst{__name: __constDecl.__name, __private: __constDecl.__private, __typeName: __typeRefToString(__constDecl.__typeRef), __value: ____rune_private_44103c8f_lowerExpr(__constDecl.__value), __line: __constDecl.__line, __column: __constDecl.__column}
 }
 
 func ____rune_private_44103c8f_lowerParam(__param __ParsedParam) __IRParam {
@@ -5544,6 +5623,10 @@ func __generateGo(__file __IRFile) string {
 		_ = __typeDecl
 		__out = __out + ____rune_private_8ddf8596_emitGoMethods(__file, __typeDecl)
 	}
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__out = __out + ____rune_private_8ddf8596_emitGoConst(__file, __constant) + "\n"
+	}
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__out = func() string {
@@ -5557,6 +5640,10 @@ func __generateGo(__file __IRFile) string {
 		__out = __out + "func main() {\n\t" + __mangleIdent("main") + "()\n}\n"
 	}
 	return __out
+}
+
+func ____rune_private_8ddf8596_emitGoConst(__file __IRFile, __constant __IRConst) string {
+	return "var " + __mangleIdent(__constant.__name) + " " + ____rune_private_8ddf8596_goType(__constant.__typeName) + " = " + ____rune_private_8ddf8596_emitGoExprExpectedForFile(__file, __constant.__value, __constant.__typeName)
 }
 
 func ____rune_private_8ddf8596_emitGoImports(__file __IRFile) string {
@@ -7279,6 +7366,10 @@ func __generateMoonBit(__file __IRFile) string {
 		_ = __typeDecl
 		__out = __out + ____rune_private_3050a3c7_emitMoonBitMethods(__typeDecl)
 	}
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__out = __out + ____rune_private_3050a3c7_emitMoonBitConst(__constant) + "\n"
+	}
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__out = func() string {
@@ -7289,6 +7380,10 @@ func __generateMoonBit(__file __IRFile) string {
 		}()
 	}
 	return __out
+}
+
+func ____rune_private_3050a3c7_emitMoonBitConst(__constant __IRConst) string {
+	return "let " + ____rune_private_3050a3c7_moonBitValueIdent(__constant.__name) + " : " + ____rune_private_3050a3c7_moonBitType(__constant.__typeName) + " = " + ____rune_private_3050a3c7_emitMoonBitExpr(__constant.__value)
 }
 
 func ____rune_private_3050a3c7_emitMoonBitUnwrapHelper() string {
@@ -8117,6 +8212,10 @@ func __generateTypeScript(__file __IRFile) string {
 		_ = __typeDecl
 		__out = __out + ____rune_private_68c6e3cf_emitTSMethods(__typeDecl)
 	}
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__out = __out + ____rune_private_68c6e3cf_emitTSConst(__constant) + "\n"
+	}
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__out = func() string {
@@ -8131,6 +8230,10 @@ func __generateTypeScript(__file __IRFile) string {
 
 func ____rune_private_68c6e3cf_emitTSImports(__file __IRFile) string {
 	return ____rune_private_68c6e3cf_emitTSImportList(__file.__tsImports, 0, "")
+}
+
+func ____rune_private_68c6e3cf_emitTSConst(__constant __IRConst) string {
+	return "const " + __mangleIdent(__constant.__name) + ": " + ____rune_private_68c6e3cf_tsType(__constant.__typeName) + " = " + ____rune_private_68c6e3cf_emitTSExprExpected(__constant.__value, __constant.__typeName) + ";"
 }
 
 func ____rune_private_68c6e3cf_emitTSImportList(__imports []__IRTSImport, __index int, __out string) string {
@@ -8492,12 +8595,26 @@ func ____rune_private_68c6e3cf_emitTSGenericNames(__generics []string, __index i
 }
 
 func ____rune_private_68c6e3cf_emitTSExports(__file __IRFile) string {
-	__exports := ____rune_private_68c6e3cf_emitTSExportNames(__file.__functions, 0, "")
+	__exports := ____rune_private_68c6e3cf_emitTSConstExportNames(__file.__constants, 0, ____rune_private_68c6e3cf_emitTSExportNames(__file.__functions, 0, ""))
 	return func() string {
 		if __exports == "" {
 			return ""
 		}
 		return "export { " + __exports + " };\n"
+	}()
+}
+
+func ____rune_private_68c6e3cf_emitTSConstExportNames(__constants []__IRConst, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__constants) {
+			return __out
+		}
+		return func() string {
+			if __constants[__index].__private {
+				return ____rune_private_68c6e3cf_emitTSConstExportNames(__constants, __index+1, __out)
+			}
+			return ____rune_private_68c6e3cf_emitTSConstExportNames(__constants, __index+1, ____rune_private_68c6e3cf_appendTSExportName(__out, __constants[__index].__name))
+		}()
 	}()
 }
 
@@ -8510,14 +8627,18 @@ func ____rune_private_68c6e3cf_emitTSExportNames(__functions []__IRFunction, __i
 			if __functions[__index].__macro || __functions[__index].__private {
 				return ____rune_private_68c6e3cf_emitTSExportNames(__functions, __index+1, __out)
 			}
-			return ____rune_private_68c6e3cf_emitTSExportNames(__functions, __index+1, __out+func() string {
-				if __out == "" {
-					return ""
-				}
-				return ", "
-			}()+__mangleIdent(__functions[__index].__name)+" as "+__functions[__index].__name)
+			return ____rune_private_68c6e3cf_emitTSExportNames(__functions, __index+1, ____rune_private_68c6e3cf_appendTSExportName(__out, __functions[__index].__name))
 		}()
 	}()
+}
+
+func ____rune_private_68c6e3cf_appendTSExportName(__out string, __name string) string {
+	return __out + func() string {
+		if __out == "" {
+			return ""
+		}
+		return ", "
+	}() + __mangleIdent(__name) + " as " + __name
 }
 
 func ____rune_private_68c6e3cf_emitTSExpr(__expr __IRExpr) string {
@@ -9164,10 +9285,14 @@ func ____rune_private_0d2ebf0f_fileHasGoImportAt(__imports []__IRImport, __index
 
 func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	__callables := ____rune_private_0d2ebf0f_compilerCallables(__file)
-	__bindings := ____rune_private_0d2ebf0f_compilerInitialBindings(__file)
+	__bindings := ____rune_private_0d2ebf0f_compilerInitialBindings(__file, __callables)
 	__knownTypes := ____rune_private_0d2ebf0f_compilerKnownTypes(__file)
 	__errors := ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file, append([]string{}, []string{""}[0:0]...))
 	__errors = ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, __errors)
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__errors = ____rune_private_0d2ebf0f_checkConstantErrors(__constant, __file.__structs, __callables, __errors, __bindings)
+	}
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__errors = ____rune_private_0d2ebf0f_checkTopLevelFunctionErrors(__fn, __file.__structs, __callables, __errors, __bindings)
@@ -9195,6 +9320,25 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __file.__structs, __callables, __errors, __bindings)
 	}
 	return __errors
+}
+
+func ____rune_private_0d2ebf0f_checkConstantErrors(__constant __IRConst, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__constant.__value, __structs, __callables, __errors, __bindings)
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__constant.__value, __structs, __callables, __bindings)
+	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__constant.__typeName, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__constant.__typeName, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __checked...)
+				out = append(out, "constant "+__constant.__name+" has type "+__actual+", expected "+__constant.__typeName)
+				return out
+			}()
+		default:
+			return __checked
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_checkTopLevelFunctionErrors(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -9487,6 +9631,10 @@ func ____rune_private_0d2ebf0f_checkDuplicateEnumMethod(__enumName string, __met
 
 func ____rune_private_0d2ebf0f_checkDeclarationTypes(__file __IRFile, __knownTypes []string, __errors []string) []string {
 	__next := __errors
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__next = ____rune_private_0d2ebf0f_checkConstDeclarationTypes(__constant, __knownTypes, __next)
+	}
 	for _, __typeDecl := range __file.__structs {
 		_ = __typeDecl
 		__next = ____rune_private_0d2ebf0f_checkStructDeclarationTypes(__typeDecl, __knownTypes, __next)
@@ -9500,6 +9648,10 @@ func ____rune_private_0d2ebf0f_checkDeclarationTypes(__file __IRFile, __knownTyp
 		__next = ____rune_private_0d2ebf0f_checkFunctionDeclarationTypes(__fn, __knownTypes, __next)
 	}
 	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkConstDeclarationTypes(__constant __IRConst, __knownTypes []string, __errors []string) []string {
+	return ____rune_private_0d2ebf0f_checkCompilerTypeName(__constant.__typeName, __knownTypes, []string{}, __errors)
 }
 
 func ____rune_private_0d2ebf0f_checkStructDeclarationTypes(__typeDecl __IRStructType, __knownTypes []string, __errors []string) []string {
@@ -13129,13 +13281,32 @@ func ____rune_private_0d2ebf0f_compilerParamBindings(__params []__IRParam) []__C
 	return ____rune_private_0d2ebf0f_compilerFunctionBindings(__params, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
 }
 
-func ____rune_private_0d2ebf0f_compilerInitialBindings(__file __IRFile) []__CompilerTypeBinding {
+func ____rune_private_0d2ebf0f_compilerInitialBindings(__file __IRFile, __callables []__CompilerCallable) []__CompilerTypeBinding {
 	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...)
+	for _, __constant := range __file.__constants {
+		_ = __constant
+		__bindings = ____rune_private_0d2ebf0f_compilerConstBinding(__file.__structs, __callables, __bindings, __constant)
+	}
 	for _, __importDecl := range __file.__tsImports {
 		_ = __importDecl
 		__bindings = ____rune_private_0d2ebf0f_compilerImportValueBindings(__importDecl.__values, __bindings)
 	}
 	return __bindings
+}
+
+func ____rune_private_0d2ebf0f_compilerConstBinding(__structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __constant __IRConst) []__CompilerTypeBinding {
+	return ____rune_private_0d2ebf0f_addCompilerTypeBinding(__bindings, __constant.__name, ____rune_private_0d2ebf0f_compilerConstBindingType(__structs, __callables, __bindings, __constant))
+}
+
+func ____rune_private_0d2ebf0f_compilerConstBindingType(__structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __constant __IRConst) string {
+	return func() string {
+		switch {
+		case __constant.__typeName == "":
+			return ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__constant.__value, __structs, __callables, __bindings)
+		default:
+			return __constant.__typeName
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerImportValueBindings(__values []__IRConst, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
@@ -13420,7 +13591,7 @@ func ____rune_private_0d2ebf0f_lowerCompilerSourceWithPath(__source string, __so
 func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __ParsedFile {
 	__imports := ____rune_private_0d2ebf0f_compilerMergeParsedImports(__file.__imports, ____rune_private_0d2ebf0f_compilerImportExpressions(__file), 0)
 	__errors := ____rune_private_0d2ebf0f_compilerMacroErrors(__file, __file.__errors)
-	__out := __ParsedFile{__imports: __imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __errors}
+	__out := __ParsedFile{__imports: __imports, __constants: __file.__constants, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __errors}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		func() int {

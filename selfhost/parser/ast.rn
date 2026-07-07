@@ -32,6 +32,15 @@
   column: Int
 }
 
++ ParsedConst: {
+  name: String
+  private: Bool
+  typeRef: ParsedTypeRef
+  value: ParsedExpr
+  line: Int
+  column: Int
+}
+
 + ParsedAnnotation: {
   marker: String
   module: String
@@ -117,6 +126,7 @@
 
 + ParsedFile: {
   imports: Array[ParsedImport]
+  constants: Array[ParsedConst]
   types: Array[ParsedType]
   functions: Array[ParsedFunction]
   tests: Array[ParsedTest]

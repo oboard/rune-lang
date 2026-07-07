@@ -13,12 +13,17 @@
   )
   file.structs.each((typeDecl) => out = (out + emitMoonBitStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitMoonBitMethods(typeDecl))
+  file.constants.each((constant) => out = (out + emitMoonBitConst(constant)) + "\n")
   file.functions.each((fn) => out = (
     fn.macro ? out
       : (out + emitMoonBitFunction(fn, "")) + "\n"
   ))
   out
 }
+
+emitMoonBitConst(
+  constant: IRConst
+) -> String => (((("let " + moonBitValueIdent(constant.name)) + " : ") + moonBitType(constant.typeName)) + " = ") + emitMoonBitExpr(constant.value)
 
 emitMoonBitUnwrapHelper() -> String => `fn[T, E] rune_unwrap(value : RuneResult[T, E]) -> T {
   match value {

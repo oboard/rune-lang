@@ -181,15 +181,32 @@ checkFileErrors(
   file: IRFile
 ) -> Array[String] => {
   callables := compilerCallables(file)
-  bindings := compilerInitialBindings(file)
+  bindings := compilerInitialBindings(file, callables)
   knownTypes := compilerKnownTypes(file)
   errors := checkDuplicateDeclarations(file, [""].slice(0, 0))
   errors = checkDeclarationTypes(file, knownTypes, errors)
+  file.constants.each((constant) => errors = checkConstantErrors(constant, file.structs, callables, errors, bindings))
   file.functions.each((fn) => errors = checkTopLevelFunctionErrors(fn, file.structs, callables, errors, bindings))
   file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, bindings))
   errors
+}
+
+checkConstantErrors(
+  constant: IRConst,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExpr(constant.value, structs, callables, errors, bindings)
+  actual := inferCompilerExprTypeWithStructs(constant.value, structs, callables, bindings)
+  mismatch := compilerShouldCheckArgType(constant.typeName, actual) && (compilerTypesCompatible(constant.typeName, actual) == false)
+  mismatch {
+    true => [..checked, (((("constant " + constant.name) + " has type ") + actual) + ", expected ") + constant.typeName]
+    _ => checked
+  }
 }
 
 checkTopLevelFunctionErrors(
@@ -455,11 +472,18 @@ checkDeclarationTypes(
   errors: Array[String]
 ) -> Array[String] => {
   next := errors
+  file.constants.each((constant) => next = checkConstDeclarationTypes(constant, knownTypes, next))
   file.structs.each((typeDecl) => next = checkStructDeclarationTypes(typeDecl, knownTypes, next))
   file.enums.each((typeDecl) => next = checkEnumDeclarationTypes(typeDecl, knownTypes, next))
   file.functions.each((fn) => next = checkFunctionDeclarationTypes(fn, knownTypes, next))
   next
 }
+
+checkConstDeclarationTypes(
+  constant: IRConst,
+  knownTypes: Array[String],
+  errors: Array[String]
+) -> Array[String] => checkCompilerTypeName(constant.typeName, knownTypes, [], errors)
 
 checkStructDeclarationTypes(
   typeDecl: IRStructType,
@@ -3900,11 +3924,30 @@ compilerParamBindings(
 }
 
 compilerInitialBindings(
-  file: IRFile
+  file: IRFile,
+  callables: Array[CompilerCallable]
 ) -> Array[CompilerTypeBinding] => {
   bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  file.constants.each((constant) => bindings = compilerConstBinding(file.structs, callables, bindings, constant))
   file.tsImports.each((importDecl) => bindings = compilerImportValueBindings(importDecl.values, bindings))
   bindings
+}
+
+compilerConstBinding(
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  constant: IRConst
+) -> Array[CompilerTypeBinding] => addCompilerTypeBinding(bindings, constant.name, compilerConstBindingType(structs, callables, bindings, constant))
+
+compilerConstBindingType(
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  constant: IRConst
+) -> String => constant.typeName {
+  "" => inferCompilerExprTypeWithStructs(constant.value, structs, callables, bindings)
+  _ => constant.typeName
 }
 
 compilerImportValueBindings(
@@ -4185,6 +4228,7 @@ expandCompilerMacros(
   errors := compilerMacroErrors(file, file.errors)
   out := ParsedFile {
     imports: imports,
+    constants: file.constants,
     types: [],
     functions: [],
     tests: [],

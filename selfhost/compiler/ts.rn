@@ -15,6 +15,7 @@
   file.enums.each((enumDecl) => out = out + emitTSEnumMethods(enumDecl))
   file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
   file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
+  file.constants.each((constant) => out = (out + emitTSConst(constant)) + "\n")
   file.functions.each((fn) => out = (
     fn.macro ? out
       : (out + emitTSFunction(fn)) + "\n"
@@ -23,6 +24,10 @@
 }
 
 emitTSImports(file: IRFile) -> String => emitTSImportList(file.tsImports, 0, "")
+
+emitTSConst(
+  constant: IRConst
+) -> String => (((("const " + mangleIdent(constant.name)) + ": ") + tsType(constant.typeName)) + " = ") + emitTSExprExpected(constant.value, constant.typeName) + ";"
 
 emitTSImportList(
   imports: Array[IRTSImport],
@@ -491,12 +496,24 @@ emitTSGenericNames(
 )
 
 emitTSExports(file: IRFile) -> String => {
-  exports := emitTSExportNames(file.functions, 0, "")
+  exports := emitTSConstExportNames(file.constants, 0, emitTSExportNames(file.functions, 0, ""))
   (
     exports == "" ? ""
       : ("export { " + exports) + " };\n"
   )
 }
+
+emitTSConstExportNames(
+  constants: Array[IRConst],
+  index: Int,
+  out: String
+) -> String => (
+  index >= constants.length() ? out
+    : (
+      constants[index].private ? emitTSConstExportNames(constants, index + 1, out)
+        : emitTSConstExportNames(constants, index + 1, appendTSExportName(out, constants[index].name))
+    )
+)
 
 emitTSExportNames(
   functions: Array[IRFunction],
@@ -506,12 +523,17 @@ emitTSExportNames(
   index >= functions.length() ? out
     : (
       functions[index].macro || functions[index].private ? emitTSExportNames(functions, index + 1, out)
-        : emitTSExportNames(functions, index + 1, (((out + (
-          out == "" ? ""
-            : ", "
-        )) + mangleIdent(functions[index].name)) + " as ") + functions[index].name)
+        : emitTSExportNames(functions, index + 1, appendTSExportName(out, functions[index].name))
     )
 )
+
+appendTSExportName(
+  out: String,
+  name: String
+) -> String => (((out + (
+  out == "" ? ""
+    : ", "
+)) + mangleIdent(name)) + " as ") + name
 
 emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Identifier => mangleIdent(expr.name)

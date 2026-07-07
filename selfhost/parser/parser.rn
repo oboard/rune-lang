@@ -77,6 +77,11 @@ ImportStep: {
   importDecl: ParsedImport
 }
 
+ConstStep: {
+  state: ParserState
+  constDecl: ParsedConst
+}
+
 FunctionStep: {
   state: ParserState
   function: ParsedFunction
@@ -119,6 +124,7 @@ emptyFile(
   errors: Array[ParseError]
 ) -> ParsedFile => {
   imports: [],
+  constants: [],
   types: [],
   functions: [],
   tests: [],
@@ -193,6 +199,15 @@ emptyImport() -> ParsedImport => {
   path: "",
   go: false,
   module: false,
+  line: 0,
+  column: 0
+}
+
+emptyConst() -> ParsedConst => {
+  name: "",
+  private: true,
+  typeRef: emptyParsedTypeRef(),
+  value: emptyExpr(),
   line: 0,
   column: 0
 }
@@ -472,6 +487,7 @@ withFileErrors(
   errors: Array[ParseError]
 ) -> ParsedFile => {
   imports: file.imports,
+  constants: file.constants,
   types: file.types,
   functions: file.functions,
   tests: file.tests,
@@ -527,10 +543,13 @@ parseTopLevelAfterAnnotations(
       : (
         !publicStep.ok && parserCheck(current, TokenKind.Question) ? parseTopLevelTest(current, file)
           : (
-            looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private, annotationStep.annotations)
+            looksLikeConstDecl(current) ? parseTopLevelConst(current, file, private, annotationStep.annotations)
               : (
-                looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private, annotationStep.annotations)
-                  : parseTopLevelError(current, file)
+                looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private, annotationStep.annotations)
+                  : (
+                    looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private, annotationStep.annotations)
+                      : parseTopLevelError(current, file)
+                  )
               )
           )
       )
@@ -612,6 +631,69 @@ parseTopLevelTest(
   FileStep {
     state: step.state,
     file: file
+  }
+}
+
+parseTopLevelConst(
+  state: ParserState,
+  file: ParsedFile,
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
+) -> FileStep => {
+  current := state
+  current = parserRejectConstAnnotations(current, annotations)
+  step := parseConstDecl(current, private)
+  file.constants.push(step.constDecl)
+  FileStep {
+    state: step.state,
+    file: file
+  }
+}
+
+parserRejectConstAnnotations(
+  state: ParserState,
+  annotations: Array[ParsedAnnotation]
+) -> ParserState => annotations.length() {
+  0 => state
+  _ => parserErrorAt(state, parserPeek(state), "annotations cannot be applied to constants")
+}
+
+looksLikeConstDecl(
+  state: ParserState
+) -> Bool => parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "const")
+
+parseConstDecl(
+  state: ParserState,
+  private: Bool
+) -> ConstStep => {
+  start := parserConsume(state, TokenKind.Ident, "expected 'const'")
+  name := parserConsume(start.state, TokenKind.Ident, "expected constant name")
+  typeStep := parseConstType(parserSkipNewlines(name.state))
+  assign := parserConsume(parserSkipNewlines(typeStep.state), TokenKind.Assign, "expected '=' after constant name")
+  value := parseExpression(parserSkipNewlines(assign.state), 1)
+  ConstStep {
+    state: value.state,
+    constDecl: ParsedConst {
+      name: name.token.lexeme,
+      private: private,
+      typeRef: typeStep.typeRef,
+      value: value.expr,
+      line: start.token.line,
+      column: start.token.column
+    }
+  }
+}
+
+parseConstType(
+  state: ParserState
+) -> TypeRefStep => {
+  colon := parserMatch(state, TokenKind.Colon)
+  colon.ok {
+    true => parseTypeRef(parserSkipNewlines(colon.state))
+    _ => TypeRefStep {
+      state: state,
+      typeRef: emptyParsedTypeRef()
+    }
   }
 }
 
