@@ -9697,6 +9697,8 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkPatternBlockExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Match:
 			return ____rune_private_0d2ebf0f_checkMatchExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_ObjectDestructure:
+			return ____rune_private_0d2ebf0f_checkObjectDestructureExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Identifier:
 			return ____rune_private_0d2ebf0f_checkIdentifierExpr(__expr, __callables, __bindings, __errors)
 		case __expr.__kind == __ExprKind_This:
@@ -10002,6 +10004,120 @@ func ____rune_private_0d2ebf0f_checkPatternBranchTypeError(__expected string, __
 			}()
 		default:
 			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkObjectDestructureExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__hasValue := len(__expr.__children) > 0
+	return func() []string {
+		switch {
+		case __hasValue == true:
+			return ____rune_private_0d2ebf0f_checkObjectDestructureValue(__expr, __structs, __callables, __errors, __bindings)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkObjectDestructureValue(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__value := __expr.__children[0]
+	__checked := ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, __errors, __bindings)
+	__sourceType := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
+	return ____rune_private_0d2ebf0f_checkObjectDestructureSourceType(__expr.__params, __sourceType, __structs, __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkObjectDestructureSourceType(__params []__IRParam, __sourceType string, __structs []__IRStructType, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __sourceType == "":
+			return __errors
+		default:
+			return func() []string {
+				__typeDecl := ____rune_private_0d2ebf0f_findCompilerStruct(__structs, ____rune_private_0d2ebf0f_compilerTypeBase(__sourceType), 0)
+				__found := __typeDecl.__name != ""
+				return func() []string {
+					switch {
+					case __found == true:
+						return ____rune_private_0d2ebf0f_checkObjectDestructureFields(__params, 0, __sourceType, __typeDecl.__fields, __errors)
+					default:
+						return func() []string {
+							out := []string{}
+							out = append(out, __errors...)
+							out = append(out, "type "+__sourceType+" has no fields")
+							return out
+						}()
+					}
+				}()
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkObjectDestructureFields(__params []__IRParam, __index int, __sourceType string, __fields []__IRField, __errors []string) []string {
+	__done := __index >= len(__params)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkObjectDestructureField(__params, __index, __sourceType, __fields, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkObjectDestructureField(__params []__IRParam, __index int, __sourceType string, __fields []__IRField, __errors []string) []string {
+	__fieldName := __params[__index].__typeName
+	__duplicate := ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBefore(__params, __fieldName, __index-1)
+	__field := ____rune_private_0d2ebf0f_findCompilerStructField(__fields, __fieldName, 0)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate destructured field \""+__fieldName+"\"")
+				return out
+			}()
+		default:
+			return func() []string {
+				switch {
+				case __field.__name == "":
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "type "+__sourceType+" has no field \""+__fieldName+"\"")
+						return out
+					}()
+				default:
+					return __errors
+				}
+			}()
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkObjectDestructureFields(__params, __index+1, __sourceType, __fields, __next)
+}
+
+func ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBefore(__params []__IRParam, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBeforeAt(__params, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBeforeAt(__params []__IRParam, __name string, __index int) bool {
+	__matched := __params[__index].__typeName == __name
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerDestructureFieldAppearsBefore(__params, __name, __index-1)
 		}
 	}()
 }
@@ -11360,7 +11476,7 @@ func ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement __IRExpr,
 		case __statement.__kind == __ExprKind_Let:
 			return ____rune_private_0d2ebf0f_bindCompilerLet(__statement, __structs, __callables, __bindings)
 		case __statement.__kind == __ExprKind_ObjectDestructure:
-			return ____rune_private_0d2ebf0f_bindCompilerObjectDestructure(__statement.__params, 0, __bindings)
+			return ____rune_private_0d2ebf0f_bindCompilerObjectDestructure(__statement, __structs, __callables, __bindings)
 		default:
 			return __bindings
 		}
@@ -11416,14 +11532,41 @@ func ____rune_private_0d2ebf0f_addCompilerValueBinding(__bindings []__CompilerTy
 	}()
 }
 
-func ____rune_private_0d2ebf0f_bindCompilerObjectDestructure(__params []__IRParam, __index int, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+func ____rune_private_0d2ebf0f_bindCompilerObjectDestructure(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__hasValue := len(__expr.__children) > 0
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __hasValue == true:
+			return ____rune_private_0d2ebf0f_bindCompilerObjectDestructureParams(__expr.__params, 0, ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__expr.__children[0], __structs, __callables, __bindings), __structs, __bindings)
+		default:
+			return __bindings
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_bindCompilerObjectDestructureParams(__params []__IRParam, __index int, __sourceType string, __structs []__IRStructType, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
 	__done := __index >= len(__params)
 	return func() []__CompilerTypeBinding {
 		switch {
 		case __done == true:
 			return __bindings
 		default:
-			return ____rune_private_0d2ebf0f_bindCompilerObjectDestructure(__params, __index+1, ____rune_private_0d2ebf0f_addCompilerValueBinding(__bindings, __params[__index].__name, ""))
+			return ____rune_private_0d2ebf0f_bindCompilerObjectDestructureParams(__params, __index+1, __sourceType, __structs, ____rune_private_0d2ebf0f_addCompilerValueBinding(__bindings, __params[__index].__name, ____rune_private_0d2ebf0f_compilerObjectDestructureFieldType(__params[__index], __sourceType, __structs)))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerObjectDestructureFieldType(__param __IRParam, __sourceType string, __structs []__IRStructType) string {
+	return func() string {
+		switch {
+		case __sourceType == "":
+			return ""
+		default:
+			return func() string {
+				__typeDecl := ____rune_private_0d2ebf0f_findCompilerStruct(__structs, ____rune_private_0d2ebf0f_compilerTypeBase(__sourceType), 0)
+				__field := ____rune_private_0d2ebf0f_findCompilerStructField(__typeDecl.__fields, __param.__typeName, 0)
+				return __field.__typeName
+			}()
 		}
 	}()
 }

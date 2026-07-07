@@ -673,6 +673,7 @@ checkExpr(
   ExprKind.Assign => checkAssignExpr(expr, structs, callables, errors, bindings)
   ExprKind.PatternBlock => checkPatternBlockExpr(expr, structs, callables, errors, bindings)
   ExprKind.Match => checkMatchExpr(expr, structs, callables, errors, bindings)
+  ExprKind.ObjectDestructure => checkObjectDestructureExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
@@ -999,6 +1000,108 @@ checkPatternBranchTypeError(
   mismatch {
     true => [..errors, (("pattern branch returns " + actual) + ", expected ") + expected]
     _ => errors
+  }
+}
+
+checkObjectDestructureExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasValue := expr.children.length() > 0
+  hasValue {
+    true => checkObjectDestructureValue(expr, structs, callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkObjectDestructureValue(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  value := expr.children[0]
+  checked := checkExpr(value, structs, callables, errors, bindings)
+  sourceType := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+  checkObjectDestructureSourceType(expr.params, sourceType, structs, checked)
+}
+
+checkObjectDestructureSourceType(
+  params: Array[IRParam],
+  sourceType: String,
+  structs: Array[IRStructType],
+  errors: Array[String]
+) -> Array[String] => sourceType {
+  "" => errors
+  _ => {
+    typeDecl := findCompilerStruct(structs, compilerTypeBase(sourceType), 0)
+    found := typeDecl.name != ""
+    found {
+      true => checkObjectDestructureFields(params, 0, sourceType, typeDecl.fields, errors)
+      _ => [..errors, ("type " + sourceType) + " has no fields"]
+    }
+  }
+}
+
+checkObjectDestructureFields(
+  params: Array[IRParam],
+  index: Int,
+  sourceType: String,
+  fields: Array[IRField],
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= params.length()
+  done {
+    true => errors
+    _ => checkObjectDestructureField(params, index, sourceType, fields, errors)
+  }
+}
+
+checkObjectDestructureField(
+  params: Array[IRParam],
+  index: Int,
+  sourceType: String,
+  fields: Array[IRField],
+  errors: Array[String]
+) -> Array[String] => {
+  fieldName := params[index].typeName
+  duplicate := compilerDestructureFieldAppearsBefore(params, fieldName, index - 1)
+  field := findCompilerStructField(fields, fieldName, 0)
+  next := duplicate {
+    true => [..errors, ("duplicate destructured field \"" + fieldName) + "\""]
+    _ => field.name {
+      "" => [..errors, ((("type " + sourceType) + " has no field \"") + fieldName) + "\""]
+      _ => errors
+    }
+  }
+  checkObjectDestructureFields(params, index + 1, sourceType, fields, next)
+}
+
+compilerDestructureFieldAppearsBefore(
+  params: Array[IRParam],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => compilerDestructureFieldAppearsBeforeAt(params, name, index)
+  }
+}
+
+compilerDestructureFieldAppearsBeforeAt(
+  params: Array[IRParam],
+  name: String,
+  index: Int
+) -> Bool => {
+  matched := params[index].typeName == name
+  matched {
+    true => true
+    _ => compilerDestructureFieldAppearsBefore(params, name, index - 1)
   }
 }
 
@@ -2303,7 +2406,7 @@ blockBindingsAfterStatement(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => statement.kind {
   ExprKind.Let => bindCompilerLet(statement, structs, callables, bindings)
-  ExprKind.ObjectDestructure => bindCompilerObjectDestructure(statement.params, 0, bindings)
+  ExprKind.ObjectDestructure => bindCompilerObjectDestructure(statement, structs, callables, bindings)
   _ => bindings
 }
 
@@ -2349,14 +2452,42 @@ addCompilerValueBinding(
 ) -> Array[CompilerTypeBinding] => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
 
 bindCompilerObjectDestructure(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  hasValue := expr.children.length() > 0
+  hasValue {
+    true => bindCompilerObjectDestructureParams(expr.params, 0, inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings), structs, bindings)
+    _ => bindings
+  }
+}
+
+bindCompilerObjectDestructureParams(
   params: Array[IRParam],
   index: Int,
+  sourceType: String,
+  structs: Array[IRStructType],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => {
   done := index >= params.length()
   done {
     true => bindings
-    _ => bindCompilerObjectDestructure(params, index + 1, addCompilerValueBinding(bindings, params[index].name, ""))
+    _ => bindCompilerObjectDestructureParams(params, index + 1, sourceType, structs, addCompilerValueBinding(bindings, params[index].name, compilerObjectDestructureFieldType(params[index], sourceType, structs)))
+  }
+}
+
+compilerObjectDestructureFieldType(
+  param: IRParam,
+  sourceType: String,
+  structs: Array[IRStructType]
+) -> String => sourceType {
+  "" => ""
+  _ => {
+    typeDecl := findCompilerStruct(structs, compilerTypeBase(sourceType), 0)
+    field := findCompilerStructField(typeDecl.fields, param.typeName, 0)
+    field.typeName
   }
 }
 
