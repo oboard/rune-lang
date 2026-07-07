@@ -2345,6 +2345,27 @@ func ____rune_private_b990f3d7_parseStructTypeLoop(__state __ParserState, __type
 }
 
 func ____rune_private_b990f3d7_parseStructTypeMember(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__macroMethod := ____rune_private_b990f3d7_looksLikeMacroFunctionDecl(__current)
+	return func() __TypeStep {
+		switch {
+		case __macroMethod == true:
+			return ____rune_private_b990f3d7_parseStructMacroMethod(__current, __typeDecl)
+		default:
+			return ____rune_private_b990f3d7_parseStructTypeMemberValue(__current, __typeDecl)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseStructMacroMethod(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
+	__marker := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Hash, "expected '#' before macro method")
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(____rune_private_b990f3d7_parserSkipNewlines(__marker.__state), __typeDecl.__name, true, false, true, ____rune_private_b990f3d7_emptyAnnotations())
+	__typeDecl.__methods = append(__typeDecl.__methods, __step.__function)
+	__next := ____rune_private_b990f3d7_parserSkipNewlines(____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_consumeStatementEnd(__step.__state), __TokenKind_Comma).__state)
+	return ____rune_private_b990f3d7_parseStructTypeLoop(__next, __typeDecl)
+}
+
+func ____rune_private_b990f3d7_parseStructTypeMemberValue(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
 	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
 	__current := __annotationStep.__state
 	__privateStep := ____rune_private_b990f3d7_parseObjectPrivateModifier(__current)
@@ -2405,6 +2426,27 @@ func ____rune_private_b990f3d7_parseEnumTypeLoop(__state __ParserState, __typeDe
 }
 
 func ____rune_private_b990f3d7_parseEnumTypeMember(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	__macroMethod := ____rune_private_b990f3d7_looksLikeMacroFunctionDecl(__current)
+	return func() __TypeStep {
+		switch {
+		case __macroMethod == true:
+			return ____rune_private_b990f3d7_parseEnumMacroMethod(__current, __typeDecl)
+		default:
+			return ____rune_private_b990f3d7_parseEnumTypeMemberValueOrMethod(__current, __typeDecl)
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_parseEnumMacroMethod(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
+	__marker := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Hash, "expected '#' before macro method")
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(____rune_private_b990f3d7_parserSkipNewlines(__marker.__state), __typeDecl.__name, true, false, true, ____rune_private_b990f3d7_emptyAnnotations())
+	__typeDecl.__methods = append(__typeDecl.__methods, __step.__function)
+	__next := ____rune_private_b990f3d7_parserSkipNewlines(____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_consumeStatementEnd(__step.__state), __TokenKind_Comma).__state)
+	return ____rune_private_b990f3d7_parseEnumTypeLoop(__next, __typeDecl)
+}
+
+func ____rune_private_b990f3d7_parseEnumTypeMemberValueOrMethod(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
 	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
 	__current := __annotationStep.__state
 	__privateStep := ____rune_private_b990f3d7_parseObjectPrivateModifier(__current)
@@ -13881,7 +13923,48 @@ func ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn __ParsedFunctio
 
 func ____rune_private_0d2ebf0f_compilerMacroErrors(__file __ParsedFile, __errors []__ParseError) []__ParseError {
 	__functionErrors := ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__file.__functions, 0, __errors)
-	return ____rune_private_0d2ebf0f_compilerAnnotationErrors(__file, __functionErrors)
+	__methodErrors := ____rune_private_0d2ebf0f_compilerMacroMethodErrors(__file.__types, 0, __functionErrors)
+	return ____rune_private_0d2ebf0f_compilerAnnotationErrors(__file, __methodErrors)
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroMethodErrors(__types []__ParsedType, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__types)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerMacroMethodErrors(__types, __index+1, ____rune_private_0d2ebf0f_compilerMacroTypeMethodErrors(__types[__index].__methods, 0, __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroTypeMethodErrors(__methods []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {
+	__done := __index >= len(__methods)
+	return func() []__ParseError {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_compilerMacroTypeMethodErrors(__methods, __index+1, ____rune_private_0d2ebf0f_compilerMacroTypeMethodError(__methods[__index], __errors))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMacroTypeMethodError(__method __ParsedFunction, __errors []__ParseError) []__ParseError {
+	return func() []__ParseError {
+		switch {
+		case __method.__macro == true:
+			return func() []__ParseError {
+				out := []__ParseError{}
+				out = append(out, __errors...)
+				out = append(out, ____rune_private_0d2ebf0f_compilerParseError("macro declarations must be top-level functions", __method.__line, __method.__column))
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerMacroFunctionErrors(__functions []__ParsedFunction, __index int, __errors []__ParseError) []__ParseError {

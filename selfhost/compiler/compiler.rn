@@ -4590,7 +4590,40 @@ compilerMacroErrors(
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   functionErrors := compilerMacroFunctionErrors(file.functions, 0, errors)
-  compilerAnnotationErrors(file, functionErrors)
+  methodErrors := compilerMacroMethodErrors(file.types, 0, functionErrors)
+  compilerAnnotationErrors(file, methodErrors)
+}
+
+compilerMacroMethodErrors(
+  types: Array[ParsedType],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= types.length()
+  done {
+    true => errors
+    _ => compilerMacroMethodErrors(types, index + 1, compilerMacroTypeMethodErrors(types[index].methods, 0, errors))
+  }
+}
+
+compilerMacroTypeMethodErrors(
+  methods: Array[ParsedFunction],
+  index: Int,
+  errors: Array[ParseError]
+) -> Array[ParseError] => {
+  done := index >= methods.length()
+  done {
+    true => errors
+    _ => compilerMacroTypeMethodErrors(methods, index + 1, compilerMacroTypeMethodError(methods[index], errors))
+  }
+}
+
+compilerMacroTypeMethodError(
+  method: ParsedFunction,
+  errors: Array[ParseError]
+) -> Array[ParseError] => method.macro {
+  true => [..errors, compilerParseError("macro declarations must be top-level functions", method.line, method.column)]
+  _ => errors
 }
 
 compilerMacroFunctionErrors(

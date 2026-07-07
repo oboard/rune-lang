@@ -923,6 +923,29 @@ parseStructTypeMember(
   state: ParserState,
   typeDecl: ParsedType
 ) -> TypeStep => {
+  current := parserSkipNewlines(state)
+  macroMethod := looksLikeMacroFunctionDecl(current)
+  macroMethod {
+    true => parseStructMacroMethod(current, typeDecl)
+    _ => parseStructTypeMemberValue(current, typeDecl)
+  }
+}
+
+parseStructMacroMethod(
+  state: ParserState,
+  typeDecl: ParsedType
+) -> TypeStep => {
+  marker := parserConsume(state, TokenKind.Hash, "expected '#' before macro method")
+  step := parseFunctionWithReceiver(parserSkipNewlines(marker.state), typeDecl.name, true, false, true, emptyAnnotations())
+  typeDecl.methods.push(step.function)
+  next := parserSkipNewlines(parserMatch(consumeStatementEnd(step.state), TokenKind.Comma).state)
+  parseStructTypeLoop(next, typeDecl)
+}
+
+parseStructTypeMemberValue(
+  state: ParserState,
+  typeDecl: ParsedType
+) -> TypeStep => {
   annotationStep := parseAnnotations(state)
   current := annotationStep.state
   privateStep := parseObjectPrivateModifier(current)
@@ -1036,6 +1059,29 @@ parseEnumTypeLoop(
 }
 
 parseEnumTypeMember(
+  state: ParserState,
+  typeDecl: ParsedType
+) -> TypeStep => {
+  current := parserSkipNewlines(state)
+  macroMethod := looksLikeMacroFunctionDecl(current)
+  macroMethod {
+    true => parseEnumMacroMethod(current, typeDecl)
+    _ => parseEnumTypeMemberValueOrMethod(current, typeDecl)
+  }
+}
+
+parseEnumMacroMethod(
+  state: ParserState,
+  typeDecl: ParsedType
+) -> TypeStep => {
+  marker := parserConsume(state, TokenKind.Hash, "expected '#' before macro method")
+  step := parseFunctionWithReceiver(parserSkipNewlines(marker.state), typeDecl.name, true, false, true, emptyAnnotations())
+  typeDecl.methods.push(step.function)
+  next := parserSkipNewlines(parserMatch(consumeStatementEnd(step.state), TokenKind.Comma).state)
+  parseEnumTypeLoop(next, typeDecl)
+}
+
+parseEnumTypeMemberValueOrMethod(
   state: ParserState,
   typeDecl: ParsedType
 ) -> TypeStep => {
