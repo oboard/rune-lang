@@ -36,7 +36,7 @@ CompilerCallable: {
   source: String,
   target: String
 ) -> CompileResult => {
-  file := lower(source)
+  file := lowerCompilerSource(source)
   compileFile(file, target)
 }
 
@@ -220,6 +220,138 @@ lowerFiles(
     : lowerReachableTypeScriptFiles(files, lowerReachableRuneFiles(files, [files[0].path], [], emptyCompilerIRFile()))
 )
 
+lowerCompilerSource(
+  source: String
+) -> IRFile => lowerParsed(expandCompilerMacros(parse(source)))
+
+expandCompilerMacros(
+  file: ParsedFile
+) -> ParsedFile => {
+  out := ParsedFile {
+    imports: file.imports,
+    types: [],
+    functions: [],
+    tests: file.tests,
+    errors: file.errors
+  }
+  file.types.each((typeDecl) => out.types.push(expandCompilerTypeMacros(typeDecl)))
+  file.functions.each((fn) => out.functions.push(expandCompilerFunctionMacros(fn)))
+  out
+}
+
+expandCompilerTypeMacros(
+  typeDecl: ParsedType
+) -> ParsedType => {
+  fields := typeDecl.fields.slice(0, 0)
+  methods := typeDecl.methods.slice(0, 0)
+  members := typeDecl.members.slice(0, 0)
+  typeDecl.fields.each((field) => fields.push(expandCompilerFieldMacros(field)))
+  typeDecl.methods.each((method) => methods.push(expandCompilerFunctionMacros(method)))
+  typeDecl.members.each((member) => members.push(expandCompilerEnumMemberMacros(member)))
+  ParsedType {
+    name: compilerRenameDeclarationName(typeDecl.annotations, typeDecl.name),
+    private: typeDecl.private,
+    enum: typeDecl.enum,
+    annotations: typeDecl.annotations,
+    generics: typeDecl.generics,
+    fields: fields,
+    methods: methods,
+    members: members,
+    line: typeDecl.line,
+    column: typeDecl.column
+  }
+}
+
+expandCompilerFieldMacros(
+  field: ParsedField
+) -> ParsedField => {
+  name: compilerRenameDeclarationName(field.annotations, field.name),
+  private: field.private,
+  annotations: field.annotations,
+  typeRef: field.typeRef,
+  line: field.line,
+  column: field.column
+}
+
+expandCompilerEnumMemberMacros(
+  member: ParsedEnumMember
+) -> ParsedEnumMember => {
+  name: compilerRenameDeclarationName(member.annotations, member.name),
+  private: member.private,
+  annotations: member.annotations,
+  value: member.value,
+  params: member.params,
+  line: member.line,
+  column: member.column
+}
+
+expandCompilerFunctionMacros(
+  fn: ParsedFunction
+) -> ParsedFunction => {
+  name: compilerRenameDeclarationName(fn.annotations, fn.name),
+  private: fn.private,
+  static: fn.static,
+  routine: fn.routine,
+  macro: fn.macro,
+  annotations: fn.annotations,
+  receiverType: fn.receiverType,
+  generics: fn.generics,
+  params: fn.params,
+  returnType: fn.returnType,
+  body: fn.body,
+  line: fn.line,
+  column: fn.column
+}
+
+compilerRenameDeclarationName(
+  annotations: Array[ParsedAnnotation],
+  fallback: String
+) -> String => compilerRenameDeclarationNameAt(annotations, fallback, 0)
+
+compilerRenameDeclarationNameAt(
+  annotations: Array[ParsedAnnotation],
+  fallback: String,
+  index: Int
+) -> String => {
+  done := index >= annotations.length()
+  done {
+    true => fallback
+    _ => compilerRenameDeclarationNameStep(annotations, fallback, index)
+  }
+}
+
+compilerRenameDeclarationNameStep(
+  annotations: Array[ParsedAnnotation],
+  fallback: String,
+  index: Int
+) -> String => {
+  annotation := annotations[index]
+  matched := (((annotation.marker == "#") && (annotation.module == "macro")) && (annotation.name == "renameDeclaration")) && (annotation.args.length() > 0)
+  matched {
+    true => compilerAnnotationStringArg(annotation, 0, fallback)
+    _ => compilerRenameDeclarationNameAt(annotations, fallback, index + 1)
+  }
+}
+
+compilerAnnotationStringArg(
+  annotation: ParsedAnnotation,
+  index: Int,
+  fallback: String
+) -> String => {
+  valid := (index < annotation.args.length()) && (annotation.args[index].kind == ExprKind.String)
+  valid {
+    true => compilerUnquoteString(annotation.args[index].value)
+    _ => fallback
+  }
+}
+
+compilerUnquoteString(
+  raw: String
+) -> String => (
+  raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+    : raw
+)
+
 lowerReachableRuneFiles(
   files: Array[SourceFile],
   pending: Array[String],
@@ -283,7 +415,7 @@ lowerFoundRuneSourceFile(
   seen: Array[String],
   out: IRFile
 ) -> IRFile => {
-  lowered := lower(file.source)
+  lowered := lowerCompilerSource(file.source)
   lowerReachableRuneFiles(files, appendImportPaths(rest, lowered.imports, 0), seen, mergeCompilerIRFile(out, lowered))
 }
 

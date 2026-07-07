@@ -3353,13 +3353,63 @@ looksLikeLambdaAfterParams(
   parserKindAt(state, skipNewlinesAt(state, afterReturn)) == TokenKind.FatArrow
 }
 
+skipAnnotationsAt(
+  state: ParserState,
+  index: Int
+) -> Int => {
+  current := skipNewlinesAt(state, index)
+  annotation := looksLikeAnnotationAt(state, current)
+  annotation {
+    true => skipAnnotationsAt(state, skipAnnotationAt(state, current))
+    _ => current
+  }
+}
+
+looksLikeAnnotationAt(
+  state: ParserState,
+  index: Int
+) -> Bool => {
+  kind := parserKindAt(state, index)
+  kind {
+    TokenKind.Hash => parserKindAt(state, index + 1) == TokenKind.Ident
+    TokenKind.At => parserKindAt(state, index + 1) == TokenKind.Ident
+    _ => false
+  }
+}
+
+skipAnnotationAt(
+  state: ParserState,
+  index: Int
+) -> Int => {
+  afterName := skipAnnotationNameAt(state, index + 2)
+  afterNewlines := skipNewlinesAt(state, afterName)
+  hasArgs := parserKindAt(state, afterNewlines) == TokenKind.LParen
+  hasArgs {
+    true => skipNewlinesAt(state, skipBalancedAt(state, afterNewlines, TokenKind.LParen, TokenKind.RParen))
+    _ => afterNewlines
+  }
+}
+
+skipAnnotationNameAt(
+  state: ParserState,
+  index: Int
+) -> Int => {
+  qualified := (parserKindAt(state, index) == TokenKind.Dot) && (parserKindAt(state, index + 1) == TokenKind.Ident)
+  qualified {
+    true => index + 2
+    _ => index
+  }
+}
+
 looksLikeEnumMember(
   state: ParserState
 ) -> Bool => {
-  start := (
-    parserCheck(state, TokenKind.Plus) ? skipNewlinesAt(state, state.current + 1)
-      : state.current
-  )
+  afterAnnotations := skipAnnotationsAt(state, state.current)
+  plus := parserKindAt(state, afterAnnotations) == TokenKind.Plus
+  start := plus {
+    true => skipNewlinesAt(state, afterAnnotations + 1)
+    _ => afterAnnotations
+  }
   token := parserTokenAt(state, start)
   next := parserKindAt(state, skipNewlinesAt(state, start + 1))
   (token.kind == TokenKind.Ident) && ((next == TokenKind.Assign) || ((next == TokenKind.LParen) && startsWithUpper(token.lexeme)) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))

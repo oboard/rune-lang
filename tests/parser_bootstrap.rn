@@ -47,6 +47,11 @@ Args: {
 #macro.renameDeclaration("renamed")
 run() => 1
 
+Command: {
+  #macro.renameDeclaration("RenamedRun")
+  Run
+}
+
 #local(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 `
   file := parse(source)
@@ -57,6 +62,9 @@ run() => 1
   @assert.eq(file.types[0].annotations[0].name, "command")
   @assert.eq(file.types[0].annotations[0].args.length(), 2)
   @assert.eq(file.types[0].fields[0].annotations[0].name, "flag")
+  @assert.eq(file.types[1].enum, true)
+  @assert.eq(file.types[1].members[0].annotations[0].module, "macro")
+  @assert.eq(file.types[1].members[0].annotations[0].name, "renameDeclaration")
   @assert.eq(file.functions[0].annotations[0].module, "macro")
   @assert.eq(file.functions[0].annotations[0].name, "renameDeclaration")
   @assert.eq(file.functions[1].macro, true)

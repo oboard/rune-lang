@@ -4253,12 +4253,69 @@ func ____rune_private_b990f3d7_looksLikeLambdaAfterParams(__state __ParserState,
 	return ____rune_private_b990f3d7_parserKindAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __afterReturn)) == __TokenKind_FatArrow
 }
 
-func ____rune_private_b990f3d7_looksLikeEnumMember(__state __ParserState) bool {
-	__start := func() int {
-		if ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_Plus) {
-			return ____rune_private_b990f3d7_skipNewlinesAt(__state, __state.__current+1)
+func ____rune_private_b990f3d7_skipAnnotationsAt(__state __ParserState, __index int) int {
+	__current := ____rune_private_b990f3d7_skipNewlinesAt(__state, __index)
+	__annotation := ____rune_private_b990f3d7_looksLikeAnnotationAt(__state, __current)
+	return func() int {
+		switch {
+		case __annotation == true:
+			return ____rune_private_b990f3d7_skipAnnotationsAt(__state, ____rune_private_b990f3d7_skipAnnotationAt(__state, __current))
+		default:
+			return __current
 		}
-		return __state.__current
+	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeAnnotationAt(__state __ParserState, __index int) bool {
+	__kind := ____rune_private_b990f3d7_parserKindAt(__state, __index)
+	return func() bool {
+		switch {
+		case __kind == __TokenKind_Hash:
+			return ____rune_private_b990f3d7_parserKindAt(__state, __index+1) == __TokenKind_Ident
+		case __kind == __TokenKind_At:
+			return ____rune_private_b990f3d7_parserKindAt(__state, __index+1) == __TokenKind_Ident
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_skipAnnotationAt(__state __ParserState, __index int) int {
+	__afterName := ____rune_private_b990f3d7_skipAnnotationNameAt(__state, __index+2)
+	__afterNewlines := ____rune_private_b990f3d7_skipNewlinesAt(__state, __afterName)
+	__hasArgs := ____rune_private_b990f3d7_parserKindAt(__state, __afterNewlines) == __TokenKind_LParen
+	return func() int {
+		switch {
+		case __hasArgs == true:
+			return ____rune_private_b990f3d7_skipNewlinesAt(__state, ____rune_private_b990f3d7_skipBalancedAt(__state, __afterNewlines, __TokenKind_LParen, __TokenKind_RParen))
+		default:
+			return __afterNewlines
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_skipAnnotationNameAt(__state __ParserState, __index int) int {
+	__qualified := ____rune_private_b990f3d7_parserKindAt(__state, __index) == __TokenKind_Dot && ____rune_private_b990f3d7_parserKindAt(__state, __index+1) == __TokenKind_Ident
+	return func() int {
+		switch {
+		case __qualified == true:
+			return __index + 2
+		default:
+			return __index
+		}
+	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeEnumMember(__state __ParserState) bool {
+	__afterAnnotations := ____rune_private_b990f3d7_skipAnnotationsAt(__state, __state.__current)
+	__plus := ____rune_private_b990f3d7_parserKindAt(__state, __afterAnnotations) == __TokenKind_Plus
+	__start := func() int {
+		switch {
+		case __plus == true:
+			return ____rune_private_b990f3d7_skipNewlinesAt(__state, __afterAnnotations+1)
+		default:
+			return __afterAnnotations
+		}
 	}()
 	__token := ____rune_private_b990f3d7_parserTokenAt(__state, __start)
 	__next := ____rune_private_b990f3d7_parserKindAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __start+1))
@@ -8143,7 +8200,7 @@ func __compileMoonBit(__source string) __CompileResult {
 }
 
 func __compile(__source string, __target string) __CompileResult {
-	__file := __lower(__source)
+	__file := ____rune_private_0d2ebf0f_lowerCompilerSource(__source)
 	return ____rune_private_0d2ebf0f_compileFile(__file, __target)
 }
 
@@ -8387,6 +8444,119 @@ func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
 	}()
 }
 
+func ____rune_private_0d2ebf0f_lowerCompilerSource(__source string) __IRFile {
+	return __lowerParsed(____rune_private_0d2ebf0f_expandCompilerMacros(__parse(__source)))
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __ParsedFile {
+	__out := __ParsedFile{__imports: __file.__imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: __file.__tests, __errors: __file.__errors}
+	for _, __typeDecl := range __file.__types {
+		_ = __typeDecl
+		func() int {
+			__out.__types = append(__out.__types, ____rune_private_0d2ebf0f_expandCompilerTypeMacros(__typeDecl))
+			return len(__out.__types)
+		}()
+	}
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		func() int {
+			__out.__functions = append(__out.__functions, ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn))
+			return len(__out.__functions)
+		}()
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerTypeMacros(__typeDecl __ParsedType) __ParsedType {
+	__fields := append([]__ParsedField{}, __typeDecl.__fields[0:0]...)
+	__methods := append([]__ParsedFunction{}, __typeDecl.__methods[0:0]...)
+	__members := append([]__ParsedEnumMember{}, __typeDecl.__members[0:0]...)
+	for _, __field := range __typeDecl.__fields {
+		_ = __field
+		func() int {
+			__fields = append(__fields, ____rune_private_0d2ebf0f_expandCompilerFieldMacros(__field))
+			return len(__fields)
+		}()
+	}
+	for _, __method := range __typeDecl.__methods {
+		_ = __method
+		func() int {
+			__methods = append(__methods, ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__method))
+			return len(__methods)
+		}()
+	}
+	for _, __member := range __typeDecl.__members {
+		_ = __member
+		func() int {
+			__members = append(__members, ____rune_private_0d2ebf0f_expandCompilerEnumMemberMacros(__member))
+			return len(__members)
+		}()
+	}
+	return __ParsedType{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__typeDecl.__annotations, __typeDecl.__name), __private: __typeDecl.__private, __enum: __typeDecl.__enum, __annotations: __typeDecl.__annotations, __generics: __typeDecl.__generics, __fields: __fields, __methods: __methods, __members: __members, __line: __typeDecl.__line, __column: __typeDecl.__column}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerFieldMacros(__field __ParsedField) __ParsedField {
+	return __ParsedField{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__field.__annotations, __field.__name), __private: __field.__private, __annotations: __field.__annotations, __typeRef: __field.__typeRef, __line: __field.__line, __column: __field.__column}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerEnumMemberMacros(__member __ParsedEnumMember) __ParsedEnumMember {
+	return __ParsedEnumMember{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__member.__annotations, __member.__name), __private: __member.__private, __annotations: __member.__annotations, __value: __member.__value, __params: __member.__params, __line: __member.__line, __column: __member.__column}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn __ParsedFunction) __ParsedFunction {
+	return __ParsedFunction{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __fn.__body, __line: __fn.__line, __column: __fn.__column}
+}
+
+func ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__annotations []__ParsedAnnotation, __fallback string) string {
+	return ____rune_private_0d2ebf0f_compilerRenameDeclarationNameAt(__annotations, __fallback, 0)
+}
+
+func ____rune_private_0d2ebf0f_compilerRenameDeclarationNameAt(__annotations []__ParsedAnnotation, __fallback string, __index int) string {
+	__done := __index >= len(__annotations)
+	return func() string {
+		switch {
+		case __done == true:
+			return __fallback
+		default:
+			return ____rune_private_0d2ebf0f_compilerRenameDeclarationNameStep(__annotations, __fallback, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerRenameDeclarationNameStep(__annotations []__ParsedAnnotation, __fallback string, __index int) string {
+	__annotation := __annotations[__index]
+	__matched := __annotation.__marker == "#" && __annotation.__module == "macro" && __annotation.__name == "renameDeclaration" && len(__annotation.__args) > 0
+	return func() string {
+		switch {
+		case __matched == true:
+			return ____rune_private_0d2ebf0f_compilerAnnotationStringArg(__annotation, 0, __fallback)
+		default:
+			return ____rune_private_0d2ebf0f_compilerRenameDeclarationNameAt(__annotations, __fallback, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAnnotationStringArg(__annotation __ParsedAnnotation, __index int, __fallback string) string {
+	__valid := __index < len(__annotation.__args) && __annotation.__args[__index].__kind == __ExprKind_String
+	return func() string {
+		switch {
+		case __valid == true:
+			return ____rune_private_0d2ebf0f_compilerUnquoteString(__annotation.__args[__index].__value)
+		default:
+			return __fallback
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerUnquoteString(__raw string) string {
+	return func() string {
+		if len([]rune(__raw)) >= 2 {
+			return func() string { runes := []rune(__raw); return string(runes[1 : len([]rune(__raw))-1]) }()
+		}
+		return __raw
+	}()
+}
+
 func ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files []__SourceFile, __pending []string, __seen []string, __out __IRFile) __IRFile {
 	__empty := len(__pending) == 0
 	return func() __IRFile {
@@ -8442,7 +8612,7 @@ func ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files []__SourceFile, __fi
 }
 
 func ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
-	__lowered := __lower(__file.__source)
+	__lowered := ____rune_private_0d2ebf0f_lowerCompilerSource(__file.__source)
 	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __lowered.__imports, 0), __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered))
 }
 

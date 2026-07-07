@@ -139,6 +139,36 @@ main() -> Int => 1
   @assert.eq(mbt.output.includes("__tag"), false)
 }
 
+? "selfhost compiler expands rename declaration macro" {
+  source := `#macro.renameDeclaration("RenamedArgs")
+Args: {
+  #macro.renameDeclaration("renamedField")
+  value: Int
+
+  #macro.renameDeclaration("renamedMethod")
+  read() -> Int => 1
+}
+
+#macro.renameDeclaration("RenamedCommand")
+Command: {
+  #macro.renameDeclaration("RenamedRun")
+  Run
+}
+
+#macro.renameDeclaration("renamedFunction")
+execute() -> Int => 1
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("type __RenamedArgs struct"), true)
+  @assert.eq(result.output.includes("__renamedField int"), true)
+  @assert.eq(result.output.includes("func (__this __RenamedArgs) __renamedMethod() int"), true)
+  @assert.eq(result.output.includes("type __RenamedCommand int"), true)
+  @assert.eq(result.output.includes("__RenamedCommand_RenamedRun __RenamedCommand"), true)
+  @assert.eq(result.output.includes("func __renamedFunction() int"), true)
+}
+
 ? "selfhost compiler omits syntax helpers from runtime" {
   source := `helper(name: String) -> SyntaxExpr => CallExpr(IdentifierExpr(name), [])
 
