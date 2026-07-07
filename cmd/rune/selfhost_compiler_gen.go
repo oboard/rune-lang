@@ -9658,6 +9658,10 @@ func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStruct
 			return ____rune_private_0d2ebf0f_checkStructExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Ternary:
 			return ____rune_private_0d2ebf0f_checkTernaryExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Unary:
+			return ____rune_private_0d2ebf0f_checkUnaryExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Binary:
+			return ____rune_private_0d2ebf0f_checkBinaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		default:
 			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
 		}
@@ -9733,6 +9737,61 @@ func ____rune_private_0d2ebf0f_checkTernaryBranchTypes(__consequence __IRExpr, _
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "ternary branches return "+__left+" and "+__right)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkUnaryExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	return func() []string {
+		switch {
+		case __expr.__op == "!":
+			return ____rune_private_0d2ebf0f_checkBoolOperand("!", __expr.__children[0], __callables, __bindings, __checked)
+		default:
+			return __checked
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBinaryExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
+	__boolOp := __expr.__op == "&&" || __expr.__op == "||"
+	return func() []string {
+		switch {
+		case __boolOp == true:
+			return ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr, __callables, __bindings, __checked)
+		default:
+			return __checked
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkBoolOperand(__expr.__op, __expr.__children[1], __callables, __bindings, ____rune_private_0d2ebf0f_checkBoolOperand(__expr.__op, __expr.__children[0], __callables, __bindings, __errors))
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkBoolOperand(__op string, __operand __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__operand, __callables, __bindings)
+	__mismatch := __actual != "" && __actual != "Bool"
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '"+__op+"' expects Bool, got "+__actual)
 				return out
 			}()
 		default:
@@ -10401,6 +10460,8 @@ func ____rune_private_0d2ebf0f_inferCompilerExprType(__expr __IRExpr, __callable
 			return ____rune_private_0d2ebf0f_inferCompilerBlockType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Ternary:
 			return ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr, __callables, __bindings)
+		case __expr.__kind == __ExprKind_Unary:
+			return ____rune_private_0d2ebf0f_inferCompilerUnaryType(__expr, __callables, __bindings)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_0d2ebf0f_inferCompilerBinaryType(__expr, __callables, __bindings)
 		default:
@@ -10567,6 +10628,17 @@ func ____rune_private_0d2ebf0f_inferCompilerTernaryType(__expr __IRExpr, __calla
 			return ____rune_private_0d2ebf0f_inferCompilerCommonType(____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings), ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[2], __callables, __bindings))
 		default:
 			return ""
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_inferCompilerUnaryType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		switch {
+		case __expr.__op == "!":
+			return "Bool"
+		default:
+			return ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
 		}
 	}()
 }

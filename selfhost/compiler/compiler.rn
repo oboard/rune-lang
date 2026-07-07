@@ -669,6 +669,8 @@ checkExpr(
   ExprKind.Let => checkLetExpr(expr, structs, callables, errors, bindings)
   ExprKind.Struct => checkStructExpr(expr, structs, callables, errors, bindings)
   ExprKind.Ternary => checkTernaryExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Unary => checkUnaryExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Binary => checkBinaryExpr(expr, structs, callables, errors, bindings)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
 
@@ -749,6 +751,63 @@ checkTernaryBranchTypes(
   mismatch := shouldCheck && (inferCompilerCommonType(left, right) == "")
   mismatch {
     true => [..errors, (("ternary branches return " + left) + " and ") + right]
+    _ => errors
+  }
+}
+
+checkUnaryExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  expr.op {
+    "!" => checkBoolOperand("!", expr.children[0], callables, bindings, checked)
+    _ => checked
+  }
+}
+
+checkBinaryExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExprDefault(expr, structs, callables, errors, bindings)
+  boolOp := (expr.op == "&&") || (expr.op == "||")
+  boolOp {
+    true => checkBinaryBoolOperands(expr, callables, bindings, checked)
+    _ => checked
+  }
+}
+
+checkBinaryBoolOperands(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkBoolOperand(expr.op, expr.children[1], callables, bindings, checkBoolOperand(expr.op, expr.children[0], callables, bindings, errors))
+    _ => errors
+  }
+}
+
+checkBoolOperand(
+  op: String,
+  operand: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(operand, callables, bindings)
+  mismatch := (actual != "") && (actual != "Bool")
+  mismatch {
+    true => [..errors, ((("operator '" + op) + "' expects Bool, got ") + actual)]
     _ => errors
   }
 }
@@ -1416,6 +1475,7 @@ inferCompilerExprType(
   ExprKind.Call => inferCompilerCallType(expr, callables, bindings)
   ExprKind.Block => inferCompilerBlockType(expr, callables, bindings)
   ExprKind.Ternary => inferCompilerTernaryType(expr, callables, bindings)
+  ExprKind.Unary => inferCompilerUnaryType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
   _ => ""
 }
@@ -1586,6 +1646,15 @@ inferCompilerTernaryType(
     true => inferCompilerCommonType(inferCompilerExprType(expr.children[1], callables, bindings), inferCompilerExprType(expr.children[2], callables, bindings))
     _ => ""
   }
+}
+
+inferCompilerUnaryType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => expr.op {
+  "!" => "Bool"
+  _ => inferCompilerExprType(expr.children[0], callables, bindings)
 }
 
 inferCompilerBinaryType(

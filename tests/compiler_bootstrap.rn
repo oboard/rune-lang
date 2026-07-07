@@ -879,6 +879,22 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "ternary branches return Int and String")
 }
 
+? "selfhost compiler reports boolean binary operand type errors" {
+  result := compileGo(`main() -> Bool => 1 && true
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '&&' expects Bool, got Int")
+}
+
+? "selfhost compiler reports boolean unary operand type errors" {
+  result := compileGo(`main() -> Bool => !1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "operator '!' expects Bool, got Int")
+}
+
 ? "selfhost compiler reports call return type errors" {
   result := compileGo(`label() -> String => "rune"
 main() -> Int => label()
