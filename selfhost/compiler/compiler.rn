@@ -791,8 +791,20 @@ checkBinaryExpr(
   boolOp := (expr.op == "&&") || (expr.op == "||")
   boolOp {
     true => checkBinaryBoolOperands(expr, callables, bindings, checked)
-    _ => checkBitwiseBinaryExpr(expr, callables, bindings, checkNumericBinaryExpr(expr, callables, bindings, checkOrderedComparisonExpr(expr, callables, bindings, checked)))
+    _ => checkTypedBinaryExpr(expr, callables, bindings, checked)
   }
+}
+
+checkTypedBinaryExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  checked := checkEqualityComparisonExpr(expr, callables, bindings, errors)
+  checked = checkOrderedComparisonExpr(expr, callables, bindings, checked)
+  checked = checkNumericBinaryExpr(expr, callables, bindings, checked)
+  checkBitwiseBinaryExpr(expr, callables, bindings, checked)
 }
 
 checkBinaryBoolOperands(
@@ -819,6 +831,44 @@ checkBoolOperand(
   mismatch := (actual != "") && (actual != "Bool")
   mismatch {
     true => [..errors, ((("operator '" + op) + "' expects Bool, got ") + actual)]
+    _ => errors
+  }
+}
+
+checkEqualityComparisonExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => compilerEqualityComparisonOp(expr.op) {
+  true => checkEqualityComparisonOperands(expr, callables, bindings, errors)
+  _ => errors
+}
+
+checkEqualityComparisonOperands(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkEqualityComparisonTypes(expr, callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkEqualityComparisonTypes(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  left := inferCompilerExprType(expr.children[0], callables, bindings)
+  right := inferCompilerExprType(expr.children[1], callables, bindings)
+  mismatch := ((left != "") && (right != "")) && (compilerTypesComparable(left, right) == false)
+  mismatch {
+    true => [..errors, (("cannot compare " + left) + " and ") + right]
     _ => errors
   }
 }
@@ -878,6 +928,10 @@ checkOrderedComparisonMatch(
 compilerOrderedComparisonOp(
   op: String
 ) -> Bool => (((op == "<") || (op == "<=")) || (op == ">")) || (op == ">=")
+
+compilerEqualityComparisonOp(
+  op: String
+) -> Bool => (op == "==") || (op == "!=")
 
 compilerOrderedComparisonType(
   typeName: String
@@ -1772,6 +1826,72 @@ compilerTypesCompatible(
   nullable {
     true => (actual == "Null") || compilerTypesCompatible(expected.slice(0, expected.length() - 1), actual)
     _ => (expected == actual) || (compilerTypeBase(expected) == actual)
+  }
+}
+
+compilerTypesComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  unknown := (left == "") || (right == "")
+  unknown {
+    true => true
+    _ => compilerKnownTypesComparable(left, right)
+  }
+}
+
+compilerKnownTypesComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  same := left == right
+  same {
+    true => true
+    _ => compilerNullableTypesComparable(left, right)
+  }
+}
+
+compilerNullableTypesComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  leftNullable := left.endsWith("?")
+  leftNullable {
+    true => compilerLeftNullableComparable(left, right)
+    _ => compilerRightNullableComparable(left, right)
+  }
+}
+
+compilerLeftNullableComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  rightNull := right == "Null"
+  rightNull {
+    true => true
+    _ => compilerTypesComparable(left.slice(0, left.length() - 1), right)
+  }
+}
+
+compilerRightNullableComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  rightNullable := right.endsWith("?")
+  rightNullable {
+    true => compilerRightNullableInnerComparable(left, right)
+    _ => false
+  }
+}
+
+compilerRightNullableInnerComparable(
+  left: String,
+  right: String
+) -> Bool => {
+  leftNull := left == "Null"
+  leftNull {
+    true => true
+    _ => compilerTypesComparable(left, right.slice(0, right.length() - 1))
   }
 }
 

@@ -9769,9 +9769,16 @@ func ____rune_private_0d2ebf0f_checkBinaryExpr(__expr __IRExpr, __structs []__IR
 		case __boolOp == true:
 			return ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr, __callables, __bindings, __checked)
 		default:
-			return ____rune_private_0d2ebf0f_checkBitwiseBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked)))
+			return ____rune_private_0d2ebf0f_checkTypedBinaryExpr(__expr, __callables, __bindings, __checked)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkTypedBinaryExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__checked := ____rune_private_0d2ebf0f_checkEqualityComparisonExpr(__expr, __callables, __bindings, __errors)
+	__checked = ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked)
+	__checked = ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr, __callables, __bindings, __checked)
+	return ____rune_private_0d2ebf0f_checkBitwiseBinaryExpr(__expr, __callables, __bindings, __checked)
 }
 
 func ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
@@ -9796,6 +9803,48 @@ func ____rune_private_0d2ebf0f_checkBoolOperand(__op string, __operand __IRExpr,
 				out := []string{}
 				out = append(out, __errors...)
 				out = append(out, "operator '"+__op+"' expects Bool, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkEqualityComparisonExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerEqualityComparisonOp(__expr.__op) == true:
+			return ____rune_private_0d2ebf0f_checkEqualityComparisonOperands(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkEqualityComparisonOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkEqualityComparisonTypes(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkEqualityComparisonTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
+	__mismatch := __left != "" && __right != "" && ____rune_private_0d2ebf0f_compilerTypesComparable(__left, __right) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "cannot compare "+__left+" and "+__right)
 				return out
 			}()
 		default:
@@ -9866,6 +9915,10 @@ func ____rune_private_0d2ebf0f_checkOrderedComparisonMatch(__expr __IRExpr, __ca
 
 func ____rune_private_0d2ebf0f_compilerOrderedComparisonOp(__op string) bool {
 	return __op == "<" || __op == "<=" || __op == ">" || __op == ">="
+}
+
+func ____rune_private_0d2ebf0f_compilerEqualityComparisonOp(__op string) bool {
+	return __op == "==" || __op == "!="
 }
 
 func ____rune_private_0d2ebf0f_compilerOrderedComparisonType(__typeName string) bool {
@@ -10766,6 +10819,78 @@ func ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected string, __actu
 			return __actual == "Null" || ____rune_private_0d2ebf0f_compilerTypesCompatible(func() string { runes := []rune(__expected); return string(runes[0 : len([]rune(__expected))-1]) }(), __actual)
 		default:
 			return __expected == __actual || ____rune_private_0d2ebf0f_compilerTypeBase(__expected) == __actual
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerTypesComparable(__left string, __right string) bool {
+	__unknown := __left == "" || __right == ""
+	return func() bool {
+		switch {
+		case __unknown == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerKnownTypesComparable(__left, __right)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerKnownTypesComparable(__left string, __right string) bool {
+	__same := __left == __right
+	return func() bool {
+		switch {
+		case __same == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerNullableTypesComparable(__left, __right)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNullableTypesComparable(__left string, __right string) bool {
+	__leftNullable := strings.HasSuffix(__left, "?")
+	return func() bool {
+		switch {
+		case __leftNullable == true:
+			return ____rune_private_0d2ebf0f_compilerLeftNullableComparable(__left, __right)
+		default:
+			return ____rune_private_0d2ebf0f_compilerRightNullableComparable(__left, __right)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerLeftNullableComparable(__left string, __right string) bool {
+	__rightNull := __right == "Null"
+	return func() bool {
+		switch {
+		case __rightNull == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerTypesComparable(func() string { runes := []rune(__left); return string(runes[0 : len([]rune(__left))-1]) }(), __right)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerRightNullableComparable(__left string, __right string) bool {
+	__rightNullable := strings.HasSuffix(__right, "?")
+	return func() bool {
+		switch {
+		case __rightNullable == true:
+			return ____rune_private_0d2ebf0f_compilerRightNullableInnerComparable(__left, __right)
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerRightNullableInnerComparable(__left string, __right string) bool {
+	__leftNull := __left == "Null"
+	return func() bool {
+		switch {
+		case __leftNull == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerTypesComparable(__left, func() string { runes := []rune(__right); return string(runes[0 : len([]rune(__right))-1]) }())
 		}
 	}()
 }
