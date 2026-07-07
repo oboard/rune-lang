@@ -8613,7 +8613,7 @@ func ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files []__SourceFile, __fi
 
 func ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
 	__lowered := ____rune_private_0d2ebf0f_lowerCompilerSource(__file.__source)
-	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __lowered.__imports, 0), __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered))
+	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __file.__path, __lowered.__imports, 0), __seen, ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered))
 }
 
 func ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files []__SourceFile, __out __IRFile) __IRFile {
@@ -8629,61 +8629,94 @@ func ____rune_private_0d2ebf0f_lowerReachableTypeScriptFiles(__files []__SourceF
 	return __out
 }
 
-func ____rune_private_0d2ebf0f_appendImportPaths(__pending []string, __imports []__IRImport, __index int) []string {
+func ____rune_private_0d2ebf0f_appendImportPaths(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
 	__done := __index >= len(__imports)
 	return func() []string {
 		switch {
 		case __done == true:
 			return __pending
 		default:
-			return ____rune_private_0d2ebf0f_appendImportPath(__pending, __imports, __index)
+			return ____rune_private_0d2ebf0f_appendImportPath(__pending, __basePath, __imports, __index)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __imports []__IRImport, __index int) []string {
+func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
 	__goImport := __imports[__index].__go
 	return func() []string {
 		switch {
 		case __goImport == true:
-			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __imports, __index+1)
+			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __basePath, __imports, __index+1)
 		default:
 			return ____rune_private_0d2ebf0f_appendImportPaths(func() []string {
 				out := []string{}
 				out = append(out, __pending...)
-				out = append(out, __imports[__index].__path)
+				out = append(out, ____rune_private_0d2ebf0f_resolveCompilerImportPath(__basePath, __imports[__index].__path))
 				return out
-			}(), __imports, __index+1)
+			}(), __basePath, __imports, __index+1)
 		}
 	}()
 }
 
 func ____rune_private_0d2ebf0f_findSourceFile(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__exact := ____rune_private_0d2ebf0f_findSourceFileExact(__files, ____rune_private_0d2ebf0f_compilerPathNormalize(__path), __index)
+	__found := len(__exact.__path) == 0 == false
+	return func() __SourceFile {
+		switch {
+		case __found == true:
+			return __exact
+		default:
+			return ____rune_private_0d2ebf0f_findSourceFileBasename(__files, __path, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findSourceFileExact(__files []__SourceFile, __path string, __index int) __SourceFile {
 	__done := __index >= len(__files)
 	return func() __SourceFile {
 		switch {
 		case __done == true:
 			return ____rune_private_0d2ebf0f_emptySourceFile()
 		default:
-			return ____rune_private_0d2ebf0f_findSourceFileAt(__files, __path, __index)
+			return ____rune_private_0d2ebf0f_findSourceFileExactAt(__files, __path, __index)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_findSourceFileAt(__files []__SourceFile, __path string, __index int) __SourceFile {
-	__matched := ____rune_private_0d2ebf0f_sourceFileMatches(__files[__index], __path)
+func ____rune_private_0d2ebf0f_findSourceFileExactAt(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__matched := ____rune_private_0d2ebf0f_compilerPathNormalize(__files[__index].__path) == __path
 	return func() __SourceFile {
 		switch {
 		case __matched == true:
 			return __files[__index]
 		default:
-			return ____rune_private_0d2ebf0f_findSourceFile(__files, __path, __index+1)
+			return ____rune_private_0d2ebf0f_findSourceFileExact(__files, __path, __index+1)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_sourceFileMatches(__file __SourceFile, __path string) bool {
-	return __file.__path == __path || ____rune_private_0d2ebf0f_compilerPathBasename(__file.__path) == ____rune_private_0d2ebf0f_compilerPathBasename(__path)
+func ____rune_private_0d2ebf0f_findSourceFileBasename(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__done := __index >= len(__files)
+	return func() __SourceFile {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptySourceFile()
+		default:
+			return ____rune_private_0d2ebf0f_findSourceFileBasenameAt(__files, __path, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findSourceFileBasenameAt(__files []__SourceFile, __path string, __index int) __SourceFile {
+	__matched := ____rune_private_0d2ebf0f_compilerPathBasename(__files[__index].__path) == ____rune_private_0d2ebf0f_compilerPathBasename(__path)
+	return func() __SourceFile {
+		switch {
+		case __matched == true:
+			return __files[__index]
+		default:
+			return ____rune_private_0d2ebf0f_findSourceFileBasename(__files, __path, __index+1)
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_emptySourceFile() __SourceFile {
@@ -8698,6 +8731,117 @@ func ____rune_private_0d2ebf0f_missingImportFile(__path string) __IRFile {
 
 func ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file __SourceFile) bool {
 	return strings.HasSuffix(__file.__path, ".ts")
+}
+
+func ____rune_private_0d2ebf0f_resolveCompilerImportPath(__basePath string, __importPath string) string {
+	__absolute := strings.HasPrefix(__importPath, "/")
+	return func() string {
+		switch {
+		case __absolute == true:
+			return ____rune_private_0d2ebf0f_compilerPathNormalize(__importPath)
+		default:
+			return ____rune_private_0d2ebf0f_compilerPathNormalize(____rune_private_0d2ebf0f_compilerPathJoin(____rune_private_0d2ebf0f_compilerPathDirname(__basePath), __importPath))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathDirname(__path string) string {
+	__slash := strings.LastIndex(__path, "/")
+	return func() string {
+		if __slash < 0 {
+			return ""
+		}
+		return func() string {
+			if __slash == 0 {
+				return "/"
+			}
+			return func() string { runes := []rune(__path); return string(runes[0:__slash]) }()
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathJoin(__base string, __child string) string {
+	return func() string {
+		if len(__base) == 0 {
+			return __child
+		}
+		return func() string {
+			if __base == "/" {
+				return "/" + __child
+			}
+			return __base + "/" + __child
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathNormalize(__path string) string {
+	__absolute := strings.HasPrefix(__path, "/")
+	__parts := func() []string { parts := strings.Split(__path, "/"); return parts }()
+	__normalized := ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, 0, __absolute, append([]string{}, __parts[0:0]...))
+	__joined := ____rune_private_0d2ebf0f_compilerPathJoinParts(__normalized, 0, "")
+	return func() string {
+		switch {
+		case __absolute == true:
+			return "/" + __joined
+		default:
+			return func() string {
+				if len(__joined) == 0 {
+					return "."
+				}
+				return __joined
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts []string, __index int, __absolute bool, __out []string) []string {
+	return func() []string {
+		if __index >= len(__parts) {
+			return __out
+		}
+		return ____rune_private_0d2ebf0f_compilerPathNormalizePart(__parts, __index, __absolute, __out)
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathNormalizePart(__parts []string, __index int, __absolute bool, __out []string) []string {
+	__part := __parts[__index]
+	return func() []string {
+		if len(__part) == 0 || __part == "." {
+			return ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, __index+1, __absolute, __out)
+		}
+		return func() []string {
+			if __part == ".." {
+				return ____rune_private_0d2ebf0f_compilerPathNormalizeParent(__parts, __index, __absolute, __out)
+			}
+			return ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, __index+1, __absolute, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __part); return out }())
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathNormalizeParent(__parts []string, __index int, __absolute bool, __out []string) []string {
+	__canPop := len(__out) > 0 && __out[len(__out)-1] != ".."
+	return func() []string {
+		switch {
+		case __canPop == true:
+			return ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, __index+1, __absolute, append([]string{}, __out[0:len(__out)-1]...))
+		default:
+			return func() []string {
+				if __absolute {
+					return ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, __index+1, __absolute, __out)
+				}
+				return ____rune_private_0d2ebf0f_compilerPathNormalizeParts(__parts, __index+1, __absolute, func() []string { out := []string{}; out = append(out, __out...); out = append(out, ".."); return out }())
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathJoinParts(__parts []string, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__parts) {
+			return __out
+		}
+		return ____rune_private_0d2ebf0f_compilerPathJoinParts(__parts, __index+1, ____rune_private_0d2ebf0f_compilerPathJoin(__out, __parts[__index]))
+	}()
 }
 
 func ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file __SourceFile, __imports []__IRImport) __IRFile {

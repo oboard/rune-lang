@@ -75,6 +75,33 @@ importedAnswer() -> Int => 42
   @assert.eq(mbt.output.includes("struct RuneImportedUser"), true)
 }
 
+? "selfhost compiler resolves imports relative to source file" {
+  files := [
+    SourceFile {
+      path: "app/main.rn",
+      source: `@"./helper.rn"
+
+main() -> Int => importedAnswer()
+`
+    },
+    SourceFile {
+      path: "other/helper.rn",
+      source: `importedAnswer() -> Int => 1
+`
+    },
+    SourceFile {
+      path: "app/helper.rn",
+      source: `importedAnswer() -> Int => 42
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("return 42"), true)
+  @assert.eq(result.output.includes("return 1"), false)
+}
+
 ? "selfhost compiler keeps unimported files private" {
   files := [
     SourceFile {

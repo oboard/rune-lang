@@ -416,7 +416,7 @@ lowerFoundRuneSourceFile(
   out: IRFile
 ) -> IRFile => {
   lowered := lowerCompilerSource(file.source)
-  lowerReachableRuneFiles(files, appendImportPaths(rest, lowered.imports, 0), seen, mergeCompilerIRFile(out, lowered))
+  lowerReachableRuneFiles(files, appendImportPaths(rest, file.path, lowered.imports, 0), seen, mergeCompilerIRFile(out, lowered))
 }
 
 lowerReachableTypeScriptFiles(
@@ -432,25 +432,27 @@ lowerReachableTypeScriptFiles(
 
 appendImportPaths(
   pending: Array[String],
+  basePath: String,
   imports: Array[IRImport],
   index: Int
 ) -> Array[String] => {
   done := index >= imports.length()
   done {
     true => pending
-    _ => appendImportPath(pending, imports, index)
+    _ => appendImportPath(pending, basePath, imports, index)
   }
 }
 
 appendImportPath(
   pending: Array[String],
+  basePath: String,
   imports: Array[IRImport],
   index: Int
 ) -> Array[String] => {
   goImport := imports[index].go
   goImport {
-    true => appendImportPaths(pending, imports, index + 1)
-    _ => appendImportPaths([..pending, imports[index].path], imports, index + 1)
+    true => appendImportPaths(pending, basePath, imports, index + 1)
+    _ => appendImportPaths([..pending, resolveCompilerImportPath(basePath, imports[index].path)], basePath, imports, index + 1)
   }
 }
 
@@ -459,29 +461,61 @@ findSourceFile(
   path: String,
   index: Int
 ) -> SourceFile => {
-  done := index >= files.length()
-  done {
-    true => emptySourceFile()
-    _ => findSourceFileAt(files, path, index)
+  exact := findSourceFileExact(files, compilerPathNormalize(path), index)
+  found := exact.path.isEmpty() == false
+  found {
+    true => exact
+    _ => findSourceFileBasename(files, path, index)
   }
 }
 
-findSourceFileAt(
+findSourceFileExact(
   files: Array[SourceFile],
   path: String,
   index: Int
 ) -> SourceFile => {
-  matched := sourceFileMatches(files[index], path)
-  matched {
-    true => files[index]
-    _ => findSourceFile(files, path, index + 1)
+  done := index >= files.length()
+  done {
+    true => emptySourceFile()
+    _ => findSourceFileExactAt(files, path, index)
   }
 }
 
-sourceFileMatches(
-  file: SourceFile,
-  path: String
-) -> Bool => (file.path == path) || (compilerPathBasename(file.path) == compilerPathBasename(path))
+findSourceFileExactAt(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> SourceFile => {
+  matched := compilerPathNormalize(files[index].path) == path
+  matched {
+    true => files[index]
+    _ => findSourceFileExact(files, path, index + 1)
+  }
+}
+
+findSourceFileBasename(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> SourceFile => {
+  done := index >= files.length()
+  done {
+    true => emptySourceFile()
+    _ => findSourceFileBasenameAt(files, path, index)
+  }
+}
+
+findSourceFileBasenameAt(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> SourceFile => {
+  matched := compilerPathBasename(files[index].path) == compilerPathBasename(path)
+  matched {
+    true => files[index]
+    _ => findSourceFileBasename(files, path, index + 1)
+  }
+}
 
 emptySourceFile() -> SourceFile => SourceFile {
   path: "",
@@ -503,6 +537,104 @@ missingImportFile(
 sourceFileIsTypeScript(
   file: SourceFile
 ) -> Bool => file.path.endsWith(".ts")
+
+resolveCompilerImportPath(
+  basePath: String,
+  importPath: String
+) -> String => {
+  absolute := importPath.startsWith("/")
+  absolute {
+    true => compilerPathNormalize(importPath)
+    _ => compilerPathNormalize(compilerPathJoin(compilerPathDirname(basePath), importPath))
+  }
+}
+
+compilerPathDirname(
+  path: String
+) -> String => {
+  slash := path.lastIndexOf("/")
+  slash < 0 ? ""
+    : (
+      slash == 0 ? "/"
+        : path.slice(0, slash)
+    )
+}
+
+compilerPathJoin(
+  base: String,
+  child: String
+) -> String => (
+  base.isEmpty() ? child
+    : (
+      base == "/" ? "/" + child
+        : (base + "/") + child
+    )
+)
+
+compilerPathNormalize(
+  path: String
+) -> String => {
+  absolute := path.startsWith("/")
+  parts := path.split("/")
+  normalized := compilerPathNormalizeParts(parts, 0, absolute, parts.slice(0, 0))
+  joined := compilerPathJoinParts(normalized, 0, "")
+  absolute {
+    true => "/" + joined
+    _ => (
+      joined.isEmpty() ? "."
+        : joined
+    )
+  }
+}
+
+compilerPathNormalizeParts(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => (
+  index >= parts.length() ? out
+    : compilerPathNormalizePart(parts, index, absolute, out)
+)
+
+compilerPathNormalizePart(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => {
+  part := parts[index]
+  part.isEmpty() || (part == ".") ? compilerPathNormalizeParts(parts, index + 1, absolute, out)
+    : (
+      part == ".." ? compilerPathNormalizeParent(parts, index, absolute, out)
+        : compilerPathNormalizeParts(parts, index + 1, absolute, [..out, part])
+    )
+}
+
+compilerPathNormalizeParent(
+  parts: Array[String],
+  index: Int,
+  absolute: Bool,
+  out: Array[String]
+) -> Array[String] => {
+  canPop := (out.length() > 0) && (out[out.length() - 1] != "..")
+  canPop {
+    true => compilerPathNormalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
+    _ => (
+      absolute ? compilerPathNormalizeParts(parts, index + 1, absolute, out)
+        : compilerPathNormalizeParts(parts, index + 1, absolute, [..out, ".."])
+    )
+  }
+}
+
+compilerPathJoinParts(
+  parts: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= parts.length() ? out
+    : compilerPathJoinParts(parts, index + 1, compilerPathJoin(out, parts[index]))
+)
 
 lowerTypeScriptSourceFile(
   file: SourceFile,
