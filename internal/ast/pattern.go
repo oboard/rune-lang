@@ -127,7 +127,7 @@ func (p *BitPattern) Position() lexer.Position {
 	return p.Pos
 }
 
-type AsPattern struct {
+type AliasPattern struct {
 	Pattern Pattern
 	Name    string
 	Type    string
@@ -135,8 +135,8 @@ type AsPattern struct {
 	Pos     lexer.Position
 }
 
-func (*AsPattern) patternNode() {}
-func (p *AsPattern) Position() lexer.Position {
+func (*AliasPattern) patternNode() {}
+func (p *AliasPattern) Position() lexer.Position {
 	return p.Pos
 }
 

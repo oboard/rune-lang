@@ -510,7 +510,7 @@ func (g *generator) patternCondition(subject string, pattern ir.Pattern) string 
 		return g.arrayPatternCondition(subject, p)
 	case *ir.BitPattern:
 		return g.patternCondition(g.bitPatternValueExpr(subject, checker.Unknown, 0, p), p.Value)
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		return g.patternCondition(subject, p.Pattern)
 	case *ir.ConstructorPattern:
 		if condition, ok := g.enumConstructorPatternCondition(subject, p); ok {

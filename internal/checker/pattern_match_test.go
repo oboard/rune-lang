@@ -23,11 +23,11 @@ func TestArrayAndAliasPatternBindings(t *testing.T) {
 		t.Fatalf("check diagnostics: %v", diags)
 	}
 	match := file.Functions[0].Body.(*ast.MatchExpr)
-	asPattern := match.Branches[0].Pattern.(*ast.AsPattern)
-	if got, want := asPattern.Type, "Array[Int]"; got != want {
+	aliasPattern := match.Branches[0].Pattern.(*ast.AliasPattern)
+	if got, want := aliasPattern.Type, "Array[Int]"; got != want {
 		t.Fatalf("alias binding type = %q, want %q", got, want)
 	}
-	arrayPattern := asPattern.Pattern.(*ast.ArrayPattern)
+	arrayPattern := aliasPattern.Pattern.(*ast.ArrayPattern)
 	if got, want := arrayPattern.RestType, "Array[Int]"; got != want {
 		t.Fatalf("rest type = %q, want %q", got, want)
 	}

@@ -31,7 +31,7 @@ func (p *Parser) parseAliasPattern() ast.Pattern {
 	pattern := p.parseRangePattern()
 	if p.match(lexer.At) {
 		name := p.consume(lexer.Ident, "expected binding name after '@'")
-		return &ast.AsPattern{Pattern: pattern, Name: name.Lexeme, NamePos: name.Pos, Pos: pattern.Position()}
+		return &ast.AliasPattern{Pattern: pattern, Name: name.Lexeme, NamePos: name.Pos, Pos: pattern.Position()}
 	}
 	return pattern
 }

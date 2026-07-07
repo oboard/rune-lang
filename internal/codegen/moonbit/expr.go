@@ -955,7 +955,7 @@ func patternRequiresConditionLowering(pattern ir.Pattern) bool {
 			}
 		}
 		return p.SubjectType == checker.String || p.SubjectType == checker.Bytes
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		return patternRequiresConditionLowering(p.Pattern)
 	case *ir.OrPattern:
 		for _, alt := range p.Alternatives {
@@ -1038,7 +1038,7 @@ func (g *generator) patternFor(subject string, pattern ir.Pattern) string {
 			parts = append(parts, mbtRestPattern(p.RestBinding))
 		}
 		return "[" + strings.Join(parts, ", ") + "]"
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		return fmt.Sprintf("%s as %s", g.patternFor(subject, p.Pattern), mangleIdent(p.Name))
 	case *ir.ConstructorPattern:
 		if len(p.Args) == 0 && !p.Rest {
@@ -1126,7 +1126,7 @@ func (g *generator) patternConditionAs(subject string, subjectType checker.Type,
 		return g.sequenceSpreadPatternCondition(subject, subjectType, "0", p)
 	case *ir.BitPattern:
 		return g.patternConditionAs(g.bitPatternValueExpr(subject, subjectType, 0, p), checker.Int, p.Value)
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		return g.patternConditionAs(subject, subjectType, p.Pattern)
 	case *ir.ConstructorPattern:
 		if condition, ok := g.enumConstructorPatternCondition(subject, p); ok {
@@ -1564,7 +1564,7 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, subje
 		}
 	case *ir.BitPattern:
 		g.appendPatternBindings(parts, subject, subjectType, p.Value)
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		g.appendPatternBindings(parts, subject, subjectType, p.Pattern)
 		*parts = append(*parts, fmt.Sprintf("let %s = %s;", mangleIdent(p.Name), subject))
 	case *ir.OrPattern:

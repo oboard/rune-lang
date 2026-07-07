@@ -127,8 +127,8 @@ func WalkPattern(pattern Pattern, visit func(Pattern)) {
 	if bit, ok := pattern.(*BitPattern); ok {
 		WalkPattern(bit.Value, visit)
 	}
-	if as, ok := pattern.(*AsPattern); ok {
-		WalkPattern(as.Pattern, visit)
+	if alias, ok := pattern.(*AliasPattern); ok {
+		WalkPattern(alias.Pattern, visit)
 	}
 	if constructor, ok := pattern.(*ConstructorPattern); ok {
 		for _, arg := range constructor.Args {
@@ -181,7 +181,7 @@ func WalkPatternExprs(pattern Pattern, visit func(Expr)) {
 		WalkExpr(p.Value, visit)
 	case *BitPattern:
 		WalkPatternExprs(p.Value, visit)
-	case *AsPattern:
+	case *AliasPattern:
 		WalkPatternExprs(p.Pattern, visit)
 	case *ConstructorPattern:
 		for _, arg := range p.Args {

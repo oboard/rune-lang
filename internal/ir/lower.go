@@ -629,8 +629,8 @@ func (l lowerer) pattern(pattern ast.Pattern) Pattern {
 		return &SequenceSpreadPattern{Value: l.expr(p.Value), Type: checker.Type(p.Type), Pos: p.Pos}
 	case *ast.BitPattern:
 		return &BitPattern{Width: p.Width, Signed: p.Signed, Endian: p.Endian, Value: l.pattern(p.Value), Pos: p.Pos}
-	case *ast.AsPattern:
-		return &AsPattern{Pattern: l.pattern(p.Pattern), Name: p.Name, Type: checker.Type(p.Type), NamePos: p.NamePos, Pos: p.Pos}
+	case *ast.AliasPattern:
+		return &AliasPattern{Pattern: l.pattern(p.Pattern), Name: p.Name, Type: checker.Type(p.Type), NamePos: p.NamePos, Pos: p.Pos}
 	case *ast.ConstructorPattern:
 		out := &ConstructorPattern{Name: p.Name, Rest: p.Rest, RestPos: p.RestPos, Binding: p.Binding, BindingPos: p.BindingPos, SubjectType: checker.Type(p.SubjectType), Pos: p.Pos}
 		for _, arg := range p.Args {

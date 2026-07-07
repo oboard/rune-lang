@@ -646,7 +646,7 @@ func (c *checker) patternLiteralType(pattern ast.Pattern) Type {
 		return Unknown
 	case *ast.ArrayPattern:
 		return Unknown
-	case *ast.AsPattern:
+	case *ast.AliasPattern:
 		return c.patternLiteralType(p.Pattern)
 	}
 	return Unknown
@@ -679,7 +679,7 @@ func (c *checker) checkPatternBindingUniqueness(pattern ast.Pattern) {
 				return
 			}
 			seen[p.Name] = p.Pos
-		case *ast.AsPattern:
+		case *ast.AliasPattern:
 			visit(p.Pattern)
 			if prev, ok := seen[p.Name]; ok {
 				c.errorf(p.NamePos, "pattern binding %q was already bound at %s", p.Name, prev)
@@ -909,7 +909,7 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 		c.checkSequenceSpreadPattern(p, subject, elemType, env)
 	case *ast.BitPattern:
 		c.checkBitPattern(p, env, optional)
-	case *ast.AsPattern:
+	case *ast.AliasPattern:
 		c.checkPatternWithSubject(p.Pattern, subject, env, optional)
 		if optional {
 			c.errorf(p.NamePos, "optional pattern binding %q is not available when the key is absent", p.Name)
@@ -1012,7 +1012,7 @@ func patternBindingTypes(pattern ast.Pattern, env map[string]Type) map[string]Ty
 				return
 			}
 			out[p.Name] = env[p.Name]
-		case *ast.AsPattern:
+		case *ast.AliasPattern:
 			visit(p.Pattern)
 			out[p.Name] = env[p.Name]
 		case *ast.OrPattern:

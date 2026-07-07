@@ -1,9 +1,9 @@
 main() => {
   // normal println
   @io.println("Hello, world!")
-  // import @io as io
+  // bind @io to a local name
   io := @io
-  // import @"./import_helper.rn" as helper
+  // bind an imported module object to a local name
   helper := @"./import_helper.rn"
   io.println(helper.greeting("Alice"))
 }

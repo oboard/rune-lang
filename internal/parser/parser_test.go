@@ -739,13 +739,13 @@ func TestMoonBitStyleArrayAliasAndOpenRangePatterns(t *testing.T) {
 	if !ok || len(match.Branches) != 4 {
 		t.Fatalf("body = %#v, want match with four branches", file.Functions[0].Body)
 	}
-	asPattern, ok := match.Branches[0].Pattern.(*ast.AsPattern)
-	if !ok || asPattern.Name != "whole" {
+	aliasPattern, ok := match.Branches[0].Pattern.(*ast.AliasPattern)
+	if !ok || aliasPattern.Name != "whole" {
 		t.Fatalf("first pattern = %#v, want alias pattern", match.Branches[0].Pattern)
 	}
-	arrayPattern, ok := asPattern.Pattern.(*ast.ArrayPattern)
+	arrayPattern, ok := aliasPattern.Pattern.(*ast.ArrayPattern)
 	if !ok || arrayPattern.RestIndex != 1 || arrayPattern.RestBinding != "rest" || len(arrayPattern.Elements) != 2 {
-		t.Fatalf("array pattern = %#v, want [0, ..rest, last]", asPattern.Pattern)
+		t.Fatalf("array pattern = %#v, want [0, ..rest, last]", aliasPattern.Pattern)
 	}
 	openStart, ok := match.Branches[1].Pattern.(*ast.RangePattern)
 	if !ok || openStart.Start != nil || openStart.End == nil || openStart.Inclusive {
@@ -757,14 +757,14 @@ func TestMoonBitStyleArrayAliasAndOpenRangePatterns(t *testing.T) {
 	}
 }
 
-func TestAsKeywordIsNotPatternAlias(t *testing.T) {
+func TestAsIdentifierIsNotPatternAlias(t *testing.T) {
 	_, errs := Parse(`classify(values: Array[Int]) -> Int => values {
   [0] as whole => whole.length()
   _ => 0
 }
 `)
 	if len(errs) == 0 {
-		t.Fatal("Parse() accepted as keyword as a pattern alias")
+		t.Fatal("Parse() accepted `as` as a pattern alias")
 	}
 }
 

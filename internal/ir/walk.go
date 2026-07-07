@@ -131,7 +131,7 @@ func WalkPattern(pattern Pattern, visit func(Expr)) {
 		WalkExpr(p.Value, visit)
 	case *BitPattern:
 		WalkPattern(p.Value, visit)
-	case *AsPattern:
+	case *AliasPattern:
 		WalkPattern(p.Pattern, visit)
 	case *ConstructorPattern:
 		for _, arg := range p.Args {

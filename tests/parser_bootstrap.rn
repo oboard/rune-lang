@@ -319,7 +319,7 @@ name\``)
   @assert.eq(body.children[5].children[0].text, "{\"b\"?:None,\"a\":x,..}")
 }
 
-? "selfhost parser rejects pattern as keyword" {
+? "selfhost parser rejects old as alias syntax" {
   source := `classify(values: Array[Int]) -> Int => values {
   [0] as whole => whole.length()
   _ => 0

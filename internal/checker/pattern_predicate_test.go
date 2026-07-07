@@ -75,7 +75,7 @@ isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 	}
 }
 
-func TestFunctionOrPatternBlockChecksAsPattern(t *testing.T) {
+func TestFunctionOrPatternBlockChecksAliasPattern(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
   "Int" | "Double" => "number"
@@ -107,7 +107,7 @@ func TestFunctionOrPatternBlockChecksAsPattern(t *testing.T) {
 	}
 }
 
-func TestMatchOrPatternChecksAsPattern(t *testing.T) {
+func TestMatchOrPatternChecksAliasPattern(t *testing.T) {
 	src := `tsType(typeName: String) -> String => typeName {
   "" | "Void" => "void"
   "Int" | "Double" => "number"

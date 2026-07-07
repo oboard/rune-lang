@@ -129,7 +129,7 @@ func (i *Interpreter) matchPattern(pattern ir.Pattern, subject Value, env *Env) 
 		return true, nil
 	case *ir.ArrayPattern:
 		return i.matchArrayPattern(p, subject, env)
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		matched, err := i.matchPattern(p.Pattern, subject, env)
 		if err != nil || !matched {
 			return matched, err

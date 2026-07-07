@@ -969,7 +969,7 @@ func firstMapLikeGetPattern(pattern ir.Pattern) *ir.MapPattern {
 		if p.Access == "get" {
 			return p
 		}
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		return firstMapLikeGetPattern(p.Pattern)
 	case *ir.OrPattern:
 		for _, alternative := range p.Alternatives {
@@ -1009,7 +1009,7 @@ func firstMapLikeGetPattern(pattern ir.Pattern) *ir.MapPattern {
 
 func patternNeedsSubjectTemp(pattern ir.Pattern) bool {
 	switch p := pattern.(type) {
-	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AsPattern:
+	case *ir.BindingPattern, *ir.ConstructorPattern, *ir.MapPattern, *ir.ObjectPattern, *ir.ArrayPattern, *ir.AliasPattern:
 		return true
 	case *ir.OrPattern:
 		for _, alternative := range p.Alternatives {
@@ -1067,7 +1067,7 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 		}
 	case *ir.BitPattern:
 		g.appendPatternBindings(parts, subject, p.Value)
-	case *ir.AsPattern:
+	case *ir.AliasPattern:
 		g.appendPatternBindings(parts, subject, p.Pattern)
 		*parts = append(*parts, fmt.Sprintf("const %s = %s;", mangleIdent(p.Name), subject))
 	case *ir.OrPattern:

@@ -246,7 +246,7 @@ func (r *compileTimeRewriter) pattern(pattern ast.Pattern) {
 		for _, elem := range p.Elements {
 			r.pattern(elem)
 		}
-	case *ast.AsPattern:
+	case *ast.AliasPattern:
 		r.pattern(p.Pattern)
 	case *ast.ConstructorPattern:
 		for _, arg := range p.Args {
