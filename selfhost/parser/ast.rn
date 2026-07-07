@@ -27,6 +27,7 @@
 + ParsedImport: {
   path: String
   go: Bool
+  module: Bool
   line: Int
   column: Int
 }

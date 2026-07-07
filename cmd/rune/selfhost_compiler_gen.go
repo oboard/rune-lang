@@ -193,6 +193,7 @@ type __ParseError struct {
 type __ParsedImport struct {
 	__path   string
 	__go     bool
+	__module bool
 	__line   int
 	__column int
 }
@@ -403,6 +404,7 @@ type __AnnotationStep struct {
 type __IRImport struct {
 	__path   string
 	__go     bool
+	__module bool
 	__line   int
 	__column int
 }
@@ -1791,7 +1793,7 @@ func ____rune_private_b990f3d7_emptyType() __ParsedType {
 }
 
 func ____rune_private_b990f3d7_emptyImport() __ParsedImport {
-	return __ParsedImport{__path: "", __go: false, __line: 0, __column: 0}
+	return __ParsedImport{__path: "", __go: false, __module: false, __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_emptyTest() __ParsedTest {
@@ -2018,9 +2020,18 @@ func ____rune_private_b990f3d7_parseTopLevelAfterMacro(__state __ParserState, __
 		case __goImport == true:
 			return ____rune_private_b990f3d7_parseTopLevelAfterResult(____rune_private_b990f3d7_parseTopLevelImport(__state, __file))
 		default:
-			return ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state, __file)
+			return func() __FileStep {
+				if ____rune_private_b990f3d7_looksLikeRuneImportDecl(__state) {
+					return ____rune_private_b990f3d7_parseTopLevelAfterResult(____rune_private_b990f3d7_parseTopLevelImport(__state, __file))
+				}
+				return ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state, __file)
+			}()
 		}
 	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeRuneImportDecl(__state __ParserState) bool {
+	return ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_At) && (____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_String) || ____rune_private_b990f3d7_looksLikeBareModuleImportDecl(__state))
 }
 
 func ____rune_private_b990f3d7_parseTopLevelAfterAnnotations(__state __ParserState, __file __ParsedFile) __FileStep {
@@ -2106,10 +2117,19 @@ func ____rune_private_b990f3d7_parseTopLevelImport(__state __ParserState, __file
 		if ____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_String) {
 			return ____rune_private_b990f3d7_parseImportDecl(__state)
 		}
-		return ____rune_private_b990f3d7_parseGoImportDecl(__state)
+		return func() __ImportStep {
+			if ____rune_private_b990f3d7_looksLikeBareModuleImportDecl(__state) {
+				return ____rune_private_b990f3d7_parseModuleImportDecl(__state)
+			}
+			return ____rune_private_b990f3d7_parseGoImportDecl(__state)
+		}()
 	}()
 	__file.__imports = append(__file.__imports, __step.__importDecl)
 	return __FileStep{__state: __step.__state, __file: __file}
+}
+
+func ____rune_private_b990f3d7_looksLikeBareModuleImportDecl(__state __ParserState) bool {
+	return ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_At) && ____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_Ident) && ____rune_private_b990f3d7_parserKindAt(__state, __state.__current+2) != __TokenKind_Dot
 }
 
 func ____rune_private_b990f3d7_parseTopLevelTest(__state __ParserState, __file __ParsedFile) __FileStep {
@@ -2177,7 +2197,13 @@ func ____rune_private_b990f3d7_parseStaticMethodMarker(__state __ParserState) __
 func ____rune_private_b990f3d7_parseImportDecl(__state __ParserState) __ImportStep {
 	__at := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_At, "expected '@'")
 	__path := ____rune_private_b990f3d7_parserConsume(__at.__state, __TokenKind_String, "expected import path string after '@'")
-	return __ImportStep{__state: __path.__state, __importDecl: __ParsedImport{__path: ____rune_private_b990f3d7_unquote(__path.__token.__lexeme), __go: false, __line: __at.__token.__line, __column: __at.__token.__column}}
+	return __ImportStep{__state: __path.__state, __importDecl: __ParsedImport{__path: ____rune_private_b990f3d7_unquote(__path.__token.__lexeme), __go: false, __module: false, __line: __at.__token.__line, __column: __at.__token.__column}}
+}
+
+func ____rune_private_b990f3d7_parseModuleImportDecl(__state __ParserState) __ImportStep {
+	__at := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_At, "expected '@'")
+	__module := ____rune_private_b990f3d7_parserConsume(__at.__state, __TokenKind_Ident, "expected module name after '@'")
+	return __ImportStep{__state: __module.__state, __importDecl: __ParsedImport{__path: __module.__token.__lexeme, __go: false, __module: true, __line: __at.__token.__line, __column: __at.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_parseGoImportDecl(__state __ParserState) __ImportStep {
@@ -2200,7 +2226,7 @@ func ____rune_private_b990f3d7_parseGoImportDecl(__state __ParserState) __Import
 	__open := ____rune_private_b990f3d7_parserConsume(__checkedName, __TokenKind_LParen, "expected '(' after @go.import")
 	__path := ____rune_private_b990f3d7_parserConsume(__open.__state, __TokenKind_String, "expected Go import path string")
 	__close := ____rune_private_b990f3d7_parserConsume(__path.__state, __TokenKind_RParen, "expected ')' after @go.import")
-	return __ImportStep{__state: __close.__state, __importDecl: __ParsedImport{__path: ____rune_private_b990f3d7_unquote(__path.__token.__lexeme), __go: true, __line: __at.__token.__line, __column: __at.__token.__column}}
+	return __ImportStep{__state: __close.__state, __importDecl: __ParsedImport{__path: ____rune_private_b990f3d7_unquote(__path.__token.__lexeme), __go: true, __module: false, __line: __at.__token.__line, __column: __at.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_parseTestDecl(__state __ParserState) __TestStep {
@@ -4884,7 +4910,7 @@ func __emptyIRFunction() __IRFunction {
 }
 
 func ____rune_private_44103c8f_lowerImport(__importDecl __ParsedImport) __IRImport {
-	return __IRImport{__path: __importDecl.__path, __go: __importDecl.__go, __line: __importDecl.__line, __column: __importDecl.__column}
+	return __IRImport{__path: __importDecl.__path, __go: __importDecl.__go, __module: __importDecl.__module, __line: __importDecl.__line, __column: __importDecl.__column}
 }
 
 func ____rune_private_44103c8f_lowerParam(__param __ParsedParam) __IRParam {
@@ -9083,12 +9109,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	__errors = ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, __errors)
 	for _, __fn := range __file.__functions {
 		_ = __fn
-		__errors = func() []string {
-			if __fn.__macro {
-				return __errors
-			}
-			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __file.__structs, __callables, __errors, __bindings)
-		}()
+		__errors = ____rune_private_0d2ebf0f_checkTopLevelFunctionErrors(__fn, __file.__structs, __callables, __errors, __bindings)
 	}
 	for _, __typeDecl := range __file.__structs {
 		_ = __typeDecl
@@ -9113,6 +9134,31 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __file.__structs, __callables, __errors, __bindings)
 	}
 	return __errors
+}
+
+func ____rune_private_0d2ebf0f_checkTopLevelFunctionErrors(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	return func() []string {
+		switch {
+		case __fn.__macro == true:
+			return ____rune_private_0d2ebf0f_checkMacroFunctionReturn(__fn, __structs, __callables, __errors, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkMacroFunctionReturn(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__expected := __fn.__returnType
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprTypeWithStructs(__fn.__body, __structs, __callables, ____rune_private_0d2ebf0f_compilerFunctionBindings(__fn.__params, __bindings))
+	__shouldCheck := __expected != "" && __expected != "Dynamic" && __actual != ""
+	return func() []string {
+		switch {
+		case __shouldCheck == true:
+			return ____rune_private_0d2ebf0f_checkFunctionReturnType(__fn.__name, __expected, __actual, __errors)
+		default:
+			return __errors
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerKnownTypes(__file __IRFile) []string {
@@ -13891,7 +13937,7 @@ func ____rune_private_0d2ebf0f_compilerAppendImportExpr(__imports []__ParsedImpo
 		if __path == "" {
 			return __imports
 		}
-		return ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __ParsedImport{__path: __path, __go: false, __line: __expr.__line, __column: __expr.__column})
+		return ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __ParsedImport{__path: __path, __go: false, __module: false, __line: __expr.__line, __column: __expr.__column})
 	}()
 }
 
@@ -13907,7 +13953,7 @@ func ____rune_private_0d2ebf0f_compilerMergeParsedImports(__imports []__ParsedIm
 func ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports []__ParsedImport, __importDecl __ParsedImport) []__ParsedImport {
 	return func() []__ParsedImport {
 		switch {
-		case ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __importDecl.__path, __importDecl.__go, 0) == true:
+		case ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __importDecl.__path, __importDecl.__go, __importDecl.__module, 0) == true:
 			return __imports
 		default:
 			return func() []__ParsedImport {
@@ -13920,22 +13966,22 @@ func ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports []_
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports []__ParsedImport, __path string, __go bool, __index int) bool {
+func ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports []__ParsedImport, __path string, __go bool, __module bool, __index int) bool {
 	return func() bool {
 		if __index >= len(__imports) {
 			return false
 		}
 		return func() bool {
-			if __imports[__index].__path == __path && __imports[__index].__go == __go {
+			if __imports[__index].__path == __path && __imports[__index].__go == __go && __imports[__index].__module == __module {
 				return true
 			}
-			return ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __path, __go, __index+1)
+			return ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __path, __go, __module, __index+1)
 		}()
 	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerEmptyParsedImport() __ParsedImport {
-	return __ParsedImport{__path: "", __go: false, __line: 0, __column: 0}
+	return __ParsedImport{__path: "", __go: false, __module: false, __line: 0, __column: 0}
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
@@ -14319,7 +14365,7 @@ func ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files []__Sou
 
 func ____rune_private_0d2ebf0f_lowerTypeScriptImportForRuneFile(__files []__SourceFile, __basePath string, __imports []__IRImport, __index int, __out __IRFile) __IRFile {
 	__importDecl := __imports[__index]
-	__shouldLoad := __importDecl.__go == false && strings.HasSuffix(__importDecl.__path, ".ts")
+	__shouldLoad := __importDecl.__go == false && __importDecl.__module == false && strings.HasSuffix(__importDecl.__path, ".ts")
 	return func() __IRFile {
 		switch {
 		case __shouldLoad == true:
@@ -14359,10 +14405,10 @@ func ____rune_private_0d2ebf0f_appendImportPaths(__pending []string, __basePath 
 }
 
 func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
-	__goImport := __imports[__index].__go
+	__skip := __imports[__index].__go || __imports[__index].__module
 	return func() []string {
 		switch {
-		case __goImport == true:
+		case __skip == true:
 			return ____rune_private_0d2ebf0f_appendImportPaths(__pending, __basePath, __imports, __index+1)
 		default:
 			return ____rune_private_0d2ebf0f_appendImportPathIfRune(__pending, __basePath, __imports, __index)
@@ -14371,7 +14417,7 @@ func ____rune_private_0d2ebf0f_appendImportPath(__pending []string, __basePath s
 }
 
 func ____rune_private_0d2ebf0f_appendImportPathIfRune(__pending []string, __basePath string, __imports []__IRImport, __index int) []string {
-	__typeScript := strings.HasSuffix(__imports[__index].__path, ".ts")
+	__typeScript := __imports[__index].__module || strings.HasSuffix(__imports[__index].__path, ".ts")
 	return func() []string {
 		switch {
 		case __typeScript == true:

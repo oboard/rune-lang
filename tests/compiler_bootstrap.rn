@@ -470,6 +470,35 @@ Args: {
   @assert.eq(result.errors[0].includes("function \"flag\" expects 2 args, got 1"), true)
 }
 
+? "selfhost compiler accepts core module imports in file graph" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+
+main() -> Int => 1
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
+? "selfhost compiler checks macro body return types" {
+  result := compileGo(`@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => 1
+
+main() -> Int => 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"tag\" returns Int, expected SyntaxFile")
+}
+
 ? "selfhost compiler expands rename declaration macro" {
   source := `#macro.renameDeclaration("RenamedArgs")
 Args: {

@@ -3,6 +3,7 @@
 + IRImport: {
   path: String
   go: Bool
+  module: Bool
   line: Int
   column: Int
 }
@@ -194,6 +195,7 @@ lowerImport(
 ) -> IRImport => {
   path: importDecl.path,
   go: importDecl.go,
+  module: importDecl.module,
   line: importDecl.line,
   column: importDecl.column
 }

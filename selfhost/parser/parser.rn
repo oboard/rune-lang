@@ -192,6 +192,7 @@ emptyType() -> ParsedType => {
 emptyImport() -> ParsedImport => {
   path: "",
   go: false,
+  module: false,
   line: 0,
   column: 0
 }
@@ -498,9 +499,16 @@ parseTopLevelAfterMacro(
   goImport := looksLikeGoImportDecl(state)
   goImport {
     true => parseTopLevelAfterResult(parseTopLevelImport(state, file))
-    _ => parseTopLevelAfterAnnotations(state, file)
+    _ => (
+      looksLikeRuneImportDecl(state) ? parseTopLevelAfterResult(parseTopLevelImport(state, file))
+        : parseTopLevelAfterAnnotations(state, file)
+    )
   }
 }
+
+looksLikeRuneImportDecl(
+  state: ParserState
+) -> Bool => parserCheck(state, TokenKind.At) && (parserCheckNext(state, TokenKind.String) || looksLikeBareModuleImportDecl(state))
 
 parseTopLevelAfterAnnotations(
   state: ParserState,
@@ -579,7 +587,10 @@ parseTopLevelImport(
 ) -> FileStep => {
   step := (
     parserCheckNext(state, TokenKind.String) ? parseImportDecl(state)
-      : parseGoImportDecl(state)
+      : (
+        looksLikeBareModuleImportDecl(state) ? parseModuleImportDecl(state)
+          : parseGoImportDecl(state)
+      )
   )
   file.imports.push(step.importDecl)
   FileStep {
@@ -587,6 +598,10 @@ parseTopLevelImport(
     file: file
   }
 }
+
+looksLikeBareModuleImportDecl(
+  state: ParserState
+) -> Bool => (parserCheck(state, TokenKind.At) && parserCheckNext(state, TokenKind.Ident)) && (parserKindAt(state, state.current + 2) != TokenKind.Dot)
 
 parseTopLevelTest(
   state: ParserState,
@@ -697,6 +712,24 @@ parseImportDecl(
     importDecl: ParsedImport {
       path: unquote(path.token.lexeme),
       go: false,
+      module: false,
+      line: at.token.line,
+      column: at.token.column
+    }
+  }
+}
+
+parseModuleImportDecl(
+  state: ParserState
+) -> ImportStep => {
+  at := parserConsume(state, TokenKind.At, "expected '@'")
+  module := parserConsume(at.state, TokenKind.Ident, "expected module name after '@'")
+  ImportStep {
+    state: module.state,
+    importDecl: ParsedImport {
+      path: module.token.lexeme,
+      go: false,
+      module: true,
       line: at.token.line,
       column: at.token.column
     }
@@ -726,6 +759,7 @@ parseGoImportDecl(
     importDecl: ParsedImport {
       path: unquote(path.token.lexeme),
       go: true,
+      module: false,
       line: at.token.line,
       column: at.token.column
     }

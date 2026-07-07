@@ -183,14 +183,38 @@ checkFileErrors(
   knownTypes := compilerKnownTypes(file)
   errors := checkDuplicateDeclarations(file, [""].slice(0, 0))
   errors = checkDeclarationTypes(file, knownTypes, errors)
-  file.functions.each((fn) => errors = (
-    fn.macro ? errors
-      : checkFunctionErrors(fn, file.structs, callables, errors, bindings)
-  ))
+  file.functions.each((fn) => errors = checkTopLevelFunctionErrors(fn, file.structs, callables, errors, bindings))
   file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkMethodErrors(typeDecl.name, method, file.structs, callables, errors, bindings)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, bindings))
   errors
+}
+
+checkTopLevelFunctionErrors(
+  fn: IRFunction,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => fn.macro {
+  true => checkMacroFunctionReturn(fn, structs, callables, errors, bindings)
+  _ => checkFunctionErrors(fn, structs, callables, errors, bindings)
+}
+
+checkMacroFunctionReturn(
+  fn: IRFunction,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  expected := fn.returnType
+  actual := inferCompilerExprTypeWithStructs(fn.body, structs, callables, compilerFunctionBindings(fn.params, bindings))
+  shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
+  shouldCheck {
+    true => checkFunctionReturnType(fn.name, expected, actual, errors)
+    _ => errors
+  }
 }
 
 compilerKnownTypes(
@@ -4786,6 +4810,7 @@ compilerAppendImportExpr(
       : compilerAppendParsedImportIfMissing(imports, ParsedImport {
         path: path,
         go: false,
+        module: false,
         line: expr.line,
         column: expr.column
       })
@@ -4804,7 +4829,7 @@ compilerMergeParsedImports(
 compilerAppendParsedImportIfMissing(
   imports: Array[ParsedImport],
   importDecl: ParsedImport
-) -> Array[ParsedImport] => compilerParsedImportContains(imports, importDecl.path, importDecl.go, 0) {
+) -> Array[ParsedImport] => compilerParsedImportContains(imports, importDecl.path, importDecl.go, importDecl.module, 0) {
   true => imports
   _ => [..imports, importDecl]
 }
@@ -4813,12 +4838,13 @@ compilerParsedImportContains(
   imports: Array[ParsedImport],
   path: String,
   go: Bool,
+  module: Bool,
   index: Int
 ) -> Bool => (
   index >= imports.length() ? false
     : (
-      (imports[index].path == path) && (imports[index].go == go) ? true
-        : compilerParsedImportContains(imports, path, go, index + 1)
+      ((imports[index].path == path) && (imports[index].go == go)) && (imports[index].module == module) ? true
+        : compilerParsedImportContains(imports, path, go, module, index + 1)
     )
 )
 
@@ -4826,6 +4852,7 @@ compilerEmptyParsedImport(
 ) -> ParsedImport => {
   path: "",
   go: false,
+  module: false,
   line: 0,
   column: 0
 }
@@ -5196,7 +5223,7 @@ lowerTypeScriptImportForRuneFile(
   out: IRFile
 ) -> IRFile => {
   importDecl := imports[index]
-  shouldLoad := (importDecl.go == false) && importDecl.path.endsWith(".ts")
+  shouldLoad := ((importDecl.go == false) && (importDecl.module == false)) && importDecl.path.endsWith(".ts")
   shouldLoad {
     true => lowerTypeScriptImportPathForRuneFile(files, basePath, imports, index, out)
     _ => lowerTypeScriptImportsForRuneFile(files, basePath, imports, index + 1, out)
@@ -5240,8 +5267,8 @@ appendImportPath(
   imports: Array[IRImport],
   index: Int
 ) -> Array[String] => {
-  goImport := imports[index].go
-  goImport {
+  skip := imports[index].go || imports[index].module
+  skip {
     true => appendImportPaths(pending, basePath, imports, index + 1)
     _ => appendImportPathIfRune(pending, basePath, imports, index)
   }
@@ -5253,7 +5280,7 @@ appendImportPathIfRune(
   imports: Array[IRImport],
   index: Int
 ) -> Array[String] => {
-  typeScript := imports[index].path.endsWith(".ts")
+  typeScript := imports[index].module || imports[index].path.endsWith(".ts")
   typeScript {
     true => appendImportPaths(pending, basePath, imports, index + 1)
     _ => appendImportPaths([..pending, resolveCompilerImportPath(basePath, imports[index].path)], basePath, imports, index + 1)
