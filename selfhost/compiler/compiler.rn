@@ -368,9 +368,34 @@ compilerCallables(
       : callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))
   ))
   file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => callables.push(compilerMethodCallable(typeDecl.name, method))))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => callables.push(compilerMethodCallable(typeDecl.name, method))))
   file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name, compilerParamTypeNames(member.params)))))
   callables
 }
+
+compilerMethodCallable(
+  typeName: String,
+  method: IRFunction
+) -> CompilerCallable => compilerCallable(compilerMethodCallableName(typeName, method), method.params.length(), method.returnType, compilerParamTypeNames(method.params))
+
+compilerMethodCallableName(
+  typeName: String,
+  method: IRFunction
+) -> String => method.static {
+  true => compilerStaticMethodName(typeName, method.name)
+  _ => compilerInstanceMethodName(typeName, method.name)
+}
+
+compilerStaticMethodName(
+  typeName: String,
+  methodName: String
+) -> String => (typeName + "::") + methodName
+
+compilerInstanceMethodName(
+  typeName: String,
+  methodName: String
+) -> String => (typeName + ".") + methodName
 
 checkFunctionErrors(
   fn: IRFunction,
@@ -401,6 +426,108 @@ checkExprCall(
   identifierCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)
   identifierCall {
     true => checkIdentifierCall(expr, expr.children[0].name, expr.children.length() - 1, callables, errors, bindings)
+    _ => checkSelectorCall(expr, callables, errors, bindings)
+  }
+}
+
+checkSelectorCall(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  selectorCall := ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Selector)
+  selectorCall {
+    true => checkSelectorCallExpr(expr, expr.children[0], callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkSelectorCallExpr(
+  expr: IRExpr,
+  selector: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasReceiver := selector.children.length() > 0
+  hasReceiver {
+    true => checkSelectorCallReceiver(expr, selector, selector.children[0], callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkSelectorCallReceiver(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => receiver.kind {
+  ExprKind.At => errors
+  ExprKind.Identifier => checkIdentifierSelectorCall(expr, selector, receiver, callables, errors, bindings)
+  _ => checkInstanceSelectorCall(expr, selector, receiver, callables, errors, bindings)
+}
+
+checkIdentifierSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => selector.op {
+  "::" => checkStaticSelectorCall(expr, selector, receiver.name, callables, errors, bindings)
+  _ => checkInstanceSelectorCall(expr, selector, receiver, callables, errors, bindings)
+}
+
+checkStaticSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiverType: String,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  name := compilerStaticMethodName(receiverType, selector.name)
+  callable := findCompilerCallable(callables, name, 0)
+  found := callable.name != ""
+  found {
+    true => checkCallableCall(callable, expr, expr.children.length() - 1, callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkInstanceSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  receiverType := inferCompilerExprType(receiver, callables, bindings)
+  known := receiverType != ""
+  known {
+    true => checkKnownInstanceSelectorCall(expr, selector, compilerTypeBase(receiverType), callables, errors, bindings)
+    _ => errors
+  }
+}
+
+checkKnownInstanceSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiverType: String,
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  name := compilerInstanceMethodName(receiverType, selector.name)
+  callable := findCompilerCallable(callables, name, 0)
+  found := callable.name != ""
+  found {
+    true => checkCallableCall(callable, expr, expr.children.length() - 1, callables, bindings, errors)
     _ => errors
   }
 }
@@ -557,7 +684,8 @@ inferCompilerExprType(
   ExprKind.Char => "Char"
   ExprKind.Bool => "Bool"
   ExprKind.Null => "Null"
-  ExprKind.Call => inferCompilerCallType(expr, callables)
+  ExprKind.Struct => expr.name
+  ExprKind.Call => inferCompilerCallType(expr, callables, bindings)
   ExprKind.Block => inferCompilerBlockType(expr, callables, bindings)
   ExprKind.Ternary => inferCompilerTernaryType(expr, callables, bindings)
   ExprKind.Binary => inferCompilerBinaryType(expr, callables, bindings)
@@ -566,12 +694,87 @@ inferCompilerExprType(
 
 inferCompilerCallType(
   expr: IRExpr,
-  callables: Array[CompilerCallable]
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
 ) -> String => {
   identifierCall := ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier))
   identifierCall {
-    true => findCompilerCallable(callables, expr.children[0].name, 0).returnType
-    _ => ""
+    true => compilerCallableReturnOrText(findCompilerCallable(callables, expr.children[0].name, 0), expr.text)
+    _ => inferCompilerSelectorCallType(expr, callables, bindings)
+  }
+}
+
+compilerCallableReturnOrText(
+  callable: CompilerCallable,
+  fallback: String
+) -> String => {
+  found := callable.name != ""
+  found {
+    true => callable.returnType
+    _ => fallback
+  }
+}
+
+inferCompilerSelectorCallType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  selectorCall := ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector))
+  selectorCall {
+    true => inferCompilerSelectorCallTypeFromSelector(expr, expr.children[0], callables, bindings)
+    _ => expr.text
+  }
+}
+
+inferCompilerSelectorCallTypeFromSelector(
+  expr: IRExpr,
+  selector: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  hasReceiver := selector.children.length() > 0
+  hasReceiver {
+    true => inferCompilerSelectorCallTypeFromReceiver(expr, selector, selector.children[0], callables, bindings)
+    _ => expr.text
+  }
+}
+
+inferCompilerSelectorCallTypeFromReceiver(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => receiver.kind {
+  ExprKind.At => expr.text
+  ExprKind.Identifier => inferCompilerIdentifierSelectorCallType(expr, selector, receiver, callables, bindings)
+  _ => inferCompilerInstanceSelectorCallType(expr, selector, receiver, callables, bindings)
+}
+
+inferCompilerIdentifierSelectorCallType(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => selector.op {
+  "::" => compilerCallableReturnOrText(findCompilerCallable(callables, compilerStaticMethodName(receiver.name, selector.name), 0), expr.text)
+  _ => inferCompilerInstanceSelectorCallType(expr, selector, receiver, callables, bindings)
+}
+
+inferCompilerInstanceSelectorCallType(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  receiverType := inferCompilerExprType(receiver, callables, bindings)
+  known := receiverType != ""
+  known {
+    true => compilerCallableReturnOrText(findCompilerCallable(callables, compilerInstanceMethodName(compilerTypeBase(receiverType), selector.name), 0), expr.text)
+    _ => expr.text
   }
 }
 
