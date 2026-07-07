@@ -53,3 +53,32 @@
   @assert.eq(result.error, null)
   @assert.eq(result.values.getOr("mode", ""), "check")
 }
+
+? "cli parses aliased subcommand args" {
+  root := @cli.command("rune", "Rune language toolchain")
+  root = @cli.withOption(root, @cli.option("backend", "b", "BACKEND", "target backend", false, "go"))
+  fmt := @cli.command("fmt", "Format Rune source")
+  fmt = @cli.withOption(fmt, @cli.flag("check", "", "fail if not formatted"))
+  fmt = @cli.withArgument(fmt, @cli.argument("path", "Rune source path", true))
+  parsed := @cli.parseCommandArgs(root, [fmt], [@cli.alias("format", "fmt")], [], ["--backend=ts", "format", "--check", "main.rn"])
+  @assert.eq(parsed.error, null)
+  @assert.eq(parsed.commandName, "fmt")
+  @assert.eq(parsed.root.values.getOr("backend", ""), "ts")
+  @assert.eq(parsed.command.flags.getOr("check", false), true)
+  @assert.eq(parsed.command.positionals.getOr("path", ""), "main.rn")
+}
+
+? "cli keeps trailing run args" {
+  root := @cli.command("rune", "Rune language toolchain")
+  root = @cli.withOption(root, @cli.option("backend", "b", "BACKEND", "target backend", false, "go"))
+  run := @cli.command("run", "Compile and run a Rune program")
+  run = @cli.withArgument(run, @cli.argument("path", "Rune source path", true))
+  parsed := @cli.parseCommandArgs(root, [run], [], ["run"], ["--backend", "mbt", "run", "main.rn", "-v", "target"])
+  @assert.eq(parsed.error, null)
+  @assert.eq(parsed.commandName, "run")
+  @assert.eq(parsed.root.values.getOr("backend", ""), "mbt")
+  @assert.eq(parsed.command.positionals.getOr("path", ""), "main.rn")
+  @assert.eq(parsed.command.rest.length(), 2)
+  @assert.eq(parsed.command.rest[0], "-v")
+  @assert.eq(parsed.command.rest[1], "target")
+}

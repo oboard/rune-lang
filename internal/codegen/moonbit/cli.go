@@ -90,10 +90,10 @@ func (g *generator) cliRuntime() {
 	g.indent++
 	g.line("name : String")
 	g.line("short : String")
-	g.line("value_name : String")
+	g.line("valueName : String")
 	g.line("help : String")
 	g.line("required : Bool")
-	g.line("default_value : String?")
+	g.line("defaultValue : String?")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -111,7 +111,7 @@ func (g *generator) cliRuntime() {
 	g.line("values : Map[String, String]")
 	g.line("flags : Map[String, Bool]")
 	g.line("positionals : Map[String, String]")
-	g.line("explicit_options : Array[String]")
+	g.line("explicitOptions : Array[String]")
 	g.line("args : Array[String]")
 	g.line("rest : Array[String]")
 	g.line("help : Bool")
@@ -130,9 +130,17 @@ func (g *generator) cliRuntime() {
 	g.indent++
 	g.line("root : CliParseResult")
 	g.line("command : CliParseResult")
-	g.line("command_name : String")
-	g.line("command_args : Array[String]")
+	g.line("commandName : String")
+	g.line("commandArgs : Array[String]")
 	g.line("error : String?")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("struct CliCommandSplit {")
+	g.indent++
+	g.line("rootArgs : Array[String]")
+	g.line("commandName : String")
+	g.line("commandArgs : Array[String]")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -166,13 +174,13 @@ func (g *generator) cliRuntime() {
 	g.line("")
 	g.line("fn rune_cli_flag(name : String, short : String, help : String) -> CliOption {")
 	g.indent++
-	g.line("CliOption::{ name, short, value_name: \"\", help, required: false, default_value: None }")
+	g.line("CliOption::{ name, short, valueName: \"\", help, required: false, defaultValue: None }")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_cli_option(name : String, short : String, value_name : String, help : String, required : Bool, default_value : String?) -> CliOption {")
+	g.line("fn rune_cli_option(name : String, short : String, valueName : String, help : String, required : Bool, defaultValue : String?) -> CliOption {")
 	g.indent++
-	g.line("CliOption::{ name, short, value_name, help, required, default_value }")
+	g.line("CliOption::{ name, short, valueName, help, required, defaultValue }")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -217,26 +225,197 @@ func (g *generator) cliRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_cli_parse_command_args(root : CliCommand, commands : Array[CliCommand], aliases : Array[CliCommandAlias], trailing_rest : Array[String], args : Array[String]) -> CliCommandParseResult {")
+	g.line("fn rune_cli_parse_command_args(root : CliCommand, commands : Array[CliCommand], aliases : Array[CliCommandAlias], trailingRest : Array[String], args : Array[String]) -> CliCommandParseResult {")
 	g.indent++
-	g.line("let root_result = rune_cli_parse_args(root, args)")
-	g.line("let mut command_name = \"\"")
+	g.line("let split = rune_cli_split_command_args(root, aliases, args)")
+	g.line("let root_result = rune_cli_parse_args(root, split.rootArgs)")
+	g.line("if split.commandName.is_empty() {")
+	g.indent++
+	g.line("CliCommandParseResult::{ root: root_result, command: root_result, commandName: \"\", commandArgs: [], error: None }")
+	g.indent--
+	g.line("} else {")
+	g.indent++
+	g.line("match rune_cli_find_command(commands, split.commandName) {")
+	g.indent++
+	g.line("Some(command) => {")
+	g.indent++
+	g.line("let parse_args = if rune_cli_contains(trailingRest, split.commandName) { rune_cli_normalize_trailing_rest_args(command, split.commandArgs) } else { split.commandArgs }")
+	g.line("let parsed = rune_cli_parse_args(command, parse_args)")
+	g.line("let command_result = CliParseResult::{ command: parsed.command, values: parsed.values, flags: parsed.flags, positionals: parsed.positionals, explicitOptions: parsed.explicitOptions, args: split.commandArgs, rest: parsed.rest, help: parsed.help, error: parsed.error }")
+	g.line("CliCommandParseResult::{ root: root_result, command: command_result, commandName: split.commandName, commandArgs: split.commandArgs, error: None }")
+	g.indent--
+	g.line("}")
+	g.line("None => CliCommandParseResult::{ root: root_result, command: root_result, commandName: split.commandName, commandArgs: split.commandArgs, error: Some(\"unknown command \" + split.commandName) }")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_split_command_args(root : CliCommand, aliases : Array[CliCommandAlias], args : Array[String]) -> CliCommandSplit {")
+	g.indent++
+	g.line("let root_args : Array[String] = []")
 	g.line("let command_args : Array[String] = []")
+	g.line("let mut command_name = \"\"")
 	g.line("let mut index = 0")
 	g.line("while index < args.length() {")
 	g.indent++
 	g.line("let arg = args[index]")
-	g.line("if command_name.is_empty() && !arg.starts_with(\"-\") { command_name = arg } else if !command_name.is_empty() { command_args.push(arg) }")
-	g.line("index = index + 1")
+	g.line("if command_name.is_empty() && (arg == \"--help\" || arg == \"-h\") {")
+	g.indent++
+	g.line("root_args.push(arg)")
+	g.indent--
+	g.line("} else if command_name.is_empty() {")
+	g.indent++
+	g.line("match rune_cli_root_option(root, arg) {")
+	g.indent++
+	g.line("Some(option) => {")
+	g.indent++
+	g.line("root_args.push(arg)")
+	g.line("if rune_cli_root_option_consumes_next(option, arg) && index + 1 < args.length() {")
+	g.indent++
+	g.line("index += 1")
+	g.line("root_args.push(args[index])")
 	g.indent--
 	g.line("}")
-	g.line("aliases.each((alias) => { if command_name == alias.from { command_name = alias.to } })")
-	g.line("let mut found = false")
-	g.line("let mut command = root")
-	g.line("commands.each((candidate) => { if candidate.name == command_name { command = candidate; found = true } })")
-	g.line("let command_result = if found { rune_cli_parse_args(command, command_args) } else { root_result }")
-	g.line("let error = if !command_name.is_empty() && !found { Some(\"unknown command \" + command_name) } else { None }")
-	g.line("CliCommandParseResult::{ root: root_result, command: command_result, command_name, command_args, error }")
+	g.indent--
+	g.line("}")
+	g.line("None => { command_name = rune_cli_resolve_alias(aliases, arg) }")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("} else {")
+	g.indent++
+	g.line("command_args.push(arg)")
+	g.indent--
+	g.line("}")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.line("CliCommandSplit::{ rootArgs: root_args, commandName: command_name, commandArgs: command_args }")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_root_option(root : CliCommand, arg : String) -> CliOption? {")
+	g.indent++
+	g.line("if arg.has_prefix(\"--\") && arg.length() > 2 {")
+	g.indent++
+	g.line("rune_cli_find_long_option(root.options, rune_cli_long_option_name(arg))")
+	g.indent--
+	g.line("} else if arg.has_prefix(\"-\") && arg != \"-\" {")
+	g.indent++
+	g.line("rune_cli_find_short_option(root.options, arg[1:2].to_owned())")
+	g.indent--
+	g.line("} else { None }")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_long_option_name(arg : String) -> String {")
+	g.indent++
+	g.line("let raw = arg[2:].to_owned()")
+	g.line("let equal = raw.find(\"=\").unwrap_or(-1)")
+	g.line("if equal >= 0 { raw[0:equal].to_owned() } else { raw }")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_root_option_consumes_next(option : CliOption, arg : String) -> Bool {")
+	g.indent++
+	g.line("let has_inline = (arg.find(\"=\").unwrap_or(-1) >= 0) || (arg.has_prefix(\"-\") && !arg.has_prefix(\"--\") && arg.length() > 2)")
+	g.line("!option.valueName.is_empty() && !has_inline")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_find_long_option(options : Array[CliOption], name : String) -> CliOption? {")
+	g.indent++
+	g.line("let mut found : CliOption? = None")
+	g.line("let mut index = 0")
+	g.line("while index < options.length() {")
+	g.indent++
+	g.line("if options[index].name == name { found = Some(options[index]) }")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.line("found")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_find_short_option(options : Array[CliOption], short : String) -> CliOption? {")
+	g.indent++
+	g.line("let mut found : CliOption? = None")
+	g.line("let mut index = 0")
+	g.line("while index < options.length() {")
+	g.indent++
+	g.line("if options[index].short == short { found = Some(options[index]) }")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.line("found")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_find_command(commands : Array[CliCommand], name : String) -> CliCommand? {")
+	g.indent++
+	g.line("let mut found : CliCommand? = None")
+	g.line("let mut index = 0")
+	g.line("while index < commands.length() {")
+	g.indent++
+	g.line("if commands[index].name == name { found = Some(commands[index]) }")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.line("found")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_resolve_alias(aliases : Array[CliCommandAlias], name : String) -> String {")
+	g.indent++
+	g.line("let mut out = name")
+	g.line("aliases.each((entry) => { if entry.from == name { out = entry.to } })")
+	g.line("out")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn rune_cli_normalize_trailing_rest_args(command : CliCommand, args : Array[String]) -> Array[String] {")
+	g.indent++
+	g.line("let out : Array[String] = []")
+	g.line("let mut index = 0")
+	g.line("let mut positional_count = 0")
+	g.line("let mut skip_next = false")
+	g.line("while index < args.length() {")
+	g.indent++
+	g.line("let arg = args[index]")
+	g.line("if positional_count >= command.arguments.length() {")
+	g.indent++
+	g.line("if arg != \"--\" { out.push(\"--\") }")
+	g.line("while index < args.length() {")
+	g.indent++
+	g.line("out.push(args[index])")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("} else if skip_next {")
+	g.indent++
+	g.line("out.push(arg)")
+	g.line("skip_next = false")
+	g.line("index += 1")
+	g.indent--
+	g.line("} else {")
+	g.indent++
+	g.line("out.push(arg)")
+	g.line("match rune_cli_root_option(command, arg) {")
+	g.indent++
+	g.line("Some(option) => { if rune_cli_root_option_consumes_next(option, arg) { skip_next = true } }")
+	g.line("None => { if !arg.has_prefix(\"-\") { positional_count += 1 } }")
+	g.indent--
+	g.line("}")
+	g.line("index += 1")
+	g.indent--
+	g.line("}")
+	g.indent--
+	g.line("}")
+	g.line("out")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -245,16 +424,16 @@ func (g *generator) cliRuntime() {
 	g.line("let values : Map[String, String] = {}")
 	g.line("let flags : Map[String, Bool] = {}")
 	g.line("let positionals : Map[String, String] = {}")
-	g.line("let explicit_options : Array[String] = []")
+	g.line("let explicitOptions : Array[String] = []")
 	g.line("let mut rest : Array[String] = []")
 	g.line("let positional_values : Array[String] = []")
 	g.line("let mut help = false")
 	g.line("let mut error : String? = None")
 	g.line("command.options.each((option) => {")
 	g.indent++
-	g.line("match option.default_value {")
+	g.line("match option.defaultValue {")
 	g.indent++
-	g.line("Some(value) => if !option.value_name.is_empty() { values[option.name] = value }")
+	g.line("Some(value) => if !option.valueName.is_empty() { values[option.name] = value }")
 	g.line("None => ()")
 	g.indent--
 	g.line("}")
@@ -286,7 +465,7 @@ func (g *generator) cliRuntime() {
 	g.line("if option.name == name {")
 	g.indent++
 	g.line("matched = true")
-	g.line("if option.value_name.is_empty() {")
+	g.line("if option.valueName.is_empty() {")
 	g.indent++
 	g.line("flags[option.name] = true")
 	g.indent--
@@ -322,7 +501,7 @@ func (g *generator) cliRuntime() {
 	g.line("if option.short == short {")
 	g.indent++
 	g.line("matched = true")
-	g.line("if option.value_name.is_empty() {")
+	g.line("if option.valueName.is_empty() {")
 	g.indent++
 	g.line("flags[option.name] = true")
 	g.indent--
@@ -359,7 +538,7 @@ func (g *generator) cliRuntime() {
 	g.indent++
 	g.line("if option.required && error == None && !help {")
 	g.indent++
-	g.line("if option.value_name.is_empty() {")
+	g.line("if option.valueName.is_empty() {")
 	g.indent++
 	g.line("if !flags.contains(option.name) { error = Some(\"missing required option --\" + option.name) }")
 	g.indent--
@@ -387,7 +566,7 @@ func (g *generator) cliRuntime() {
 	g.line("}")
 	g.indent--
 	g.line("})")
-	g.line("CliParseResult::{ command, values, flags, positionals, explicit_options, args, rest, help, error }")
+	g.line("CliParseResult::{ command, values, flags, positionals, explicitOptions, args, rest, help, error }")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -406,7 +585,7 @@ func (g *generator) cliRuntime() {
 	g.line("out = out + \"\\nOptions:\"")
 	g.line("command.options.each((option) => {")
 	g.indent++
-	g.line("let value = (if option.value_name.is_empty() { \"\" } else { \" <\" + option.value_name + \">\" })")
+	g.line("let value = (if option.valueName.is_empty() { \"\" } else { \" <\" + option.valueName + \">\" })")
 	g.line("let short = (if option.short.is_empty() { \"\" } else { \"-\" + option.short + \", \" })")
 	g.line("out = out + \"\\n  \" + short + \"--\" + option.name + value")
 	g.indent--

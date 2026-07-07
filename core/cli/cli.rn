@@ -48,6 +48,17 @@
   error: String?
 }
 
+CliCommandArgs: {
+  rootArgs: Array[String]
+  commandName: String
+  commandArgs: Array[String]
+}
+
+CliCommandLookup: {
+  command: CliCommand
+  found: Bool
+}
+
 moduleCall(
   name: String,
   args: Array[SyntaxExpr]
@@ -767,14 +778,328 @@ containsAt(
   trailingRest: Array[String],
   args: Array[String]
 ) -> CliCommandParseResult => {
-  rootResult := parseArgs(root, args)
+  split := splitCommandArgs(root, aliases, args, 0, [], "", [], false)
+  rootResult := parseArgs(root, split.rootArgs)
+  split.commandName.isEmpty() {
+    true => CliCommandParseResult {
+      root: rootResult,
+      command: rootResult,
+      commandName: "",
+      commandArgs: [],
+      error: null
+    }
+    _ => parseNamedCommandArgs(rootResult, commands, trailingRest, split)
+  }
+}
+
+parseNamedCommandArgs(
+  rootResult: CliParseResult,
+  commands: Array[CliCommand],
+  trailingRest: Array[String],
+  split: CliCommandArgs
+) -> CliCommandParseResult => {
+  lookup := findCommand(commands, split.commandName, 0)
+  lookup.found {
+    true => parseKnownCommandArgs(rootResult, lookup.command, trailingRest, split)
+    _ => CliCommandParseResult {
+      root: rootResult,
+      command: rootResult,
+      commandName: split.commandName,
+      commandArgs: split.commandArgs,
+      error: "unknown command " + split.commandName
+    }
+  }
+}
+
+parseKnownCommandArgs(
+  rootResult: CliParseResult,
+  command: CliCommand,
+  trailingRest: Array[String],
+  split: CliCommandArgs
+) -> CliCommandParseResult => {
+  args := contains(trailingRest, split.commandName) {
+    true => normalizeTrailingRestArgs(command, split.commandArgs)
+    _ => split.commandArgs
+  }
+  parsed := withReportedArgs(parseArgs(command, args), split.commandArgs)
   CliCommandParseResult {
     root: rootResult,
-    command: rootResult,
-    commandName: "",
-    commandArgs: [],
+    command: parsed,
+    commandName: split.commandName,
+    commandArgs: split.commandArgs,
     error: null
   }
+}
+
+withReportedArgs(
+  result: CliParseResult,
+  args: Array[String]
+) -> CliParseResult => CliParseResult {
+  command: result.command,
+  values: result.values,
+  flags: result.flags,
+  positionals: result.positionals,
+  explicitOptions: result.explicitOptions,
+  args: args,
+  rest: result.rest,
+  help: result.help,
+  error: result.error
+}
+
+splitCommandArgs(
+  root: CliCommand,
+  aliases: Array[CliCommandAlias],
+  args: Array[String],
+  index: Int,
+  rootArgs: Array[String],
+  commandName: String,
+  commandArgs: Array[String],
+  skipNext: Bool
+) -> CliCommandArgs => (index >= args.length()) {
+  true => CliCommandArgs {
+    rootArgs: rootArgs,
+    commandName: commandName,
+    commandArgs: commandArgs
+  }
+  _ => splitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
+}
+
+splitCommandArg(
+  root: CliCommand,
+  aliases: Array[CliCommandAlias],
+  args: Array[String],
+  index: Int,
+  rootArgs: Array[String],
+  commandName: String,
+  commandArgs: Array[String],
+  skipNext: Bool
+) -> CliCommandArgs => skipNext {
+  true => splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false)
+  _ => splitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
+}
+
+splitCommandArgValue(
+  root: CliCommand,
+  aliases: Array[CliCommandAlias],
+  args: Array[String],
+  index: Int,
+  rootArgs: Array[String],
+  commandName: String,
+  commandArgs: Array[String]
+) -> CliCommandArgs => {
+  arg := args[index]
+  isRootHelp := (commandName == "") && ((arg == "--help") || (arg == "-h"))
+  isRootOption := rootOptionArg(root, arg)
+  isRootHelp {
+    true => splitCommandArgs(root, aliases, args, index + 1, [..rootArgs, arg], commandName, commandArgs, false)
+    _ => isRootOption {
+      true => splitRootOptionArg(root, aliases, args, index, rootArgs, commandName, commandArgs, rootOptionConsumesNext(root, arg))
+      _ => commandName.isEmpty() {
+        true => splitCommandArgs(root, aliases, args, index + 1, rootArgs, resolveAlias(aliases, arg, 0), commandArgs, false)
+        _ => splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, [..commandArgs, arg], false)
+      }
+    }
+  }
+}
+
+splitRootOptionArg(
+  root: CliCommand,
+  aliases: Array[CliCommandAlias],
+  args: Array[String],
+  index: Int,
+  rootArgs: Array[String],
+  commandName: String,
+  commandArgs: Array[String],
+  consumesNext: Bool
+) -> CliCommandArgs => splitCommandArgs(root, aliases, args, index + 1, appendRootOptionArgs(rootArgs, args, index, consumesNext), commandName, commandArgs, consumesNext)
+
+appendRootOptionArgs(
+  rootArgs: Array[String],
+  args: Array[String],
+  index: Int,
+  consumesNext: Bool
+) -> Array[String] => (consumesNext && ((index + 1) < args.length())) {
+  true => [..rootArgs, args[index], args[index + 1]]
+  _ => [..rootArgs, args[index]]
+}
+
+rootOptionArg(
+  root: CliCommand,
+  arg: String
+) -> Bool => optionFound(rootOption(root, arg))
+
+rootOptionConsumesNext(
+  root: CliCommand,
+  arg: String
+) -> Bool => {
+  option := rootOption(root, arg)
+  hasInline := arg.includes("=") || ((arg.startsWith("-") && !arg.startsWith("--")) && (arg.length() > 2))
+  optionFound(option) && ((option.valueName != "") && !hasInline)
+}
+
+rootOption(
+  root: CliCommand,
+  arg: String
+) -> CliOption => (arg.startsWith("--") && (arg.length() > 2)) {
+  true => findOptionByName(root.options, longOptionName(arg), 0)
+  _ => (arg.startsWith("-") && (arg != "-")) {
+    true => findOptionByShort(root.options, arg.slice(1, 2), 0)
+    _ => emptyOption()
+  }
+}
+
+longOptionName(
+  arg: String
+) -> String => {
+  raw := arg.slice(2, arg.length())
+  equal := raw.indexOf("=")
+  (equal >= 0) {
+    true => raw.slice(0, equal)
+    _ => raw
+  }
+}
+
+findOptionByName(
+  options: Array[CliOption],
+  name: String,
+  index: Int
+) -> CliOption => (index >= options.length()) {
+  true => emptyOption()
+  _ => (options[index].name == name) {
+    true => options[index]
+    _ => findOptionByName(options, name, index + 1)
+  }
+}
+
+findOptionByShort(
+  options: Array[CliOption],
+  short: String,
+  index: Int
+) -> CliOption => (index >= options.length()) {
+  true => emptyOption()
+  _ => (options[index].short == short) {
+    true => options[index]
+    _ => findOptionByShort(options, short, index + 1)
+  }
+}
+
+emptyOption() -> CliOption => CliOption {
+  name: "",
+  short: "",
+  valueName: "",
+  help: "",
+  required: false,
+  defaultValue: null
+}
+
+optionFound(
+  option: CliOption
+) -> Bool => option.name != ""
+
+findCommand(
+  commands: Array[CliCommand],
+  name: String,
+  index: Int
+) -> CliCommandLookup => (name.isEmpty() || (index >= commands.length())) {
+  true => CliCommandLookup {
+    command: emptyCommand(),
+    found: false
+  }
+  _ => (commands[index].name == name) {
+    true => CliCommandLookup {
+      command: commands[index],
+      found: true
+    }
+    _ => findCommand(commands, name, index + 1)
+  }
+}
+
+emptyCommand() -> CliCommand => CliCommand {
+  name: "",
+  version: null,
+  about: "",
+  options: [],
+  arguments: []
+}
+
+resolveAlias(
+  aliases: Array[CliCommandAlias],
+  name: String,
+  index: Int
+) -> String => (index >= aliases.length()) {
+  true => name
+  _ => (aliases[index].from == name) {
+    true => aliases[index].to
+    _ => resolveAlias(aliases, name, index + 1)
+  }
+}
+
+normalizeTrailingRestArgs(
+  command: CliCommand,
+  args: Array[String]
+) -> Array[String] => normalizeTrailingRestArgsAt(command, args, 0, [], 0, false)
+
+normalizeTrailingRestArgsAt(
+  command: CliCommand,
+  args: Array[String],
+  index: Int,
+  out: Array[String],
+  positionalCount: Int,
+  skipNext: Bool
+) -> Array[String] => (index >= args.length()) {
+  true => out
+  _ => normalizeTrailingRestArg(command, args, index, out, positionalCount, skipNext)
+}
+
+normalizeTrailingRestArg(
+  command: CliCommand,
+  args: Array[String],
+  index: Int,
+  out: Array[String],
+  positionalCount: Int,
+  skipNext: Bool
+) -> Array[String] => {
+  arg := args[index]
+  (positionalCount >= command.arguments.length()) {
+    true => appendRestSeparator(args, index, out)
+    _ => skipNext {
+      true => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, false)
+      _ => commandOptionConsumesNext(command, arg) {
+        true => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, true)
+        _ => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount + positionalIncrement(arg), false)
+      }
+    }
+  }
+}
+
+commandOptionConsumesNext(
+  command: CliCommand,
+  arg: String
+) -> Bool => rootOptionConsumesNext(command, arg)
+
+positionalIncrement(
+  arg: String
+) -> Int => arg.startsWith("-") {
+  true => 0
+  _ => 1
+}
+
+appendRestSeparator(
+  args: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (args[index] == "--") {
+  true => appendRuntimeRest(args, index, out)
+  _ => appendRuntimeRest(args, index, [..out, "--"])
+}
+
+appendRuntimeRest(
+  args: Array[String],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (index >= args.length()) {
+  true => out
+  _ => appendRuntimeRest(args, index + 1, [..out, args[index]])
 }
 
 + help(command: CliCommand) -> String => {
