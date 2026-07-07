@@ -467,6 +467,7 @@ type __IRFunction struct {
 	__params       []__IRParam
 	__returnType   string
 	__body         __IRExpr
+	__sourcePath   string
 	__line         int
 	__column       int
 }
@@ -539,6 +540,8 @@ type __CompilerCallable struct {
 	__arity      int
 	__returnType string
 	__paramTypes []string
+	__private    bool
+	__sourcePath string
 }
 
 type __CompilerMacroBinding struct {
@@ -4852,6 +4855,10 @@ func __lower(__source string) __IRFile {
 	return __lowerParsed(__parse(__source))
 }
 
+func __lowerWithSourcePath(__source string, __sourcePath string) __IRFile {
+	return __withIRFileSourcePath(__lower(__source), __sourcePath)
+}
+
 func __lowerParsed(__file __ParsedFile) __IRFile {
 	__out := __IRFile{__imports: []__IRImport{}, __tsImports: []__IRTSImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: __file.__errors}
 	for _, __importDecl := range __file.__imports {
@@ -4906,7 +4913,7 @@ func __emptyIRExpr() __IRExpr {
 }
 
 func __emptyIRFunction() __IRFunction {
-	return __IRFunction{__name: "", __private: false, __static: false, __routine: false, __macro: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: __emptyIRExpr(), __line: 0, __column: 0}
+	return __IRFunction{__name: "", __private: false, __static: false, __routine: false, __macro: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: __emptyIRExpr(), __sourcePath: "", __line: 0, __column: 0}
 }
 
 func ____rune_private_44103c8f_lowerImport(__importDecl __ParsedImport) __IRImport {
@@ -5004,7 +5011,59 @@ func ____rune_private_44103c8f_lowerEnumMember(__member __ParsedEnumMember) __IR
 }
 
 func ____rune_private_44103c8f_lowerFunction(__fn __ParsedFunction) __IRFunction {
-	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn), __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __line: __fn.__line, __column: __fn.__column}
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn), __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __sourcePath: "", __line: __fn.__line, __column: __fn.__column}
+}
+
+func __withIRFileSourcePath(__file __IRFile, __sourcePath string) __IRFile {
+	return __IRFile{__imports: __file.__imports, __tsImports: __file.__tsImports, __structs: ____rune_private_44103c8f_withIRStructSourcePaths(__file.__structs, __sourcePath), __enums: ____rune_private_44103c8f_withIREnumSourcePaths(__file.__enums, __sourcePath), __constants: __file.__constants, __functions: ____rune_private_44103c8f_withIRFunctionSourcePaths(__file.__functions, __sourcePath), __tests: __file.__tests, __errors: __file.__errors}
+}
+
+func ____rune_private_44103c8f_withIRFunctionSourcePath(__fn __IRFunction, __sourcePath string) __IRFunction {
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __fn.__body, __sourcePath: __sourcePath, __line: __fn.__line, __column: __fn.__column}
+}
+
+func ____rune_private_44103c8f_withIRFunctionSourcePaths(__functions []__IRFunction, __sourcePath string) []__IRFunction {
+	__out := append([]__IRFunction{}, __functions[0:0]...)
+	for _, __fn := range __functions {
+		_ = __fn
+		func() int {
+			__out = append(__out, ____rune_private_44103c8f_withIRFunctionSourcePath(__fn, __sourcePath))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func ____rune_private_44103c8f_withIRStructSourcePath(__typeDecl __IRStructType, __sourcePath string) __IRStructType {
+	return __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: __typeDecl.__fields, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __line: __typeDecl.__line, __column: __typeDecl.__column}
+}
+
+func ____rune_private_44103c8f_withIRStructSourcePaths(__structs []__IRStructType, __sourcePath string) []__IRStructType {
+	__out := append([]__IRStructType{}, __structs[0:0]...)
+	for _, __typeDecl := range __structs {
+		_ = __typeDecl
+		func() int {
+			__out = append(__out, ____rune_private_44103c8f_withIRStructSourcePath(__typeDecl, __sourcePath))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func ____rune_private_44103c8f_withIREnumSourcePath(__typeDecl __IREnumType, __sourcePath string) __IREnumType {
+	return __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: __typeDecl.__members, __methods: ____rune_private_44103c8f_withIRFunctionSourcePaths(__typeDecl.__methods, __sourcePath), __line: __typeDecl.__line, __column: __typeDecl.__column}
+}
+
+func ____rune_private_44103c8f_withIREnumSourcePaths(__enums []__IREnumType, __sourcePath string) []__IREnumType {
+	__out := append([]__IREnumType{}, __enums[0:0]...)
+	for _, __typeDecl := range __enums {
+		_ = __typeDecl
+		func() int {
+			__out = append(__out, ____rune_private_44103c8f_withIREnumSourcePath(__typeDecl, __sourcePath))
+			return len(__out)
+		}()
+	}
+	return __out
 }
 
 func ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn __ParsedFunction) bool {
@@ -7298,7 +7357,7 @@ func ____rune_private_3050a3c7_methodWithMoonBitReceiver(__typeName string, __me
 			return ____rune_private_3050a3c7_prependMoonBitSelfParam(__typeName, __method.__params)
 		}
 		return nil
-	}(), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
+	}(), __returnType: __method.__returnType, __body: __method.__body, __sourcePath: __method.__sourcePath, __line: __method.__line, __column: __method.__column}
 }
 
 func ____rune_private_3050a3c7_prependMoonBitSelfParam(__typeName string, __params []__IRParam) []__IRParam {
@@ -8293,7 +8352,7 @@ func ____rune_private_68c6e3cf_methodWithTSReceiver(__typeName string, __method 
 			return ____rune_private_68c6e3cf_prependThisParam(__typeName, __method.__params)
 		}
 		return nil
-	}(), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
+	}(), __returnType: __method.__returnType, __body: __method.__body, __sourcePath: __method.__sourcePath, __line: __method.__line, __column: __method.__column}
 }
 
 func ____rune_private_68c6e3cf_prependThisParam(__typeName string, __params []__IRParam) []__IRParam {
@@ -9140,9 +9199,20 @@ func ____rune_private_0d2ebf0f_checkTopLevelFunctionErrors(__fn __IRFunction, __
 	return func() []string {
 		switch {
 		case __fn.__macro == true:
-			return ____rune_private_0d2ebf0f_checkMacroFunctionReturn(__fn, __structs, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkMacroFunctionReturn(__fn, __structs, __callables, __errors, ____rune_private_0d2ebf0f_compilerSourcePathBindings(__fn.__sourcePath, __bindings))
 		default:
-			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __structs, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __structs, __callables, __errors, ____rune_private_0d2ebf0f_compilerSourcePathBindings(__fn.__sourcePath, __bindings))
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerSourcePathBindings(__sourcePath string, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		switch {
+		case __sourcePath == "":
+			return __bindings
+		default:
+			return ____rune_private_0d2ebf0f_addCompilerValueBinding(__bindings, "__sourcePath", __sourcePath)
 		}
 	}()
 }
@@ -9609,7 +9679,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 				return 0
 			}
 			return func() int {
-				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params)))
+				__callables = append(__callables, ____rune_private_0d2ebf0f_compilerFunctionCallable(__fn))
 				return len(__callables)
 			}()
 		}()
@@ -9620,7 +9690,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __fn := range __importDecl.__functions {
 				_ = __fn
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params)))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params), false, ""))
 					return len(__callables)
 				}()
 			}
@@ -9656,7 +9726,7 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 			for _, __member := range __typeDecl.__members {
 				_ = __member
 				func() int {
-					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params), __typeDecl.__name, ____rune_private_0d2ebf0f_compilerParamTypeNames(__member.__params)))
+					__callables = append(__callables, ____rune_private_0d2ebf0f_compilerCallable(__member.__name, len(__member.__params), __typeDecl.__name, ____rune_private_0d2ebf0f_compilerParamTypeNames(__member.__params), false, ""))
 					return len(__callables)
 				}()
 			}
@@ -9665,8 +9735,12 @@ func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCa
 	return __callables
 }
 
+func ____rune_private_0d2ebf0f_compilerFunctionCallable(__fn __IRFunction) __CompilerCallable {
+	return ____rune_private_0d2ebf0f_compilerCallable(__fn.__name, len(__fn.__params), __fn.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__fn.__params), __fn.__private, __fn.__sourcePath)
+}
+
 func ____rune_private_0d2ebf0f_compilerMethodCallable(__typeName string, __method __IRFunction) __CompilerCallable {
-	return ____rune_private_0d2ebf0f_compilerCallable(____rune_private_0d2ebf0f_compilerMethodCallableName(__typeName, __method), len(__method.__params), __method.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__method.__params))
+	return ____rune_private_0d2ebf0f_compilerCallable(____rune_private_0d2ebf0f_compilerMethodCallableName(__typeName, __method), len(__method.__params), __method.__returnType, ____rune_private_0d2ebf0f_compilerParamTypeNames(__method.__params), __method.__private, __method.__sourcePath)
 }
 
 func ____rune_private_0d2ebf0f_compilerMethodCallableName(__typeName string, __method __IRFunction) string {
@@ -11808,7 +11882,19 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 	return func() []string {
 		switch {
 		case __found == true:
-			return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __structs, __callables, __bindings, __errors)
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_checkCallableVisibility(__callable, __bindings, __errors) == true:
+					return ____rune_private_0d2ebf0f_checkCallableCall(__callable, __expr, __arity, __structs, __callables, __bindings, __errors)
+				default:
+					return func() []string {
+						out := []string{}
+						out = append(out, __errors...)
+						out = append(out, "function \""+__name+"\" is private")
+						return out
+					}()
+				}
+			}()
 		default:
 			return func() []string {
 				out := []string{}
@@ -11818,6 +11904,16 @@ func ____rune_private_0d2ebf0f_checkIdentifierCall(__expr __IRExpr, __name strin
 			}()
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCallableVisibility(__callable __CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) bool {
+	__current := ____rune_private_0d2ebf0f_compilerCurrentSourcePath(__bindings)
+	__privateAcrossFiles := __callable.__private && (__callable.__sourcePath != "" && (__current != "" && __current != __callable.__sourcePath))
+	return __privateAcrossFiles == false
+}
+
+func ____rune_private_0d2ebf0f_compilerCurrentSourcePath(__bindings []__CompilerTypeBinding) string {
+	return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, "__sourcePath", 0).__typeName
 }
 
 func ____rune_private_0d2ebf0f_checkCallableCall(__callable __CompilerCallable, __expr __IRExpr, __arity int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
@@ -12933,12 +13029,12 @@ func ____rune_private_0d2ebf0f_findCompilerCallableAt(__callables []__CompilerCa
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int, __returnType string, __paramTypes []string) __CompilerCallable {
-	return __CompilerCallable{__name: __name, __arity: __arity, __returnType: __returnType, __paramTypes: __paramTypes}
+func ____rune_private_0d2ebf0f_compilerCallable(__name string, __arity int, __returnType string, __paramTypes []string, __private bool, __sourcePath string) __CompilerCallable {
+	return __CompilerCallable{__name: __name, __arity: __arity, __returnType: __returnType, __paramTypes: __paramTypes, __private: __private, __sourcePath: __sourcePath}
 }
 
 func ____rune_private_0d2ebf0f_emptyCompilerCallable() __CompilerCallable {
-	return ____rune_private_0d2ebf0f_compilerCallable("", 0, "", []string{})
+	return ____rune_private_0d2ebf0f_compilerCallable("", 0, "", []string{}, false, "")
 }
 
 func ____rune_private_0d2ebf0f_compilerParamTypeNames(__params []__IRParam) []string {
@@ -13236,6 +13332,10 @@ func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
 
 func ____rune_private_0d2ebf0f_lowerCompilerSource(__source string) __IRFile {
 	return __lowerParsed(____rune_private_0d2ebf0f_expandCompilerMacros(__parse(__source)))
+}
+
+func ____rune_private_0d2ebf0f_lowerCompilerSourceWithPath(__source string, __sourcePath string) __IRFile {
+	return __withIRFileSourcePath(____rune_private_0d2ebf0f_lowerCompilerSource(__source), __sourcePath)
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __ParsedFile {
@@ -14345,7 +14445,7 @@ func ____rune_private_0d2ebf0f_lowerFoundSourceFile(__files []__SourceFile, __fi
 }
 
 func ____rune_private_0d2ebf0f_lowerFoundRuneSourceFile(__files []__SourceFile, __file __SourceFile, __rest []string, __seen []string, __out __IRFile) __IRFile {
-	__lowered := ____rune_private_0d2ebf0f_lowerCompilerSource(__file.__source)
+	__lowered := ____rune_private_0d2ebf0f_lowerCompilerSourceWithPath(__file.__source, __file.__path)
 	__merged := ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lowered)
 	__withTypeScript := ____rune_private_0d2ebf0f_lowerTypeScriptImportsForRuneFile(__files, __file.__path, __lowered.__imports, 0, __merged)
 	return ____rune_private_0d2ebf0f_lowerReachableRuneFiles(__files, ____rune_private_0d2ebf0f_appendImportPaths(__rest, __file.__path, __lowered.__imports, 0), __seen, __withTypeScript)
@@ -14724,7 +14824,7 @@ func ____rune_private_0d2ebf0f_pushTypeScriptFunction(__imports __IRTSImport, __
 					return ____rune_private_0d2ebf0f_parseTypeScriptParams(func() string { runes := []rune(__text); return string(runes[__open+1 : __close]) }())
 				}
 				return append([]__IRParam{}, []__IRParam{____rune_private_0d2ebf0f_emptyIRParam()}[0:0]...)
-			}(), __returnType: __returnType, __body: __emptyIRExpr(), __line: 0, __column: 0})
+			}(), __returnType: __returnType, __body: __emptyIRExpr(), __sourcePath: "", __line: 0, __column: 0})
 			return len(__imports.__functions)
 		}()
 	}

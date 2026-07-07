@@ -59,7 +59,7 @@ main() -> Int => importedAnswer()
   name: String
 }
 
-importedAnswer() -> Int => 42
++ importedAnswer() -> Int => 42
 `
     }
   ]
@@ -86,12 +86,12 @@ main() -> Int => importedAnswer()
     },
     SourceFile {
       path: "other/helper.rn",
-      source: `importedAnswer() -> Int => 1
+      source: `+ importedAnswer() -> Int => 1
 `
     },
     SourceFile {
       path: "app/helper.rn",
-      source: `importedAnswer() -> Int => 42
+      source: `+ importedAnswer() -> Int => 42
 `
     }
   ]
@@ -111,7 +111,7 @@ main() -> Int => importedAnswer()
     },
     SourceFile {
       path: "helper.rn",
-      source: `importedAnswer(offset: Int) -> Int => offset + 42
+      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
     }
   ]
@@ -135,7 +135,7 @@ main() -> Int => importedAnswer()
     },
     SourceFile {
       path: "helper.rn",
-      source: `importedAnswer(offset: Int) -> Int => offset + 42
+      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
     }
   ]
@@ -182,6 +182,43 @@ main() -> Int => importedAnswer()
   @assert.eq(go.ok, false)
   @assert.eq(go.errors.length(), 1)
   @assert.eq(go.errors[0], "undefined function hiddenAnswer")
+}
+
+? "selfhost compiler rejects imported private functions" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"helper.rn"
+
+main() -> Int => hiddenAnswer()
+`
+    },
+    SourceFile {
+      path: "helper.rn",
+      source: `hiddenAnswer() -> Int => 42
++ publicAnswer() -> Int => hiddenAnswer()
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "function \"hiddenAnswer\" is private")
+}
+
+? "selfhost compiler allows same-file private functions" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `hiddenAnswer() -> Int => 42
+
+main() -> Int => hiddenAnswer()
+`
+    }
+  ]
+  result := compileGoFiles(files)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
 }
 
 ? "selfhost compiler reads TypeScript import exports" {
@@ -931,7 +968,7 @@ main() -> Int => importedAnswer()
     },
     SourceFile {
       path: "helper.rn",
-      source: `importedAnswer(offset: Int) -> Int => offset + 42
+      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
     }
   ]
@@ -1516,7 +1553,7 @@ main() -> Int => importedAnswer(1)
     },
     SourceFile {
       path: "helper.rn",
-      source: `importedAnswer(label: String) -> Int => 42
+      source: `+ importedAnswer(label: String) -> Int => 42
 `
     }
   ]

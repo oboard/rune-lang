@@ -363,6 +363,7 @@ methodWithTSReceiver(
   },
   returnType: method.returnType,
   body: method.body,
+  sourcePath: method.sourcePath,
   line: method.line,
   column: method.column
 }

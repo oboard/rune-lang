@@ -20,6 +20,8 @@ CompilerCallable: {
   arity: Int
   returnType: String
   paramTypes: Array[String]
+  private: Bool
+  sourcePath: String
 }
 
 CompilerMacroBinding: {
@@ -197,8 +199,16 @@ checkTopLevelFunctionErrors(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => fn.macro {
-  true => checkMacroFunctionReturn(fn, structs, callables, errors, bindings)
-  _ => checkFunctionErrors(fn, structs, callables, errors, bindings)
+  true => checkMacroFunctionReturn(fn, structs, callables, errors, compilerSourcePathBindings(fn.sourcePath, bindings))
+  _ => checkFunctionErrors(fn, structs, callables, errors, compilerSourcePathBindings(fn.sourcePath, bindings))
+}
+
+compilerSourcePathBindings(
+  sourcePath: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => sourcePath {
+  "" => bindings
+  _ => addCompilerValueBinding(bindings, "__sourcePath", sourcePath)
 }
 
 checkMacroFunctionReturn(
@@ -613,19 +623,23 @@ compilerCallables(
   callables := [emptyCompilerCallable()].slice(0, 0)
   file.functions.each((fn) => (
     fn.macro ? 0
-      : callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))
+      : callables.push(compilerFunctionCallable(fn))
   ))
-  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params)))))
+  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => callables.push(compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params), false, ""))))
   file.structs.each((typeDecl) => typeDecl.methods.each((method) => callables.push(compilerMethodCallable(typeDecl.name, method))))
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => callables.push(compilerMethodCallable(typeDecl.name, method))))
-  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name, compilerParamTypeNames(member.params)))))
+  file.enums.each((typeDecl) => typeDecl.members.each((member) => callables.push(compilerCallable(member.name, member.params.length(), typeDecl.name, compilerParamTypeNames(member.params), false, ""))))
   callables
 }
+
+compilerFunctionCallable(
+  fn: IRFunction
+) -> CompilerCallable => compilerCallable(fn.name, fn.params.length(), fn.returnType, compilerParamTypeNames(fn.params), fn.private, fn.sourcePath)
 
 compilerMethodCallable(
   typeName: String,
   method: IRFunction
-) -> CompilerCallable => compilerCallable(compilerMethodCallableName(typeName, method), method.params.length(), method.returnType, compilerParamTypeNames(method.params))
+) -> CompilerCallable => compilerCallable(compilerMethodCallableName(typeName, method), method.params.length(), method.returnType, compilerParamTypeNames(method.params), method.private, method.sourcePath)
 
 compilerMethodCallableName(
   typeName: String,
@@ -2730,10 +2744,27 @@ checkIdentifierCall(
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
   found {
-    true => checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
+    true => checkCallableVisibility(callable, bindings, errors) {
+      true => checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
+      _ => [..errors, ("function \"" + name) + "\" is private"]
+    }
     _ => [..errors, "undefined function " + name]
   }
 }
+
+checkCallableVisibility(
+  callable: CompilerCallable,
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Bool => {
+  current := compilerCurrentSourcePath(bindings)
+  privateAcrossFiles := callable.private && ((callable.sourcePath != "") && ((current != "") && (current != callable.sourcePath)))
+  privateAcrossFiles == false
+}
+
+compilerCurrentSourcePath(
+  bindings: Array[CompilerTypeBinding]
+) -> String => findCompilerTypeBinding(bindings, "__sourcePath", 0).typeName
 
 checkCallableCall(
   callable: CompilerCallable,
@@ -3805,16 +3836,20 @@ compilerCallable(
   name: String,
   arity: Int,
   returnType: String,
-  paramTypes: Array[String]
+  paramTypes: Array[String],
+  private: Bool,
+  sourcePath: String
 ) -> CompilerCallable => {
   name: name,
   arity: arity,
   returnType: returnType,
-  paramTypes: paramTypes
+  paramTypes: paramTypes,
+  private: private,
+  sourcePath: sourcePath
 }
 
 emptyCompilerCallable(
-) -> CompilerCallable => compilerCallable("", 0, "", [])
+) -> CompilerCallable => compilerCallable("", 0, "", [], false, "")
 
 compilerParamTypeNames(
   params: Array[IRParam]
@@ -4102,6 +4137,11 @@ lowerFiles(
 lowerCompilerSource(
   source: String
 ) -> IRFile => lowerParsed(expandCompilerMacros(parse(source)))
+
+lowerCompilerSourceWithPath(
+  source: String,
+  sourcePath: String
+) -> IRFile => withIRFileSourcePath(lowerCompilerSource(source), sourcePath)
 
 expandCompilerMacros(
   file: ParsedFile
@@ -5195,7 +5235,7 @@ lowerFoundRuneSourceFile(
   seen: Array[String],
   out: IRFile
 ) -> IRFile => {
-  lowered := lowerCompilerSource(file.source)
+  lowered := lowerCompilerSourceWithPath(file.source, file.path)
   merged := mergeCompilerIRFile(out, lowered)
   withTypeScript := lowerTypeScriptImportsForRuneFile(files, file.path, lowered.imports, 0, merged)
   lowerReachableRuneFiles(files, appendImportPaths(rest, file.path, lowered.imports, 0), seen, withTypeScript)
@@ -5568,6 +5608,7 @@ pushTypeScriptFunction(
       ),
       returnType: returnType,
       body: emptyIRExpr(),
+      sourcePath: "",
       line: 0,
       column: 0
     })

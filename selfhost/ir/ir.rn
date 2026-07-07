@@ -66,6 +66,7 @@
   params: Array[IRParam]
   returnType: String
   body: IRExpr
+  sourcePath: String
   line: Int
   column: Int
 }
@@ -118,6 +119,11 @@
 }
 
 + lower(source: String) -> IRFile => lowerParsed(parse(source))
+
++ lowerWithSourcePath(
+  source: String,
+  sourcePath: String
+) -> IRFile => withIRFileSourcePath(lower(source), sourcePath)
 
 + lowerParsed(
   file: ParsedFile
@@ -186,6 +192,7 @@ pushEnumType(
   params: [],
   returnType: "",
   body: emptyIRExpr(),
+  sourcePath: "",
   line: 0,
   column: 0
 }
@@ -325,8 +332,95 @@ lowerFunction(
   params: lowerParams(fn.params),
   returnType: typeRefToString(fn.returnType),
   body: lowerExpr(fn.body),
+  sourcePath: "",
   line: fn.line,
   column: fn.column
+}
+
++ withIRFileSourcePath(
+  file: IRFile,
+  sourcePath: String
+) -> IRFile => IRFile {
+  imports: file.imports,
+  tsImports: file.tsImports,
+  structs: withIRStructSourcePaths(file.structs, sourcePath),
+  enums: withIREnumSourcePaths(file.enums, sourcePath),
+  constants: file.constants,
+  functions: withIRFunctionSourcePaths(file.functions, sourcePath),
+  tests: file.tests,
+  errors: file.errors
+}
+
+withIRFunctionSourcePath(
+  fn: IRFunction,
+  sourcePath: String
+) -> IRFunction => IRFunction {
+  name: fn.name,
+  private: fn.private,
+  static: fn.static,
+  routine: fn.routine,
+  macro: fn.macro,
+  receiverType: fn.receiverType,
+  generics: fn.generics,
+  params: fn.params,
+  returnType: fn.returnType,
+  body: fn.body,
+  sourcePath: sourcePath,
+  line: fn.line,
+  column: fn.column
+}
+
+withIRFunctionSourcePaths(
+  functions: Array[IRFunction],
+  sourcePath: String
+) -> Array[IRFunction] => {
+  out := functions.slice(0, 0)
+  functions.each((fn) => out.push(withIRFunctionSourcePath(fn, sourcePath)))
+  out
+}
+
+withIRStructSourcePath(
+  typeDecl: IRStructType,
+  sourcePath: String
+) -> IRStructType => IRStructType {
+  name: typeDecl.name,
+  private: typeDecl.private,
+  generics: typeDecl.generics,
+  fields: typeDecl.fields,
+  methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
+  line: typeDecl.line,
+  column: typeDecl.column
+}
+
+withIRStructSourcePaths(
+  structs: Array[IRStructType],
+  sourcePath: String
+) -> Array[IRStructType] => {
+  out := structs.slice(0, 0)
+  structs.each((typeDecl) => out.push(withIRStructSourcePath(typeDecl, sourcePath)))
+  out
+}
+
+withIREnumSourcePath(
+  typeDecl: IREnumType,
+  sourcePath: String
+) -> IREnumType => IREnumType {
+  name: typeDecl.name,
+  private: typeDecl.private,
+  generics: typeDecl.generics,
+  members: typeDecl.members,
+  methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
+  line: typeDecl.line,
+  column: typeDecl.column
+}
+
+withIREnumSourcePaths(
+  enums: Array[IREnumType],
+  sourcePath: String
+) -> Array[IREnumType] => {
+  out := enums.slice(0, 0)
+  enums.each((typeDecl) => out.push(withIREnumSourcePath(typeDecl, sourcePath)))
+  out
 }
 
 parsedFunctionCompileTimeOnly(
