@@ -26,6 +26,14 @@ name := "Rune\\nLang"`)
   @assert.eq(tokens[3].lexeme, "\"Rune\\nLang\"")
 }
 
+? "selfhost lexer keeps as as identifier" {
+  tokens := lex("as @ whole")
+  @assert.eq(tokens[0].kind, TokenKind.Ident)
+  @assert.eq(tokens[0].lexeme, "as")
+  @assert.eq(tokens[1].kind, TokenKind.At)
+  @assert.eq(tokens[2].kind, TokenKind.Ident)
+}
+
 ? "selfhost lexer reads template strings" {
   tokens := lex("name := `hello, \\(user)`")
   @assert.eq(tokens[0].kind, TokenKind.Ident)
