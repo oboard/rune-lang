@@ -97,7 +97,8 @@ checkFileErrors(
   file: IRFile
 ) -> Array[String] => {
   callables := compilerCallables(file)
-  errors := [""].slice(0, 0)
+  knownTypes := compilerKnownTypes(file)
+  errors := checkDeclarationTypes(file, knownTypes, [""].slice(0, 0))
   file.functions.each((fn) => errors = (
     fn.macro ? errors
       : checkFunctionErrors(fn, callables, errors)
@@ -106,6 +107,181 @@ checkFileErrors(
   file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
   file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors, [emptyCompilerTypeBinding()].slice(0, 0)))
   errors
+}
+
+compilerKnownTypes(
+  file: IRFile
+) -> Array[String] => {
+  names := compilerBuiltinTypes()
+  file.structs.each((typeDecl) => names.push(typeDecl.name))
+  file.enums.each((typeDecl) => names.push(typeDecl.name))
+  names
+}
+
+compilerBuiltinTypes() -> Array[String] => [
+  "Int",
+  "Double",
+  "Bool",
+  "String",
+  "Char",
+  "BigInt",
+  "Byte",
+  "Bytes",
+  "Object",
+  "Dynamic",
+  "Void",
+  "Null",
+  "Error",
+  "Regex",
+  "Symbol",
+  "MacroContext",
+  "Array",
+  "ReadonlyArray",
+  "Map",
+  "Set",
+  "Result"
+]
+
+checkDeclarationTypes(
+  file: IRFile,
+  knownTypes: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  next := errors
+  file.structs.each((typeDecl) => next = checkStructDeclarationTypes(typeDecl, knownTypes, next))
+  file.enums.each((typeDecl) => next = checkEnumDeclarationTypes(typeDecl, knownTypes, next))
+  file.functions.each((fn) => next = checkFunctionDeclarationTypes(fn, knownTypes, next))
+  next
+}
+
+checkStructDeclarationTypes(
+  typeDecl: IRStructType,
+  knownTypes: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  next := errors
+  typeDecl.fields.each((field) => next = checkCompilerTypeName(field.typeName, knownTypes, typeDecl.generics, next))
+  typeDecl.methods.each((method) => next = checkFunctionDeclarationTypesWithGenerics(method, knownTypes, typeDecl.generics, next))
+  next
+}
+
+checkEnumDeclarationTypes(
+  typeDecl: IREnumType,
+  knownTypes: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  next := errors
+  typeDecl.members.each((member) => member.params.each((param) => next = checkCompilerTypeName(param.typeName, knownTypes, typeDecl.generics, next)))
+  typeDecl.methods.each((method) => next = checkFunctionDeclarationTypesWithGenerics(method, knownTypes, typeDecl.generics, next))
+  next
+}
+
+checkFunctionDeclarationTypes(
+  fn: IRFunction,
+  knownTypes: Array[String],
+  errors: Array[String]
+) -> Array[String] => checkFunctionDeclarationTypesWithGenerics(fn, knownTypes, [], errors)
+
+checkFunctionDeclarationTypesWithGenerics(
+  fn: IRFunction,
+  knownTypes: Array[String],
+  parentGenerics: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  generics := compilerMergeGenerics(parentGenerics, fn.generics)
+  next := checkCompilerTypeName(fn.returnType, knownTypes, generics, errors)
+  fn.params.each((param) => next = checkCompilerTypeName(param.typeName, knownTypes, generics, next))
+  next
+}
+
+compilerMergeGenerics(
+  parentGenerics: Array[String],
+  functionGenerics: Array[String]
+) -> Array[String] => {
+  out := parentGenerics.slice(0, parentGenerics.length())
+  functionGenerics.each((name) => out.push(name))
+  out
+}
+
+checkCompilerTypeName(
+  typeName: String,
+  knownTypes: Array[String],
+  generics: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  normalized := compilerNormalizeTypeName(typeName)
+  shouldSkip := compilerShouldSkipTypeName(normalized)
+  shouldSkip {
+    true => errors
+    _ => checkCompilerNamedType(normalized, knownTypes, generics, errors)
+  }
+}
+
+compilerNormalizeTypeName(
+  typeName: String
+) -> String => {
+  nullable := typeName.endsWith("?")
+  nullable {
+    true => compilerNormalizeTypeName(typeName.slice(0, typeName.length() - 1))
+    _ => typeName
+  }
+}
+
+compilerShouldSkipTypeName(
+  typeName: String
+) -> Bool => (typeName == "") || ((typeName.startsWith("@") || typeName.startsWith("(")) || typeName.startsWith("Syntax"))
+
+checkCompilerNamedType(
+  typeName: String,
+  knownTypes: Array[String],
+  generics: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  base := compilerTypeBase(typeName)
+  known := compilerContains(knownTypes, base) || compilerContains(generics, base)
+  known {
+    true => checkCompilerTypeArgs(typeName, knownTypes, generics, errors)
+    _ => [..errors, "unknown type \"" + base + "\""]
+  }
+}
+
+checkCompilerTypeArgs(
+  typeName: String,
+  knownTypes: Array[String],
+  generics: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  inner := compilerGenericInner(typeName)
+  empty := inner == ""
+  empty {
+    true => errors
+    _ => checkCompilerTypeArgList(inner.split(","), knownTypes, generics, errors, 0)
+  }
+}
+
+checkCompilerTypeArgList(
+  args: Array[String],
+  knownTypes: Array[String],
+  generics: Array[String],
+  errors: Array[String],
+  index: Int
+) -> Array[String] => {
+  done := index >= args.length()
+  done {
+    true => errors
+    _ => checkCompilerTypeArgList(args, knownTypes, generics, checkCompilerTypeName(args[index].trim(), knownTypes, generics, errors), index + 1)
+  }
+}
+
+compilerGenericInner(
+  typeName: String
+) -> String => {
+  open := typeName.indexOf("[")
+  complete := (open >= 0) && typeName.endsWith("]")
+  complete {
+    true => typeName.slice(open + 1, typeName.length() - 1)
+    _ => ""
+  }
 }
 
 compilerCallables(

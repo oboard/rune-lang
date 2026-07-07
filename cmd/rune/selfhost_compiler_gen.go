@@ -8260,7 +8260,8 @@ func ____rune_private_0d2ebf0f_compileCheckedFile(__file __IRFile, __target stri
 
 func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	__callables := ____rune_private_0d2ebf0f_compilerCallables(__file)
-	__errors := append([]string{}, []string{""}[0:0]...)
+	__knownTypes := ____rune_private_0d2ebf0f_compilerKnownTypes(__file)
+	__errors := ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, append([]string{}, []string{""}[0:0]...))
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__errors = func() []string {
@@ -8293,6 +8294,179 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __callables, __errors, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
 	}
 	return __errors
+}
+
+func ____rune_private_0d2ebf0f_compilerKnownTypes(__file __IRFile) []string {
+	__names := ____rune_private_0d2ebf0f_compilerBuiltinTypes()
+	for _, __typeDecl := range __file.__structs {
+		_ = __typeDecl
+		func() int { __names = append(__names, __typeDecl.__name); return len(__names) }()
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		func() int { __names = append(__names, __typeDecl.__name); return len(__names) }()
+	}
+	return __names
+}
+
+func ____rune_private_0d2ebf0f_compilerBuiltinTypes() []string {
+	return []string{"Int", "Double", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"}
+}
+
+func ____rune_private_0d2ebf0f_checkDeclarationTypes(__file __IRFile, __knownTypes []string, __errors []string) []string {
+	__next := __errors
+	for _, __typeDecl := range __file.__structs {
+		_ = __typeDecl
+		__next = ____rune_private_0d2ebf0f_checkStructDeclarationTypes(__typeDecl, __knownTypes, __next)
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		__next = ____rune_private_0d2ebf0f_checkEnumDeclarationTypes(__typeDecl, __knownTypes, __next)
+	}
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		__next = ____rune_private_0d2ebf0f_checkFunctionDeclarationTypes(__fn, __knownTypes, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkStructDeclarationTypes(__typeDecl __IRStructType, __knownTypes []string, __errors []string) []string {
+	__next := __errors
+	for _, __field := range __typeDecl.__fields {
+		_ = __field
+		__next = ____rune_private_0d2ebf0f_checkCompilerTypeName(__field.__typeName, __knownTypes, __typeDecl.__generics, __next)
+	}
+	for _, __method := range __typeDecl.__methods {
+		_ = __method
+		__next = ____rune_private_0d2ebf0f_checkFunctionDeclarationTypesWithGenerics(__method, __knownTypes, __typeDecl.__generics, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkEnumDeclarationTypes(__typeDecl __IREnumType, __knownTypes []string, __errors []string) []string {
+	__next := __errors
+	for _, __member := range __typeDecl.__members {
+		_ = __member
+		func() {
+			for _, __param := range __member.__params {
+				_ = __param
+				__next = ____rune_private_0d2ebf0f_checkCompilerTypeName(__param.__typeName, __knownTypes, __typeDecl.__generics, __next)
+			}
+		}()
+	}
+	for _, __method := range __typeDecl.__methods {
+		_ = __method
+		__next = ____rune_private_0d2ebf0f_checkFunctionDeclarationTypesWithGenerics(__method, __knownTypes, __typeDecl.__generics, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkFunctionDeclarationTypes(__fn __IRFunction, __knownTypes []string, __errors []string) []string {
+	return ____rune_private_0d2ebf0f_checkFunctionDeclarationTypesWithGenerics(__fn, __knownTypes, []string{}, __errors)
+}
+
+func ____rune_private_0d2ebf0f_checkFunctionDeclarationTypesWithGenerics(__fn __IRFunction, __knownTypes []string, __parentGenerics []string, __errors []string) []string {
+	__generics := ____rune_private_0d2ebf0f_compilerMergeGenerics(__parentGenerics, __fn.__generics)
+	__next := ____rune_private_0d2ebf0f_checkCompilerTypeName(__fn.__returnType, __knownTypes, __generics, __errors)
+	for _, __param := range __fn.__params {
+		_ = __param
+		__next = ____rune_private_0d2ebf0f_checkCompilerTypeName(__param.__typeName, __knownTypes, __generics, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_compilerMergeGenerics(__parentGenerics []string, __functionGenerics []string) []string {
+	__out := append([]string{}, __parentGenerics[0:len(__parentGenerics)]...)
+	for _, __name := range __functionGenerics {
+		_ = __name
+		func() int { __out = append(__out, __name); return len(__out) }()
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_checkCompilerTypeName(__typeName string, __knownTypes []string, __generics []string, __errors []string) []string {
+	__normalized := ____rune_private_0d2ebf0f_compilerNormalizeTypeName(__typeName)
+	__shouldSkip := ____rune_private_0d2ebf0f_compilerShouldSkipTypeName(__normalized)
+	return func() []string {
+		switch {
+		case __shouldSkip == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkCompilerNamedType(__normalized, __knownTypes, __generics, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNormalizeTypeName(__typeName string) string {
+	__nullable := strings.HasSuffix(__typeName, "?")
+	return func() string {
+		switch {
+		case __nullable == true:
+			return ____rune_private_0d2ebf0f_compilerNormalizeTypeName(func() string { runes := []rune(__typeName); return string(runes[0 : len([]rune(__typeName))-1]) }())
+		default:
+			return __typeName
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerShouldSkipTypeName(__typeName string) bool {
+	return __typeName == "" || (strings.HasPrefix(__typeName, "@") || strings.HasPrefix(__typeName, "(") || strings.HasPrefix(__typeName, "Syntax"))
+}
+
+func ____rune_private_0d2ebf0f_checkCompilerNamedType(__typeName string, __knownTypes []string, __generics []string, __errors []string) []string {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	__known := ____rune_private_0d2ebf0f_compilerContains(__knownTypes, __base) || ____rune_private_0d2ebf0f_compilerContains(__generics, __base)
+	return func() []string {
+		switch {
+		case __known == true:
+			return ____rune_private_0d2ebf0f_checkCompilerTypeArgs(__typeName, __knownTypes, __generics, __errors)
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "unknown type \""+__base+"\"")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCompilerTypeArgs(__typeName string, __knownTypes []string, __generics []string, __errors []string) []string {
+	__inner := ____rune_private_0d2ebf0f_compilerGenericInner(__typeName)
+	__empty := __inner == ""
+	return func() []string {
+		switch {
+		case __empty == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkCompilerTypeArgList(func() []string { parts := strings.Split(__inner, ","); return parts }(), __knownTypes, __generics, __errors, 0)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkCompilerTypeArgList(__args []string, __knownTypes []string, __generics []string, __errors []string, __index int) []string {
+	__done := __index >= len(__args)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkCompilerTypeArgList(__args, __knownTypes, __generics, ____rune_private_0d2ebf0f_checkCompilerTypeName(strings.TrimSpace(__args[__index]), __knownTypes, __generics, __errors), __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerGenericInner(__typeName string) string {
+	__open := strings.Index(__typeName, "[")
+	__complete := __open >= 0 && strings.HasSuffix(__typeName, "]")
+	return func() string {
+		switch {
+		case __complete == true:
+			return func() string { runes := []rune(__typeName); return string(runes[__open+1 : len([]rune(__typeName))-1]) }()
+		default:
+			return ""
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerCallables(__file __IRFile) []__CompilerCallable {

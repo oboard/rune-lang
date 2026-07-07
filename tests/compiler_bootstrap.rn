@@ -451,3 +451,43 @@ main() -> MaybeInt => Some("x")
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "argument 1 to \"Some\" has type String, expected Int")
 }
+
+? "selfhost compiler reports unknown function parameter types" {
+  result := compileGo(`main(value: Missing) -> Int => 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "unknown type \"Missing\"")
+}
+
+? "selfhost compiler reports unknown struct field types" {
+  result := compileGo(`User: {
+  name: Missing
+}
+
+main() -> Int => 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "unknown type \"Missing\"")
+}
+
+? "selfhost compiler reports unknown enum payload types" {
+  result := compileGo(`Value: {
+  Some(value: Missing)
+}
+
+main() -> Int => 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "unknown type \"Missing\"")
+}
+
+? "selfhost compiler reports unknown generic argument types" {
+  result := compileGo(`main(values: Array[Missing]) -> Int => 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "unknown type \"Missing\"")
+}
