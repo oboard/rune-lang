@@ -7230,6 +7230,16 @@ func ____rune_private_0d2ebf0f_compileFile(__file __IRFile, __target string) __C
 		if len(__file.__errors) > 0 {
 			return ____rune_private_0d2ebf0f_compileResult(false, "", ____rune_private_0d2ebf0f_parseErrorMessages(__file.__errors))
 		}
+		return ____rune_private_0d2ebf0f_compileCheckedFile(__file, __target)
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compileCheckedFile(__file __IRFile, __target string) __CompileResult {
+	__errors := ____rune_private_0d2ebf0f_checkFileErrors(__file)
+	return func() __CompileResult {
+		if len(__errors) > 0 {
+			return ____rune_private_0d2ebf0f_compileResult(false, "", __errors)
+		}
 		return func() __CompileResult {
 			switch {
 			case __target == "ts":
@@ -7241,6 +7251,102 @@ func ____rune_private_0d2ebf0f_compileFile(__file __IRFile, __target string) __C
 			default:
 				return ____rune_private_0d2ebf0f_compileResult(false, "", ____rune_private_0d2ebf0f_unsupportedTargetErrors(__target))
 			}
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
+	__names := ____rune_private_0d2ebf0f_compilerCallableNames(__file)
+	__errors := append([]string{}, []string{""}[0:0]...)
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __names, __errors)
+	}
+	for _, __typeDecl := range __file.__structs {
+		_ = __typeDecl
+		func() {
+			for _, __method := range __typeDecl.__methods {
+				_ = __method
+				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __names, __errors)
+			}
+		}()
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		func() {
+			for _, __method := range __typeDecl.__methods {
+				_ = __method
+				__errors = ____rune_private_0d2ebf0f_checkExpr(__method.__body, __names, __errors)
+			}
+		}()
+	}
+	for _, __testDecl := range __file.__tests {
+		_ = __testDecl
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __names, __errors)
+	}
+	return __errors
+}
+
+func ____rune_private_0d2ebf0f_compilerCallableNames(__file __IRFile) []string {
+	__names := append([]string{}, []string{""}[0:0]...)
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		func() int { __names = append(__names, __fn.__name); return len(__names) }()
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		func() {
+			for _, __member := range __typeDecl.__members {
+				_ = __member
+				func() int { __names = append(__names, __member.__name); return len(__names) }()
+			}
+		}()
+	}
+	return __names
+}
+
+func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __names []string, __errors []string) []string {
+	__next := func() []string {
+		if ____rune_private_0d2ebf0f_isUnknownFunctionCall(__expr, __names) {
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "undefined function "+__expr.__children[0].__name)
+				return out
+			}()
+		}
+		return __errors
+	}()
+	for _, __child := range __expr.__children {
+		_ = __child
+		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __names, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_isUnknownFunctionCall(__expr __IRExpr, __names []string) bool {
+	return func() bool {
+		if __expr.__kind == __ExprKind_Call && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier {
+			return ____rune_private_0d2ebf0f_compilerContains(__names, __expr.__children[0].__name) == false
+		}
+		return false
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerContains(__values []string, __value string) bool {
+	return ____rune_private_0d2ebf0f_compilerContainsAt(__values, __value, 0)
+}
+
+func ____rune_private_0d2ebf0f_compilerContainsAt(__values []string, __value string, __index int) bool {
+	return func() bool {
+		if __index >= len(__values) {
+			return false
+		}
+		return func() bool {
+			if __values[__index] == __value {
+				return true
+			}
+			return ____rune_private_0d2ebf0f_compilerContainsAt(__values, __value, __index+1)
 		}()
 	}()
 }

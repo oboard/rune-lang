@@ -61,6 +61,17 @@ compileFile(
 ) -> CompileResult => (
   (
     file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
+      : compileCheckedFile(file, target)
+  )
+)
+
+compileCheckedFile(
+  file: IRFile,
+  target: String
+) -> CompileResult => {
+  errors := checkFileErrors(file)
+  (
+    errors.length() > 0 ? compileResult(false, "", errors)
       : target {
         "ts" => compileResult(true, generateTypeScript(file), [])
         "go" => compileResult(true, generateGo(file), [])
@@ -68,6 +79,65 @@ compileFile(
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )
+}
+
+checkFileErrors(
+  file: IRFile
+) -> Array[String] => {
+  names := compilerCallableNames(file)
+  errors := [""].slice(0, 0)
+  file.functions.each((fn) => errors = checkExpr(fn.body, names, errors))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkExpr(method.body, names, errors)))
+  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, names, errors))
+  errors
+}
+
+compilerCallableNames(
+  file: IRFile
+) -> Array[String] => {
+  names := [""].slice(0, 0)
+  file.functions.each((fn) => names.push(fn.name))
+  file.enums.each((typeDecl) => typeDecl.members.each((member) => names.push(member.name)))
+  names
+}
+
+checkExpr(
+  expr: IRExpr,
+  names: Array[String],
+  errors: Array[String]
+) -> Array[String] => {
+  next := (
+    isUnknownFunctionCall(expr, names) ? [..errors, "undefined function " + expr.children[0].name]
+      : errors
+  )
+  expr.children.each((child) => next = checkExpr(child, names, next))
+  next
+}
+
+isUnknownFunctionCall(
+  expr: IRExpr,
+  names: Array[String]
+) -> Bool => (
+  ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier) ? compilerContains(names, expr.children[0].name) == false
+    : false
+)
+
+compilerContains(
+  values: Array[String],
+  value: String
+) -> Bool => compilerContainsAt(values, value, 0)
+
+compilerContainsAt(
+  values: Array[String],
+  value: String,
+  index: Int
+) -> Bool => (
+  index >= values.length() ? false
+    : (
+      values[index] == value ? true
+        : compilerContainsAt(values, value, index + 1)
+    )
 )
 
 lowerFiles(

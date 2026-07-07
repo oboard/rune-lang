@@ -175,3 +175,10 @@ main() -> Int => {
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length() > 0, true)
 }
+
+? "selfhost compiler reports undefined function calls" {
+  result := compileGo("main() -> Int => missing()\n")
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "undefined function missing")
+}
