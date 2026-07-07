@@ -1259,6 +1259,7 @@ pushTypeScriptFunction(
     name != "" ? imports.functions.push(IRFunction {
         name: name,
         private: false,
+        static: false,
         routine: routine,
         macro: false,
         receiverType: "",

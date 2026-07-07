@@ -235,11 +235,15 @@ methodWithMoonBitReceiver(
 ) -> IRFunction => {
   name: (typeName + "_") + method.name,
   private: method.private,
+  static: method.static,
   routine: method.routine,
   macro: method.macro,
   receiverType: method.receiverType,
   generics: method.generics,
-  params: prependMoonBitSelfParam(typeName, method.params),
+  params: method.static {
+    true => method.params
+    false => prependMoonBitSelfParam(typeName, method.params)
+  },
   returnType: method.returnType,
   body: method.body,
   line: method.line,
@@ -568,10 +572,13 @@ emitMoonBitSelector(
   expr: IRExpr
 ) -> String => expr.children[0].kind {
   ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
-  ExprKind.Identifier => (
-    moonBitLooksLikeTypeName(expr.children[0].name) ? (moonBitTypeIdent(expr.children[0].name) + "::") + moonBitConstructorIdent(expr.name)
-      : (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
-  )
+  ExprKind.Identifier => expr.op {
+    "::" => mangleIdent((expr.children[0].name + "_") + expr.name)
+    _ => (
+      moonBitLooksLikeTypeName(expr.children[0].name) ? (moonBitTypeIdent(expr.children[0].name) + "::") + moonBitConstructorIdent(expr.name)
+        : (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
+    )
+  }
   _ => (emitMoonBitExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
 }
 

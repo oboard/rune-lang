@@ -55,6 +55,7 @@
 + IRFunction: {
   name: String
   private: Bool
+  static: Bool
   routine: Bool
   macro: Bool
   receiverType: String
@@ -174,6 +175,7 @@ pushEnumType(
 + emptyIRFunction() -> IRFunction => {
   name: "",
   private: false,
+  static: false,
   routine: false,
   macro: false,
   receiverType: "",
@@ -229,6 +231,7 @@ lowerFunction(
 ) -> IRFunction => {
   name: fn.name,
   private: fn.private,
+  static: fn.static,
   routine: fn.routine,
   macro: parsedFunctionCompileTimeOnly(fn),
   receiverType: fn.receiverType,

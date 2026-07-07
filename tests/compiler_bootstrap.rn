@@ -283,6 +283,32 @@ main() => {
   @assert.eq(mbt.output.includes("println((__user.__name).to_string() + \" \" + (RuneStatus::RuneReady).to_string())"), true)
 }
 
+? "selfhost compiler emits static methods" {
+  source := `User: {
+  name: String
+
+  static make(name: String) -> User => User { name: name }
+}
+
+main() => @io.println(User::make("Rune").name)
+`
+  ts := compileTypeScript(source)
+  go := compileGo(source)
+  mbt := compileMoonBit(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(go.ok, true)
+  @assert.eq(mbt.ok, true)
+  @assert.eq(go.output.includes("func __User_make(__name string) __User"), true)
+  @assert.eq(go.output.includes("func (__this __User) __make"), false)
+  @assert.eq(go.output.includes("__User_make(\"Rune\")"), true)
+  @assert.eq(ts.output.includes("function __User_make(__name: string): __User"), true)
+  @assert.eq(ts.output.includes("function __User_make(__this"), false)
+  @assert.eq(ts.output.includes("__User_make(\"Rune\")"), true)
+  @assert.eq(mbt.output.includes("fn __User_make(__name : String) -> RuneUser"), true)
+  @assert.eq(mbt.output.includes("fn __User_make(__this"), false)
+  @assert.eq(mbt.output.includes("__User_make(\"Rune\")"), true)
+}
+
 ? "selfhost compiler emits go payload enums" {
   source := `MaybeInt: {
   None

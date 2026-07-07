@@ -334,7 +334,7 @@ emitTSMethods(
   typeDecl: IRStructType
 ) -> String => {
   out :=: ""
-  typeDecl.methods.each((method) => out = (out + emitTSFunction(methodWithReceiver(typeDecl.name, method))) + "\n")
+  typeDecl.methods.each((method) => out = (out + emitTSFunction(methodWithTSReceiver(typeDecl.name, method))) + "\n")
   out
 }
 
@@ -342,21 +342,25 @@ emitTSEnumMethods(
   enumDecl: IREnumType
 ) -> String => {
   out :=: ""
-  enumDecl.methods.each((method) => out = (out + emitTSFunction(methodWithReceiver(enumDecl.name, method))) + "\n")
+  enumDecl.methods.each((method) => out = (out + emitTSFunction(methodWithTSReceiver(enumDecl.name, method))) + "\n")
   out
 }
 
-methodWithReceiver(
+methodWithTSReceiver(
   typeName: String,
   method: IRFunction
 ) -> IRFunction => {
   name: (typeName + "_") + method.name,
   private: method.private,
+  static: method.static,
   routine: method.routine,
   macro: method.macro,
   receiverType: method.receiverType,
   generics: method.generics,
-  params: prependThisParam(typeName, method.params),
+  params: method.static {
+    true => method.params
+    false => prependThisParam(typeName, method.params)
+  },
   returnType: method.returnType,
   body: method.body,
   line: method.line,
@@ -684,6 +688,10 @@ emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")
 
 emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
   ExprKind.At => (("@" + expr.children[0].name) + ".") + expr.name
+  ExprKind.Identifier => expr.op {
+    "::" => mangleIdent((expr.children[0].name + "_") + expr.name)
+    _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
+  }
   _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
 }
 

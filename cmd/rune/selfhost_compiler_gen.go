@@ -455,6 +455,7 @@ type __IREnumMember struct {
 type __IRFunction struct {
 	__name         string
 	__private      bool
+	__static       bool
 	__routine      bool
 	__macro        bool
 	__receiverType string
@@ -4842,7 +4843,7 @@ func __emptyIRExpr() __IRExpr {
 }
 
 func __emptyIRFunction() __IRFunction {
-	return __IRFunction{__name: "", __private: false, __routine: false, __macro: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: __emptyIRExpr(), __line: 0, __column: 0}
+	return __IRFunction{__name: "", __private: false, __static: false, __routine: false, __macro: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: __emptyIRExpr(), __line: 0, __column: 0}
 }
 
 func ____rune_private_44103c8f_lowerImport(__importDecl __ParsedImport) __IRImport {
@@ -4862,7 +4863,7 @@ func ____rune_private_44103c8f_lowerEnumMember(__member __ParsedEnumMember) __IR
 }
 
 func ____rune_private_44103c8f_lowerFunction(__fn __ParsedFunction) __IRFunction {
-	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __routine: __fn.__routine, __macro: ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn), __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __line: __fn.__line, __column: __fn.__column}
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn), __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: ____rune_private_44103c8f_lowerParams(__fn.__params), __returnType: __typeRefToString(__fn.__returnType), __body: ____rune_private_44103c8f_lowerExpr(__fn.__body), __line: __fn.__line, __column: __fn.__column}
 }
 
 func ____rune_private_44103c8f_parsedFunctionCompileTimeOnly(__fn __ParsedFunction) bool {
@@ -5599,17 +5600,34 @@ func ____rune_private_8ddf8596_emitGoFunction(__file __IRFile, __fn __IRFunction
 		}
 		return ""
 	}()
+	__effectiveReceiverType := func() string {
+		switch {
+		case __fn.__static == true:
+			return ""
+		case __fn.__static == false:
+			return __receiverType
+		}
+		return ""
+	}()
 	__receiver := func() string {
-		if __receiverType == "" {
+		if __effectiveReceiverType == "" {
 			return ""
 		}
-		return "(" + __mangleIdent("this") + " " + __mangleIdent(__receiverType) + ") "
+		return "(" + __mangleIdent("this") + " " + __mangleIdent(__effectiveReceiverType) + ") "
 	}()
 	__name := func() string {
 		if __receiverType == "" {
 			return __mangleIdent(__fn.__name)
 		}
-		return __mangleIdent(__fn.__name)
+		return func() string {
+			switch {
+			case __fn.__static == true:
+				return __mangleIdent(__receiverType + "_" + __fn.__name)
+			case __fn.__static == false:
+				return __mangleIdent(__fn.__name)
+			}
+			return ""
+		}()
 	}()
 	__out := "func " + __receiver + __name + "(" + __params + ")" + __ret + " {\n"
 	__out = __out + ____rune_private_8ddf8596_emitGoBody(__file, __fn.__body, __returnsValue(__returnType), __returnType, 1)
@@ -6715,7 +6733,15 @@ func ____rune_private_3050a3c7_emitMoonBitEnumMethods(__enumDecl __IREnumType) s
 }
 
 func ____rune_private_3050a3c7_methodWithMoonBitReceiver(__typeName string, __method __IRFunction) __IRFunction {
-	return __IRFunction{__name: __typeName + "_" + __method.__name, __private: __method.__private, __routine: __method.__routine, __macro: __method.__macro, __receiverType: __method.__receiverType, __generics: __method.__generics, __params: ____rune_private_3050a3c7_prependMoonBitSelfParam(__typeName, __method.__params), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
+	return __IRFunction{__name: __typeName + "_" + __method.__name, __private: __method.__private, __static: __method.__static, __routine: __method.__routine, __macro: __method.__macro, __receiverType: __method.__receiverType, __generics: __method.__generics, __params: func() []__IRParam {
+		switch {
+		case __method.__static == true:
+			return __method.__params
+		case __method.__static == false:
+			return ____rune_private_3050a3c7_prependMoonBitSelfParam(__typeName, __method.__params)
+		}
+		return nil
+	}(), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
 }
 
 func ____rune_private_3050a3c7_prependMoonBitSelfParam(__typeName string, __params []__IRParam) []__IRParam {
@@ -7154,10 +7180,17 @@ func ____rune_private_3050a3c7_emitMoonBitSelector(__expr __IRExpr) string {
 			return "@" + __expr.__children[0].__name + "." + __expr.__name
 		case __expr.__children[0].__kind == __ExprKind_Identifier:
 			return func() string {
-				if ____rune_private_3050a3c7_moonBitLooksLikeTypeName(__expr.__children[0].__name) {
-					return ____rune_private_3050a3c7_moonBitTypeIdent(__expr.__children[0].__name) + "::" + ____rune_private_3050a3c7_moonBitConstructorIdent(__expr.__name)
+				switch {
+				case __expr.__op == "::":
+					return __mangleIdent(__expr.__children[0].__name + "_" + __expr.__name)
+				default:
+					return func() string {
+						if ____rune_private_3050a3c7_moonBitLooksLikeTypeName(__expr.__children[0].__name) {
+							return ____rune_private_3050a3c7_moonBitTypeIdent(__expr.__children[0].__name) + "::" + ____rune_private_3050a3c7_moonBitConstructorIdent(__expr.__name)
+						}
+						return ____rune_private_3050a3c7_emitMoonBitExpr(__expr.__children[0]) + "." + __mangleIdent(__expr.__name)
+					}()
 				}
-				return ____rune_private_3050a3c7_emitMoonBitExpr(__expr.__children[0]) + "." + __mangleIdent(__expr.__name)
 			}()
 		default:
 			return ____rune_private_3050a3c7_emitMoonBitExpr(__expr.__children[0]) + "." + __mangleIdent(__expr.__name)
@@ -7668,7 +7701,7 @@ func ____rune_private_68c6e3cf_emitTSMethods(__typeDecl __IRStructType) string {
 	__out := ""
 	for _, __method := range __typeDecl.__methods {
 		_ = __method
-		__out = __out + ____rune_private_68c6e3cf_emitTSFunction(____rune_private_68c6e3cf_methodWithReceiver(__typeDecl.__name, __method)) + "\n"
+		__out = __out + ____rune_private_68c6e3cf_emitTSFunction(____rune_private_68c6e3cf_methodWithTSReceiver(__typeDecl.__name, __method)) + "\n"
 	}
 	return __out
 }
@@ -7677,13 +7710,21 @@ func ____rune_private_68c6e3cf_emitTSEnumMethods(__enumDecl __IREnumType) string
 	__out := ""
 	for _, __method := range __enumDecl.__methods {
 		_ = __method
-		__out = __out + ____rune_private_68c6e3cf_emitTSFunction(____rune_private_68c6e3cf_methodWithReceiver(__enumDecl.__name, __method)) + "\n"
+		__out = __out + ____rune_private_68c6e3cf_emitTSFunction(____rune_private_68c6e3cf_methodWithTSReceiver(__enumDecl.__name, __method)) + "\n"
 	}
 	return __out
 }
 
-func ____rune_private_68c6e3cf_methodWithReceiver(__typeName string, __method __IRFunction) __IRFunction {
-	return __IRFunction{__name: __typeName + "_" + __method.__name, __private: __method.__private, __routine: __method.__routine, __macro: __method.__macro, __receiverType: __method.__receiverType, __generics: __method.__generics, __params: ____rune_private_68c6e3cf_prependThisParam(__typeName, __method.__params), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
+func ____rune_private_68c6e3cf_methodWithTSReceiver(__typeName string, __method __IRFunction) __IRFunction {
+	return __IRFunction{__name: __typeName + "_" + __method.__name, __private: __method.__private, __static: __method.__static, __routine: __method.__routine, __macro: __method.__macro, __receiverType: __method.__receiverType, __generics: __method.__generics, __params: func() []__IRParam {
+		switch {
+		case __method.__static == true:
+			return __method.__params
+		case __method.__static == false:
+			return ____rune_private_68c6e3cf_prependThisParam(__typeName, __method.__params)
+		}
+		return nil
+	}(), __returnType: __method.__returnType, __body: __method.__body, __line: __method.__line, __column: __method.__column}
 }
 
 func ____rune_private_68c6e3cf_prependThisParam(__typeName string, __params []__IRParam) []__IRParam {
@@ -8143,6 +8184,15 @@ func ____rune_private_68c6e3cf_emitTSSelector(__expr __IRExpr) string {
 		switch {
 		case __expr.__children[0].__kind == __ExprKind_At:
 			return "@" + __expr.__children[0].__name + "." + __expr.__name
+		case __expr.__children[0].__kind == __ExprKind_Identifier:
+			return func() string {
+				switch {
+				case __expr.__op == "::":
+					return __mangleIdent(__expr.__children[0].__name + "_" + __expr.__name)
+				default:
+					return ____rune_private_68c6e3cf_emitTSExpr(__expr.__children[0]) + "." + ____rune_private_68c6e3cf_tsPropertyName(__expr.__name)
+				}
+			}()
 		default:
 			return ____rune_private_68c6e3cf_emitTSExpr(__expr.__children[0]) + "." + ____rune_private_68c6e3cf_tsPropertyName(__expr.__name)
 		}
@@ -9621,7 +9671,7 @@ func ____rune_private_0d2ebf0f_pushTypeScriptFunction(__imports __IRTSImport, __
 	__returnType := ____rune_private_0d2ebf0f_typeScriptReturnTypeName(__text)
 	if __name != "" {
 		func() int {
-			__imports.__functions = append(__imports.__functions, __IRFunction{__name: __name, __private: false, __routine: __routine, __macro: false, __receiverType: "", __generics: []string{}, __params: func() []__IRParam {
+			__imports.__functions = append(__imports.__functions, __IRFunction{__name: __name, __private: false, __static: false, __routine: __routine, __macro: false, __receiverType: "", __generics: []string{}, __params: func() []__IRParam {
 				if __open >= 0 && __close > __open {
 					return ____rune_private_0d2ebf0f_parseTypeScriptParams(func() string { runes := []rune(__text); return string(runes[__open+1 : __close]) }())
 				}
