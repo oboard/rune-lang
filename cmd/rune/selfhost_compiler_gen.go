@@ -6088,7 +6088,7 @@ func ____rune_private_8ddf8596_emitGoCall(__expr __IRExpr) string {
 		case __moduleCallKey(__expr) == "process.env":
 			return "(*string)(nil)"
 		case __moduleCallKey(__expr) == "process.argv":
-			return "append([]string(nil), os.Args...)"
+			return "append([]string(nil), os.Args[1:]...)"
 		case __moduleCallKey(__expr) == "process.exit":
 			return "func() struct{} { os.Exit(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "); return struct{}{} }()"
 		case __moduleCallKey(__expr) == "int.toString":
@@ -8417,28 +8417,26 @@ func ____rune_private_0d2ebf0f_checkGoTargetFileErrors(__file __IRFile) []string
 func ____rune_private_0d2ebf0f_checkMoonBitTargetFileErrors(__file __IRFile) []string {
 	__errors := append([]string{}, []string{""}[0:0]...)
 	__hasTypeScriptImports := len(__file.__tsImports) > 0
-	func() int {
-		switch {
-		case __hasTypeScriptImports == true:
-			return func() int {
-				__errors = append(__errors, "MoonBit backend does not support TypeScript imports")
-				return len(__errors)
-			}()
-		}
-		return 0
-	}()
+	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
 	__hasGoImports := ____rune_private_0d2ebf0f_fileHasGoImports(__file)
-	func() int {
-		switch {
-		case __hasGoImports == true:
-			return func() int {
-				__errors = append(__errors, "MoonBit backend does not support @go.import")
-				return len(__errors)
-			}()
-		}
-		return 0
-	}()
+	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoImports, "MoonBit backend does not support @go.import")
 	return __errors
+}
+
+func ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors []string, __condition bool, __message string) []string {
+	return func() []string {
+		switch {
+		case __condition == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, __message)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_fileHasGoImports(__file __IRFile) bool {

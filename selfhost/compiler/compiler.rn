@@ -128,16 +128,21 @@ checkGoTargetFileErrors(
 checkMoonBitTargetFileErrors(
   file: IRFile
 ) -> Array[String] => {
-  errors := [""].slice(0, 0)
+  errors :=: [""].slice(0, 0)
   hasTypeScriptImports := file.tsImports.length() > 0
-  hasTypeScriptImports {
-    true => errors.push("MoonBit backend does not support TypeScript imports")
-  }
+  errors = compilerAppendErrorIf(errors, hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
   hasGoImports := fileHasGoImports(file)
-  hasGoImports {
-    true => errors.push("MoonBit backend does not support @go.import")
-  }
+  errors = compilerAppendErrorIf(errors, hasGoImports, "MoonBit backend does not support @go.import")
   errors
+}
+
+compilerAppendErrorIf(
+  errors: Array[String],
+  condition: Bool,
+  message: String
+) -> Array[String] => condition {
+  true => [..errors, message]
+  _ => errors
 }
 
 fileHasGoImports(
