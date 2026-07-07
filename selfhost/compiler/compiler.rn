@@ -765,6 +765,7 @@ checkUnaryExpr(
   checked := checkExprDefault(expr, structs, callables, errors, bindings)
   expr.op {
     "!" => checkBoolOperand("!", expr.children[0], callables, bindings, checked)
+    "-" => checkNumericUnaryOperand(expr, callables, bindings, checked)
     _ => checked
   }
 }
@@ -780,7 +781,7 @@ checkBinaryExpr(
   boolOp := (expr.op == "&&") || (expr.op == "||")
   boolOp {
     true => checkBinaryBoolOperands(expr, callables, bindings, checked)
-    _ => checkOrderedComparisonExpr(expr, callables, bindings, checked)
+    _ => checkNumericBinaryExpr(expr, callables, bindings, checkOrderedComparisonExpr(expr, callables, bindings, checked))
   }
 }
 
@@ -874,6 +875,149 @@ compilerOrderedComparisonType(
   base := compilerTypeBase(typeName)
   numeric := (((base == "Int") || (base == "Double")) || (base == "BigInt")) || (base == "Float")
   numeric || ((base == "String") || (base == "Char"))
+}
+
+checkNumericUnaryOperand(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(expr.children[0], callables, bindings)
+  mismatch := (actual != "") && (compilerNumericType(actual) == false)
+  mismatch {
+    true => [..errors, "operator '-' expects a numeric type, got " + actual]
+    _ => errors
+  }
+}
+
+checkNumericBinaryExpr(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => compilerArithmeticOp(expr.op) {
+  true => checkArithmeticOperands(expr, callables, bindings, errors)
+  _ => errors
+}
+
+checkArithmeticOperands(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  complete := expr.children.length() >= 2
+  complete {
+    true => checkArithmeticOperandTypes(expr, callables, bindings, errors)
+    _ => errors
+  }
+}
+
+checkArithmeticOperandTypes(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  left := inferCompilerExprType(expr.children[0], callables, bindings)
+  right := inferCompilerExprType(expr.children[1], callables, bindings)
+  expr.op {
+    "+" => checkPlusOperandTypes(left, right, errors)
+    _ => checkNumericOperandTypes(expr.op, left, right, errors)
+  }
+}
+
+checkPlusOperandTypes(
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  stringConcat := (left == "String") || (right == "String")
+  stringConcat {
+    true => checkStringConcatOperandTypes(left, right, errors)
+    _ => checkNumericOperandTypes("+", left, right, errors)
+  }
+}
+
+checkStringConcatOperandTypes(
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  next := checkStringConcatOperand(left, errors)
+  checkStringConcatOperand(right, next)
+}
+
+checkStringConcatOperand(
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (actual != "") && (actual != "String")
+  mismatch {
+    true => [..errors, "string concatenation expects String, got " + actual]
+    _ => errors
+  }
+}
+
+checkNumericOperandTypes(
+  op: String,
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  checked := checkNumericOperand(right, checkNumericOperand(left, errors))
+  checkNumericOperandMatch(op, left, right, checked)
+}
+
+checkNumericOperand(
+  actual: String,
+  errors: Array[String]
+) -> Array[String] => {
+  mismatch := (actual != "") && (compilerNumericType(actual) == false)
+  mismatch {
+    true => [..errors, "arithmetic expects numeric operands, got " + actual]
+    _ => errors
+  }
+}
+
+checkNumericOperandMatch(
+  op: String,
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  shouldCheck := ((left != "") && (right != "")) && (compilerNumericType(left) && compilerNumericType(right))
+  mismatch := shouldCheck && (left != right)
+  withMatch := mismatch {
+    true => [..errors, ((("arithmetic requires matching numeric types, got " + left) + " and ") + right)]
+    _ => errors
+  }
+  checkModuloOperand(op, left, right, withMatch)
+}
+
+checkModuloOperand(
+  op: String,
+  left: String,
+  right: String,
+  errors: Array[String]
+) -> Array[String] => {
+  invalid := (op == "%") && (((left == "Double") || (left == "Float")) || ((right == "Double") || (right == "Float")))
+  invalid {
+    true => [..errors, "operator '%' expects integer operands, got " + left]
+    _ => errors
+  }
+}
+
+compilerArithmeticOp(
+  op: String
+) -> Bool => (((op == "+") || (op == "-")) || (op == "*")) || ((op == "/") || (op == "%"))
+
+compilerNumericType(
+  typeName: String
+) -> Bool => {
+  base := compilerTypeBase(typeName)
+  (((base == "Int") || (base == "Double")) || (base == "BigInt")) || (base == "Float")
 }
 
 checkLetExpr(

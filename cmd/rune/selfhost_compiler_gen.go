@@ -9751,6 +9751,8 @@ func ____rune_private_0d2ebf0f_checkUnaryExpr(__expr __IRExpr, __structs []__IRS
 		switch {
 		case __expr.__op == "!":
 			return ____rune_private_0d2ebf0f_checkBoolOperand("!", __expr.__children[0], __callables, __bindings, __checked)
+		case __expr.__op == "-":
+			return ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr, __callables, __bindings, __checked)
 		default:
 			return __checked
 		}
@@ -9765,7 +9767,7 @@ func ____rune_private_0d2ebf0f_checkBinaryExpr(__expr __IRExpr, __structs []__IR
 		case __boolOp == true:
 			return ____rune_private_0d2ebf0f_checkBinaryBoolOperands(__expr, __callables, __bindings, __checked)
 		default:
-			return ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked)
+			return ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr, __callables, __bindings, ____rune_private_0d2ebf0f_checkOrderedComparisonExpr(__expr, __callables, __bindings, __checked))
 		}
 	}()
 }
@@ -9868,6 +9870,161 @@ func ____rune_private_0d2ebf0f_compilerOrderedComparisonType(__typeName string) 
 	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
 	__numeric := __base == "Int" || __base == "Double" || __base == "BigInt" || __base == "Float"
 	return __numeric || (__base == "String" || __base == "Char")
+}
+
+func ____rune_private_0d2ebf0f_checkNumericUnaryOperand(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerNumericType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '-' expects a numeric type, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkNumericBinaryExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	return func() []string {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerArithmeticOp(__expr.__op) == true:
+			return ____rune_private_0d2ebf0f_checkArithmeticOperands(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArithmeticOperands(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__complete := len(__expr.__children) >= 2
+	return func() []string {
+		switch {
+		case __complete == true:
+			return ____rune_private_0d2ebf0f_checkArithmeticOperandTypes(__expr, __callables, __bindings, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkArithmeticOperandTypes(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__left := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[0], __callables, __bindings)
+	__right := ____rune_private_0d2ebf0f_inferCompilerExprType(__expr.__children[1], __callables, __bindings)
+	return func() []string {
+		switch {
+		case __expr.__op == "+":
+			return ____rune_private_0d2ebf0f_checkPlusOperandTypes(__left, __right, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_checkNumericOperandTypes(__expr.__op, __left, __right, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkPlusOperandTypes(__left string, __right string, __errors []string) []string {
+	__stringConcat := __left == "String" || __right == "String"
+	return func() []string {
+		switch {
+		case __stringConcat == true:
+			return ____rune_private_0d2ebf0f_checkStringConcatOperandTypes(__left, __right, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_checkNumericOperandTypes("+", __left, __right, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStringConcatOperandTypes(__left string, __right string, __errors []string) []string {
+	__next := ____rune_private_0d2ebf0f_checkStringConcatOperand(__left, __errors)
+	return ____rune_private_0d2ebf0f_checkStringConcatOperand(__right, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkStringConcatOperand(__actual string, __errors []string) []string {
+	__mismatch := __actual != "" && __actual != "String"
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "string concatenation expects String, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkNumericOperandTypes(__op string, __left string, __right string, __errors []string) []string {
+	__checked := ____rune_private_0d2ebf0f_checkNumericOperand(__right, ____rune_private_0d2ebf0f_checkNumericOperand(__left, __errors))
+	return ____rune_private_0d2ebf0f_checkNumericOperandMatch(__op, __left, __right, __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkNumericOperand(__actual string, __errors []string) []string {
+	__mismatch := __actual != "" && ____rune_private_0d2ebf0f_compilerNumericType(__actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "arithmetic expects numeric operands, got "+__actual)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkNumericOperandMatch(__op string, __left string, __right string, __errors []string) []string {
+	__shouldCheck := __left != "" && __right != "" && (____rune_private_0d2ebf0f_compilerNumericType(__left) && ____rune_private_0d2ebf0f_compilerNumericType(__right))
+	__mismatch := __shouldCheck && __left != __right
+	__withMatch := func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "arithmetic requires matching numeric types, got "+__left+" and "+__right)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkModuloOperand(__op, __left, __right, __withMatch)
+}
+
+func ____rune_private_0d2ebf0f_checkModuloOperand(__op string, __left string, __right string, __errors []string) []string {
+	__invalid := __op == "%" && (__left == "Double" || __left == "Float" || (__right == "Double" || __right == "Float"))
+	return func() []string {
+		switch {
+		case __invalid == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "operator '%' expects integer operands, got "+__left)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerArithmeticOp(__op string) bool {
+	return __op == "+" || __op == "-" || __op == "*" || (__op == "/" || __op == "%")
+}
+
+func ____rune_private_0d2ebf0f_compilerNumericType(__typeName string) bool {
+	__base := ____rune_private_0d2ebf0f_compilerTypeBase(__typeName)
+	return __base == "Int" || __base == "Double" || __base == "BigInt" || __base == "Float"
 }
 
 func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {

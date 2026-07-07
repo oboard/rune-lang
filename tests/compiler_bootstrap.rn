@@ -903,6 +903,31 @@ main() -> MaybeInt => Some()
   @assert.eq(result.errors[0], "ordered comparison requires matching types, got Int and String")
 }
 
+? "selfhost compiler reports unary numeric type errors" {
+  result := compileGo(`main() -> Int => -"wrong"
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 2)
+  @assert.eq(result.errors[0], "operator '-' expects a numeric type, got String")
+  @assert.eq(result.errors[1], "function \"main\" returns String, expected Int")
+}
+
+? "selfhost compiler reports arithmetic operand type errors" {
+  result := compileGo(`main() -> Int => "wrong" - 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "arithmetic expects numeric operands, got String")
+}
+
+? "selfhost compiler reports string concat operand type errors" {
+  result := compileGo(`main() -> String => "count: " + 1
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "string concatenation expects String, got Int")
+}
+
 ? "selfhost compiler reports call return type errors" {
   result := compileGo(`label() -> String => "rune"
 main() -> Int => label()
