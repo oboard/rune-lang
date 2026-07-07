@@ -7,6 +7,15 @@
   column: Int
 }
 
++ IRTSImport: {
+  path: String
+  specifier: String
+  functions: Array[IRFunction]
+  values: Array[IRConst]
+  line: Int
+  column: Int
+}
+
 + IRParam: {
   name: String
   typeName: String
@@ -94,6 +103,7 @@
 
 + IRFile: {
   imports: Array[IRImport]
+  tsImports: Array[IRTSImport]
   structs: Array[IRStructType]
   enums: Array[IREnumType]
   constants: Array[IRConst]
@@ -109,6 +119,7 @@
 ) -> IRFile => {
   out :=: IRFile {
     imports: [],
+    tsImports: [],
     structs: [],
     enums: [],
     constants: [],
@@ -147,7 +158,7 @@ pushEnumType(
   file
 }
 
-emptyIRExpr() -> IRExpr => {
++ emptyIRExpr() -> IRExpr => {
   kind: ExprKind.Unknown,
   text: "",
   name: "",

@@ -552,7 +552,7 @@ emitMoonBitPrintArgs(
 emitMoonBitShowExpr(
   expr: IRExpr
 ) -> String => (
-  expr.text == "String" ? emitMoonBitExpr(expr)
+  (expr.text == "String") || (expr.kind == ExprKind.String) || (expr.kind == ExprKind.Template) ? emitMoonBitExpr(expr)
     : "(" + emitMoonBitExpr(expr) + ").to_string()"
 )
 

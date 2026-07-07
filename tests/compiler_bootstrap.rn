@@ -75,6 +75,32 @@ importedAnswer() -> Int => 42
   @assert.eq(mbt.output.includes("struct RuneImportedUser"), true)
 }
 
+? "selfhost compiler reads TypeScript import exports" {
+  files := [
+    SourceFile {
+      path: "main.rn",
+      source: `@"./greet.ts"
+
+main() => @io.println(greet("Rune"))
+`
+    },
+    SourceFile {
+      path: "greet.ts",
+      source: `export function greet(name: string): string { return name }
+export const version: string = "1"
+`
+    }
+  ]
+  ts := compileTypeScriptFiles(files)
+  go := compileGoFiles(files)
+  @assert.eq(ts.ok, true)
+  @assert.eq(go.ok, true)
+  @assert.eq(ts.errors.length(), 0)
+  @assert.eq(go.errors.length(), 0)
+  @assert.eq(ts.output.includes(`import { greet as __greet, version as __version } from "./greet.ts";`), true)
+  @assert.eq(ts.output.includes(`console.log(__greet("Rune"))`), true)
+}
+
 ? "selfhost compiler emits moonbit functions" {
   source := `+ add(a: Int, b: Int) -> Int => a + b
 + main() -> Int => add(20, 22)

@@ -98,6 +98,7 @@ compilerCallableNames(
 ) -> Array[String] => {
   names := [""].slice(0, 0)
   file.functions.each((fn) => names.push(fn.name))
+  file.tsImports.each((importDecl) => importDecl.functions.each((fn) => names.push(fn.name)))
   file.enums.each((typeDecl) => typeDecl.members.each((member) => names.push(member.name)))
   names
 }
@@ -144,12 +145,256 @@ lowerFiles(
   files: Array[SourceFile]
 ) -> IRFile => {
   out := emptyCompilerIRFile()
-  files.each((file) => out = mergeCompilerIRFile(out, lower(file.source)))
+  files.each((file) => out = (
+    sourceFileIsTypeScript(file) ? out
+      : mergeCompilerIRFile(out, lower(file.source))
+  ))
+  files.each((file) => out = (
+    sourceFileIsTypeScript(file) ? mergeCompilerIRFile(out, lowerTypeScriptSourceFile(file, out.imports))
+      : out
+  ))
   out
+}
+
+sourceFileIsTypeScript(
+  file: SourceFile
+) -> Bool => file.path.endsWith(".ts")
+
+lowerTypeScriptSourceFile(
+  file: SourceFile,
+  imports: Array[IRImport]
+) -> IRFile => {
+  out := emptyCompilerIRFile()
+  specifier := typeScriptImportSpecifier(file.path, imports, 0)
+  (
+    specifier != "" ? out.tsImports.push(parseTypeScriptImport(file.path, specifier, file.source))
+  )
+  out
+}
+
+typeScriptImportSpecifier(
+  path: String,
+  imports: Array[IRImport],
+  index: Int
+) -> String => (
+  index >= imports.length() ? ""
+    : (
+      (imports[index].path.endsWith(".ts") && compilerPathBasename(path) == compilerPathBasename(imports[index].path)) ? imports[index].path
+        : typeScriptImportSpecifier(path, imports, index + 1)
+    )
+)
+
+compilerPathBasename(
+  path: String
+) -> String => {
+  slash := path.lastIndexOf("/")
+  (
+    slash < 0 ? path
+      : path.slice(slash + 1, path.length())
+  )
+}
+
+parseTypeScriptImport(
+  path: String,
+  specifier: String,
+  source: String
+) -> IRTSImport => {
+  imports := IRTSImport {
+    path: path,
+    specifier: specifier,
+    functions: [emptyIRFunction()].slice(0, 0),
+    values: [emptyIRConst()].slice(0, 0),
+    line: 0,
+    column: 0
+  }
+  source.split("\n").each((line) => imports = parseTypeScriptExportLine(imports, line.trim()))
+  imports
+}
+
+parseTypeScriptExportLine(
+  imports: IRTSImport,
+  line: String
+) -> IRTSImport => (
+  line.startsWith("export async function ") ? pushTypeScriptFunction(imports, line.slice("export async function ".length(), line.length()), true)
+    : (
+      line.startsWith("export function ") ? pushTypeScriptFunction(imports, line.slice("export function ".length(), line.length()), false)
+        : (
+          line.startsWith("export const ") ? pushTypeScriptValue(imports, line.slice("export const ".length(), line.length()))
+            : (
+              line.startsWith("export let ") ? pushTypeScriptValue(imports, line.slice("export let ".length(), line.length()))
+                : (
+                  line.startsWith("export var ") ? pushTypeScriptValue(imports, line.slice("export var ".length(), line.length()))
+                    : imports
+                )
+            )
+        )
+    )
+)
+
+pushTypeScriptFunction(
+  imports: IRTSImport,
+  text: String,
+  routine: Bool
+) -> IRTSImport => {
+  open := text.indexOf("(")
+  close := text.indexOf(")")
+  name := (
+    open < 0 ? ""
+      : text.slice(0, open).trim()
+  )
+  returnType := typeScriptReturnTypeName(text)
+  (
+    name != "" ? imports.functions.push(IRFunction {
+        name: name,
+        private: false,
+        routine: routine,
+        receiverType: "",
+        generics: [],
+        params: (
+          (open >= 0) && (close > open) ? parseTypeScriptParams(text.slice(open + 1, close))
+            : [emptyIRParam()].slice(0, 0)
+        ),
+        returnType: returnType,
+        body: emptyIRExpr(),
+        line: 0,
+        column: 0
+      })
+  )
+  imports
+}
+
+pushTypeScriptValue(
+  imports: IRTSImport,
+  text: String
+) -> IRTSImport => {
+  end := typeScriptNameEnd(text)
+  name := text.slice(0, end).trim()
+  typeName := typeScriptValueTypeName(text)
+  (
+    name != "" ? imports.values.push(IRConst {
+        name: name,
+        private: false,
+        typeName: typeName,
+        value: emptyIRExpr(),
+        line: 0,
+        column: 0
+      })
+  )
+  imports
+}
+
+typeScriptNameEnd(
+  text: String
+) -> Int => {
+  colon := text.indexOf(":")
+  equal := text.indexOf("=")
+  (
+    (colon >= 0) && ((equal < 0) || (colon < equal)) ? colon
+      : (
+        equal >= 0 ? equal
+          : text.length()
+      )
+  )
+}
+
+typeScriptReturnTypeName(
+  text: String
+) -> String => {
+  close := text.indexOf(")")
+  colon := (
+    close >= 0 ? text.slice(close + 1, text.length()).indexOf(":")
+      : -1
+  )
+  (
+    (close >= 0) && (colon >= 0) ? typeScriptTextType(text.slice(close + 1 + colon + 1, typeScriptReturnTypeEnd(text)).trim())
+      : "Dynamic"
+  )
+}
+
+typeScriptReturnTypeEnd(
+  text: String
+) -> Int => {
+  brace := text.indexOf("{")
+  semi := text.indexOf(";")
+  (
+    (brace >= 0) && ((semi < 0) || (brace < semi)) ? brace
+      : (
+        semi >= 0 ? semi
+          : text.length()
+      )
+  )
+}
+
+typeScriptValueTypeName(
+  text: String
+) -> String => {
+  colon := text.indexOf(":")
+  (
+    colon < 0 ? "Dynamic"
+      : typeScriptTextType(text.slice(colon + 1, typeScriptNameEnd(text.slice(colon + 1, text.length())) + colon + 1).trim())
+  )
+}
+
+parseTypeScriptParams(
+  text: String
+) -> Array[IRParam] => {
+  params := [emptyIRParam()].slice(0, 0)
+  text.split(",").each((param) => (
+    param.trim() != "" ? params.push(parseTypeScriptParam(param.trim()))
+  ))
+  params
+}
+
+emptyIRParam() -> IRParam => {
+  name: "",
+  typeName: "Dynamic",
+  line: 0,
+  column: 0
+}
+
+emptyIRConst() -> IRConst => {
+  name: "",
+  private: false,
+  typeName: "Dynamic",
+  value: emptyIRExpr(),
+  line: 0,
+  column: 0
+}
+
+parseTypeScriptParam(
+  text: String
+) -> IRParam => {
+  colon := text.indexOf(":")
+  rawName := (
+    colon < 0 ? text
+      : text.slice(0, colon)
+  )
+  name := rawName.replaceAll("...", "").replaceAll("?", "").trim()
+  IRParam {
+    name: name,
+    typeName: (
+      colon < 0 ? "Dynamic"
+        : typeScriptTextType(text.slice(colon + 1, text.length()).trim())
+    ),
+    line: 0,
+    column: 0
+  }
+}
+
+typeScriptTextType(
+  text: String
+) -> String => text {
+  "string" => "String"
+  "boolean" => "Bool"
+  "bigint" => "BigInt"
+  "number" => "Double"
+  "void" | "undefined" => "Void"
+  _ => "Dynamic"
 }
 
 emptyCompilerIRFile() -> IRFile => {
   imports: [],
+  tsImports: [],
   structs: [],
   enums: [],
   constants: [],
@@ -163,6 +408,7 @@ mergeCompilerIRFile(
   file: IRFile
 ) -> IRFile => {
   file.imports.each((importDecl) => out.imports.push(importDecl))
+  file.tsImports.each((importDecl) => out.tsImports.push(importDecl))
   file.structs.each((typeDecl) => out.structs.push(typeDecl))
   file.enums.each((typeDecl) => out.enums.push(typeDecl))
   file.constants.each((constant) => out.constants.push(constant))

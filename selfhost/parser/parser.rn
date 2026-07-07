@@ -1434,8 +1434,18 @@ parseBraceBody(
   state: ParserState
 ) -> ExprStep => (
   (looksLikePatternBranch(state) == false) && looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
-    : parseBlock(state)
+    : (
+      (looksLikePatternBranch(state) == false) && looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
+        : parseBlock(state)
+    )
 )
+
+looksLikeObjectLiteralBody(
+  state: ParserState
+) -> Bool => {
+  first := skipNewlinesAt(state, state.current + 1)
+  parserKindAt(state, first) == TokenKind.Ident && parserKindAt(state, skipNewlinesAt(state, first + 1)) == TokenKind.Colon
+}
 
 parseBlock(
   state: ParserState

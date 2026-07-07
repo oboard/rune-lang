@@ -407,6 +407,15 @@ type __IRImport struct {
 	__column int
 }
 
+type __IRTSImport struct {
+	__path      string
+	__specifier string
+	__functions []__IRFunction
+	__values    []__IRConst
+	__line      int
+	__column    int
+}
+
 type __IRParam struct {
 	__name     string
 	__typeName string
@@ -494,6 +503,7 @@ type __IRTest struct {
 
 type __IRFile struct {
 	__imports   []__IRImport
+	__tsImports []__IRTSImport
 	__structs   []__IRStructType
 	__enums     []__IREnumType
 	__constants []__IRConst
@@ -2600,8 +2610,18 @@ func ____rune_private_b990f3d7_parseBraceBody(__state __ParserState) __ExprStep 
 		if ____rune_private_b990f3d7_looksLikePatternBranch(__state) == false && ____rune_private_b990f3d7_looksLikeMapLiteralBody(__state) {
 			return ____rune_private_b990f3d7_parseMapLiteral(__state)
 		}
-		return ____rune_private_b990f3d7_parseBlock(__state)
+		return func() __ExprStep {
+			if ____rune_private_b990f3d7_looksLikePatternBranch(__state) == false && ____rune_private_b990f3d7_looksLikeObjectLiteralBody(__state) {
+				return ____rune_private_b990f3d7_parseObjectLiteral(__state)
+			}
+			return ____rune_private_b990f3d7_parseBlock(__state)
+		}()
 	}()
+}
+
+func ____rune_private_b990f3d7_looksLikeObjectLiteralBody(__state __ParserState) bool {
+	__first := ____rune_private_b990f3d7_skipNewlinesAt(__state, __state.__current+1)
+	return ____rune_private_b990f3d7_parserKindAt(__state, __first) == __TokenKind_Ident && ____rune_private_b990f3d7_parserKindAt(__state, ____rune_private_b990f3d7_skipNewlinesAt(__state, __first+1)) == __TokenKind_Colon
 }
 
 func ____rune_private_b990f3d7_parseBlock(__state __ParserState) __ExprStep {
@@ -4134,7 +4154,7 @@ func __lower(__source string) __IRFile {
 }
 
 func __lowerParsed(__file __ParsedFile) __IRFile {
-	__out := __IRFile{__imports: []__IRImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: __file.__errors}
+	__out := __IRFile{__imports: []__IRImport{}, __tsImports: []__IRTSImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: __file.__errors}
 	for _, __importDecl := range __file.__imports {
 		_ = __importDecl
 		func() int {
@@ -4182,12 +4202,12 @@ func ____rune_private_44103c8f_pushEnumType(__file __IRFile, __typeDecl __Parsed
 	return __file
 }
 
-func ____rune_private_44103c8f_emptyIRExpr() __IRExpr {
+func __emptyIRExpr() __IRExpr {
 	return __IRExpr{__kind: __ExprKind_Unknown, __text: "", __name: "", __value: "", __op: "", __params: []__IRParam{}, __children: []__IRExpr{}, __line: 0, __column: 0}
 }
 
 func __emptyIRFunction() __IRFunction {
-	return __IRFunction{__name: "", __private: false, __routine: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: ____rune_private_44103c8f_emptyIRExpr(), __line: 0, __column: 0}
+	return __IRFunction{__name: "", __private: false, __routine: false, __receiverType: "", __generics: []string{}, __params: []__IRParam{}, __returnType: "", __body: __emptyIRExpr(), __line: 0, __column: 0}
 }
 
 func ____rune_private_44103c8f_lowerImport(__importDecl __ParsedImport) __IRImport {
@@ -4266,7 +4286,7 @@ func ____rune_private_44103c8f_lowerFunctions(__functions []__ParsedFunction) []
 }
 
 func ____rune_private_44103c8f_lowerExprs(__exprs []__ParsedExpr) []__IRExpr {
-	__out := append([]__IRExpr{}, []__IRExpr{____rune_private_44103c8f_emptyIRExpr()}[0:0]...)
+	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
 	for _, __expr := range __exprs {
 		_ = __expr
 		func() int { __out = append(__out, ____rune_private_44103c8f_lowerExpr(__expr)); return len(__out) }()
@@ -4582,6 +4602,9 @@ func ____rune_private_8ddf8596_emitGoImports(__file __IRFile) string {
 	}
 	if __fileUsesModuleCall(__file, "process.platform") {
 		func() int { __imports = append(__imports, "runtime"); return len(__imports) }()
+	}
+	if __fileUsesModuleCall(__file, "process.argv") || __fileUsesModuleCall(__file, "process.exit") {
+		func() int { __imports = append(__imports, "os"); return len(__imports) }()
 	}
 	if ____rune_private_8ddf8596_fileUsesDoubleMath(__file) {
 		func() int { __imports = append(__imports, "math"); return len(__imports) }()
@@ -5173,7 +5196,9 @@ func ____rune_private_8ddf8596_emitGoCall(__expr __IRExpr) string {
 		case __moduleCallKey(__expr) == "process.env":
 			return "(*string)(nil)"
 		case __moduleCallKey(__expr) == "process.argv":
-			return "[]any{}"
+			return "append([]string(nil), os.Args...)"
+		case __moduleCallKey(__expr) == "process.exit":
+			return "func() struct{} { os.Exit(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "); return struct{}{} }()"
 		case __moduleCallKey(__expr) == "int.toString":
 			return "strconv.Itoa(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + ")"
 		case __moduleCallKey(__expr) == "int.toDouble":
@@ -6185,7 +6210,7 @@ func ____rune_private_3050a3c7_emitMoonBitPrintArgs(__exprs []__IRExpr, __index 
 
 func ____rune_private_3050a3c7_emitMoonBitShowExpr(__expr __IRExpr) string {
 	return func() string {
-		if __expr.__text == "String" {
+		if __expr.__text == "String" || __expr.__kind == __ExprKind_String || __expr.__kind == __ExprKind_Template {
 			return ____rune_private_3050a3c7_emitMoonBitExpr(__expr)
 		}
 		return "(" + ____rune_private_3050a3c7_emitMoonBitExpr(__expr) + ").to_string()"
@@ -6480,7 +6505,7 @@ func ____rune_private_3050a3c7_moonBitIsUpperLetter(__ch rune) bool {
 }
 
 func __generateTypeScript(__file __IRFile) string {
-	__out := ""
+	__out := ____rune_private_68c6e3cf_emitTSImports(__file)
 	if __fileUsesUnwrap(__file) {
 		__out = __out + ____rune_private_68c6e3cf_emitTSUnwrapHelper()
 	}
@@ -6508,6 +6533,65 @@ func __generateTypeScript(__file __IRFile) string {
 		__out = __out + ____rune_private_68c6e3cf_emitTSFunction(__fn) + "\n"
 	}
 	return __out + ____rune_private_68c6e3cf_emitTSExports(__file)
+}
+
+func ____rune_private_68c6e3cf_emitTSImports(__file __IRFile) string {
+	return ____rune_private_68c6e3cf_emitTSImportList(__file.__tsImports, 0, "")
+}
+
+func ____rune_private_68c6e3cf_emitTSImportList(__imports []__IRTSImport, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__imports) {
+			return __out
+		}
+		return ____rune_private_68c6e3cf_emitTSImportList(__imports, __index+1, __out+____rune_private_68c6e3cf_emitTSImport(__imports[__index]))
+	}()
+}
+
+func ____rune_private_68c6e3cf_emitTSImport(__importDecl __IRTSImport) string {
+	__names := ____rune_private_68c6e3cf_emitTSImportNames(__importDecl.__functions, __importDecl.__values, 0, 0, "")
+	return func() string {
+		if __names == "" {
+			return ""
+		}
+		return "import { " + __names + " } from " + ____rune_private_68c6e3cf_tsQuoteString(____rune_private_68c6e3cf_tsRuntimeSpecifier(__importDecl.__specifier)) + ";\n"
+	}()
+}
+
+func ____rune_private_68c6e3cf_emitTSImportNames(__functions []__IRFunction, __values []__IRConst, __fnIndex int, __valueIndex int, __out string) string {
+	return func() string {
+		if __fnIndex < len(__functions) {
+			return ____rune_private_68c6e3cf_emitTSImportNames(__functions, __values, __fnIndex+1, __valueIndex, ____rune_private_68c6e3cf_appendTSImportName(__out, __functions[__fnIndex].__name))
+		}
+		return func() string {
+			if __valueIndex < len(__values) {
+				return ____rune_private_68c6e3cf_emitTSImportNames(__functions, __values, __fnIndex, __valueIndex+1, ____rune_private_68c6e3cf_appendTSImportName(__out, __values[__valueIndex].__name))
+			}
+			return __out
+		}()
+	}()
+}
+
+func ____rune_private_68c6e3cf_appendTSImportName(__out string, __name string) string {
+	return __out + func() string {
+		if __out == "" {
+			return ""
+		}
+		return ", "
+	}() + __name + " as " + __mangleIdent(__name)
+}
+
+func ____rune_private_68c6e3cf_tsQuoteString(__value string) string {
+	return "\"" + strings.ReplaceAll((strings.ReplaceAll(__value, "\\", "\\\\")), "\"", "\\\"") + "\""
+}
+
+func ____rune_private_68c6e3cf_tsRuntimeSpecifier(__specifier string) string {
+	return func() string {
+		if __specifier == "" || strings.HasPrefix(__specifier, "./") || strings.HasPrefix(__specifier, "../") || strings.HasPrefix(__specifier, "/") || strings.Contains(__specifier, "://") {
+			return __specifier
+		}
+		return "./" + __specifier
+	}()
 }
 
 func ____rune_private_68c6e3cf_emitTSUnwrapHelper() string {
@@ -7391,6 +7475,15 @@ func ____rune_private_0d2ebf0f_compilerCallableNames(__file __IRFile) []string {
 		_ = __fn
 		func() int { __names = append(__names, __fn.__name); return len(__names) }()
 	}
+	for _, __importDecl := range __file.__tsImports {
+		_ = __importDecl
+		func() {
+			for _, __fn := range __importDecl.__functions {
+				_ = __fn
+				func() int { __names = append(__names, __fn.__name); return len(__names) }()
+			}
+		}()
+	}
 	for _, __typeDecl := range __file.__enums {
 		_ = __typeDecl
 		func() {
@@ -7453,19 +7546,292 @@ func ____rune_private_0d2ebf0f_lowerFiles(__files []__SourceFile) __IRFile {
 	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
 	for _, __file := range __files {
 		_ = __file
-		__out = ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lower(__file.__source))
+		__out = func() __IRFile {
+			if ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file) {
+				return __out
+			}
+			return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, __lower(__file.__source))
+		}()
+	}
+	for _, __file := range __files {
+		_ = __file
+		__out = func() __IRFile {
+			if ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file) {
+				return ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out, ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file, __out.__imports))
+			}
+			return __out
+		}()
 	}
 	return __out
 }
 
+func ____rune_private_0d2ebf0f_sourceFileIsTypeScript(__file __SourceFile) bool {
+	return strings.HasSuffix(__file.__path, ".ts")
+}
+
+func ____rune_private_0d2ebf0f_lowerTypeScriptSourceFile(__file __SourceFile, __imports []__IRImport) __IRFile {
+	__out := ____rune_private_0d2ebf0f_emptyCompilerIRFile()
+	__specifier := ____rune_private_0d2ebf0f_typeScriptImportSpecifier(__file.__path, __imports, 0)
+	if __specifier != "" {
+		func() int {
+			__out.__tsImports = append(__out.__tsImports, ____rune_private_0d2ebf0f_parseTypeScriptImport(__file.__path, __specifier, __file.__source))
+			return len(__out.__tsImports)
+		}()
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_typeScriptImportSpecifier(__path string, __imports []__IRImport, __index int) string {
+	return func() string {
+		if __index >= len(__imports) {
+			return ""
+		}
+		return func() string {
+			if strings.HasSuffix(__imports[__index].__path, ".ts") && ____rune_private_0d2ebf0f_compilerPathBasename(__path) == ____rune_private_0d2ebf0f_compilerPathBasename(__imports[__index].__path) {
+				return __imports[__index].__path
+			}
+			return ____rune_private_0d2ebf0f_typeScriptImportSpecifier(__path, __imports, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerPathBasename(__path string) string {
+	__slash := strings.LastIndex(__path, "/")
+	return func() string {
+		if __slash < 0 {
+			return __path
+		}
+		return func() string { runes := []rune(__path); return string(runes[__slash+1 : len([]rune(__path))]) }()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_parseTypeScriptImport(__path string, __specifier string, __source string) __IRTSImport {
+	__imports := __IRTSImport{__path: __path, __specifier: __specifier, __functions: append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...), __values: append([]__IRConst{}, []__IRConst{____rune_private_0d2ebf0f_emptyIRConst()}[0:0]...), __line: 0, __column: 0}
+	for _, __line := range func() []string { parts := strings.Split(__source, "\n"); return parts }() {
+		_ = __line
+		__imports = ____rune_private_0d2ebf0f_parseTypeScriptExportLine(__imports, strings.TrimSpace(__line))
+	}
+	return __imports
+}
+
+func ____rune_private_0d2ebf0f_parseTypeScriptExportLine(__imports __IRTSImport, __line string) __IRTSImport {
+	return func() __IRTSImport {
+		if strings.HasPrefix(__line, "export async function ") {
+			return ____rune_private_0d2ebf0f_pushTypeScriptFunction(__imports, func() string {
+				runes := []rune(__line)
+				return string(runes[len([]rune("export async function ")):len([]rune(__line))])
+			}(), true)
+		}
+		return func() __IRTSImport {
+			if strings.HasPrefix(__line, "export function ") {
+				return ____rune_private_0d2ebf0f_pushTypeScriptFunction(__imports, func() string {
+					runes := []rune(__line)
+					return string(runes[len([]rune("export function ")):len([]rune(__line))])
+				}(), false)
+			}
+			return func() __IRTSImport {
+				if strings.HasPrefix(__line, "export const ") {
+					return ____rune_private_0d2ebf0f_pushTypeScriptValue(__imports, func() string {
+						runes := []rune(__line)
+						return string(runes[len([]rune("export const ")):len([]rune(__line))])
+					}())
+				}
+				return func() __IRTSImport {
+					if strings.HasPrefix(__line, "export let ") {
+						return ____rune_private_0d2ebf0f_pushTypeScriptValue(__imports, func() string {
+							runes := []rune(__line)
+							return string(runes[len([]rune("export let ")):len([]rune(__line))])
+						}())
+					}
+					return func() __IRTSImport {
+						if strings.HasPrefix(__line, "export var ") {
+							return ____rune_private_0d2ebf0f_pushTypeScriptValue(__imports, func() string {
+								runes := []rune(__line)
+								return string(runes[len([]rune("export var ")):len([]rune(__line))])
+							}())
+						}
+						return __imports
+					}()
+				}()
+			}()
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_pushTypeScriptFunction(__imports __IRTSImport, __text string, __routine bool) __IRTSImport {
+	__open := strings.Index(__text, "(")
+	__close := strings.Index(__text, ")")
+	__name := func() string {
+		if __open < 0 {
+			return ""
+		}
+		return strings.TrimSpace((func() string { runes := []rune(__text); return string(runes[0:__open]) }()))
+	}()
+	__returnType := ____rune_private_0d2ebf0f_typeScriptReturnTypeName(__text)
+	if __name != "" {
+		func() int {
+			__imports.__functions = append(__imports.__functions, __IRFunction{__name: __name, __private: false, __routine: __routine, __receiverType: "", __generics: []string{}, __params: func() []__IRParam {
+				if __open >= 0 && __close > __open {
+					return ____rune_private_0d2ebf0f_parseTypeScriptParams(func() string { runes := []rune(__text); return string(runes[__open+1 : __close]) }())
+				}
+				return append([]__IRParam{}, []__IRParam{____rune_private_0d2ebf0f_emptyIRParam()}[0:0]...)
+			}(), __returnType: __returnType, __body: __emptyIRExpr(), __line: 0, __column: 0})
+			return len(__imports.__functions)
+		}()
+	}
+	return __imports
+}
+
+func ____rune_private_0d2ebf0f_pushTypeScriptValue(__imports __IRTSImport, __text string) __IRTSImport {
+	__end := ____rune_private_0d2ebf0f_typeScriptNameEnd(__text)
+	__name := strings.TrimSpace((func() string { runes := []rune(__text); return string(runes[0:__end]) }()))
+	__typeName := ____rune_private_0d2ebf0f_typeScriptValueTypeName(__text)
+	if __name != "" {
+		func() int {
+			__imports.__values = append(__imports.__values, __IRConst{__name: __name, __private: false, __typeName: __typeName, __value: __emptyIRExpr(), __line: 0, __column: 0})
+			return len(__imports.__values)
+		}()
+	}
+	return __imports
+}
+
+func ____rune_private_0d2ebf0f_typeScriptNameEnd(__text string) int {
+	__colon := strings.Index(__text, ":")
+	__equal := strings.Index(__text, "=")
+	return func() int {
+		if __colon >= 0 && (__equal < 0 || __colon < __equal) {
+			return __colon
+		}
+		return func() int {
+			if __equal >= 0 {
+				return __equal
+			}
+			return len([]rune(__text))
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_typeScriptReturnTypeName(__text string) string {
+	__close := strings.Index(__text, ")")
+	__colon := func() int {
+		if __close >= 0 {
+			return strings.Index((func() string { runes := []rune(__text); return string(runes[__close+1 : len([]rune(__text))]) }()), ":")
+		}
+		return -1
+	}()
+	return func() string {
+		if __close >= 0 && __colon >= 0 {
+			return ____rune_private_0d2ebf0f_typeScriptTextType(strings.TrimSpace((func() string {
+				runes := []rune(__text)
+				return string(runes[__close+1+__colon+1 : ____rune_private_0d2ebf0f_typeScriptReturnTypeEnd(__text)])
+			}())))
+		}
+		return "Dynamic"
+	}()
+}
+
+func ____rune_private_0d2ebf0f_typeScriptReturnTypeEnd(__text string) int {
+	__brace := strings.Index(__text, "{")
+	__semi := strings.Index(__text, ";")
+	return func() int {
+		if __brace >= 0 && (__semi < 0 || __brace < __semi) {
+			return __brace
+		}
+		return func() int {
+			if __semi >= 0 {
+				return __semi
+			}
+			return len([]rune(__text))
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_typeScriptValueTypeName(__text string) string {
+	__colon := strings.Index(__text, ":")
+	return func() string {
+		if __colon < 0 {
+			return "Dynamic"
+		}
+		return ____rune_private_0d2ebf0f_typeScriptTextType(strings.TrimSpace((func() string {
+			runes := []rune(__text)
+			return string(runes[__colon+1 : ____rune_private_0d2ebf0f_typeScriptNameEnd(func() string { runes := []rune(__text); return string(runes[__colon+1 : len([]rune(__text))]) }())+__colon+1])
+		}())))
+	}()
+}
+
+func ____rune_private_0d2ebf0f_parseTypeScriptParams(__text string) []__IRParam {
+	__params := append([]__IRParam{}, []__IRParam{____rune_private_0d2ebf0f_emptyIRParam()}[0:0]...)
+	for _, __param := range func() []string { parts := strings.Split(__text, ","); return parts }() {
+		_ = __param
+		func() {
+			if strings.TrimSpace(__param) != "" {
+				func() int {
+					__params = append(__params, ____rune_private_0d2ebf0f_parseTypeScriptParam(strings.TrimSpace(__param)))
+					return len(__params)
+				}()
+				return
+			}
+		}()
+	}
+	return __params
+}
+
+func ____rune_private_0d2ebf0f_emptyIRParam() __IRParam {
+	return __IRParam{__name: "", __typeName: "Dynamic", __line: 0, __column: 0}
+}
+
+func ____rune_private_0d2ebf0f_emptyIRConst() __IRConst {
+	return __IRConst{__name: "", __private: false, __typeName: "Dynamic", __value: __emptyIRExpr(), __line: 0, __column: 0}
+}
+
+func ____rune_private_0d2ebf0f_parseTypeScriptParam(__text string) __IRParam {
+	__colon := strings.Index(__text, ":")
+	__rawName := func() string {
+		if __colon < 0 {
+			return __text
+		}
+		return func() string { runes := []rune(__text); return string(runes[0:__colon]) }()
+	}()
+	__name := strings.TrimSpace((strings.ReplaceAll((strings.ReplaceAll(__rawName, "...", "")), "?", "")))
+	return __IRParam{__name: __name, __typeName: func() string {
+		if __colon < 0 {
+			return "Dynamic"
+		}
+		return ____rune_private_0d2ebf0f_typeScriptTextType(strings.TrimSpace((func() string { runes := []rune(__text); return string(runes[__colon+1 : len([]rune(__text))]) }())))
+	}(), __line: 0, __column: 0}
+}
+
+func ____rune_private_0d2ebf0f_typeScriptTextType(__text string) string {
+	return func() string {
+		switch {
+		case __text == "string":
+			return "String"
+		case __text == "boolean":
+			return "Bool"
+		case __text == "bigint":
+			return "BigInt"
+		case __text == "number":
+			return "Double"
+		case (__text == "void") || (__text == "undefined"):
+			return "Void"
+		default:
+			return "Dynamic"
+		}
+	}()
+}
+
 func ____rune_private_0d2ebf0f_emptyCompilerIRFile() __IRFile {
-	return __IRFile{__imports: []__IRImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: []__ParseError{}}
+	return __IRFile{__imports: []__IRImport{}, __tsImports: []__IRTSImport{}, __structs: []__IRStructType{}, __enums: []__IREnumType{}, __constants: []__IRConst{}, __functions: []__IRFunction{}, __tests: []__IRTest{}, __errors: []__ParseError{}}
 }
 
 func ____rune_private_0d2ebf0f_mergeCompilerIRFile(__out __IRFile, __file __IRFile) __IRFile {
 	for _, __importDecl := range __file.__imports {
 		_ = __importDecl
 		func() int { __out.__imports = append(__out.__imports, __importDecl); return len(__out.__imports) }()
+	}
+	for _, __importDecl := range __file.__tsImports {
+		_ = __importDecl
+		func() int { __out.__tsImports = append(__out.__tsImports, __importDecl); return len(__out.__tsImports) }()
 	}
 	for _, __typeDecl := range __file.__structs {
 		_ = __typeDecl
