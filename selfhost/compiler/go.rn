@@ -640,8 +640,18 @@ emitGoExprExpected(
   expected: String
 ) -> String => expr.kind {
   ExprKind.Call => emitGoCallExpected(expr, expected)
+  ExprKind.Object => emitGoObjectExpected(expr, expected)
   ExprKind.Binary => emitGoBinaryExpected(expr, expected)
   _ => emitGoExpr(expr)
+}
+
+emitGoObjectExpected(
+  expr: IRExpr,
+  expected: String
+) -> String => expected {
+  "" => emitGoExpr(expr)
+  "Dynamic" => emitGoExpr(expr)
+  _ => ((goType(expected) + "{") + emitGoFields(expr.children, 0, "")) + "}"
 }
 
 emitGoCallExpected(

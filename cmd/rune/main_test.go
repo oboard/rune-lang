@@ -198,7 +198,22 @@ func TestGeneratedSelfhostCompilerBuildsCollectionMethodsGo(t *testing.T) {
   check := flags.getOr("check", false)
   @io.println(backend, check)
 }
-	`)
+		`)
+}
+
+func TestGeneratedSelfhostCompilerBuildsTypedObjectGo(t *testing.T) {
+	assertGeneratedSelfhostGoBuilds(t, `User: {
+  name: String
+  active: Bool
+}
+
+makeUser(name: String) -> User => {
+  name: name,
+  active: true
+}
+
+main() => @io.println(makeUser("Rune").name)
+		`)
 }
 
 func assertGeneratedSelfhostGoBuilds(t *testing.T, source string) {

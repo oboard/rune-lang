@@ -5178,10 +5178,25 @@ func ____rune_private_8ddf8596_emitGoExprExpected(__expr __IRExpr, __expected st
 		switch {
 		case __expr.__kind == __ExprKind_Call:
 			return ____rune_private_8ddf8596_emitGoCallExpected(__expr, __expected)
+		case __expr.__kind == __ExprKind_Object:
+			return ____rune_private_8ddf8596_emitGoObjectExpected(__expr, __expected)
 		case __expr.__kind == __ExprKind_Binary:
 			return ____rune_private_8ddf8596_emitGoBinaryExpected(__expr, __expected)
 		default:
 			return ____rune_private_8ddf8596_emitGoExpr(__expr)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoObjectExpected(__expr __IRExpr, __expected string) string {
+	return func() string {
+		switch {
+		case __expected == "":
+			return ____rune_private_8ddf8596_emitGoExpr(__expr)
+		case __expected == "Dynamic":
+			return ____rune_private_8ddf8596_emitGoExpr(__expr)
+		default:
+			return ____rune_private_8ddf8596_goType(__expected) + "{" + ____rune_private_8ddf8596_emitGoFields(__expr.__children, 0, "") + "}"
 		}
 	}()
 }
