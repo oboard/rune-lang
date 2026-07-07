@@ -512,6 +512,57 @@ main() -> Int => {
   @assert.eq(result.errors.length() > 0, true)
 }
 
+? "selfhost compiler reports duplicate top-level declarations" {
+  source := `User: {
+  name: String
+}
+
+User: {
+  age: Int
+}
+
+run() -> Int => 1
+
+run() -> Int => 2
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 2)
+  @assert.eq(result.errors[0], "duplicate type \"User\"")
+  @assert.eq(result.errors[1], "duplicate function \"run\"")
+}
+
+? "selfhost compiler reports duplicate type members" {
+  source := `User: {
+  name: String
+  name: String
+
+  rename(value: String) -> User => User { name: value }
+  static rename(value: String) -> User => User { name: value }
+}
+
+Status: {
+  Ready
+  Ready
+}
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 3)
+  @assert.eq(result.errors[0], "duplicate field \"name\"")
+  @assert.eq(result.errors[1], "duplicate method User.rename")
+  @assert.eq(result.errors[2], "duplicate enum member Status.Ready")
+}
+
+? "selfhost compiler reports duplicate parameters" {
+  source := `main(value: Int, value: Int) -> Int => value
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "duplicate parameter \"value\"")
+}
+
 ? "selfhost compiler reports undefined function calls" {
   result := compileGo("main() -> Int => missing()\n")
   @assert.eq(result.ok, false)

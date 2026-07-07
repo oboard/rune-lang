@@ -178,7 +178,8 @@ checkFileErrors(
 ) -> Array[String] => {
   callables := compilerCallables(file)
   knownTypes := compilerKnownTypes(file)
-  errors := checkDeclarationTypes(file, knownTypes, [""].slice(0, 0))
+  errors := checkDuplicateDeclarations(file, [""].slice(0, 0))
+  errors = checkDeclarationTypes(file, knownTypes, errors)
   file.functions.each((fn) => errors = (
     fn.macro ? errors
       : checkFunctionErrors(fn, file.structs, callables, errors)
@@ -221,6 +222,217 @@ compilerBuiltinTypes() -> Array[String] => [
   "Set",
   "Result"
 ]
+
+checkDuplicateDeclarations(
+  file: IRFile,
+  errors: Array[String]
+) -> Array[String] => {
+  next := checkDuplicateStructTypeNames(file.structs, 0, errors)
+  next = checkDuplicateEnumTypeNames(file.enums, file.structs, 0, next)
+  next = checkDuplicateFunctionNames(file.functions, 0, next)
+  file.structs.each((typeDecl) => next = checkDuplicateStructMembers(typeDecl, next))
+  file.enums.each((typeDecl) => next = checkDuplicateEnumMembers(typeDecl, next))
+  next
+}
+
+checkDuplicateStructTypeNames(
+  structs: Array[IRStructType],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= structs.length()
+  done {
+    true => errors
+    _ => checkDuplicateStructTypeName(structs, index, errors)
+  }
+}
+
+checkDuplicateStructTypeName(
+  structs: Array[IRStructType],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerStructNameAppearsAfter(structs, structs[index].name, index + 1)
+  next := duplicate {
+    true => [..errors, "duplicate type \"" + structs[index].name + "\""]
+    _ => errors
+  }
+  checkDuplicateStructTypeNames(structs, index + 1, next)
+}
+
+checkDuplicateEnumTypeNames(
+  enums: Array[IREnumType],
+  structs: Array[IRStructType],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= enums.length()
+  done {
+    true => errors
+    _ => checkDuplicateEnumTypeName(enums, structs, index, errors)
+  }
+}
+
+checkDuplicateEnumTypeName(
+  enums: Array[IREnumType],
+  structs: Array[IRStructType],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerEnumNameAppearsAfter(enums, enums[index].name, index + 1) || compilerStructNameAppearsAfter(structs, enums[index].name, 0)
+  next := duplicate {
+    true => [..errors, "duplicate type \"" + enums[index].name + "\""]
+    _ => errors
+  }
+  checkDuplicateEnumTypeNames(enums, structs, index + 1, next)
+}
+
+checkDuplicateFunctionNames(
+  functions: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= functions.length()
+  done {
+    true => errors
+    _ => checkDuplicateFunctionName(functions, index, errors)
+  }
+}
+
+checkDuplicateFunctionName(
+  functions: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerFunctionNameAppearsBefore(functions, functions[index].name, functions[index].macro, index - 1)
+  next := duplicate {
+    true => [..errors, "duplicate function \"" + functions[index].name + "\""]
+    _ => errors
+  }
+  checkDuplicateFunctionNames(functions, index + 1, next)
+}
+
+checkDuplicateStructMembers(
+  typeDecl: IRStructType,
+  errors: Array[String]
+) -> Array[String] => {
+  next := checkDuplicateStructFields(typeDecl.fields, 0, errors)
+  checkDuplicateStructMethods(typeDecl.name, typeDecl.methods, 0, next)
+}
+
+checkDuplicateStructFields(
+  fields: Array[IRField],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= fields.length()
+  done {
+    true => errors
+    _ => checkDuplicateStructField(fields, index, errors)
+  }
+}
+
+checkDuplicateStructField(
+  fields: Array[IRField],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerFieldNameAppearsBefore(fields, fields[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, "duplicate field \"" + fields[index].name + "\""]
+    _ => errors
+  }
+  checkDuplicateStructFields(fields, index + 1, next)
+}
+
+checkDuplicateStructMethods(
+  typeName: String,
+  methods: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= methods.length()
+  done {
+    true => errors
+    _ => checkDuplicateStructMethod(typeName, methods, index, errors)
+  }
+}
+
+checkDuplicateStructMethod(
+  typeName: String,
+  methods: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerMethodNameAppearsBefore(methods, methods[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, ("duplicate method " + typeName) + "." + methods[index].name]
+    _ => errors
+  }
+  checkDuplicateStructMethods(typeName, methods, index + 1, next)
+}
+
+checkDuplicateEnumMembers(
+  typeDecl: IREnumType,
+  errors: Array[String]
+) -> Array[String] => {
+  next := checkDuplicateEnumConstructors(typeDecl.name, typeDecl.members, 0, errors)
+  checkDuplicateEnumMethods(typeDecl.name, typeDecl.methods, 0, next)
+}
+
+checkDuplicateEnumConstructors(
+  enumName: String,
+  members: Array[IREnumMember],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= members.length()
+  done {
+    true => errors
+    _ => checkDuplicateEnumConstructor(enumName, members, index, errors)
+  }
+}
+
+checkDuplicateEnumConstructor(
+  enumName: String,
+  members: Array[IREnumMember],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerEnumMemberNameAppearsBefore(members, members[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, ("duplicate enum member " + enumName) + "." + members[index].name]
+    _ => errors
+  }
+  checkDuplicateEnumConstructors(enumName, members, index + 1, next)
+}
+
+checkDuplicateEnumMethods(
+  enumName: String,
+  methods: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= methods.length()
+  done {
+    true => errors
+    _ => checkDuplicateEnumMethod(enumName, methods, index, errors)
+  }
+}
+
+checkDuplicateEnumMethod(
+  enumName: String,
+  methods: Array[IRFunction],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerMethodNameAppearsBefore(methods, methods[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, ("duplicate method " + enumName) + "." + methods[index].name]
+    _ => errors
+  }
+  checkDuplicateEnumMethods(enumName, methods, index + 1, next)
+}
 
 checkDeclarationTypes(
   file: IRFile,
@@ -269,9 +481,35 @@ checkFunctionDeclarationTypesWithGenerics(
   errors: Array[String]
 ) -> Array[String] => {
   generics := compilerMergeGenerics(parentGenerics, fn.generics)
-  next := checkCompilerTypeName(fn.returnType, knownTypes, generics, errors)
+  next := checkDuplicateParams(fn.params, 0, errors)
+  next = checkCompilerTypeName(fn.returnType, knownTypes, generics, next)
   fn.params.each((param) => next = checkCompilerTypeName(param.typeName, knownTypes, generics, next))
   next
+}
+
+checkDuplicateParams(
+  params: Array[IRParam],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= params.length()
+  done {
+    true => errors
+    _ => checkDuplicateParam(params, index, errors)
+  }
+}
+
+checkDuplicateParam(
+  params: Array[IRParam],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  duplicate := compilerParamNameAppearsBefore(params, params[index].name, index - 1)
+  next := duplicate {
+    true => [..errors, "duplicate parameter \"" + params[index].name + "\""]
+    _ => errors
+  }
+  checkDuplicateParams(params, index + 1, next)
 }
 
 compilerMergeGenerics(
@@ -1309,6 +1547,122 @@ compilerContainsAt(
         : compilerContainsAt(values, value, index + 1)
     )
 )
+
+compilerStructNameAppearsAfter(
+  structs: Array[IRStructType],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= structs.length()
+  done {
+    true => false
+    _ => (structs[index].name == name) {
+      true => true
+      _ => compilerStructNameAppearsAfter(structs, name, index + 1)
+    }
+  }
+}
+
+compilerEnumNameAppearsAfter(
+  enums: Array[IREnumType],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= enums.length()
+  done {
+    true => false
+    _ => (enums[index].name == name) {
+      true => true
+      _ => compilerEnumNameAppearsAfter(enums, name, index + 1)
+    }
+  }
+}
+
+compilerFunctionNameAppearsBefore(
+  functions: Array[IRFunction],
+  name: String,
+  macro: Bool,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => compilerFunctionNameAppearsBeforeAt(functions, name, macro, index)
+  }
+}
+
+compilerFunctionNameAppearsBeforeAt(
+  functions: Array[IRFunction],
+  name: String,
+  macro: Bool,
+  index: Int
+) -> Bool => {
+  matched := (functions[index].name == name) && (functions[index].macro == macro)
+  matched {
+    true => true
+    _ => compilerFunctionNameAppearsBefore(functions, name, macro, index - 1)
+  }
+}
+
+compilerFieldNameAppearsBefore(
+  fields: Array[IRField],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => (fields[index].name == name) {
+      true => true
+      _ => compilerFieldNameAppearsBefore(fields, name, index - 1)
+    }
+  }
+}
+
+compilerMethodNameAppearsBefore(
+  methods: Array[IRFunction],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => (methods[index].name == name) {
+      true => true
+      _ => compilerMethodNameAppearsBefore(methods, name, index - 1)
+    }
+  }
+}
+
+compilerEnumMemberNameAppearsBefore(
+  members: Array[IREnumMember],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => (members[index].name == name) {
+      true => true
+      _ => compilerEnumMemberNameAppearsBefore(members, name, index - 1)
+    }
+  }
+}
+
+compilerParamNameAppearsBefore(
+  params: Array[IRParam],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index < 0
+  done {
+    true => false
+    _ => (params[index].name == name) {
+      true => true
+      _ => compilerParamNameAppearsBefore(params, name, index - 1)
+    }
+  }
+}
 
 lowerFiles(
   files: Array[SourceFile]

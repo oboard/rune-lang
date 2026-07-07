@@ -9006,7 +9006,8 @@ func ____rune_private_0d2ebf0f_fileHasGoImportAt(__imports []__IRImport, __index
 func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 	__callables := ____rune_private_0d2ebf0f_compilerCallables(__file)
 	__knownTypes := ____rune_private_0d2ebf0f_compilerKnownTypes(__file)
-	__errors := ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, append([]string{}, []string{""}[0:0]...))
+	__errors := ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file, append([]string{}, []string{""}[0:0]...))
+	__errors = ____rune_private_0d2ebf0f_checkDeclarationTypes(__file, __knownTypes, __errors)
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		__errors = func() []string {
@@ -9056,6 +9057,241 @@ func ____rune_private_0d2ebf0f_compilerKnownTypes(__file __IRFile) []string {
 
 func ____rune_private_0d2ebf0f_compilerBuiltinTypes() []string {
 	return []string{"Int", "Double", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Map", "Set", "Result"}
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateDeclarations(__file __IRFile, __errors []string) []string {
+	__next := ____rune_private_0d2ebf0f_checkDuplicateStructTypeNames(__file.__structs, 0, __errors)
+	__next = ____rune_private_0d2ebf0f_checkDuplicateEnumTypeNames(__file.__enums, __file.__structs, 0, __next)
+	__next = ____rune_private_0d2ebf0f_checkDuplicateFunctionNames(__file.__functions, 0, __next)
+	for _, __typeDecl := range __file.__structs {
+		_ = __typeDecl
+		__next = ____rune_private_0d2ebf0f_checkDuplicateStructMembers(__typeDecl, __next)
+	}
+	for _, __typeDecl := range __file.__enums {
+		_ = __typeDecl
+		__next = ____rune_private_0d2ebf0f_checkDuplicateEnumMembers(__typeDecl, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructTypeNames(__structs []__IRStructType, __index int, __errors []string) []string {
+	__done := __index >= len(__structs)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateStructTypeName(__structs, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructTypeName(__structs []__IRStructType, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerStructNameAppearsAfter(__structs, __structs[__index].__name, __index+1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate type \""+__structs[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateStructTypeNames(__structs, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumTypeNames(__enums []__IREnumType, __structs []__IRStructType, __index int, __errors []string) []string {
+	__done := __index >= len(__enums)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateEnumTypeName(__enums, __structs, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumTypeName(__enums []__IREnumType, __structs []__IRStructType, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerEnumNameAppearsAfter(__enums, __enums[__index].__name, __index+1) || ____rune_private_0d2ebf0f_compilerStructNameAppearsAfter(__structs, __enums[__index].__name, 0)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate type \""+__enums[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateEnumTypeNames(__enums, __structs, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateFunctionNames(__functions []__IRFunction, __index int, __errors []string) []string {
+	__done := __index >= len(__functions)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateFunctionName(__functions, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateFunctionName(__functions []__IRFunction, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBefore(__functions, __functions[__index].__name, __functions[__index].__macro, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate function \""+__functions[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateFunctionNames(__functions, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructMembers(__typeDecl __IRStructType, __errors []string) []string {
+	__next := ____rune_private_0d2ebf0f_checkDuplicateStructFields(__typeDecl.__fields, 0, __errors)
+	return ____rune_private_0d2ebf0f_checkDuplicateStructMethods(__typeDecl.__name, __typeDecl.__methods, 0, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructFields(__fields []__IRField, __index int, __errors []string) []string {
+	__done := __index >= len(__fields)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateStructField(__fields, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructField(__fields []__IRField, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerFieldNameAppearsBefore(__fields, __fields[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate field \""+__fields[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateStructFields(__fields, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructMethods(__typeName string, __methods []__IRFunction, __index int, __errors []string) []string {
+	__done := __index >= len(__methods)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateStructMethod(__typeName, __methods, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateStructMethod(__typeName string, __methods []__IRFunction, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerMethodNameAppearsBefore(__methods, __methods[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate method "+__typeName+"."+__methods[__index].__name)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateStructMethods(__typeName, __methods, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumMembers(__typeDecl __IREnumType, __errors []string) []string {
+	__next := ____rune_private_0d2ebf0f_checkDuplicateEnumConstructors(__typeDecl.__name, __typeDecl.__members, 0, __errors)
+	return ____rune_private_0d2ebf0f_checkDuplicateEnumMethods(__typeDecl.__name, __typeDecl.__methods, 0, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumConstructors(__enumName string, __members []__IREnumMember, __index int, __errors []string) []string {
+	__done := __index >= len(__members)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateEnumConstructor(__enumName, __members, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumConstructor(__enumName string, __members []__IREnumMember, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerEnumMemberNameAppearsBefore(__members, __members[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate enum member "+__enumName+"."+__members[__index].__name)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateEnumConstructors(__enumName, __members, __index+1, __next)
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumMethods(__enumName string, __methods []__IRFunction, __index int, __errors []string) []string {
+	__done := __index >= len(__methods)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateEnumMethod(__enumName, __methods, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateEnumMethod(__enumName string, __methods []__IRFunction, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerMethodNameAppearsBefore(__methods, __methods[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate method "+__enumName+"."+__methods[__index].__name)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateEnumMethods(__enumName, __methods, __index+1, __next)
 }
 
 func ____rune_private_0d2ebf0f_checkDeclarationTypes(__file __IRFile, __knownTypes []string, __errors []string) []string {
@@ -9112,12 +9348,43 @@ func ____rune_private_0d2ebf0f_checkFunctionDeclarationTypes(__fn __IRFunction, 
 
 func ____rune_private_0d2ebf0f_checkFunctionDeclarationTypesWithGenerics(__fn __IRFunction, __knownTypes []string, __parentGenerics []string, __errors []string) []string {
 	__generics := ____rune_private_0d2ebf0f_compilerMergeGenerics(__parentGenerics, __fn.__generics)
-	__next := ____rune_private_0d2ebf0f_checkCompilerTypeName(__fn.__returnType, __knownTypes, __generics, __errors)
+	__next := ____rune_private_0d2ebf0f_checkDuplicateParams(__fn.__params, 0, __errors)
+	__next = ____rune_private_0d2ebf0f_checkCompilerTypeName(__fn.__returnType, __knownTypes, __generics, __next)
 	for _, __param := range __fn.__params {
 		_ = __param
 		__next = ____rune_private_0d2ebf0f_checkCompilerTypeName(__param.__typeName, __knownTypes, __generics, __next)
 	}
 	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateParams(__params []__IRParam, __index int, __errors []string) []string {
+	__done := __index >= len(__params)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkDuplicateParam(__params, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkDuplicateParam(__params []__IRParam, __index int, __errors []string) []string {
+	__duplicate := ____rune_private_0d2ebf0f_compilerParamNameAppearsBefore(__params, __params[__index].__name, __index-1)
+	__next := func() []string {
+		switch {
+		case __duplicate == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "duplicate parameter \""+__params[__index].__name+"\"")
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkDuplicateParams(__params, __index+1, __next)
 }
 
 func ____rune_private_0d2ebf0f_compilerMergeGenerics(__parentGenerics []string, __functionGenerics []string) []string {
@@ -10176,6 +10443,144 @@ func ____rune_private_0d2ebf0f_compilerContainsAt(__values []string, __value str
 			}
 			return ____rune_private_0d2ebf0f_compilerContainsAt(__values, __value, __index+1)
 		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerStructNameAppearsAfter(__structs []__IRStructType, __name string, __index int) bool {
+	__done := __index >= len(__structs)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __structs[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerStructNameAppearsAfter(__structs, __name, __index+1)
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerEnumNameAppearsAfter(__enums []__IREnumType, __name string, __index int) bool {
+	__done := __index >= len(__enums)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __enums[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerEnumNameAppearsAfter(__enums, __name, __index+1)
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBefore(__functions []__IRFunction, __name string, __macro bool, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBeforeAt(__functions, __name, __macro, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBeforeAt(__functions []__IRFunction, __name string, __macro bool, __index int) bool {
+	__matched := __functions[__index].__name == __name && __functions[__index].__macro == __macro
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerFunctionNameAppearsBefore(__functions, __name, __macro, __index-1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerFieldNameAppearsBefore(__fields []__IRField, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __fields[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerFieldNameAppearsBefore(__fields, __name, __index-1)
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMethodNameAppearsBefore(__methods []__IRFunction, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __methods[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerMethodNameAppearsBefore(__methods, __name, __index-1)
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerEnumMemberNameAppearsBefore(__members []__IREnumMember, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __members[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerEnumMemberNameAppearsBefore(__members, __name, __index-1)
+				}
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParamNameAppearsBefore(__params []__IRParam, __name string, __index int) bool {
+	__done := __index < 0
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				switch {
+				case __params[__index].__name == __name == true:
+					return true
+				default:
+					return ____rune_private_0d2ebf0f_compilerParamNameAppearsBefore(__params, __name, __index-1)
+				}
+			}()
+		}
 	}()
 }
 
