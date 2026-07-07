@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -12068,12 +12069,112 @@ func ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr __IRExpr, __selector _
 	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
 	return func() []string {
 		switch {
-		case __importPath == "" == true:
-			return __errors
+		case __importPath == "":
+			return ____rune_private_0d2ebf0f_checkModuleSelectorCall(__expr, __selector, __receiver, __errors)
 		default:
 			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __structs, __callables, __errors, __bindings)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_checkModuleSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __receiver.__name == "go":
+			return ____rune_private_0d2ebf0f_checkGoModuleSelectorCall(__expr, __selector.__name, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoModuleSelectorCall(__expr __IRExpr, __name string, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __name == "expr":
+			return ____rune_private_0d2ebf0f_checkGoExprCall(__expr, __errors)
+		case __name == "stmt":
+			return ____rune_private_0d2ebf0f_checkGoStmtCall(__expr, __errors)
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoExprCall(__expr __IRExpr, __errors []string) []string {
+	return func() []string {
+		__match2 := ____rune_private_0d2ebf0f_compilerCallArgCount(__expr)
+		switch {
+		case __match2 == 1:
+			return ____rune_private_0d2ebf0f_checkGoExprStringLiteral(__expr, __errors)
+		case true:
+			__count := __match2
+			_ = __count
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "@go.expr expects 1 args, got "+strconv.Itoa(__count))
+				return out
+			}()
+		}
+		return nil
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoStmtCall(__expr __IRExpr, __errors []string) []string {
+	return func() []string {
+		__match3 := ____rune_private_0d2ebf0f_compilerCallArgCount(__expr)
+		switch {
+		case __match3 == 1:
+			return ____rune_private_0d2ebf0f_checkGoStmtStringLiteral(__expr, __errors)
+		case true:
+			__count := __match3
+			_ = __count
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "@go.stmt expects 1 args, got "+strconv.Itoa(__count))
+				return out
+			}()
+		}
+		return nil
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoExprStringLiteral(__expr __IRExpr, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __expr.__children[1].__kind == __ExprKind_String:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "@go.expr body must be a string literal")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkGoStmtStringLiteral(__expr __IRExpr, __errors []string) []string {
+	return func() []string {
+		switch {
+		case __expr.__children[1].__kind == __ExprKind_String:
+			return __errors
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "@go.stmt argument must be a string literal")
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerCallArgCount(__expr __IRExpr) int {
+	return len(__expr.__children) - 1
 }
 
 func ____rune_private_0d2ebf0f_checkIdentifierSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -14007,12 +14108,12 @@ func ____rune_private_0d2ebf0f_compilerMacroFunctionError(__fn __ParsedFunction,
 
 func ____rune_private_0d2ebf0f_compilerMacroPurityError(__fn __ParsedFunction, __errors []__ParseError) []__ParseError {
 	return func() []__ParseError {
-		__match2 := ____rune_private_0d2ebf0f_compilerParsedMacroPurityMessage(__fn.__body)
+		__match4 := ____rune_private_0d2ebf0f_compilerParsedMacroPurityMessage(__fn.__body)
 		switch {
-		case __match2 == "":
+		case __match4 == "":
 			return __errors
 		case true:
-			__message := __match2
+			__message := __match4
 			_ = __message
 			return func() []__ParseError {
 				out := []__ParseError{}

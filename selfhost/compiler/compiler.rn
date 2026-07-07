@@ -2719,11 +2719,67 @@ checkAtSelectorCall(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   importPath := compilerIRAtImportPath(receiver)
-  (importPath == "") {
-    true => errors
+  importPath {
+    "" => checkModuleSelectorCall(expr, selector, receiver, errors)
     _ => checkIdentifierCall(expr, selector.name, expr.children.length() - 1, structs, callables, errors, bindings)
   }
 }
+
+checkModuleSelectorCall(
+  expr: IRExpr,
+  selector: IRExpr,
+  receiver: IRExpr,
+  errors: Array[String]
+) -> Array[String] => receiver.name {
+  "go" => checkGoModuleSelectorCall(expr, selector.name, errors)
+  _ => errors
+}
+
+checkGoModuleSelectorCall(
+  expr: IRExpr,
+  name: String,
+  errors: Array[String]
+) -> Array[String] => name {
+  "expr" => checkGoExprCall(expr, errors)
+  "stmt" => checkGoStmtCall(expr, errors)
+  _ => errors
+}
+
+checkGoExprCall(
+  expr: IRExpr,
+  errors: Array[String]
+) -> Array[String] => compilerCallArgCount(expr) {
+  1 => checkGoExprStringLiteral(expr, errors)
+  count => [..errors, "@go.expr expects 1 args, got " + count.toString()]
+}
+
+checkGoStmtCall(
+  expr: IRExpr,
+  errors: Array[String]
+) -> Array[String] => compilerCallArgCount(expr) {
+  1 => checkGoStmtStringLiteral(expr, errors)
+  count => [..errors, "@go.stmt expects 1 args, got " + count.toString()]
+}
+
+checkGoExprStringLiteral(
+  expr: IRExpr,
+  errors: Array[String]
+) -> Array[String] => expr.children[1].kind {
+  ExprKind.String => errors
+  _ => [..errors, "@go.expr body must be a string literal"]
+}
+
+checkGoStmtStringLiteral(
+  expr: IRExpr,
+  errors: Array[String]
+) -> Array[String] => expr.children[1].kind {
+  ExprKind.String => errors
+  _ => [..errors, "@go.stmt argument must be a string literal"]
+}
+
+compilerCallArgCount(
+  expr: IRExpr
+) -> Int => expr.children.length() - 1
 
 checkIdentifierSelectorCall(
   expr: IRExpr,

@@ -511,6 +511,24 @@ main() => @io.println("ok")
   @assert.eq(go.output.includes("\t\"fmt\"\n\t\"fmt\"\n"), false)
 }
 
+? "selfhost compiler checks Go FFI arguments" {
+  expr := compileGo(`main() -> Bool => @go.expr(1)
+`)
+  stmt := compileGo(`main() => @go.stmt(1)
+`)
+  arity := compileGo(`main() -> Bool => @go.expr()
+`)
+  @assert.eq(expr.ok, false)
+  @assert.eq(expr.errors.length(), 1)
+  @assert.eq(expr.errors[0], "@go.expr body must be a string literal")
+  @assert.eq(stmt.ok, false)
+  @assert.eq(stmt.errors.length(), 1)
+  @assert.eq(stmt.errors[0], "@go.stmt argument must be a string literal")
+  @assert.eq(arity.ok, false)
+  @assert.eq(arity.errors.length(), 1)
+  @assert.eq(arity.errors[0], "@go.expr expects 1 args, got 0")
+}
+
 ? "selfhost compiler omits macro functions from runtime" {
   source := `#tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => CallExpr(IdentifierExpr("x"), [])
 
