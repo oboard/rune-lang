@@ -244,6 +244,22 @@ main() => @io.println(makeUser("Rune").name)
 		`)
 }
 
+func TestGeneratedSelfhostCompilerBuildsJSONObjectGo(t *testing.T) {
+	assertGeneratedSelfhostGoBuilds(t, `#json.object
+User: {
+  #json.name("display_name")
+  name: String
+  #json.ignore
+  password: String
+}
+
+main() => {
+  user := User::fromJson("{\"display_name\":\"Ada\",\"password\":\"drop\"}")
+  @io.println(user.name)
+}
+		`)
+}
+
 func assertGeneratedSelfhostGoBuilds(t *testing.T, source string) {
 	t.Helper()
 	result := __compileGo(source)

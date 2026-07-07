@@ -1,6 +1,11 @@
 @"../ir/ir.rn"
 @"./common.rn"
 
+GoJSONDeclResult: {
+  names: Array[String]
+  text: String
+}
+
 + generateGo(file: IRFile) -> String => {
   out :=: "package main\n\n"
   out = out + emitGoImports(file)
@@ -35,6 +40,7 @@ emitGoImports(
   imports = appendGoImportIf(imports, fileUsesDoubleMath(file), "math")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString"), "strconv")
   imports = appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
+  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "json.parse") || fileUsesModuleCall(file, "json.stringify"), "encoding/json")
   empty := imports.length() == 0
   empty {
     true => ""
@@ -515,7 +521,7 @@ emitGoBody(
   ExprKind.Block => emitGoBlock(file, expr.children, 0, returns, returnType, level, "")
   ExprKind.PatternBlock => emitGoPatternBlock(file, expr, returns, returnType, level)
   _ => line(level, (
-    returns ? "return " + emitGoExprExpected(expr, returnType)
+    returns ? "return " + emitGoExprExpectedForFile(file, expr, returnType)
       : emitGoExpr(expr)
   ))
 }
@@ -578,7 +584,7 @@ emitGoPatternBranchBody(
   returnType: String,
   level: Int
 ) -> String => (
-  returns ? line(level, "return " + emitGoExprExpected(value, returnType))
+  returns ? line(level, "return " + emitGoExprExpectedForFile(file, value, returnType))
     : line(level, emitGoExpr(value))
 )
 
@@ -613,7 +619,7 @@ emitGoStatement(
   ExprKind.Let => emitGoLet(file, expr, level)
   ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
   _ => (
-    last && returns ? line(level, "return " + emitGoExprExpected(expr, returnType))
+    last && returns ? line(level, "return " + emitGoExprExpectedForFile(file, expr, returnType))
       : line(level, emitGoExpr(expr))
   )
 }
@@ -698,6 +704,17 @@ emitGoExprExpected(
   _ => emitGoExpr(expr)
 }
 
+emitGoExprExpectedForFile(
+  file: IRFile,
+  expr: IRExpr,
+  expected: String
+) -> String => expr.kind {
+  ExprKind.Call => emitGoCallExpectedForFile(file, expr, expected)
+  ExprKind.Object => emitGoObjectExpected(expr, expected)
+  ExprKind.Binary => emitGoBinaryExpectedForFile(file, expr, expected)
+  _ => emitGoExpr(expr)
+}
+
 emitGoObjectExpected(
   expr: IRExpr,
   expected: String
@@ -716,6 +733,15 @@ emitGoCallExpected(
     (args != "") && isResultConstructorCall(expr) ? ((emitGoExpr(expr.children[0]) + "[") + emitGoTypeArgs(args)) + "](" + emitGoExprListFrom(expr.children, 1, "") + ")"
       : emitGoCall(expr)
   )
+}
+
+emitGoCallExpectedForFile(
+  file: IRFile,
+  expr: IRExpr,
+  expected: String
+) -> String => moduleCallKey(expr) {
+  "json.parse" => emitGoJSONParse(file, expr, expected)
+  _ => emitGoCallExpected(expr, expected)
 }
 
 isResultConstructorCall(
@@ -782,6 +808,15 @@ emitGoBinaryExpected(
     : emitGoBinary(expr)
 )
 
+emitGoBinaryExpectedForFile(
+  file: IRFile,
+  expr: IRExpr,
+  expected: String
+) -> String => (
+  expr.op == "??" ? emitGoNullCoalesceForFile(file, expr, expected)
+    : emitGoBinary(expr)
+)
+
 emitGoNullCoalesce(
   expr: IRExpr,
   expected: String
@@ -792,6 +827,21 @@ emitGoNullCoalesce(
       : (
         resultType == "" ? (((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()")
           : ((((((("func() " + goType(resultType)) + " { __coalesce := ") + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[1], resultType)) + " }()"
+      )
+  )
+}
+
+emitGoNullCoalesceForFile(
+  file: IRFile,
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  resultType := goCoalesceResultType(expr, expected)
+  (
+    (expr.children.length() < 2) || (expr.children[0].kind == ExprKind.Null) ? emitGoExpr(expr.children[1])
+      : (
+        resultType == "" ? (((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()")
+          : ((((((("func() " + goType(resultType)) + " { __coalesce := ") + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce.(") + goType(resultType)) + ") }; return ") + emitGoExprExpectedForFile(file, expr.children[1], resultType)) + " }()"
       )
   )
 }
@@ -825,6 +875,8 @@ emitGoAssign(expr: IRExpr) -> String => (
 
 emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("fmt.Println(" + emitGoExprListFrom(expr.children, 1, "")) + ")"
+  "json.stringify" => emitGoJSONStringify(expr)
+  "json.parse" => emitGoJSONParseDynamic(expr)
   "map.new" => "map[any]any{}"
   "set.new" => "map[any]struct{}{}"
   "path.isAbsolute" => "strings.HasPrefix(" + emitGoExpr(expr.children[1]) + ", \"/\")"
@@ -1085,6 +1137,333 @@ exprChildrenUsePrint(
         : exprChildrenUsePrint(children, index + 1)
     )
 )
+
+emitGoJSONStringify(
+  expr: IRExpr
+) -> String => ("func() string { __bytes, _ := json.Marshal(" + emitGoExpr(expr.children[1])) + "); return string(__bytes) }()"
+
+emitGoJSONParseDynamic(
+  expr: IRExpr
+) -> String => ("func() any { var __raw any; if err := json.Unmarshal([]byte(" + emitGoExpr(expr.children[1])) + "), &__raw); err != nil { panic(err) }; return __raw }()"
+
+emitGoJSONParse(
+  file: IRFile,
+  expr: IRExpr,
+  expected: String
+) -> String => {
+  target := expected
+  (target == "") {
+    true => target = "Dynamic"
+    _ => target = target
+  }
+  dynamic := target == "Dynamic"
+  dynamic {
+    true => emitGoJSONParseDynamic(expr)
+    _ => emitGoJSONParseTyped(file, expr, target)
+  }
+}
+
+emitGoJSONParseTyped(
+  file: IRFile,
+  expr: IRExpr,
+  target: String
+) -> String => {
+  decls := goJSONDeclsForType(file, target, [])
+  wireType := goJSONDecodeType(file, target)
+  value := goJSONDecodedValue(file, "__raw", target)
+  (((((((("func() " + goType(target)) + " { ") + decls.text) + "var __raw ") + wireType) + "; if err := json.Unmarshal([]byte(") + emitGoExpr(expr.children[1])) + "), &__raw); err != nil { panic(err) }; return ") + value + " }()"
+}
+
+emptyGoJSONDeclResult(
+  names: Array[String],
+  text: String
+) -> GoJSONDeclResult => {
+  names: names,
+  text: text
+}
+
+goJSONDecodeType(
+  file: IRFile,
+  typeName: String
+) -> String => {
+  arrayInner := genericInner(typeName, "Array")
+  (arrayInner != "") {
+    true => "[]" + goJSONDecodeType(file, arrayInner)
+    _ => goJSONDecodeNonArrayType(file, typeName)
+  }
+}
+
+goJSONDecodeNonArrayType(
+  file: IRFile,
+  typeName: String
+) -> String => {
+  structIndex := goJSONStructIndex(file.structs, typeName, 0)
+  (structIndex >= 0) {
+    true => goJSONStructWireType(file.structs[structIndex])
+    _ => goJSONScalarDecodeType(typeName)
+  }
+}
+
+goJSONScalarDecodeType(
+  typeName: String
+) -> String => typeName {
+  "Char" => "string"
+  _ => goType(typeName)
+}
+
+goJSONStructWireType(
+  typeDecl: IRStructType
+) -> String => mangleIdent("rune_json_" + typeDecl.name)
+
+goJSONDeclsForType(
+  file: IRFile,
+  typeName: String,
+  names: Array[String]
+) -> GoJSONDeclResult => {
+  arrayInner := genericInner(typeName, "Array")
+  (arrayInner != "") {
+    true => goJSONDeclsForType(file, arrayInner, names)
+    _ => goJSONDeclsForNonArrayType(file, typeName, names)
+  }
+}
+
+goJSONDeclsForNonArrayType(
+  file: IRFile,
+  typeName: String,
+  names: Array[String]
+) -> GoJSONDeclResult => {
+  structIndex := goJSONStructIndex(file.structs, typeName, 0)
+  (structIndex >= 0) {
+    true => goJSONDeclsForStruct(file, file.structs[structIndex], names)
+    _ => emptyGoJSONDeclResult(names, "")
+  }
+}
+
+goJSONDeclsForStruct(
+  file: IRFile,
+  typeDecl: IRStructType,
+  names: Array[String]
+) -> GoJSONDeclResult => {
+  name := goJSONStructWireType(typeDecl)
+  seen := goJSONDeclSeen(names, name, 0)
+  seen {
+    true => emptyGoJSONDeclResult(names, "")
+    _ => goJSONDeclsForNewStruct(file, typeDecl, [..names, name])
+  }
+}
+
+goJSONDeclsForNewStruct(
+  file: IRFile,
+  typeDecl: IRStructType,
+  names: Array[String]
+) -> GoJSONDeclResult => {
+  nested := goJSONDeclsForFields(file, typeDecl.fields, 0, names, "")
+  fields := goJSONStructWireFields(file, typeDecl.fields, 0, "")
+  decl := ((("type " + goJSONStructWireType(typeDecl)) + " struct{") + fields) + "}; "
+  emptyGoJSONDeclResult(nested.names, nested.text + decl)
+}
+
+goJSONDeclsForFields(
+  file: IRFile,
+  fields: Array[IRField],
+  index: Int,
+  names: Array[String],
+  text: String
+) -> GoJSONDeclResult => {
+  done := index >= fields.length()
+  done {
+    true => emptyGoJSONDeclResult(names, text)
+    _ => goJSONDeclsForField(file, fields, index, names, text)
+  }
+}
+
+goJSONDeclsForField(
+  file: IRFile,
+  fields: Array[IRField],
+  index: Int,
+  names: Array[String],
+  text: String
+) -> GoJSONDeclResult => {
+  field := fields[index]
+  include := goJSONIncludeField(field)
+  include {
+    true => {
+      nested := goJSONDeclsForType(file, field.typeName, names)
+      goJSONDeclsForFields(file, fields, index + 1, nested.names, text + nested.text)
+    }
+    _ => goJSONDeclsForFields(file, fields, index + 1, names, text)
+  }
+}
+
+goJSONStructWireFields(
+  file: IRFile,
+  fields: Array[IRField],
+  index: Int,
+  out: String
+) -> String => {
+  done := index >= fields.length()
+  done {
+    true => out
+    _ => goJSONStructWireField(file, fields, index, out)
+  }
+}
+
+goJSONStructWireField(
+  file: IRFile,
+  fields: Array[IRField],
+  index: Int,
+  out: String
+) -> String => {
+  field := fields[index]
+  include := goJSONIncludeField(field)
+  include {
+    true => {
+      prefix := (out == "") {
+        true => ""
+        _ => "; "
+      }
+      part := (((("F" + compilerIntToString(index)) + " ") + goJSONDecodeType(file, field.typeName)) + " ") + goJSONTag(field.jsonName)
+      goJSONStructWireFields(file, fields, index + 1, (out + prefix) + part)
+    }
+    _ => goJSONStructWireFields(file, fields, index + 1, out)
+  }
+}
+
+goJSONTag(
+  name: String
+) -> String => ("`json:\"" + name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")) + "\"`"
+
+goJSONIncludeField(
+  field: IRField
+) -> Bool => {
+  omit := field.jsonIgnore || goJSONOmitType(field.typeName)
+  omit {
+    true => false
+    _ => true
+  }
+}
+
+goJSONOmitType(
+  typeName: String
+) -> Bool => typeName {
+  "" | "Void" | "Symbol" => true
+  _ => false
+}
+
+goJSONDeclSeen(
+  names: Array[String],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= names.length()
+  done {
+    true => false
+    _ => {
+      matched := names[index] == name
+      matched {
+        true => true
+        _ => goJSONDeclSeen(names, name, index + 1)
+      }
+    }
+  }
+}
+
+goJSONStructIndex(
+  structs: Array[IRStructType],
+  typeName: String,
+  index: Int
+) -> Int => {
+  done := index >= structs.length()
+  done {
+    true => -1
+    _ => {
+      matched := structs[index].name == typeName
+      matched {
+        true => index
+        _ => goJSONStructIndex(structs, typeName, index + 1)
+      }
+    }
+  }
+}
+
+goJSONDecodedValue(
+  file: IRFile,
+  source: String,
+  typeName: String
+) -> String => {
+  arrayInner := genericInner(typeName, "Array")
+  (arrayInner != "") {
+    true => goJSONDecodedArray(file, source, typeName, arrayInner)
+    _ => goJSONDecodedNonArrayValue(file, source, typeName)
+  }
+}
+
+goJSONDecodedNonArrayValue(
+  file: IRFile,
+  source: String,
+  typeName: String
+) -> String => {
+  structIndex := goJSONStructIndex(file.structs, typeName, 0)
+  (structIndex >= 0) {
+    true => goJSONDecodedStruct(file, source, file.structs[structIndex])
+    _ => goJSONDecodedScalar(source, typeName)
+  }
+}
+
+goJSONDecodedScalar(
+  source: String,
+  typeName: String
+) -> String => typeName {
+  "Char" => "[]rune(" + source + ")[0]"
+  _ => source
+}
+
+goJSONDecodedArray(
+  file: IRFile,
+  source: String,
+  typeName: String,
+  inner: String
+) -> String => (((((((("func() " + goType(typeName)) + " { __out := make(") + goType(typeName)) + ", len(") + source) + "); for __idx, __item := range ") + source) + " { __out[__idx] = " + goJSONDecodedValue(file, "__item", inner)) + " }; return __out }()"
+
+goJSONDecodedStruct(
+  file: IRFile,
+  source: String,
+  typeDecl: IRStructType
+) -> String => (((("func() " + goType(typeDecl.name)) + " { __out := ") + goType(typeDecl.name)) + "{}; ") + goJSONDecodedFieldAssignments(file, source, typeDecl.fields, 0, "") + "return __out }()"
+
+goJSONDecodedFieldAssignments(
+  file: IRFile,
+  source: String,
+  fields: Array[IRField],
+  index: Int,
+  out: String
+) -> String => {
+  done := index >= fields.length()
+  done {
+    true => out
+    _ => goJSONDecodedFieldAssignment(file, source, fields, index, out)
+  }
+}
+
+goJSONDecodedFieldAssignment(
+  file: IRFile,
+  source: String,
+  fields: Array[IRField],
+  index: Int,
+  out: String
+) -> String => {
+  field := fields[index]
+  include := goJSONIncludeField(field)
+  include {
+    true => {
+      sourceField := (source + ".F") + compilerIntToString(index)
+      value := goJSONDecodedValue(file, sourceField, field.typeName)
+      assignment := (((("__out." + mangleIdent(field.name)) + " = ") + value) + "; ")
+      goJSONDecodedFieldAssignments(file, source, fields, index + 1, out + assignment)
+    }
+    _ => goJSONDecodedFieldAssignments(file, source, fields, index + 1, out)
+  }
+}
 
 goType(typeName: String) -> String => typeName {
   "" => "any"

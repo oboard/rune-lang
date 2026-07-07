@@ -516,6 +516,11 @@ type __IRFile struct {
 	__errors    []__ParseError
 }
 
+type __GoJSONDeclResult struct {
+	__names []string
+	__text  string
+}
+
 type __CompileResult struct {
 	__ok     bool
 	__output string
@@ -5446,6 +5451,7 @@ func ____rune_private_8ddf8596_emitGoImports(__file __IRFile) string {
 	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, ____rune_private_8ddf8596_fileUsesDoubleMath(__file), "math")
 	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesModuleCall(__file, "int.toString") || __fileUsesModuleCall(__file, "bigint.toString"), "strconv")
 	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesUnwrap(__file), "reflect")
+	__imports = ____rune_private_8ddf8596_appendGoImportIf(__imports, __fileUsesModuleCall(__file, "json.parse") || __fileUsesModuleCall(__file, "json.stringify"), "encoding/json")
 	__empty := len(__imports) == 0
 	return func() string {
 		switch {
@@ -5766,7 +5772,7 @@ func ____rune_private_8ddf8596_emitGoBody(__file __IRFile, __expr __IRExpr, __re
 		default:
 			return __line(__level, func() string {
 				if __returns {
-					return "return " + ____rune_private_8ddf8596_emitGoExprExpected(__expr, __returnType)
+					return "return " + ____rune_private_8ddf8596_emitGoExprExpectedForFile(__file, __expr, __returnType)
 				}
 				return ____rune_private_8ddf8596_emitGoExpr(__expr)
 			}())
@@ -5821,7 +5827,7 @@ func ____rune_private_8ddf8596_emitGoPatternPrefix(__first bool) string {
 func ____rune_private_8ddf8596_emitGoPatternBranchBody(__file __IRFile, __value __IRExpr, __returns bool, __returnType string, __level int) string {
 	return func() string {
 		if __returns {
-			return __line(__level, "return "+____rune_private_8ddf8596_emitGoExprExpected(__value, __returnType))
+			return __line(__level, "return "+____rune_private_8ddf8596_emitGoExprExpectedForFile(__file, __value, __returnType))
 		}
 		return __line(__level, ____rune_private_8ddf8596_emitGoExpr(__value))
 	}()
@@ -5855,7 +5861,7 @@ func ____rune_private_8ddf8596_emitGoStatement(__file __IRFile, __expr __IRExpr,
 		default:
 			return func() string {
 				if __last && __returns {
-					return __line(__level, "return "+____rune_private_8ddf8596_emitGoExprExpected(__expr, __returnType))
+					return __line(__level, "return "+____rune_private_8ddf8596_emitGoExprExpectedForFile(__file, __expr, __returnType))
 				}
 				return __line(__level, ____rune_private_8ddf8596_emitGoExpr(__expr))
 			}()
@@ -5982,6 +5988,21 @@ func ____rune_private_8ddf8596_emitGoExprExpected(__expr __IRExpr, __expected st
 	}()
 }
 
+func ____rune_private_8ddf8596_emitGoExprExpectedForFile(__file __IRFile, __expr __IRExpr, __expected string) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Call:
+			return ____rune_private_8ddf8596_emitGoCallExpectedForFile(__file, __expr, __expected)
+		case __expr.__kind == __ExprKind_Object:
+			return ____rune_private_8ddf8596_emitGoObjectExpected(__expr, __expected)
+		case __expr.__kind == __ExprKind_Binary:
+			return ____rune_private_8ddf8596_emitGoBinaryExpectedForFile(__file, __expr, __expected)
+		default:
+			return ____rune_private_8ddf8596_emitGoExpr(__expr)
+		}
+	}()
+}
+
 func ____rune_private_8ddf8596_emitGoObjectExpected(__expr __IRExpr, __expected string) string {
 	return func() string {
 		switch {
@@ -6002,6 +6023,17 @@ func ____rune_private_8ddf8596_emitGoCallExpected(__expr __IRExpr, __expected st
 			return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "[" + ____rune_private_8ddf8596_emitGoTypeArgs(__args) + "](" + ____rune_private_8ddf8596_emitGoExprListFrom(__expr.__children, 1, "") + ")"
 		}
 		return ____rune_private_8ddf8596_emitGoCall(__expr)
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoCallExpectedForFile(__file __IRFile, __expr __IRExpr, __expected string) string {
+	return func() string {
+		switch {
+		case __moduleCallKey(__expr) == "json.parse":
+			return ____rune_private_8ddf8596_emitGoJSONParse(__file, __expr, __expected)
+		default:
+			return ____rune_private_8ddf8596_emitGoCallExpected(__expr, __expected)
+		}
 	}()
 }
 
@@ -6077,6 +6109,15 @@ func ____rune_private_8ddf8596_emitGoBinaryExpected(__expr __IRExpr, __expected 
 	}()
 }
 
+func ____rune_private_8ddf8596_emitGoBinaryExpectedForFile(__file __IRFile, __expr __IRExpr, __expected string) string {
+	return func() string {
+		if __expr.__op == "??" {
+			return ____rune_private_8ddf8596_emitGoNullCoalesceForFile(__file, __expr, __expected)
+		}
+		return ____rune_private_8ddf8596_emitGoBinary(__expr)
+	}()
+}
+
 func ____rune_private_8ddf8596_emitGoNullCoalesce(__expr __IRExpr, __expected string) string {
 	__resultType := ____rune_private_8ddf8596_goCoalesceResultType(__expr, __expected)
 	return func() string {
@@ -6088,6 +6129,21 @@ func ____rune_private_8ddf8596_emitGoNullCoalesce(__expr __IRExpr, __expected st
 				return "func() any { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce }; return " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + " }()"
 			}
 			return "func() " + ____rune_private_8ddf8596_goType(__resultType) + " { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce.(" + ____rune_private_8ddf8596_goType(__resultType) + ") }; return " + ____rune_private_8ddf8596_emitGoExprExpected(__expr.__children[1], __resultType) + " }()"
+		}()
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoNullCoalesceForFile(__file __IRFile, __expr __IRExpr, __expected string) string {
+	__resultType := ____rune_private_8ddf8596_goCoalesceResultType(__expr, __expected)
+	return func() string {
+		if len(__expr.__children) < 2 || __expr.__children[0].__kind == __ExprKind_Null {
+			return ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1])
+		}
+		return func() string {
+			if __resultType == "" {
+				return "func() any { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce }; return " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + " }()"
+			}
+			return "func() " + ____rune_private_8ddf8596_goType(__resultType) + " { __coalesce := " + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[0]) + "; if __coalesce != nil { return __coalesce.(" + ____rune_private_8ddf8596_goType(__resultType) + ") }; return " + ____rune_private_8ddf8596_emitGoExprExpectedForFile(__file, __expr.__children[1], __resultType) + " }()"
 		}()
 	}()
 }
@@ -6135,6 +6191,10 @@ func ____rune_private_8ddf8596_emitGoCall(__expr __IRExpr) string {
 		switch {
 		case __moduleCallKey(__expr) == "io.println":
 			return "fmt.Println(" + ____rune_private_8ddf8596_emitGoExprListFrom(__expr.__children, 1, "") + ")"
+		case __moduleCallKey(__expr) == "json.stringify":
+			return ____rune_private_8ddf8596_emitGoJSONStringify(__expr)
+		case __moduleCallKey(__expr) == "json.parse":
+			return ____rune_private_8ddf8596_emitGoJSONParseDynamic(__expr)
 		case __moduleCallKey(__expr) == "map.new":
 			return "map[any]any{}"
 		case __moduleCallKey(__expr) == "set.new":
@@ -6503,6 +6563,344 @@ func ____rune_private_8ddf8596_exprChildrenUsePrint(__children []__IRExpr, __ind
 			}
 			return ____rune_private_8ddf8596_exprChildrenUsePrint(__children, __index+1)
 		}()
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoJSONStringify(__expr __IRExpr) string {
+	return "func() string { __bytes, _ := json.Marshal(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "); return string(__bytes) }()"
+}
+
+func ____rune_private_8ddf8596_emitGoJSONParseDynamic(__expr __IRExpr) string {
+	return "func() any { var __raw any; if err := json.Unmarshal([]byte(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "), &__raw); err != nil { panic(err) }; return __raw }()"
+}
+
+func ____rune_private_8ddf8596_emitGoJSONParse(__file __IRFile, __expr __IRExpr, __expected string) string {
+	__target := __expected
+	func() {
+		switch {
+		case __target == "" == true:
+			__target = "Dynamic"
+			return
+		default:
+			__target = __target
+			return
+		}
+	}()
+	__dynamic := __target == "Dynamic"
+	return func() string {
+		switch {
+		case __dynamic == true:
+			return ____rune_private_8ddf8596_emitGoJSONParseDynamic(__expr)
+		default:
+			return ____rune_private_8ddf8596_emitGoJSONParseTyped(__file, __expr, __target)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_emitGoJSONParseTyped(__file __IRFile, __expr __IRExpr, __target string) string {
+	__decls := ____rune_private_8ddf8596_goJSONDeclsForType(__file, __target, []string{})
+	__wireType := ____rune_private_8ddf8596_goJSONDecodeType(__file, __target)
+	__value := ____rune_private_8ddf8596_goJSONDecodedValue(__file, "__raw", __target)
+	return "func() " + ____rune_private_8ddf8596_goType(__target) + " { " + __decls.__text + "var __raw " + __wireType + "; if err := json.Unmarshal([]byte(" + ____rune_private_8ddf8596_emitGoExpr(__expr.__children[1]) + "), &__raw); err != nil { panic(err) }; return " + __value + " }()"
+}
+
+func ____rune_private_8ddf8596_emptyGoJSONDeclResult(__names []string, __text string) __GoJSONDeclResult {
+	return __GoJSONDeclResult{__names: __names, __text: __text}
+}
+
+func ____rune_private_8ddf8596_goJSONDecodeType(__file __IRFile, __typeName string) string {
+	__arrayInner := __genericInner(__typeName, "Array")
+	return func() string {
+		switch {
+		case __arrayInner != "" == true:
+			return "[]" + ____rune_private_8ddf8596_goJSONDecodeType(__file, __arrayInner)
+		default:
+			return ____rune_private_8ddf8596_goJSONDecodeNonArrayType(__file, __typeName)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodeNonArrayType(__file __IRFile, __typeName string) string {
+	__structIndex := ____rune_private_8ddf8596_goJSONStructIndex(__file.__structs, __typeName, 0)
+	return func() string {
+		switch {
+		case __structIndex >= 0 == true:
+			return ____rune_private_8ddf8596_goJSONStructWireType(__file.__structs[__structIndex])
+		default:
+			return ____rune_private_8ddf8596_goJSONScalarDecodeType(__typeName)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONScalarDecodeType(__typeName string) string {
+	return func() string {
+		switch {
+		case __typeName == "Char":
+			return "string"
+		default:
+			return ____rune_private_8ddf8596_goType(__typeName)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONStructWireType(__typeDecl __IRStructType) string {
+	return __mangleIdent("rune_json_" + __typeDecl.__name)
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForType(__file __IRFile, __typeName string, __names []string) __GoJSONDeclResult {
+	__arrayInner := __genericInner(__typeName, "Array")
+	return func() __GoJSONDeclResult {
+		switch {
+		case __arrayInner != "" == true:
+			return ____rune_private_8ddf8596_goJSONDeclsForType(__file, __arrayInner, __names)
+		default:
+			return ____rune_private_8ddf8596_goJSONDeclsForNonArrayType(__file, __typeName, __names)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForNonArrayType(__file __IRFile, __typeName string, __names []string) __GoJSONDeclResult {
+	__structIndex := ____rune_private_8ddf8596_goJSONStructIndex(__file.__structs, __typeName, 0)
+	return func() __GoJSONDeclResult {
+		switch {
+		case __structIndex >= 0 == true:
+			return ____rune_private_8ddf8596_goJSONDeclsForStruct(__file, __file.__structs[__structIndex], __names)
+		default:
+			return ____rune_private_8ddf8596_emptyGoJSONDeclResult(__names, "")
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForStruct(__file __IRFile, __typeDecl __IRStructType, __names []string) __GoJSONDeclResult {
+	__name := ____rune_private_8ddf8596_goJSONStructWireType(__typeDecl)
+	__seen := ____rune_private_8ddf8596_goJSONDeclSeen(__names, __name, 0)
+	return func() __GoJSONDeclResult {
+		switch {
+		case __seen == true:
+			return ____rune_private_8ddf8596_emptyGoJSONDeclResult(__names, "")
+		default:
+			return ____rune_private_8ddf8596_goJSONDeclsForNewStruct(__file, __typeDecl, func() []string {
+				out := []string{}
+				out = append(out, __names...)
+				out = append(out, __name)
+				return out
+			}())
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForNewStruct(__file __IRFile, __typeDecl __IRStructType, __names []string) __GoJSONDeclResult {
+	__nested := ____rune_private_8ddf8596_goJSONDeclsForFields(__file, __typeDecl.__fields, 0, __names, "")
+	__fields := ____rune_private_8ddf8596_goJSONStructWireFields(__file, __typeDecl.__fields, 0, "")
+	__decl := "type " + ____rune_private_8ddf8596_goJSONStructWireType(__typeDecl) + " struct{" + __fields + "}; "
+	return ____rune_private_8ddf8596_emptyGoJSONDeclResult(__nested.__names, __nested.__text+__decl)
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForFields(__file __IRFile, __fields []__IRField, __index int, __names []string, __text string) __GoJSONDeclResult {
+	__done := __index >= len(__fields)
+	return func() __GoJSONDeclResult {
+		switch {
+		case __done == true:
+			return ____rune_private_8ddf8596_emptyGoJSONDeclResult(__names, __text)
+		default:
+			return ____rune_private_8ddf8596_goJSONDeclsForField(__file, __fields, __index, __names, __text)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDeclsForField(__file __IRFile, __fields []__IRField, __index int, __names []string, __text string) __GoJSONDeclResult {
+	__field := __fields[__index]
+	__include := ____rune_private_8ddf8596_goJSONIncludeField(__field)
+	return func() __GoJSONDeclResult {
+		switch {
+		case __include == true:
+			return func() __GoJSONDeclResult {
+				__nested := ____rune_private_8ddf8596_goJSONDeclsForType(__file, __field.__typeName, __names)
+				return ____rune_private_8ddf8596_goJSONDeclsForFields(__file, __fields, __index+1, __nested.__names, __text+__nested.__text)
+			}()
+		default:
+			return ____rune_private_8ddf8596_goJSONDeclsForFields(__file, __fields, __index+1, __names, __text)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONStructWireFields(__file __IRFile, __fields []__IRField, __index int, __out string) string {
+	__done := __index >= len(__fields)
+	return func() string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_8ddf8596_goJSONStructWireField(__file, __fields, __index, __out)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONStructWireField(__file __IRFile, __fields []__IRField, __index int, __out string) string {
+	__field := __fields[__index]
+	__include := ____rune_private_8ddf8596_goJSONIncludeField(__field)
+	return func() string {
+		switch {
+		case __include == true:
+			return func() string {
+				__prefix := func() string {
+					switch {
+					case __out == "" == true:
+						return ""
+					default:
+						return "; "
+					}
+				}()
+				__part := "F" + __compilerIntToString(__index) + " " + ____rune_private_8ddf8596_goJSONDecodeType(__file, __field.__typeName) + " " + ____rune_private_8ddf8596_goJSONTag(__field.__jsonName)
+				return ____rune_private_8ddf8596_goJSONStructWireFields(__file, __fields, __index+1, __out+__prefix+__part)
+			}()
+		default:
+			return ____rune_private_8ddf8596_goJSONStructWireFields(__file, __fields, __index+1, __out)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONTag(__name string) string {
+	return "`json:\"" + strings.ReplaceAll((strings.ReplaceAll(__name, "\\", "\\\\")), "\"", "\\\"") + "\"`"
+}
+
+func ____rune_private_8ddf8596_goJSONIncludeField(__field __IRField) bool {
+	__omit := __field.__jsonIgnore || ____rune_private_8ddf8596_goJSONOmitType(__field.__typeName)
+	return func() bool {
+		switch {
+		case __omit == true:
+			return false
+		default:
+			return true
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONOmitType(__typeName string) bool {
+	return func() bool {
+		switch {
+		case (__typeName == "") || (__typeName == "Void") || (__typeName == "Symbol"):
+			return true
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDeclSeen(__names []string, __name string, __index int) bool {
+	__done := __index >= len(__names)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return func() bool {
+				__matched := __names[__index] == __name
+				return func() bool {
+					switch {
+					case __matched == true:
+						return true
+					default:
+						return ____rune_private_8ddf8596_goJSONDeclSeen(__names, __name, __index+1)
+					}
+				}()
+			}()
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONStructIndex(__structs []__IRStructType, __typeName string, __index int) int {
+	__done := __index >= len(__structs)
+	return func() int {
+		switch {
+		case __done == true:
+			return -1
+		default:
+			return func() int {
+				__matched := __structs[__index].__name == __typeName
+				return func() int {
+					switch {
+					case __matched == true:
+						return __index
+					default:
+						return ____rune_private_8ddf8596_goJSONStructIndex(__structs, __typeName, __index+1)
+					}
+				}()
+			}()
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedValue(__file __IRFile, __source string, __typeName string) string {
+	__arrayInner := __genericInner(__typeName, "Array")
+	return func() string {
+		switch {
+		case __arrayInner != "" == true:
+			return ____rune_private_8ddf8596_goJSONDecodedArray(__file, __source, __typeName, __arrayInner)
+		default:
+			return ____rune_private_8ddf8596_goJSONDecodedNonArrayValue(__file, __source, __typeName)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedNonArrayValue(__file __IRFile, __source string, __typeName string) string {
+	__structIndex := ____rune_private_8ddf8596_goJSONStructIndex(__file.__structs, __typeName, 0)
+	return func() string {
+		switch {
+		case __structIndex >= 0 == true:
+			return ____rune_private_8ddf8596_goJSONDecodedStruct(__file, __source, __file.__structs[__structIndex])
+		default:
+			return ____rune_private_8ddf8596_goJSONDecodedScalar(__source, __typeName)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedScalar(__source string, __typeName string) string {
+	return func() string {
+		switch {
+		case __typeName == "Char":
+			return "[]rune(" + __source + ")[0]"
+		default:
+			return __source
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedArray(__file __IRFile, __source string, __typeName string, __inner string) string {
+	return "func() " + ____rune_private_8ddf8596_goType(__typeName) + " { __out := make(" + ____rune_private_8ddf8596_goType(__typeName) + ", len(" + __source + "); for __idx, __item := range " + __source + " { __out[__idx] = " + ____rune_private_8ddf8596_goJSONDecodedValue(__file, "__item", __inner) + " }; return __out }()"
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedStruct(__file __IRFile, __source string, __typeDecl __IRStructType) string {
+	return "func() " + ____rune_private_8ddf8596_goType(__typeDecl.__name) + " { __out := " + ____rune_private_8ddf8596_goType(__typeDecl.__name) + "{}; " + ____rune_private_8ddf8596_goJSONDecodedFieldAssignments(__file, __source, __typeDecl.__fields, 0, "") + "return __out }()"
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedFieldAssignments(__file __IRFile, __source string, __fields []__IRField, __index int, __out string) string {
+	__done := __index >= len(__fields)
+	return func() string {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_8ddf8596_goJSONDecodedFieldAssignment(__file, __source, __fields, __index, __out)
+		}
+	}()
+}
+
+func ____rune_private_8ddf8596_goJSONDecodedFieldAssignment(__file __IRFile, __source string, __fields []__IRField, __index int, __out string) string {
+	__field := __fields[__index]
+	__include := ____rune_private_8ddf8596_goJSONIncludeField(__field)
+	return func() string {
+		switch {
+		case __include == true:
+			return func() string {
+				__sourceField := __source + ".F" + __compilerIntToString(__index)
+				__value := ____rune_private_8ddf8596_goJSONDecodedValue(__file, __sourceField, __field.__typeName)
+				__assignment := "__out." + __mangleIdent(__field.__name) + " = " + __value + "; "
+				return ____rune_private_8ddf8596_goJSONDecodedFieldAssignments(__file, __source, __fields, __index+1, __out+__assignment)
+			}()
+		default:
+			return ____rune_private_8ddf8596_goJSONDecodedFieldAssignments(__file, __source, __fields, __index+1, __out)
+		}
 	}()
 }
 
