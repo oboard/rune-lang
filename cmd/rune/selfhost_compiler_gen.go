@@ -544,6 +544,11 @@ type __CompilerTypeBinding struct {
 	__typeName string
 }
 
+type __CompilerNamespaceAlias struct {
+	__name   string
+	__module string
+}
+
 func runeTemplateString(value any) string {
 	switch v := value.(type) {
 	case nil:
@@ -10188,7 +10193,8 @@ func ____rune_private_0d2ebf0f_lowerCompilerSource(__source string) __IRFile {
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __ParsedFile {
-	__out := __ParsedFile{__imports: __file.__imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: __file.__tests, __errors: __file.__errors}
+	__imports := ____rune_private_0d2ebf0f_compilerMergeParsedImports(__file.__imports, ____rune_private_0d2ebf0f_compilerImportExpressions(__file), 0)
+	__out := __ParsedFile{__imports: __imports, __types: []__ParsedType{}, __functions: []__ParsedFunction{}, __tests: []__ParsedTest{}, __errors: __file.__errors}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		func() int {
@@ -10201,6 +10207,13 @@ func ____rune_private_0d2ebf0f_expandCompilerMacros(__file __ParsedFile) __Parse
 		func() int {
 			__out.__functions = append(__out.__functions, ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn))
 			return len(__out.__functions)
+		}()
+	}
+	for _, __testDecl := range __file.__tests {
+		_ = __testDecl
+		func() int {
+			__out.__tests = append(__out.__tests, ____rune_private_0d2ebf0f_expandCompilerTestMacros(__testDecl))
+			return len(__out.__tests)
 		}()
 	}
 	return __out
@@ -10374,7 +10387,357 @@ func ____rune_private_0d2ebf0f_expandCompilerEnumMemberMacros(__member __ParsedE
 }
 
 func ____rune_private_0d2ebf0f_expandCompilerFunctionMacros(__fn __ParsedFunction) __ParsedFunction {
-	return __ParsedFunction{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __fn.__body, __line: __fn.__line, __column: __fn.__column}
+	return __ParsedFunction{__name: ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__fn.__body, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...)), __line: __fn.__line, __column: __fn.__column}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerTestMacros(__testDecl __ParsedTest) __ParsedTest {
+	return __ParsedTest{__name: __testDecl.__name, __body: ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__testDecl.__body, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...)), __line: __testDecl.__line, __column: __testDecl.__column}
+}
+
+func ____rune_private_0d2ebf0f_compilerImportExpressions(__file __ParsedFile) []__ParsedImport {
+	__imports := append([]__ParsedImport{}, []__ParsedImport{____rune_private_0d2ebf0f_compilerEmptyParsedImport()}[0:0]...)
+	for _, __typeDecl := range __file.__types {
+		_ = __typeDecl
+		__imports = ____rune_private_0d2ebf0f_compilerCollectTypeImportExprs(__typeDecl, __imports)
+	}
+	for _, __fn := range __file.__functions {
+		_ = __fn
+		__imports = ____rune_private_0d2ebf0f_compilerCollectFunctionImportExprs(__fn, __imports)
+	}
+	for _, __testDecl := range __file.__tests {
+		_ = __testDecl
+		__imports = ____rune_private_0d2ebf0f_compilerCollectImportExprs(__testDecl.__body, __imports)
+	}
+	return __imports
+}
+
+func ____rune_private_0d2ebf0f_compilerCollectTypeImportExprs(__typeDecl __ParsedType, __imports []__ParsedImport) []__ParsedImport {
+	__out := __imports
+	for _, __method := range __typeDecl.__methods {
+		_ = __method
+		__out = ____rune_private_0d2ebf0f_compilerCollectFunctionImportExprs(__method, __out)
+	}
+	return __out
+}
+
+func ____rune_private_0d2ebf0f_compilerCollectFunctionImportExprs(__fn __ParsedFunction, __imports []__ParsedImport) []__ParsedImport {
+	return ____rune_private_0d2ebf0f_compilerCollectImportExprs(__fn.__body, __imports)
+}
+
+func ____rune_private_0d2ebf0f_compilerCollectImportExprs(__expr __ParsedExpr, __imports []__ParsedImport) []__ParsedImport {
+	__next := func() []__ParsedImport {
+		switch {
+		case __expr.__kind == __ExprKind_At:
+			return ____rune_private_0d2ebf0f_compilerAppendImportExpr(__imports, __expr)
+		default:
+			return __imports
+		}
+	}()
+	for _, __child := range __expr.__children {
+		_ = __child
+		__next = ____rune_private_0d2ebf0f_compilerCollectImportExprs(__child, __next)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_compilerAppendImportExpr(__imports []__ParsedImport, __expr __ParsedExpr) []__ParsedImport {
+	__path := ____rune_private_0d2ebf0f_compilerAtImportPath(__expr)
+	return func() []__ParsedImport {
+		if __path == "" {
+			return __imports
+		}
+		return ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __ParsedImport{__path: __path, __go: false, __line: __expr.__line, __column: __expr.__column})
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerMergeParsedImports(__imports []__ParsedImport, __extra []__ParsedImport, __index int) []__ParsedImport {
+	return func() []__ParsedImport {
+		if __index >= len(__extra) {
+			return __imports
+		}
+		return ____rune_private_0d2ebf0f_compilerMergeParsedImports(____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __extra[__index]), __extra, __index+1)
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports []__ParsedImport, __importDecl __ParsedImport) []__ParsedImport {
+	return func() []__ParsedImport {
+		switch {
+		case ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __importDecl.__path, __importDecl.__go, 0) == true:
+			return __imports
+		default:
+			return func() []__ParsedImport {
+				out := []__ParsedImport{}
+				out = append(out, __imports...)
+				out = append(out, __importDecl)
+				return out
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports []__ParsedImport, __path string, __go bool, __index int) bool {
+	return func() bool {
+		if __index >= len(__imports) {
+			return false
+		}
+		return func() bool {
+			if __imports[__index].__path == __path && __imports[__index].__go == __go {
+				return true
+			}
+			return ____rune_private_0d2ebf0f_compilerParsedImportContains(__imports, __path, __go, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerEmptyParsedImport() __ParsedImport {
+	return __ParsedImport{__path: "", __go: false, __line: 0, __column: 0}
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	return func() __ParsedExpr {
+		switch {
+		case __expr.__kind == __ExprKind_Block:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlock(__expr, __aliases)
+		case __expr.__kind == __ExprKind_Lambda:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasLambda(__expr, __aliases)
+		case __expr.__kind == __ExprKind_Selector:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelector(__expr, __aliases)
+		default:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildren(__expr, __aliases)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlock(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockChildren(__expr.__children, 0, __aliases, append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockChildren(__statements []__ParsedExpr, __index int, __aliases []__CompilerNamespaceAlias, __out []__ParsedExpr) []__ParsedExpr {
+	__done := __index >= len(__statements)
+	return func() []__ParsedExpr {
+		switch {
+		case __done == true:
+			return __out
+		default:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockStep(__statements, __index, __aliases, __out)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockStep(__statements []__ParsedExpr, __index int, __aliases []__CompilerNamespaceAlias, __out []__ParsedExpr) []__ParsedExpr {
+	__statement := __statements[__index]
+	__alias := ____rune_private_0d2ebf0f_compilerNamespaceAliasFromLet(__statement)
+	__isAlias := __alias.__name != ""
+	return func() []__ParsedExpr {
+		switch {
+		case __isAlias == true:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockChildren(__statements, __index+1, ____rune_private_0d2ebf0f_addCompilerNamespaceAlias(__aliases, __alias), __out)
+		default:
+			return func() []__ParsedExpr {
+				__expanded := ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__statement, __aliases)
+				__nextAliases := ____rune_private_0d2ebf0f_compilerNamespaceAliasesAfterBinding(__expanded, __aliases)
+				return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasBlockChildren(__statements, __index+1, __nextAliases, func() []__ParsedExpr {
+					out := []__ParsedExpr{}
+					out = append(out, __out...)
+					out = append(out, __expanded)
+					return out
+				}())
+			}()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNamespaceAliasesAfterBinding(__statement __ParsedExpr, __aliases []__CompilerNamespaceAlias) []__CompilerNamespaceAlias {
+	return func() []__CompilerNamespaceAlias {
+		switch {
+		case __statement.__kind == __ExprKind_Let:
+			return ____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases, __statement.__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...))
+		case __statement.__kind == __ExprKind_ObjectDestructure:
+			return ____rune_private_0d2ebf0f_dropCompilerNamespaceAliasParams(__aliases, __statement.__params, 0)
+		default:
+			return __aliases
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_dropCompilerNamespaceAliasParams(__aliases []__CompilerNamespaceAlias, __params []__ParsedParam, __index int) []__CompilerNamespaceAlias {
+	return func() []__CompilerNamespaceAlias {
+		if __index >= len(__params) {
+			return __aliases
+		}
+		return ____rune_private_0d2ebf0f_dropCompilerNamespaceAliasParams(____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases, __params[__index].__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...)), __params, __index+1)
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasLambda(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, ____rune_private_0d2ebf0f_dropCompilerNamespaceAliasParams(__aliases, __expr.__params, 0), append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelector(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	__noReceiver := len(__expr.__children) == 0
+	return func() __ParsedExpr {
+		switch {
+		case __noReceiver == true:
+			return __expr
+		default:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelectorReceiver(__expr, ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__expr.__children[0], __aliases), __aliases)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelectorReceiver(__expr __ParsedExpr, __receiver __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	__canAlias := __receiver.__kind == __ExprKind_Identifier
+	__alias := func() __CompilerNamespaceAlias {
+		if __canAlias {
+			return ____rune_private_0d2ebf0f_findCompilerNamespaceAlias(__aliases, __receiver.__name, 0)
+		}
+		return ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()
+	}()
+	__found := __alias.__name != ""
+	return func() __ParsedExpr {
+		switch {
+		case __found == true:
+			return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelectorFound(__expr, __receiver, __alias)
+		default:
+			return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, []__ParsedExpr{__receiver})
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelectorFound(__expr __ParsedExpr, __receiver __ParsedExpr, __alias __CompilerNamespaceAlias) __ParsedExpr {
+	__moduleAlias := __alias.__module != ""
+	return func() __ParsedExpr {
+		switch {
+		case __moduleAlias == true:
+			return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, []__ParsedExpr{____rune_private_0d2ebf0f_compilerModuleAtExpr(__alias.__module, __receiver.__line, __receiver.__column)})
+		default:
+			return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Identifier, __expr.__name, __expr.__name, "", "", []__ParsedParam{}, []__ParsedExpr{}, __expr.__line, __expr.__column)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildren(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, __aliases, append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+}
+
+func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildrenList(__children []__ParsedExpr, __index int, __aliases []__CompilerNamespaceAlias, __out []__ParsedExpr) []__ParsedExpr {
+	return func() []__ParsedExpr {
+		if __index >= len(__children) {
+			return __out
+		}
+		return ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasChildrenList(__children, __index+1, __aliases, func() []__ParsedExpr {
+			out := []__ParsedExpr{}
+			out = append(out, __out...)
+			out = append(out, ____rune_private_0d2ebf0f_expandCompilerNamespaceAliases(__children[__index], __aliases))
+			return out
+		}())
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromLet(__expr __ParsedExpr) __CompilerNamespaceAlias {
+	__valid := __expr.__kind == __ExprKind_Let && len(__expr.__children) > 0
+	return func() __CompilerNamespaceAlias {
+		switch {
+		case __valid == true:
+			return ____rune_private_0d2ebf0f_compilerNamespaceAliasFromLetValue(__expr.__name, __expr.__children[0])
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromLetValue(__name string, __value __ParsedExpr) __CompilerNamespaceAlias {
+	__valid := __value.__kind == __ExprKind_At
+	return func() __CompilerNamespaceAlias {
+		switch {
+		case __valid == true:
+			return ____rune_private_0d2ebf0f_compilerNamespaceAliasFromAt(__name, __value)
+		default:
+			return ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromAt(__name string, __expr __ParsedExpr) __CompilerNamespaceAlias {
+	__importPath := ____rune_private_0d2ebf0f_compilerAtImportPath(__expr)
+	return func() __CompilerNamespaceAlias {
+		if __importPath != "" {
+			return ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name, "")
+		}
+		return func() __CompilerNamespaceAlias {
+			if __expr.__name != "" {
+				return ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name, __expr.__name)
+			}
+			return ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerAtImportPath(__expr __ParsedExpr) string {
+	return func() string {
+		if __expr.__kind == __ExprKind_At && __expr.__value != "" {
+			return ____rune_private_0d2ebf0f_compilerUnquoteString(__expr.__value)
+		}
+		return ""
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerModuleAtExpr(__module string, __line int, __column int) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_At, "@", __module, "", "", []__ParsedParam{}, []__ParsedExpr{}, __line, __column)
+}
+
+func ____rune_private_0d2ebf0f_compilerWithChildren(__expr __ParsedExpr, __children []__ParsedExpr) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerParsedExpr(__expr.__kind, __expr.__text, __expr.__name, __expr.__value, __expr.__op, __expr.__params, __children, __expr.__line, __expr.__column)
+}
+
+func ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name string, __module string) __CompilerNamespaceAlias {
+	return __CompilerNamespaceAlias{__name: __name, __module: __module}
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias() __CompilerNamespaceAlias {
+	return ____rune_private_0d2ebf0f_compilerNamespaceAlias("", "")
+}
+
+func ____rune_private_0d2ebf0f_addCompilerNamespaceAlias(__aliases []__CompilerNamespaceAlias, __alias __CompilerNamespaceAlias) []__CompilerNamespaceAlias {
+	return func() []__CompilerNamespaceAlias {
+		out := []__CompilerNamespaceAlias{}
+		out = append(out, ____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases, __alias.__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()}[0:0]...))...)
+		out = append(out, __alias)
+		return out
+	}()
+}
+
+func ____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases []__CompilerNamespaceAlias, __name string, __index int, __out []__CompilerNamespaceAlias) []__CompilerNamespaceAlias {
+	return func() []__CompilerNamespaceAlias {
+		if __index >= len(__aliases) {
+			return __out
+		}
+		return func() []__CompilerNamespaceAlias {
+			if __aliases[__index].__name == __name {
+				return ____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases, __name, __index+1, __out)
+			}
+			return ____rune_private_0d2ebf0f_dropCompilerNamespaceAlias(__aliases, __name, __index+1, func() []__CompilerNamespaceAlias {
+				out := []__CompilerNamespaceAlias{}
+				out = append(out, __out...)
+				out = append(out, __aliases[__index])
+				return out
+			}())
+		}()
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerNamespaceAlias(__aliases []__CompilerNamespaceAlias, __name string, __index int) __CompilerNamespaceAlias {
+	return func() __CompilerNamespaceAlias {
+		if __index >= len(__aliases) {
+			return ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias()
+		}
+		return func() __CompilerNamespaceAlias {
+			if __aliases[__index].__name == __name {
+				return __aliases[__index]
+			}
+			return ____rune_private_0d2ebf0f_findCompilerNamespaceAlias(__aliases, __name, __index+1)
+		}()
+	}()
 }
 
 func ____rune_private_0d2ebf0f_compilerRenameDeclarationName(__annotations []__ParsedAnnotation, __fallback string) string {

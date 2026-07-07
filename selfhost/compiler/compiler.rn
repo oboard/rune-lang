@@ -27,6 +27,11 @@ CompilerTypeBinding: {
   typeName: String
 }
 
+CompilerNamespaceAlias: {
+  name: String
+  module: String
+}
+
 + compileTypeScript(
   source: String
 ) -> CompileResult => compile(source, "ts")
@@ -1319,15 +1324,17 @@ lowerCompilerSource(
 expandCompilerMacros(
   file: ParsedFile
 ) -> ParsedFile => {
+  imports := compilerMergeParsedImports(file.imports, compilerImportExpressions(file), 0)
   out := ParsedFile {
-    imports: file.imports,
+    imports: imports,
     types: [],
     functions: [],
-    tests: file.tests,
+    tests: [],
     errors: file.errors
   }
   file.types.each((typeDecl) => out.types.push(expandCompilerTypeMacros(typeDecl)))
   file.functions.each((fn) => out.functions.push(expandCompilerFunctionMacros(fn)))
+  file.tests.each((testDecl) => out.tests.push(expandCompilerTestMacros(testDecl)))
   out
 }
 
@@ -1593,10 +1600,322 @@ expandCompilerFunctionMacros(
   generics: fn.generics,
   params: fn.params,
   returnType: fn.returnType,
-  body: fn.body,
+  body: expandCompilerNamespaceAliases(fn.body, [emptyCompilerNamespaceAlias()].slice(0, 0)),
   line: fn.line,
   column: fn.column
 }
+
+expandCompilerTestMacros(
+  testDecl: ParsedTest
+) -> ParsedTest => {
+  name: testDecl.name,
+  body: expandCompilerNamespaceAliases(testDecl.body, [emptyCompilerNamespaceAlias()].slice(0, 0)),
+  line: testDecl.line,
+  column: testDecl.column
+}
+
+compilerImportExpressions(
+  file: ParsedFile
+) -> Array[ParsedImport] => {
+  imports := [compilerEmptyParsedImport()].slice(0, 0)
+  file.types.each((typeDecl) => imports = compilerCollectTypeImportExprs(typeDecl, imports))
+  file.functions.each((fn) => imports = compilerCollectFunctionImportExprs(fn, imports))
+  file.tests.each((testDecl) => imports = compilerCollectImportExprs(testDecl.body, imports))
+  imports
+}
+
+compilerCollectTypeImportExprs(
+  typeDecl: ParsedType,
+  imports: Array[ParsedImport]
+) -> Array[ParsedImport] => {
+  out := imports
+  typeDecl.methods.each((method) => out = compilerCollectFunctionImportExprs(method, out))
+  out
+}
+
+compilerCollectFunctionImportExprs(
+  fn: ParsedFunction,
+  imports: Array[ParsedImport]
+) -> Array[ParsedImport] => compilerCollectImportExprs(fn.body, imports)
+
+compilerCollectImportExprs(
+  expr: ParsedExpr,
+  imports: Array[ParsedImport]
+) -> Array[ParsedImport] => {
+  next := expr.kind {
+    ExprKind.At => compilerAppendImportExpr(imports, expr)
+    _ => imports
+  }
+  expr.children.each((child) => next = compilerCollectImportExprs(child, next))
+  next
+}
+
+compilerAppendImportExpr(
+  imports: Array[ParsedImport],
+  expr: ParsedExpr
+) -> Array[ParsedImport] => {
+  path := compilerAtImportPath(expr)
+  path == "" ? imports
+    : compilerAppendParsedImportIfMissing(imports, ParsedImport {
+      path: path,
+      go: false,
+      line: expr.line,
+      column: expr.column
+    })
+}
+
+compilerMergeParsedImports(
+  imports: Array[ParsedImport],
+  extra: Array[ParsedImport],
+  index: Int
+) -> Array[ParsedImport] => (
+  index >= extra.length() ? imports
+    : compilerMergeParsedImports(compilerAppendParsedImportIfMissing(imports, extra[index]), extra, index + 1)
+)
+
+compilerAppendParsedImportIfMissing(
+  imports: Array[ParsedImport],
+  importDecl: ParsedImport
+) -> Array[ParsedImport] => compilerParsedImportContains(imports, importDecl.path, importDecl.go, 0) {
+  true => imports
+  _ => [..imports, importDecl]
+}
+
+compilerParsedImportContains(
+  imports: Array[ParsedImport],
+  path: String,
+  go: Bool,
+  index: Int
+) -> Bool => (
+  index >= imports.length() ? false
+    : (
+      (imports[index].path == path) && (imports[index].go == go) ? true
+        : compilerParsedImportContains(imports, path, go, index + 1)
+    )
+)
+
+compilerEmptyParsedImport() -> ParsedImport => {
+  path: "",
+  go: false,
+  line: 0,
+  column: 0
+}
+
+expandCompilerNamespaceAliases(
+  expr: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => expr.kind {
+  ExprKind.Block => expandCompilerNamespaceAliasBlock(expr, aliases)
+  ExprKind.Lambda => expandCompilerNamespaceAliasLambda(expr, aliases)
+  ExprKind.Selector => expandCompilerNamespaceAliasSelector(expr, aliases)
+  _ => expandCompilerNamespaceAliasChildren(expr, aliases)
+}
+
+expandCompilerNamespaceAliasBlock(
+  expr: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasBlockChildren(expr.children, 0, aliases, expr.children.slice(0, 0)))
+
+expandCompilerNamespaceAliasBlockChildren(
+  statements: Array[ParsedExpr],
+  index: Int,
+  aliases: Array[CompilerNamespaceAlias],
+  out: Array[ParsedExpr]
+) -> Array[ParsedExpr] => {
+  done := index >= statements.length()
+  done {
+    true => out
+    _ => expandCompilerNamespaceAliasBlockStep(statements, index, aliases, out)
+  }
+}
+
+expandCompilerNamespaceAliasBlockStep(
+  statements: Array[ParsedExpr],
+  index: Int,
+  aliases: Array[CompilerNamespaceAlias],
+  out: Array[ParsedExpr]
+) -> Array[ParsedExpr] => {
+  statement := statements[index]
+  alias := compilerNamespaceAliasFromLet(statement)
+  isAlias := alias.name != ""
+  isAlias {
+    true => expandCompilerNamespaceAliasBlockChildren(statements, index + 1, addCompilerNamespaceAlias(aliases, alias), out)
+    _ => {
+      expanded := expandCompilerNamespaceAliases(statement, aliases)
+      nextAliases := compilerNamespaceAliasesAfterBinding(expanded, aliases)
+      expandCompilerNamespaceAliasBlockChildren(statements, index + 1, nextAliases, [..out, expanded])
+    }
+  }
+}
+
+compilerNamespaceAliasesAfterBinding(
+  statement: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> Array[CompilerNamespaceAlias] => statement.kind {
+  ExprKind.Let => dropCompilerNamespaceAlias(aliases, statement.name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0))
+  ExprKind.ObjectDestructure => dropCompilerNamespaceAliasParams(aliases, statement.params, 0)
+  _ => aliases
+}
+
+dropCompilerNamespaceAliasParams(
+  aliases: Array[CompilerNamespaceAlias],
+  params: Array[ParsedParam],
+  index: Int
+) -> Array[CompilerNamespaceAlias] => (
+  index >= params.length() ? aliases
+    : dropCompilerNamespaceAliasParams(dropCompilerNamespaceAlias(aliases, params[index].name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0)), params, index + 1)
+)
+
+expandCompilerNamespaceAliasLambda(
+  expr: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, dropCompilerNamespaceAliasParams(aliases, expr.params, 0), expr.children.slice(0, 0)))
+
+expandCompilerNamespaceAliasSelector(
+  expr: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => {
+  noReceiver := expr.children.length() == 0
+  noReceiver {
+    true => expr
+    _ => expandCompilerNamespaceAliasSelectorReceiver(expr, expandCompilerNamespaceAliases(expr.children[0], aliases), aliases)
+  }
+}
+
+expandCompilerNamespaceAliasSelectorReceiver(
+  expr: ParsedExpr,
+  receiver: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => {
+  canAlias := receiver.kind == ExprKind.Identifier
+  alias := (
+    canAlias ? findCompilerNamespaceAlias(aliases, receiver.name, 0)
+      : emptyCompilerNamespaceAlias()
+  )
+  found := alias.name != ""
+  found {
+    true => expandCompilerNamespaceAliasSelectorFound(expr, receiver, alias)
+    _ => compilerWithChildren(expr, [receiver])
+  }
+}
+
+expandCompilerNamespaceAliasSelectorFound(
+  expr: ParsedExpr,
+  receiver: ParsedExpr,
+  alias: CompilerNamespaceAlias
+) -> ParsedExpr => {
+  moduleAlias := alias.module != ""
+  moduleAlias {
+    true => compilerWithChildren(expr, [compilerModuleAtExpr(alias.module, receiver.line, receiver.column)])
+    _ => compilerParsedExpr(ExprKind.Identifier, expr.name, expr.name, "", "", [], [], expr.line, expr.column)
+  }
+}
+
+expandCompilerNamespaceAliasChildren(
+  expr: ParsedExpr,
+  aliases: Array[CompilerNamespaceAlias]
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, aliases, expr.children.slice(0, 0)))
+
+expandCompilerNamespaceAliasChildrenList(
+  children: Array[ParsedExpr],
+  index: Int,
+  aliases: Array[CompilerNamespaceAlias],
+  out: Array[ParsedExpr]
+) -> Array[ParsedExpr] => (
+  index >= children.length() ? out
+    : expandCompilerNamespaceAliasChildrenList(children, index + 1, aliases, [..out, expandCompilerNamespaceAliases(children[index], aliases)])
+)
+
+compilerNamespaceAliasFromLet(
+  expr: ParsedExpr
+) -> CompilerNamespaceAlias => {
+  valid := (expr.kind == ExprKind.Let) && (expr.children.length() > 0)
+  valid {
+    true => compilerNamespaceAliasFromLetValue(expr.name, expr.children[0])
+    _ => emptyCompilerNamespaceAlias()
+  }
+}
+
+compilerNamespaceAliasFromLetValue(
+  name: String,
+  value: ParsedExpr
+) -> CompilerNamespaceAlias => {
+  valid := value.kind == ExprKind.At
+  valid {
+    true => compilerNamespaceAliasFromAt(name, value)
+    _ => emptyCompilerNamespaceAlias()
+  }
+}
+
+compilerNamespaceAliasFromAt(
+  name: String,
+  expr: ParsedExpr
+) -> CompilerNamespaceAlias => {
+  importPath := compilerAtImportPath(expr)
+  importPath != "" ? compilerNamespaceAlias(name, "")
+    : (
+      expr.name != "" ? compilerNamespaceAlias(name, expr.name)
+        : emptyCompilerNamespaceAlias()
+    )
+}
+
+compilerAtImportPath(
+  expr: ParsedExpr
+) -> String => (
+  (expr.kind == ExprKind.At) && (expr.value != "") ? compilerUnquoteString(expr.value)
+    : ""
+)
+
+compilerModuleAtExpr(
+  module: String,
+  line: Int,
+  column: Int
+) -> ParsedExpr => compilerParsedExpr(ExprKind.At, "@", module, "", "", [], [], line, column)
+
+compilerWithChildren(
+  expr: ParsedExpr,
+  children: Array[ParsedExpr]
+) -> ParsedExpr => compilerParsedExpr(expr.kind, expr.text, expr.name, expr.value, expr.op, expr.params, children, expr.line, expr.column)
+
+compilerNamespaceAlias(
+  name: String,
+  module: String
+) -> CompilerNamespaceAlias => {
+  name: name,
+  module: module
+}
+
+emptyCompilerNamespaceAlias() -> CompilerNamespaceAlias => compilerNamespaceAlias("", "")
+
+addCompilerNamespaceAlias(
+  aliases: Array[CompilerNamespaceAlias],
+  alias: CompilerNamespaceAlias
+) -> Array[CompilerNamespaceAlias] => [..dropCompilerNamespaceAlias(aliases, alias.name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0)), alias]
+
+dropCompilerNamespaceAlias(
+  aliases: Array[CompilerNamespaceAlias],
+  name: String,
+  index: Int,
+  out: Array[CompilerNamespaceAlias]
+) -> Array[CompilerNamespaceAlias] => (
+  index >= aliases.length() ? out
+    : (
+      aliases[index].name == name ? dropCompilerNamespaceAlias(aliases, name, index + 1, out)
+        : dropCompilerNamespaceAlias(aliases, name, index + 1, [..out, aliases[index]])
+    )
+)
+
+findCompilerNamespaceAlias(
+  aliases: Array[CompilerNamespaceAlias],
+  name: String,
+  index: Int
+) -> CompilerNamespaceAlias => (
+  index >= aliases.length() ? emptyCompilerNamespaceAlias()
+    : (
+      aliases[index].name == name ? aliases[index]
+        : findCompilerNamespaceAlias(aliases, name, index + 1)
+    )
+)
 
 compilerRenameDeclarationName(
   annotations: Array[ParsedAnnotation],
