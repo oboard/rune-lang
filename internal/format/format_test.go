@@ -201,6 +201,24 @@ mask() => (1 | 2) | 4
 	}
 }
 
+func TestPatternAliasFormattingUsesAt(t *testing.T) {
+	src := `classify(values:Array[Int])->Int=>values{[0,..rest]@whole=>rest.length()+whole.length() _=>0}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `classify(values: Array[Int]) -> Int => values {
+  [0, ..rest] @ whole => rest.length() + whole.length()
+  _ => 0
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestPatternPredicateExpressionFormatting(t *testing.T) {
 	src := `canEnd(kind:TokenKind)->Bool=>kind~(Ident|Int|RParen)`
 	file, errs := parser.Parse(src)

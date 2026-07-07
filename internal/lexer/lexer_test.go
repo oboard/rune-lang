@@ -52,6 +52,16 @@ func TestLexStaticSelector(t *testing.T) {
 	}
 }
 
+func TestLexAsAsIdentifier(t *testing.T) {
+	tokens := Lex("as @ whole")
+	if tokens[0].Kind != Ident || tokens[0].Lexeme != "as" {
+		t.Fatalf("tokens[0] = %s, want Ident(\"as\"); tokens = %#v", tokens[0], tokens)
+	}
+	if tokens[1].Kind != At || tokens[2].Kind != Ident || tokens[2].Lexeme != "whole" {
+		t.Fatalf("alias tokens = %s %s, want At Ident(\"whole\"); tokens = %#v", tokens[1], tokens[2], tokens)
+	}
+}
+
 func TestLexMutableDeclare(t *testing.T) {
 	tokens := Lex("total :=: 0\nold ~= 1")
 	if tokens[1].Kind != MutDeclare || tokens[1].Lexeme != ":=:" {
