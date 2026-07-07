@@ -541,6 +541,43 @@ main() -> Int => {
   @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
 }
 
+? "selfhost compiler reports struct field type errors" {
+  result := compileGo(`User: {
+  name: String
+}
+
+main() -> User => User { name: 1 }
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "field User.name has type Int, expected String")
+}
+
+? "selfhost compiler reports unknown struct literal fields" {
+  result := compileGo(`User: {
+  name: String
+}
+
+main() -> User => User { name: "Rune", age: 1 }
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "type User has no field \"age\"")
+}
+
+? "selfhost compiler reports missing struct literal fields" {
+  result := compileGo(`User: {
+  name: String
+  active: Bool
+}
+
+main() -> User => User { name: "Rune" }
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "missing field User.active")
+}
+
 ? "selfhost compiler reports imported argument type errors" {
   files := [
     SourceFile {

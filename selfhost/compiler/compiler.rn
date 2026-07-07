@@ -176,11 +176,11 @@ checkFileErrors(
   errors := checkDeclarationTypes(file, knownTypes, [""].slice(0, 0))
   file.functions.each((fn) => errors = (
     fn.macro ? errors
-      : checkFunctionErrors(fn, callables, errors)
+      : checkFunctionErrors(fn, file.structs, callables, errors)
   ))
-  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
-  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, callables, errors)))
-  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, callables, errors, [emptyCompilerTypeBinding()].slice(0, 0)))
+  file.structs.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors)))
+  file.enums.each((typeDecl) => typeDecl.methods.each((method) => errors = checkFunctionErrors(method, file.structs, callables, errors)))
+  file.tests.each((testDecl) => errors = checkExpr(testDecl.body, file.structs, callables, errors, [emptyCompilerTypeBinding()].slice(0, 0)))
   errors
 }
 
@@ -399,44 +399,49 @@ compilerInstanceMethodName(
 
 checkFunctionErrors(
   fn: IRFunction,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String]
 ) -> Array[String] => {
   bindings := compilerParamBindings(fn.params)
-  checkFunctionReturn(fn, callables, checkExpr(fn.body, callables, errors, bindings))
+  checkFunctionReturn(fn, callables, checkExpr(fn.body, structs, callables, errors, bindings))
 }
 
 checkExpr(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => expr.kind {
-  ExprKind.Block => checkBlockExpr(expr.children, 0, callables, errors, bindings)
-  ExprKind.Let => checkLetExpr(expr, callables, errors, bindings)
-  _ => checkExprDefault(expr, callables, errors, bindings)
+  ExprKind.Block => checkBlockExpr(expr.children, 0, structs, callables, errors, bindings)
+  ExprKind.Let => checkLetExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Struct => checkStructExpr(expr, structs, callables, errors, bindings)
+  _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
 
 checkExprDefault(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   next := checkExprCall(expr, callables, errors, bindings)
-  expr.children.each((child) => next = checkExpr(child, callables, next, bindings))
+  expr.children.each((child) => next = checkExpr(child, structs, callables, next, bindings))
   next
 }
 
 checkLetExpr(
   expr: IRExpr,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   hasValue := expr.children.length() > 0
   hasValue {
-    true => checkExpr(expr.children[0], callables, errors, bindings)
+    true => checkExpr(expr.children[0], structs, callables, errors, bindings)
     _ => errors
   }
 }
@@ -444,6 +449,7 @@ checkLetExpr(
 checkBlockExpr(
   statements: Array[IRExpr],
   index: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
@@ -451,21 +457,170 @@ checkBlockExpr(
   done := index >= statements.length()
   done {
     true => errors
-    _ => checkBlockExprStep(statements, index, callables, errors, bindings)
+    _ => checkBlockExprStep(statements, index, structs, callables, errors, bindings)
   }
 }
 
 checkBlockExprStep(
   statements: Array[IRExpr],
   index: Int,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   statement := statements[index]
-  nextErrors := checkExpr(statement, callables, errors, bindings)
+  nextErrors := checkExpr(statement, structs, callables, errors, bindings)
   nextBindings := blockBindingsAfterStatement(statement, callables, bindings)
-  checkBlockExpr(statements, index + 1, callables, nextErrors, nextBindings)
+  checkBlockExpr(statements, index + 1, structs, callables, nextErrors, nextBindings)
+}
+
+checkStructExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  typeDecl := findCompilerStruct(structs, expr.name, 0)
+  found := typeDecl.name != ""
+  found {
+    true => checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
+    _ => checkStructExprUnknownType(expr, structs, callables, errors, bindings)
+  }
+}
+
+checkStructExprUnknownType(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  next := [..errors, "unknown type \"" + expr.name + "\""]
+  expr.children.each((field) => next = checkExpr(field.children[0], structs, callables, next, bindings))
+  next
+}
+
+checkStructExprFields(
+  expr: IRExpr,
+  typeDecl: IRStructType,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkStructExprFieldValues(expr.name, expr.children, typeDecl.fields, 0, structs, callables, errors, bindings)
+  checkStructMissingFields(expr.name, typeDecl.fields, expr.children, 0, checked)
+}
+
+checkStructExprFieldValues(
+  typeName: String,
+  fields: Array[IRExpr],
+  expectedFields: Array[IRField],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  done := index >= fields.length()
+  done {
+    true => errors
+    _ => checkStructExprFieldValue(typeName, fields, expectedFields, index, structs, callables, errors, bindings)
+  }
+}
+
+checkStructExprFieldValue(
+  typeName: String,
+  fields: Array[IRExpr],
+  expectedFields: Array[IRField],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  field := fields[index]
+  value := field.children[0]
+  checkedValue := checkExpr(value, structs, callables, errors, bindings)
+  expected := findCompilerStructField(expectedFields, field.name, 0)
+  found := expected.name != ""
+  next := found {
+    true => checkStructFieldType(typeName, field.name, value, expected.typeName, callables, bindings, checkedValue)
+    _ => [..checkedValue, ("type " + typeName) + " has no field \"" + field.name + "\""]
+  }
+  checkStructExprFieldValues(typeName, fields, expectedFields, index + 1, structs, callables, next, bindings)
+}
+
+checkStructFieldType(
+  typeName: String,
+  fieldName: String,
+  value: IRExpr,
+  expected: String,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(value, callables, bindings)
+  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, (((("field " + typeName) + ".") + fieldName) + " has type " + actual) + ", expected " + expected]
+    _ => errors
+  }
+}
+
+checkStructMissingFields(
+  typeName: String,
+  expectedFields: Array[IRField],
+  fields: Array[IRExpr],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  done := index >= expectedFields.length()
+  done {
+    true => errors
+    _ => checkStructMissingField(typeName, expectedFields, fields, index, errors)
+  }
+}
+
+checkStructMissingField(
+  typeName: String,
+  expectedFields: Array[IRField],
+  fields: Array[IRExpr],
+  index: Int,
+  errors: Array[String]
+) -> Array[String] => {
+  field := expectedFields[index]
+  present := compilerExprFieldContains(fields, field.name, 0)
+  present {
+    true => checkStructMissingFields(typeName, expectedFields, fields, index + 1, errors)
+    _ => checkStructMissingFields(typeName, expectedFields, fields, index + 1, [..errors, ("missing field " + typeName) + "." + field.name])
+  }
+}
+
+compilerExprFieldContains(
+  fields: Array[IRExpr],
+  name: String,
+  index: Int
+) -> Bool => {
+  done := index >= fields.length()
+  done {
+    true => false
+    _ => compilerExprFieldContainsAt(fields, name, index)
+  }
+}
+
+compilerExprFieldContainsAt(
+  fields: Array[IRExpr],
+  name: String,
+  index: Int
+) -> Bool => {
+  matched := fields[index].name == name
+  matched {
+    true => true
+    _ => compilerExprFieldContains(fields, name, index + 1)
+  }
 }
 
 blockBindingsAfterStatement(
@@ -1063,6 +1218,74 @@ findCompilerTypeBindingAt(
     true => bindings[index]
     _ => findCompilerTypeBinding(bindings, name, index + 1)
   }
+}
+
+findCompilerStruct(
+  structs: Array[IRStructType],
+  name: String,
+  index: Int
+) -> IRStructType => {
+  done := index >= structs.length()
+  done {
+    true => emptyCompilerStruct()
+    _ => findCompilerStructAt(structs, name, index)
+  }
+}
+
+findCompilerStructAt(
+  structs: Array[IRStructType],
+  name: String,
+  index: Int
+) -> IRStructType => {
+  matched := structs[index].name == name
+  matched {
+    true => structs[index]
+    _ => findCompilerStruct(structs, name, index + 1)
+  }
+}
+
+emptyCompilerStruct() -> IRStructType => {
+  name: "",
+  private: false,
+  generics: [],
+  fields: [],
+  methods: [],
+  line: 0,
+  column: 0
+}
+
+findCompilerStructField(
+  fields: Array[IRField],
+  name: String,
+  index: Int
+) -> IRField => {
+  done := index >= fields.length()
+  done {
+    true => emptyCompilerField()
+    _ => findCompilerStructFieldAt(fields, name, index)
+  }
+}
+
+findCompilerStructFieldAt(
+  fields: Array[IRField],
+  name: String,
+  index: Int
+) -> IRField => {
+  matched := fields[index].name == name
+  matched {
+    true => fields[index]
+    _ => findCompilerStructField(fields, name, index + 1)
+  }
+}
+
+emptyCompilerField() -> IRField => {
+  name: "",
+  private: false,
+  typeName: "",
+  jsonName: "",
+  jsonIgnore: false,
+  line: 0,
+  column: 0
 }
 
 compilerContains(

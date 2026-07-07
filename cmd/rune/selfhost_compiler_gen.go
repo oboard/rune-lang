@@ -9008,7 +9008,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 			if __fn.__macro {
 				return __errors
 			}
-			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __callables, __errors)
+			return ____rune_private_0d2ebf0f_checkFunctionErrors(__fn, __file.__structs, __callables, __errors)
 		}()
 	}
 	for _, __typeDecl := range __file.__structs {
@@ -9016,7 +9016,7 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors)
 			}
 		}()
 	}
@@ -9025,13 +9025,13 @@ func ____rune_private_0d2ebf0f_checkFileErrors(__file __IRFile) []string {
 		func() {
 			for _, __method := range __typeDecl.__methods {
 				_ = __method
-				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __callables, __errors)
+				__errors = ____rune_private_0d2ebf0f_checkFunctionErrors(__method, __file.__structs, __callables, __errors)
 			}
 		}()
 	}
 	for _, __testDecl := range __file.__tests {
 		_ = __testDecl
-		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __callables, __errors, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
+		__errors = ____rune_private_0d2ebf0f_checkExpr(__testDecl.__body, __file.__structs, __callables, __errors, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{____rune_private_0d2ebf0f_emptyCompilerTypeBinding()}[0:0]...))
 	}
 	return __errors
 }
@@ -9297,62 +9297,202 @@ func ____rune_private_0d2ebf0f_compilerInstanceMethodName(__typeName string, __m
 	return __typeName + "." + __methodName
 }
 
-func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __callables []__CompilerCallable, __errors []string) []string {
+func ____rune_private_0d2ebf0f_checkFunctionErrors(__fn __IRFunction, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string) []string {
 	__bindings := ____rune_private_0d2ebf0f_compilerParamBindings(__fn.__params)
-	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __callables, __errors, __bindings))
+	return ____rune_private_0d2ebf0f_checkFunctionReturn(__fn, __callables, ____rune_private_0d2ebf0f_checkExpr(__fn.__body, __structs, __callables, __errors, __bindings))
 }
 
-func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	return func() []string {
 		switch {
 		case __expr.__kind == __ExprKind_Block:
-			return ____rune_private_0d2ebf0f_checkBlockExpr(__expr.__children, 0, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkBlockExpr(__expr.__children, 0, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Let:
-			return ____rune_private_0d2ebf0f_checkLetExpr(__expr, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkLetExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Struct:
+			return ____rune_private_0d2ebf0f_checkStructExpr(__expr, __structs, __callables, __errors, __bindings)
 		default:
-			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkExprDefault(__expr, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkExprDefault(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkExprDefault(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__next := ____rune_private_0d2ebf0f_checkExprCall(__expr, __callables, __errors, __bindings)
 	for _, __child := range __expr.__children {
 		_ = __child
-		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __callables, __next, __bindings)
+		__next = ____rune_private_0d2ebf0f_checkExpr(__child, __structs, __callables, __next, __bindings)
 	}
 	return __next
 }
 
-func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkLetExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__hasValue := len(__expr.__children) > 0
 	return func() []string {
 		switch {
 		case __hasValue == true:
-			return ____rune_private_0d2ebf0f_checkExpr(__expr.__children[0], __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkExpr(__expr.__children[0], __structs, __callables, __errors, __bindings)
 		default:
 			return __errors
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkBlockExpr(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkBlockExpr(__statements []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__done := __index >= len(__statements)
 	return func() []string {
 		switch {
 		case __done == true:
 			return __errors
 		default:
-			return ____rune_private_0d2ebf0f_checkBlockExprStep(__statements, __index, __callables, __errors, __bindings)
+			return ____rune_private_0d2ebf0f_checkBlockExprStep(__statements, __index, __structs, __callables, __errors, __bindings)
 		}
 	}()
 }
 
-func ____rune_private_0d2ebf0f_checkBlockExprStep(__statements []__IRExpr, __index int, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+func ____rune_private_0d2ebf0f_checkBlockExprStep(__statements []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
 	__statement := __statements[__index]
-	__nextErrors := ____rune_private_0d2ebf0f_checkExpr(__statement, __callables, __errors, __bindings)
+	__nextErrors := ____rune_private_0d2ebf0f_checkExpr(__statement, __structs, __callables, __errors, __bindings)
 	__nextBindings := ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement, __callables, __bindings)
-	return ____rune_private_0d2ebf0f_checkBlockExpr(__statements, __index+1, __callables, __nextErrors, __nextBindings)
+	return ____rune_private_0d2ebf0f_checkBlockExpr(__statements, __index+1, __structs, __callables, __nextErrors, __nextBindings)
+}
+
+func ____rune_private_0d2ebf0f_checkStructExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__typeDecl := ____rune_private_0d2ebf0f_findCompilerStruct(__structs, __expr.__name, 0)
+	__found := __typeDecl.__name != ""
+	return func() []string {
+		switch {
+		case __found == true:
+			return ____rune_private_0d2ebf0f_checkStructExprFields(__expr, __typeDecl, __structs, __callables, __errors, __bindings)
+		default:
+			return ____rune_private_0d2ebf0f_checkStructExprUnknownType(__expr, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructExprUnknownType(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__next := func() []string {
+		out := []string{}
+		out = append(out, __errors...)
+		out = append(out, "unknown type \""+__expr.__name+"\"")
+		return out
+	}()
+	for _, __field := range __expr.__children {
+		_ = __field
+		__next = ____rune_private_0d2ebf0f_checkExpr(__field.__children[0], __structs, __callables, __next, __bindings)
+	}
+	return __next
+}
+
+func ____rune_private_0d2ebf0f_checkStructExprFields(__expr __IRExpr, __typeDecl __IRStructType, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__checked := ____rune_private_0d2ebf0f_checkStructExprFieldValues(__expr.__name, __expr.__children, __typeDecl.__fields, 0, __structs, __callables, __errors, __bindings)
+	return ____rune_private_0d2ebf0f_checkStructMissingFields(__expr.__name, __typeDecl.__fields, __expr.__children, 0, __checked)
+}
+
+func ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName string, __fields []__IRExpr, __expectedFields []__IRField, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__done := __index >= len(__fields)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName, __fields, __expectedFields, __index, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructExprFieldValue(__typeName string, __fields []__IRExpr, __expectedFields []__IRField, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	__field := __fields[__index]
+	__value := __field.__children[0]
+	__checkedValue := ____rune_private_0d2ebf0f_checkExpr(__value, __structs, __callables, __errors, __bindings)
+	__expected := ____rune_private_0d2ebf0f_findCompilerStructField(__expectedFields, __field.__name, 0)
+	__found := __expected.__name != ""
+	__next := func() []string {
+		switch {
+		case __found == true:
+			return ____rune_private_0d2ebf0f_checkStructFieldType(__typeName, __field.__name, __value, __expected.__typeName, __callables, __bindings, __checkedValue)
+		default:
+			return func() []string {
+				out := []string{}
+				out = append(out, __checkedValue...)
+				out = append(out, "type "+__typeName+" has no field \""+__field.__name+"\"")
+				return out
+			}()
+		}
+	}()
+	return ____rune_private_0d2ebf0f_checkStructExprFieldValues(__typeName, __fields, __expectedFields, __index+1, __structs, __callables, __next, __bindings)
+}
+
+func ____rune_private_0d2ebf0f_checkStructFieldType(__typeName string, __fieldName string, __value __IRExpr, __expected string, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
+	__actual := ____rune_private_0d2ebf0f_inferCompilerExprType(__value, __callables, __bindings)
+	__mismatch := ____rune_private_0d2ebf0f_compilerShouldCheckArgType(__expected, __actual) && ____rune_private_0d2ebf0f_compilerTypesCompatible(__expected, __actual) == false
+	return func() []string {
+		switch {
+		case __mismatch == true:
+			return func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "field "+__typeName+"."+__fieldName+" has type "+__actual+", expected "+__expected)
+				return out
+			}()
+		default:
+			return __errors
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructMissingFields(__typeName string, __expectedFields []__IRField, __fields []__IRExpr, __index int, __errors []string) []string {
+	__done := __index >= len(__expectedFields)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return ____rune_private_0d2ebf0f_checkStructMissingField(__typeName, __expectedFields, __fields, __index, __errors)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_checkStructMissingField(__typeName string, __expectedFields []__IRField, __fields []__IRExpr, __index int, __errors []string) []string {
+	__field := __expectedFields[__index]
+	__present := ____rune_private_0d2ebf0f_compilerExprFieldContains(__fields, __field.__name, 0)
+	return func() []string {
+		switch {
+		case __present == true:
+			return ____rune_private_0d2ebf0f_checkStructMissingFields(__typeName, __expectedFields, __fields, __index+1, __errors)
+		default:
+			return ____rune_private_0d2ebf0f_checkStructMissingFields(__typeName, __expectedFields, __fields, __index+1, func() []string {
+				out := []string{}
+				out = append(out, __errors...)
+				out = append(out, "missing field "+__typeName+"."+__field.__name)
+				return out
+			}())
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerExprFieldContains(__fields []__IRExpr, __name string, __index int) bool {
+	__done := __index >= len(__fields)
+	return func() bool {
+		switch {
+		case __done == true:
+			return false
+		default:
+			return ____rune_private_0d2ebf0f_compilerExprFieldContainsAt(__fields, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_compilerExprFieldContainsAt(__fields []__IRExpr, __name string, __index int) bool {
+	__matched := __fields[__index].__name == __name
+	return func() bool {
+		switch {
+		case __matched == true:
+			return true
+		default:
+			return ____rune_private_0d2ebf0f_compilerExprFieldContains(__fields, __name, __index+1)
+		}
+	}()
 }
 
 func ____rune_private_0d2ebf0f_blockBindingsAfterStatement(__statement __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
@@ -9958,6 +10098,62 @@ func ____rune_private_0d2ebf0f_findCompilerTypeBindingAt(__bindings []__Compiler
 			return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __name, __index+1)
 		}
 	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerStruct(__structs []__IRStructType, __name string, __index int) __IRStructType {
+	__done := __index >= len(__structs)
+	return func() __IRStructType {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptyCompilerStruct()
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerStructAt(__structs, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerStructAt(__structs []__IRStructType, __name string, __index int) __IRStructType {
+	__matched := __structs[__index].__name == __name
+	return func() __IRStructType {
+		switch {
+		case __matched == true:
+			return __structs[__index]
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerStruct(__structs, __name, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerStruct() __IRStructType {
+	return __IRStructType{__name: "", __private: false, __generics: []string{}, __fields: []__IRField{}, __methods: []__IRFunction{}, __line: 0, __column: 0}
+}
+
+func ____rune_private_0d2ebf0f_findCompilerStructField(__fields []__IRField, __name string, __index int) __IRField {
+	__done := __index >= len(__fields)
+	return func() __IRField {
+		switch {
+		case __done == true:
+			return ____rune_private_0d2ebf0f_emptyCompilerField()
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerStructFieldAt(__fields, __name, __index)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_findCompilerStructFieldAt(__fields []__IRField, __name string, __index int) __IRField {
+	__matched := __fields[__index].__name == __name
+	return func() __IRField {
+		switch {
+		case __matched == true:
+			return __fields[__index]
+		default:
+			return ____rune_private_0d2ebf0f_findCompilerStructField(__fields, __name, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_0d2ebf0f_emptyCompilerField() __IRField {
+	return __IRField{__name: "", __private: false, __typeName: "", __jsonName: "", __jsonIgnore: false, __line: 0, __column: 0}
 }
 
 func ____rune_private_0d2ebf0f_compilerContains(__values []string, __value string) bool {
