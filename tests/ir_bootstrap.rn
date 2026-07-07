@@ -56,6 +56,17 @@ main() -> Int => Box { value: 41 }.get() + Status.Ready
   @assert.eq(file.structs[0].fields[1].jsonIgnore, true)
 }
 
+? "selfhost ir preserves typed let bindings" {
+  file := lower(`main() => {
+  user := @json.parse(text) : User
+}
+`)
+  stmt := file.functions[0].body.children[0]
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(stmt.kind, ExprKind.Let)
+  @assert.eq(stmt.value, "User")
+}
+
 ? "selfhost ir lowers nested expressions" {
   file := lower(`main() => {
   values := [1, 2, 3]

@@ -479,6 +479,79 @@ Document: {
   @assert.eq(result.output.includes("json.parse(__text)"), false)
 }
 
+? "selfhost compiler checks json parse expected type" {
+  result := compileGo(`main() => @json.parse("{}")
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "@json.parse target type cannot be inferred; add ': Type' to the binding")
+}
+
+? "selfhost compiler requires json parse FromJson target" {
+  result := compileGo(`Plain: {
+  name: String
+}
+
+main() => {
+  value := @json.parse("{\"name\":\"Rune\"}") : Plain
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "@json.parse target type Plain does not implement &FromJson")
+}
+
+? "selfhost compiler accepts json object parse target" {
+  result := compileGo(`#json.object
+Document: {
+  name: String
+}
+
+decode(text: String) -> Document => @json.parse(text)
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("func() __Document {"), true)
+  @assert.eq(result.output.includes("var __raw __rune_json_Document"), true)
+}
+
+? "selfhost compiler rejects wrong json fromJson override" {
+  result := compileGo(`#json.object
+Wrong: {
+  name: String
+
+  static fromJson(value: Int) -> Wrong => Wrong { name: "" }
+}
+
+main() => {
+  value := @json.parse("{\"name\":\"Rune\"}") : Wrong
+  value
+}
+`)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors.length(), 1)
+  @assert.eq(result.errors[0], "@json.parse target type Wrong does not implement &FromJson")
+}
+
+? "selfhost compiler emits typed json parse let" {
+  result := compileGo(`#json.object
+Document: {
+  name: String
+}
+
+main() => {
+  value := @json.parse("{\"name\":\"Rune\"}") : Document
+  @io.println(value.name)
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("__value := func() __Document {"), true)
+  @assert.eq(result.output.includes("var __raw __rune_json_Document"), true)
+  @assert.eq(result.output.includes("__value := func() any"), false)
+}
+
 ? "selfhost compiler omits syntax helpers from runtime" {
   source := `helper(name: String) -> SyntaxExpr => CallExpr(IdentifierExpr(name), [])
 

@@ -37,6 +37,18 @@
   @assert.eq(helper.value, "\"./import_helper.rn\"")
 }
 
+? "selfhost parser reads typed let bindings" {
+  source := `main() => {
+  user := @json.parse(text) : User
+}
+`
+  file := parse(source)
+  stmt := file.functions[0].body.children[0]
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(stmt.kind, ExprKind.Let)
+  @assert.eq(stmt.value, "User")
+}
+
 ? "selfhost parser reads go imports" {
   source := `@go.import("fmt")
 

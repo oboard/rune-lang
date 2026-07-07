@@ -629,12 +629,20 @@ emitGoLet(
   expr: IRExpr,
   level: Int
 ) -> String => {
-  value := emitGoExpr(expr.children[0])
+  value := emitGoLetValue(file, expr)
   payload := unwrapPayloadType(file, expr.children[0])
   (
     payload != "" ? value = (value + ".(") + goType(payload) + ")"
   )
   line(level, (mangleIdent(expr.name) + " := ") + value) + line(level, "_ = " + mangleIdent(expr.name))
+}
+
+emitGoLetValue(
+  file: IRFile,
+  expr: IRExpr
+) -> String => expr.value {
+  "" => emitGoExpr(expr.children[0])
+  _ => emitGoExprExpectedForFile(file, expr.children[0], expr.value)
 }
 
 emitGoObjectDestructure(

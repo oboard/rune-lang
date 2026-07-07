@@ -1566,9 +1566,10 @@ parseSignalPrefixLetStatement(
   name := parserAdvance(dollar.state)
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
+  typeName := parseLetTypeAnnotation(value.state)
   ExprStep {
-    state: value.state,
-    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+    state: typeName.state,
+    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, typeName.value, op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -1578,9 +1579,33 @@ parseLetStatement(
   name := parserAdvance(state)
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
+  typeName := parseLetTypeAnnotation(value.state)
   ExprStep {
-    state: value.state,
-    expr: makeExpr(ExprKind.Let, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+    state: typeName.state,
+    expr: makeExpr(ExprKind.Let, name.token.lexeme, name.token.lexeme, typeName.value, op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+  }
+}
+
+parseLetTypeAnnotation(
+  state: ParserState
+) -> StringStep => {
+  colon := parserMatch(parserSkipNewlines(state), TokenKind.Colon)
+  colon.ok {
+    true => parseLetTypeAnnotationRef(colon.state)
+    _ => StringStep {
+      state: state,
+      value: ""
+    }
+  }
+}
+
+parseLetTypeAnnotationRef(
+  state: ParserState
+) -> StringStep => {
+  typeRef := parseTypeRef(parserSkipNewlines(state))
+  StringStep {
+    state: typeRef.state,
+    value: typeRefToString(typeRef.typeRef)
   }
 }
 

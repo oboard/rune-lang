@@ -649,7 +649,7 @@ checkFunctionErrors(
   baseBindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   bindings := compilerFunctionBindings(fn.params, baseBindings)
-  checkFunctionReturn(fn, callables, checkExpr(fn.body, structs, callables, errors, bindings), bindings)
+  checkFunctionReturn(fn, structs, callables, checkExpr(fn.body, structs, callables, errors, bindings), bindings)
 }
 
 checkExpr(
@@ -686,8 +686,120 @@ checkLetExpr(
 ) -> Array[String] => {
   hasValue := expr.children.length() > 0
   hasValue {
-    true => checkExpr(expr.children[0], structs, callables, errors, bindings)
+    true => checkLetValueExpr(expr, structs, callables, errors, bindings)
     _ => errors
+  }
+}
+
+checkLetValueExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  value := expr.children[0]
+  checked := checkExprExpected(value, expr.value, structs, callables, errors, bindings)
+  checkLetDeclaredType(expr.name, value, expr.value, callables, bindings, checked)
+}
+
+checkExprExpected(
+  expr: IRExpr,
+  expected: String,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  checked := checkExpr(expr, structs, callables, errors, bindings)
+  checkExpectedExprType(expr, expected, structs, callables, bindings, checked)
+}
+
+checkExpectedExprType(
+  expr: IRExpr,
+  expected: String,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => moduleCallKey(expr) {
+  "json.parse" => checkJsonParseTarget(expected, structs, errors)
+  _ => errors
+}
+
+checkLetDeclaredType(
+  name: String,
+  value: IRExpr,
+  expected: String,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  actual := inferCompilerExprType(value, callables, bindings)
+  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch {
+    true => [..errors, ((((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected)]
+    _ => errors
+  }
+}
+
+checkJsonParseTarget(
+  expected: String,
+  structs: Array[IRStructType],
+  errors: Array[String]
+) -> Array[String] => expected {
+  "" => [..errors, "@json.parse target type cannot be inferred; add ': Type' to the binding"]
+  "Dynamic" => [..errors, "@json.parse target type cannot be inferred; add ': Type' to the binding"]
+  "Object" => errors
+  _ => checkJsonParseFromJsonTarget(expected, structs, errors)
+}
+
+checkJsonParseFromJsonTarget(
+  expected: String,
+  structs: Array[IRStructType],
+  errors: Array[String]
+) -> Array[String] => {
+  typeDecl := findCompilerStruct(structs, compilerTypeBase(expected), 0)
+  ok := (typeDecl.name != "") && compilerStructHasFromJson(typeDecl, expected, 0)
+  ok {
+    true => errors
+    _ => [..errors, ("@json.parse target type " + expected) + " does not implement &FromJson"]
+  }
+}
+
+compilerStructHasFromJson(
+  typeDecl: IRStructType,
+  expected: String,
+  index: Int
+) -> Bool => {
+  done := index >= typeDecl.methods.length()
+  done {
+    true => false
+    _ => compilerStructHasFromJsonAt(typeDecl, expected, index)
+  }
+}
+
+compilerStructHasFromJsonAt(
+  typeDecl: IRStructType,
+  expected: String,
+  index: Int
+) -> Bool => {
+  method := typeDecl.methods[index]
+  matched := ((method.name == "fromJson") && method.static) && compilerFromJsonSignatureMatches(method, expected)
+  matched {
+    true => true
+    _ => compilerStructHasFromJson(typeDecl, expected, index + 1)
+  }
+}
+
+compilerFromJsonSignatureMatches(
+  method: IRFunction,
+  expected: String
+) -> Bool => {
+  arityOk := method.params.length() == 1
+  arityOk {
+    true => (method.params[0].typeName == "String") && compilerTypesCompatible(expected, method.returnType)
+    _ => false
   }
 }
 
@@ -788,12 +900,14 @@ checkStructExprFieldValue(
 ) -> Array[String] => {
   field := fields[index]
   value := field.children[0]
-  checkedValue := checkExpr(value, structs, callables, errors, bindings)
   expected := findCompilerStructField(expectedFields, field.name, 0)
   found := expected.name != ""
   next := found {
-    true => checkStructFieldType(typeName, field.name, value, expected.typeName, callables, bindings, checkedValue)
-    _ => [..checkedValue, ("type " + typeName) + " has no field \"" + field.name + "\""]
+    true => {
+      checkedValue := checkExprExpected(value, expected.typeName, structs, callables, errors, bindings)
+      checkStructFieldType(typeName, field.name, value, expected.typeName, callables, bindings, checkedValue)
+    }
+    _ => [..checkExpr(value, structs, callables, errors, bindings), ("type " + typeName) + " has no field \"" + field.name + "\""]
   }
   checkStructExprFieldValues(typeName, fields, expectedFields, index + 1, structs, callables, next, bindings)
 }
@@ -884,9 +998,18 @@ bindCompilerLet(
 ) -> Array[CompilerTypeBinding] => {
   hasValue := expr.children.length() > 0
   hasValue {
-    true => addCompilerTypeBinding(bindings, expr.name, inferCompilerExprType(expr.children[0], callables, bindings))
+    true => addCompilerTypeBinding(bindings, expr.name, compilerLetBindingType(expr, callables, bindings))
     _ => bindings
   }
+}
+
+compilerLetBindingType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => expr.value {
+  "" => inferCompilerExprType(expr.children[0], callables, bindings)
+  _ => expr.value
 }
 
 addCompilerTypeBinding(
@@ -1151,16 +1274,18 @@ compilerTypeIsGenericPlaceholder(
 
 checkFunctionReturn(
   fn: IRFunction,
+  structs: Array[IRStructType],
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   expected := fn.returnType
+  checked := checkExpectedExprType(fn.body, expected, structs, callables, bindings, errors)
   actual := inferCompilerExprType(fn.body, callables, bindings)
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
-    true => checkFunctionReturnType(fn.name, expected, actual, errors)
-    _ => errors
+    true => checkFunctionReturnType(fn.name, expected, actual, checked)
+    _ => checked
   }
 }
 
