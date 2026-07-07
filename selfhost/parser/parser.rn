@@ -47,6 +47,11 @@ StringListStep: {
   values: Array[String]
 }
 
+AnnotationListStep: {
+  state: ParserState
+  annotations: Array[ParsedAnnotation]
+}
+
 ParamListStep: {
   state: ParserState
   params: Array[ParsedParam]
@@ -146,11 +151,22 @@ emptyExpr() -> ParsedExpr => {
   column: 0
 }
 
+emptyAnnotations() -> Array[ParsedAnnotation] => [ParsedAnnotation {
+  marker: "",
+  module: "",
+  name: "",
+  args: [],
+  line: 0,
+  column: 0
+}].slice(0, 0)
+
 emptyFunction() -> ParsedFunction => {
   name: "",
   private: true,
   static: false,
   routine: false,
+  macro: false,
+  annotations: emptyAnnotations(),
   receiverType: "",
   generics: [],
   params: [],
@@ -164,6 +180,7 @@ emptyType() -> ParsedType => {
   name: "",
   private: true,
   enum: false,
+  annotations: emptyAnnotations(),
   generics: [],
   fields: [],
   methods: [],
@@ -189,6 +206,7 @@ emptyTest() -> ParsedTest => {
 emptyField() -> ParsedField => {
   name: "",
   private: true,
+  annotations: emptyAnnotations(),
   typeRef: emptyParsedTypeRef(),
   line: 0,
   column: 0
@@ -197,6 +215,7 @@ emptyField() -> ParsedField => {
 emptyMember() -> ParsedEnumMember => {
   name: "",
   private: true,
+  annotations: emptyAnnotations(),
   value: "",
   params: [],
   line: 0,
@@ -462,7 +481,22 @@ parseTopLevel(
   state: ParserState,
   file: ParsedFile
 ) -> FileStep => {
-  publicStep := parsePublicModifier(state)
+  (
+    looksLikeMacroFunctionDecl(state) ? parseTopLevelAfterResult(parseMacroFunction(state, file))
+      : parseTopLevelAfterMacro(state, file)
+  )
+}
+
+parseTopLevelAfterResult(
+  result: FileStep
+) -> FileStep => parseFileLoop(parserSkipNewlines(result.state), result.file)
+
+parseTopLevelAfterMacro(
+  state: ParserState,
+  file: ParsedFile
+) -> FileStep => {
+  annotationStep := parseAnnotations(state)
+  publicStep := parsePublicModifier(annotationStep.state)
   current :=: publicStep.state
   private := publicStep.ok == false
   current = (
@@ -474,15 +508,28 @@ parseTopLevel(
       : (
         !publicStep.ok && parserCheck(current, TokenKind.Question) ? parseTopLevelTest(current, file)
           : (
-            looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private)
+            looksLikeTypeDecl(current) ? parseTopLevelType(current, file, private, annotationStep.annotations)
               : (
-                looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private)
+                looksLikeFunctionDecl(current) ? parseTopLevelFunction(current, file, private, annotationStep.annotations)
                   : parseTopLevelError(current, file)
               )
           )
       )
   )
   parseFileLoop(parserSkipNewlines(result.state), result.file)
+}
+
+parseMacroFunction(
+  state: ParserState,
+  file: ParsedFile
+) -> FileStep => {
+  marker := parserConsume(state, TokenKind.Hash, "expected '#' before macro function")
+  step := parseFunctionWithReceiver(marker.state, "", false, false, true, emptyAnnotations())
+  file.functions.push(step.function)
+  FileStep {
+    state: step.state,
+    file: file
+  }
 }
 
 parseTopLevelImport(
@@ -515,9 +562,10 @@ parseTopLevelTest(
 parseTopLevelType(
   state: ParserState,
   file: ParsedFile,
-  private: Bool
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> FileStep => {
-  step := parseTypeDecl(state, private)
+  step := parseTypeDecl(state, private, annotations)
   file.types.push(step.typeDecl)
   FileStep {
     state: step.state,
@@ -528,9 +576,10 @@ parseTopLevelType(
 parseTopLevelFunction(
   state: ParserState,
   file: ParsedFile,
-  private: Bool
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> FileStep => {
-  step := parseFunctionWithReceiver(state, "", private, false)
+  step := parseFunctionWithReceiver(state, "", private, false, false, annotations)
   file.functions.push(step.function)
   FileStep {
     state: step.state,
@@ -668,7 +717,8 @@ parseTestDecl(
 
 parseTypeDecl(
   state: ParserState,
-  private: Bool
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> TypeStep => {
   name := parserConsume(state, TokenKind.Ident, "expected type name")
   generics := parseGenericNames(name.state)
@@ -677,8 +727,8 @@ parseTypeDecl(
   open := parserConsume(openStart, TokenKind.LBrace, "expected '{' after type declaration")
   bodyStart := parserSkipNewlines(open.state)
   (
-    looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private, generics.values)
-      : parseStructTypeBody(bodyStart, name.token, private, generics.values)
+    looksLikeEnumMember(bodyStart) ? parseEnumTypeBody(bodyStart, name.token, private, annotations, generics.values)
+      : parseStructTypeBody(bodyStart, name.token, private, annotations, generics.values)
   )
 }
 
@@ -686,11 +736,13 @@ parseStructTypeBody(
   state: ParserState,
   name: Token,
   private: Bool,
+  annotations: Array[ParsedAnnotation],
   generics: Array[String]
 ) -> TypeStep => parseStructTypeLoop(state, ParsedType {
   name: name.lexeme,
   private: private,
   enum: false,
+  annotations: annotations,
   generics: generics,
   fields: [],
   methods: [],
@@ -714,7 +766,8 @@ parseStructTypeMember(
   state: ParserState,
   typeDecl: ParsedType
 ) -> TypeStep => {
-  current := skipAnnotations(state)
+  annotationStep := parseAnnotations(state)
+  current := annotationStep.state
   privateStep := parseObjectPrivateModifier(current)
   memberState := privateStep.state
   private := privateStep.ok
@@ -726,8 +779,8 @@ parseStructTypeMember(
       }
   )
   parsed := (
-    looksLikeFunctionDecl(staticStep.state) ? parseStructMethod(staticStep.state, typeDecl, private, staticStep.ok)
-      : parseStructField(staticStep.state, typeDecl, private)
+    looksLikeFunctionDecl(staticStep.state) ? parseStructMethod(staticStep.state, typeDecl, private, staticStep.ok, annotationStep.annotations)
+      : parseStructField(staticStep.state, typeDecl, private, annotationStep.annotations)
   )
   next := parserSkipNewlines(parserMatch(consumeStatementEnd(parsed.state), TokenKind.Comma).state)
   parseStructTypeLoop(next, parsed.typeDecl)
@@ -737,9 +790,10 @@ parseStructMethod(
   state: ParserState,
   typeDecl: ParsedType,
   private: Bool,
-  static: Bool
+  static: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> TypeStep => {
-  step := parseFunctionWithReceiver(state, typeDecl.name, private, static)
+  step := parseFunctionWithReceiver(state, typeDecl.name, private, static, false, annotations)
   typeDecl.methods.push(step.function)
   TypeStep {
     state: step.state,
@@ -750,9 +804,10 @@ parseStructMethod(
 parseStructField(
   state: ParserState,
   typeDecl: ParsedType,
-  private: Bool
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> TypeStep => {
-  field := parseFieldDecl(state, private)
+  field := parseFieldDecl(state, private, annotations)
   typeDecl.fields.push(field.field)
   TypeStep {
     state: field.state,
@@ -762,7 +817,8 @@ parseStructField(
 
 parseFieldDecl(
   state: ParserState,
-  private: Bool
+  private: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> FieldStep => {
   name := parserConsume(state, TokenKind.Ident, "expected field name")
   colon := parserConsume(name.state, TokenKind.Colon, "expected ':' after field name")
@@ -772,6 +828,7 @@ parseFieldDecl(
     field: ParsedField {
       name: name.token.lexeme,
       private: private,
+      annotations: annotations,
       typeRef: typeRef.typeRef,
       line: name.token.line,
       column: name.token.column
@@ -795,11 +852,13 @@ parseEnumTypeBody(
   state: ParserState,
   name: Token,
   private: Bool,
+  annotations: Array[ParsedAnnotation],
   generics: Array[String]
 ) -> TypeStep => parseEnumTypeLoop(state, ParsedType {
   name: name.lexeme,
   private: private,
   enum: true,
+  annotations: annotations,
   generics: generics,
   fields: [],
   methods: [],
@@ -823,7 +882,8 @@ parseEnumTypeMember(
   state: ParserState,
   typeDecl: ParsedType
 ) -> TypeStep => {
-  current := skipAnnotations(state)
+  annotationStep := parseAnnotations(state)
+  current := annotationStep.state
   privateStep := parseObjectPrivateModifier(current)
   memberState := privateStep.state
   staticStep := (
@@ -834,8 +894,8 @@ parseEnumTypeMember(
       }
   )
   parsed := (
-    looksLikeFunctionDecl(staticStep.state) ? parseEnumMethod(staticStep.state, typeDecl, privateStep.ok, staticStep.ok)
-      : parseEnumTypeMemberValue(state, typeDecl)
+    looksLikeFunctionDecl(staticStep.state) ? parseEnumMethod(staticStep.state, typeDecl, privateStep.ok, staticStep.ok, annotationStep.annotations)
+      : parseEnumTypeMemberValue(current, typeDecl, annotationStep.annotations)
   )
   next := parserSkipNewlines(parserMatch(consumeStatementEnd(parsed.state), TokenKind.Comma).state)
   parseEnumTypeLoop(next, parsed.typeDecl)
@@ -845,9 +905,10 @@ parseEnumMethod(
   state: ParserState,
   typeDecl: ParsedType,
   private: Bool,
-  static: Bool
+  static: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> TypeStep => {
-  step := parseFunctionWithReceiver(state, typeDecl.name, private, static)
+  step := parseFunctionWithReceiver(state, typeDecl.name, private, static, false, annotations)
   typeDecl.methods.push(step.function)
   TypeStep {
     state: step.state,
@@ -857,9 +918,10 @@ parseEnumMethod(
 
 parseEnumTypeMemberValue(
   state: ParserState,
-  typeDecl: ParsedType
+  typeDecl: ParsedType,
+  annotations: Array[ParsedAnnotation]
 ) -> TypeStep => {
-  member := parseEnumMember(state)
+  member := parseEnumMember(state, annotations)
   typeDecl.members.push(member.member)
   TypeStep {
     state: member.state,
@@ -868,7 +930,8 @@ parseEnumTypeMemberValue(
 }
 
 parseEnumMember(
-  state: ParserState
+  state: ParserState,
+  annotations: Array[ParsedAnnotation]
 ) -> EnumMemberStep => {
   publicStep := parsePublicModifier(state)
   name := parserConsume(publicStep.state, TokenKind.Ident, "expected enum member name")
@@ -879,6 +942,7 @@ parseEnumMember(
     member: ParsedEnumMember {
       name: name.token.lexeme,
       private: false,
+      annotations: annotations,
       value: parsed.value,
       params: parsed.params,
       line: name.token.line,
@@ -972,7 +1036,9 @@ parseFunctionWithReceiver(
   state: ParserState,
   receiverType: String,
   private: Bool,
-  static: Bool
+  static: Bool,
+  macro: Bool,
+  annotations: Array[ParsedAnnotation]
 ) -> FunctionStep => {
   routineStep := parserMatch(state, TokenKind.Tilde)
   afterRoutine := (
@@ -1002,6 +1068,8 @@ parseFunctionWithReceiver(
       private: private,
       static: static,
       routine: routineStep.ok,
+      macro: macro,
+      annotations: annotations,
       receiverType: receiverType,
       generics: generics.values,
       params: params.params,
@@ -2249,7 +2317,7 @@ parseObjectMethod(
   state: ParserState,
   private: Bool
 ) -> ExprStep => {
-  fn := parseFunctionWithReceiver(state, "", private, false)
+  fn := parseFunctionWithReceiver(state, "", private, false, false, emptyAnnotations())
   ExprStep {
     state: fn.state,
     expr: functionToExpr(fn.function)
@@ -2591,23 +2659,80 @@ precedence(kind: TokenKind) -> Int => (
     )
 )
 
-skipAnnotations(
+parseAnnotations(
   state: ParserState
-) -> ParserState => (
-  parserCheck(state, TokenKind.At) ? skipAnnotations(skipAnnotation(state))
-    : state
-)
+) -> AnnotationListStep => parseAnnotationsLoop(state, emptyAnnotations())
 
-skipAnnotation(
+parseAnnotationsLoop(
+  state: ParserState,
+  annotations: Array[ParsedAnnotation]
+) -> AnnotationListStep => {
+  current := parserSkipNewlines(state)
+  (
+    looksLikeAnnotation(current) ? parseAnnotationsNext(current, annotations)
+      : AnnotationListStep {
+        state: current,
+        annotations: annotations
+      }
+  )
+}
+
+parseAnnotationsNext(
+  state: ParserState,
+  annotations: Array[ParsedAnnotation]
+) -> AnnotationListStep => {
+  step := parseAnnotation(state)
+  parseAnnotationsLoop(step.state, [..annotations, step.annotation])
+}
+
+AnnotationStep: {
   state: ParserState
-) -> ParserState => {
-  at := parserConsume(state, TokenKind.At, "expected '@'")
-  name := parserConsume(at.state, TokenKind.Ident, "expected annotation name")
-  withArgs := parserMatch(name.state, TokenKind.LParen)
-  parserSkipNewlines((
-    withArgs.ok ? skipBalanced(withArgs.state, TokenKind.LParen, TokenKind.RParen, 1)
-      : name.state
-  ))
+  annotation: ParsedAnnotation
+}
+
+looksLikeAnnotation(
+  state: ParserState
+) -> Bool => parserCheck(state, TokenKind.Hash) || (parserCheck(state, TokenKind.At) && parserCheckNext(state, TokenKind.Ident))
+
+parseAnnotation(
+  state: ParserState
+) -> AnnotationStep => {
+  marker := parserAdvance(state)
+  first := parserConsume(marker.state, TokenKind.Ident, "expected annotation name")
+  dot := parserMatch(first.state, TokenKind.Dot)
+  name := (
+    dot.ok ? parserConsume(dot.state, TokenKind.Ident, "expected annotation function name after '.'")
+      : first
+  )
+  open := parserMatch(name.state, TokenKind.LParen)
+  args := (
+    open.ok ? parseArgumentList(parserSkipNewlines(open.state), [emptyExpr()].slice(0, 0), TokenKind.RParen)
+      : ExprStep {
+        state: name.state,
+        expr: makeExpr(ExprKind.Args, "", "", "", "", [], [], 0, 0)
+      }
+  )
+  close := (
+    open.ok ? parserConsume(args.state, TokenKind.RParen, "expected ')' after annotation arguments")
+      : TokenStep {
+        state: args.state,
+        token: name.token
+      }
+  )
+  AnnotationStep {
+    state: close.state,
+    annotation: ParsedAnnotation {
+      marker: marker.token.lexeme,
+      module: (
+        dot.ok ? first.token.lexeme
+          : ""
+      ),
+      name: name.token.lexeme,
+      args: args.expr.children,
+      line: marker.token.line,
+      column: marker.token.column
+    }
+  }
 }
 
 skipBalanced(
@@ -2658,6 +2783,10 @@ looksLikeFunctionDecl(
   )
   (parserKindAt(state, start) == TokenKind.Ident) && looksLikeFunctionAfterName(state, skipGenericNamesAt(state, start + 1))
 }
+
+looksLikeMacroFunctionDecl(
+  state: ParserState
+) -> Bool => parserCheck(state, TokenKind.Hash) && looksLikeFunctionDecl(stateAt(state, state.current + 1))
 
 looksLikeStaticFunctionDecl(
   state: ParserState

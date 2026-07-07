@@ -20,53 +20,54 @@ const (
 	__TokenKind_Char               __TokenKind = 9
 	__TokenKind_Regex              __TokenKind = 10
 	__TokenKind_XMLText            __TokenKind = 11
-	__TokenKind_At                 __TokenKind = 12
-	__TokenKind_Dollar             __TokenKind = 13
-	__TokenKind_Dot                __TokenKind = 14
-	__TokenKind_DotDot             __TokenKind = 15
-	__TokenKind_DotDotLess         __TokenKind = 16
-	__TokenKind_DotDotEqual        __TokenKind = 17
-	__TokenKind_DotDotDot          __TokenKind = 18
-	__TokenKind_Comma              __TokenKind = 19
-	__TokenKind_Colon              __TokenKind = 20
-	__TokenKind_DoubleColon        __TokenKind = 21
-	__TokenKind_LParen             __TokenKind = 22
-	__TokenKind_RParen             __TokenKind = 23
-	__TokenKind_LBracket           __TokenKind = 24
-	__TokenKind_RBracket           __TokenKind = 25
-	__TokenKind_LBrace             __TokenKind = 26
-	__TokenKind_RBrace             __TokenKind = 27
-	__TokenKind_Question           __TokenKind = 28
-	__TokenKind_QuestionQuestion   __TokenKind = 29
-	__TokenKind_Apostrophe         __TokenKind = 30
-	__TokenKind_FatArrow           __TokenKind = 31
-	__TokenKind_Assign             __TokenKind = 32
-	__TokenKind_Declare            __TokenKind = 33
-	__TokenKind_MutDeclare         __TokenKind = 34
-	__TokenKind_Arrow              __TokenKind = 35
-	__TokenKind_Plus               __TokenKind = 36
-	__TokenKind_PlusPlus           __TokenKind = 37
-	__TokenKind_Minus              __TokenKind = 38
-	__TokenKind_Star               __TokenKind = 39
-	__TokenKind_Slash              __TokenKind = 40
-	__TokenKind_Percent            __TokenKind = 41
-	__TokenKind_Bang               __TokenKind = 42
-	__TokenKind_Tilde              __TokenKind = 43
-	__TokenKind_BitAnd             __TokenKind = 44
-	__TokenKind_BitOr              __TokenKind = 45
-	__TokenKind_BitXor             __TokenKind = 46
-	__TokenKind_ShiftLeft          __TokenKind = 47
-	__TokenKind_ShiftRight         __TokenKind = 48
-	__TokenKind_UnsignedShiftRight __TokenKind = 49
-	__TokenKind_AndAnd             __TokenKind = 50
-	__TokenKind_OrOr               __TokenKind = 51
-	__TokenKind_EqualEqual         __TokenKind = 52
-	__TokenKind_BangEqual          __TokenKind = 53
-	__TokenKind_Less               __TokenKind = 54
-	__TokenKind_LessEqual          __TokenKind = 55
-	__TokenKind_Greater            __TokenKind = 56
-	__TokenKind_GreaterEqual       __TokenKind = 57
-	__TokenKind_Underscore         __TokenKind = 58
+	__TokenKind_Hash               __TokenKind = 12
+	__TokenKind_At                 __TokenKind = 13
+	__TokenKind_Dollar             __TokenKind = 14
+	__TokenKind_Dot                __TokenKind = 15
+	__TokenKind_DotDot             __TokenKind = 16
+	__TokenKind_DotDotLess         __TokenKind = 17
+	__TokenKind_DotDotEqual        __TokenKind = 18
+	__TokenKind_DotDotDot          __TokenKind = 19
+	__TokenKind_Comma              __TokenKind = 20
+	__TokenKind_Colon              __TokenKind = 21
+	__TokenKind_DoubleColon        __TokenKind = 22
+	__TokenKind_LParen             __TokenKind = 23
+	__TokenKind_RParen             __TokenKind = 24
+	__TokenKind_LBracket           __TokenKind = 25
+	__TokenKind_RBracket           __TokenKind = 26
+	__TokenKind_LBrace             __TokenKind = 27
+	__TokenKind_RBrace             __TokenKind = 28
+	__TokenKind_Question           __TokenKind = 29
+	__TokenKind_QuestionQuestion   __TokenKind = 30
+	__TokenKind_Apostrophe         __TokenKind = 31
+	__TokenKind_FatArrow           __TokenKind = 32
+	__TokenKind_Assign             __TokenKind = 33
+	__TokenKind_Declare            __TokenKind = 34
+	__TokenKind_MutDeclare         __TokenKind = 35
+	__TokenKind_Arrow              __TokenKind = 36
+	__TokenKind_Plus               __TokenKind = 37
+	__TokenKind_PlusPlus           __TokenKind = 38
+	__TokenKind_Minus              __TokenKind = 39
+	__TokenKind_Star               __TokenKind = 40
+	__TokenKind_Slash              __TokenKind = 41
+	__TokenKind_Percent            __TokenKind = 42
+	__TokenKind_Bang               __TokenKind = 43
+	__TokenKind_Tilde              __TokenKind = 44
+	__TokenKind_BitAnd             __TokenKind = 45
+	__TokenKind_BitOr              __TokenKind = 46
+	__TokenKind_BitXor             __TokenKind = 47
+	__TokenKind_ShiftLeft          __TokenKind = 48
+	__TokenKind_ShiftRight         __TokenKind = 49
+	__TokenKind_UnsignedShiftRight __TokenKind = 50
+	__TokenKind_AndAnd             __TokenKind = 51
+	__TokenKind_OrOr               __TokenKind = 52
+	__TokenKind_EqualEqual         __TokenKind = 53
+	__TokenKind_BangEqual          __TokenKind = 54
+	__TokenKind_Less               __TokenKind = 55
+	__TokenKind_LessEqual          __TokenKind = 56
+	__TokenKind_Greater            __TokenKind = 57
+	__TokenKind_GreaterEqual       __TokenKind = 58
+	__TokenKind_Underscore         __TokenKind = 59
 )
 
 type __TypeRefKind int
@@ -196,6 +197,15 @@ type __ParsedImport struct {
 	__column int
 }
 
+type __ParsedAnnotation struct {
+	__marker string
+	__module string
+	__name   string
+	__args   []__ParsedExpr
+	__line   int
+	__column int
+}
+
 type __ParsedParam struct {
 	__name    string
 	__typeRef __ParsedTypeRef
@@ -216,20 +226,22 @@ type __ParsedExpr struct {
 }
 
 type __ParsedField struct {
-	__name    string
-	__private bool
-	__typeRef __ParsedTypeRef
-	__line    int
-	__column  int
+	__name        string
+	__private     bool
+	__annotations []__ParsedAnnotation
+	__typeRef     __ParsedTypeRef
+	__line        int
+	__column      int
 }
 
 type __ParsedEnumMember struct {
-	__name    string
-	__private bool
-	__value   string
-	__params  []__ParsedParam
-	__line    int
-	__column  int
+	__name        string
+	__private     bool
+	__annotations []__ParsedAnnotation
+	__value       string
+	__params      []__ParsedParam
+	__line        int
+	__column      int
 }
 
 type __ParsedFunction struct {
@@ -237,6 +249,8 @@ type __ParsedFunction struct {
 	__private      bool
 	__static       bool
 	__routine      bool
+	__macro        bool
+	__annotations  []__ParsedAnnotation
 	__receiverType string
 	__generics     []string
 	__params       []__ParsedParam
@@ -247,15 +261,16 @@ type __ParsedFunction struct {
 }
 
 type __ParsedType struct {
-	__name     string
-	__private  bool
-	__enum     bool
-	__generics []string
-	__fields   []__ParsedField
-	__methods  []__ParsedFunction
-	__members  []__ParsedEnumMember
-	__line     int
-	__column   int
+	__name        string
+	__private     bool
+	__enum        bool
+	__annotations []__ParsedAnnotation
+	__generics    []string
+	__fields      []__ParsedField
+	__methods     []__ParsedFunction
+	__members     []__ParsedEnumMember
+	__line        int
+	__column      int
 }
 
 type __ParsedTest struct {
@@ -319,6 +334,11 @@ type __StringListStep struct {
 	__values []string
 }
 
+type __AnnotationListStep struct {
+	__state       __ParserState
+	__annotations []__ParsedAnnotation
+}
+
 type __ParamListStep struct {
 	__state  __ParserState
 	__params []__ParsedParam
@@ -373,6 +393,11 @@ type __EnumMemberPayloadStep struct {
 	__state  __ParserState
 	__value  string
 	__params []__ParsedParam
+}
+
+type __AnnotationStep struct {
+	__state      __ParserState
+	__annotation __ParsedAnnotation
 }
 
 type __IRImport struct {
@@ -598,6 +623,8 @@ func __tokenKindName(__kind __TokenKind) string {
 			return "Regex"
 		case __kind == __TokenKind_XMLText:
 			return "XMLText"
+		case __kind == __TokenKind_Hash:
+			return "Hash"
 		case __kind == __TokenKind_At:
 			return "At"
 		case __kind == __TokenKind_Dollar:
@@ -826,6 +853,8 @@ func ____rune_private_2013c1e3_scanToken(__step __Advanced) __Lexed {
 		switch {
 		case __ch == '\n':
 			return ____rune_private_2013c1e3_lexed(__state, __TokenKind_Newline)
+		case __ch == '#':
+			return ____rune_private_2013c1e3_lexed(__state, __TokenKind_Hash)
 		case __ch == '@':
 			return ____rune_private_2013c1e3_lexed(__state, __TokenKind_At)
 		case __ch == '$':
@@ -1707,12 +1736,16 @@ func ____rune_private_b990f3d7_emptyExpr() __ParsedExpr {
 	return __ParsedExpr{__kind: __ExprKind_Unknown, __text: "", __name: "", __value: "", __op: "", __params: []__ParsedParam{}, __children: []__ParsedExpr{}, __line: 0, __column: 0}
 }
 
+func ____rune_private_b990f3d7_emptyAnnotations() []__ParsedAnnotation {
+	return append([]__ParsedAnnotation{}, []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}[0:0]...)
+}
+
 func ____rune_private_b990f3d7_emptyFunction() __ParsedFunction {
-	return __ParsedFunction{__name: "", __private: true, __static: false, __routine: false, __receiverType: "", __generics: []string{}, __params: []__ParsedParam{}, __returnType: __emptyParsedTypeRef(), __body: ____rune_private_b990f3d7_emptyExpr(), __line: 0, __column: 0}
+	return __ParsedFunction{__name: "", __private: true, __static: false, __routine: false, __macro: false, __annotations: ____rune_private_b990f3d7_emptyAnnotations(), __receiverType: "", __generics: []string{}, __params: []__ParsedParam{}, __returnType: __emptyParsedTypeRef(), __body: ____rune_private_b990f3d7_emptyExpr(), __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_emptyType() __ParsedType {
-	return __ParsedType{__name: "", __private: true, __enum: false, __generics: []string{}, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: 0, __column: 0}
+	return __ParsedType{__name: "", __private: true, __enum: false, __annotations: ____rune_private_b990f3d7_emptyAnnotations(), __generics: []string{}, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_emptyImport() __ParsedImport {
@@ -1724,11 +1757,11 @@ func ____rune_private_b990f3d7_emptyTest() __ParsedTest {
 }
 
 func ____rune_private_b990f3d7_emptyField() __ParsedField {
-	return __ParsedField{__name: "", __private: true, __typeRef: __emptyParsedTypeRef(), __line: 0, __column: 0}
+	return __ParsedField{__name: "", __private: true, __annotations: ____rune_private_b990f3d7_emptyAnnotations(), __typeRef: __emptyParsedTypeRef(), __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_emptyMember() __ParsedEnumMember {
-	return __ParsedEnumMember{__name: "", __private: true, __value: "", __params: []__ParsedParam{}, __line: 0, __column: 0}
+	return __ParsedEnumMember{__name: "", __private: true, __annotations: ____rune_private_b990f3d7_emptyAnnotations(), __value: "", __params: []__ParsedParam{}, __line: 0, __column: 0}
 }
 
 func ____rune_private_b990f3d7_makeExpr(__kind __ExprKind, __text string, __name string, __value string, __op string, __params []__ParsedParam, __children []__ParsedExpr, __line int, __column int) __ParsedExpr {
@@ -1924,7 +1957,21 @@ func ____rune_private_b990f3d7_withFileErrors(__file __ParsedFile, __errors []__
 }
 
 func ____rune_private_b990f3d7_parseTopLevel(__state __ParserState, __file __ParsedFile) __FileStep {
-	__publicStep := ____rune_private_b990f3d7_parsePublicModifier(__state)
+	return func() __FileStep {
+		if ____rune_private_b990f3d7_looksLikeMacroFunctionDecl(__state) {
+			return ____rune_private_b990f3d7_parseTopLevelAfterResult(____rune_private_b990f3d7_parseMacroFunction(__state, __file))
+		}
+		return ____rune_private_b990f3d7_parseTopLevelAfterMacro(__state, __file)
+	}()
+}
+
+func ____rune_private_b990f3d7_parseTopLevelAfterResult(__result __FileStep) __FileStep {
+	return ____rune_private_b990f3d7_parseFileLoop(____rune_private_b990f3d7_parserSkipNewlines(__result.__state), __result.__file)
+}
+
+func ____rune_private_b990f3d7_parseTopLevelAfterMacro(__state __ParserState, __file __ParsedFile) __FileStep {
+	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
+	__publicStep := ____rune_private_b990f3d7_parsePublicModifier(__annotationStep.__state)
 	__current := __publicStep.__state
 	__private := __publicStep.__ok == false
 	__current = func() __ParserState {
@@ -1943,11 +1990,11 @@ func ____rune_private_b990f3d7_parseTopLevel(__state __ParserState, __file __Par
 			}
 			return func() __FileStep {
 				if ____rune_private_b990f3d7_looksLikeTypeDecl(__current) {
-					return ____rune_private_b990f3d7_parseTopLevelType(__current, __file, __private)
+					return ____rune_private_b990f3d7_parseTopLevelType(__current, __file, __private, __annotationStep.__annotations)
 				}
 				return func() __FileStep {
 					if ____rune_private_b990f3d7_looksLikeFunctionDecl(__current) {
-						return ____rune_private_b990f3d7_parseTopLevelFunction(__current, __file, __private)
+						return ____rune_private_b990f3d7_parseTopLevelFunction(__current, __file, __private, __annotationStep.__annotations)
 					}
 					return ____rune_private_b990f3d7_parseTopLevelError(__current, __file)
 				}()
@@ -1955,6 +2002,13 @@ func ____rune_private_b990f3d7_parseTopLevel(__state __ParserState, __file __Par
 		}()
 	}()
 	return ____rune_private_b990f3d7_parseFileLoop(____rune_private_b990f3d7_parserSkipNewlines(__result.__state), __result.__file)
+}
+
+func ____rune_private_b990f3d7_parseMacroFunction(__state __ParserState, __file __ParsedFile) __FileStep {
+	__marker := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Hash, "expected '#' before macro function")
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__marker.__state, "", false, false, true, ____rune_private_b990f3d7_emptyAnnotations())
+	__file.__functions = append(__file.__functions, __step.__function)
+	return __FileStep{__state: __step.__state, __file: __file}
 }
 
 func ____rune_private_b990f3d7_parseTopLevelImport(__state __ParserState, __file __ParsedFile) __FileStep {
@@ -1974,14 +2028,14 @@ func ____rune_private_b990f3d7_parseTopLevelTest(__state __ParserState, __file _
 	return __FileStep{__state: __step.__state, __file: __file}
 }
 
-func ____rune_private_b990f3d7_parseTopLevelType(__state __ParserState, __file __ParsedFile, __private bool) __FileStep {
-	__step := ____rune_private_b990f3d7_parseTypeDecl(__state, __private)
+func ____rune_private_b990f3d7_parseTopLevelType(__state __ParserState, __file __ParsedFile, __private bool, __annotations []__ParsedAnnotation) __FileStep {
+	__step := ____rune_private_b990f3d7_parseTypeDecl(__state, __private, __annotations)
 	__file.__types = append(__file.__types, __step.__typeDecl)
 	return __FileStep{__state: __step.__state, __file: __file}
 }
 
-func ____rune_private_b990f3d7_parseTopLevelFunction(__state __ParserState, __file __ParsedFile, __private bool) __FileStep {
-	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, "", __private, false)
+func ____rune_private_b990f3d7_parseTopLevelFunction(__state __ParserState, __file __ParsedFile, __private bool, __annotations []__ParsedAnnotation) __FileStep {
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, "", __private, false, false, __annotations)
 	__file.__functions = append(__file.__functions, __step.__function)
 	return __FileStep{__state: __step.__state, __file: __file}
 }
@@ -2072,7 +2126,7 @@ func ____rune_private_b990f3d7_parseTestDecl(__state __ParserState) __TestStep {
 	return __TestStep{__state: __body.__state, __testDecl: __ParsedTest{__name: ____rune_private_b990f3d7_unquote(__name.__token.__lexeme), __body: __body.__expr, __line: __start.__token.__line, __column: __start.__token.__column}}
 }
 
-func ____rune_private_b990f3d7_parseTypeDecl(__state __ParserState, __private bool) __TypeStep {
+func ____rune_private_b990f3d7_parseTypeDecl(__state __ParserState, __private bool, __annotations []__ParsedAnnotation) __TypeStep {
 	__name := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Ident, "expected type name")
 	__generics := ____rune_private_b990f3d7_parseGenericNames(__name.__state)
 	__colon := ____rune_private_b990f3d7_parserConsume(__generics.__state, __TokenKind_Colon, "expected ':' after type name")
@@ -2081,14 +2135,14 @@ func ____rune_private_b990f3d7_parseTypeDecl(__state __ParserState, __private bo
 	__bodyStart := ____rune_private_b990f3d7_parserSkipNewlines(__open.__state)
 	return func() __TypeStep {
 		if ____rune_private_b990f3d7_looksLikeEnumMember(__bodyStart) {
-			return ____rune_private_b990f3d7_parseEnumTypeBody(__bodyStart, __name.__token, __private, __generics.__values)
+			return ____rune_private_b990f3d7_parseEnumTypeBody(__bodyStart, __name.__token, __private, __annotations, __generics.__values)
 		}
-		return ____rune_private_b990f3d7_parseStructTypeBody(__bodyStart, __name.__token, __private, __generics.__values)
+		return ____rune_private_b990f3d7_parseStructTypeBody(__bodyStart, __name.__token, __private, __annotations, __generics.__values)
 	}()
 }
 
-func ____rune_private_b990f3d7_parseStructTypeBody(__state __ParserState, __name __Token, __private bool, __generics []string) __TypeStep {
-	return ____rune_private_b990f3d7_parseStructTypeLoop(__state, __ParsedType{__name: __name.__lexeme, __private: __private, __enum: false, __generics: __generics, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: __name.__line, __column: __name.__column})
+func ____rune_private_b990f3d7_parseStructTypeBody(__state __ParserState, __name __Token, __private bool, __annotations []__ParsedAnnotation, __generics []string) __TypeStep {
+	return ____rune_private_b990f3d7_parseStructTypeLoop(__state, __ParsedType{__name: __name.__lexeme, __private: __private, __enum: false, __annotations: __annotations, __generics: __generics, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: __name.__line, __column: __name.__column})
 }
 
 func ____rune_private_b990f3d7_parseStructTypeLoop(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
@@ -2102,7 +2156,8 @@ func ____rune_private_b990f3d7_parseStructTypeLoop(__state __ParserState, __type
 }
 
 func ____rune_private_b990f3d7_parseStructTypeMember(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
-	__current := ____rune_private_b990f3d7_skipAnnotations(__state)
+	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
+	__current := __annotationStep.__state
 	__privateStep := ____rune_private_b990f3d7_parseObjectPrivateModifier(__current)
 	__memberState := __privateStep.__state
 	__private := __privateStep.__ok
@@ -2114,31 +2169,31 @@ func ____rune_private_b990f3d7_parseStructTypeMember(__state __ParserState, __ty
 	}()
 	__parsed := func() __TypeStep {
 		if ____rune_private_b990f3d7_looksLikeFunctionDecl(__staticStep.__state) {
-			return ____rune_private_b990f3d7_parseStructMethod(__staticStep.__state, __typeDecl, __private, __staticStep.__ok)
+			return ____rune_private_b990f3d7_parseStructMethod(__staticStep.__state, __typeDecl, __private, __staticStep.__ok, __annotationStep.__annotations)
 		}
-		return ____rune_private_b990f3d7_parseStructField(__staticStep.__state, __typeDecl, __private)
+		return ____rune_private_b990f3d7_parseStructField(__staticStep.__state, __typeDecl, __private, __annotationStep.__annotations)
 	}()
 	__next := ____rune_private_b990f3d7_parserSkipNewlines(____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_consumeStatementEnd(__parsed.__state), __TokenKind_Comma).__state)
 	return ____rune_private_b990f3d7_parseStructTypeLoop(__next, __parsed.__typeDecl)
 }
 
-func ____rune_private_b990f3d7_parseStructMethod(__state __ParserState, __typeDecl __ParsedType, __private bool, __static bool) __TypeStep {
-	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, __typeDecl.__name, __private, __static)
+func ____rune_private_b990f3d7_parseStructMethod(__state __ParserState, __typeDecl __ParsedType, __private bool, __static bool, __annotations []__ParsedAnnotation) __TypeStep {
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, __typeDecl.__name, __private, __static, false, __annotations)
 	__typeDecl.__methods = append(__typeDecl.__methods, __step.__function)
 	return __TypeStep{__state: __step.__state, __typeDecl: __typeDecl}
 }
 
-func ____rune_private_b990f3d7_parseStructField(__state __ParserState, __typeDecl __ParsedType, __private bool) __TypeStep {
-	__field := ____rune_private_b990f3d7_parseFieldDecl(__state, __private)
+func ____rune_private_b990f3d7_parseStructField(__state __ParserState, __typeDecl __ParsedType, __private bool, __annotations []__ParsedAnnotation) __TypeStep {
+	__field := ____rune_private_b990f3d7_parseFieldDecl(__state, __private, __annotations)
 	__typeDecl.__fields = append(__typeDecl.__fields, __field.__field)
 	return __TypeStep{__state: __field.__state, __typeDecl: __typeDecl}
 }
 
-func ____rune_private_b990f3d7_parseFieldDecl(__state __ParserState, __private bool) __FieldStep {
+func ____rune_private_b990f3d7_parseFieldDecl(__state __ParserState, __private bool, __annotations []__ParsedAnnotation) __FieldStep {
 	__name := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_Ident, "expected field name")
 	__colon := ____rune_private_b990f3d7_parserConsume(__name.__state, __TokenKind_Colon, "expected ':' after field name")
 	__typeRef := ____rune_private_b990f3d7_parseTypeRef(__colon.__state)
-	return __FieldStep{__state: __typeRef.__state, __field: __ParsedField{__name: __name.__token.__lexeme, __private: __private, __typeRef: __typeRef.__typeRef, __line: __name.__token.__line, __column: __name.__token.__column}}
+	return __FieldStep{__state: __typeRef.__state, __field: __ParsedField{__name: __name.__token.__lexeme, __private: __private, __annotations: __annotations, __typeRef: __typeRef.__typeRef, __line: __name.__token.__line, __column: __name.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_finishType(__state __ParserState, __typeDecl __ParsedType, __message string) __TypeStep {
@@ -2146,8 +2201,8 @@ func ____rune_private_b990f3d7_finishType(__state __ParserState, __typeDecl __Pa
 	return __TypeStep{__state: __close.__state, __typeDecl: __typeDecl}
 }
 
-func ____rune_private_b990f3d7_parseEnumTypeBody(__state __ParserState, __name __Token, __private bool, __generics []string) __TypeStep {
-	return ____rune_private_b990f3d7_parseEnumTypeLoop(__state, __ParsedType{__name: __name.__lexeme, __private: __private, __enum: true, __generics: __generics, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: __name.__line, __column: __name.__column})
+func ____rune_private_b990f3d7_parseEnumTypeBody(__state __ParserState, __name __Token, __private bool, __annotations []__ParsedAnnotation, __generics []string) __TypeStep {
+	return ____rune_private_b990f3d7_parseEnumTypeLoop(__state, __ParsedType{__name: __name.__lexeme, __private: __private, __enum: true, __annotations: __annotations, __generics: __generics, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: __name.__line, __column: __name.__column})
 }
 
 func ____rune_private_b990f3d7_parseEnumTypeLoop(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
@@ -2161,7 +2216,8 @@ func ____rune_private_b990f3d7_parseEnumTypeLoop(__state __ParserState, __typeDe
 }
 
 func ____rune_private_b990f3d7_parseEnumTypeMember(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
-	__current := ____rune_private_b990f3d7_skipAnnotations(__state)
+	__annotationStep := ____rune_private_b990f3d7_parseAnnotations(__state)
+	__current := __annotationStep.__state
 	__privateStep := ____rune_private_b990f3d7_parseObjectPrivateModifier(__current)
 	__memberState := __privateStep.__state
 	__staticStep := func() __BoolStep {
@@ -2172,32 +2228,32 @@ func ____rune_private_b990f3d7_parseEnumTypeMember(__state __ParserState, __type
 	}()
 	__parsed := func() __TypeStep {
 		if ____rune_private_b990f3d7_looksLikeFunctionDecl(__staticStep.__state) {
-			return ____rune_private_b990f3d7_parseEnumMethod(__staticStep.__state, __typeDecl, __privateStep.__ok, __staticStep.__ok)
+			return ____rune_private_b990f3d7_parseEnumMethod(__staticStep.__state, __typeDecl, __privateStep.__ok, __staticStep.__ok, __annotationStep.__annotations)
 		}
-		return ____rune_private_b990f3d7_parseEnumTypeMemberValue(__state, __typeDecl)
+		return ____rune_private_b990f3d7_parseEnumTypeMemberValue(__current, __typeDecl, __annotationStep.__annotations)
 	}()
 	__next := ____rune_private_b990f3d7_parserSkipNewlines(____rune_private_b990f3d7_parserMatch(____rune_private_b990f3d7_consumeStatementEnd(__parsed.__state), __TokenKind_Comma).__state)
 	return ____rune_private_b990f3d7_parseEnumTypeLoop(__next, __parsed.__typeDecl)
 }
 
-func ____rune_private_b990f3d7_parseEnumMethod(__state __ParserState, __typeDecl __ParsedType, __private bool, __static bool) __TypeStep {
-	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, __typeDecl.__name, __private, __static)
+func ____rune_private_b990f3d7_parseEnumMethod(__state __ParserState, __typeDecl __ParsedType, __private bool, __static bool, __annotations []__ParsedAnnotation) __TypeStep {
+	__step := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, __typeDecl.__name, __private, __static, false, __annotations)
 	__typeDecl.__methods = append(__typeDecl.__methods, __step.__function)
 	return __TypeStep{__state: __step.__state, __typeDecl: __typeDecl}
 }
 
-func ____rune_private_b990f3d7_parseEnumTypeMemberValue(__state __ParserState, __typeDecl __ParsedType) __TypeStep {
-	__member := ____rune_private_b990f3d7_parseEnumMember(__state)
+func ____rune_private_b990f3d7_parseEnumTypeMemberValue(__state __ParserState, __typeDecl __ParsedType, __annotations []__ParsedAnnotation) __TypeStep {
+	__member := ____rune_private_b990f3d7_parseEnumMember(__state, __annotations)
 	__typeDecl.__members = append(__typeDecl.__members, __member.__member)
 	return __TypeStep{__state: __member.__state, __typeDecl: __typeDecl}
 }
 
-func ____rune_private_b990f3d7_parseEnumMember(__state __ParserState) __EnumMemberStep {
+func ____rune_private_b990f3d7_parseEnumMember(__state __ParserState, __annotations []__ParsedAnnotation) __EnumMemberStep {
 	__publicStep := ____rune_private_b990f3d7_parsePublicModifier(__state)
 	__name := ____rune_private_b990f3d7_parserConsume(__publicStep.__state, __TokenKind_Ident, "expected enum member name")
 	__current := ____rune_private_b990f3d7_parserSkipNewlines(__name.__state)
 	__parsed := ____rune_private_b990f3d7_parseEnumMemberPayload(__current)
-	return __EnumMemberStep{__state: __parsed.__state, __member: __ParsedEnumMember{__name: __name.__token.__lexeme, __private: false, __value: __parsed.__value, __params: __parsed.__params, __line: __name.__token.__line, __column: __name.__token.__column}}
+	return __EnumMemberStep{__state: __parsed.__state, __member: __ParsedEnumMember{__name: __name.__token.__lexeme, __private: false, __annotations: __annotations, __value: __parsed.__value, __params: __parsed.__params, __line: __name.__token.__line, __column: __name.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_parseEnumMemberPayload(__state __ParserState) __EnumMemberPayloadStep {
@@ -2251,7 +2307,7 @@ func ____rune_private_b990f3d7_parsePositiveEnumValue(__state __ParserState) __S
 	return __StringStep{__state: __value.__state, __value: __value.__token.__lexeme}
 }
 
-func ____rune_private_b990f3d7_parseFunctionWithReceiver(__state __ParserState, __receiverType string, __private bool, __static bool) __FunctionStep {
+func ____rune_private_b990f3d7_parseFunctionWithReceiver(__state __ParserState, __receiverType string, __private bool, __static bool, __macro bool, __annotations []__ParsedAnnotation) __FunctionStep {
 	__routineStep := ____rune_private_b990f3d7_parserMatch(__state, __TokenKind_Tilde)
 	__afterRoutine := func() __ParserState {
 		if __routineStep.__ok {
@@ -2274,7 +2330,7 @@ func ____rune_private_b990f3d7_parseFunctionWithReceiver(__state __ParserState, 
 	}()
 	__arrow := ____rune_private_b990f3d7_parserConsume(____rune_private_b990f3d7_parserSkipNewlines(__returnType.__state), __TokenKind_FatArrow, "expected '=>' after function signature")
 	__body := ____rune_private_b990f3d7_parseBody(____rune_private_b990f3d7_parserSkipNewlines(__arrow.__state))
-	return __FunctionStep{__state: __body.__state, __function: __ParsedFunction{__name: __name.__token.__lexeme, __private: __private, __static: __static, __routine: __routineStep.__ok, __receiverType: __receiverType, __generics: __generics.__values, __params: __params.__params, __returnType: __returnType.__typeRef, __body: __body.__expr, __line: __name.__token.__line, __column: __name.__token.__column}}
+	return __FunctionStep{__state: __body.__state, __function: __ParsedFunction{__name: __name.__token.__lexeme, __private: __private, __static: __static, __routine: __routineStep.__ok, __macro: __macro, __annotations: __annotations, __receiverType: __receiverType, __generics: __generics.__values, __params: __params.__params, __returnType: __returnType.__typeRef, __body: __body.__expr, __line: __name.__token.__line, __column: __name.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_parseParamList(__state __ParserState) __ParamListStep {
@@ -3270,7 +3326,7 @@ func ____rune_private_b990f3d7_parseObjectLiteralMember(__state __ParserState, _
 }
 
 func ____rune_private_b990f3d7_parseObjectMethod(__state __ParserState, __private bool) __ExprStep {
-	__fn := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, "", __private, false)
+	__fn := ____rune_private_b990f3d7_parseFunctionWithReceiver(__state, "", __private, false, false, ____rune_private_b990f3d7_emptyAnnotations())
 	return __ExprStep{__state: __fn.__state, __expr: ____rune_private_b990f3d7_functionToExpr(__fn.__function)}
 }
 
@@ -3563,25 +3619,63 @@ func ____rune_private_b990f3d7_precedence(__kind __TokenKind) int {
 	}()
 }
 
-func ____rune_private_b990f3d7_skipAnnotations(__state __ParserState) __ParserState {
-	return func() __ParserState {
-		if ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_At) {
-			return ____rune_private_b990f3d7_skipAnnotations(____rune_private_b990f3d7_skipAnnotation(__state))
+func ____rune_private_b990f3d7_parseAnnotations(__state __ParserState) __AnnotationListStep {
+	return ____rune_private_b990f3d7_parseAnnotationsLoop(__state, ____rune_private_b990f3d7_emptyAnnotations())
+}
+
+func ____rune_private_b990f3d7_parseAnnotationsLoop(__state __ParserState, __annotations []__ParsedAnnotation) __AnnotationListStep {
+	__current := ____rune_private_b990f3d7_parserSkipNewlines(__state)
+	return func() __AnnotationListStep {
+		if ____rune_private_b990f3d7_looksLikeAnnotation(__current) {
+			return ____rune_private_b990f3d7_parseAnnotationsNext(__current, __annotations)
 		}
-		return __state
+		return __AnnotationListStep{__state: __current, __annotations: __annotations}
 	}()
 }
 
-func ____rune_private_b990f3d7_skipAnnotation(__state __ParserState) __ParserState {
-	__at := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_At, "expected '@'")
-	__name := ____rune_private_b990f3d7_parserConsume(__at.__state, __TokenKind_Ident, "expected annotation name")
-	__withArgs := ____rune_private_b990f3d7_parserMatch(__name.__state, __TokenKind_LParen)
-	return ____rune_private_b990f3d7_parserSkipNewlines(func() __ParserState {
-		if __withArgs.__ok {
-			return ____rune_private_b990f3d7_skipBalanced(__withArgs.__state, __TokenKind_LParen, __TokenKind_RParen, 1)
-		}
-		return __name.__state
+func ____rune_private_b990f3d7_parseAnnotationsNext(__state __ParserState, __annotations []__ParsedAnnotation) __AnnotationListStep {
+	__step := ____rune_private_b990f3d7_parseAnnotation(__state)
+	return ____rune_private_b990f3d7_parseAnnotationsLoop(__step.__state, func() []__ParsedAnnotation {
+		out := []__ParsedAnnotation{}
+		out = append(out, __annotations...)
+		out = append(out, __step.__annotation)
+		return out
 	}())
+}
+
+func ____rune_private_b990f3d7_looksLikeAnnotation(__state __ParserState) bool {
+	return ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_Hash) || ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_At) && ____rune_private_b990f3d7_parserCheckNext(__state, __TokenKind_Ident)
+}
+
+func ____rune_private_b990f3d7_parseAnnotation(__state __ParserState) __AnnotationStep {
+	__marker := ____rune_private_b990f3d7_parserAdvance(__state)
+	__first := ____rune_private_b990f3d7_parserConsume(__marker.__state, __TokenKind_Ident, "expected annotation name")
+	__dot := ____rune_private_b990f3d7_parserMatch(__first.__state, __TokenKind_Dot)
+	__name := func() __TokenStep {
+		if __dot.__ok {
+			return ____rune_private_b990f3d7_parserConsume(__dot.__state, __TokenKind_Ident, "expected annotation function name after '.'")
+		}
+		return __first
+	}()
+	__open := ____rune_private_b990f3d7_parserMatch(__name.__state, __TokenKind_LParen)
+	__args := func() __ExprStep {
+		if __open.__ok {
+			return ____rune_private_b990f3d7_parseArgumentList(____rune_private_b990f3d7_parserSkipNewlines(__open.__state), append([]__ParsedExpr{}, []__ParsedExpr{____rune_private_b990f3d7_emptyExpr()}[0:0]...), __TokenKind_RParen)
+		}
+		return __ExprStep{__state: __name.__state, __expr: ____rune_private_b990f3d7_makeExpr(__ExprKind_Args, "", "", "", "", []__ParsedParam{}, []__ParsedExpr{}, 0, 0)}
+	}()
+	__close := func() __TokenStep {
+		if __open.__ok {
+			return ____rune_private_b990f3d7_parserConsume(__args.__state, __TokenKind_RParen, "expected ')' after annotation arguments")
+		}
+		return __TokenStep{__state: __args.__state, __token: __name.__token}
+	}()
+	return __AnnotationStep{__state: __close.__state, __annotation: __ParsedAnnotation{__marker: __marker.__token.__lexeme, __module: func() string {
+		if __dot.__ok {
+			return __first.__token.__lexeme
+		}
+		return ""
+	}(), __name: __name.__token.__lexeme, __args: __args.__expr.__children, __line: __marker.__token.__line, __column: __marker.__token.__column}}
 }
 
 func ____rune_private_b990f3d7_skipBalanced(__state __ParserState, __openKind __TokenKind, __closeKind __TokenKind, __depth int) __ParserState {
@@ -3627,6 +3721,10 @@ func ____rune_private_b990f3d7_looksLikeFunctionDecl(__state __ParserState) bool
 		return __state.__current
 	}()
 	return ____rune_private_b990f3d7_parserKindAt(__state, __start) == __TokenKind_Ident && ____rune_private_b990f3d7_looksLikeFunctionAfterName(__state, ____rune_private_b990f3d7_skipGenericNamesAt(__state, __start+1))
+}
+
+func ____rune_private_b990f3d7_looksLikeMacroFunctionDecl(__state __ParserState) bool {
+	return ____rune_private_b990f3d7_parserCheck(__state, __TokenKind_Hash) && ____rune_private_b990f3d7_looksLikeFunctionDecl(____rune_private_b990f3d7_stateAt(__state, __state.__current+1))
 }
 
 func ____rune_private_b990f3d7_looksLikeStaticFunctionDecl(__state __ParserState) bool {

@@ -45,6 +45,7 @@ ScannedString: {
   Char
   Regex
   XMLText
+  Hash
   At
   Dollar
   Dot
@@ -193,6 +194,7 @@ canEndXmlLess(
   TokenKind.Char => "Char"
   TokenKind.Regex => "Regex"
   TokenKind.XMLText => "XMLText"
+  TokenKind.Hash => "Hash"
   TokenKind.At => "At"
   TokenKind.Dollar => "Dollar"
   TokenKind.Dot => "Dot"
@@ -347,6 +349,7 @@ scanToken(step: Advanced) => {
   { state, ch } := step
   ch {
     '\n' => lexed(state, TokenKind.Newline)
+    '#' => lexed(state, TokenKind.Hash)
     '@' => lexed(state, TokenKind.At)
     '$' => lexDollar(state)
     '.' => lexDot(state)

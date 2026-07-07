@@ -31,6 +31,15 @@
   column: Int
 }
 
++ ParsedAnnotation: {
+  marker: String
+  module: String
+  name: String
+  args: Array[ParsedExpr]
+  line: Int
+  column: Int
+}
+
 + ParsedParam: {
   name: String
   typeRef: ParsedTypeRef
@@ -53,6 +62,7 @@
 + ParsedField: {
   name: String
   private: Bool
+  annotations: Array[ParsedAnnotation]
   typeRef: ParsedTypeRef
   line: Int
   column: Int
@@ -61,6 +71,7 @@
 + ParsedEnumMember: {
   name: String
   private: Bool
+  annotations: Array[ParsedAnnotation]
   value: String
   params: Array[ParsedParam]
   line: Int
@@ -72,6 +83,8 @@
   private: Bool
   static: Bool
   routine: Bool
+  macro: Bool
+  annotations: Array[ParsedAnnotation]
   receiverType: String
   generics: Array[String]
   params: Array[ParsedParam]
@@ -85,6 +98,7 @@
   name: String
   private: Bool
   enum: Bool
+  annotations: Array[ParsedAnnotation]
   generics: Array[String]
   fields: Array[ParsedField]
   methods: Array[ParsedFunction]
