@@ -499,6 +499,19 @@ main() -> Int => 1
   @assert.eq(mbt.errors[0], "MoonBit backend does not support @go.import")
 }
 
+? "selfhost compiler rejects Go FFI outside Go backend" {
+  source := `main() => @go.stmt("println")
+`
+  ts := compileTypeScript(source)
+  mbt := compileMoonBit(source)
+  @assert.eq(ts.ok, false)
+  @assert.eq(mbt.ok, false)
+  @assert.eq(ts.errors.length(), 1)
+  @assert.eq(mbt.errors.length(), 1)
+  @assert.eq(ts.errors[0], "TypeScript backend does not support @go FFI")
+  @assert.eq(mbt.errors[0], "MoonBit backend does not support @go FFI")
+}
+
 ? "selfhost compiler emits Go imports" {
   source := `@go.import("fmt")
 

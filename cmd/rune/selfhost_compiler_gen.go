@@ -9257,7 +9257,14 @@ func ____rune_private_0d2ebf0f_checkTypeScriptTargetFileErrors(__file __IRFile) 
 		case __hasGoImports == true:
 			return []string{"TypeScript backend does not support @go.import"}
 		default:
-			return []string{}
+			return func() []string {
+				switch {
+				case ____rune_private_0d2ebf0f_fileUsesGoFFI(__file) == true:
+					return []string{"TypeScript backend does not support @go FFI"}
+				default:
+					return []string{}
+				}
+			}()
 		}
 	}()
 }
@@ -9280,7 +9287,13 @@ func ____rune_private_0d2ebf0f_checkMoonBitTargetFileErrors(__file __IRFile) []s
 	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
 	__hasGoImports := ____rune_private_0d2ebf0f_fileHasGoImports(__file)
 	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoImports, "MoonBit backend does not support @go.import")
+	__hasGoFFI := __hasGoImports == false && ____rune_private_0d2ebf0f_fileUsesGoFFI(__file)
+	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoFFI, "MoonBit backend does not support @go FFI")
 	return __errors
+}
+
+func ____rune_private_0d2ebf0f_fileUsesGoFFI(__file __IRFile) bool {
+	return __fileUsesModuleCall(__file, "go.stmt") || __fileUsesModuleCall(__file, "go.expr")
 }
 
 func ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors []string, __condition bool, __message string) []string {

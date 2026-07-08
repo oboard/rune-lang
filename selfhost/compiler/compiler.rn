@@ -122,7 +122,10 @@ checkTypeScriptTargetFileErrors(
   hasGoImports := fileHasGoImports(file)
   hasGoImports {
     true => ["TypeScript backend does not support @go.import"]
-    _ => []
+    _ => fileUsesGoFFI(file) {
+      true => ["TypeScript backend does not support @go FFI"]
+      _ => []
+    }
   }
 }
 
@@ -144,8 +147,14 @@ checkMoonBitTargetFileErrors(
   errors = compilerAppendErrorIf(errors, hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
   hasGoImports := fileHasGoImports(file)
   errors = compilerAppendErrorIf(errors, hasGoImports, "MoonBit backend does not support @go.import")
+  hasGoFFI := (hasGoImports == false) && fileUsesGoFFI(file)
+  errors = compilerAppendErrorIf(errors, hasGoFFI, "MoonBit backend does not support @go FFI")
   errors
 }
+
+fileUsesGoFFI(
+  file: IRFile
+) -> Bool => fileUsesModuleCall(file, "go.stmt") || fileUsesModuleCall(file, "go.expr")
 
 compilerAppendErrorIf(
   errors: Array[String],
