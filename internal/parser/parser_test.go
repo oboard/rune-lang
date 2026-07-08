@@ -236,6 +236,25 @@ main() => helper()
 	}
 }
 
+func TestGoPackageImportDecl(t *testing.T) {
+	file, errs := Parse(`@"go:fmt"
+
+main() => {}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Imports) != 0 {
+		t.Fatalf("imports = %d, want 0", len(file.Imports))
+	}
+	if len(file.GoImports) != 1 {
+		t.Fatalf("go imports = %d, want 1", len(file.GoImports))
+	}
+	if file.GoImports[0].Path != "fmt" {
+		t.Fatalf("go import path = %q, want fmt", file.GoImports[0].Path)
+	}
+}
+
 func TestDeclarationAnnotationsPreserveCalls(t *testing.T) {
 	file, errs := Parse(`#cli.command("ship")
 Args: {

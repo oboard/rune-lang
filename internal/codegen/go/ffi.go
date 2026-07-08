@@ -11,6 +11,11 @@ import (
 )
 
 func (g *generator) collectExprImports(expr ir.Expr) {
+	if at, ok := expr.(*ir.AtExpr); ok {
+		if path, ok := checker.GoPackageImportPath(at.Path); ok {
+			g.imports[path] = true
+		}
+	}
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Go != nil && fn.Go.Import != "" {
 		g.imports[fn.Go.Import] = true
 	}

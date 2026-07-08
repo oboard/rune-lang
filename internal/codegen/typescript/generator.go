@@ -21,7 +21,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	helpers := stdlibhelpers.BodyHelpers(file)
 	usage := codeusage.Collect(fileWithHelpers(file, helpers))
 	if len(file.GoImports) > 0 {
-		return "", fmt.Errorf("TypeScript backend does not support @go.import")
+		return "", fmt.Errorf("TypeScript backend does not support Go package imports")
 	}
 	if usesGoFFI(usage) {
 		return "", fmt.Errorf("TypeScript backend does not support @go FFI")

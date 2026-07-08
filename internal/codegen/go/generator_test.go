@@ -509,6 +509,49 @@ main() => {
 	}
 }
 
+func TestGenerateGoPackageImportFFI(t *testing.T) {
+	src := `isNaN(value: Double) -> Bool => @"go:math".IsNaN(value)
+
+main() => {
+  fmt := @"go:fmt"
+  fmt.Println("hello")
+  @io.println(isNaN(0.0))
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v", err)
+	}
+
+	wantParts := []string{
+		`"fmt"`,
+		`"math"`,
+		`func __isNaN(__value float64) bool`,
+		`return math.IsNaN(__value)`,
+		`fmt.Println("hello")`,
+		`fmt.Println(__isNaN(0.0))`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `__fmt :=`) {
+		t.Fatalf("generated Go should not bind package namespace locally:\n%s", got)
+	}
+	if _, err := goparser.ParseFile(token.NewFileSet(), "main.go", got, 0); err != nil {
+		t.Fatalf("generated Go parse error: %v\n%s", err, got)
+	}
+}
+
 func TestGenerateArraySpread(t *testing.T) {
 	src := `main() => {
   items := ["Item 1"]
@@ -699,10 +742,10 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 		`__scores := map[string]int{}`,
 		`__scores["rune"] = 10`,
 		`fmt.Println(func() int {`,
-			`value, ok := __scores["rune"]`,
-			`return 0`,
-			`for _, value := range __scores`,
-			`__seen := map[string]struct{}{}`,
+		`value, ok := __scores["rune"]`,
+		`return 0`,
+		`for _, value := range __scores`,
+		`__seen := map[string]struct{}{}`,
 		`__seen["rune"] = struct{}{}`,
 		`fmt.Println(func() bool { _, ok := __seen["rune"]; return ok }())`,
 	}

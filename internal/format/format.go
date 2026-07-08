@@ -29,7 +29,7 @@ func FileWithOptions(file *ast.File, options Options) string {
 		f.line("")
 	}
 	for _, imp := range file.GoImports {
-		f.linef("@go.import(%s)", strconv.Quote(imp.Path))
+		f.linef("@%s", strconv.Quote("go:"+imp.Path))
 	}
 	if (len(file.Imports) > 0 || len(file.GoImports) > 0) && (len(file.Traits) > 0 || len(file.Types) > 0 || len(file.Enums) > 0 || len(file.Constants) > 0 || len(file.Functions) > 0 || len(file.Tests) > 0) {
 		f.line("")

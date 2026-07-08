@@ -20,8 +20,9 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 	l := lowerer{info: info}
 	out := &File{Stdlib: info.Stdlib}
 	for _, imp := range file.GoImports {
-		out.GoImports = append(out.GoImports, GoImport{Path: imp.Path, Pos: imp.Pos})
+		out.GoImports = appendGoImport(out.GoImports, imp.Path, imp.Pos)
 	}
+	out.GoImports = appendGoPackageImportExprs(out.GoImports, file)
 	for _, imp := range file.TSImports {
 		tsImport := TSImport{Path: imp.Path, Specifier: imp.Specifier, Pos: imp.Pos}
 		for _, fn := range imp.Functions {
@@ -51,6 +52,47 @@ func LowerFile(file *ast.File, info *checker.Info) *File {
 		out.Tests = append(out.Tests, l.test(test))
 	}
 	return out
+}
+
+func appendGoPackageImportExprs(imports []GoImport, file *ast.File) []GoImport {
+	visit := func(expr ast.Expr) {
+		at, ok := expr.(*ast.AtExpr)
+		if !ok {
+			return
+		}
+		if path, ok := checker.GoPackageImportPath(at.Path); ok {
+			imports = appendGoImport(imports, path, at.Pos)
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			ast.WalkExpr(method.Body, visit)
+		}
+	}
+	for _, enum := range file.Enums {
+		for _, method := range enum.Methods {
+			ast.WalkExpr(method.Body, visit)
+		}
+	}
+	for _, constant := range file.Constants {
+		ast.WalkExpr(constant.Value, visit)
+	}
+	for _, fn := range file.Functions {
+		ast.WalkExpr(fn.Body, visit)
+	}
+	for _, test := range file.Tests {
+		ast.WalkExpr(test.Body, visit)
+	}
+	return imports
+}
+
+func appendGoImport(imports []GoImport, path string, pos lexer.Position) []GoImport {
+	for _, imp := range imports {
+		if imp.Path == path {
+			return imports
+		}
+	}
+	return append(imports, GoImport{Path: path, Pos: pos})
 }
 
 func LowerExpr(expr ast.Expr, info *checker.Info) Expr {

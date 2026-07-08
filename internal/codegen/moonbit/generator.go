@@ -41,7 +41,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		return "", fmt.Errorf("MoonBit backend does not support TypeScript imports")
 	}
 	if len(file.GoImports) > 0 {
-		return "", fmt.Errorf("MoonBit backend does not support @go.import")
+		return "", fmt.Errorf("MoonBit backend does not support Go package imports")
 	}
 	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}, importAliases: map[string]bool{}}
 	g.collectAnonymousTypes()

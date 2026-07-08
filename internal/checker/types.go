@@ -414,6 +414,25 @@ func ImportNamespacePath(typ Type) (string, bool) {
 	return path, path != string(typ) && path != ""
 }
 
+func GoPackageImportPath(spec string) (string, bool) {
+	path := strings.TrimPrefix(spec, "go:")
+	return path, path != spec && path != ""
+}
+
+func GoPackageNamespaceOf(path string) Type {
+	return Type("@go-import:" + path)
+}
+
+func GoPackageNamespacePath(typ Type) (string, bool) {
+	path := strings.TrimPrefix(string(typ), "@go-import:")
+	return path, path != string(typ) && path != ""
+}
+
+func GoPackageName(path string) string {
+	parts := strings.Split(path, "/")
+	return parts[len(parts)-1]
+}
+
 func DisplayType(typ Type) string {
 	return displayTypeName(string(typ))
 }

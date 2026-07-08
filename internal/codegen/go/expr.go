@@ -140,6 +140,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if _, ok := checker.ImportNamespacePath(e.Receiver.ResultType()); ok {
 			return mangleIdent(selectorResolvedName(e))
 		}
+		if path, ok := checker.GoPackageNamespacePath(e.Receiver.ResultType()); ok {
+			return checker.GoPackageName(path) + "." + e.Name
+		}
 		return g.expr(e.Receiver) + "." + mangleIdent(e.Name)
 	case *ir.ArrayLiteral:
 		elemType := checker.Unknown
@@ -183,6 +186,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.WatchExpr:
 		return g.watchExpr(e)
 	case *ir.AtExpr:
+		if path, ok := checker.GoPackageImportPath(e.Path); ok {
+			return checker.GoPackageName(path)
+		}
 		return "struct{}{}"
 	case *ir.ThisExpr:
 		if name := g.currentThisName(); name != "" {

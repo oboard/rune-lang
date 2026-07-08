@@ -757,6 +757,9 @@ func (c *checker) inferStaticSelector(sel *ast.SelectorExpr, env map[string]Type
 
 func (c *checker) inferAtExpr(expr *ast.AtExpr) Type {
 	if expr.Path != "" {
+		if goPath, ok := GoPackageImportPath(expr.Path); ok {
+			return GoPackageNamespaceOf(goPath)
+		}
 		if expr.SourcePath == "" {
 			c.errorf(expr.Pos, "unresolved import %q", expr.Path)
 			return ImportNamespaceOf(expr.Path)
@@ -799,6 +802,9 @@ func (c *checker) inferNamespaceSelector(sel *ast.SelectorExpr, receiver Type) (
 		}
 		c.errorf(sel.Pos, "import %q has no member %q", importPath, sel.Name)
 		return Unknown, true
+	}
+	if _, ok := GoPackageNamespacePath(receiver); ok {
+		return FuncOfTypes(nil, Unknown), true
 	}
 	return Unknown, false
 }
@@ -959,6 +965,14 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		}
 		if importPath, ok := ImportNamespacePath(receiver); ok {
 			return c.inferImportedNamespaceCall(importPath, sel, call, argTypes, env)
+		}
+		if _, ok := GoPackageNamespacePath(receiver); ok {
+			if callExpected != Unknown {
+				c.info.ExprTypes[sel] = FuncOfTypes(nil, callExpected)
+				return callExpected
+			}
+			c.info.ExprTypes[sel] = FuncOfTypes(nil, Unknown)
+			return Unknown
 		}
 		if elem, ok := ArrayElement(receiver); ok {
 			return c.inferArrayMethodCall(elem, sel, call, argTypes, env)

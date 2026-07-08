@@ -275,6 +275,12 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 	var diags []Diagnostic
 	merged := &ast.File{}
 	for _, imp := range fileImportRefs(file) {
+		if _, ok := checker.GoPackageImportPath(imp.path); ok {
+			if imp.expr != nil {
+				imp.expr.SourcePath = imp.path
+			}
+			continue
+		}
 		importPath, err := resolveRuneImportRef(normalized, imp)
 		if err != nil {
 			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.pos, Path: normalized})

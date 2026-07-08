@@ -2,6 +2,7 @@ package parser
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -28,6 +29,36 @@ func (p *Parser) parseGoImportDecl() *ast.GoImport {
 	}
 	p.consume(lexer.RParen, "expected ')' after @go.import")
 	return &ast.GoImport{Path: value, Pos: at.Pos}
+}
+
+func (p *Parser) looksLikeGoPackageImportDecl() bool {
+	if !p.check(lexer.At) || !p.checkNext(lexer.String) {
+		return false
+	}
+	value, err := strconv.Unquote(p.tokens[p.curr+1].Lexeme)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(value, "go:")
+}
+
+func (p *Parser) parseGoPackageImportDecl() *ast.GoImport {
+	at := p.consume(lexer.At, "expected '@'")
+	path := p.consume(lexer.String, "expected Go import specifier string")
+	value, err := strconv.Unquote(path.Lexeme)
+	if err != nil {
+		p.errorAt(path, "invalid Go import specifier string")
+	}
+	goPath, ok := goPackageImportPath(value)
+	if !ok {
+		p.errorAt(path, "expected Go import specifier to start with \"go:\"")
+	}
+	return &ast.GoImport{Path: goPath, Pos: at.Pos}
+}
+
+func goPackageImportPath(spec string) (string, bool) {
+	path := strings.TrimPrefix(spec, "go:")
+	return path, path != spec && path != ""
 }
 
 func (p *Parser) parseImportDecl() *ast.Import {

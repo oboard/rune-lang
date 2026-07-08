@@ -365,6 +365,9 @@ func isNamespaceValue(expr ir.Expr) bool {
 	if _, ok := checker.ImportNamespacePath(expr.ResultType()); ok {
 		return true
 	}
+	if _, ok := checker.GoPackageNamespacePath(expr.ResultType()); ok {
+		return true
+	}
 	return false
 }
 

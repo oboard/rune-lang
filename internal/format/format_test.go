@@ -123,6 +123,25 @@ main() => helper()
 	}
 }
 
+func TestGoPackageImportFormatting(t *testing.T) {
+	src := `@go.import("fmt")
+main()=>{}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+want := `@"go:fmt"
+
+main() => {
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestModuleImportFormatting(t *testing.T) {
 	src := `@syntax
 make()=>SyntaxFile{}`

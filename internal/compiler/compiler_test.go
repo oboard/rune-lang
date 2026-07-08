@@ -146,6 +146,46 @@ func TestGenerateGoFileImportsRuneNamespaceReferences(t *testing.T) {
 	}
 }
 
+func TestGenerateGoFileImportsGoPackageNamespaceReferences(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  fmt := @"go:fmt"
+  fmt.Println("hello")
+}
+`)
+
+	got, diags := GenerateGoFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("GenerateGoFile() diagnostics = %#v", diags)
+	}
+	if !strings.Contains(got, `"fmt"`) {
+		t.Fatalf("generated Go missing fmt import:\n%s", got)
+	}
+	if !strings.Contains(got, `fmt.Println("hello")`) {
+		t.Fatalf("generated Go does not call Go package function:\n%s", got)
+	}
+	if strings.Contains(got, `__fmt :=`) {
+		t.Fatalf("generated Go should not bind package namespace locally:\n%s", got)
+	}
+}
+
+func TestGenerateTypeScriptFileRejectsGoPackageImports(t *testing.T) {
+	dir := t.TempDir()
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), `main() => {
+  fmt := @"go:fmt"
+  fmt.Println("hello")
+}
+`)
+
+	_, diags := GenerateTypeScriptFile(filepath.Join(dir, "main.rn"))
+	for _, diag := range diags {
+		if strings.Contains(diag.Message, "TypeScript backend does not support Go package imports") {
+			return
+		}
+	}
+	t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v, want Go package import backend diagnostic", diags)
+}
+
 func TestAnalyzeFileLoadsTypeScriptImports(t *testing.T) {
 	dir := t.TempDir()
 	writeTextFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n\nexport function score(value: number): number { return value }\n\nexport function flag(value: boolean): boolean { return value }\n\nexport function size(value: bigint): bigint { return value }\n\nexport function noop(): void {}\n\nexport function mystery(value: any): unknown { return value }\n\nexport const version: string = \"1.0.0\"\n")
