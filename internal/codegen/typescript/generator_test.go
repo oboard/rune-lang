@@ -759,6 +759,31 @@ func TestGenerateSymbolIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateNetUsesDataViewBytes(t *testing.T) {
+	src := `~ main() => {
+  listener := @net.listen("127.0.0.1:0")?
+  conn := listener.accept()?
+  data := conn.read(1024)?
+  conn.write(data)?
+  conn.close()?
+  listener.close()?
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function runeNetConnectionRead(connection: RuneTCPConnection, length: number): Promise<RuneResult<DataView, RuneError>>`,
+		`resolve(runeOk<DataView, RuneError>(runeDataViewFromBytes(Array.from(chunk.slice(0, length)))))`,
+		`function runeNetConnectionWrite(connection: RuneTCPConnection, data: DataView): Promise<RuneResult<number, RuneError>>`,
+		`const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);`,
+		`connection.socket.write(bytes`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateRoutineCallsUseTrackedPromises(t *testing.T) {
 	src := `~ test(count: Int) => {
   @io.println("Hello World" + count.toString())

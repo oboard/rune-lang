@@ -1067,32 +1067,32 @@ func (g *generator) netRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("func (c *runeTCPConnection) Read(length int) runeTask[runeResult[[]byte, *runeError]] {")
+	g.line("func (c *runeTCPConnection) Read(length int) runeTask[runeResult[*runeBytes, *runeError]] {")
 	g.indent++
-	g.line("return runeGo(func() runeResult[[]byte, *runeError] {")
+	g.line("return runeGo(func() runeResult[*runeBytes, *runeError] {")
 	g.indent++
 	g.line("if length < 0 {")
 	g.indent++
-	g.line("return runeErr[[]byte, *runeError](&runeError{__code: 1, __message: \"net read length out of range\"})")
+	g.line("return runeErr[*runeBytes, *runeError](&runeError{__code: 1, __message: \"net read length out of range\"})")
 	g.indent--
 	g.line("}")
 	g.line("buf := make([]byte, length)")
 	g.line("n, err := c.conn.Read(buf)")
 	g.line("if err != nil {")
 	g.indent++
-	g.line("return runeErr[[]byte, *runeError](runeErrorFrom(err))")
+	g.line("return runeErr[*runeBytes, *runeError](runeErrorFrom(err))")
 	g.indent--
 	g.line("}")
-	g.line("return runeOk[[]byte, *runeError](buf[:n])")
+	g.line("return runeOk[*runeBytes, *runeError](&runeBytes{data: buf[:n]})")
 	g.indent--
 	g.line("})")
 	g.indent--
 	g.line("}")
-	g.line("func (c *runeTCPConnection) Write(data []byte) runeTask[runeResult[int, *runeError]] {")
+	g.line("func (c *runeTCPConnection) Write(data *runeBytes) runeTask[runeResult[int, *runeError]] {")
 	g.indent++
 	g.line("return runeGo(func() runeResult[int, *runeError] {")
 	g.indent++
-	g.line("n, err := c.conn.Write(data)")
+	g.line("n, err := c.conn.Write(data.data)")
 	g.line("if err != nil {")
 	g.indent++
 	g.line("return runeErr[int, *runeError](runeErrorFrom(err))")

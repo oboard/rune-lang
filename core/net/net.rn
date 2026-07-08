@@ -1,10 +1,10 @@
 + TCPConnection: {
   ~ read(
     length: Int
-  ) -> Result[@io.Data, Error] => "%netConnection.read"
+  ) -> Result[Bytes, Error] => "%netConnection.read"
 
   ~ write(
-    data: @io.Data
+    data: Bytes
   ) -> Result[Int, Error] => "%netConnection.write"
 
   ~ close() -> Result[Void, Error] => "%netConnection.close"

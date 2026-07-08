@@ -727,12 +727,12 @@ func (g *generator) netRuntime() {
 	g.line("} catch (error) { return runeErr<RuneTCPListener, RuneError>(runeErrorFrom(error)); }")
 	g.indent--
 	g.line("}")
-	g.line("function runeNetConnectionRead(connection: RuneTCPConnection, length: number): Promise<RuneResult<Uint8Array, RuneError>> {")
+	g.line("function runeNetConnectionRead(connection: RuneTCPConnection, length: number): Promise<RuneResult<DataView, RuneError>> {")
 	g.indent++
 	g.line("return new Promise((resolve) => {")
 	g.indent++
-	g.line("const onData = (chunk: Uint8Array) => { cleanup(); resolve(runeOk<Uint8Array, RuneError>(chunk.slice(0, length))); };")
-	g.line("const onError = (error: unknown) => { cleanup(); resolve(runeErr<Uint8Array, RuneError>(runeErrorFrom(error))); };")
+	g.line("const onData = (chunk: Uint8Array) => { cleanup(); resolve(runeOk<DataView, RuneError>(runeDataViewFromBytes(Array.from(chunk.slice(0, length))))); };")
+	g.line("const onError = (error: unknown) => { cleanup(); resolve(runeErr<DataView, RuneError>(runeErrorFrom(error))); };")
 	g.line("const cleanup = () => { connection.socket.off(\"data\", onData); connection.socket.off(\"error\", onError); };")
 	g.line("connection.socket.once(\"data\", onData);")
 	g.line("connection.socket.once(\"error\", onError);")
@@ -740,9 +740,10 @@ func (g *generator) netRuntime() {
 	g.line("});")
 	g.indent--
 	g.line("}")
-	g.line("function runeNetConnectionWrite(connection: RuneTCPConnection, data: Uint8Array): Promise<RuneResult<number, RuneError>> {")
+	g.line("function runeNetConnectionWrite(connection: RuneTCPConnection, data: DataView): Promise<RuneResult<number, RuneError>> {")
 	g.indent++
-	g.line("return new Promise((resolve) => connection.socket.write(data, (error: unknown) => error ? resolve(runeErr<number, RuneError>(runeErrorFrom(error))) : resolve(runeOk<number, RuneError>(data.byteLength))));")
+	g.line("const bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);")
+	g.line("return new Promise((resolve) => connection.socket.write(bytes, (error: unknown) => error ? resolve(runeErr<number, RuneError>(runeErrorFrom(error))) : resolve(runeOk<number, RuneError>(data.byteLength))));")
 	g.indent--
 	g.line("}")
 	g.line("function runeNetConnectionClose(connection: RuneTCPConnection): Promise<RuneResult<void, RuneError>> { connection.socket.end(); return Promise.resolve(runeOk<void, RuneError>(undefined)); }")

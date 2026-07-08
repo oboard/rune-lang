@@ -1172,6 +1172,41 @@ func TestGenerateSymbolIntrinsicProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateNetUsesRuneBytes(t *testing.T) {
+	src := `~ main() => {
+  listener := @net.listen("127.0.0.1:0")?
+  conn := listener.accept()?
+  data := conn.read(1024)?
+  conn.write(data)?
+  conn.close()?
+  listener.close()?
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := checker.Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	got, err := Generate(file, info)
+	if err != nil {
+		t.Fatalf("Generate() error = %v\n%s", err, got)
+	}
+	wantParts := []string{
+		`func (c *runeTCPConnection) Read(length int) runeTask[runeResult[*runeBytes, *runeError]]`,
+		`return runeOk[*runeBytes, *runeError](&runeBytes{data: buf[:n]})`,
+		`func (c *runeTCPConnection) Write(data *runeBytes) runeTask[runeResult[int, *runeError]]`,
+		`n, err := c.conn.Write(data.data)`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated Go missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestGenerateRoutineCallsWaitAtProgramExit(t *testing.T) {
 	src := `~ test(count: Int) => {
   @io.println("Hello World" + count.toString())
