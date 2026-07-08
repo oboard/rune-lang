@@ -72,6 +72,30 @@
 
 + mangleIdent(name: String) -> String => "__" + name.replaceAll(".", "_").replaceAll("-", "_").replaceAll("@", "_")
 
++ compilerGoPackageImportPath(
+  spec: String
+) -> String => (
+  spec.startsWith("go:") ? spec.slice(3, spec.length())
+    : ""
+)
+
++ compilerGoPackageName(
+  path: String
+) -> String => {
+  slash := path.lastIndexOf("/")
+  (
+    slash >= 0 ? path.slice(slash + 1, path.length())
+      : path
+  )
+}
+
++ compilerIRAtImportPath(
+  expr: IRExpr
+) -> String => (
+  (expr.kind == ExprKind.At) && (expr.value != "") ? expr.value.slice(1, expr.value.length() - 1)
+    : ""
+)
+
 + indent(level: Int) -> String => (
   level <= 0 ? ""
     : "  " + indent(level - 1)

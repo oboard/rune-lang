@@ -789,17 +789,35 @@ parseImportDecl(
 ) -> ImportStep => {
   at := parserConsume(state, TokenKind.At, "expected '@'")
   path := parserConsume(at.state, TokenKind.String, "expected import path string after '@'")
+  rawPath := unquote(path.token.lexeme)
+  goPath := parserGoPackageImportPath(rawPath)
+  isGo := goPath != ""
+  invalidGo := rawPath.startsWith("go:") && (goPath == "")
+  nextState := (
+    invalidGo ? parserErrorAt(path.state, path.token, "expected Go import path after \"go:\"")
+      : path.state
+  )
   ImportStep {
-    state: path.state,
+    state: nextState,
     importDecl: ParsedImport {
-      path: unquote(path.token.lexeme),
-      go: false,
+      path: (
+        isGo ? goPath
+          : rawPath
+      ),
+      go: isGo,
       module: false,
       line: at.token.line,
       column: at.token.column
     }
   }
 }
+
+parserGoPackageImportPath(
+  spec: String
+) -> String => (
+  spec.startsWith("go:") ? spec.slice(3, spec.length())
+    : ""
+)
 
 parseModuleImportDecl(
   state: ParserState

@@ -485,7 +485,7 @@ export const version: string = "1"
 }
 
 ? "selfhost compiler rejects Go imports outside Go backend" {
-  source := `@go.import("fmt")
+  source := `@"go:fmt"
 
 main() -> Int => 1
 `
@@ -495,8 +495,8 @@ main() -> Int => 1
   @assert.eq(mbt.ok, false)
   @assert.eq(ts.errors.length(), 1)
   @assert.eq(mbt.errors.length(), 1)
-  @assert.eq(ts.errors[0], "TypeScript backend does not support @go.import")
-  @assert.eq(mbt.errors[0], "MoonBit backend does not support @go.import")
+  @assert.eq(ts.errors[0], "TypeScript backend does not support Go package imports")
+  @assert.eq(mbt.errors[0], "MoonBit backend does not support Go package imports")
 }
 
 ? "selfhost compiler rejects Go FFI outside Go backend" {
@@ -513,7 +513,7 @@ main() -> Int => 1
 }
 
 ? "selfhost compiler emits Go imports" {
-  source := `@go.import("fmt")
+  source := `@"go:fmt"
 
 main() => @io.println("ok")
 `
@@ -522,6 +522,25 @@ main() => @io.println("ok")
   @assert.eq(go.errors.length(), 0)
   @assert.eq(go.output.includes("\t\"fmt\"\n"), true)
   @assert.eq(go.output.includes("\t\"fmt\"\n\t\"fmt\"\n"), false)
+}
+
+? "selfhost compiler emits Go package namespace calls" {
+  source := `isNaN(value: Double) -> Bool => @"go:math".IsNaN(value)
+
+main() => {
+  fmt := @"go:fmt"
+  fmt.Println("hello")
+  @io.println(isNaN(0.0))
+}
+`
+  go := compileGo(source)
+  @assert.eq(go.ok, true)
+  @assert.eq(go.errors.length(), 0)
+  @assert.eq(go.output.includes("\t\"fmt\"\n"), true)
+  @assert.eq(go.output.includes("\t\"math\"\n"), true)
+  @assert.eq(go.output.includes("return math.IsNaN(__value)"), true)
+  @assert.eq(go.output.includes("fmt.Println(\"hello\")"), true)
+  @assert.eq(go.output.includes("__fmt :="), false)
 }
 
 ? "selfhost compiler checks Go FFI arguments" {

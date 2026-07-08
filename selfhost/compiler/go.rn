@@ -1038,10 +1038,17 @@ emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
 emitGoAtSelector(
   expr: IRExpr
 ) -> String => {
-  imported := expr.children[0].value != ""
-  imported {
-    true => mangleIdent(expr.name)
-    _ => (expr.children[0].name + ".") + expr.name
+  importPath := compilerIRAtImportPath(expr.children[0])
+  goPath := compilerGoPackageImportPath(importPath)
+  goPath {
+    "" => {
+      imported := importPath != ""
+      imported {
+        true => mangleIdent(expr.name)
+        _ => (expr.children[0].name + ".") + expr.name
+      }
+    }
+    _ => (compilerGoPackageName(goPath) + ".") + expr.name
   }
 }
 

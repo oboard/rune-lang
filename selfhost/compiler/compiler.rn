@@ -38,6 +38,8 @@ CompilerTypeBinding: {
 CompilerNamespaceAlias: {
   name: String
   module: String
+  importPath: String
+  go: Bool
 }
 
 + compileTypeScript(
@@ -121,7 +123,7 @@ checkTypeScriptTargetFileErrors(
 ) -> Array[String] => {
   hasGoImports := fileHasGoImports(file)
   hasGoImports {
-    true => ["TypeScript backend does not support @go.import"]
+    true => ["TypeScript backend does not support Go package imports"]
     _ => fileUsesGoFFI(file) {
       true => ["TypeScript backend does not support @go FFI"]
       _ => []
@@ -146,7 +148,7 @@ checkMoonBitTargetFileErrors(
   hasTypeScriptImports := file.tsImports.length() > 0
   errors = compilerAppendErrorIf(errors, hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
   hasGoImports := fileHasGoImports(file)
-  errors = compilerAppendErrorIf(errors, hasGoImports, "MoonBit backend does not support @go.import")
+  errors = compilerAppendErrorIf(errors, hasGoImports, "MoonBit backend does not support Go package imports")
   hasGoFFI := (hasGoImports == false) && fileUsesGoFFI(file)
   errors = compilerAppendErrorIf(errors, hasGoFFI, "MoonBit backend does not support @go FFI")
   errors
@@ -2730,7 +2732,10 @@ checkAtSelectorCall(
   importPath := compilerIRAtImportPath(receiver)
   importPath {
     "" => checkModuleSelectorCall(expr, selector, receiver, errors)
-    _ => checkIdentifierCall(expr, selector.name, expr.children.length() - 1, structs, callables, errors, bindings)
+    _ => (
+      compilerGoPackageImportPath(importPath) != "" ? errors
+        : checkIdentifierCall(expr, selector.name, expr.children.length() - 1, structs, callables, errors, bindings)
+    )
   }
 }
 
@@ -3770,7 +3775,10 @@ inferCompilerAtSelectorCallType(
   importPath := compilerIRAtImportPath(receiver)
   (importPath == "") {
     true => expr.text
-    _ => compilerCallableReturnOrText(findCompilerCallable(callables, selector.name, 0), expr.text)
+    _ => (
+      compilerGoPackageImportPath(importPath) != "" ? expr.text
+        : compilerCallableReturnOrText(findCompilerCallable(callables, selector.name, 0), expr.text)
+    )
   }
 }
 
@@ -5193,11 +5201,15 @@ compilerAppendImportExpr(
   expr: ParsedExpr
 ) -> Array[ParsedImport] => {
   path := compilerAtImportPath(expr)
+  goPath := compilerGoPackageImportPath(path)
   (
     path == "" ? imports
       : compilerAppendParsedImportIfMissing(imports, ParsedImport {
-        path: path,
-        go: false,
+        path: (
+          goPath != "" ? goPath
+            : path
+        ),
+        go: goPath != "",
         module: false,
         line: expr.line,
         column: expr.column
@@ -5349,9 +5361,12 @@ expandCompilerNamespaceAliasSelectorFound(
   alias: CompilerNamespaceAlias
 ) -> ParsedExpr => {
   moduleAlias := alias.module != ""
-  moduleAlias {
-    true => compilerWithChildren(expr, [compilerModuleAtExpr(alias.module, receiver.line, receiver.column)])
-    _ => compilerParsedExpr(ExprKind.Identifier, expr.name, expr.name, "", "", [], [], expr.line, expr.column)
+  alias.go {
+    true => compilerWithChildren(expr, [compilerImportAtExpr("go:" + alias.importPath, receiver.line, receiver.column)])
+    _ => moduleAlias {
+      true => compilerWithChildren(expr, [compilerModuleAtExpr(alias.module, receiver.line, receiver.column)])
+      _ => compilerParsedExpr(ExprKind.Identifier, expr.name, expr.name, "", "", [], [], expr.line, expr.column)
+    }
   }
 }
 
@@ -5396,8 +5411,12 @@ compilerNamespaceAliasFromAt(
   expr: ParsedExpr
 ) -> CompilerNamespaceAlias => {
   importPath := compilerAtImportPath(expr)
+  goPath := compilerGoPackageImportPath(importPath)
   (
-    importPath != "" ? compilerNamespaceAlias(name, "")
+    importPath != "" ? (
+      goPath != "" ? compilerGoNamespaceAlias(name, goPath)
+        : compilerNamespaceAlias(name, "")
+    )
       : (
         expr.name != "" ? compilerNamespaceAlias(name, expr.name)
           : emptyCompilerNamespaceAlias()
@@ -5412,12 +5431,11 @@ compilerAtImportPath(
     : ""
 )
 
-compilerIRAtImportPath(
-  expr: IRExpr
-) -> String => (
-  (expr.kind == ExprKind.At) && (expr.value != "") ? compilerUnquoteString(expr.value)
-    : ""
-)
+compilerImportAtExpr(
+  path: String,
+  line: Int,
+  column: Int
+) -> ParsedExpr => compilerParsedExpr(ExprKind.At, "@", "", ("\"" + path) + "\"", "", [], [], line, column)
 
 compilerModuleAtExpr(
   module: String,
@@ -5435,7 +5453,19 @@ compilerNamespaceAlias(
   module: String
 ) -> CompilerNamespaceAlias => {
   name: name,
-  module: module
+  module: module,
+  importPath: "",
+  go: false
+}
+
+compilerGoNamespaceAlias(
+  name: String,
+  importPath: String
+) -> CompilerNamespaceAlias => {
+  name: name,
+  module: "",
+  importPath: importPath,
+  go: true
 }
 
 emptyCompilerNamespaceAlias(

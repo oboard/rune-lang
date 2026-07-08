@@ -574,8 +574,10 @@ type __CompilerTypeBinding struct {
 }
 
 type __CompilerNamespaceAlias struct {
-	__name   string
-	__module string
+	__name       string
+	__module     string
+	__importPath string
+	__go         bool
 }
 
 func runeTemplateString(value any) string {
@@ -2271,7 +2273,31 @@ func ____rune_private_b990f3d7_parseStaticMethodMarker(__state __ParserState) __
 func ____rune_private_b990f3d7_parseImportDecl(__state __ParserState) __ImportStep {
 	__at := ____rune_private_b990f3d7_parserConsume(__state, __TokenKind_At, "expected '@'")
 	__path := ____rune_private_b990f3d7_parserConsume(__at.__state, __TokenKind_String, "expected import path string after '@'")
-	return __ImportStep{__state: __path.__state, __importDecl: __ParsedImport{__path: ____rune_private_b990f3d7_unquote(__path.__token.__lexeme), __go: false, __module: false, __line: __at.__token.__line, __column: __at.__token.__column}}
+	__rawPath := ____rune_private_b990f3d7_unquote(__path.__token.__lexeme)
+	__goPath := ____rune_private_b990f3d7_parserGoPackageImportPath(__rawPath)
+	__isGo := __goPath != ""
+	__invalidGo := strings.HasPrefix(__rawPath, "go:") && __goPath == ""
+	__nextState := func() __ParserState {
+		if __invalidGo {
+			return ____rune_private_b990f3d7_parserErrorAt(__path.__state, __path.__token, "expected Go import path after \"go:\"")
+		}
+		return __path.__state
+	}()
+	return __ImportStep{__state: __nextState, __importDecl: __ParsedImport{__path: func() string {
+		if __isGo {
+			return __goPath
+		}
+		return __rawPath
+	}(), __go: __isGo, __module: false, __line: __at.__token.__line, __column: __at.__token.__column}}
+}
+
+func ____rune_private_b990f3d7_parserGoPackageImportPath(__spec string) string {
+	return func() string {
+		if strings.HasPrefix(__spec, "go:") {
+			return func() string { runes := []rune(__spec); return string(runes[3:len([]rune(__spec))]) }()
+		}
+		return ""
+	}()
 }
 
 func ____rune_private_b990f3d7_parseModuleImportDecl(__state __ParserState) __ImportStep {
@@ -5452,6 +5478,37 @@ func __mangleIdent(__name string) string {
 	return "__" + strings.ReplaceAll((strings.ReplaceAll((strings.ReplaceAll(__name, ".", "_")), "-", "_")), "@", "_")
 }
 
+func __compilerGoPackageImportPath(__spec string) string {
+	return func() string {
+		if strings.HasPrefix(__spec, "go:") {
+			return func() string { runes := []rune(__spec); return string(runes[3:len([]rune(__spec))]) }()
+		}
+		return ""
+	}()
+}
+
+func __compilerGoPackageName(__path string) string {
+	__slash := strings.LastIndex(__path, "/")
+	return func() string {
+		if __slash >= 0 {
+			return func() string { runes := []rune(__path); return string(runes[__slash+1 : len([]rune(__path))]) }()
+		}
+		return __path
+	}()
+}
+
+func __compilerIRAtImportPath(__expr __IRExpr) string {
+	return func() string {
+		if __expr.__kind == __ExprKind_At && __expr.__value != "" {
+			return func() string {
+				runes := []rune(__expr.__value)
+				return string(runes[1 : len([]rune(__expr.__value))-1])
+			}()
+		}
+		return ""
+	}()
+}
+
 func __indent(__level int) string {
 	return func() string {
 		if __level <= 0 {
@@ -6672,13 +6729,24 @@ func ____rune_private_8ddf8596_emitGoSelector(__expr __IRExpr) string {
 }
 
 func ____rune_private_8ddf8596_emitGoAtSelector(__expr __IRExpr) string {
-	__imported := __expr.__children[0].__value != ""
+	__importPath := __compilerIRAtImportPath(__expr.__children[0])
+	__goPath := __compilerGoPackageImportPath(__importPath)
 	return func() string {
 		switch {
-		case __imported == true:
-			return __mangleIdent(__expr.__name)
+		case __goPath == "":
+			return func() string {
+				__imported := __importPath != ""
+				return func() string {
+					switch {
+					case __imported == true:
+						return __mangleIdent(__expr.__name)
+					default:
+						return __expr.__children[0].__name + "." + __expr.__name
+					}
+				}()
+			}()
 		default:
-			return __expr.__children[0].__name + "." + __expr.__name
+			return __compilerGoPackageName(__goPath) + "." + __expr.__name
 		}
 	}()
 }
@@ -9255,7 +9323,7 @@ func ____rune_private_0d2ebf0f_checkTypeScriptTargetFileErrors(__file __IRFile) 
 	return func() []string {
 		switch {
 		case __hasGoImports == true:
-			return []string{"TypeScript backend does not support @go.import"}
+			return []string{"TypeScript backend does not support Go package imports"}
 		default:
 			return func() []string {
 				switch {
@@ -9286,7 +9354,7 @@ func ____rune_private_0d2ebf0f_checkMoonBitTargetFileErrors(__file __IRFile) []s
 	__hasTypeScriptImports := len(__file.__tsImports) > 0
 	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
 	__hasGoImports := ____rune_private_0d2ebf0f_fileHasGoImports(__file)
-	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoImports, "MoonBit backend does not support @go.import")
+	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoImports, "MoonBit backend does not support Go package imports")
 	__hasGoFFI := __hasGoImports == false && ____rune_private_0d2ebf0f_fileUsesGoFFI(__file)
 	__errors = ____rune_private_0d2ebf0f_compilerAppendErrorIf(__errors, __hasGoFFI, "MoonBit backend does not support @go FFI")
 	return __errors
@@ -12079,13 +12147,18 @@ func ____rune_private_0d2ebf0f_checkSelectorCallReceiver(__expr __IRExpr, __sele
 }
 
 func ____rune_private_0d2ebf0f_checkAtSelectorCall(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
+	__importPath := __compilerIRAtImportPath(__receiver)
 	return func() []string {
 		switch {
 		case __importPath == "":
 			return ____rune_private_0d2ebf0f_checkModuleSelectorCall(__expr, __selector, __receiver, __errors)
 		default:
-			return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __structs, __callables, __errors, __bindings)
+			return func() []string {
+				if __compilerGoPackageImportPath(__importPath) != "" {
+					return __errors
+				}
+				return ____rune_private_0d2ebf0f_checkIdentifierCall(__expr, __selector.__name, len(__expr.__children)-1, __structs, __callables, __errors, __bindings)
+			}()
 		}
 	}()
 }
@@ -13237,13 +13310,18 @@ func ____rune_private_0d2ebf0f_inferCompilerSelectorCallTypeFromReceiver(__expr 
 }
 
 func ____rune_private_0d2ebf0f_inferCompilerAtSelectorCallType(__expr __IRExpr, __selector __IRExpr, __receiver __IRExpr, __callables []__CompilerCallable) string {
-	__importPath := ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver)
+	__importPath := __compilerIRAtImportPath(__receiver)
 	return func() string {
 		switch {
 		case __importPath == "" == true:
 			return __expr.__text
 		default:
-			return ____rune_private_0d2ebf0f_compilerCallableReturnOrText(____rune_private_0d2ebf0f_findCompilerCallable(__callables, __selector.__name, 0), __expr.__text)
+			return func() string {
+				if __compilerGoPackageImportPath(__importPath) != "" {
+					return __expr.__text
+				}
+				return ____rune_private_0d2ebf0f_compilerCallableReturnOrText(____rune_private_0d2ebf0f_findCompilerCallable(__callables, __selector.__name, 0), __expr.__text)
+			}()
 		}
 	}()
 }
@@ -13266,7 +13344,7 @@ func ____rune_private_0d2ebf0f_inferCompilerSelectorTypeFromReceiver(__expr __IR
 		case __receiver.__kind == __ExprKind_At:
 			return func() string {
 				switch {
-				case ____rune_private_0d2ebf0f_compilerIRAtImportPath(__receiver) == "":
+				case __compilerIRAtImportPath(__receiver) == "":
 					return ""
 				default:
 					return ____rune_private_0d2ebf0f_findCompilerTypeBinding(__bindings, __expr.__name, 0).__typeName
@@ -14708,11 +14786,17 @@ func ____rune_private_0d2ebf0f_compilerCollectImportExprs(__expr __ParsedExpr, _
 
 func ____rune_private_0d2ebf0f_compilerAppendImportExpr(__imports []__ParsedImport, __expr __ParsedExpr) []__ParsedImport {
 	__path := ____rune_private_0d2ebf0f_compilerAtImportPath(__expr)
+	__goPath := __compilerGoPackageImportPath(__path)
 	return func() []__ParsedImport {
 		if __path == "" {
 			return __imports
 		}
-		return ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __ParsedImport{__path: __path, __go: false, __module: false, __line: __expr.__line, __column: __expr.__column})
+		return ____rune_private_0d2ebf0f_compilerAppendParsedImportIfMissing(__imports, __ParsedImport{__path: func() string {
+			if __goPath != "" {
+				return __goPath
+			}
+			return __path
+		}(), __go: __goPath != "", __module: false, __line: __expr.__line, __column: __expr.__column})
 	}()
 }
 
@@ -14874,10 +14958,17 @@ func ____rune_private_0d2ebf0f_expandCompilerNamespaceAliasSelectorFound(__expr 
 	__moduleAlias := __alias.__module != ""
 	return func() __ParsedExpr {
 		switch {
-		case __moduleAlias == true:
-			return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, []__ParsedExpr{____rune_private_0d2ebf0f_compilerModuleAtExpr(__alias.__module, __receiver.__line, __receiver.__column)})
+		case __alias.__go == true:
+			return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, []__ParsedExpr{____rune_private_0d2ebf0f_compilerImportAtExpr("go:"+__alias.__importPath, __receiver.__line, __receiver.__column)})
 		default:
-			return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Identifier, __expr.__name, __expr.__name, "", "", []__ParsedParam{}, []__ParsedExpr{}, __expr.__line, __expr.__column)
+			return func() __ParsedExpr {
+				switch {
+				case __moduleAlias == true:
+					return ____rune_private_0d2ebf0f_compilerWithChildren(__expr, []__ParsedExpr{____rune_private_0d2ebf0f_compilerModuleAtExpr(__alias.__module, __receiver.__line, __receiver.__column)})
+				default:
+					return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_Identifier, __expr.__name, __expr.__name, "", "", []__ParsedParam{}, []__ParsedExpr{}, __expr.__line, __expr.__column)
+				}
+			}()
 		}
 	}()
 }
@@ -14926,9 +15017,15 @@ func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromLetValue(__name string,
 
 func ____rune_private_0d2ebf0f_compilerNamespaceAliasFromAt(__name string, __expr __ParsedExpr) __CompilerNamespaceAlias {
 	__importPath := ____rune_private_0d2ebf0f_compilerAtImportPath(__expr)
+	__goPath := __compilerGoPackageImportPath(__importPath)
 	return func() __CompilerNamespaceAlias {
 		if __importPath != "" {
-			return ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name, "")
+			return func() __CompilerNamespaceAlias {
+				if __goPath != "" {
+					return ____rune_private_0d2ebf0f_compilerGoNamespaceAlias(__name, __goPath)
+				}
+				return ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name, "")
+			}()
 		}
 		return func() __CompilerNamespaceAlias {
 			if __expr.__name != "" {
@@ -14948,13 +15045,8 @@ func ____rune_private_0d2ebf0f_compilerAtImportPath(__expr __ParsedExpr) string 
 	}()
 }
 
-func ____rune_private_0d2ebf0f_compilerIRAtImportPath(__expr __IRExpr) string {
-	return func() string {
-		if __expr.__kind == __ExprKind_At && __expr.__value != "" {
-			return ____rune_private_0d2ebf0f_compilerUnquoteString(__expr.__value)
-		}
-		return ""
-	}()
+func ____rune_private_0d2ebf0f_compilerImportAtExpr(__path string, __line int, __column int) __ParsedExpr {
+	return ____rune_private_0d2ebf0f_compilerParsedExpr(__ExprKind_At, "@", "", "\""+__path+"\"", "", []__ParsedParam{}, []__ParsedExpr{}, __line, __column)
 }
 
 func ____rune_private_0d2ebf0f_compilerModuleAtExpr(__module string, __line int, __column int) __ParsedExpr {
@@ -14966,7 +15058,11 @@ func ____rune_private_0d2ebf0f_compilerWithChildren(__expr __ParsedExpr, __child
 }
 
 func ____rune_private_0d2ebf0f_compilerNamespaceAlias(__name string, __module string) __CompilerNamespaceAlias {
-	return __CompilerNamespaceAlias{__name: __name, __module: __module}
+	return __CompilerNamespaceAlias{__name: __name, __module: __module, __importPath: "", __go: false}
+}
+
+func ____rune_private_0d2ebf0f_compilerGoNamespaceAlias(__name string, __importPath string) __CompilerNamespaceAlias {
+	return __CompilerNamespaceAlias{__name: __name, __module: "", __importPath: __importPath, __go: true}
 }
 
 func ____rune_private_0d2ebf0f_emptyCompilerNamespaceAlias() __CompilerNamespaceAlias {
