@@ -279,6 +279,89 @@ func TestRuneCLIMoonBitUsesSelfhostCompiler(t *testing.T) {
 	}
 }
 
+// TestRuneCLITestUsesSelfhostRunner verifies that `rune test` (default backend)
+// executes tests through the selfhost runner: a passing and a failing test are
+// reported as such, and the command aggregates pass/fail totals.
+func TestRuneCLITestUsesSelfhostRunner(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `? "describes basics" {
+  @assert.eq(1, 1)
+}
+? "fails intentionally" {
+  @assert.eq(1, 2)
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := runRuneCLI([]string{"test", path}, strings.NewReader(""), &out, &errOut)
+	if err == nil {
+		t.Fatalf("runRuneCLI(test) expected failure (failing test), got nil; stdout = %q", out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "--- PASS "+path+" ? describes basics") {
+		t.Fatalf("runRuneCLI(test) missing PASS entry for baseline test: %q", got)
+	}
+	if !strings.Contains(got, "--- FAIL "+path+" ? fails intentionally") {
+		t.Fatalf("runRuneCLI(test) missing FAIL entry for failing test: %q", got)
+	}
+	if !strings.Contains(got, "1 passed") || !strings.Contains(got, "1 failed") {
+		t.Fatalf("runRuneCLI(test) missing pass/fail counts: %q", got)
+	}
+}
+
+func TestRuneCLITestDiscoveryUsesHostPath(t *testing.T) {
+	// Discovery is currently host-driven: `rune test` walks directories to find
+	// test files. This test locks in behavior parity while selfhost discovery is
+	// deferred behind the routine-chain language design.
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, "alpha.rn"), `? "alpha case" {
+  @assert.eq(1, 1)
+}
+`)
+	writeTestFile(t, filepath.Join(dir, "beta.rn"), `? "beta case" {
+  @assert.eq(2, 2)
+}
+`)
+
+	var out bytes.Buffer
+	if err := runRuneCLI([]string{"test", dir}, strings.NewReader(""), &out, &bytes.Buffer{}); err != nil {
+		t.Fatalf("runRuneCLI(test %s) error = %v, stdout = %q", dir, err, out.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "alpha") || !strings.Contains(got, "beta") {
+		t.Fatalf("runRuneCLI(test dir) output = %q, want alpha+beta", got)
+	}
+	if !strings.Contains(got, "0 failed") {
+		t.Fatalf("runRuneCLI(test dir) output = %q, want 0 failed", got)
+	}
+}
+
+func TestRuneCLITestPatternFilterUsesSelfhostRunner(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `? "alpha runs" {
+  @assert.eq(1, 1)
+}
+? "beta skipped" {
+  @assert.eq(2, 2)
+}
+`)
+
+	var out bytes.Buffer
+	if err := runRuneCLI([]string{"test", path, "alpha"}, strings.NewReader(""), &out, &bytes.Buffer{}); err != nil {
+		t.Fatalf("runRuneCLI(test alpha) error = %v", err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "=== RUN") || !strings.Contains(got, "alpha") {
+		t.Fatalf("runRuneCLI(test alpha) output = %q, want alpha RUN", got)
+	}
+	if !strings.Contains(got, "skipped") || !strings.Contains(got, "1 skipped") {
+		t.Fatalf("runRuneCLI(test alpha) output = %q, want 1 skipped", got)
+	}
+}
+
 func TestRuneCLITypeScriptDeclarationUsesSelfhostCompiler(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.rn")
