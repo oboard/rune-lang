@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/oboard/rune-lang/internal/compiler"
 )
 
 func TestParseTarget(t *testing.T) {
@@ -314,6 +316,61 @@ func TestRuneCLIGoUsesSelfhostCompiler(t *testing.T) {
 	}
 	if got := out.String(); !strings.Contains(got, "fmt.Println(42)") {
 		t.Fatalf("self-host generated Go = %q, want fmt.Println(42)", got)
+	}
+}
+
+// TestGeneratedSelfhostCompilerMatchesGoHostCompiled validates that the
+// self-hosted compiler is the mainline path: for canonical single-file
+// programs it must build and run with output identical to the Go-host
+// compiler, pinning the bridge without constraining symbol naming.
+func TestGeneratedSelfhostCompilerMatchesGoHostCompiled(t *testing.T) {
+	cases := []struct {
+		name   string
+		source string
+	}{
+		{"print", "main() => @io.println(42)\n"},
+		{"fib", "fib(n) => {\n  0 => 0\n  1 => 1\n  _ => fib(n - 1) + fib(n - 2)\n}\n\nmain() => {\n  @io.println(fib(10))\n}\n"},
+		{"typed", "User: {\n  name: String\n  active: Bool\n}\n\nmakeUser(name: String) -> User => {\n  name: name,\n  active: true\n}\n\nmain() => @io.println(makeUser(\"Rune\").name)\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			selfhostOut := __compileGo(tc.source)
+			if !selfhostOut.__ok {
+				t.Fatalf("__compileGo() errors = %v", selfhostOut.__errors)
+			}
+			path := filepath.Join(t.TempDir(), "main.rn")
+			if err := os.WriteFile(path, []byte(tc.source), 0o644); err != nil {
+				t.Fatalf("WriteFile error = %v", err)
+			}
+			hostOut, diags := compiler.GenerateGoFile(path)
+			if len(diags) > 0 {
+				t.Fatalf("host GenerateGoFile() diags = %v", diags)
+			}
+			runBuilt := func(goSrc string) string {
+				dir := t.TempDir()
+				formatted, err := format.Source([]byte(goSrc))
+				if err != nil {
+					t.Fatalf("format generated Go error = %v", err)
+				}
+				goFile := filepath.Join(dir, "main.go")
+				if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
+					t.Fatalf("WriteFile(%s) error = %v", goFile, err)
+				}
+				exe := filepath.Join(dir, "prog")
+				build := exec.Command("go", "build", "-o", exe, goFile)
+				if out, err := build.CombinedOutput(); err != nil {
+					t.Fatalf("go build failed: %v\n%s", err, out)
+				}
+				out, err := exec.Command(exe).CombinedOutput()
+				if err != nil {
+					t.Fatalf("run failed: %v\n%s", err, out)
+				}
+				return string(out)
+			}
+			if got, want := runBuilt(selfhostOut.__output), runBuilt(hostOut); got != want {
+				t.Fatalf("self-host runtime output != host runtime output: got %q want %q", got, want)
+			}
+		})
 	}
 }
 
