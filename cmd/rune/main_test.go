@@ -187,6 +187,136 @@ func TestSelfhostCompilerGeneratedGoIsCurrent(t *testing.T) {
 	}
 }
 
+func TestSelfhostFormatterGeneratedGoIsCurrent(t *testing.T) {
+	root := repoRootForCommandTest(t)
+	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/format/format.rn")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("generate selfhost formatter failed: %v\n%s", err, out)
+	}
+	formatted, err := format.Source(out)
+	if err != nil {
+		t.Fatalf("format generated formatter error = %v", err)
+	}
+	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_format_gen.go")
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
+	}
+	if got := strings.ReplaceAll(string(formatted), "__", "__fmt_"); got != string(want) {
+		t.Fatalf("selfhost_format_gen.go is stale; regenerate it with rune go selfhost/format/format.rn")
+	}
+}
+
+func TestRuneCLIRunUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() => @io.println(42)\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"run", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(run) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "42\n"; got != want {
+		t.Fatalf("runRuneCLI(run) output = %q, want %q", got, want)
+	}
+}
+
+func TestRuneCLIMoonBitUsesSelfhostCompilerImportGraph(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.rn")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"mbt", entry}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(mbt import graph) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "fn __answer() -> Int") {
+		t.Fatalf("self-host generated MoonBit = %q, want imported answer", got)
+	}
+}
+
+func TestRuneCLIMoonBitUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() => @io.println(42)\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"mbt", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(mbt) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "println((42).to_string())") {
+		t.Fatalf("self-host generated MoonBit = %q, want generated println", got)
+	}
+}
+
+func TestRuneCLITypeScriptUsesSelfhostCompilerImportGraph(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.rn")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts", entry}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts import graph) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "function __answer(): number") {
+		t.Fatalf("self-host generated TypeScript = %q, want imported answer", got)
+	}
+}
+
+func TestRuneCLITypeScriptUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() => @io.println(42)\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "console.log(42)") {
+		t.Fatalf("self-host generated TypeScript = %q, want console.log(42)", got)
+	}
+}
+
+func TestRuneCLIGoUsesSelfhostCompilerImportGraph(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.rn")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"go", entry}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(go import graph) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "func __answer() int") {
+		t.Fatalf("self-host generated Go = %q, want imported answer", got)
+	}
+}
+
+func TestRuneCLIGoUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() => @io.println(42)\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"go", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(go) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "fmt.Println(42)") {
+		t.Fatalf("self-host generated Go = %q, want fmt.Println(42)", got)
+	}
+}
+
 func TestGeneratedSelfhostCompilerEmitsPatternFunction(t *testing.T) {
 	source := `fib(n) => {
   0 => 0
@@ -366,6 +496,12 @@ func TestCheckTargetAcceptsStdlibRoot(t *testing.T) {
 	}
 	if got := out.String(); got != "ok "+dir+"\n" {
 		t.Fatalf("checkTarget() output = %q", got)
+	}
+}
+
+func TestGeneratedSelfhostFormatterFormatsSimpleProgram(t *testing.T) {
+	if got, want := __fmt_formatSource("main()=>1"), "main() => 1\n"; got != want {
+		t.Fatalf("__fmt_formatSource() = %q, want %q", got, want)
 	}
 }
 

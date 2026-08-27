@@ -1,0 +1,191 @@
+@"../lexer/lexer.rn"
+
+FormatState: {
+  text: String
+  indent: Int
+  lineStart: Bool
+  previous: TokenKind
+}
+
++ formatSource(source: String) -> String => {
+  tokens := lex(source)
+  state := formatTokens(tokens, 0, emptyFormatState())
+  finishFormat(state.text)
+}
+
+emptyFormatState() -> FormatState => {
+  text: "",
+  indent: 0,
+  lineStart: true,
+  previous: TokenKind.EOF
+}
+
+formatTokens(
+  tokens: Array[Token],
+  index: Int,
+  state: FormatState
+) -> FormatState => index >= tokens.length() {
+  true => state
+  _ => formatTokens(tokens, index + 1, formatToken(state, tokens[index]))
+}
+
+formatToken(
+  state: FormatState,
+  token: Token
+) -> FormatState => token.kind {
+  TokenKind.EOF => state
+  TokenKind.Newline => formatNewline(state)
+  TokenKind.LBrace => formatOpenBrace(state)
+  TokenKind.RBrace => formatCloseBrace(state)
+  TokenKind.Comma => formatPunctuation(state, ", ", TokenKind.Comma)
+  TokenKind.Colon => formatPunctuation(state, ": ", TokenKind.Colon)
+  TokenKind.At => formatPunctuation(state, "@", TokenKind.At)
+  TokenKind.Dot => formatPunctuation(state, ".", TokenKind.Dot)
+  TokenKind.DoubleColon => formatPunctuation(state, "::", TokenKind.DoubleColon)
+  TokenKind.Question => formatPunctuation(state, "?", TokenKind.Question)
+  TokenKind.Apostrophe => formatPunctuation(state, "'", TokenKind.Apostrophe)
+  TokenKind.LParen => formatPunctuation(state, "(", TokenKind.LParen)
+  TokenKind.RParen => formatPunctuation(state, ")", TokenKind.RParen)
+  TokenKind.LBracket => formatPunctuation(state, "[", TokenKind.LBracket)
+  TokenKind.RBracket => formatPunctuation(state, "]", TokenKind.RBracket)
+  _ => formatWord(state, token)
+}
+
+formatNewline(
+  state: FormatState
+) -> FormatState => (
+  state.lineStart ? state
+    : FormatState {
+      text: trimTrailingSpace(state.text) + "\n",
+      indent: state.indent,
+      lineStart: true,
+      previous: state.previous
+    }
+)
+
+formatOpenBrace(
+  state: FormatState
+) -> FormatState => {
+  text := ensureSpace(state.text, state.lineStart)
+  FormatState {
+    text: text + "{\n",
+    indent: state.indent + 1,
+    lineStart: true,
+    previous: TokenKind.LBrace
+  }
+}
+
+formatCloseBrace(
+  state: FormatState
+) -> FormatState => {
+  indent := (
+    state.indent > 0 ? state.indent - 1
+      : 0
+  )
+  text := trimTrailingSpace(state.text)
+  text = (
+    text.endsWith("\n") ? text
+      : text + "\n"
+  )
+  FormatState {
+    text: (text + indentText(indent)) + "}",
+    indent: indent,
+    lineStart: false,
+    previous: TokenKind.RBrace
+  }
+}
+
+formatPunctuation(
+  state: FormatState,
+  text: String,
+  kind: TokenKind
+) -> FormatState => {
+  text: prefixIndent(state.text, state.indent, state.lineStart) + text,
+  indent: state.indent,
+  lineStart: false,
+  previous: kind
+}
+
+formatWord(
+  state: FormatState,
+  token: Token
+) -> FormatState => {
+  prefix := prefixIndent(state.text, state.indent, state.lineStart)
+  separated := needsSpace(state.previous, token.kind) && !state.lineStart
+  FormatState {
+    text: (
+      separated ? ensureSpace(prefix, false)
+        : prefix
+    ) + token.lexeme,
+    indent: state.indent,
+    lineStart: false,
+    previous: token.kind
+  }
+}
+
+needsSpace(
+  previous: TokenKind,
+  current: TokenKind
+) -> Bool => (isBinaryOperator(previous) || isBinaryOperator(current)) || ((((previous != TokenKind.At) && (previous != TokenKind.Dot)) && (previous != TokenKind.DoubleColon)) && (endsWord(previous) && startsWord(current)))
+
+endsWord(kind: TokenKind) -> Bool => isTokenIn(kind, [TokenKind.Ident, TokenKind.Int, TokenKind.Double, TokenKind.BigInt, TokenKind.String, TokenKind.Char, TokenKind.Regex, TokenKind.TemplateString, TokenKind.RParen, TokenKind.RBracket])
+
+startsWord(kind: TokenKind) -> Bool => isTokenIn(kind, [TokenKind.Ident, TokenKind.Int, TokenKind.Double, TokenKind.BigInt, TokenKind.String, TokenKind.Char, TokenKind.Regex, TokenKind.TemplateString, TokenKind.At, TokenKind.Dollar])
+
+isBinaryOperator(
+  kind: TokenKind
+) -> Bool => isTokenIn(kind, [TokenKind.FatArrow, TokenKind.Arrow, TokenKind.Assign, TokenKind.Declare, TokenKind.MutDeclare, TokenKind.Plus, TokenKind.Minus, TokenKind.Star, TokenKind.Slash, TokenKind.Percent, TokenKind.EqualEqual, TokenKind.BangEqual, TokenKind.Less, TokenKind.LessEqual, TokenKind.Greater, TokenKind.GreaterEqual, TokenKind.AndAnd, TokenKind.OrOr, TokenKind.QuestionQuestion, TokenKind.BitAnd, TokenKind.BitOr, TokenKind.BitXor, TokenKind.ShiftLeft, TokenKind.ShiftRight, TokenKind.UnsignedShiftRight])
+
+isTokenIn(
+  kind: TokenKind,
+  kinds: Array[TokenKind]
+) -> Bool => isTokenInAt(kind, kinds, 0)
+
+isTokenInAt(
+  kind: TokenKind,
+  kinds: Array[TokenKind],
+  index: Int
+) -> Bool => (
+  index >= kinds.length() ? false
+    : (
+      kind == kinds[index] ? true
+        : isTokenInAt(kind, kinds, index + 1)
+    )
+)
+
+prefixIndent(
+  text: String,
+  indent: Int,
+  lineStart: Bool
+) -> String => (
+  lineStart ? text + indentText(indent)
+    : text
+)
+
+ensureSpace(
+  text: String,
+  lineStart: Bool
+) -> String => (
+  ((lineStart || text.isEmpty()) || text.endsWith(" ")) || text.endsWith("\n") ? text
+    : text + " "
+)
+
+trimTrailingSpace(
+  text: String
+) -> String => (
+  text.endsWith(" ") ? trimTrailingSpace(text.slice(0, text.length() - 1))
+    : text
+)
+
+indentText(indent: Int) -> String => (
+  indent <= 0 ? ""
+    : "  " + indentText(indent - 1)
+)
+
+finishFormat(text: String) -> String => {
+  trimmed := trimTrailingSpace(text)
+  (
+    trimmed.endsWith("\n") ? trimmed
+      : trimmed + "\n"
+  )
+}

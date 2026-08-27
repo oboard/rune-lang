@@ -1,0 +1,15 @@
+@"../selfhost/format/format.rn"
+
+? "selfhost formatter normalizes simple declarations" {
+  formatted := formatSource("main()=>1")
+  @assert.eq(formatted, "main() => 1\n")
+}
+
+? "selfhost formatter indents blocks" {
+  formatted := formatSource("main()=>{value:=1\n@io.println(value)}")
+  @assert.eq(formatted, `main() => {
+  value := 1
+  @io.println(value)
+}
+`)
+}

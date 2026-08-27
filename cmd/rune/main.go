@@ -13,6 +13,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
@@ -209,12 +210,85 @@ func buildGo(path string, target string, output string, stdin io.Reader, stdout 
 	return build.Run()
 }
 
+// emitGo uses the generated self-host compiler for standalone source files.
+// Go retains the import-graph bridge while self-hosted file discovery moves out
+// of the host.
 func emitGo(path string, output string, stdout io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !requiresHostCompilerBridge(path, string(source)) {
+		files, err := collectSelfhostSourceFiles(path)
+		if err == nil {
+			result := __compileGoFiles(files)
+			if result.__ok {
+				return writeGeneratedSource(result.__output, output, stdout)
+			}
+			for _, message := range result.__errors {
+				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+			}
+			return fmt.Errorf("compile failed")
+		}
+	}
+	return emitGoWithHostImportGraph(path, output, stdout)
+}
+
+// requiresHostCompilerBridge keeps bootstrap artifacts and Rune import graphs
+// on the host compiler until self-hosted source discovery is wired into the CLI.
+func requiresHostCompilerBridge(path string, source string) bool {
+	return strings.Contains(path, "selfhost/")
+}
+
+func collectSelfhostSourceFiles(entryPath string) ([]__SourceFile, error) {
+	seen := map[string]bool{}
+	var files []__SourceFile
+	var load func(string) error
+	load = func(path string) error {
+		path = filepath.Clean(path)
+		if seen[path] {
+			return nil
+		}
+		seen[path] = true
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, ".ts") {
+			files = append(files, __SourceFile{__path: path, __source: string(source)})
+			return nil
+		}
+		file, errs := parser.Parse(string(source))
+		if len(errs) > 0 {
+			return fmt.Errorf("cannot collect imports from %s", path)
+		}
+		files = append(files, __SourceFile{__path: path, __source: string(source)})
+		for _, imp := range file.Imports {
+			if imp.Module {
+				continue
+			}
+			if err := load(filepath.Join(filepath.Dir(path), imp.Path)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if err := load(entryPath); err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+func emitGoWithHostImportGraph(path string, output string, stdout io.Writer) error {
 	src, diags := compiler.GenerateGoFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return fmt.Errorf("compile failed")
 	}
+	return writeGeneratedSource(src, output, stdout)
+}
+
+func writeGeneratedSource(src string, output string, stdout io.Writer) error {
 	if output == "" {
 		fmt.Fprint(stdout, src)
 		return nil
@@ -223,16 +297,33 @@ func emitGo(path string, output string, stdout io.Writer) error {
 }
 
 func emitTypeScript(path string, output string, stdout io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !requiresHostCompilerBridge(path, string(source)) {
+		files, err := collectSelfhostSourceFiles(path)
+		if err == nil {
+			result := __compileTypeScriptFiles(files)
+			if result.__ok {
+				return writeGeneratedSource(result.__output, output, stdout)
+			}
+			for _, message := range result.__errors {
+				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+			}
+			return fmt.Errorf("compile failed")
+		}
+	}
+	return emitTypeScriptWithHostImportGraph(path, output, stdout)
+}
+
+func emitTypeScriptWithHostImportGraph(path string, output string, stdout io.Writer) error {
 	src, diags := compiler.GenerateTypeScriptFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return fmt.Errorf("compile failed")
 	}
-	if output == "" {
-		fmt.Fprint(stdout, src)
-		return nil
-	}
-	return os.WriteFile(output, []byte(src), 0o644)
+	return writeGeneratedSource(src, output, stdout)
 }
 
 func emitTypeScriptDeclaration(path string, output string, stdout io.Writer) error {
@@ -249,16 +340,33 @@ func emitTypeScriptDeclaration(path string, output string, stdout io.Writer) err
 }
 
 func emitMoonBit(path string, output string, stdout io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !requiresHostCompilerBridge(path, string(source)) {
+		files, err := collectSelfhostSourceFiles(path)
+		if err == nil {
+			result := __compileMoonBitFiles(files)
+			if result.__ok {
+				return writeGeneratedSource(result.__output, output, stdout)
+			}
+			for _, message := range result.__errors {
+				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+			}
+			return fmt.Errorf("compile failed")
+		}
+	}
+	return emitMoonBitWithHostImportGraph(path, output, stdout)
+}
+
+func emitMoonBitWithHostImportGraph(path string, output string, stdout io.Writer) error {
 	src, diags := compiler.GenerateMoonBitFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return fmt.Errorf("compile failed")
 	}
-	if output == "" {
-		fmt.Fprint(stdout, src)
-		return nil
-	}
-	return os.WriteFile(output, []byte(src), 0o644)
+	return writeGeneratedSource(src, output, stdout)
 }
 
 // executeSelfhostCheck is the first command-execution bridge to the
@@ -298,7 +406,7 @@ func checkTarget(path string, out io.Writer) error {
 		return err
 	}
 	if !info.IsDir() {
-		return checkFile(path, out)
+		return checkFileWithSelfhostCompiler(path, out, os.Stderr)
 	}
 	if isStdlibRoot(path) {
 		if _, err := stdlib.Load(path); err != nil {
@@ -314,30 +422,10 @@ func checkTarget(path string, out io.Writer) error {
 	if len(files) == 0 {
 		return fmt.Errorf("no Rune files found in %s", path)
 	}
-	failed := false
 	for _, file := range files {
-		_, diags := compiler.AnalyzeFileWithWarnings(file)
-		if len(diags) > 0 {
-			printDiagnostics(file, diags)
+		if err := checkFileWithSelfhostCompiler(file, io.Discard, os.Stderr); err != nil {
+			return err
 		}
-		if hasErrorDiagnostics(diags) {
-			failed = true
-		}
-	}
-	if failed {
-		return fmt.Errorf("check failed")
-	}
-	fmt.Fprintf(out, "ok %s\n", path)
-	return nil
-}
-
-func checkFile(path string, out io.Writer) error {
-	_, diags := compiler.AnalyzeFileWithWarnings(path)
-	if len(diags) > 0 {
-		printDiagnostics(path, diags)
-	}
-	if hasErrorDiagnostics(diags) {
-		return fmt.Errorf("check failed")
 	}
 	fmt.Fprintf(out, "ok %s\n", path)
 	return nil
@@ -372,6 +460,22 @@ func formatTarget(path string, checkOnly bool, stdout bool, out io.Writer) error
 	return nil
 }
 
+// formatWithSelfhostBridge uses the generated self-host formatter for the
+// comment-free subset whose output is byte-identical to the established Go
+// formatter. The Go formatter remains the compatibility fallback while the
+// self-host formatter gains lossless trivia and full AST-printing coverage.
+func formatWithSelfhostBridge(file *ast.File, source string) string {
+	goFormatted := runefmt.Source(file, source)
+	if strings.Contains(source, "//") || strings.Contains(source, "/*") {
+		return goFormatted
+	}
+	selfhostFormatted := __fmt_formatSource(source)
+	if selfhostFormatted == goFormatted {
+		return selfhostFormatted
+	}
+	return goFormatted
+}
+
 func formatFile(path string, checkOnly bool, stdout bool, out io.Writer) error {
 	original, err := os.ReadFile(path)
 	if err != nil {
@@ -382,7 +486,7 @@ func formatFile(path string, checkOnly bool, stdout bool, out io.Writer) error {
 		printDiagnostics(path, parseDiagnostics(errs))
 		return fmt.Errorf("format failed")
 	}
-	formatted := runefmt.Source(file, string(original))
+	formatted := formatWithSelfhostBridge(file, string(original))
 	if stdout {
 		fmt.Fprint(out, formatted)
 		return nil
@@ -528,14 +632,36 @@ func isStdlibPrelude(path string) bool {
 }
 
 func compileGoToTemp(path string) (string, func(), error) {
-	prog, diags := compiler.AnalyzeFile(path)
-	if len(diags) > 0 {
-		printDiagnostics(path, diags)
-		return "", func() {}, fmt.Errorf("compile failed")
+	var src string
+	// The generated self-host compiler does not yet preserve the host process
+	// argv convention used by @process.argv, so retain the host path for it.
+	source, readErr := os.ReadFile(path)
+	usesProcessArgs := readErr == nil && strings.Contains(string(source), "@process.argv")
+	if !usesProcessArgs && !requiresHostCompilerBridge(path, "") {
+		files, err := collectSelfhostSourceFiles(path)
+		if err == nil {
+			result := __compileGoFiles(files)
+			if result.__ok {
+				src = result.__output
+			} else {
+				for _, message := range result.__errors {
+					fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+				}
+				return "", func() {}, fmt.Errorf("compile failed")
+			}
+		}
 	}
-	src, err := gocodegen.GenerateIR(prog.IR)
-	if err != nil {
-		return "", func() {}, err
+	if src == "" {
+		prog, diags := compiler.AnalyzeFile(path)
+		if len(diags) > 0 {
+			printDiagnostics(path, diags)
+			return "", func() {}, fmt.Errorf("compile failed")
+		}
+		generated, err := gocodegen.GenerateIR(prog.IR)
+		if err != nil {
+			return "", func() {}, err
+		}
+		src = generated
 	}
 	dir, err := os.MkdirTemp("", "rune-*")
 	if err != nil {

@@ -33,8 +33,9 @@ Status: **in progress**
 - [x] Route the host `rune check` command through a dedicated migration bridge.
 - [x] Add a backend-neutral self-hosted `checkSource` API; it does not select a
   code-generation backend.
-- [x] Use the generated self-hosted checker for host single-file checks, with
-  compatibility tests for success, errors, output, and exit behavior.
+- [x] Use the generated self-hosted checker for host single-file and directory
+  checks; Go now retains only directory discovery, stdlib loading, and error
+  output integration.
 - [ ] Move directory traversal, source import graphs, warning locations, and
   standalone CLI execution into self-hosted APIs.
 - [ ] Replace the remaining Go directory/diagnostic bridge after compatibility
@@ -42,19 +43,25 @@ Status: **in progress**
 
 ### M2 — Self-hosted compilation commands
 
-- [ ] Move `rune go` to the self-hosted compiler for single-file programs.
-- [ ] Add source-file discovery and imports through `compile*Files`.
-- [ ] Move `ts`, `dts`, and `mbt` with parity tests per backend.
+- [x] Move `rune go`, `rune ts`, and `rune mbt` to the self-hosted compiler
+  for single-file programs and host-discovered Rune/TypeScript import graphs.
+- [x] Feed host-discovered source files into `compile*Files` for the migrated
+  code-generation commands; bootstrap sources remain on the Go compiler.
+- [ ] Move `dts` with parity tests per backend.
 - [ ] Preserve output-file handling and structured diagnostic locations in the
   Go host until those capabilities are self-hosted.
 
 ### M3 — Self-hosted execution and build orchestration
 
-- [ ] Move backend selection and `rune run` orchestration.
+- [x] Use the self-hosted Go compiler for the default `rune run` compilation
+  path; Go retains process launch and backend selection.
 - [ ] Move `rune build`, retaining Go only for native process/toolchain bridges
   where necessary.
 - [ ] Move test discovery and `rune test` execution.
-- [ ] Move formatting and REPL only after their self-hosted APIs are stable.
+- [x] Add a self-hosted formatter and use it through a byte-equivalence bridge
+  for its supported comment-free subset.
+- [ ] Add lossless trivia and AST-printing coverage before replacing the Go
+  formatter fallback, then move REPL.
 
 ### M4 — Host minimization
 
@@ -75,6 +82,11 @@ Status: **in progress**
 
 ## Immediate Next Step
 
-Finish M1 by adding generated-standalone CLI tests for `check` success and
-failure, then extract a backend-neutral compiler `check` API and compare its
-output and exit behavior with the existing Go host.
+Complete the remaining host bridges in priority order:
+
+1. extract self-hosted source discovery and diagnostic locations so `check` and
+   code generation no longer need Go traversal;
+2. add a self-hosted declaration (`dts`) emitter;
+3. complete lossless formatter trivia and AST-printing coverage;
+4. migrate command execution, test discovery, REPL, and finally the LSP protocol
+   behind compatibility and performance tests.
