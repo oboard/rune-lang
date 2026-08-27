@@ -161,6 +161,7 @@ func (e *PostfixExpr) Position() lexer.Position {
 
 type ResultUnwrapExpr struct {
 	Expr Expr
+	Op   lexer.Kind
 	Pos  lexer.Position
 }
 

@@ -55,7 +55,7 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 	case *ir.PostfixExpr:
 		return i.evalPostfix(e, env)
 	case *ir.ResultUnwrapExpr:
-		return nil, fmt.Errorf("result unwrap is only supported by generated backends")
+		return nil, fmt.Errorf("result unwrap is only supported by generated backends (op=%s)", e.Op)
 	case *ir.BinaryExpr:
 		return i.evalBinary(e, env)
 	case *ir.TernaryExpr:

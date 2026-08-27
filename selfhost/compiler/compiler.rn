@@ -101,6 +101,8 @@ CompilerNamespaceAlias: {
 
 /// Discover the source set rooted at `root`. The only filesystem operation is
 /// readFileText; generated Go wraps this routine in runeTask/runeAwait.
+/// The `??` operator unwraps Task[Result[T,E]] values directly in routine
+/// contexts, replacing what used to be impossible nested routine chains.
 + ~ discoverSources(
   root: String
 ) -> Result[Array[SourceFile], Error] => {

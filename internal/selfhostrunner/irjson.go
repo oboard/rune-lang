@@ -347,6 +347,7 @@ func selfhostExpr(expr ir.Expr) selfhostIRExpr {
 		base.Children = []selfhostIRExpr{selfhostExpr(e.Expr)}
 	case *ir.ResultUnwrapExpr:
 		base.Kind = exprUnwrap
+		base.Op = e.Op.String()
 		base.Children = []selfhostIRExpr{selfhostExpr(e.Expr)}
 	case *ir.BinaryExpr:
 		base.Kind = exprBinary

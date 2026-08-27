@@ -6,6 +6,7 @@ import (
 
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/ir"
+	"github.com/oboard/rune-lang/internal/lexer"
 )
 
 func (g *generator) structType(typ *ir.StructType) {
@@ -306,9 +307,21 @@ func (g *generator) conditionalExprStmt(expr *ir.TernaryExpr) {
 	g.line("}")
 }
 
+// resultUnwrapSource emits the expression for a ResultUnwrapExpr. For `??` the
+// operand is a Task[Result[T,E]], so we first await the task to obtain the
+// Result value, which is then unwrapped with the same `.ok`/`.value`/`.err`
+// protocol as `?`.
+func (g *generator) resultUnwrapSource(unwrap *ir.ResultUnwrapExpr) string {
+	expr := g.expr(unwrap.Expr)
+	if unwrap.Op == lexer.QuestionQuestion {
+		return "runeAwait(" + expr + ")"
+	}
+	return expr
+}
+
 func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
 	tmp := g.nextTemp("result")
-	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("%s := %s", tmp, g.resultUnwrapSource(unwrap))
 	g.linef("if !%s.ok {", tmp)
 	g.indent++
 	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))
@@ -319,7 +332,7 @@ func (g *generator) resultUnwrapLet(name string, unwrap *ir.ResultUnwrapExpr, re
 
 func (g *generator) resultUnwrapObjectDestructure(stmt *ir.ObjectDestructureStmt, unwrap *ir.ResultUnwrapExpr, ret checker.Type) {
 	tmp := g.nextTemp("result")
-	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("%s := %s", tmp, g.resultUnwrapSource(unwrap))
 	g.linef("if !%s.ok {", tmp)
 	g.indent++
 	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))
@@ -377,7 +390,7 @@ func goObjectFieldAccess(source string, field string) string {
 
 func (g *generator) resultUnwrapExprStmt(unwrap *ir.ResultUnwrapExpr, ret checker.Type, last bool) {
 	tmp := g.nextTemp("result")
-	g.linef("%s := %s", tmp, g.expr(unwrap.Expr))
+	g.linef("%s := %s", tmp, g.resultUnwrapSource(unwrap))
 	g.linef("if !%s.ok {", tmp)
 	g.indent++
 	g.linef("return %s", g.resultErrReturn(ret, tmp+".err"))

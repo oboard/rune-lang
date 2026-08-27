@@ -388,7 +388,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.PostfixExpr:
 		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.ResultUnwrapExpr:
-		return &ResultUnwrapExpr{ExprBase: l.base(e), Expr: l.expr(e.Expr)}
+		return &ResultUnwrapExpr{ExprBase: l.base(e), Expr: l.expr(e.Expr), Op: e.Op}
 	case *ast.CompileTimeExpr:
 		return l.expr(e.Expr)
 	case *ast.BinaryExpr:

@@ -3223,7 +3223,12 @@ func ____rune_private_d1a61e34_parseExpressionLoop(__left __ExprStep, __minPrec 
 											if __minPrec <= 1 && ____rune_private_d1a61e34_parserCheck(__state, __TokenKind_Question) {
 												return ____rune_private_d1a61e34_parseQuestionExpression(__state, __expr, __minPrec)
 											}
-											return ____rune_private_d1a61e34_parseBinaryExpression(__state, __expr, __minPrec)
+											return func() __ExprStep {
+												if __minPrec <= 1 && ____rune_private_d1a61e34_parserCheck(__state, __TokenKind_QuestionQuestion) {
+													return ____rune_private_d1a61e34_parseQuestionQuestionExpression(__state, __expr, __minPrec)
+												}
+												return ____rune_private_d1a61e34_parseBinaryExpression(__state, __expr, __minPrec)
+											}()
 										}()
 									}()
 								}()
@@ -3367,9 +3372,23 @@ func ____rune_private_d1a61e34_parseQuestionExpression(__state __ParserState, __
 	}()
 }
 
+func ____rune_private_d1a61e34_parseQuestionQuestionExpression(__state __ParserState, __expr __ParsedExpr, __minPrec int) __ExprStep {
+	return func() __ExprStep {
+		if ____rune_private_d1a61e34_questionQuestionIsPostfixUnwrap(__state) {
+			return ____rune_private_d1a61e34_parseExpressionLoop(____rune_private_d1a61e34_parseResultUnwrapExpressionQQ(__state, __expr), __minPrec)
+		}
+		return ____rune_private_d1a61e34_parseBinaryExpression(__state, __expr, __minPrec)
+	}()
+}
+
 func ____rune_private_d1a61e34_parseResultUnwrapExpression(__state __ParserState, __expr __ParsedExpr) __ExprStep {
 	__question := ____rune_private_d1a61e34_parserAdvance(__state)
 	return __ExprStep{__state: __question.__state, __expr: ____rune_private_d1a61e34_opNode(__ExprKind_Unwrap, "?", __question.__token, []__ParsedExpr{__expr})}
+}
+
+func ____rune_private_d1a61e34_parseResultUnwrapExpressionQQ(__state __ParserState, __expr __ParsedExpr) __ExprStep {
+	__token := ____rune_private_d1a61e34_parserAdvance(__state)
+	return __ExprStep{__state: __token.__state, __expr: ____rune_private_d1a61e34_opNode(__ExprKind_Unwrap, "??", __token.__token, []__ParsedExpr{__expr})}
 }
 
 func ____rune_private_d1a61e34_parseTernaryExpression(__state __ParserState, __condition __ParsedExpr, __minPrec int) __ExprStep {
@@ -4588,6 +4607,11 @@ func ____rune_private_d1a61e34_skipBalancedStep(__state __ParserState, __openKin
 }
 
 func ____rune_private_d1a61e34_questionIsPostfixUnwrap(__state __ParserState) bool {
+	__next := ____rune_private_d1a61e34_parserKindAt(__state, __state.__current+1)
+	return __next == __TokenKind_EOF || __next == __TokenKind_Newline || __next == __TokenKind_RParen || __next == __TokenKind_RBracket || __next == __TokenKind_RBrace || __next == __TokenKind_Comma
+}
+
+func ____rune_private_d1a61e34_questionQuestionIsPostfixUnwrap(__state __ParserState) bool {
 	__next := ____rune_private_d1a61e34_parserKindAt(__state, __state.__current+1)
 	return __next == __TokenKind_EOF || __next == __TokenKind_Newline || __next == __TokenKind_RParen || __next == __TokenKind_RBracket || __next == __TokenKind_RBrace || __next == __TokenKind_Comma
 }
@@ -5992,6 +6016,10 @@ func ____rune_private_b4d281ed_emitGoImportLines(__imports []string, __index int
 
 func ____rune_private_b4d281ed_emitGoUnwrapHelper() string {
 	return "func __runeUnwrap(value any) any {\n\tv := reflect.ValueOf(value)\n\tif v.Kind() == reflect.Pointer {\n\t\tv = v.Elem()\n\t}\n\ttag := v.FieldByName(\"__tag\").Int()\n\tpayload := v.FieldByName(\"__payload\")\n\tif tag == 0 {\n\t\tif payload.Len() == 0 {\n\t\t\treturn nil\n\t\t}\n\t\treturn payload.Index(0).Interface()\n\t}\n\tif payload.Len() > 0 {\n\t\tpanic(payload.Index(0).Interface())\n\t}\n\tpanic(\"Result.Err\")\n}\n\n"
+}
+
+func ____rune_private_b4d281ed_emitGoTaskUnwrap(__expr __IRExpr) string {
+	return "__runeUnwrap(" + ____rune_private_b4d281ed_emitGoExpr(__expr.__children[0]) + ")"
 }
 
 func ____rune_private_b4d281ed_emitGoPathHelpers() string {

@@ -141,6 +141,8 @@ emitGoUnwrapHelper() -> String => `func __runeUnwrap(value any) any {
 
 `
 
+emitGoTaskUnwrap(expr: IRExpr) -> String => "__runeUnwrap(" + emitGoExpr(expr.children[0]) + ")"
+
 emitGoPathHelpers() -> String => `func __runePathBasename(path string) string {
 	index := strings.LastIndex(path, "/")
 	if index < 0 {

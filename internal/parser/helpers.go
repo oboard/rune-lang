@@ -85,6 +85,21 @@ func (p *Parser) questionIsPostfixUnwrap() bool {
 	}
 }
 
+// questionQuestionIsPostfixUnwrap distinguishes postfix `??` (task-result
+// unwrap) from binary `??` (null-coalescing). The postfix form is triggered
+// when the next token closes an expression (newline, EOF, group, separator).
+func (p *Parser) questionQuestionIsPostfixUnwrap() bool {
+	if p.curr+1 >= len(p.tokens) {
+		return true
+	}
+	switch p.tokens[p.curr+1].Kind {
+	case lexer.EOF, lexer.Newline, lexer.RParen, lexer.RBracket, lexer.RBrace, lexer.Comma, lexer.Question:
+		return true
+	default:
+		return false
+	}
+}
+
 func (p *Parser) looksLikePatternBranch() bool {
 	i := p.curr
 	return p.tokensLookLikePatternBranch(i)

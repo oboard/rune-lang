@@ -107,7 +107,12 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 		}
 		if minPrec <= 1 && p.check(lexer.Question) && p.questionIsPostfixUnwrap() {
 			question := p.advance()
-			left = &ast.ResultUnwrapExpr{Expr: left, Pos: question.Pos}
+			left = &ast.ResultUnwrapExpr{Expr: left, Op: lexer.Question, Pos: question.Pos}
+			continue
+		}
+		if minPrec <= 1 && p.check(lexer.QuestionQuestion) && p.questionQuestionIsPostfixUnwrap() {
+			token := p.advance()
+			left = &ast.ResultUnwrapExpr{Expr: left, Op: lexer.QuestionQuestion, Pos: token.Pos}
 			continue
 		}
 		if minPrec <= 1 && p.match(lexer.Question) {

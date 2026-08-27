@@ -514,6 +514,31 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 	case *ast.ResultUnwrapExpr:
 		result := c.inferExpr(e.Expr, env)
+		if e.Op == lexer.QuestionQuestion {
+			taskValue, ok := parseTaskType(result)
+			if !ok {
+				c.errorf(e.Pos, "operator '??' expects Task, got %s", result)
+				return Unknown
+			}
+			resultValue, errType, ok2 := parseResultType(taskValue)
+			if !ok2 {
+				c.errorf(e.Pos, "operator '??' requires Task[Result[T, Err]], got %s", taskValue)
+				return Unknown
+			}
+			if c.routineDepth == 0 {
+				c.errorf(e.Pos, "operator '??' can only be used inside a routine")
+			} else if len(c.unwrapErrors) > 0 {
+				current := c.unwrapErrors[len(c.unwrapErrors)-1]
+				if current == Unknown {
+					c.unwrapErrors[len(c.unwrapErrors)-1] = errType
+				} else if unified, ok := c.unifyTypes(current, errType); ok {
+					c.unwrapErrors[len(c.unwrapErrors)-1] = unified
+				} else {
+					c.errorf(e.Pos, "operator '??' lifts %s, expected %s", errType, current)
+				}
+			}
+			return resultValue
+		}
 		value, errType, ok := parseResultType(result)
 		if !ok {
 			if result != Unknown {

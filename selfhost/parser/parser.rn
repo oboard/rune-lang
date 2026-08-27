@@ -1893,7 +1893,10 @@ parseExpressionLoop(
                                     (minPrec <= 1) && parserCheck(state, TokenKind.Tilde) ? parsePatternPredicateExpression(state, expr, minPrec)
                                       : (
                                         (minPrec <= 1) && parserCheck(state, TokenKind.Question) ? parseQuestionExpression(state, expr, minPrec)
-                                          : parseBinaryExpression(state, expr, minPrec)
+                                          : (
+                                            (minPrec <= 1) && parserCheck(state, TokenKind.QuestionQuestion) ? parseQuestionQuestionExpression(state, expr, minPrec)
+                                              : parseBinaryExpression(state, expr, minPrec)
+                                          )
                                       )
                                   )
                               )
@@ -2097,6 +2100,15 @@ parseQuestionExpression(
     : parseTernaryExpression(state, expr, minPrec)
 )
 
+parseQuestionQuestionExpression(
+  state: ParserState,
+  expr: ParsedExpr,
+  minPrec: Int
+) -> ExprStep => (
+  questionQuestionIsPostfixUnwrap(state) ? parseExpressionLoop(parseResultUnwrapExpressionQQ(state, expr), minPrec)
+    : parseBinaryExpression(state, expr, minPrec)
+)
+
 parseResultUnwrapExpression(
   state: ParserState,
   expr: ParsedExpr
@@ -2105,6 +2117,17 @@ parseResultUnwrapExpression(
   ExprStep {
     state: question.state,
     expr: opNode(ExprKind.Unwrap, "?", question.token, [expr])
+  }
+}
+
+parseResultUnwrapExpressionQQ(
+  state: ParserState,
+  expr: ParsedExpr
+) -> ExprStep => {
+  token := parserAdvance(state)
+  ExprStep {
+    state: token.state,
+    expr: opNode(ExprKind.Unwrap, "??", token.token, [expr])
   }
 }
 
@@ -3529,6 +3552,13 @@ skipBalancedStep(
 }
 
 questionIsPostfixUnwrap(
+  state: ParserState
+) -> Bool => {
+  next := parserKindAt(state, state.current + 1)
+  (((((next == TokenKind.EOF) || (next == TokenKind.Newline)) || (next == TokenKind.RParen)) || (next == TokenKind.RBracket)) || (next == TokenKind.RBrace)) || (next == TokenKind.Comma)
+}
+
+questionQuestionIsPostfixUnwrap(
   state: ParserState
 ) -> Bool => {
   next := parserKindAt(state, state.current + 1)

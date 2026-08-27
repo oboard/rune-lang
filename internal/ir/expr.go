@@ -136,6 +136,7 @@ func (*PostfixExpr) exprNode() {}
 type ResultUnwrapExpr struct {
 	ExprBase
 	Expr Expr
+	Op   lexer.Kind
 }
 
 func (*ResultUnwrapExpr) exprNode() {}

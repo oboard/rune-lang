@@ -28,7 +28,10 @@ declare class RuneWriter {}
 
 `
 
-dtsStructs(structs: Array[IRStructType], index: Int) -> String => (
+dtsStructs(
+  structs: Array[IRStructType],
+  index: Int
+) -> String => (
   index >= structs.length() ? ""
     : (
       structs[index].private ? dtsStructs(structs, index + 1)
@@ -36,22 +39,30 @@ dtsStructs(structs: Array[IRStructType], index: Int) -> String => (
     )
 )
 
-dtsStruct(typeDecl: IRStructType) -> String => {
+dtsStruct(
+  typeDecl: IRStructType
+) -> String => {
   generics := dtsGenerics(typeDecl.generics)
   out :=: (("type " + mangleIdent(typeDecl.name)) + generics) + " = {\n"
   out = out + dtsStructFields(typeDecl.fields, 0)
   (out + "};\n") + "\n"
 }
 
-dtsStructFields(fields: Array[IRField], index: Int) -> String => (
+dtsStructFields(
+  fields: Array[IRField],
+  index: Int
+) -> String => (
   index >= fields.length() ? ""
     : (
       fields[index].private ? dtsStructFields(fields, index + 1)
-        : (((indent(1) + dtsPropertyName(fields[index].name)) + ": ") + dtsType(fields[index].typeName)) + ";\n" + dtsStructFields(fields, index + 1)
+        : ((((indent(1) + dtsPropertyName(fields[index].name)) + ": ") + dtsType(fields[index].typeName)) + ";\n") + dtsStructFields(fields, index + 1)
     )
 )
 
-dtsEnums(enums: Array[IREnumType], index: Int) -> String => (
+dtsEnums(
+  enums: Array[IREnumType],
+  index: Int
+) -> String => (
   index >= enums.length() ? ""
     : (
       enums[index].private ? dtsEnums(enums, index + 1)
@@ -66,13 +77,16 @@ dtsEnum(enumDecl: IREnumType) -> String => {
     true => "{ tag: number; payload: any[] }"
     false => "number"
   }
-  out :=: (("type " + name) + generics) + " = " + shape + ";\n"
+  out :=: (((("type " + name) + generics) + " = ") + shape) + ";\n"
   out = ((out + "declare const ") + name) + ": {\n"
   out = out + dtsEnumMembers(enumDecl.members, 0)
   (out + "};\n") + "\n"
 }
 
-dtsEnumHasPayload(members: Array[IREnumMember], index: Int) -> Bool => (
+dtsEnumHasPayload(
+  members: Array[IREnumMember],
+  index: Int
+) -> Bool => (
   index >= members.length() ? false
     : (
       members[index].params.length() > 0 ? true
@@ -80,32 +94,50 @@ dtsEnumHasPayload(members: Array[IREnumMember], index: Int) -> Bool => (
     )
 )
 
-dtsEnumMembers(members: Array[IREnumMember], index: Int) -> String => (
+dtsEnumMembers(
+  members: Array[IREnumMember],
+  index: Int
+) -> String => (
   index >= members.length() ? ""
     : dtsEnumMembersAt(members, index)
 )
 
-dtsEnumMembersAt(members: Array[IREnumMember], index: Int) -> String => (
+dtsEnumMembersAt(
+  members: Array[IREnumMember],
+  index: Int
+) -> String => (
   members[index].private ? dtsEnumMembers(members, index + 1)
-    : ((indent(1) + "readonly ") + dtsPropertyName(members[index].name)) + ": " + enumValue(members[index], index) + ";\n" + dtsEnumMembers(members, index + 1)
+    : (((((indent(1) + "readonly ") + dtsPropertyName(members[index].name)) + ": ") + enumValue(members[index], index)) + ";\n") + dtsEnumMembers(members, index + 1)
 )
 
-dtsConsts(constants: Array[IRConst], index: Int) -> String => (
+dtsConsts(
+  constants: Array[IRConst],
+  index: Int
+) -> String => (
   index >= constants.length() ? ""
     : dtsConstsAt(constants, index)
 )
 
-dtsConstsAt(constants: Array[IRConst], index: Int) -> String => (
+dtsConstsAt(
+  constants: Array[IRConst],
+  index: Int
+) -> String => (
   constants[index].private ? dtsConsts(constants, index + 1)
-    : ((("declare const " + mangleIdent(constants[index].name)) + ": ") + dtsType(constants[index].typeName)) + ";\n" + dtsConsts(constants, index + 1)
+    : (((("declare const " + mangleIdent(constants[index].name)) + ": ") + dtsType(constants[index].typeName)) + ";\n") + dtsConsts(constants, index + 1)
 )
 
-dtsFunctions(functions: Array[IRFunction], index: Int) -> String => (
+dtsFunctions(
+  functions: Array[IRFunction],
+  index: Int
+) -> String => (
   index >= functions.length() ? ""
     : dtsFunctionAt(functions, index) + dtsFunctions(functions, index + 1)
 )
 
-dtsFunctionAt(functions: Array[IRFunction], index: Int) -> String => (
+dtsFunctionAt(
+  functions: Array[IRFunction],
+  index: Int
+) -> String => (
   functions[index].macro || functions[index].private ? ""
     : dtsFunction(functions[index])
 )
@@ -119,20 +151,30 @@ dtsFunction(fn: IRFunction) -> String => {
   (((((("declare function " + mangleIdent(fn.name)) + dtsGenerics(fn.generics)) + "(") + dtsParams(fn.params, 0, "")) + "): ") + wrapped) + ";\n"
 }
 
-dtsGenerics(generics: Array[String]) -> String => (
+dtsGenerics(
+  generics: Array[String]
+) -> String => (
   generics.length() == 0 ? ""
     : ("<" + dtsGenericNames(generics, 0, "")) + ">"
 )
 
-dtsGenericNames(generics: Array[String], index: Int, out: String) -> String => (
+dtsGenericNames(
+  generics: Array[String],
+  index: Int,
+  out: String
+) -> String => (
   index >= generics.length() ? out
-    : dtsGenericNames(generics, index + 1, (out + (
+    : dtsGenericNames(generics, index + 1, ((out + (
       index == 0 ? ""
         : ", "
-    )) + mangleIdent(generics[index]) + " extends unknown")
+    )) + mangleIdent(generics[index])) + " extends unknown")
 )
 
-dtsParams(params: Array[IRParam], index: Int, out: String) -> String => (
+dtsParams(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
   index >= params.length() ? out
     : dtsParams(params, index + 1, (((out + (
       index == 0 ? ""
@@ -167,7 +209,9 @@ dtsType(typeName: String) -> String => {
   _ => dtsTypeFallback(typeName)
 }
 
-dtsTypeFallback(typeName: String) -> String => (
+dtsTypeFallback(
+  typeName: String
+) -> String => (
   typeName.startsWith("&") ? "any"
     : (
       typeName.endsWith("?") ? dtsType(typeName.slice(0, typeName.length() - 1)) + " | null"
@@ -182,9 +226,9 @@ dtsTypeFallback(typeName: String) -> String => (
                         : (
                           genericInner(typeName, "ReadonlyArray") != "" ? dtsGenericType("ReadonlyArray", genericInner(typeName, "ReadonlyArray"))
                             : (
-                              genericInner(typeName, "Tuple") != "" ? "[" + dtsTypeArgs(genericInner(typeName, "Tuple")) + "]"
+                              genericInner(typeName, "Tuple") != "" ? ("[" + dtsTypeArgs(genericInner(typeName, "Tuple"))) + "]"
                                 : (
-                                  genericInner(typeName, "ReadonlyTuple") != "" ? "readonly [" + dtsTypeArgs(genericInner(typeName, "ReadonlyTuple")) + "]"
+                                  genericInner(typeName, "ReadonlyTuple") != "" ? ("readonly [" + dtsTypeArgs(genericInner(typeName, "ReadonlyTuple"))) + "]"
                                     : (
                                       genericInner(typeName, "Map") != "" ? dtsGenericType("Map", genericInner(typeName, "Map"))
                                         : (
@@ -211,19 +255,26 @@ dtsTypeFallback(typeName: String) -> String => (
     )
 )
 
-dtsGenericType(name: String, args: String) -> String => (name + "<") + dtsTypeArgs(args) + ">"
+dtsGenericType(
+  name: String,
+  args: String
+) -> String => ((name + "<") + dtsTypeArgs(args)) + ">"
 
 dtsNamedType(typeName: String) -> String => {
   open := typeName.indexOf("[")
   (
     open < 0 ? mangleIdent(typeName)
-      : (mangleIdent(typeName.slice(0, open)) + "<") + dtsTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + ">"
+      : ((mangleIdent(typeName.slice(0, open)) + "<") + dtsTypeArgs(typeName.slice(open + 1, typeName.length() - 1))) + ">"
   )
 }
 
 dtsTypeArgs(args: String) -> String => dtsTypeArgList(args.split(","), 0, "")
 
-dtsTypeArgList(args: Array[String], index: Int, out: String) -> String => (
+dtsTypeArgList(
+  args: Array[String],
+  index: Int,
+  out: String
+) -> String => (
   index >= args.length() ? out
     : dtsTypeArgList(args, index + 1, (out + (
       index == 0 ? ""
@@ -232,11 +283,14 @@ dtsTypeArgList(args: Array[String], index: Int, out: String) -> String => (
 )
 
 dtsExports(file: IRFile) -> String => (
-  (file.structs.length() + file.enums.length() + file.constants.length() + file.functions.length()) == 0 ? ""
-    : "\n" + dtsStructExports(file.structs, 0) + dtsEnumExports(file.enums, 0) + dtsConstExports(file.constants, 0) + dtsFunctionExports(file.functions, 0)
+  (((file.structs.length() + file.enums.length()) + file.constants.length()) + file.functions.length()) == 0 ? ""
+    : ((("\n" + dtsStructExports(file.structs, 0)) + dtsEnumExports(file.enums, 0)) + dtsConstExports(file.constants, 0)) + dtsFunctionExports(file.functions, 0)
 )
 
-dtsStructExports(structs: Array[IRStructType], index: Int) -> String => (
+dtsStructExports(
+  structs: Array[IRStructType],
+  index: Int
+) -> String => (
   index >= structs.length() ? ""
     : (
       structs[index].private ? dtsStructExports(structs, index + 1)
@@ -244,15 +298,21 @@ dtsStructExports(structs: Array[IRStructType], index: Int) -> String => (
     )
 )
 
-dtsEnumExports(enums: Array[IREnumType], index: Int) -> String => (
+dtsEnumExports(
+  enums: Array[IREnumType],
+  index: Int
+) -> String => (
   index >= enums.length() ? ""
     : (
       enums[index].private ? dtsEnumExports(enums, index + 1)
-        : dtsExportTypeAlias(enums[index].name) + dtsExportValueAlias(enums[index].name) + dtsEnumExports(enums, index + 1)
+        : (dtsExportTypeAlias(enums[index].name) + dtsExportValueAlias(enums[index].name)) + dtsEnumExports(enums, index + 1)
     )
 )
 
-dtsConstExports(constants: Array[IRConst], index: Int) -> String => (
+dtsConstExports(
+  constants: Array[IRConst],
+  index: Int
+) -> String => (
   index >= constants.length() ? ""
     : (
       constants[index].private ? dtsConstExports(constants, index + 1)
@@ -260,7 +320,10 @@ dtsConstExports(constants: Array[IRConst], index: Int) -> String => (
     )
 )
 
-dtsFunctionExports(functions: Array[IRFunction], index: Int) -> String => (
+dtsFunctionExports(
+  functions: Array[IRFunction],
+  index: Int
+) -> String => (
   index >= functions.length() ? ""
     : (
       functions[index].macro || functions[index].private ? dtsFunctionExports(functions, index + 1)
@@ -268,14 +331,18 @@ dtsFunctionExports(functions: Array[IRFunction], index: Int) -> String => (
     )
 )
 
-dtsExportTypeAlias(name: String) -> String => (
-  dtsCanUseBareProperty(name) ? (("export type " + name) + " = ") + mangleIdent(name) + ";\n"
-    : (("export type { " + mangleIdent(name)) + " as ") + dtsExportName(name) + " };\n"
+dtsExportTypeAlias(
+  name: String
+) -> String => (
+  dtsCanUseBareProperty(name) ? ((("export type " + name) + " = ") + mangleIdent(name)) + ";\n"
+    : ((("export type { " + mangleIdent(name)) + " as ") + dtsExportName(name)) + " };\n"
 )
 
-dtsExportValueAlias(name: String) -> String => (
-  dtsCanUseBareProperty(name) ? (("export declare const " + name) + ": typeof ") + mangleIdent(name) + ";\n"
-    : (("export { " + mangleIdent(name)) + " as ") + dtsExportName(name) + " };\n"
+dtsExportValueAlias(
+  name: String
+) -> String => (
+  dtsCanUseBareProperty(name) ? ((("export declare const " + name) + ": typeof ") + mangleIdent(name)) + ";\n"
+    : ((("export { " + mangleIdent(name)) + " as ") + dtsExportName(name)) + " };\n"
 )
 
 dtsPropertyName(name: String) -> String => (
@@ -287,7 +354,11 @@ dtsExportName(name: String) -> String => dtsPropertyName(name)
 
 dtsQuoteName(name: String) -> String => ("\"" + dtsEscapeName(name, 0, "")) + "\""
 
-dtsEscapeName(name: String, index: Int, out: String) -> String => (
+dtsEscapeName(
+  name: String,
+  index: Int,
+  out: String
+) -> String => (
   index >= name.length() ? out
     : dtsEscapeName(name, index + 1, out + dtsEscapeNameChar(name.at(index)))
 )
@@ -301,11 +372,15 @@ dtsEscapeNameChar(ch: Char) -> String => ch {
   _ => ch.toString()
 }
 
-dtsCanUseBareProperty(name: String) -> Bool => (
-  (name != "") && (dtsReservedName(name) == false) && dtsSafeIdent(name, 0, true)
-)
+dtsCanUseBareProperty(
+  name: String
+) -> Bool => ((name != "") && (dtsReservedName(name) == false)) && dtsSafeIdent(name, 0, true)
 
-dtsSafeIdent(name: String, index: Int, first: Bool) -> Bool => (
+dtsSafeIdent(
+  name: String,
+  index: Int,
+  first: Bool
+) -> Bool => (
   index >= name.length() ? true
     : (
       dtsSafeIdentChar(name.at(index), first) ? dtsSafeIdent(name, index + 1, false)
@@ -313,13 +388,13 @@ dtsSafeIdent(name: String, index: Int, first: Bool) -> Bool => (
     )
 )
 
-dtsSafeIdentChar(ch: Char, first: Bool) -> Bool => ch {
+dtsSafeIdentChar(
+  ch: Char,
+  first: Bool
+) -> Bool => ch {
   '_' | '$' | 'a'..='z' | 'A'..='Z' => true
   '0'..='9' => first == false
   _ => false
 }
 
-dtsReservedName(name: String) -> Bool => name {
-  "await" | "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger" | "default" | "delete" | "do" | "else" | "enum" | "export" | "extends" | "false" | "finally" | "for" | "function" | "if" | "implements" | "import" | "in" | "instanceof" | "interface" | "let" | "new" | "null" | "package" | "private" | "protected" | "public" | "return" | "static" | "super" | "switch" | "this" | "throw" | "true" | "try" | "typeof" | "var" | "void" | "while" | "with" | "yield" => true
-  _ => false
-}
+dtsReservedName(name: String) -> Bool => name ~ ("await" | "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger" | "default" | "delete" | "do" | "else" | "enum" | "export" | "extends" | "false" | "finally" | "for" | "function" | "if" | "implements" | "import" | "in" | "instanceof" | "interface" | "let" | "new" | "null" | "package" | "private" | "protected" | "public" | "return" | "static" | "super" | "switch" | "this" | "throw" | "true" | "try" | "typeof" | "var" | "void" | "while" | "with" | "yield")
