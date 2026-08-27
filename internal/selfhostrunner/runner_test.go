@@ -62,6 +62,7 @@ func TestRunSelfhostBootstrapTestsIR(t *testing.T) {
 	runSelfhostIRAllTests(t, "ir_bootstrap.rn")
 	runSelfhostIRAllTests(t, "cli_bootstrap.rn")
 	runSelfhostIRAllTests(t, "interpreter_bootstrap.rn")
+	runSelfhostIRAllTests(t, "format_bootstrap.rn")
 }
 
 func runSelfhostIRTests(t *testing.T, file string, names []string) {

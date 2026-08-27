@@ -2,20 +2,31 @@
 @"./common.rn"
 
 /// Generate a `.d.ts` declaration file describing the public surface of a
-/// compiled Rune module. Self-hosted replacement for the Go declaration
-/// emitter; private members are excluded and exports map mangled names back to
-/// their public identifiers. Helpers that the TS generator keeps private are
-/// replicated here so this module only depends on the exported compiler API.
+/// compiled Rune module.  Keep this byte-for-byte compatible with the host
+/// TypeScript declaration generator where the self-host IR retains the data.
 + generateDeclarations(
   file: IRFile
 ) -> String => {
-  out :=: ""
+  out :=: dtsPreamble()
   out = out + dtsStructs(file.structs, 0)
   out = out + dtsEnums(file.enums, 0)
   out = out + dtsConsts(file.constants, 0)
   out = out + dtsFunctions(file.functions, 0)
-  out + dtsExports(file, 0, "")
+  out + dtsExports(file)
 }
+
+dtsPreamble() -> String => `type RuneResult<T, E> = { ok: true; value: T } | { ok: false; error: E };
+type RuneError = { code: number; message: string; cause: RuneError | null };
+type RuneIter<T> = { next: () => [T, boolean] };
+type RuneFileStat = { size: number; isFile: boolean; isDirectory: boolean };
+type RuneTCPConnection = { socket: unknown };
+type RuneTCPListener = { server: unknown; address: string };
+declare class RuneStringBuffer {}
+declare class RuneBuffer {}
+declare class RuneReader {}
+declare class RuneWriter {}
+
+`
 
 dtsStructs(structs: Array[IRStructType], index: Int) -> String => (
   index >= structs.length() ? ""
@@ -36,7 +47,7 @@ dtsStructFields(fields: Array[IRField], index: Int) -> String => (
   index >= fields.length() ? ""
     : (
       fields[index].private ? dtsStructFields(fields, index + 1)
-        : (((indent(1) + fields[index].name) + ": ") + dtsType(fields[index].typeName)) + ";\n" + dtsStructFields(fields, index + 1)
+        : (((indent(1) + dtsPropertyName(fields[index].name)) + ": ") + dtsType(fields[index].typeName)) + ";\n" + dtsStructFields(fields, index + 1)
     )
 )
 
@@ -51,13 +62,12 @@ dtsEnums(enums: Array[IREnumType], index: Int) -> String => (
 dtsEnum(enumDecl: IREnumType) -> String => {
   name := mangleIdent(enumDecl.name)
   generics := dtsGenerics(enumDecl.generics)
-  hasPayload := dtsEnumHasPayload(enumDecl.members, 0)
-  shape := hasPayload {
+  shape := dtsEnumHasPayload(enumDecl.members, 0) {
     true => "{ tag: number; payload: any[] }"
     false => "number"
   }
   out :=: (("type " + name) + generics) + " = " + shape + ";\n"
-  out = ((out + "declare const ") + name) + " = {\n"
+  out = ((out + "declare const ") + name) + ": {\n"
   out = out + dtsEnumMembers(enumDecl.members, 0)
   (out + "};\n") + "\n"
 }
@@ -77,44 +87,8 @@ dtsEnumMembers(members: Array[IREnumMember], index: Int) -> String => (
 
 dtsEnumMembersAt(members: Array[IREnumMember], index: Int) -> String => (
   members[index].private ? dtsEnumMembers(members, index + 1)
-    : ((indent(1) + "readonly ") + members[index].name) + ": " + dtsEnumMemberValue(members[index], index) + ";\n" + dtsEnumMembers(members, index + 1)
+    : ((indent(1) + "readonly ") + dtsPropertyName(members[index].name)) + ": " + enumValue(members[index], index) + ";\n" + dtsEnumMembers(members, index + 1)
 )
-
-dtsEnumMemberValue(member: IREnumMember, index: Int) -> String => dtsEnumMemberValueText(member.value, index)
-
-dtsEnumMemberValueText(value: String, fallback: Int) -> String => (
-  value == "" ? dtsIntText(fallback)
-    : value
-)
-
-dtsIntText(value: Int) -> String => dtsIntDigits(value, "")
-
-dtsIntDigits(value: Int, out: String) -> String => dtsBuildInt(value, out)
-
-dtsBuildInt(value: Int, out: String) -> String => (
-  value < 10 ? dtsDigit(value) + out
-    : dtsBuildIntDiv(value, out)
-)
-
-dtsBuildIntDiv(value: Int, out: String) -> String => (
-  value < 10 ? (dtsDigit(value) + out)
-    : dtsBuildInt(value / 10, dtsDigit(value % 10) + out)
-)
-
-dtsDigit(value: Int) -> String => dtsDigitAt(value)
-
-dtsDigitAt(value: Int) -> String => value {
-  0 => "0"
-  1 => "1"
-  2 => "2"
-  3 => "3"
-  4 => "4"
-  5 => "5"
-  6 => "6"
-  7 => "7"
-  8 => "8"
-  _ => "9"
-}
 
 dtsConsts(constants: Array[IRConst], index: Int) -> String => (
   index >= constants.length() ? ""
@@ -155,7 +129,7 @@ dtsGenericNames(generics: Array[String], index: Int, out: String) -> String => (
     : dtsGenericNames(generics, index + 1, (out + (
       index == 0 ? ""
         : ", "
-    )) + generics[index])
+    )) + mangleIdent(generics[index]) + " extends unknown")
 )
 
 dtsParams(params: Array[IRParam], index: Int, out: String) -> String => (
@@ -168,31 +142,76 @@ dtsParams(params: Array[IRParam], index: Int, out: String) -> String => (
 
 dtsType(typeName: String) -> String => {
   "" | "Void" => "void"
-  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Double" | "Float" => "number"
+  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Byte" | "Double" | "Float" => "number"
   "BigInt" | "Int64" | "UInt64" => "bigint"
   "String" | "Char" => "string"
   "Bool" => "boolean"
-  "Dynamic" => "any"
+  "Null" => "null"
+  "Object" => "object"
+  "Bytes" => "DataView"
+  "Buffer" => "RuneBuffer"
+  "Reader" => "RuneReader"
+  "Writer" => "RuneWriter"
+  "StringBuffer" => "RuneStringBuffer"
+  "FileStat" => "RuneFileStat"
+  "TCPConnection" => "RuneTCPConnection"
+  "TCPListener" => "RuneTCPListener"
   "Data" | "@io.Data" => "Uint8Array"
+  "Error" => "RuneError"
+  "Never" => "never"
+  "Symbol" => "symbol"
+  "Regex" => "RegExp"
+  "HTMLElement" => "HTMLElement"
+  "WebComponent" => "CustomElementConstructor"
+  "Dynamic" | "Unknown" => "any"
   _ => dtsTypeFallback(typeName)
 }
 
 dtsTypeFallback(typeName: String) -> String => (
-  typeName.endsWith("?") ? dtsType(typeName.slice(0, typeName.length() - 1)) + " | null"
+  typeName.startsWith("&") ? "any"
     : (
-      genericInner(typeName, "Array") != "" ? dtsType(genericInner(typeName, "Array")) + "[]"
+      typeName.endsWith("?") ? dtsType(typeName.slice(0, typeName.length() - 1)) + " | null"
         : (
-          genericInner(typeName, "ReadonlyArray") != "" ? ("ReadonlyArray<" + dtsType(genericInner(typeName, "ReadonlyArray"))) + ">"
+          genericInner(typeName, "Array") != "" ? dtsType(genericInner(typeName, "Array")) + "[]"
             : (
-              genericInner(typeName, "Map") != "" ? ((("Map<" + dtsType(typeArg(genericInner(typeName, "Map"), 0))) + ", ") + dtsType(typeArg(genericInner(typeName, "Map"), 1))) + ">"
+              genericInner(typeName, "Result") != "" ? dtsGenericType("RuneResult", genericInner(typeName, "Result"))
                 : (
-                  genericInner(typeName, "Set") != "" ? ("Set<" + dtsType(genericInner(typeName, "Set"))) + ">"
-                    : dtsNamedType(typeName)
+                  genericInner(typeName, "Task") != "" ? dtsGenericType("Promise", genericInner(typeName, "Task"))
+                    : (
+                      genericInner(typeName, "Iter") != "" ? dtsGenericType("RuneIter", genericInner(typeName, "Iter"))
+                        : (
+                          genericInner(typeName, "ReadonlyArray") != "" ? dtsGenericType("ReadonlyArray", genericInner(typeName, "ReadonlyArray"))
+                            : (
+                              genericInner(typeName, "Tuple") != "" ? "[" + dtsTypeArgs(genericInner(typeName, "Tuple")) + "]"
+                                : (
+                                  genericInner(typeName, "ReadonlyTuple") != "" ? "readonly [" + dtsTypeArgs(genericInner(typeName, "ReadonlyTuple")) + "]"
+                                    : (
+                                      genericInner(typeName, "Map") != "" ? dtsGenericType("Map", genericInner(typeName, "Map"))
+                                        : (
+                                          genericInner(typeName, "Set") != "" ? dtsGenericType("Set", genericInner(typeName, "Set"))
+                                            : (
+                                              genericInner(typeName, "WeakMap") != "" ? dtsGenericType("WeakMap", genericInner(typeName, "WeakMap"))
+                                                : (
+                                                  genericInner(typeName, "WeakSet") != "" ? dtsGenericType("WeakSet", genericInner(typeName, "WeakSet"))
+                                                    : (
+                                                      genericInner(typeName, "Record") != "" ? dtsGenericType("Record", genericInner(typeName, "Record"))
+                                                        : dtsNamedType(typeName)
+                                                    )
+                                                )
+                                            )
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
                 )
             )
         )
     )
 )
+
+dtsGenericType(name: String, args: String) -> String => (name + "<") + dtsTypeArgs(args) + ">"
 
 dtsNamedType(typeName: String) -> String => {
   open := typeName.indexOf("[")
@@ -212,45 +231,95 @@ dtsTypeArgList(args: Array[String], index: Int, out: String) -> String => (
     )) + dtsType(args[index].trim()))
 )
 
-dtsExports(file: IRFile, index: Int, out: String) -> String => {
-  names := dtsFunctionExports(file.functions, 0, dtsStructExports(file.structs, 0, dtsEnumExports(file.enums, 0, dtsConstExports(file.constants, 0, ""))))
-  names == "" ? ""
-    : ("export { " + names) + " };\n"
+dtsExports(file: IRFile) -> String => (
+  (file.structs.length() + file.enums.length() + file.constants.length() + file.functions.length()) == 0 ? ""
+    : "\n" + dtsStructExports(file.structs, 0) + dtsEnumExports(file.enums, 0) + dtsConstExports(file.constants, 0) + dtsFunctionExports(file.functions, 0)
+)
+
+dtsStructExports(structs: Array[IRStructType], index: Int) -> String => (
+  index >= structs.length() ? ""
+    : (
+      structs[index].private ? dtsStructExports(structs, index + 1)
+        : dtsExportTypeAlias(structs[index].name) + dtsStructExports(structs, index + 1)
+    )
+)
+
+dtsEnumExports(enums: Array[IREnumType], index: Int) -> String => (
+  index >= enums.length() ? ""
+    : (
+      enums[index].private ? dtsEnumExports(enums, index + 1)
+        : dtsExportTypeAlias(enums[index].name) + dtsExportValueAlias(enums[index].name) + dtsEnumExports(enums, index + 1)
+    )
+)
+
+dtsConstExports(constants: Array[IRConst], index: Int) -> String => (
+  index >= constants.length() ? ""
+    : (
+      constants[index].private ? dtsConstExports(constants, index + 1)
+        : dtsExportValueAlias(constants[index].name) + dtsConstExports(constants, index + 1)
+    )
+)
+
+dtsFunctionExports(functions: Array[IRFunction], index: Int) -> String => (
+  index >= functions.length() ? ""
+    : (
+      functions[index].macro || functions[index].private ? dtsFunctionExports(functions, index + 1)
+        : dtsExportValueAlias(functions[index].name) + dtsFunctionExports(functions, index + 1)
+    )
+)
+
+dtsExportTypeAlias(name: String) -> String => (
+  dtsCanUseBareProperty(name) ? (("export type " + name) + " = ") + mangleIdent(name) + ";\n"
+    : (("export type { " + mangleIdent(name)) + " as ") + dtsExportName(name) + " };\n"
+)
+
+dtsExportValueAlias(name: String) -> String => (
+  dtsCanUseBareProperty(name) ? (("export declare const " + name) + ": typeof ") + mangleIdent(name) + ";\n"
+    : (("export { " + mangleIdent(name)) + " as ") + dtsExportName(name) + " };\n"
+)
+
+dtsPropertyName(name: String) -> String => (
+  dtsCanUseBareProperty(name) ? name
+    : dtsQuoteName(name)
+)
+
+dtsExportName(name: String) -> String => dtsPropertyName(name)
+
+dtsQuoteName(name: String) -> String => ("\"" + dtsEscapeName(name, 0, "")) + "\""
+
+dtsEscapeName(name: String, index: Int, out: String) -> String => (
+  index >= name.length() ? out
+    : dtsEscapeName(name, index + 1, out + dtsEscapeNameChar(name.at(index)))
+)
+
+dtsEscapeNameChar(ch: Char) -> String => ch {
+  '\\' => "\\\\"
+  '"' => "\\\""
+  '\n' => "\\n"
+  '\r' => "\\r"
+  '\t' => "\\t"
+  _ => ch.toString()
 }
 
-dtsStructExports(structs: Array[IRStructType], index: Int, out: String) -> String => (
-  index >= structs.length() ? out
+dtsCanUseBareProperty(name: String) -> Bool => (
+  (name != "") && (dtsReservedName(name) == false) && dtsSafeIdent(name, 0, true)
+)
+
+dtsSafeIdent(name: String, index: Int, first: Bool) -> Bool => (
+  index >= name.length() ? true
     : (
-      structs[index].private ? dtsStructExports(structs, index + 1, out)
-        : dtsStructExports(structs, index + 1, dtsAppendName(out, structs[index].name))
+      dtsSafeIdentChar(name.at(index), first) ? dtsSafeIdent(name, index + 1, false)
+        : false
     )
 )
 
-dtsEnumExports(enums: Array[IREnumType], index: Int, out: String) -> String => (
-  index >= enums.length() ? out
-    : (
-      enums[index].private ? dtsEnumExports(enums, index + 1, out)
-        : dtsEnumExports(enums, index + 1, dtsAppendName(out, enums[index].name))
-    )
-)
+dtsSafeIdentChar(ch: Char, first: Bool) -> Bool => ch {
+  '_' | '$' | 'a'..='z' | 'A'..='Z' => true
+  '0'..='9' => first == false
+  _ => false
+}
 
-dtsConstExports(constants: Array[IRConst], index: Int, out: String) -> String => (
-  index >= constants.length() ? out
-    : (
-      constants[index].private ? dtsConstExports(constants, index + 1, out)
-        : dtsConstExports(constants, index + 1, dtsAppendName(out, constants[index].name))
-    )
-)
-
-dtsFunctionExports(functions: Array[IRFunction], index: Int, out: String) -> String => (
-  index >= functions.length() ? out
-    : (
-      functions[index].macro || functions[index].private ? dtsFunctionExports(functions, index + 1, out)
-        : dtsFunctionExports(functions, index + 1, dtsAppendName(out, functions[index].name))
-    )
-)
-
-dtsAppendName(out: String, name: String) -> String => (((out + (
-  out == "" ? ""
-    : ", "
-)) + mangleIdent(name)) + " as ") + name
+dtsReservedName(name: String) -> Bool => name {
+  "await" | "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger" | "default" | "delete" | "do" | "else" | "enum" | "export" | "extends" | "false" | "finally" | "for" | "function" | "if" | "implements" | "import" | "in" | "instanceof" | "interface" | "let" | "new" | "null" | "package" | "private" | "protected" | "public" | "return" | "static" | "super" | "switch" | "this" | "throw" | "true" | "try" | "typeof" | "var" | "void" | "while" | "with" | "yield" => true
+  _ => false
+}

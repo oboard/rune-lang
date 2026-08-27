@@ -10,7 +10,7 @@ FormatState: {
 + formatSource(source: String) -> String => {
   tokens := lex(source)
   state := formatTokens(tokens, 0, emptyFormatState())
-  finishFormat(state.text)
+  preserveComments(source, finishFormat(state.text))
 }
 
 emptyFormatState() -> FormatState => {
@@ -184,6 +184,63 @@ indentText(indent: Int) -> String => (
   indent <= 0 ? ""
     : "  " + indentText(indent - 1)
 )
+
+preserveComments(source: String, formatted: String) -> String => preserveCommentLines(formatted.split("\n"), source.split("\n"), 0, "")
+
+preserveCommentLines(
+  formatted: Array[String],
+  source: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= formatted.length() ? out
+    : preserveCommentLines(
+      formatted,
+      source,
+      index + 1,
+      out + preserveCommentLine(formatted[index], source, 0) + (
+        index + 1 < formatted.length() ? "\n"
+          : ""
+      )
+    )
+)
+
+preserveCommentLine(
+  formatted: String,
+  source: Array[String],
+  index: Int
+) -> String => {
+  comment := findInlineComment(source, canonicalLine(formatted), index)
+  comment == "" ? formatted
+    : formatted + " " + comment
+}
+
+findInlineComment(
+  source: Array[String],
+  formatted: String,
+  index: Int
+) -> String => (
+  index >= source.length() ? ""
+    : inlineCommentForLine(source[index], formatted, source, index)
+)
+
+inlineCommentForLine(
+  line: String,
+  formatted: String,
+  source: Array[String],
+  index: Int
+) -> String => {
+  commentStart := firstCommentStart(line)
+  commentStart < 0 ? findInlineComment(source, formatted, index + 1)
+    : (
+      canonicalLine(line.slice(0, commentStart)) == formatted ? line.slice(commentStart, line.length()).trim()
+        : findInlineComment(source, formatted, index + 1)
+    )
+}
+
+firstCommentStart(line: String) -> Int => line.indexOf("//")
+
+canonicalLine(line: String) -> String => line.trim().replaceAll(" ", "").replaceAll("\t", "").replaceAll("\r", "")
 
 finishFormat(text: String) -> String => {
   trimmed := trimTrailingSpace(text)

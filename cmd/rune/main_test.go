@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/compiler"
+	runefmt "github.com/oboard/rune-lang/internal/format"
+	"github.com/oboard/rune-lang/internal/parser"
 )
 
 func TestParseTarget(t *testing.T) {
@@ -305,8 +307,11 @@ main() => @io.println(makeUser("Rune").name)
 	if !strings.Contains(got, "declare function __makeUser(__name: string): __User;") {
 		t.Fatalf("selfhost declaration missing __makeUser signature: %q", got)
 	}
-	if !strings.Contains(got, "export { __User as User, __makeUser as makeUser };") {
-		t.Fatalf("selfhost declaration missing export aliases: %q", got)
+	if !strings.Contains(got, "export type User = __User;") {
+		t.Fatalf("selfhost declaration missing User type alias export: %q", got)
+	}
+	if !strings.Contains(got, "export declare const makeUser: typeof __makeUser;") {
+		t.Fatalf("selfhost declaration missing makeUser value alias export: %q", got)
 	}
 }
 
@@ -606,6 +611,21 @@ func TestCheckTargetAcceptsStdlibRoot(t *testing.T) {
 	}
 	if got := out.String(); got != "ok "+dir+"\n" {
 		t.Fatalf("checkTarget() output = %q", got)
+	}
+}
+
+func TestGeneratedSelfhostFormatterMatchesHostForComments(t *testing.T) {
+	for _, src := range []string{
+		"main()=>{\nvalue:=1 // value\n@io.println(value) // print\n}",
+		"main()=>{\nvalue:=1 /* value */\n@io.println(value)}",
+	} {
+		file, errs := parser.Parse(src)
+		if len(errs) > 0 {
+			t.Fatalf("Parse(%q) errors = %v", src, errs)
+		}
+		if got, want := __fmt_formatSource(src), runefmt.Source(file, src); got != want {
+			t.Fatalf("__fmt_formatSource(%q) = %q, want %q", src, got, want)
+		}
 	}
 }
 

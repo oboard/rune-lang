@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 type __TokenKind int
@@ -553,6 +555,10 @@ type __SourceFile struct {
 	__source string
 }
 
+type __SelfhostSources struct {
+	__files []__SourceFile
+}
+
 type __CompilerCallable struct {
 	__name       string
 	__arity      int
@@ -591,6 +597,44 @@ func runeTemplateString(value any) string {
 	}
 }
 
+type runeUnit struct{}
+
+type runeTask[T any] <-chan T
+
+var runeTasks sync.WaitGroup
+
+func runeGo[T any](work func() T) runeTask[T] {
+	runeTasks.Add(1)
+	ch := make(chan T, 1)
+	go func() {
+		defer runeTasks.Done()
+		ch <- work()
+	}()
+	return ch
+}
+
+func runeWaitAll() {
+	runeTasks.Wait()
+}
+
+func runeAwait[T any](task runeTask[T]) T {
+	return <-task
+}
+
+type runeResult[T any, E any] struct {
+	ok    bool
+	value T
+	err   E
+}
+
+func runeOk[T any, E any](value T) runeResult[T, E] {
+	return runeResult[T, E]{ok: true, value: value}
+}
+
+func runeErr[T any, E any](err E) runeResult[T, E] {
+	return runeResult[T, E]{err: err}
+}
+
 type runeError struct {
 	__code    int
 	__message string
@@ -602,6 +646,103 @@ func runeErrorFrom(err error) *runeError {
 		return nil
 	}
 	return &runeError{__code: 1, __message: err.Error()}
+}
+
+type runeFileStat struct {
+	__size        int
+	__isFile      bool
+	__isDirectory bool
+}
+
+func runeReadFile(path string) runeTask[runeResult[[]byte, *runeError]] { return runeFsReadFile(path) }
+
+func runeFsReadFile(path string) runeTask[runeResult[[]byte, *runeError]] {
+	return runeGo(func() runeResult[[]byte, *runeError] {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return runeErr[[]byte, *runeError](runeErrorFrom(err))
+		}
+		return runeOk[[]byte, *runeError](data)
+	})
+}
+
+func runeFsReadFileText(path string) runeTask[runeResult[string, *runeError]] {
+	return runeGo(func() runeResult[string, *runeError] {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return runeErr[string, *runeError](runeErrorFrom(err))
+		}
+		return runeOk[string, *runeError](string(data))
+	})
+}
+
+func runeFsWriteFile(path string, data []byte) runeTask[runeResult[struct{}, *runeError]] {
+	return runeGo(func() runeResult[struct{}, *runeError] {
+		if err := os.WriteFile(path, data, 0644); err != nil {
+			return runeErr[struct{}, *runeError](runeErrorFrom(err))
+		}
+		return runeOk[struct{}, *runeError](struct{}{})
+	})
+}
+
+func runeFsWriteFileText(path string, data string) runeTask[runeResult[struct{}, *runeError]] {
+	return runeFsWriteFile(path, []byte(data))
+}
+
+func runeFsExists(path string) runeTask[runeResult[bool, *runeError]] {
+	return runeGo(func() runeResult[bool, *runeError] {
+		_, err := os.Stat(path)
+		if err == nil {
+			return runeOk[bool, *runeError](true)
+		}
+		if os.IsNotExist(err) {
+			return runeOk[bool, *runeError](false)
+		}
+		return runeErr[bool, *runeError](runeErrorFrom(err))
+	})
+}
+
+func runeFsReaddir(path string) runeTask[runeResult[[]string, *runeError]] {
+	return runeGo(func() runeResult[[]string, *runeError] {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return runeErr[[]string, *runeError](runeErrorFrom(err))
+		}
+		names := make([]string, 0, len(entries))
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		return runeOk[[]string, *runeError](names)
+	})
+}
+
+func runeFsMkdir(path string) runeTask[runeResult[struct{}, *runeError]] {
+	return runeGo(func() runeResult[struct{}, *runeError] {
+		if err := os.Mkdir(path, 0755); err != nil {
+			return runeErr[struct{}, *runeError](runeErrorFrom(err))
+		}
+		return runeOk[struct{}, *runeError](struct{}{})
+	})
+}
+
+func runeFsRemove(path string) runeTask[runeResult[struct{}, *runeError]] {
+	return runeGo(func() runeResult[struct{}, *runeError] {
+		if err := os.Remove(path); err != nil {
+			return runeErr[struct{}, *runeError](runeErrorFrom(err))
+		}
+		return runeOk[struct{}, *runeError](struct{}{})
+	})
+}
+
+func runeFsStat(path string) runeTask[runeResult[*runeFileStat, *runeError]] {
+	return runeGo(func() runeResult[*runeFileStat, *runeError] {
+		info, err := os.Stat(path)
+		if err != nil {
+			return runeErr[*runeFileStat, *runeError](runeErrorFrom(err))
+		}
+		stat := &runeFileStat{__size: int(info.Size()), __isFile: info.Mode().IsRegular(), __isDirectory: info.IsDir()}
+		return runeOk[*runeFileStat, *runeError](stat)
+	})
 }
 
 func __lex(__source string) []__Token {
@@ -9233,12 +9374,16 @@ func ____rune_private_6bd43c78_joinStrings(__values []string, __index int, __out
 }
 
 func __generateDeclarations(__file __IRFile) string {
-	__out := ""
+	__out := ____rune_private_01b5d206_dtsPreamble()
 	__out = __out + ____rune_private_01b5d206_dtsStructs(__file.__structs, 0)
 	__out = __out + ____rune_private_01b5d206_dtsEnums(__file.__enums, 0)
 	__out = __out + ____rune_private_01b5d206_dtsConsts(__file.__constants, 0)
 	__out = __out + ____rune_private_01b5d206_dtsFunctions(__file.__functions, 0)
-	return __out + ____rune_private_01b5d206_dtsExports(__file, 0, "")
+	return __out + ____rune_private_01b5d206_dtsExports(__file)
+}
+
+func ____rune_private_01b5d206_dtsPreamble() string {
+	return "type RuneResult<T, E> = { ok: true; value: T } | { ok: false; error: E };\ntype RuneError = { code: number; message: string; cause: RuneError | null };\ntype RuneIter<T> = { next: () => [T, boolean] };\ntype RuneFileStat = { size: number; isFile: boolean; isDirectory: boolean };\ntype RuneTCPConnection = { socket: unknown };\ntype RuneTCPListener = { server: unknown; address: string };\ndeclare class RuneStringBuffer {}\ndeclare class RuneBuffer {}\ndeclare class RuneReader {}\ndeclare class RuneWriter {}\n\n"
 }
 
 func ____rune_private_01b5d206_dtsStructs(__structs []__IRStructType, __index int) string {
@@ -9271,7 +9416,7 @@ func ____rune_private_01b5d206_dtsStructFields(__fields []__IRField, __index int
 			if __fields[__index].__private {
 				return ____rune_private_01b5d206_dtsStructFields(__fields, __index+1)
 			}
-			return __indent(1) + __fields[__index].__name + ": " + ____rune_private_01b5d206_dtsType(__fields[__index].__typeName) + ";\n" + ____rune_private_01b5d206_dtsStructFields(__fields, __index+1)
+			return __indent(1) + ____rune_private_01b5d206_dtsPropertyName(__fields[__index].__name) + ": " + ____rune_private_01b5d206_dtsType(__fields[__index].__typeName) + ";\n" + ____rune_private_01b5d206_dtsStructFields(__fields, __index+1)
 		}()
 	}()
 }
@@ -9293,18 +9438,17 @@ func ____rune_private_01b5d206_dtsEnums(__enums []__IREnumType, __index int) str
 func ____rune_private_01b5d206_dtsEnum(__enumDecl __IREnumType) string {
 	__name := __mangleIdent(__enumDecl.__name)
 	__generics := ____rune_private_01b5d206_dtsGenerics(__enumDecl.__generics)
-	__hasPayload := ____rune_private_01b5d206_dtsEnumHasPayload(__enumDecl.__members, 0)
 	__shape := func() string {
 		switch {
-		case __hasPayload == true:
+		case ____rune_private_01b5d206_dtsEnumHasPayload(__enumDecl.__members, 0) == true:
 			return "{ tag: number; payload: any[] }"
-		case __hasPayload == false:
+		case ____rune_private_01b5d206_dtsEnumHasPayload(__enumDecl.__members, 0) == false:
 			return "number"
 		}
 		return ""
 	}()
 	__out := "type " + __name + __generics + " = " + __shape + ";\n"
-	__out = __out + "declare const " + __name + " = {\n"
+	__out = __out + "declare const " + __name + ": {\n"
 	__out = __out + ____rune_private_01b5d206_dtsEnumMembers(__enumDecl.__members, 0)
 	return __out + "};\n" + "\n"
 }
@@ -9337,77 +9481,7 @@ func ____rune_private_01b5d206_dtsEnumMembersAt(__members []__IREnumMember, __in
 		if __members[__index].__private {
 			return ____rune_private_01b5d206_dtsEnumMembers(__members, __index+1)
 		}
-		return __indent(1) + "readonly " + __members[__index].__name + ": " + ____rune_private_01b5d206_dtsEnumMemberValue(__members[__index], __index) + ";\n" + ____rune_private_01b5d206_dtsEnumMembers(__members, __index+1)
-	}()
-}
-
-func ____rune_private_01b5d206_dtsEnumMemberValue(__member __IREnumMember, __index int) string {
-	return ____rune_private_01b5d206_dtsEnumMemberValueText(__member.__value, __index)
-}
-
-func ____rune_private_01b5d206_dtsEnumMemberValueText(__value string, __fallback int) string {
-	return func() string {
-		if __value == "" {
-			return ____rune_private_01b5d206_dtsIntText(__fallback)
-		}
-		return __value
-	}()
-}
-
-func ____rune_private_01b5d206_dtsIntText(__value int) string {
-	return ____rune_private_01b5d206_dtsIntDigits(__value, "")
-}
-
-func ____rune_private_01b5d206_dtsIntDigits(__value int, __out string) string {
-	return ____rune_private_01b5d206_dtsBuildInt(__value, __out)
-}
-
-func ____rune_private_01b5d206_dtsBuildInt(__value int, __out string) string {
-	return func() string {
-		if __value < 10 {
-			return ____rune_private_01b5d206_dtsDigit(__value) + __out
-		}
-		return ____rune_private_01b5d206_dtsBuildIntDiv(__value, __out)
-	}()
-}
-
-func ____rune_private_01b5d206_dtsBuildIntDiv(__value int, __out string) string {
-	return func() string {
-		if __value < 10 {
-			return ____rune_private_01b5d206_dtsDigit(__value) + __out
-		}
-		return ____rune_private_01b5d206_dtsBuildInt(__value/10, ____rune_private_01b5d206_dtsDigit(__value%10)+__out)
-	}()
-}
-
-func ____rune_private_01b5d206_dtsDigit(__value int) string {
-	return ____rune_private_01b5d206_dtsDigitAt(__value)
-}
-
-func ____rune_private_01b5d206_dtsDigitAt(__value int) string {
-	return func() string {
-		switch {
-		case __value == 0:
-			return "0"
-		case __value == 1:
-			return "1"
-		case __value == 2:
-			return "2"
-		case __value == 3:
-			return "3"
-		case __value == 4:
-			return "4"
-		case __value == 5:
-			return "5"
-		case __value == 6:
-			return "6"
-		case __value == 7:
-			return "7"
-		case __value == 8:
-			return "8"
-		default:
-			return "9"
-		}
+		return __indent(1) + "readonly " + ____rune_private_01b5d206_dtsPropertyName(__members[__index].__name) + ": " + __enumValue(__members[__index], __index) + ";\n" + ____rune_private_01b5d206_dtsEnumMembers(__members, __index+1)
 	}()
 }
 
@@ -9480,7 +9554,7 @@ func ____rune_private_01b5d206_dtsGenericNames(__generics []string, __index int,
 				return ""
 			}
 			return ", "
-		}()+__generics[__index])
+		}()+__mangleIdent(__generics[__index])+" extends unknown")
 	}()
 }
 
@@ -9502,7 +9576,7 @@ func ____rune_private_01b5d206_dtsType(__typeName string) string {
 	switch {
 	case (__typeName == "") || (__typeName == "Void"):
 		return "void"
-	case (__typeName == "Int") || (__typeName == "Int4") || (__typeName == "Int8") || (__typeName == "Int16") || (__typeName == "UInt") || (__typeName == "UInt8") || (__typeName == "UInt16") || (__typeName == "Double") || (__typeName == "Float"):
+	case (__typeName == "Int") || (__typeName == "Int4") || (__typeName == "Int8") || (__typeName == "Int16") || (__typeName == "UInt") || (__typeName == "UInt8") || (__typeName == "UInt16") || (__typeName == "Byte") || (__typeName == "Double") || (__typeName == "Float"):
 		return "number"
 	case (__typeName == "BigInt") || (__typeName == "Int64") || (__typeName == "UInt64"):
 		return "bigint"
@@ -9510,10 +9584,42 @@ func ____rune_private_01b5d206_dtsType(__typeName string) string {
 		return "string"
 	case __typeName == "Bool":
 		return "boolean"
-	case __typeName == "Dynamic":
-		return "any"
+	case __typeName == "Null":
+		return "null"
+	case __typeName == "Object":
+		return "object"
+	case __typeName == "Bytes":
+		return "DataView"
+	case __typeName == "Buffer":
+		return "RuneBuffer"
+	case __typeName == "Reader":
+		return "RuneReader"
+	case __typeName == "Writer":
+		return "RuneWriter"
+	case __typeName == "StringBuffer":
+		return "RuneStringBuffer"
+	case __typeName == "FileStat":
+		return "RuneFileStat"
+	case __typeName == "TCPConnection":
+		return "RuneTCPConnection"
+	case __typeName == "TCPListener":
+		return "RuneTCPListener"
 	case (__typeName == "Data") || (__typeName == "@io.Data"):
 		return "Uint8Array"
+	case __typeName == "Error":
+		return "RuneError"
+	case __typeName == "Never":
+		return "never"
+	case __typeName == "Symbol":
+		return "symbol"
+	case __typeName == "Regex":
+		return "RegExp"
+	case __typeName == "HTMLElement":
+		return "HTMLElement"
+	case __typeName == "WebComponent":
+		return "CustomElementConstructor"
+	case (__typeName == "Dynamic") || (__typeName == "Unknown"):
+		return "any"
 	default:
 		return ____rune_private_01b5d206_dtsTypeFallback(__typeName)
 	}
@@ -9521,31 +9627,80 @@ func ____rune_private_01b5d206_dtsType(__typeName string) string {
 
 func ____rune_private_01b5d206_dtsTypeFallback(__typeName string) string {
 	return func() string {
-		if strings.HasSuffix(__typeName, "?") {
-			return ____rune_private_01b5d206_dtsType(func() string { runes := []rune(__typeName); return string(runes[0 : len([]rune(__typeName))-1]) }()) + " | null"
+		if strings.HasPrefix(__typeName, "&") {
+			return "any"
 		}
 		return func() string {
-			if __genericInner(__typeName, "Array") != "" {
-				return ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Array")) + "[]"
+			if strings.HasSuffix(__typeName, "?") {
+				return ____rune_private_01b5d206_dtsType(func() string { runes := []rune(__typeName); return string(runes[0 : len([]rune(__typeName))-1]) }()) + " | null"
 			}
 			return func() string {
-				if __genericInner(__typeName, "ReadonlyArray") != "" {
-					return "ReadonlyArray<" + ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "ReadonlyArray")) + ">"
+				if __genericInner(__typeName, "Array") != "" {
+					return ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Array")) + "[]"
 				}
 				return func() string {
-					if __genericInner(__typeName, "Map") != "" {
-						return "Map<" + ____rune_private_01b5d206_dtsType(__typeArg(__genericInner(__typeName, "Map"), 0)) + ", " + ____rune_private_01b5d206_dtsType(__typeArg(__genericInner(__typeName, "Map"), 1)) + ">"
+					if __genericInner(__typeName, "Result") != "" {
+						return ____rune_private_01b5d206_dtsGenericType("RuneResult", __genericInner(__typeName, "Result"))
 					}
 					return func() string {
-						if __genericInner(__typeName, "Set") != "" {
-							return "Set<" + ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Set")) + ">"
+						if __genericInner(__typeName, "Task") != "" {
+							return ____rune_private_01b5d206_dtsGenericType("Promise", __genericInner(__typeName, "Task"))
 						}
-						return ____rune_private_01b5d206_dtsNamedType(__typeName)
+						return func() string {
+							if __genericInner(__typeName, "Iter") != "" {
+								return ____rune_private_01b5d206_dtsGenericType("RuneIter", __genericInner(__typeName, "Iter"))
+							}
+							return func() string {
+								if __genericInner(__typeName, "ReadonlyArray") != "" {
+									return ____rune_private_01b5d206_dtsGenericType("ReadonlyArray", __genericInner(__typeName, "ReadonlyArray"))
+								}
+								return func() string {
+									if __genericInner(__typeName, "Tuple") != "" {
+										return "[" + ____rune_private_01b5d206_dtsTypeArgs(__genericInner(__typeName, "Tuple")) + "]"
+									}
+									return func() string {
+										if __genericInner(__typeName, "ReadonlyTuple") != "" {
+											return "readonly [" + ____rune_private_01b5d206_dtsTypeArgs(__genericInner(__typeName, "ReadonlyTuple")) + "]"
+										}
+										return func() string {
+											if __genericInner(__typeName, "Map") != "" {
+												return ____rune_private_01b5d206_dtsGenericType("Map", __genericInner(__typeName, "Map"))
+											}
+											return func() string {
+												if __genericInner(__typeName, "Set") != "" {
+													return ____rune_private_01b5d206_dtsGenericType("Set", __genericInner(__typeName, "Set"))
+												}
+												return func() string {
+													if __genericInner(__typeName, "WeakMap") != "" {
+														return ____rune_private_01b5d206_dtsGenericType("WeakMap", __genericInner(__typeName, "WeakMap"))
+													}
+													return func() string {
+														if __genericInner(__typeName, "WeakSet") != "" {
+															return ____rune_private_01b5d206_dtsGenericType("WeakSet", __genericInner(__typeName, "WeakSet"))
+														}
+														return func() string {
+															if __genericInner(__typeName, "Record") != "" {
+																return ____rune_private_01b5d206_dtsGenericType("Record", __genericInner(__typeName, "Record"))
+															}
+															return ____rune_private_01b5d206_dtsNamedType(__typeName)
+														}()
+													}()
+												}()
+											}()
+										}()
+									}()
+								}()
+							}()
+						}()
 					}()
 				}()
 			}()
 		}()
 	}()
+}
+
+func ____rune_private_01b5d206_dtsGenericType(__name string, __args string) string {
+	return __name + "<" + ____rune_private_01b5d206_dtsTypeArgs(__args) + ">"
 }
 
 func ____rune_private_01b5d206_dtsNamedType(__typeName string) string {
@@ -9576,79 +9731,174 @@ func ____rune_private_01b5d206_dtsTypeArgList(__args []string, __index int, __ou
 	}()
 }
 
-func ____rune_private_01b5d206_dtsExports(__file __IRFile, __index int, __out string) string {
-	__names := ____rune_private_01b5d206_dtsFunctionExports(__file.__functions, 0, ____rune_private_01b5d206_dtsStructExports(__file.__structs, 0, ____rune_private_01b5d206_dtsEnumExports(__file.__enums, 0, ____rune_private_01b5d206_dtsConstExports(__file.__constants, 0, ""))))
+func ____rune_private_01b5d206_dtsExports(__file __IRFile) string {
 	return func() string {
-		if __names == "" {
+		if len(__file.__structs)+len(__file.__enums)+len(__file.__constants)+len(__file.__functions) == 0 {
 			return ""
 		}
-		return "export { " + __names + " };\n"
+		return "\n" + ____rune_private_01b5d206_dtsStructExports(__file.__structs, 0) + ____rune_private_01b5d206_dtsEnumExports(__file.__enums, 0) + ____rune_private_01b5d206_dtsConstExports(__file.__constants, 0) + ____rune_private_01b5d206_dtsFunctionExports(__file.__functions, 0)
 	}()
 }
 
-func ____rune_private_01b5d206_dtsStructExports(__structs []__IRStructType, __index int, __out string) string {
+func ____rune_private_01b5d206_dtsStructExports(__structs []__IRStructType, __index int) string {
 	return func() string {
 		if __index >= len(__structs) {
-			return __out
+			return ""
 		}
 		return func() string {
 			if __structs[__index].__private {
-				return ____rune_private_01b5d206_dtsStructExports(__structs, __index+1, __out)
+				return ____rune_private_01b5d206_dtsStructExports(__structs, __index+1)
 			}
-			return ____rune_private_01b5d206_dtsStructExports(__structs, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __structs[__index].__name))
+			return ____rune_private_01b5d206_dtsExportTypeAlias(__structs[__index].__name) + ____rune_private_01b5d206_dtsStructExports(__structs, __index+1)
 		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsEnumExports(__enums []__IREnumType, __index int, __out string) string {
+func ____rune_private_01b5d206_dtsEnumExports(__enums []__IREnumType, __index int) string {
 	return func() string {
 		if __index >= len(__enums) {
-			return __out
+			return ""
 		}
 		return func() string {
 			if __enums[__index].__private {
-				return ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1, __out)
+				return ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1)
 			}
-			return ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __enums[__index].__name))
+			return ____rune_private_01b5d206_dtsExportTypeAlias(__enums[__index].__name) + ____rune_private_01b5d206_dtsExportValueAlias(__enums[__index].__name) + ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1)
 		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsConstExports(__constants []__IRConst, __index int, __out string) string {
+func ____rune_private_01b5d206_dtsConstExports(__constants []__IRConst, __index int) string {
 	return func() string {
 		if __index >= len(__constants) {
-			return __out
+			return ""
 		}
 		return func() string {
 			if __constants[__index].__private {
-				return ____rune_private_01b5d206_dtsConstExports(__constants, __index+1, __out)
+				return ____rune_private_01b5d206_dtsConstExports(__constants, __index+1)
 			}
-			return ____rune_private_01b5d206_dtsConstExports(__constants, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __constants[__index].__name))
+			return ____rune_private_01b5d206_dtsExportValueAlias(__constants[__index].__name) + ____rune_private_01b5d206_dtsConstExports(__constants, __index+1)
 		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsFunctionExports(__functions []__IRFunction, __index int, __out string) string {
+func ____rune_private_01b5d206_dtsFunctionExports(__functions []__IRFunction, __index int) string {
 	return func() string {
 		if __index >= len(__functions) {
-			return __out
+			return ""
 		}
 		return func() string {
 			if __functions[__index].__macro || __functions[__index].__private {
-				return ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1, __out)
+				return ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1)
 			}
-			return ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __functions[__index].__name))
+			return ____rune_private_01b5d206_dtsExportValueAlias(__functions[__index].__name) + ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1)
 		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsAppendName(__out string, __name string) string {
-	return __out + func() string {
-		if __out == "" {
-			return ""
+func ____rune_private_01b5d206_dtsExportTypeAlias(__name string) string {
+	return func() string {
+		if ____rune_private_01b5d206_dtsCanUseBareProperty(__name) {
+			return "export type " + __name + " = " + __mangleIdent(__name) + ";\n"
 		}
-		return ", "
-	}() + __mangleIdent(__name) + " as " + __name
+		return "export type { " + __mangleIdent(__name) + " as " + ____rune_private_01b5d206_dtsExportName(__name) + " };\n"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsExportValueAlias(__name string) string {
+	return func() string {
+		if ____rune_private_01b5d206_dtsCanUseBareProperty(__name) {
+			return "export declare const " + __name + ": typeof " + __mangleIdent(__name) + ";\n"
+		}
+		return "export { " + __mangleIdent(__name) + " as " + ____rune_private_01b5d206_dtsExportName(__name) + " };\n"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsPropertyName(__name string) string {
+	return func() string {
+		if ____rune_private_01b5d206_dtsCanUseBareProperty(__name) {
+			return __name
+		}
+		return ____rune_private_01b5d206_dtsQuoteName(__name)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsExportName(__name string) string {
+	return ____rune_private_01b5d206_dtsPropertyName(__name)
+}
+
+func ____rune_private_01b5d206_dtsQuoteName(__name string) string {
+	return "\"" + ____rune_private_01b5d206_dtsEscapeName(__name, 0, "") + "\""
+}
+
+func ____rune_private_01b5d206_dtsEscapeName(__name string, __index int, __out string) string {
+	return func() string {
+		if __index >= len([]rune(__name)) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsEscapeName(__name, __index+1, __out+____rune_private_01b5d206_dtsEscapeNameChar([]rune(__name)[__index]))
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEscapeNameChar(__ch rune) string {
+	return func() string {
+		switch {
+		case __ch == '\\':
+			return "\\\\"
+		case __ch == '"':
+			return "\\\""
+		case __ch == '\n':
+			return "\\n"
+		case __ch == '\r':
+			return "\\r"
+		case __ch == '\t':
+			return "\\t"
+		default:
+			return string(__ch)
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsCanUseBareProperty(__name string) bool {
+	return __name != "" && ____rune_private_01b5d206_dtsReservedName(__name) == false && ____rune_private_01b5d206_dtsSafeIdent(__name, 0, true)
+}
+
+func ____rune_private_01b5d206_dtsSafeIdent(__name string, __index int, __first bool) bool {
+	return func() bool {
+		if __index >= len([]rune(__name)) {
+			return true
+		}
+		return func() bool {
+			if ____rune_private_01b5d206_dtsSafeIdentChar([]rune(__name)[__index], __first) {
+				return ____rune_private_01b5d206_dtsSafeIdent(__name, __index+1, false)
+			}
+			return false
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsSafeIdentChar(__ch rune, __first bool) bool {
+	return func() bool {
+		switch {
+		case (__ch == '_') || (__ch == '$') || (__ch >= 'a' && __ch <= 'z') || (__ch >= 'A' && __ch <= 'Z'):
+			return true
+		case (__ch >= '0' && __ch <= '9'):
+			return __first == false
+		default:
+			return false
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsReservedName(__name string) bool {
+	return func() bool {
+		switch {
+		case (__name == "await") || (__name == "break") || (__name == "case") || (__name == "catch") || (__name == "class") || (__name == "const") || (__name == "continue") || (__name == "debugger") || (__name == "default") || (__name == "delete") || (__name == "do") || (__name == "else") || (__name == "enum") || (__name == "export") || (__name == "extends") || (__name == "false") || (__name == "finally") || (__name == "for") || (__name == "function") || (__name == "if") || (__name == "implements") || (__name == "import") || (__name == "in") || (__name == "instanceof") || (__name == "interface") || (__name == "let") || (__name == "new") || (__name == "null") || (__name == "package") || (__name == "private") || (__name == "protected") || (__name == "public") || (__name == "return") || (__name == "static") || (__name == "super") || (__name == "switch") || (__name == "this") || (__name == "throw") || (__name == "true") || (__name == "try") || (__name == "typeof") || (__name == "var") || (__name == "void") || (__name == "while") || (__name == "with") || (__name == "yield"):
+			return true
+		default:
+			return false
+		}
+	}()
 }
 
 func __compileTypeScript(__source string) __CompileResult {
@@ -9695,6 +9945,107 @@ func __compileDeclarationsFiles(__files []__SourceFile) __CompileResult {
 func __compileFiles(__files []__SourceFile, __target string) __CompileResult {
 	__file := ____rune_private_1ed26dbc_lowerFiles(__files)
 	return ____rune_private_1ed26dbc_compileFile(__file, __target)
+}
+
+func __discoverSources(__root string) runeTask[runeResult[[]__SourceFile, *runeError]] {
+	return runeGo(func() runeResult[[]__SourceFile, *runeError] {
+		__result2 := runeAwait(runeFsReadFileText(__root))
+		if !__result2.ok {
+			return runeErr[[]__SourceFile, *runeError](__result2.err)
+		}
+		__source := __result2.value
+		return runeOk[[]__SourceFile, *runeError](____rune_private_1ed26dbc_discoverSourceGraph([]__SourceFile{__SourceFile{__path: __root, __source: __source}}))
+	})
+}
+
+func __hostBridgeSources(__root string, __files []__SourceFile) []__SourceFile {
+	return ____rune_private_1ed26dbc_discoverSourceGraph(__files)
+}
+
+func ____rune_private_1ed26dbc_discoverSourceGraph(__files []__SourceFile) []__SourceFile {
+	return ____rune_private_1ed26dbc_discoverMergeSourceFiles(append([]__SourceFile{}, []__SourceFile{____rune_private_1ed26dbc_emptySourceFile()}[0:0]...), __files, 0)
+}
+
+func __getSelfhostSources(__root string) runeTask[runeResult[__SelfhostSources, *runeError]] {
+	return runeGo(func() runeResult[__SelfhostSources, *runeError] {
+		__result3 := runeAwait(__discoverSources(__root))
+		if !__result3.ok {
+			return runeErr[__SelfhostSources, *runeError](__result3.err)
+		}
+		__files := __result3.value
+		return runeOk[__SelfhostSources, *runeError](__SelfhostSources{__files: __files})
+	})
+}
+
+func ____discoverSourcesPath(__root string) runeTask[runeResult[[]__SourceFile, *runeError]] {
+	return runeGo(func() runeResult[[]__SourceFile, *runeError] {
+		__result4 := runeAwait(__discoverSources(__root))
+		if !__result4.ok {
+			return runeErr[[]__SourceFile, *runeError](__result4.err)
+		}
+		__files := __result4.value
+		return runeOk[[]__SourceFile, *runeError](__files)
+	})
+}
+
+func ____rune_private_1ed26dbc_discoverSourceImportPaths(__file __SourceFile) []string {
+	__parsed := ____rune_private_1ed26dbc_expandCompilerMacros(__parse(__file.__source))
+	return ____rune_private_1ed26dbc_appendDiscoverImportPaths([]string{}, __file.__path, __parsed.__imports, 0)
+}
+
+func ____rune_private_1ed26dbc_appendDiscoverImportPaths(__pending []string, __basePath string, __imports []__ParsedImport, __index int) []string {
+	return func() []string {
+		if __index >= len(__imports) {
+			return __pending
+		}
+		return ____rune_private_1ed26dbc_appendDiscoverImportPath(__pending, __basePath, __imports, __index)
+	}()
+}
+
+func ____rune_private_1ed26dbc_appendDiscoverImportPath(__pending []string, __basePath string, __imports []__ParsedImport, __index int) []string {
+	__importDecl := __imports[__index]
+	__skip := __importDecl.__go || __importDecl.__module
+	return func() []string {
+		switch {
+		case __skip == true:
+			return ____rune_private_1ed26dbc_appendDiscoverImportPaths(__pending, __basePath, __imports, __index+1)
+		default:
+			return ____rune_private_1ed26dbc_appendDiscoverImportPaths(func() []string {
+				out := []string{}
+				out = append(out, __pending...)
+				out = append(out, ____rune_private_1ed26dbc_resolveCompilerImportPath(__basePath, __importDecl.__path))
+				return out
+			}(), __basePath, __imports, __index+1)
+		}
+	}()
+}
+
+func ____rune_private_1ed26dbc_discoverMergeSourceFiles(__left []__SourceFile, __right []__SourceFile, __index int) []__SourceFile {
+	return func() []__SourceFile {
+		if __index >= len(__right) {
+			return __left
+		}
+		return ____rune_private_1ed26dbc_discoverMergeSourceFiles(func() []__SourceFile {
+			if ____rune_private_1ed26dbc_compilerContainsSourceFile(__left, __right[__index].__path, 0) {
+				return __left
+			}
+			return func() []__SourceFile {
+				out := []__SourceFile{}
+				out = append(out, __left...)
+				out = append(out, __right[__index])
+				return out
+			}()
+		}(), __right, __index+1)
+	}()
+}
+
+func ____rune_private_1ed26dbc_compilerContainsSourceFile(__files []__SourceFile, __path string, __index int) bool {
+	return func() bool {
+		if __index >= len(__files) {
+			return false
+		}
+		return ____rune_private_1ed26dbc_compilerPathNormalize(__files[__index].__path) == ____rune_private_1ed26dbc_compilerPathNormalize(__path) || ____rune_private_1ed26dbc_compilerContainsSourceFile(__files, __path, __index+1)
+	}()
 }
 
 func ____rune_private_1ed26dbc_compileFile(__file __IRFile, __target string) __CompileResult {
@@ -12641,12 +12992,12 @@ func ____rune_private_1ed26dbc_checkGoModuleSelectorCall(__expr __IRExpr, __name
 
 func ____rune_private_1ed26dbc_checkGoExprCall(__expr __IRExpr, __errors []string) []string {
 	return func() []string {
-		__match2 := ____rune_private_1ed26dbc_compilerCallArgCount(__expr)
+		__match5 := ____rune_private_1ed26dbc_compilerCallArgCount(__expr)
 		switch {
-		case __match2 == 1:
+		case __match5 == 1:
 			return ____rune_private_1ed26dbc_checkGoExprStringLiteral(__expr, __errors)
 		case true:
-			__count := __match2
+			__count := __match5
 			_ = __count
 			return func() []string {
 				out := []string{}
@@ -12661,12 +13012,12 @@ func ____rune_private_1ed26dbc_checkGoExprCall(__expr __IRExpr, __errors []strin
 
 func ____rune_private_1ed26dbc_checkGoStmtCall(__expr __IRExpr, __errors []string) []string {
 	return func() []string {
-		__match3 := ____rune_private_1ed26dbc_compilerCallArgCount(__expr)
+		__match6 := ____rune_private_1ed26dbc_compilerCallArgCount(__expr)
 		switch {
-		case __match3 == 1:
+		case __match6 == 1:
 			return ____rune_private_1ed26dbc_checkGoStmtStringLiteral(__expr, __errors)
 		case true:
-			__count := __match3
+			__count := __match6
 			_ = __count
 			return func() []string {
 				out := []string{}
@@ -14651,12 +15002,12 @@ func ____rune_private_1ed26dbc_compilerMacroFunctionError(__fn __ParsedFunction,
 
 func ____rune_private_1ed26dbc_compilerMacroPurityError(__fn __ParsedFunction, __errors []__ParseError) []__ParseError {
 	return func() []__ParseError {
-		__match4 := ____rune_private_1ed26dbc_compilerParsedMacroPurityMessage(__fn.__body)
+		__match7 := ____rune_private_1ed26dbc_compilerParsedMacroPurityMessage(__fn.__body)
 		switch {
-		case __match4 == "":
+		case __match7 == "":
 			return __errors
 		case true:
-			__message := __match4
+			__message := __match7
 			_ = __message
 			return func() []__ParseError {
 				out := []__ParseError{}

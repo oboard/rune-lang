@@ -16,6 +16,11 @@
   source: String
 }
 
+/// The complete source set consumed by the self-hosted compiler.
++ SelfhostSources: {
+  files: Array[SourceFile]
+}
+
 CompilerCallable: {
   name: String
   arity: Int
@@ -93,6 +98,96 @@ CompilerNamespaceAlias: {
   file := lowerFiles(files)
   compileFile(file, target)
 }
+
+/// Discover the source set rooted at `root`. The only filesystem operation is
+/// readFileText; generated Go wraps this routine in runeTask/runeAwait.
++ ~ discoverSources(
+  root: String
+) -> Result[Array[SourceFile], Error] => {
+  source := @fs.readFileText(root)?
+  discoverSourceGraph([SourceFile { path: root, source: source }])
+}
+
+/// Extend a source set with imports discovered by the host bridge. Keeping this
+/// graph function plain lets callers feed its result straight to compileFiles.
++ hostBridgeSources(
+  root: String,
+  files: Array[SourceFile]
+) -> Array[SourceFile] => discoverSourceGraph(files)
+
+/// Plain graph normalization is shared by host bridges and compileFiles callers.
+discoverSourceGraph(
+  files: Array[SourceFile]
+) -> Array[SourceFile] => discoverMergeSourceFiles([emptySourceFile()].slice(0, 0), files, 0)
+
+/// Exposes the root discovery result as a stable self-host API object.
++ ~ getSelfhostSources(
+  root: String
+) -> Result[SelfhostSources, Error] => {
+  files := discoverSources(root)?
+  SelfhostSources { files: files }
+}
+
+/// Stable generated-Go entrypoint for the host source-discovery bridge.
++ ~ __discoverSourcesPath(
+  root: String
+) -> Result[Array[SourceFile], Error] => {
+  files := discoverSources(root)?
+  files
+}
+
+discoverSourceImportPaths(
+  file: SourceFile
+) -> Array[String] => {
+  parsed := expandCompilerMacros(parse(file.source))
+  appendDiscoverImportPaths([], file.path, parsed.imports, 0)
+}
+
+appendDiscoverImportPaths(
+  pending: Array[String],
+  basePath: String,
+  imports: Array[ParsedImport],
+  index: Int
+) -> Array[String] => (
+  index >= imports.length() ? pending
+    : appendDiscoverImportPath(pending, basePath, imports, index)
+)
+
+appendDiscoverImportPath(
+  pending: Array[String],
+  basePath: String,
+  imports: Array[ParsedImport],
+  index: Int
+) -> Array[String] => {
+  importDecl := imports[index]
+  skip := importDecl.go || importDecl.module
+  skip {
+    true => appendDiscoverImportPaths(pending, basePath, imports, index + 1)
+    _ => appendDiscoverImportPaths([..pending, resolveCompilerImportPath(basePath, importDecl.path)], basePath, imports, index + 1)
+  }
+}
+
+discoverMergeSourceFiles(
+  left: Array[SourceFile],
+  right: Array[SourceFile],
+  index: Int
+) -> Array[SourceFile] => (
+  index >= right.length() ? left
+    : discoverMergeSourceFiles(
+      compilerContainsSourceFile(left, right[index].path, 0) ? left : [..left, right[index]],
+      right,
+      index + 1
+    )
+)
+
+compilerContainsSourceFile(
+  files: Array[SourceFile],
+  path: String,
+  index: Int
+) -> Bool => (
+  index >= files.length() ? false
+    : (compilerPathNormalize(files[index].path) == compilerPathNormalize(path)) || compilerContainsSourceFile(files, path, index + 1)
+)
 
 compileFile(
   file: IRFile,

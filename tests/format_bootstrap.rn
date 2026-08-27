@@ -13,3 +13,21 @@
 }
 `)
 }
+
+? "selfhost formatter preserves end-of-line comments" {
+  formatted := formatSource("main()=>{\nvalue:=1 // value\n@io.println(value) // print\n}")
+  @assert.eq(formatted, `main() => {
+  value := 1 // value
+  @io.println(value) // print
+}
+`)
+}
+
+? "selfhost formatter keeps host block-comment behavior" {
+  formatted := formatSource("main()=>{\nvalue:=1 /* value */\n@io.println(value)}")
+  @assert.eq(formatted, `main() => {
+  value := 1
+  @io.println(value)
+}
+`)
+}

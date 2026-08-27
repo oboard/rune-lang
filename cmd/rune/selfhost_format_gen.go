@@ -1053,7 +1053,7 @@ func __fmt___fmt_rune_private_8093ad48_isExponentSign(__fmt_ch rune) bool {
 func __fmt_formatSource(__fmt_source string) string {
 	__fmt_tokens := __fmt_lex(__fmt_source)
 	__fmt_state := __fmt___fmt_rune_private_b2b0db24_formatTokens(__fmt_tokens, 0, __fmt___fmt_rune_private_b2b0db24_emptyFormatState())
-	return __fmt___fmt_rune_private_b2b0db24_finishFormat(__fmt_state.__fmt_text)
+	return __fmt___fmt_rune_private_b2b0db24_preserveComments(__fmt_source, __fmt___fmt_rune_private_b2b0db24_finishFormat(__fmt_state.__fmt_text))
 }
 
 func __fmt___fmt_rune_private_b2b0db24_emptyFormatState() __fmt_FormatState {
@@ -1225,6 +1225,66 @@ func __fmt___fmt_rune_private_b2b0db24_indentText(__fmt_indent int) string {
 		}
 		return "  " + __fmt___fmt_rune_private_b2b0db24_indentText(__fmt_indent-1)
 	}()
+}
+
+func __fmt___fmt_rune_private_b2b0db24_preserveComments(__fmt_source string, __fmt_formatted string) string {
+	return __fmt___fmt_rune_private_b2b0db24_preserveCommentLines(func() []string { parts := strings.Split(__fmt_formatted, "\n"); return parts }(), func() []string { parts := strings.Split(__fmt_source, "\n"); return parts }(), 0, "")
+}
+
+func __fmt___fmt_rune_private_b2b0db24_preserveCommentLines(__fmt_formatted []string, __fmt_source []string, __fmt_index int, __fmt_out string) string {
+	return func() string {
+		if __fmt_index >= len(__fmt_formatted) {
+			return __fmt_out
+		}
+		return __fmt___fmt_rune_private_b2b0db24_preserveCommentLines(__fmt_formatted, __fmt_source, __fmt_index+1, __fmt_out+__fmt___fmt_rune_private_b2b0db24_preserveCommentLine(__fmt_formatted[__fmt_index], __fmt_source, 0)+func() string {
+			if __fmt_index+1 < len(__fmt_formatted) {
+				return "\n"
+			}
+			return ""
+		}())
+	}()
+}
+
+func __fmt___fmt_rune_private_b2b0db24_preserveCommentLine(__fmt_formatted string, __fmt_source []string, __fmt_index int) string {
+	__fmt_comment := __fmt___fmt_rune_private_b2b0db24_findInlineComment(__fmt_source, __fmt___fmt_rune_private_b2b0db24_canonicalLine(__fmt_formatted), __fmt_index)
+	return func() string {
+		if __fmt_comment == "" {
+			return __fmt_formatted
+		}
+		return __fmt_formatted + " " + __fmt_comment
+	}()
+}
+
+func __fmt___fmt_rune_private_b2b0db24_findInlineComment(__fmt_source []string, __fmt_formatted string, __fmt_index int) string {
+	return func() string {
+		if __fmt_index >= len(__fmt_source) {
+			return ""
+		}
+		return __fmt___fmt_rune_private_b2b0db24_inlineCommentForLine(__fmt_source[__fmt_index], __fmt_formatted, __fmt_source, __fmt_index)
+	}()
+}
+
+func __fmt___fmt_rune_private_b2b0db24_inlineCommentForLine(__fmt_line string, __fmt_formatted string, __fmt_source []string, __fmt_index int) string {
+	__fmt_commentStart := __fmt___fmt_rune_private_b2b0db24_firstCommentStart(__fmt_line)
+	return func() string {
+		if __fmt_commentStart < 0 {
+			return __fmt___fmt_rune_private_b2b0db24_findInlineComment(__fmt_source, __fmt_formatted, __fmt_index+1)
+		}
+		return func() string {
+			if __fmt___fmt_rune_private_b2b0db24_canonicalLine(func() string { runes := []rune(__fmt_line); return string(runes[0:__fmt_commentStart]) }()) == __fmt_formatted {
+				return strings.TrimSpace((func() string { runes := []rune(__fmt_line); return string(runes[__fmt_commentStart:len([]rune(__fmt_line))]) }()))
+			}
+			return __fmt___fmt_rune_private_b2b0db24_findInlineComment(__fmt_source, __fmt_formatted, __fmt_index+1)
+		}()
+	}()
+}
+
+func __fmt___fmt_rune_private_b2b0db24_firstCommentStart(__fmt_line string) int {
+	return strings.Index(__fmt_line, "//")
+}
+
+func __fmt___fmt_rune_private_b2b0db24_canonicalLine(__fmt_line string) string {
+	return strings.ReplaceAll((strings.ReplaceAll((strings.ReplaceAll((strings.TrimSpace(__fmt_line)), " ", "")), "\t", "")), "\r", "")
 }
 
 func __fmt___fmt_rune_private_b2b0db24_finishFormat(__fmt_text string) string {
