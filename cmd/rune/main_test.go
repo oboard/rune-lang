@@ -379,9 +379,21 @@ func TestLSPSelfhostDiagnosticsParity(t *testing.T) {
 		{"wrong_return", "main() -> Int => \"wrong\"\n", false, "returns", "return"},
 		{"duplicate_main", "main() => 0\nmain() => 1\n", false, "duplicate", "duplicate"},
 		{"unknown_fn", "foo()\n", false, "", ""},
-		// json-annotation parsing is a known selfhost-parser gap (annotations
-		// on struct fields in type declarations are not yet supported by the
-		// selfhost parser; the host parser accepts them).
+		{
+			"json_annotation",
+			`User: {
+  name: String
+
+  #json.name("email_address")
+  email: String
+
+  #json.ignore
+  privateField: String
+}
+
+main() => 0`,
+			true, "", "",
+		},
 		{"generic_no_use", "Box[T]: {}\nmain() => 0", true, "", ""},
 		// Generic instantiation in struct literals is not yet parsed by selfhost.
 		{"struct_null", "User: { name: String }\nmain() => User { name: \"x\" }.name", true, "", ""},
