@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -131,7 +132,7 @@ func TestSelfhostCLIGeneratedGoIsCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
 	}
-	if got != string(want) {
+	if got != normalizeGeneratedCLIForHost(string(want)) {
 		t.Fatalf("selfhost_cli_gen.go is stale; regenerate it with rune go selfhost/cli/cli.rn")
 	}
 }
@@ -293,7 +294,11 @@ func normalizeGeneratedCLIForHost(src string) string {
 	if err != nil {
 		return src
 	}
-	return string(formatted)
+	return normalizeGeneratedPrivateSymbols(string(formatted))
+}
+
+func normalizeGeneratedPrivateSymbols(src string) string {
+	return regexp.MustCompile(`____rune_private_[0-9a-f]+_`).ReplaceAllString(src, "____rune_private_HASH_")
 }
 
 func TestRunRuneCLIForwardsProgramArgs(t *testing.T) {
@@ -313,6 +318,40 @@ func TestRunRuneCLIForwardsProgramArgs(t *testing.T) {
 	}
 	if got, want := out.String(), "-v\ntarget\n"; got != want {
 		t.Fatalf("runRuneCLI() output = %q, want %q", got, want)
+	}
+}
+
+func TestRunRuneCLICheckUsesSelfhostMigrationBridge(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() => 42\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"check", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(check) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "ok "+path+"\n"; got != want {
+		t.Fatalf("runRuneCLI(check) output = %q, want %q", got, want)
+	}
+}
+
+func TestRunRuneCLICheckReportsSelfhostErrors(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, "main() -> Int => \"wrong\"\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := runRuneCLI([]string{"check", path}, strings.NewReader(""), &out, &errOut)
+	if err == nil || err.Error() != "check failed" {
+		t.Fatalf("runRuneCLI(check) error = %v, want check failed", err)
+	}
+	if got, want := errOut.String(), path+": function \"main\" returns String, expected Int\n"; got != want {
+		t.Fatalf("runRuneCLI(check) stderr = %q, want %q", got, want)
+	}
+	if got := out.String(); got != "" {
+		t.Fatalf("runRuneCLI(check) stdout = %q, want empty", got)
 	}
 }
 

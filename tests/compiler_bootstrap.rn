@@ -12,6 +12,18 @@
   @assert.eq(result.output.includes("export { __add as add, __main as main };"), true)
 }
 
+? "selfhost compiler checks source without selecting a backend" {
+  valid := checkSource(`main() -> Int => 42
+`)
+  invalid := checkSource(`main() -> Int => "wrong"
+`)
+  @assert.eq(valid.ok, true)
+  @assert.eq(valid.output, "")
+  @assert.eq(valid.errors.length(), 0)
+  @assert.eq(invalid.ok, false)
+  @assert.eq(invalid.errors[0], "function \"main\" returns String, expected Int")
+}
+
 ? "selfhost compiler emits go functions" {
   source := `+ add(a: Int, b: Int) -> Int => a + b
 + main() -> Int => add(20, 22)

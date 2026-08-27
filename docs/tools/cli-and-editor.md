@@ -27,6 +27,18 @@ Or build a binary:
 go build -o .bin/rune ./cmd/rune
 ```
 
+## Self-hosting direction
+
+The command grammar is defined by the self-hosted CLI in `selfhost/cli/`, and
+the self-hosted compiler is the preferred implementation path. `cmd/rune`
+remains the Go bootstrap host and execution dispatcher while command execution
+moves over incrementally. The generated CLI and compiler Go sources are kept in
+`cmd/rune/` and verified by tests. Go continues to provide bootstrap and host
+integration during the transition.
+
+The LSP remains Go-hosted today. Its migration is deliberately deferred until
+the CLI and compiler execution paths are self-hosted.
+
 ## Formatting
 
 ```sh

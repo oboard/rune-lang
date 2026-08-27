@@ -27,6 +27,12 @@ go run ./cmd/rune ts examples/counter.rn
 go build -o .bin/rune ./cmd/rune
 ```
 
+## 自举方向
+
+命令语法由 `selfhost/cli/` 中的自举 CLI 定义，自举编译器是优先实现路径。在命令执行逐步迁移期间，`cmd/rune` 仍作为 Go 的引导宿主和执行分发层。生成的 CLI 与编译器 Go 源文件保存在 `cmd/rune/` 中，并由测试校验。迁移期间，Go 继续承担引导和宿主集成职责。
+
+LSP 当前仍由 Go 承载。它的迁移被刻意延后，直到 CLI 与编译器的执行路径完成自举。
+
 ## 格式化
 
 ```sh

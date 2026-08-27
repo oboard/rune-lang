@@ -505,10 +505,10 @@ func runeCliContains(values []string, value string) bool {
 
 func __parseCli(__args []string) __RuneCliInvocation {
 	__parsed := runeCliParseCommandArgs(__runeCommand(), __runeCommands(), __runeAliases(), __runeTrailingRest(), __args)
-	return ____rune_private_5b8b8d7b_invocationFromParsed(__parsed, __runeCommand(), __runeCommands())
+	return ____rune_private_db6df590_invocationFromParsed(__parsed, __runeCommand(), __runeCommands())
 }
 
-func ____rune_private_5b8b8d7b_invocationFromParsed(__parsed __CliCommandParseResult, __rootCommand __CliCommand, __commands []__CliCommand) __RuneCliInvocation {
+func ____rune_private_db6df590_invocationFromParsed(__parsed __CliCommandParseResult, __rootCommand __CliCommand, __commands []__CliCommand) __RuneCliInvocation {
 	__root := __parsed.__root
 	__backend := func() string {
 		value, ok := __root.__values["backend"]
@@ -517,7 +517,7 @@ func ____rune_private_5b8b8d7b_invocationFromParsed(__parsed __CliCommandParseRe
 		}
 		return "go"
 	}()
-	__errors := ____rune_private_5b8b8d7b_cliErrors(__root)
+	__errors := ____rune_private_db6df590_cliErrors(__root)
 	__commandError := func() string {
 		__coalesce1 := __parsed.__error
 		if __coalesce1 != nil {
@@ -541,19 +541,19 @@ func ____rune_private_5b8b8d7b_invocationFromParsed(__parsed __CliCommandParseRe
 	__backendExplicit := runeCliContains(__root.__explicitOptions, "backend")
 	return func() __RuneCliInvocation {
 		if len(__errors) > 0 {
-			return ____rune_private_5b8b8d7b_errorInvocation(__backend, __errors)
+			return ____rune_private_db6df590_errorInvocation(__backend, __errors)
 		}
 		return func() __RuneCliInvocation {
 			if len(__parsed.__commandName) == 0 {
-				return ____rune_private_5b8b8d7b_helpInvocation(__rootCommand, __backend, __backendExplicit)
+				return ____rune_private_db6df590_helpInvocation(__rootCommand, __backend, __backendExplicit)
 			}
-			return ____rune_private_5b8b8d7b_invocationFromResult(__parsed.__commandName, __rootCommand, __commands, __backend, __backendExplicit, __parsed.__command)
+			return ____rune_private_db6df590_invocationFromResult(__parsed.__commandName, __rootCommand, __commands, __backend, __backendExplicit, __parsed.__command)
 		}()
 	}()
 }
 
-func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __rootCommand __CliCommand, __commands []__CliCommand, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
-	__errors := ____rune_private_5b8b8d7b_cliErrors(__result)
+func ____rune_private_db6df590_invocationFromResult(__name string, __rootCommand __CliCommand, __commands []__CliCommand, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
+	__errors := ____rune_private_db6df590_cliErrors(__result)
 	__target := func() string {
 		value, ok := __result.__values["target"]
 		if ok {
@@ -561,9 +561,9 @@ func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __rootCommand
 		}
 		return ""
 	}()
-	__target = ____rune_private_5b8b8d7b_defaultTargetForCommand(__name, __backend, __target)
-	__errors = ____rune_private_5b8b8d7b_invocationErrors(__name, __backend, __target, __errors)
-	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_5b8b8d7b_defaultPathForCommand(__name, func() string {
+	__target = ____rune_private_db6df590_defaultTargetForCommand(__name, __backend, __target)
+	__errors = ____rune_private_db6df590_invocationErrors(__name, __backend, __target, __errors)
+	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_db6df590_defaultPathForCommand(__name, func() string {
 		value, ok := __result.__positionals["path"]
 		if ok {
 			return value
@@ -593,10 +593,10 @@ func ____rune_private_5b8b8d7b_invocationFromResult(__name string, __rootCommand
 			return value
 		}
 		return false
-	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: runeCliHelp(____rune_private_5b8b8d7b_invocationHelpCommand(__rootCommand, __commands, __name))}
+	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: runeCliHelp(____rune_private_db6df590_invocationHelpCommand(__rootCommand, __commands, __name))}
 }
 
-func ____rune_private_5b8b8d7b_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
+func ____rune_private_db6df590_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
 	return func() []string {
 		if __name == "build" && runeCliContains([]string{"go", "mbt"}, __backend) == false {
 			return func() []string {
@@ -620,7 +620,7 @@ func ____rune_private_5b8b8d7b_invocationErrors(__name string, __backend string,
 	}()
 }
 
-func ____rune_private_5b8b8d7b_defaultTargetForCommand(__name string, __backend string, __target string) string {
+func ____rune_private_db6df590_defaultTargetForCommand(__name string, __backend string, __target string) string {
 	return func() string {
 		if __name == "run" && __backend == "mbt" && len(__target) == 0 {
 			return "native"
@@ -629,7 +629,7 @@ func ____rune_private_5b8b8d7b_defaultTargetForCommand(__name string, __backend 
 	}()
 }
 
-func ____rune_private_5b8b8d7b_defaultPathForCommand(__name string, __path string) string {
+func ____rune_private_db6df590_defaultPathForCommand(__name string, __path string) string {
 	return func() string {
 		if __name == "test" && len(__path) == 0 {
 			return "tests"
@@ -638,7 +638,7 @@ func ____rune_private_5b8b8d7b_defaultPathForCommand(__name string, __path strin
 	}()
 }
 
-func ____rune_private_5b8b8d7b_invocationHelpCommand(__rootCommand __CliCommand, __commands []__CliCommand, __name string) __CliCommand {
+func ____rune_private_db6df590_invocationHelpCommand(__rootCommand __CliCommand, __commands []__CliCommand, __name string) __CliCommand {
 	return func() __CliCommand {
 		__array2 := __commands
 		__result3 := __rootCommand
@@ -656,7 +656,7 @@ func ____rune_private_5b8b8d7b_invocationHelpCommand(__rootCommand __CliCommand,
 	}()
 }
 
-func ____rune_private_5b8b8d7b_cliErrors(__result __CliParseResult) []string {
+func ____rune_private_db6df590_cliErrors(__result __CliParseResult) []string {
 	__error := func() string {
 		__coalesce6 := __result.__error
 		if __coalesce6 != nil {
@@ -674,16 +674,16 @@ func ____rune_private_5b8b8d7b_cliErrors(__result __CliParseResult) []string {
 	return __errors
 }
 
-func ____rune_private_5b8b8d7b_helpInvocation(__rootCommand __CliCommand, __backend string, __backendExplicit bool) __RuneCliInvocation {
+func ____rune_private_db6df590_helpInvocation(__rootCommand __CliCommand, __backend string, __backendExplicit bool) __RuneCliInvocation {
 	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: __backendExplicit, __runArgs: []string{}, __errors: []string{}, __help: true, __helpText: runeCliHelp(__rootCommand)}
 }
 
-func ____rune_private_5b8b8d7b_errorInvocation(__backend string, __errors []string) __RuneCliInvocation {
+func ____rune_private_db6df590_errorInvocation(__backend string, __errors []string) __RuneCliInvocation {
 	return __RuneCliInvocation{__ok: false, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
 }
 
-func ____rune_private_5b8b8d7b_emptyInvocation() __RuneCliInvocation {
-	return ____rune_private_5b8b8d7b_errorInvocation("", []string{})
+func ____rune_private_db6df590_emptyInvocation() __RuneCliInvocation {
+	return ____rune_private_db6df590_errorInvocation("", []string{})
 }
 
 func __runeCommand() __CliCommand {

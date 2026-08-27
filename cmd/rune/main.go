@@ -74,7 +74,7 @@ func executeRuneCLIInvocation(invocation __RuneCliInvocation, stdin io.Reader, s
 	case "mbt":
 		return emitMoonBit(invocation.__path, invocation.__output, stdout)
 	case "check":
-		return checkTarget(invocation.__path, stdout)
+		return executeSelfhostCheck(invocation.__path, stdout, stderr)
 	case "test":
 		return executeRuneCLITest(invocation, stdout)
 	case "fmt":
@@ -259,6 +259,37 @@ func emitMoonBit(path string, output string, stdout io.Writer) error {
 		return nil
 	}
 	return os.WriteFile(output, []byte(src), 0o644)
+}
+
+// executeSelfhostCheck is the first command-execution bridge to the
+// self-hosted implementation. It uses the generated backend-neutral checker
+// for individual files. Go retains directory traversal and diagnostic rendering
+// until those host integrations have self-hosted replacements.
+func executeSelfhostCheck(path string, out io.Writer, errOut io.Writer) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return checkTarget(path, out)
+	}
+	return checkFileWithSelfhostCompiler(path, out, errOut)
+}
+
+func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	result := __checkSource(string(source))
+	if !result.__ok {
+		for _, message := range result.__errors {
+			fmt.Fprintf(errOut, "%s: %s\n", path, message)
+		}
+		return fmt.Errorf("check failed")
+	}
+	fmt.Fprintf(out, "ok %s\n", path)
+	return nil
 }
 
 func checkTarget(path string, out io.Writer) error {

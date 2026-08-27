@@ -97,10 +97,21 @@ declaration in `helper.rn` when callers in other files should use it:
 + helper() -> Int => 42
 ```
 
-The self-hosted lexer, parser, IR, interpreter, and first compiler emitter
+The self-hosted lexer, parser, IR, interpreter, CLI parser, and compiler emitter
 live under `selfhost/`; see `examples/lexer_bootstrap.rn`,
 `examples/parser_bootstrap.rn`, `examples/compiler_bootstrap.rn`, and the
 `tests/*_bootstrap.rn` files for the current bootstrap entry points.
+
+## Self-hosting direction
+
+The self-hosted CLI parser and compiler are the preferred implementation path.
+`cmd/rune` currently remains the Go bootstrap host and dispatch layer while
+self-hosted command execution is migrated incrementally. Generated
+`selfhost_cli_gen.go` and `selfhost_compiler_gen.go` are checked into
+`cmd/rune/` so that bootstrap changes stay reproducible. The Go implementation
+continues to support bootstrapping and executable integration during this
+migration. The LSP remains Go-hosted for now and is a planned later migration,
+after the CLI and compiler execution paths are self-hosted.
 
 ## Language Snapshot
 

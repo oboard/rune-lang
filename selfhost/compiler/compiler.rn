@@ -54,6 +54,9 @@ CompilerNamespaceAlias: {
   source: String
 ) -> CompileResult => compile(source, "mbt")
 
+/// Check Rune source without choosing a code-generation backend.
++ checkSource(source: String) -> CompileResult => checkFile(lowerCompilerSource(source))
+
 + compile(
   source: String,
   target: String
@@ -89,6 +92,17 @@ compileFile(
   file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
     : compileCheckedFile(file, target)
 )
+
+checkFile(file: IRFile) -> CompileResult => (
+  file.errors.length() > 0 ? compileResult(false, "", parseErrorMessages(file.errors))
+    : checkCheckedFile(file)
+)
+
+checkCheckedFile(file: IRFile) -> CompileResult => {
+  errors := checkFileErrors(file)
+  errors.length() > 0 ? compileResult(false, "", errors)
+    : compileResult(true, "", [])
+}
 
 compileCheckedFile(
   file: IRFile,
