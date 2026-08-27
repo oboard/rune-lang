@@ -23,6 +23,7 @@ import (
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
 	"github.com/oboard/rune-lang/internal/repl"
+	"github.com/oboard/rune-lang/internal/selfhostrunner"
 	"github.com/oboard/rune-lang/internal/stdlib"
 	"github.com/oboard/rune-lang/internal/tester"
 )
@@ -125,6 +126,9 @@ func executeRuneCLITest(invocation __RuneCliInvocation, stdout io.Writer) error 
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	switch runBackend {
 	case "go":
+		if runEntryViaSelfhostInterpreter(entry, programArgs, stdout, stderr) {
+			return nil
+		}
 		exe, cleanup, err := compileGoExecutableToTemp(entry, stdout, stderr)
 		if err != nil {
 			return err
@@ -173,6 +177,28 @@ func runEntry(entry string, runBackend string, runTarget string, programArgs []s
 	default:
 		return validateBackend(runBackend)
 	}
+}
+
+// runEntryViaSelfhostInterpreter attempts to execute a Go-backend program with
+// the self-hosted interpreter. It returns true (handling the run) only when the
+// program does not depend on the compiled-process argv contract that the
+// interpreter replaces with an empty argv.
+func runEntryViaSelfhostInterpreter(entry string, programArgs []string, stdout io.Writer, stderr io.Writer) bool {
+	source, err := os.ReadFile(entry)
+	if err != nil {
+		return false
+	}
+	if strings.Contains(string(source), "@process.argv") || len(programArgs) > 0 {
+		return false
+	}
+	result := selfhostrunner.RunMainSource(string(source))
+	if result.Err != nil {
+		return false
+	}
+	if _, err := io.WriteString(stdout, result.Output); err != nil {
+		return false
+	}
+	return true
 }
 
 func selectRunBackend(entry string, requested string, explicit bool) string {

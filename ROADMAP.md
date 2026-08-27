@@ -56,8 +56,9 @@ Status: **in progress**
 
 ### M3 — Self-hosted execution and build orchestration
 
-- [x] Use the self-hosted Go compiler for the default `rune run` compilation
-  path; Go retains process launch and backend selection.
+- [x] Use the self-hosted Go compiler and self-hosted interpreter for the
+  default `rune run` path for programs without process-argv dependencies; Go
+  retains process launch, argv forwarding, exit code, and backend selection.
 - [ ] Move `rune build`, retaining Go only for native process/toolchain bridges
   where necessary.
 - [ ] Move test discovery and `rune test` execution.

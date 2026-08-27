@@ -73,6 +73,26 @@ func TestSelectRunBackendKeepsGoForRuneOnlyProgram(t *testing.T) {
 	}
 }
 
+func TestRunRuneCLIUsesSelfhostInterpreter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `main() => {
+  values := [1, 2, 3]
+  doubled := values.map((value) => value * 2)
+  @io.println(doubled.reduce(0, (sum, value) => sum + value))
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"run", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(run) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := strings.TrimSpace(out.String()), "12"; got != want {
+		t.Fatalf("selfhost interpreter run output = %q, want %q", got, want)
+	}
+}
+
 func TestRunEntryGoForwardsProgramArgs(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := filepath.Join(dir, "main.rn")
