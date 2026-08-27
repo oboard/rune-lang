@@ -50,7 +50,10 @@ Status: **in progress**
   for single-file programs and host-discovered Rune/TypeScript import graphs.
 - [x] Feed host-discovered source files into `compile*Files` for the migrated
   code-generation commands; bootstrap sources remain on the Go compiler.
-- [ ] Move `dts` with parity tests per backend.
+- [x] Move `dts` to the self-hosted compiler (`generateDeclarations`): emits
+  public struct/enum/const/function declarations with `export { __ as name }`
+  aliases for the public API, passing an enforced hostname-independent parity
+  test; bootstrap sources still use the Go emitter.
 - [ ] Preserve output-file handling and structured diagnostic locations in the
   Go host until those capabilities are self-hosted.
 

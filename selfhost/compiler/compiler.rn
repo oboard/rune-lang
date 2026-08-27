@@ -3,6 +3,7 @@
 @"./go.rn"
 @"./mbt.rn"
 @"./ts.rn"
+@"./dts.rn"
 
 + CompileResult: {
   ok: Bool
@@ -54,6 +55,10 @@ CompilerNamespaceAlias: {
   source: String
 ) -> CompileResult => compile(source, "mbt")
 
++ compileDeclarations(
+  source: String
+) -> CompileResult => compile(source, "dts")
+
 /// Check Rune source without choosing a code-generation backend.
 + checkSource(source: String) -> CompileResult => checkFile(lowerCompilerSource(source))
 
@@ -76,6 +81,10 @@ CompilerNamespaceAlias: {
 + compileMoonBitFiles(
   files: Array[SourceFile]
 ) -> CompileResult => compileFiles(files, "mbt")
+
++ compileDeclarationsFiles(
+  files: Array[SourceFile]
+) -> CompileResult => compileFiles(files, "dts")
 
 + compileFiles(
   files: Array[SourceFile],
@@ -117,6 +126,7 @@ compileCheckedFile(
         "ts" => compileResult(true, generateTypeScript(file), [])
         "go" => compileResult(true, generateGo(file), [])
         "mbt" => compileResult(true, generateMoonBit(file), [])
+        "dts" => compileResult(true, generateDeclarations(file), [])
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )

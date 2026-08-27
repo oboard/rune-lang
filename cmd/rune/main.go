@@ -352,17 +352,36 @@ func emitTypeScriptWithHostImportGraph(path string, output string, stdout io.Wri
 	return writeGeneratedSource(src, output, stdout)
 }
 
+// emitTypeScriptDeclaration uses the generated self-host declaration emitter
+// for standalone Rune sources; Go retains the bootstrap-import-graph bridge.
 func emitTypeScriptDeclaration(path string, output string, stdout io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if !requiresHostCompilerBridge(path, string(source)) {
+		files, err := collectSelfhostSourceFiles(path)
+		if err == nil {
+			result := __compileDeclarationsFiles(files)
+			if result.__ok {
+				return writeGeneratedSource(result.__output, output, stdout)
+			}
+			for _, message := range result.__errors {
+				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+			}
+			return fmt.Errorf("compile failed")
+		}
+	}
+	return emitTypeScriptDeclarationWithHostImportGraph(path, output, stdout)
+}
+
+func emitTypeScriptDeclarationWithHostImportGraph(path string, output string, stdout io.Writer) error {
 	src, diags := compiler.GenerateTypeScriptDeclarationFile(path)
 	if len(diags) > 0 {
 		printDiagnostics(path, diags)
 		return fmt.Errorf("compile failed")
 	}
-	if output == "" {
-		fmt.Fprint(stdout, src)
-		return nil
-	}
-	return os.WriteFile(output, []byte(src), 0o644)
+	return writeGeneratedSource(src, output, stdout)
 }
 
 func emitMoonBit(path string, output string, stdout io.Writer) error {

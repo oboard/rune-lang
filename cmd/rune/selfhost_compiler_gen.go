@@ -9232,6 +9232,425 @@ func ____rune_private_6bd43c78_joinStrings(__values []string, __index int, __out
 	}()
 }
 
+func __generateDeclarations(__file __IRFile) string {
+	__out := ""
+	__out = __out + ____rune_private_01b5d206_dtsStructs(__file.__structs, 0)
+	__out = __out + ____rune_private_01b5d206_dtsEnums(__file.__enums, 0)
+	__out = __out + ____rune_private_01b5d206_dtsConsts(__file.__constants, 0)
+	__out = __out + ____rune_private_01b5d206_dtsFunctions(__file.__functions, 0)
+	return __out + ____rune_private_01b5d206_dtsExports(__file, 0, "")
+}
+
+func ____rune_private_01b5d206_dtsStructs(__structs []__IRStructType, __index int) string {
+	return func() string {
+		if __index >= len(__structs) {
+			return ""
+		}
+		return func() string {
+			if __structs[__index].__private {
+				return ____rune_private_01b5d206_dtsStructs(__structs, __index+1)
+			}
+			return ____rune_private_01b5d206_dtsStruct(__structs[__index]) + ____rune_private_01b5d206_dtsStructs(__structs, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsStruct(__typeDecl __IRStructType) string {
+	__generics := ____rune_private_01b5d206_dtsGenerics(__typeDecl.__generics)
+	__out := "type " + __mangleIdent(__typeDecl.__name) + __generics + " = {\n"
+	__out = __out + ____rune_private_01b5d206_dtsStructFields(__typeDecl.__fields, 0)
+	return __out + "};\n" + "\n"
+}
+
+func ____rune_private_01b5d206_dtsStructFields(__fields []__IRField, __index int) string {
+	return func() string {
+		if __index >= len(__fields) {
+			return ""
+		}
+		return func() string {
+			if __fields[__index].__private {
+				return ____rune_private_01b5d206_dtsStructFields(__fields, __index+1)
+			}
+			return __indent(1) + __fields[__index].__name + ": " + ____rune_private_01b5d206_dtsType(__fields[__index].__typeName) + ";\n" + ____rune_private_01b5d206_dtsStructFields(__fields, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnums(__enums []__IREnumType, __index int) string {
+	return func() string {
+		if __index >= len(__enums) {
+			return ""
+		}
+		return func() string {
+			if __enums[__index].__private {
+				return ____rune_private_01b5d206_dtsEnums(__enums, __index+1)
+			}
+			return ____rune_private_01b5d206_dtsEnum(__enums[__index]) + ____rune_private_01b5d206_dtsEnums(__enums, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnum(__enumDecl __IREnumType) string {
+	__name := __mangleIdent(__enumDecl.__name)
+	__generics := ____rune_private_01b5d206_dtsGenerics(__enumDecl.__generics)
+	__hasPayload := ____rune_private_01b5d206_dtsEnumHasPayload(__enumDecl.__members, 0)
+	__shape := func() string {
+		switch {
+		case __hasPayload == true:
+			return "{ tag: number; payload: any[] }"
+		case __hasPayload == false:
+			return "number"
+		}
+		return ""
+	}()
+	__out := "type " + __name + __generics + " = " + __shape + ";\n"
+	__out = __out + "declare const " + __name + " = {\n"
+	__out = __out + ____rune_private_01b5d206_dtsEnumMembers(__enumDecl.__members, 0)
+	return __out + "};\n" + "\n"
+}
+
+func ____rune_private_01b5d206_dtsEnumHasPayload(__members []__IREnumMember, __index int) bool {
+	return func() bool {
+		if __index >= len(__members) {
+			return false
+		}
+		return func() bool {
+			if len(__members[__index].__params) > 0 {
+				return true
+			}
+			return ____rune_private_01b5d206_dtsEnumHasPayload(__members, __index+1)
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnumMembers(__members []__IREnumMember, __index int) string {
+	return func() string {
+		if __index >= len(__members) {
+			return ""
+		}
+		return ____rune_private_01b5d206_dtsEnumMembersAt(__members, __index)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnumMembersAt(__members []__IREnumMember, __index int) string {
+	return func() string {
+		if __members[__index].__private {
+			return ____rune_private_01b5d206_dtsEnumMembers(__members, __index+1)
+		}
+		return __indent(1) + "readonly " + __members[__index].__name + ": " + ____rune_private_01b5d206_dtsEnumMemberValue(__members[__index], __index) + ";\n" + ____rune_private_01b5d206_dtsEnumMembers(__members, __index+1)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnumMemberValue(__member __IREnumMember, __index int) string {
+	return ____rune_private_01b5d206_dtsEnumMemberValueText(__member.__value, __index)
+}
+
+func ____rune_private_01b5d206_dtsEnumMemberValueText(__value string, __fallback int) string {
+	return func() string {
+		if __value == "" {
+			return ____rune_private_01b5d206_dtsIntText(__fallback)
+		}
+		return __value
+	}()
+}
+
+func ____rune_private_01b5d206_dtsIntText(__value int) string {
+	return ____rune_private_01b5d206_dtsIntDigits(__value, "")
+}
+
+func ____rune_private_01b5d206_dtsIntDigits(__value int, __out string) string {
+	return ____rune_private_01b5d206_dtsBuildInt(__value, __out)
+}
+
+func ____rune_private_01b5d206_dtsBuildInt(__value int, __out string) string {
+	return func() string {
+		if __value < 10 {
+			return ____rune_private_01b5d206_dtsDigit(__value) + __out
+		}
+		return ____rune_private_01b5d206_dtsBuildIntDiv(__value, __out)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsBuildIntDiv(__value int, __out string) string {
+	return func() string {
+		if __value < 10 {
+			return ____rune_private_01b5d206_dtsDigit(__value) + __out
+		}
+		return ____rune_private_01b5d206_dtsBuildInt(__value/10, ____rune_private_01b5d206_dtsDigit(__value%10)+__out)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsDigit(__value int) string {
+	return ____rune_private_01b5d206_dtsDigitAt(__value)
+}
+
+func ____rune_private_01b5d206_dtsDigitAt(__value int) string {
+	return func() string {
+		switch {
+		case __value == 0:
+			return "0"
+		case __value == 1:
+			return "1"
+		case __value == 2:
+			return "2"
+		case __value == 3:
+			return "3"
+		case __value == 4:
+			return "4"
+		case __value == 5:
+			return "5"
+		case __value == 6:
+			return "6"
+		case __value == 7:
+			return "7"
+		case __value == 8:
+			return "8"
+		default:
+			return "9"
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsConsts(__constants []__IRConst, __index int) string {
+	return func() string {
+		if __index >= len(__constants) {
+			return ""
+		}
+		return ____rune_private_01b5d206_dtsConstsAt(__constants, __index)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsConstsAt(__constants []__IRConst, __index int) string {
+	return func() string {
+		if __constants[__index].__private {
+			return ____rune_private_01b5d206_dtsConsts(__constants, __index+1)
+		}
+		return "declare const " + __mangleIdent(__constants[__index].__name) + ": " + ____rune_private_01b5d206_dtsType(__constants[__index].__typeName) + ";\n" + ____rune_private_01b5d206_dtsConsts(__constants, __index+1)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFunctions(__functions []__IRFunction, __index int) string {
+	return func() string {
+		if __index >= len(__functions) {
+			return ""
+		}
+		return ____rune_private_01b5d206_dtsFunctionAt(__functions, __index) + ____rune_private_01b5d206_dtsFunctions(__functions, __index+1)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFunctionAt(__functions []__IRFunction, __index int) string {
+	return func() string {
+		if __functions[__index].__macro || __functions[__index].__private {
+			return ""
+		}
+		return ____rune_private_01b5d206_dtsFunction(__functions[__index])
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFunction(__fn __IRFunction) string {
+	__returnType := ____rune_private_01b5d206_dtsType(__fn.__returnType)
+	__wrapped := func() string {
+		switch {
+		case __fn.__routine == true:
+			return "Promise<" + __returnType + ">"
+		case __fn.__routine == false:
+			return __returnType
+		}
+		return ""
+	}()
+	return "declare function " + __mangleIdent(__fn.__name) + ____rune_private_01b5d206_dtsGenerics(__fn.__generics) + "(" + ____rune_private_01b5d206_dtsParams(__fn.__params, 0, "") + "): " + __wrapped + ";\n"
+}
+
+func ____rune_private_01b5d206_dtsGenerics(__generics []string) string {
+	return func() string {
+		if len(__generics) == 0 {
+			return ""
+		}
+		return "<" + ____rune_private_01b5d206_dtsGenericNames(__generics, 0, "") + ">"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsGenericNames(__generics []string, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__generics) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsGenericNames(__generics, __index+1, __out+func() string {
+			if __index == 0 {
+				return ""
+			}
+			return ", "
+		}()+__generics[__index])
+	}()
+}
+
+func ____rune_private_01b5d206_dtsParams(__params []__IRParam, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__params) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsParams(__params, __index+1, __out+func() string {
+			if __index == 0 {
+				return ""
+			}
+			return ", "
+		}()+__mangleIdent(__params[__index].__name)+": "+____rune_private_01b5d206_dtsType(__params[__index].__typeName))
+	}()
+}
+
+func ____rune_private_01b5d206_dtsType(__typeName string) string {
+	switch {
+	case (__typeName == "") || (__typeName == "Void"):
+		return "void"
+	case (__typeName == "Int") || (__typeName == "Int4") || (__typeName == "Int8") || (__typeName == "Int16") || (__typeName == "UInt") || (__typeName == "UInt8") || (__typeName == "UInt16") || (__typeName == "Double") || (__typeName == "Float"):
+		return "number"
+	case (__typeName == "BigInt") || (__typeName == "Int64") || (__typeName == "UInt64"):
+		return "bigint"
+	case (__typeName == "String") || (__typeName == "Char"):
+		return "string"
+	case __typeName == "Bool":
+		return "boolean"
+	case __typeName == "Dynamic":
+		return "any"
+	case (__typeName == "Data") || (__typeName == "@io.Data"):
+		return "Uint8Array"
+	default:
+		return ____rune_private_01b5d206_dtsTypeFallback(__typeName)
+	}
+}
+
+func ____rune_private_01b5d206_dtsTypeFallback(__typeName string) string {
+	return func() string {
+		if strings.HasSuffix(__typeName, "?") {
+			return ____rune_private_01b5d206_dtsType(func() string { runes := []rune(__typeName); return string(runes[0 : len([]rune(__typeName))-1]) }()) + " | null"
+		}
+		return func() string {
+			if __genericInner(__typeName, "Array") != "" {
+				return ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Array")) + "[]"
+			}
+			return func() string {
+				if __genericInner(__typeName, "ReadonlyArray") != "" {
+					return "ReadonlyArray<" + ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "ReadonlyArray")) + ">"
+				}
+				return func() string {
+					if __genericInner(__typeName, "Map") != "" {
+						return "Map<" + ____rune_private_01b5d206_dtsType(__typeArg(__genericInner(__typeName, "Map"), 0)) + ", " + ____rune_private_01b5d206_dtsType(__typeArg(__genericInner(__typeName, "Map"), 1)) + ">"
+					}
+					return func() string {
+						if __genericInner(__typeName, "Set") != "" {
+							return "Set<" + ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Set")) + ">"
+						}
+						return ____rune_private_01b5d206_dtsNamedType(__typeName)
+					}()
+				}()
+			}()
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsNamedType(__typeName string) string {
+	__open := strings.Index(__typeName, "[")
+	return func() string {
+		if __open < 0 {
+			return __mangleIdent(__typeName)
+		}
+		return __mangleIdent(func() string { runes := []rune(__typeName); return string(runes[0:__open]) }()) + "<" + ____rune_private_01b5d206_dtsTypeArgs(func() string { runes := []rune(__typeName); return string(runes[__open+1 : len([]rune(__typeName))-1]) }()) + ">"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeArgs(__args string) string {
+	return ____rune_private_01b5d206_dtsTypeArgList(func() []string { parts := strings.Split(__args, ","); return parts }(), 0, "")
+}
+
+func ____rune_private_01b5d206_dtsTypeArgList(__args []string, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__args) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsTypeArgList(__args, __index+1, __out+func() string {
+			if __index == 0 {
+				return ""
+			}
+			return ", "
+		}()+____rune_private_01b5d206_dtsType(strings.TrimSpace(__args[__index])))
+	}()
+}
+
+func ____rune_private_01b5d206_dtsExports(__file __IRFile, __index int, __out string) string {
+	__names := ____rune_private_01b5d206_dtsFunctionExports(__file.__functions, 0, ____rune_private_01b5d206_dtsStructExports(__file.__structs, 0, ____rune_private_01b5d206_dtsEnumExports(__file.__enums, 0, ____rune_private_01b5d206_dtsConstExports(__file.__constants, 0, ""))))
+	return func() string {
+		if __names == "" {
+			return ""
+		}
+		return "export { " + __names + " };\n"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsStructExports(__structs []__IRStructType, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__structs) {
+			return __out
+		}
+		return func() string {
+			if __structs[__index].__private {
+				return ____rune_private_01b5d206_dtsStructExports(__structs, __index+1, __out)
+			}
+			return ____rune_private_01b5d206_dtsStructExports(__structs, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __structs[__index].__name))
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsEnumExports(__enums []__IREnumType, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__enums) {
+			return __out
+		}
+		return func() string {
+			if __enums[__index].__private {
+				return ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1, __out)
+			}
+			return ____rune_private_01b5d206_dtsEnumExports(__enums, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __enums[__index].__name))
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsConstExports(__constants []__IRConst, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__constants) {
+			return __out
+		}
+		return func() string {
+			if __constants[__index].__private {
+				return ____rune_private_01b5d206_dtsConstExports(__constants, __index+1, __out)
+			}
+			return ____rune_private_01b5d206_dtsConstExports(__constants, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __constants[__index].__name))
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFunctionExports(__functions []__IRFunction, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__functions) {
+			return __out
+		}
+		return func() string {
+			if __functions[__index].__macro || __functions[__index].__private {
+				return ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1, __out)
+			}
+			return ____rune_private_01b5d206_dtsFunctionExports(__functions, __index+1, ____rune_private_01b5d206_dtsAppendName(__out, __functions[__index].__name))
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsAppendName(__out string, __name string) string {
+	return __out + func() string {
+		if __out == "" {
+			return ""
+		}
+		return ", "
+	}() + __mangleIdent(__name) + " as " + __name
+}
+
 func __compileTypeScript(__source string) __CompileResult {
 	return __compile(__source, "ts")
 }
@@ -9242,6 +9661,10 @@ func __compileGo(__source string) __CompileResult {
 
 func __compileMoonBit(__source string) __CompileResult {
 	return __compile(__source, "mbt")
+}
+
+func __compileDeclarations(__source string) __CompileResult {
+	return __compile(__source, "dts")
 }
 
 func __checkSource(__source string) __CompileResult {
@@ -9263,6 +9686,10 @@ func __compileGoFiles(__files []__SourceFile) __CompileResult {
 
 func __compileMoonBitFiles(__files []__SourceFile) __CompileResult {
 	return __compileFiles(__files, "mbt")
+}
+
+func __compileDeclarationsFiles(__files []__SourceFile) __CompileResult {
+	return __compileFiles(__files, "dts")
 }
 
 func __compileFiles(__files []__SourceFile, __target string) __CompileResult {
@@ -9319,6 +9746,8 @@ func ____rune_private_1ed26dbc_compileCheckedFile(__file __IRFile, __target stri
 				return ____rune_private_1ed26dbc_compileResult(true, __generateGo(__file), []string{})
 			case __target == "mbt":
 				return ____rune_private_1ed26dbc_compileResult(true, __generateMoonBit(__file), []string{})
+			case __target == "dts":
+				return ____rune_private_1ed26dbc_compileResult(true, __generateDeclarations(__file), []string{})
 			default:
 				return ____rune_private_1ed26dbc_compileResult(false, "", ____rune_private_1ed26dbc_unsupportedTargetErrors(__target))
 			}

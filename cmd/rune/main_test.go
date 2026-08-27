@@ -277,6 +277,39 @@ func TestRuneCLIMoonBitUsesSelfhostCompiler(t *testing.T) {
 	}
 }
 
+func TestRuneCLITypeScriptDeclarationUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `+ User: {
+  name: String
+  active: Bool
+}
+
++ makeUser(name: String) -> User => {
+  name: name,
+  active: true
+}
+
+main() => @io.println(makeUser("Rune").name)
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"dts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(dts) error = %v, stderr = %s", err, errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "type __User = {") {
+		t.Fatalf("selfhost declaration missing __User struct: %q", got)
+	}
+	if !strings.Contains(got, "declare function __makeUser(__name: string): __User;") {
+		t.Fatalf("selfhost declaration missing __makeUser signature: %q", got)
+	}
+	if !strings.Contains(got, "export { __User as User, __makeUser as makeUser };") {
+		t.Fatalf("selfhost declaration missing export aliases: %q", got)
+	}
+}
+
 func TestRuneCLITypeScriptUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
