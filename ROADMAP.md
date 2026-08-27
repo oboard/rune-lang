@@ -38,6 +38,9 @@ Status: **in progress**
   output integration.
 - [ ] Move directory traversal, source import graphs, warning locations, and
   standalone CLI execution into self-hosted APIs.
+- [x] Add an enforced behavioral parity test that builds and runs self-host
+  generated Go and host-compiled Go with identical runtime output for canonical
+  programs, pinning the self-hosted Go compiler as the default single-file path.
 - [ ] Replace the remaining Go directory/diagnostic bridge after compatibility
   is established.
 
