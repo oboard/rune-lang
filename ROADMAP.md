@@ -37,12 +37,13 @@ Status: **in progress**
   checks; Go now retains only directory discovery, stdlib loading, and error
   output integration.
 - [ ] Move directory traversal, source import graphs, warning locations, and
-  standalone CLI execution into self-hosted APIs. **Constraint:** source
-  discovery requires host-disk access that the selfhost runtime currently
-  resolves through a virtual interpreter filesystem (`Interpreter.fsFiles`),
-  not real disk paths; exposing host fs to `@fs.*` in compiled artifacts
-  requires a host-bridge redesign. The host `collectSelfhostSourceFiles` /
-  directory walking currently remains in Go.
+  standalone CLI execution into self-hosted APIs. **Constraint:** the
+  selfhost-generated `discoverSources` routine and its graph helpers compile
+  and link, but nested routine calls to `@fs.readFileText` cannot yet be
+  chained without a language-level `?`/`await` operator for routines; this
+  requires a selfhost language design change. The host currently keeps
+  directory walking and source import-graph traversal via
+  `collectSelfhostSourceFiles` as the compatibility fallback.
 - [x] Add an enforced behavioral parity test that builds and runs self-host
   generated Go and host-compiled Go with identical runtime output for canonical
   programs, pinning the self-hosted Go compiler as the default single-file path.
