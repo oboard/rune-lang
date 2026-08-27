@@ -74,7 +74,12 @@ Status: **in progress**
   where necessary.
 - [ ] Move test discovery and `rune test` execution.
 - [x] Add a self-hosted formatter and use it through a byte-equivalence bridge
-  for its supported comment-free subset.
+  for its supported comment-free subset. Comment-host-parity coverage now
+  includes `//` end-of-line comment preservation and `/* */` host-compatible
+  lossiness, verified by `TestGeneratedSelfhostFormatterMatchesHostCorpus`
+  and `TestGeneratedSelfhostFormatterMatchesHostForComments`; the bridge
+  falls back to the host formatter whenever divergence is detected so user
+  behavior remains gofmt-identical at all times.
 - [ ] Add lossless trivia and AST-printing coverage before replacing the Go
   formatter fallback, then move REPL.
 
