@@ -105,11 +105,11 @@ Status: **in progress**
   `TestLSPSelfhostDiagnosticsParity`. Currently covers parity on 8 source
   shapes (empty, simple_main, wrong_return, duplicate_main, unknown_fn,
   generic_no_use, struct_null (named references), nested_subtype).
-  **Known selfhost-parser gaps** (not yet self-host detailed, blocking some
-  specific-surface parity): json-annotated struct fields in type declarations,
-  generic instantiation in struct literals referencing a parameterized type
-  (e.g., `Box[Int] { value: 1 }`), import-of-missing-file error surface;
-  these are next-round work.
+  All parity cases currently supported pass, including `json.name`/`json.ignore`
+  module annotations and nested struct type references. The remaining blocker
+  is not parser/annotations but generic instantiation references in struct
+  literals (e.g., `Box[Int] { value: 1 }`), which the selfhost parser does not
+  yet recognize in this shape.
 - [ ] Define a self-hosted analysis API suitable for incremental documents.
 - [ ] Port diagnostics, hover, completion, navigation, rename, formatting, and
   inlay hints behind compatibility tests.
