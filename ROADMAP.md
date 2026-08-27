@@ -75,7 +75,18 @@ Status: **in progress**
 - [x] Self-host `rune build` compilation orchestration via `compileGoToTemp` /
   `compileTypeScriptToTemp` (backed by the same selfhost `__compile*Files`
   pipelines as `go`/`ts`/`mbt`); Go retains the native toolchain launch
-  (`go build`) inherently.
+  (`go build`) inherently. Behavioral coverage via
+  `TestRuneCLIBuildUsesSelfhostCompiler` + `TestRuneCLIBuildSelfhostCorpus`
+  proving uniform runtime behavior through selfhost Go compilation for the
+  following canonical program shapes: struct field reads, zero-length arrays,
+  function composition. **Known production limitations discovered while
+  broadening corpus coverage (pending separate engineering effort):**
+  - `describe(..) -> String => cond { true => "pos"; false => "neg" }`
+    returns nil instead of string for the match-with-return form
+  - `describe(..) -> String => (.. ? "x" : "y")` mismatched any → string in
+    returned interface wrapper
+  - Array-of-struct literals `[User{n: 42}]` produce `__users[0].__n` map-key
+    instead of typed struct-field reference
 - [x] Self-host `rune test` execution through `internal/tester.Run` (default
   path) which dispatches each `.rn` test to
   `selfhostrunner.RunTestIR`/`RunTestSource` (the selfhost interpreter),

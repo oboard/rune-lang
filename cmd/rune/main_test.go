@@ -233,6 +233,86 @@ func TestSelfhostFormatterGeneratedGoIsCurrent(t *testing.T) {
 	}
 }
 
+// TestRuneCLIBuildUsesSelfhostCompiler verifies that `rune build` compiles
+// Rune sources through the selfhost-generated compiler (selfhost-generated Go
+// source) by default and produces a working executable.
+// TestRuneCLIBuildSelfhostCorpus behavioral parity: the selfhost compiler
+// output must produce executables with identical runtime behavior to the host
+// compiler for every source in the corpus. These common Rune constructs are
+// valid today through the selfhost path.
+func TestRuneCLIBuildSelfhostCorpus(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{"struct", `User: {
+  name: String
+  age: Int
+}
+
+main() => {
+  user := User { name: "a", age: 42 }
+  @io.println(user.name)
+  @io.println(user.age)
+}
+`, "a\n42\n"},
+		{"empty_array_length", `main() => @io.println([].length())
+`, "0\n"},
+		{"string_count", `double(n: Int) -> Int => n * 2
+quad(n: Int) -> Int => double(double(n))
+
+main() => @io.println(quad(3))
+`, "12\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "main.rn")
+			writeTestFile(t, path, tc.src)
+
+			out := filepath.Join(dir, "built")
+			var buildOut, buildErr bytes.Buffer
+			if err := runRuneCLI([]string{"build", "--output", out, path}, strings.NewReader(""), &buildOut, &buildErr); err != nil {
+				t.Fatalf("runRuneCLI(build) error = %v, stderr = %s", err, buildErr.String())
+			}
+			built, err := exec.Command(out).CombinedOutput()
+			if err != nil {
+				t.Fatalf("built binary failed: %v, output = %q", err, built)
+			}
+			if string(built) != tc.want {
+				t.Fatalf("built output = %q, want %q", built, tc.want)
+			}
+		})
+	}
+}
+
+func TestRuneCLIBuildUsesSelfhostCompiler(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `main() => @io.println("build-ok")
+`)
+
+	// Build through the default CLI path.
+	out := filepath.Join(dir, "bin-binary")
+	var buildOut, buildErr bytes.Buffer
+	if err := runRuneCLI([]string{"build", "--output", out, path}, strings.NewReader(""), &buildOut, &buildErr); err != nil {
+		t.Fatalf("runRuneCLI(build) error = %v, stderr = %s", err, buildErr.String())
+	}
+	if _, err := os.Stat(out); err != nil {
+		t.Fatalf("build produced no binary at %q: %v; buildOut = %q", out, err, buildOut.String())
+	}
+	// Execute the produced binary.
+	run := exec.Command(out)
+	got, err := run.CombinedOutput()
+	if err != nil {
+		t.Fatalf("built binary failed: %v; output = %q", err, got)
+	}
+	if string(got) != "build-ok\n" {
+		t.Fatalf("built binary output = %q, want %q", got, "build-ok\n")
+	}
+}
+
 func TestRuneCLIRunUsesSelfhostCompiler(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.rn")
