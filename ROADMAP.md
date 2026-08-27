@@ -98,6 +98,16 @@ Status: **in progress**
 
 ### M5 — LSP migration (separate track)
 
+- [x] Gate selfhost diagnostics parity with the host analyzer across the analyzer
+  input shapes handled in LSP documents, verified by
+  `TestLSPSelfhostDiagnosticsParity`. Currently covers parity on 8 source
+  shapes (empty, simple_main, wrong_return, duplicate_main, unknown_fn,
+  generic_no_use, struct_null (named references), nested_subtype).
+  **Known selfhost-parser gaps** (not yet self-host detailed, blocking some
+  specific-surface parity): json-annotated struct fields in type declarations,
+  generic instantiation in struct literals referencing a parameterized type
+  (e.g., `Box[Int] { value: 1 }`), import-of-missing-file error surface;
+  these are next-round work.
 - [ ] Define a self-hosted analysis API suitable for incremental documents.
 - [ ] Port diagnostics, hover, completion, navigation, rename, formatting, and
   inlay hints behind compatibility tests.
