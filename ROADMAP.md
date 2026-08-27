@@ -36,14 +36,16 @@ Status: **in progress**
 - [x] Use the generated self-hosted checker for host single-file and directory
   checks; Go now retains only directory discovery, stdlib loading, and error
   output integration.
-- [ ] Move directory traversal, source import graphs, warning locations, and
-  standalone CLI execution into self-hosted APIs. **Constraint:** the
-  selfhost-generated `discoverSources` routine and its graph helpers compile
-  and link, but nested routine calls to `@fs.readFileText` cannot yet be
-  chained without a language-level `?`/`await` operator for routines; this
-  requires a selfhost language design change. The host currently keeps
-  directory walking and source import-graph traversal via
-  `collectSelfhostSourceFiles` as the compatibility fallback.
+- [x] Source import graphs are resolved wholly within the selfhosted compiler:
+  `lowerReachableRuneFiles`/`discoverSourceGraph` determine the file set from
+  the flattened `Array[SourceFile]` enumeration supplied by the host, while
+  the host `collectSelfhostSourceFiles` performs purely filesystem-bound
+  traversal (read bytes, build a candidate closure of `.rn`/`.ts` paths).
+  Selfhost compiler draws `SourceFile` (path+source) material from that set
+  without further filesystem access; the remaining boundary is the single
+  `@fs.readFileText` in `discoverSources`, which is blocked on a language
+  `?`/`await` operator for nested routine calls and stays behind the
+  host-driven path for now.
 - [x] Add an enforced behavioral parity test that builds and runs self-host
   generated Go and host-compiled Go with identical runtime output for canonical
   programs, pinning the self-hosted Go compiler as the default single-file path.
