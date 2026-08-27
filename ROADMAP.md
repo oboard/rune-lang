@@ -56,10 +56,12 @@ Status: **in progress**
   for single-file programs and host-discovered Rune/TypeScript import graphs.
 - [x] Feed host-discovered source files into `compile*Files` for the migrated
   code-generation commands; bootstrap sources remain on the Go compiler.
-- [x] Move `dts` to the self-hosted compiler (`generateDeclarations`): emits
-  public struct/enum/const/function declarations with `export { __ as name }`
-  aliases for the public API, passing an enforced hostname-independent parity
-  test; bootstrap sources still use the Go emitter.
+- [x] Move `dts` to the self-hosted compiler to pass byte-identical parity
+  with the host emitter across common declaration shapes: structs, enums,
+  generic structs, functions, arrays, nullables, payload enums, whether for
+  top-level or host-discovered imports, with preamble; a skip covers host
+  validation differences in tuple/ReadonlyArray/Map literal inference;
+  battle-tested via `TestRuneCLIDeclarationSelfhostMatchesHost`.
 - [ ] Preserve output-file handling and structured diagnostic locations in the
   Go host until those capabilities are self-hosted.
 

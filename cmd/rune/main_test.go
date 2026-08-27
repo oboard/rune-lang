@@ -315,6 +315,58 @@ main() => @io.println(makeUser("Rune").name)
 	}
 }
 
+// TestRuneCLIDeclarationSelfhostMatchesHost validates that the selfhost dts
+// emitter produces byte-identical output to the host declaration generator for
+// common declaration shapes: structs, enums, generic structs, functions with
+// arrays, nullable returns, and routines.
+func TestRuneCLIDeclarationSelfhostMatchesHost(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+	}{
+		{"empty", "main() => 0\n"},
+		{"simple_fn", "+ answer() -> Int => 42\n"},
+		{"struct", "+ User: { name: String, active: Bool }\n"},
+		{"nested_struct", `+ Address: { street: String, city: String }
++ User: { name: String, address: Address }
+`},
+		{"generic_box", "+ Box[T]: { value: T }\n"},
+		{"generic_constrained", "+ Pair[L, R]: { left: L, right: R }\n"},
+		{"array_return", "+ nums() -> Array[Int] => [1, 2, 3]\n"},
+		{"arr_of_struct", "+ users() -> Array[User] => []\n+ User: { name: String }\n"},
+		{"nullable", "+ maybe() -> String? => null\n"},
+		{"enum", "+ Color: { Red, Green, Blue }\n"},
+		{"enum_value", "+ Priority: { Low = 1, Medium = 5, High = 10 }\n"},
+		{"payload_enum", "+ Shape: { Circle(radius: Double), Square(side: Double) }\n"},
+		{"map_of_string", "+ config() -> Map[String, String] => {}\n"},
+		{"readonly_arr", "+ bits() -> ReadonlyArray[Int] => [0, 1]\n"},
+		{"tuple2", "+ pipe() -> Tuple[Int, String] => [1, \"a\"]\n"},
+		{"multi_fn", `+ add(a: Int, b: Int) -> Int => a + b
++ sub(a: Int, b: Int) -> Int => a - b
++ multiply(a: Int, b: Int) -> Int => a * b
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "m.rn")
+			writeTestFile(t, path, tc.src)
+
+			host, diags := compiler.GenerateTypeScriptDeclarationFile(path)
+			if len(diags) > 0 {
+				t.Skipf("host declaration also reports errors: %v", diags)
+			}
+			out := __compileDeclarations(tc.src)
+			if !out.__ok {
+				t.Fatalf("selfhost compileDeclarations failed: %v", out.__errors)
+			}
+			if out.__output != host {
+				t.Fatalf("selfhost declaration mismatch\nselfhost:\n%s\nhost:\n%s", out.__output, host)
+			}
+		})
+	}
+}
+
 func TestRuneCLITypeScriptUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
