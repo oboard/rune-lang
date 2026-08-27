@@ -1061,9 +1061,10 @@ func __fmt___fmt_rune_private_b2b0db24_emptyFormatState() __fmt_FormatState {
 }
 
 func __fmt___fmt_rune_private_b2b0db24_formatTokens(__fmt_tokens []__fmt_Token, __fmt_index int, __fmt_state __fmt_FormatState) __fmt_FormatState {
+	__fmt_done := __fmt_index >= len(__fmt_tokens)
 	return func() __fmt_FormatState {
 		switch {
-		case __fmt_index >= len(__fmt_tokens) == true:
+		case __fmt_done == true:
 			return __fmt_state
 		default:
 			return __fmt___fmt_rune_private_b2b0db24_formatTokens(__fmt_tokens, __fmt_index+1, __fmt___fmt_rune_private_b2b0db24_formatToken(__fmt_state, __fmt_tokens[__fmt_index]))

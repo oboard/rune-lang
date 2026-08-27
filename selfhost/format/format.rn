@@ -24,9 +24,12 @@ formatTokens(
   tokens: Array[Token],
   index: Int,
   state: FormatState
-) -> FormatState => index >= tokens.length() {
-  true => state
-  _ => formatTokens(tokens, index + 1, formatToken(state, tokens[index]))
+) -> FormatState => {
+  done := index >= tokens.length()
+  done {
+    true => state
+    _ => formatTokens(tokens, index + 1, formatToken(state, tokens[index]))
+  }
 }
 
 formatToken(
