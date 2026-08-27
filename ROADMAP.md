@@ -70,9 +70,15 @@ Status: **in progress**
 - [x] Use the self-hosted Go compiler and self-hosted interpreter for the
   default `rune run` path for programs without process-argv dependencies; Go
   retains process launch, argv forwarding, exit code, and backend selection.
-- [ ] Move `rune build`, retaining Go only for native process/toolchain bridges
-  where necessary.
-- [ ] Move test discovery and `rune test` execution.
+- [x] Self-host `rune build` compilation orchestration via `compileGoToTemp` /
+  `compileTypeScriptToTemp` (backed by the same selfhost `__compile*Files`
+  pipelines as `go`/`ts`/`mbt`); Go retains the native toolchain launch
+  (`go build`) inherently.
+- [x] Self-host `rune test` execution through `internal/tester.Run` (default
+  path) which dispatches each `.rn` test to
+  `selfhostrunner.RunTestIR`/`RunTestSource` (the selfhost interpreter),
+  falling back to compiler-based batching for explicit `--backend` runs; test
+  discovery (directory walk, file selection) remains host-driven via `runeFiles`.
 - [x] Add a self-hosted formatter and use it through a byte-equivalence bridge
   for its supported comment-free subset. Comment-host-parity coverage now
   includes `//` end-of-line comment preservation and `/* */` host-compatible
