@@ -100,6 +100,56 @@ Status: **in progress**
 
 ### M5 — LSP migration (separate track)
 
+## Design appendices (to close M1–M5)
+
+### A. Routine-await operator — the missing language primitive
+
+Goal: allow selfhost routine source-discovery to read arbitrary import graphs
+instead of being capped by single-shot `@fs.readFileText` depth. As long as the
+cascade of `Task[Result[...]]` values cannot be nested and unwrapped inside
+selfhost code, the host will continue to keep `collectSelfhostSourceFiles`.
+
+**Candidate syntax** (either of, explored in future rounds):
+
+- `??` — matched pair with `?`, wherein `expr??` unwraps a value derived from
+  a routine whose transaction returned `Task[T]` within a routine context.
+- `await expr` — explicit keyword surfaced in parser/checker checking inside
+  routine bodies.
+
+Semantics:
+- Valid only in routine context (`~`) or top-level routine body context.
+- Transforms a `Task[Result[T, Err]]` value produced either by means of an
+  own-routine self-call chain (`recurse<subroutine>`) or by means of an
+  own-routine direct call to another routine into the appropriate value
+  (`Result[T, Err]`), proceeding in the idiomatic Rust-way.
+- Checker errors if `??`/`await` functions are called on non-Task types or
+  outside routine contexts.
+
+### B. Self-host persistent REPL
+
+Current REPL runs entirely on Go (`internal/repl`) including the evaluator —
+maintenance cost is large and tracking selfhost semantics would be much easier
+if the REPL delegates **evaluation only** (state persistence remains host
+driven using `selfhost.compiler.compileToIR` based on input history) through
+selfhost interpreter processes each iteration.
+
+Architecture:
+- Stateful namespace history is tracked host-side;
+- For each `Eval(input)` the history is compiled into a "source" (decls +
+  statements + trailing main) and launched via
+  `selfhostrunner.RunMainSource` (already supported) — returning last
+  expression value via `@io.println` and host captures.
+- Failures roll back the polluted history entry; capture selfhost interpreter
+  diagnostic strings verbatim.
+
+### C. Full selfhost formatter (lossless trivia + AST-printing)
+
+Replace the lexer-only token-based cosmetics with a formatter that uses the
+full selfhost `parser.parse→Parserast` AST, preserves byte-identical newlines
+and comment placement, and renders all Rune source forms. The current
+`formatWithSelfhostBridge` fallback to the host formatter stays enabled until
+AST coverage is established across the entire bootstrap test corpus.
+
 - [x] Gate selfhost diagnostics parity with the host analyzer across the analyzer
   input shapes handled in LSP documents, verified by
   `TestLSPSelfhostDiagnosticsParity`. Currently covers parity on 8 source
