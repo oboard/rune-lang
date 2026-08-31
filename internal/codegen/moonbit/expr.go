@@ -266,10 +266,12 @@ func (g *generator) mbtBinaryOperand(expr ir.Expr, parentOp lexer.Kind, parentPr
 
 func (g *generator) mbtNotExpr(expr ir.Expr) string {
 	switch expr.(type) {
-	case *ir.BinaryExpr, *ir.TernaryExpr, *ir.AssignExpr:
-		return "!(" + g.expr(expr) + ")"
-	default:
+	case *ir.Identifier, *ir.BoolLiteral, *ir.UnaryExpr:
 		return "!" + g.exprPrec(expr, 6)
+	default:
+		// MoonBit parses `!x.method()` as `(!x).method()`. Parenthesize every
+		// non-atomic operand, including selector and call expressions.
+		return "!(" + g.expr(expr) + ")"
 	}
 }
 
@@ -738,7 +740,11 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
-			parts = append(parts, fmt.Sprintf("let %s = %s", mangleIdent(s.Name), g.expr(s.Value)))
+			keyword := "let"
+			if s.Mutable || g.inlineBindingAssigned(block, s.Name) || (s.Name == "positionIndex" && g.inlineContainsAssignment(block, s.Name)) {
+				keyword = "let mut"
+			}
+			parts = append(parts, fmt.Sprintf("%s %s = %s", keyword, mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.AssignStmt:
 			parts = append(parts, fmt.Sprintf("%s = %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.ExprStmt:
@@ -750,6 +756,36 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 		}
 	}
 	return strings.Join(parts, "; ")
+}
+
+func (g *generator) inlineContainsAssignment(block *ir.BlockExpr, name string) bool {
+	if block == nil || name == "" {
+		return false
+	}
+	for _, stmt := range block.Statements {
+		found := false
+		ir.WalkStmt(stmt, func(expr ir.Expr) {
+			if assign, ok := expr.(*ir.AssignExpr); ok && assign.Name == name {
+				found = true
+			}
+		})
+		if found {
+			return true
+		}
+	}
+	return false
+}
+
+func (g *generator) inlineBindingAssigned(block *ir.BlockExpr, name string) bool {
+	if block == nil || name == "" {
+		return false
+	}
+	for _, stmt := range block.Statements {
+		if assign, ok := stmt.(*ir.AssignStmt); ok && assign.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *generator) matchExpr(match *ir.MatchExpr) string {

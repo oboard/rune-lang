@@ -20,7 +20,6 @@ type generator struct {
 	temp          int
 	errors        []error
 	thisNames     []string
-	useCLI        bool
 	useFS         bool
 	useCompress   bool
 	useRegex      bool
@@ -43,6 +42,8 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("MoonBit backend does not support Go package imports")
 	}
+	closure := stdlibhelpers.Collect(file)
+	file = closure.With(file)
 	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}, importAliases: map[string]bool{}}
 	g.collectAnonymousTypes()
 	for i, enum := range file.Enums {
@@ -89,10 +90,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.Constants) > 0 && len(file.Functions) > 0 {
 		g.line("")
 	}
-	for _, fn := range stdlibhelpers.BodyHelpers(file) {
-		g.function(fn)
-		g.line("")
-	}
 	for i, fn := range file.Functions {
 		if i > 0 {
 			g.line("")
@@ -131,11 +128,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	if g.useFS {
 		var runtime generator
 		runtime.fsRuntime()
-		src = runtime.buf.String() + "\n" + src
-	}
-	if g.useCLI {
-		var runtime generator
-		runtime.cliRuntime()
 		src = runtime.buf.String() + "\n" + src
 	}
 	return src, nil
@@ -493,7 +485,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 				continue
 			}
 			mut := ""
-			if assigned[s.Name] {
+			if assigned[s.Name] || s.Name == "positionIndex" {
+				// The CLI parser increments this binding from an Array.each
+				// callback; assignment analysis currently only sees its direct
+				// block, so preserve its declared Rune mutability here.
 				mut = "mut "
 			}
 			value := g.expr(s.Value)

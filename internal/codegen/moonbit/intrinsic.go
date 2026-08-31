@@ -22,11 +22,6 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	}
 	if fn.Intrinsic == "" {
 		args := g.intrinsicArgs(call.Args)
-		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
-			if at, ok := sel.Receiver.(*ir.AtExpr); ok && at.Name == "cli" && fn.Body != nil {
-				return g.cliModuleCall(fn, args, call.ResultType()), true
-			}
-		}
 		if fn.Body != nil {
 			if moduleName, ok := stdlibCallModuleName(call); ok {
 				return fmt.Sprintf("%s(%s)", mangleIdent(stdlibhelpers.HelperName(moduleName, fn.Name)), strings.Join(args, ", ")), true

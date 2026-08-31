@@ -18,8 +18,9 @@ func Generate(file *ast.File, info *checker.Info) (string, error) {
 }
 
 func GenerateIR(file *ir.File) (string, error) {
-	helpers := stdlibhelpers.BodyHelpers(file)
-	usage := codeusage.Collect(fileWithHelpers(file, helpers))
+	closure := stdlibhelpers.Collect(file)
+	file = closure.With(file)
+	usage := codeusage.Collect(file)
 	if len(file.GoImports) > 0 {
 		return "", fmt.Errorf("TypeScript backend does not support Go package imports")
 	}
@@ -52,10 +53,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	if fileUsesProcessRuntime(usage) {
 		g.processRuntime()
-		g.line("")
-	}
-	if fileUsesCLIRuntime(usage) {
-		g.cliRuntime()
 		g.line("")
 	}
 	if fileUsesStringBufferRuntime(usage) {
@@ -126,13 +123,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		}
 		g.constDecl(constant)
 	}
-	if len(file.Constants) > 0 && (len(helpers) > 0 || len(file.Functions) > 0) {
-		g.line("")
-	}
-	for _, fn := range helpers {
-		if err := g.function(fn); err != nil {
-			return "", err
-		}
+	if len(file.Constants) > 0 && len(file.Functions) > 0 {
 		g.line("")
 	}
 	for i, fn := range file.Functions {
@@ -791,14 +782,6 @@ func fileUsesAssertRuntime(usage codeusage.Usage) bool {
 
 func fileUsesProcessRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("process.")
-}
-
-func fileUsesCLIRuntime(usage codeusage.Usage) bool {
-	return usage.HasIntrinsicPrefix("cli.") ||
-		fileUsesType(usage, checker.Type("CliCommand")) ||
-		fileUsesType(usage, checker.Type("CliOption")) ||
-		fileUsesType(usage, checker.Type("CliArgument")) ||
-		fileUsesType(usage, checker.Type("CliParseResult"))
 }
 
 func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {

@@ -209,14 +209,11 @@ func TestGenerateCLIOptionDefaultValue(t *testing.T) {
 }`
 	got := generateSource(t, src)
 	for _, want := range []string{
-		`rune_cli_option("output", "o", "FILE", "write output", true, None)`,
-		`rune_cli_option("mode", "m", "MODE", "mode", false, Some("check"))`,
-		`let equal = raw_name.find("=").unwrap_or(-1)`,
-		`let inline_value : String? = if equal >= 0`,
-		`let short_value : String? = if short_arg.length() > 1`,
-		`missing required option --`,
-		`Usage: `,
-		`"--" + option.name + value`,
+		`pub struct CliCommand`,
+		`pub struct CliOption`,
+		`pub fn cli_option(name : String, short : String, valueName : String, help : String, required : Bool, defaultValue : String?) -> CliOption`,
+		`ignore(cli_withOption(cmd, cli_option("output", "o", "FILE", "write output", true, None)))`,
+		`ignore(cli_withOption(cmd, cli_option("mode", "m", "MODE", "mode", false, Some("check"))))`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
@@ -539,7 +536,7 @@ func TestGenerateIterAndStringBuffer(t *testing.T) {
 }`
 	got := generateSource(t, src)
 	for _, want := range []string{
-		"Iter::new(fn()",
+		"iter_new(() =>",
 		"values.next()",
 		"first.0",
 		".map((value : Int) => value * 2).to_array()",

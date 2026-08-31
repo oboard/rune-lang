@@ -21,9 +21,10 @@ func GenerateIR(file *ir.File) (string, error) {
 	if len(file.TSImports) > 0 {
 		return "", fmt.Errorf("Go backend does not support TypeScript imports")
 	}
-	helpers := stdlibhelpers.BodyHelpers(file)
+	closure := stdlibhelpers.Collect(file)
+	file = closure.With(file)
 	g := &generator{file: file, imports: map[string]bool{}}
-	usage := codeusage.Collect(fileWithHelpers(file, helpers))
+	usage := codeusage.Collect(file)
 	for _, imp := range file.GoImports {
 		g.imports[imp.Path] = true
 	}
@@ -59,11 +60,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	if fileUsesProcessRuntime(usage) {
 		g.imports["os"] = true
 		g.imports["runtime"] = true
-	}
-	if fileUsesCLIRuntime(usage) {
-		g.imports["fmt"] = true
-		g.imports["os"] = true
-		g.imports["strings"] = true
 	}
 	if fileUsesStringBufferRuntime(usage) {
 		g.imports["strings"] = true
@@ -211,12 +207,6 @@ func GenerateIR(file *ir.File) (string, error) {
 			g.line("")
 		}
 	}
-	if fileUsesCLIRuntime(usage) {
-		g.cliRuntime()
-		if len(file.Functions) > 0 || len(file.Types) > 0 {
-			g.line("")
-		}
-	}
 	if fileUsesStringBufferRuntime(usage) {
 		g.stringBufferRuntime()
 		if len(file.Functions) > 0 || len(file.Types) > 0 {
@@ -259,13 +249,7 @@ func GenerateIR(file *ir.File) (string, error) {
 		}
 		g.constDecl(constant)
 	}
-	if len(file.Constants) > 0 && (len(helpers) > 0 || len(file.Functions) > 0) {
-		g.line("")
-	}
-	for _, fn := range helpers {
-		if err := g.function(fn); err != nil {
-			return "", err
-		}
+	if len(file.Constants) > 0 && len(file.Functions) > 0 {
 		g.line("")
 	}
 	for i, fn := range file.Functions {
@@ -337,14 +321,6 @@ func fileUsesIORuntime(usage codeusage.Usage) bool {
 
 func fileUsesProcessRuntime(usage codeusage.Usage) bool {
 	return usage.HasIntrinsicPrefix("process.")
-}
-
-func fileUsesCLIRuntime(usage codeusage.Usage) bool {
-	return usage.HasIntrinsicPrefix("cli.") ||
-		fileUsesType(usage, checker.Type("CliCommand")) ||
-		fileUsesType(usage, checker.Type("CliOption")) ||
-		fileUsesType(usage, checker.Type("CliArgument")) ||
-		fileUsesType(usage, checker.Type("CliParseResult"))
 }
 
 func fileUsesStringBufferRuntime(usage codeusage.Usage) bool {
