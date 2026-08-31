@@ -89,6 +89,30 @@ func TestProgramCacheInvalidatesOnDocumentChange(t *testing.T) {
 	}
 }
 
+func TestAnalyzeSkipsSelfhostPrecheckForBootstrapSources(t *testing.T) {
+	prevCheck := selfhostCheckSource
+	prevAnalyze := analyzeSource
+	t.Cleanup(func() {
+		selfhostCheckSource = prevCheck
+		analyzeSource = prevAnalyze
+	})
+	selfhostCheckSource = func(string, string) SelfhostCompileResult {
+		return SelfhostCompileResult{Errors: []string{"bootstrap checker error"}}
+	}
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		return nil, nil
+	}
+	for _, uri := range []string{
+		"file:///workspace/core/cli/cli.rn",
+		"file:///workspace/selfhost/cli/cli.rn",
+	} {
+		s := &server{docs: map[string]string{uri: "main() => 1"}, cache: map[string]programCacheEntry{}}
+		if _, diags := s.analyze(uri); len(diags) != 0 {
+			t.Fatalf("analyze(%s) diagnostics = %#v, want none", uri, diags)
+		}
+	}
+}
+
 func TestDiagnosticsReportMissingStructLiteralComma(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {

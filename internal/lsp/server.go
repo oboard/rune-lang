@@ -3,6 +3,9 @@ package lsp
 import (
 	"bufio"
 	"io"
+	"net/url"
+	"path/filepath"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/compiler"
 )
@@ -94,7 +97,11 @@ func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) 
 	} else {
 		s.cache = map[string]programCacheEntry{}
 	}
-	if selfhostCheckSource != nil {
+	// Core modules are the standard library's own implementation sources. They
+	// intentionally reference declarations that the regular user-file checker
+	// hides to prevent duplicate definitions, so do not publish selfhost's
+	// incomplete-bootstrap diagnostics for these files.
+	if selfhostCheckSource != nil && !isBootstrapSourceURI(uri) {
 		checked := selfhostCheckSource(text, uri)
 		if !checked.Ok {
 			diags := selfhostDiagnostics(uri, checked.Errors)
@@ -105,6 +112,17 @@ func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) 
 	prog, diags := analyzeSource(uri, text)
 	s.cache[uri] = programCacheEntry{text: text, prog: prog, diags: diags}
 	return prog, diags
+}
+
+func isBootstrapSourceURI(uri string) bool {
+	path := uri
+	if strings.HasPrefix(path, "file://") {
+		if parsed, err := url.Parse(path); err == nil {
+			path = parsed.Path
+		}
+	}
+	path = filepath.ToSlash(filepath.Clean(path))
+	return strings.Contains(path, "/core/") || strings.Contains(path, "/selfhost/")
 }
 
 func selfhostDiagnostics(uri string, messages []string) []compiler.Diagnostic {
