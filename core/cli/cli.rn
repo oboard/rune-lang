@@ -6,6 +6,8 @@
   about: String
   options: Array[CliOption]
   arguments: Array[CliArgument]
+  commands: Array[CliCommand]
+  aliases: Array[CliCommandAlias]
 }
 
 + CliOption: {
@@ -311,7 +313,9 @@ parserBody(
   version: null,
   about: about,
   options: [],
-  arguments: []
+  arguments: [],
+  commands: [],
+  aliases: []
 }
 
 + withVersion(
@@ -322,7 +326,9 @@ parserBody(
   version: version,
   about: command.about,
   options: command.options,
-  arguments: command.arguments
+  arguments: command.arguments,
+  commands: command.commands,
+  aliases: command.aliases
 }
 
 + withOption(
@@ -333,7 +339,9 @@ parserBody(
   version: command.version,
   about: command.about,
   options: [..command.options, option],
-  arguments: command.arguments
+  arguments: command.arguments,
+  commands: command.commands,
+  aliases: command.aliases
 }
 
 + withArgument(
@@ -344,7 +352,35 @@ parserBody(
   version: command.version,
   about: command.about,
   options: command.options,
-  arguments: [..command.arguments, argument]
+  arguments: [..command.arguments, argument],
+  commands: command.commands,
+  aliases: command.aliases
+}
+
++ withCommands(
+  command: CliCommand,
+  commands: Array[CliCommand]
+) -> CliCommand => CliCommand {
+  name: command.name,
+  version: command.version,
+  about: command.about,
+  options: command.options,
+  arguments: command.arguments,
+  commands: commands,
+  aliases: command.aliases
+}
+
++ withAliases(
+  command: CliCommand,
+  aliases: Array[CliCommandAlias]
+) -> CliCommand => CliCommand {
+  name: command.name,
+  version: command.version,
+  about: command.about,
+  options: command.options,
+  arguments: command.arguments,
+  commands: command.commands,
+  aliases: aliases
 }
 
 + flag(
@@ -1019,7 +1055,21 @@ emptyCommand() -> CliCommand => CliCommand {
   version: null,
   about: "",
   options: [],
-  arguments: []
+  arguments: [],
+  commands: [],
+  aliases: []
+}
+
+aliasesForCommand(
+  aliases: Array[CliCommandAlias],
+  commandName: String,
+  index: Int
+) -> Array[String] => (index >= aliases.length()) {
+  true => []
+  _ => (aliases[index].to == commandName) {
+    true => [aliases[index].from, ..aliasesForCommand(aliases, commandName, index + 1)]
+    _ => aliasesForCommand(aliases, commandName, index + 1)
+  }
 }
 
 resolveAlias(
@@ -1116,6 +1166,21 @@ appendRuntimeRest(
     )
   })
   text = text + "\n"
+  (
+    command.commands.isEmpty() ? text = text
+      : text = text + "\nCommands:\n"
+  )
+  command.commands.each((child) => {
+    text = (text + "  ") + child.name
+    text = (
+      child.about.isEmpty() ? text
+        : (text + "\t") + child.about
+    )
+    aliasesForCommand(command.aliases, child.name, 0).each((aliasName) => {
+      text = text + " (alias: " + aliasName + ")"
+    })
+    text = text + "\n"
+  })
   versionText := command.version ?? ""
   (
     versionText.isEmpty() ? text = text

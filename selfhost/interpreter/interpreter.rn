@@ -3056,6 +3056,8 @@ callCliModuleFunction(
     "withVersion" => okResult(cliWithVersion(args[0], args[1]))
     "withOption" => okResult(cliWithOption(args[0], args[1]))
     "withArgument" => okResult(cliWithArgument(args[0], args[1]))
+    "withCommands" => okResult(cliWithCommands(args[0], args[1]))
+    "withAliases" => okResult(cliWithAliases(args[0], args[1]))
     "flag" => okResult(cliFlagValue(runtimeText(args[0]), runtimeText(args[1]), runtimeText(args[2])))
     "option" => okResult(cliOptionValue(runtimeText(args[0]), runtimeText(args[1]), runtimeText(args[2]), runtimeText(args[3]), runtimeBool(args[4]), args[5]))
     "argument" => okResult(cliArgumentValue(runtimeText(args[0]), runtimeText(args[1]), runtimeBool(args[2])))
@@ -3110,7 +3112,9 @@ cliCommandValue(
   RuntimeField { name: "version", value: nullValue() },
   RuntimeField { name: "about", value: stringValue(about) },
   RuntimeField { name: "options", value: arrayValue(emptyRuntimeArray()) },
-  RuntimeField { name: "arguments", value: arrayValue(emptyRuntimeArray()) }
+  RuntimeField { name: "arguments", value: arrayValue(emptyRuntimeArray()) },
+  RuntimeField { name: "commands", value: arrayValue(emptyRuntimeArray()) },
+  RuntimeField { name: "aliases", value: arrayValue(emptyRuntimeArray()) }
 ])
 
 cliOptionValue(
@@ -3161,7 +3165,9 @@ cliWithVersion(
   RuntimeField { name: "version", value: version },
   RuntimeField { name: "about", value: cliField(command, "about") },
   RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") }
+  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
+  RuntimeField { name: "commands", value: cliField(command, "commands") },
+  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
 ])
 
 cliWithOption(
@@ -3172,7 +3178,9 @@ cliWithOption(
   RuntimeField { name: "version", value: cliField(command, "version") },
   RuntimeField { name: "about", value: cliField(command, "about") },
   RuntimeField { name: "options", value: arrayValue(pushRuntime(runtimeArray(cliField(command, "options")), option)) },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") }
+  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
+  RuntimeField { name: "commands", value: cliField(command, "commands") },
+  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
 ])
 
 cliWithArgument(
@@ -3183,7 +3191,35 @@ cliWithArgument(
   RuntimeField { name: "version", value: cliField(command, "version") },
   RuntimeField { name: "about", value: cliField(command, "about") },
   RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: arrayValue(pushRuntime(runtimeArray(cliField(command, "arguments")), argument)) }
+  RuntimeField { name: "arguments", value: arrayValue(pushRuntime(runtimeArray(cliField(command, "arguments")), argument)) },
+  RuntimeField { name: "commands", value: cliField(command, "commands") },
+  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
+])
+
+cliWithCommands(
+  command: RuntimeValue,
+  commands: RuntimeValue
+) -> RuntimeValue => structValue("CliCommand", [
+  RuntimeField { name: "name", value: cliField(command, "name") },
+  RuntimeField { name: "version", value: cliField(command, "version") },
+  RuntimeField { name: "about", value: cliField(command, "about") },
+  RuntimeField { name: "options", value: cliField(command, "options") },
+  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
+  RuntimeField { name: "commands", value: commands },
+  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
+])
+
+cliWithAliases(
+  command: RuntimeValue,
+  aliases: RuntimeValue
+) -> RuntimeValue => structValue("CliCommand", [
+  RuntimeField { name: "name", value: cliField(command, "name") },
+  RuntimeField { name: "version", value: cliField(command, "version") },
+  RuntimeField { name: "about", value: cliField(command, "about") },
+  RuntimeField { name: "options", value: cliField(command, "options") },
+  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
+  RuntimeField { name: "commands", value: cliField(command, "commands") },
+  RuntimeField { name: "aliases", value: aliases }
 ])
 
 cliParseArgsValue(
@@ -3748,9 +3784,58 @@ cliHelpText(
     about != "" ? ((usage + "\n") + about) + "\n"
       : usage
   )
-  withOptions := withAbout + "\nOptions:\n"
+  withCommands := cliHelpCommands(runtimeArray(cliField(command, "commands")), runtimeArray(cliField(command, "aliases")), 0, withAbout)
+  withOptions := withCommands + "\nOptions:\n"
   cliHelpOptions(runtimeArray(cliField(command, "options")), 0, withOptions) + "  -h, --help\tShow help\n"
 }
+
+cliHelpCommands(
+  commands: Array[RuntimeValue],
+  aliases: Array[RuntimeValue],
+  index: Int,
+  out: String
+) -> String => (
+  commands.isEmpty() ? out
+    : (
+      index == 0 ? cliHelpCommands(commands, aliases, index + 1, out + "\nCommands:\n")
+        : (
+          index > commands.length() ? out
+            : cliHelpCommands(commands, aliases, index + 1, out + cliHelpCommand(commands[index - 1], aliases))
+        )
+    )
+)
+
+cliHelpCommand(
+  command: RuntimeValue,
+  aliases: Array[RuntimeValue]
+) -> String => {
+  name := runtimeText(cliField(command, "name"))
+  about := runtimeText(cliField(command, "about"))
+  text := "  " + name
+  text = (
+    about == "" ? text
+      : text + "\t" + about
+  )
+  aliasesFor := cliHelpAliases(aliases, name, 0, "")
+  text = (
+    aliasesFor == "" ? text
+      : text + " (alias: " + aliasesFor + ")"
+  )
+  text + "\n"
+}
+
+cliHelpAliases(
+  aliases: Array[RuntimeValue],
+  commandName: String,
+  index: Int,
+  out: String
+) -> String => (
+  index >= aliases.length() ? out
+    : (
+      runtimeText(cliField(aliases[index], "to")) == commandName ? cliHelpAliases(aliases, commandName, index + 1, (out == "" ? "" : out + ", ") + runtimeText(cliField(aliases[index], "from")))
+        : cliHelpAliases(aliases, commandName, index + 1, out)
+    )
+)
 
 cliHelpUsageArgs(
   args: Array[RuntimeValue],

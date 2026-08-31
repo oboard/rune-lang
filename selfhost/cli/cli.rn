@@ -175,7 +175,8 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
 + runeCommand() -> CliCommand => {
   command := @cli.command("rune", "Rune language toolchain")
   command = @cli.withOption(command, @cli.option("backend", "b", "BACKEND", "target backend", false, "go"))
-  command
+  command = @cli.withCommands(command, runeCommands())
+  @cli.withAliases(command, runeAliases())
 }
 
 + runeCommands() -> Array[CliCommand] => [
