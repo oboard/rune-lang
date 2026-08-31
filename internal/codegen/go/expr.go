@@ -53,6 +53,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.Op == lexer.Tilde && e.Expr.ResultType() == checker.BigInt {
 			return fmt.Sprintf("new(big.Int).Not(%s)", g.exprPrec(e.Expr, 5))
 		}
+		if e.Op == lexer.Bang {
+			// Calls such as `text.isEmpty()` lower to comparisons. Parenthesize
+			// them so Go does not parse `!len(text) == 0` as `(!len(text)) == 0`.
+			return fmt.Sprintf("!(%s)", g.expr(e.Expr))
+		}
 		op := e.Op.String()
 		if e.Op == lexer.Tilde {
 			op = "^"
