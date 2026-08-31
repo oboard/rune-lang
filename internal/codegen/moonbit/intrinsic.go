@@ -243,7 +243,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
 		return g.stringIntrinsicCall(fn, receiver, args, call.ResultType()), true
-	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."):
+	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
 		return g.primitiveIntrinsicCall(fn, sel.Receiver, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "bytes."):
 		return g.bytesIntrinsicCall(fn, receiver, args, call.ResultType()), true
@@ -271,6 +271,24 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, rawReceiver ir.Expr, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "int.toString", "char.toString", "bool.toString":
+		return fmt.Sprintf("(%s).to_string()", receiver)
+	case "int.toDouble":
+		return fmt.Sprintf("(%s).to_double()", receiver)
+	case "int.toBigInt":
+		return fmt.Sprintf("BigInt::from_int(%s)", receiver)
+	case "double.trunc":
+		return fmt.Sprintf("(%s).trunc()", receiver)
+	case "double.floor":
+		return fmt.Sprintf("(%s).floor()", receiver)
+	case "double.ceil":
+		return fmt.Sprintf("(%s).ceil()", receiver)
+	case "double.round":
+		return fmt.Sprintf("(%s).round()", receiver)
+	case "float.toDouble":
+		return fmt.Sprintf("(%s).to_double()", receiver)
+	case "bigint.toDouble":
+		return fmt.Sprintf("(%s).to_int().to_double()", receiver)
+	case "bigint.toString":
 		return fmt.Sprintf("(%s).to_string()", receiver)
 	case "bool.not":
 		if rawReceiver != nil {

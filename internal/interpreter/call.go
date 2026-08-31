@@ -2,6 +2,7 @@ package interpreter
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/checker"
@@ -70,6 +71,14 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 			return i.callCharMethod(value, sel.Name, call.Args, env)
 		case bool:
 			return i.callBoolMethod(value, sel.Name, call.Args, env)
+		case int:
+			return i.callIntMethod(value, sel.Name, call.Args, env)
+		case float64:
+			return i.callDoubleMethod(value, sel.Name, call.Args, env)
+		case float32:
+			return i.callFloatMethod(value, sel.Name, call.Args, env)
+		case *big.Int:
+			return i.callBigIntMethod(value, sel.Name, call.Args, env)
 		case *Struct:
 			if field, ok := value.Fields[sel.Name]; ok {
 				return i.callCallable(field, call.Args, env)

@@ -52,7 +52,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.PostfixExpr:
 		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
 	case *ast.ResultUnwrapExpr:
-		return f.postfixReceiverExpr(e.Expr) + "?"
+		return f.postfixReceiverExpr(e.Expr) + e.Op.String()
 	case *ast.CompileTimeExpr:
 		return f.postfixReceiverExpr(e.Expr) + "'"
 	case *ast.BinaryExpr:

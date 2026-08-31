@@ -1,4 +1,8 @@
 + BigInt: {
+  toString() -> String => "%bigint.toString"
+
+  toDouble() -> Double => "%bigint.toDouble"
+
   add(other: BigInt) -> BigInt => "%bigint.add"
 
   sub(other: BigInt) -> BigInt => "%bigint.sub"
@@ -7,9 +11,3 @@
 
   div(other: BigInt) -> BigInt => "%bigint.div"
 }
-
-+ fromInt(value: Int) -> BigInt => "%bigint.fromInt"
-
-+ toDouble(value: BigInt) -> Double => "%bigint.toDouble"
-
-+ toString(value: BigInt) -> String => "%bigint.toString"

@@ -973,6 +973,7 @@ emitGoCoreMethodCall(
     "push" => emitGoCorePush(expr, selector.children[0])
     "set" => emitGoCoreSet(expr, selector.children[0])
     "getOr" => emitGoCoreGetOr(expr, selector.children[0])
+    "toDouble" | "toInt" => emitGoCoreNumericConversion(selector.children[0], selector.name)
     _ => emitGoDefaultCall(expr)
   }
     : emitGoDefaultCall(expr)
@@ -1025,6 +1026,15 @@ emitGoCoreGetOr(
 emitGoDefaultCall(
   expr: IRExpr
 ) -> String => ((emitGoExpr(expr.children[0]) + "(") + emitGoExprListFrom(expr.children, 1, "")) + ")"
+
+emitGoCoreNumericConversion(
+  receiver: IRExpr,
+  method: String
+) -> String => (
+  method == "toDouble" ? "float64(" + emitGoExpr(receiver) + ")"
+    : method == "toInt" ? "int(" + emitGoExpr(receiver) + ")"
+    : emitGoExpr(receiver)
+)
 
 emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
 

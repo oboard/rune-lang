@@ -46,6 +46,7 @@ formatToken(
   TokenKind.Dot => formatPunctuation(state, ".", TokenKind.Dot)
   TokenKind.DoubleColon => formatPunctuation(state, "::", TokenKind.DoubleColon)
   TokenKind.Question => formatPunctuation(state, "?", TokenKind.Question)
+  TokenKind.QuestionQuestion => formatPunctuation(state, "??", TokenKind.QuestionQuestion)
   TokenKind.Apostrophe => formatPunctuation(state, "'", TokenKind.Apostrophe)
   TokenKind.LParen => formatPunctuation(state, "(", TokenKind.LParen)
   TokenKind.RParen => formatPunctuation(state, ")", TokenKind.RParen)

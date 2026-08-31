@@ -144,6 +144,12 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 			return receiver + ".toString()", true
 		}
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "double."):
+		return g.doubleIntrinsicCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "float."):
+		return g.floatIntrinsicCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "bigint."):
+		return g.bigintIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "array."):
 		if name, ok := g.reactiveIdentifier(sel.Receiver); ok {
 			return g.reactiveArrayIntrinsicCall(fn, name, args, call.Args, call.ResultType()), true
@@ -448,6 +454,100 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	}
 }
 
+func (g *generator) doubleIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "double.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s + %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s - %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s * %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s / %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.trunc":
+		return fmt.Sprintf("Math.trunc(%s)", receiver)
+	case "double.floor":
+		return fmt.Sprintf("Math.floor(%s)", receiver)
+	case "double.ceil":
+		return fmt.Sprintf("Math.ceil(%s)", receiver)
+	case "double.round":
+		return fmt.Sprintf("Math.round(%s)", receiver)
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) floatIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "float.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s + %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s - %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s * %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s / %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.toDouble":
+		return fmt.Sprintf("(%s)", receiver)
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
+
+func (g *generator) bigintIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	switch fn.Intrinsic {
+	case "bigint.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s + %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s - %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s * %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("(%s / %s)", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.toDouble":
+		return fmt.Sprintf("Number(%s)", receiver)
+	case "bigint.toString":
+		return fmt.Sprintf("(%s).toString()", receiver)
+	default:
+		return g.unsupportedIntrinsic(fn, resultType)
+	}
+}
 func (g *generator) bytesModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "bytes.new":

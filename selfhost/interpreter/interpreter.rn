@@ -2819,7 +2819,7 @@ callIntModuleFunction(
       _ => errorResult("int.toString expects Int")
     }
     "toDouble" => args[0] {
-      Int(raw, typeName) => okResult(doubleRuntimeValue(@int.toDouble(raw)))
+      Int(raw, typeName) => okResult(doubleRuntimeValue(raw.toDouble()))
       _ => errorResult("int.toDouble expects Int")
     }
     "toBigInt" => args[0] {
@@ -2843,7 +2843,7 @@ callBigIntModuleFunction(
       _ => errorResult("bigint.fromInt expects Int")
     }
     "toDouble" => (
-      isBigIntRuntime(args[0]) ? okResult(doubleRuntimeValue(@int.toDouble(parseBigIntRuntime(args[0]))))
+      isBigIntRuntime(args[0]) ? okResult(doubleRuntimeValue(parseBigIntRuntime(args[0]).toDouble()))
         : errorResult("bigint.toDouble expects BigInt")
     )
     "toString" => (
@@ -2853,6 +2853,45 @@ callBigIntModuleFunction(
     _ => callImportedModuleFunction(interpreter, env, "bigint", name, children)
   }
 }
+
+callBigIntReceiverMethod(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  receiver: RuntimeValue,
+  name: String,
+  children: Array[IRExpr]
+) -> EvalResult => (
+  name == "toString" ? okResult(stringValue(runtimeText(receiver)))
+    : (
+      name == "toDouble" ? okResult(doubleRuntimeValue(parseBigIntRuntime(receiver).toDouble()))
+        : (
+          name == "toInt" ? okResult(intValue(parseBigIntRuntime(receiver)))
+            : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+        )
+    )
+)
+
+callDoubleReceiverMethod(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  receiver: RuntimeValue,
+  name: String
+) -> EvalResult => (
+  name == "toInt" ? okResult(intValue(doubleTruncToInt(runtimeDouble(receiver))))
+    : (
+      name == "trunc" ? okResult(intValue(doubleTruncToInt(runtimeDouble(receiver))))
+        : (
+          name == "floor" ? okResult(intValue(doubleFloorToInt(runtimeDouble(receiver))))
+            : (
+              name == "ceil" ? okResult(intValue(doubleCeilToInt(runtimeDouble(receiver))))
+                : (
+                  name == "round" ? okResult(intValue(doubleRoundToInt(runtimeDouble(receiver))))
+                    : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+                )
+            )
+        )
+    )
+)
 
 callDoubleModuleFunction(
   interpreter: Interpreter,
@@ -2973,7 +3012,7 @@ doubleFloorPositiveToInt(value: Double) -> Int => doubleFloorSearch(value, 0, do
 doubleCeilPositiveToInt(value: Double) -> Int => {
   floor := doubleFloorPositiveToInt(value)
   (
-    @int.toDouble(floor) == value ? floor
+    (floor).toDouble() == value ? floor
       : floor + 1
   )
 }
@@ -2982,7 +3021,7 @@ doubleUpperBound(
   value: Double,
   upper: Int
 ) -> Int => (
-  @int.toDouble(upper) > value ? upper
+  (upper).toDouble() > value ? upper
     : doubleUpperBound(value, upper * 2)
 )
 
@@ -3001,7 +3040,7 @@ doubleFloorSearchStep(
   high: Int,
   mid: Int
 ) -> Int => (
-  @int.toDouble(mid) <= value ? doubleFloorSearch(value, mid, high)
+  (mid).toDouble() <= value ? doubleFloorSearch(value, mid, high)
     : doubleFloorSearch(value, low, mid)
 )
 
@@ -5935,13 +5974,23 @@ callMethodValue(
 ) -> EvalResult => receiver {
   Array(values) => callArrayMethod(interpreter, env, receiver, name, children)
   Tuple(values) => callArrayMethod(interpreter, env, receiver, name, children)
-  String(value, typeName) => callStringMethod(interpreter, env, receiver, name, children)
+  String(value, typeName) => (
+    isBigIntRuntime(receiver) ? callBigIntReceiverMethod(interpreter, env, receiver, name, children)
+      : callStringMethod(interpreter, env, receiver, name, children)
+  )
   Map(entries) => callMapMethod(interpreter, env, receiver, name, children)
   Set(entries) => callSetMethod(interpreter, env, receiver, name, children)
   Int(value, typeName) => (
     name == "toString" ? okResult(stringValue(intToString(value)))
-      : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+      : (
+        name == "toDouble" ? okResult(doubleRuntimeValue(value.toDouble()))
+          : (
+            name == "toBigInt" ? okResult(bigIntValue(intToString(value)))
+              : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+          )
+      )
   )
+  Double(value, text, typeName) => callDoubleReceiverMethod(interpreter, env, receiver, name)
   Bool(value) => callBoolMethod(interpreter, env, receiver, name, children)
   Char(value) => (
     name == "toString" ? okResult(stringValue(value.toString()))
@@ -8511,9 +8560,9 @@ exponentIndex(text: String) -> Int => {
 parseDecimalText(text: String) -> Double => {
   dot := text.indexOf(".")
   (
-    dot < 0 ? @int.toDouble(parseIntText(text))
+    dot < 0 ? (parseIntText(text).toDouble())
       : (
-        @int.toDouble(parseIntText(text.slice(0, dot))) + parseFractionText(text.slice(dot + 1, text.length()), 0, 0.0, 10.0)
+        (parseIntText(text.slice(0, dot)).toDouble()) + parseFractionText(text.slice(dot + 1, text.length()), 0, 0.0, 10.0)
       )
   )
 }
@@ -8526,7 +8575,7 @@ parseFractionText(
 ) -> Double => (
   index >= text.length() ? out
     : (
-      isDigitChar(text.at(index)) ? parseFractionText(text, index + 1, out + (@int.toDouble(digitValue(text.at(index))) / scale), scale * 10.0)
+      isDigitChar(text.at(index)) ? parseFractionText(text, index + 1, out + ((digitValue(text.at(index)).toDouble()) / scale), scale * 10.0)
         : out
     )
 )

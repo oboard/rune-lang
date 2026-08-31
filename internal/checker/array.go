@@ -212,6 +212,12 @@ func StdlibReceiverModule(receiver Type) (string, string, bool) {
 	switch base {
 	case "Int":
 		return "int", "Int", true
+	case "Double":
+		return "double", "Double", true
+	case "Float":
+		return "float", "Float", true
+	case "BigInt":
+		return "bigint", "BigInt", true
 	case "String":
 		return "string", "String", true
 	case "Char":

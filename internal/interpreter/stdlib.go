@@ -1829,10 +1829,289 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 	}
 }
 
-func (i *Interpreter) callCharMethod(value Char, name string, args []ir.Expr, env *Env) (Value, error) {
+func (i *Interpreter) callIntMethod(value int, name string, args []ir.Expr, env *Env) (Value, error) {
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("int", "Int", name)
+	if !ok {
+		return nil, fmt.Errorf("type Int has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "int.toString":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("int.toString expects 0 args, got %d", len(values))
+		}
+		return fmt.Sprintf("%d", value), nil
+	case "int.toDouble":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("int.toDouble expects 0 args, got %d", len(values))
+		}
+		return float64(value), nil
+	case "int.toBigInt":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("int.toBigInt expects 0 args, got %d", len(values))
+		}
+		return big.NewInt(int64(value)), nil
+	case "int.add":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("int.add expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("int.add expects Int")
+		}
+		return value + other, nil
+	case "int.sub":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("int.sub expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("int.sub expects Int")
+		}
+		return value - other, nil
+	case "int.mul":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("int.mul expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("int.mul expects Int")
+		}
+		return value * other, nil
+	case "int.div":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("int.div expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(int)
+		if !ok {
+			return nil, fmt.Errorf("int.div expects Int")
+		}
+		if other == 0 {
+			return nil, fmt.Errorf("division by zero")
+		}
+		return value / other, nil
+	default:
+		return nil, fmt.Errorf("int.%s is not supported by the interpreter", name)
+	}
+}
+
+func (i *Interpreter) callDoubleMethod(value float64, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("double", "Double", name)
+	if !ok {
+		return nil, fmt.Errorf("type Double has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "double.add":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("double.add expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float64)
+		if !ok {
+			return nil, fmt.Errorf("double.add expects Double")
+		}
+		return value + other, nil
+	case "double.sub":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("double.sub expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float64)
+		if !ok {
+			return nil, fmt.Errorf("double.sub expects Double")
+		}
+		return value - other, nil
+	case "double.mul":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("double.mul expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float64)
+		if !ok {
+			return nil, fmt.Errorf("double.mul expects Double")
+		}
+		return value * other, nil
+	case "double.div":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("double.div expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float64)
+		if !ok {
+			return nil, fmt.Errorf("double.div expects Double")
+		}
+		if other == 0 {
+			return nil, fmt.Errorf("division by zero")
+		}
+		return value / other, nil
+	case "double.trunc":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("double.trunc expects 0 args, got %d", len(values))
+		}
+		return int(math.Trunc(value)), nil
+	case "double.floor":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("double.floor expects 0 args, got %d", len(values))
+		}
+		return int(math.Floor(value)), nil
+	case "double.ceil":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("double.ceil expects 0 args, got %d", len(values))
+		}
+		return int(math.Ceil(value)), nil
+	case "double.round":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("double.round expects 0 args, got %d", len(values))
+		}
+		return int(math.Round(value)), nil
+	default:
+		return nil, fmt.Errorf("double.%s is not supported by the interpreter", name)
+	}
+}
+
+func (i *Interpreter) callFloatMethod(value float32, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("float", "Float", name)
+	if !ok {
+		return nil, fmt.Errorf("type Float has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "float.add":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("float.add expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float32)
+		if !ok {
+			return nil, fmt.Errorf("float.add expects Float")
+		}
+		return value + other, nil
+	case "float.sub":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("float.sub expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float32)
+		if !ok {
+			return nil, fmt.Errorf("float.sub expects Float")
+		}
+		return value - other, nil
+	case "float.mul":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("float.mul expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float32)
+		if !ok {
+			return nil, fmt.Errorf("float.mul expects Float")
+		}
+		return value * other, nil
+	case "float.div":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("float.div expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(float32)
+		if !ok {
+			return nil, fmt.Errorf("float.div expects Float")
+		}
+		if other == 0 {
+			return nil, fmt.Errorf("division by zero")
+		}
+		return value / other, nil
+	case "float.toDouble":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("float.toDouble expects 0 args, got %d", len(values))
+		}
+		return float64(value), nil
+	default:
+		return nil, fmt.Errorf("float.%s is not supported by the interpreter", name)
+	}
+}
+
+func (i *Interpreter) callBigIntMethod(value *big.Int, name string, args []ir.Expr, env *Env) (Value, error) {
+	if i.file.Stdlib == nil {
+		return nil, fmt.Errorf("stdlib is not loaded")
+	}
+	fn, ok := i.file.Stdlib.ReceiverFunction("bigint", "BigInt", name)
+	if !ok {
+		return nil, fmt.Errorf("type BigInt has no method %q", name)
+	}
+	values, err := i.evalArgs(args, env)
+	if err != nil {
+		return nil, err
+	}
+	switch fn.Intrinsic {
+	case "bigint.add":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("bigint.add expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("bigint.add expects BigInt")
+		}
+		result := new(big.Int).Add(value, other)
+		return result, nil
+	case "bigint.sub":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("bigint.sub expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("bigint.sub expects BigInt")
+		}
+		result := new(big.Int).Sub(value, other)
+		return result, nil
+	case "bigint.mul":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("bigint.mul expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("bigint.mul expects BigInt")
+		}
+		result := new(big.Int).Mul(value, other)
+		return result, nil
+	case "bigint.div":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("bigint.div expects 1 arg, got %d", len(values))
+		}
+		other, ok := values[0].(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("bigint.div expects BigInt")
+		}
+		if other.Sign() == 0 {
+			return nil, fmt.Errorf("division by zero")
+		}
+		result := new(big.Int).Div(value, other)
+		return result, nil
+	case "bigint.toDouble":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("bigint.toDouble expects 0 args, got %d", len(values))
+		}
+		out, _ := new(big.Float).SetInt(value).Float64()
+		return out, nil
+	case "bigint.toString":
+		if len(values) != 0 {
+			return nil, fmt.Errorf("bigint.toString expects 0 args, got %d", len(values))
+		}
+		return value.String(), nil
+	default:
+		return nil, fmt.Errorf("bigint.%s is not supported by the interpreter", name)
+	}
+}
+func (i *Interpreter) callCharMethod(value Char, name string, args []ir.Expr, env *Env) (Value, error) {
 	if _, ok := i.file.Stdlib.ReceiverFunction("char", "Char", name); !ok {
 		return nil, fmt.Errorf("type Char has no method %q", name)
 	}

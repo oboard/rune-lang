@@ -260,11 +260,11 @@ func TestGenerateResultUnwrap(t *testing.T) {
 
 func TestGenerateNumericAndProcessIntrinsics(t *testing.T) {
 	src := `main() => {
-  @assert.eq(@int.toDouble(7), 7.0)
-  @assert.eq(@int.toString(42), "42")
-  @assert.eq(@int.toBigInt(5), 5n)
-  @assert.eq(@bigint.toString(6n), "6")
-  @assert.eq(@double.ceil(3.2), 4)
+  @assert.eq(7.toDouble(), 7.0)
+  @assert.eq(42.toString(), "42")
+  @assert.eq(5.toBigInt(), 5n)
+  @assert.eq(6n.toString(), "6")
+  @assert.eq(3.2.ceil(), 4)
   @assert.eq(@process.cwd().isEmpty(), false)
   @assert.eq(@process.env("__RUNE_TEST_MISSING_ENV__"), null)
 }`

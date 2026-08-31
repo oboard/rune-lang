@@ -255,15 +255,14 @@ true.toString()
 数值转换 helper：
 
 ```rune
-@int.toDouble(1)
-@int.toBigInt(1)
-@double.trunc(1.5)
-@double.floor(1.5)
-@double.ceil(1.5)
-@double.round(1.5)
-@bigint.fromInt(1)
-@bigint.toDouble(1n)
-@bigint.toString(1n)
+(1).toDouble()
+(1).toBigInt()
+(1.5).trunc()
+(1.5).floor()
+(1.5).ceil()
+(1.5).round()
+(1n).toDouble()
+(1n).toString()
 ```
 
 算术运算本身由语言运算符处理。

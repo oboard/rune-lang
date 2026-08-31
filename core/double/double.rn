@@ -6,12 +6,12 @@
   mul(other: Double) -> Double => "%double.mul"
 
   div(other: Double) -> Double => "%double.div"
+
+  trunc() -> Int => "%double.trunc"
+
+  floor() -> Int => "%double.floor"
+
+  ceil() -> Int => "%double.ceil"
+
+  round() -> Int => "%double.round"
 }
-
-+ trunc(value: Double) -> Int => "%double.trunc"
-
-+ floor(value: Double) -> Int => "%double.floor"
-
-+ ceil(value: Double) -> Int => "%double.ceil"
-
-+ round(value: Double) -> Int => "%double.round"

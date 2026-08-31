@@ -1095,6 +1095,8 @@ func __fmt___fmt_rune_private_b2b0db24_formatToken(__fmt_state __fmt_FormatState
 			return __fmt___fmt_rune_private_b2b0db24_formatPunctuation(__fmt_state, "::", __fmt_TokenKind_DoubleColon)
 		case __fmt_token.__fmt_kind == __fmt_TokenKind_Question:
 			return __fmt___fmt_rune_private_b2b0db24_formatPunctuation(__fmt_state, "?", __fmt_TokenKind_Question)
+		case __fmt_token.__fmt_kind == __fmt_TokenKind_QuestionQuestion:
+			return __fmt___fmt_rune_private_b2b0db24_formatPunctuation(__fmt_state, "??", __fmt_TokenKind_QuestionQuestion)
 		case __fmt_token.__fmt_kind == __fmt_TokenKind_Apostrophe:
 			return __fmt___fmt_rune_private_b2b0db24_formatPunctuation(__fmt_state, "'", __fmt_TokenKind_Apostrophe)
 		case __fmt_token.__fmt_kind == __fmt_TokenKind_LParen:

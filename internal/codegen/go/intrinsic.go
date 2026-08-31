@@ -126,7 +126,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayMethodCall(call)
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."), strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.mapMethodCall(call)
-	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."):
+	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
 		return g.primitiveIntrinsicCall(fn, g.receiverIntrinsicExpr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "bytes."):
 		return g.bytesReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
@@ -706,6 +706,24 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string,
 	switch fn.Intrinsic {
 	case "int.toString":
 		return fmt.Sprintf("strconv.Itoa(%s)", receiver)
+	case "int.toDouble":
+		return fmt.Sprintf("float64(%s)", receiver)
+	case "int.toBigInt":
+		return fmt.Sprintf("big.NewInt(int64(%s))", receiver)
+	case "double.trunc":
+		return fmt.Sprintf("int(math.Trunc(%s))", receiver)
+	case "double.floor":
+		return fmt.Sprintf("int(math.Floor(%s))", receiver)
+	case "double.ceil":
+		return fmt.Sprintf("int(math.Ceil(%s))", receiver)
+	case "double.round":
+		return fmt.Sprintf("int(math.Round(%s))", receiver)
+	case "float.toDouble":
+		return fmt.Sprintf("float64(%s)", receiver)
+	case "bigint.toDouble":
+		return fmt.Sprintf("func() float64 { out, _ := new(big.Float).SetInt(%s).Float64(); return out }()", receiver)
+	case "bigint.toString":
+		return fmt.Sprintf("(%s).String()", receiver)
 	case "string.length":
 		return fmt.Sprintf("len([]rune(%s))", receiver)
 	case "string.toString":
@@ -767,6 +785,66 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string,
 	case "regex.exec", "regex.match", "regex.matchAll", "regex.test", "regex.replace", "regex.replaceAll", "regex.search", "regex.split":
 		name := strings.TrimPrefix(fn.Intrinsic, "regex.")
 		return fmt.Sprintf("%s.%s(%s)", receiver, name, strings.Join(args, ", "))
+	case "double.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s + %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s - %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s * %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "double.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s / %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s + %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s - %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s * %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "float.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s / %s", receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.add":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s.Add(%s, %s)", receiver, receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.sub":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s.Sub(%s, %s)", receiver, receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.mul":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s.Mul(%s, %s)", receiver, receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
+	case "bigint.div":
+		if len(args) == 1 {
+			return fmt.Sprintf("%s.Div(%s, %s)", receiver, receiver, args[0])
+		}
+		return g.unsupportedIntrinsic(fn, resultType)
 	case "regex.source":
 		return receiver + ".source"
 	case "regex.flags":

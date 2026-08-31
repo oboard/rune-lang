@@ -6817,6 +6817,8 @@ func ____rune_private_b4d281ed_emitGoCoreMethodCall(__expr __IRExpr, __selector 
 					return ____rune_private_b4d281ed_emitGoCoreSet(__expr, __selector.__children[0])
 				case __selector.__name == "getOr":
 					return ____rune_private_b4d281ed_emitGoCoreGetOr(__expr, __selector.__children[0])
+				case (__selector.__name == "toDouble") || (__selector.__name == "toInt"):
+					return ____rune_private_b4d281ed_emitGoCoreNumericConversion(__selector.__children[0], __selector.__name)
 				default:
 					return ____rune_private_b4d281ed_emitGoDefaultCall(__expr)
 				}
@@ -6873,6 +6875,20 @@ func ____rune_private_b4d281ed_emitGoCoreGetOr(__expr __IRExpr, __receiver __IRE
 
 func ____rune_private_b4d281ed_emitGoDefaultCall(__expr __IRExpr) string {
 	return ____rune_private_b4d281ed_emitGoExpr(__expr.__children[0]) + "(" + ____rune_private_b4d281ed_emitGoExprListFrom(__expr.__children, 1, "") + ")"
+}
+
+func ____rune_private_b4d281ed_emitGoCoreNumericConversion(__receiver __IRExpr, __method string) string {
+	return func() string {
+		if __method == "toDouble" {
+			return "float64(" + ____rune_private_b4d281ed_emitGoExpr(__receiver) + ")"
+		}
+		return func() string {
+			if __method == "toInt" {
+				return "int(" + ____rune_private_b4d281ed_emitGoExpr(__receiver) + ")"
+			}
+			return ____rune_private_b4d281ed_emitGoExpr(__receiver)
+		}()
+	}()
 }
 
 func ____rune_private_b4d281ed_emitGoLambda(__expr __IRExpr) string {
