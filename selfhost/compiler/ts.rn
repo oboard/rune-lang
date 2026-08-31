@@ -543,7 +543,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Double => expr.value
   ExprKind.BigInt => bigintLiteralDigits(expr.value) + "n"
   ExprKind.String => expr.value
-  ExprKind.Template => expr.value
+  ExprKind.Template => emitTSTemplate(expr)
   ExprKind.Char => expr.value
   ExprKind.Regex => expr.value
   ExprKind.Bool => expr.value
@@ -568,6 +568,61 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Object => ("{" + emitTSFields(expr.children, 0, "")) + "}"
   ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, "Dynamic", 1, "")) + "})()"
   _ => "undefined"
+}
+
+emitTSTemplate(expr: IRExpr) -> String => {
+  raw := expr.value
+  inner := (
+    raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+      : raw
+  )
+  emitTSTemplateParts(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, "`") + "`"
+}
+
+emitTSTemplateParts(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= segments.length() ? out
+    : emitTSTemplateAtom(segments, children, index, out)
+)
+
+emitTSTemplateAtom(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: String
+) -> String => {
+  textOut := out + tsEscapeTemplateText(segments[index])
+  next := (
+    index < children.length() ? textOut + ("${" + emitTSExpr(children[index]) + "}")
+      : textOut
+  )
+  emitTSTemplateParts(segments, children, index + 1, next)
+}
+
+/// Escape text so it is safe inside a JavaScript/TypeScript template literal.
+/// Rune backslash escapes for n/t/r/\\ and the backtick itself are already
+/// interpreted consistently by JS template literals, so the only character that
+/// needs shielding is the `$` that begins a JS `${...}` interpolation.
+tsEscapeTemplateText(text: String) -> String => tsEscapeTemplateChars(text, 0, "")
+
+tsEscapeTemplateChars(
+  text: String,
+  index: Int,
+  out: String
+) -> String => (index >= text.length() ? out
+  : tsEscapeTemplateChar(text, index, out))
+
+tsEscapeTemplateChar(
+  text: String,
+  index: Int,
+  out: String
+) -> String => ((text.at(index) == '$') && ((index + 1) < text.length()) && (text.at(index + 1) == '{')) {
+  true => tsEscapeTemplateChars(text, index + 2, out + "\\${")
+  _ => tsEscapeTemplateChars(text, index + 1, out + text.at(index).toString())
 }
 
 emitTSExprExpected(
