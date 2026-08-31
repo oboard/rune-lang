@@ -392,7 +392,7 @@ emitMoonBitExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Double => expr.value
   ExprKind.BigInt => bigintLiteralDigits(expr.value)
   ExprKind.String => expr.value
-  ExprKind.Template => expr.value
+  ExprKind.Template => emitMoonBitTemplate(expr)
   ExprKind.Char => expr.value
   ExprKind.Regex => expr.value
   ExprKind.Bool => expr.value
@@ -418,6 +418,120 @@ emitMoonBitExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Block => ("{\n" + emitMoonBitBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}"
   _ => "()"
 }
+
+emitMoonBitTemplate(expr: IRExpr) -> String => {
+  raw := expr.value
+  inner := (
+    raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+      : raw
+  )
+  parts := mbtTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [""].slice(0, 0))
+  parts.length() == 0 ? "\"\"" : joinMoonBitTemplateParts(parts, 0, "")
+}
+
+mbtTemplateAccumulate(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= segments.length() ? out
+    : mbtTemplateAccumulate(segments, children, index + 1, mbtTemplateAppendStep(segments, children, index, out))
+)
+
+mbtTemplateAppendStep(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  withText := (
+    segments[index].isEmpty() ? out
+      : [..out, mbtStringLiteral(segments[index])]
+  )
+  (
+    index < children.length() ? [..withText, mbtTemplateInterpolation(children[index])]
+      : withText
+  )
+}
+
+mbtTemplateInterpolation(child: IRExpr) -> String => (
+  child.text == "String" ? emitMoonBitExpr(child)
+    : emitMoonBitExpr(child) + ".to_string()"
+)
+
+joinMoonBitTemplateParts(
+  parts: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= parts.length() ? out
+    : joinMoonBitTemplateParts(parts, index + 1, (
+      index == 0 ? out + parts[index]
+        : (out + " + ") + parts[index]
+    ))
+)
+
+/// Produce a MoonBit string literal from a raw source string that may carry Rune
+/// backslash escapes. Escape sequences are decoded and re-encoded as MoonBit
+/// string escapes so the emitted literal renders the source text faithfully.
+mbtStringLiteral(raw: String) -> String => ("\"" + mbtStringLiteralChars(raw, 0, "")) + "\""
+
+mbtStringLiteralChars(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => (index >= raw.length() ? out
+  : mbtStringLiteralChar(raw, index, out))
+
+mbtStringLiteralChar(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => ((raw.at(index) == '\\') && ((index + 1) < raw.length())) {
+  true => mbtStringLiteralNext(raw, index + 2, out + mbtStringLiteralEscaped(raw.at(index + 1)))
+  _ => mbtStringLiteralNext(raw, index + 1, out + mbtStringLiteralPlain(raw.at(index)))
+}
+
+mbtStringLiteralEscaped(ch: Char) -> String => (
+  ch == 'n' ? "\\n"
+    : (
+      ch == 't' ? "\\t"
+        : (
+          ch == 'r' ? "\\r"
+            : (
+              ch == '\\' ? "\\\\"
+                : (
+                  ch == '"' ? "\\\""
+                    : mbtStringLiteralPlain(ch)
+                )
+            )
+        )
+    )
+)
+
+mbtStringLiteralPlain(ch: Char) -> String => (
+  ch == '"' ? "\\\""
+    : (
+      ch == '\\' ? "\\\\"
+        : (
+          ch == '\n' ? "\\n"
+            : (
+              ch == '\t' ? "\\t"
+                : (
+                  ch == '\r' ? "\\r"
+                    : ch.toString()
+                )
+            )
+        )
+    )
+)
+
+mbtStringLiteralNext(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => mbtStringLiteralChars(raw, index, out)
 
 emitMoonBitDiscard(
   expr: IRExpr
@@ -539,9 +653,18 @@ emitMoonBitCoreMethodCall(
     "isEmpty" => ("(" + emitMoonBitExpr(selector.children[0])) + ".length() == 0)"
     "at" => ((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + "]"
     "slice" => ((((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + ":") + emitMoonBitExpr(expr.children[2])) + "].to_owned()"
+    "toString" => emitMoonBitCoreToString(expr, selector.children[0])
     _ => emitMoonBitDefaultCall(expr)
   }
     : emitMoonBitDefaultCall(expr)
+)
+
+emitMoonBitCoreToString(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => (
+  (receiver.text == "String") || (receiver.kind == ExprKind.String) ? emitMoonBitExpr(receiver)
+    : "(" + emitMoonBitExpr(receiver) + ").to_string()"
 )
 
 emitMoonBitDefaultCall(
