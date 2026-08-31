@@ -12,6 +12,18 @@ import (
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
+type analyzeSourceFunc func(string, string) (*compiler.Program, []compiler.Diagnostic)
+type selfhostCheckSourceFunc func(string, string) SelfhostCompileResult
+
+var analyzeSource = compiler.AnalyzeSource
+var selfhostCheckSource selfhostCheckSourceFunc
+
+type SelfhostCompileResult struct {
+	Ok     bool
+	Output string
+	Errors []string
+}
+
 const replFunctionName = "__rune_repl"
 
 type Session struct {
@@ -71,6 +83,13 @@ func Serve(in io.Reader, out io.Writer) error {
 	}
 }
 
+func RegisterSelfhostAnalyzer(check selfhostCheckSourceFunc, analyze analyzeSourceFunc) {
+	selfhostCheckSource = check
+	if analyze != nil {
+		analyzeSource = analyze
+	}
+}
+
 func (s *Session) Eval(src string) error {
 	if isDeclaration(src) {
 		return s.addDeclaration(src)
@@ -80,7 +99,7 @@ func (s *Session) Eval(src string) error {
 
 func (s *Session) addDeclaration(src string) error {
 	s.decls = append(s.decls, src)
-	prog, diags := compiler.AnalyzeSource("<repl>", s.source())
+	prog, diags := analyzeSource("<repl>", s.source())
 	if len(diags) > 0 {
 		s.decls = s.decls[:len(s.decls)-1]
 		printDiagnostics(s.out, diags)
@@ -92,7 +111,7 @@ func (s *Session) addDeclaration(src string) error {
 
 func (s *Session) evalStatement(src string) error {
 	s.stmts = append(s.stmts, src)
-	prog, diags := compiler.AnalyzeSource("<repl>", s.source())
+	prog, diags := analyzeSource("<repl>", s.source())
 	if len(diags) > 0 {
 		s.stmts = s.stmts[:len(s.stmts)-1]
 		printDiagnostics(s.out, diags)
@@ -154,7 +173,13 @@ func currentStatement(file *ir.File) (ir.Stmt, bool) {
 }
 
 func isDeclaration(src string) bool {
-	prog, diags := compiler.AnalyzeSource("<repl>", src)
+	if selfhostCheckSource != nil {
+		checked := selfhostCheckSource(src, "<repl>")
+		if !checked.Ok {
+			return false
+		}
+	}
+	prog, diags := analyzeSource("<repl>", src)
 	return len(diags) == 0 && prog != nil && (len(prog.File.GoImports) > 0 || len(prog.File.Types) > 0 || len(prog.File.Functions) > 0)
 }
 

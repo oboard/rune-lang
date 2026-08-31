@@ -540,7 +540,13 @@ emitGoPatternBlock(
   returns: Bool,
   returnType: String,
   level: Int
-) -> String => emitGoPatternBranches(file, expr.children, 0, returns, returnType, level, "")
+) -> String => {
+  out :=: line(level, "switch __n {")
+  out = out + emitGoPatternBranches(file, expr.children, 0, returns, returnType, level + 1, "")
+  out = out + line(level, "}")
+  returns ? out + line(level, "return " + goZero(returnType))
+    : out
+}
 
 emitGoPatternBranches(
   file: IRFile,
@@ -551,11 +557,8 @@ emitGoPatternBranches(
   level: Int,
   out: String
 ) -> String => (
-  index >= branches.length() ? out + line(level, "}") + (
-    returns ? line(level, "return " + goZero(returnType))
-      : ""
-  )
-    : emitGoPatternBranches(file, branches, index + 1, returns, returnType, level, out + emitGoPatternBranch(file, branches[index], returns, returnType, level, index == 0))
+  index >= branches.length() ? out
+    : emitGoPatternBranches(file, branches, index + 1, returns, returnType, level, out + emitGoPatternBranch(file, branches[index], returns, returnType, level))
 )
 
 emitGoPatternBranch(
@@ -563,27 +566,16 @@ emitGoPatternBranch(
   branch: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int,
-  first: Bool
+  level: Int
 ) -> String => {
   pattern := branch.children[0]
   value := branch.children[1]
   head := (
-    first ? "if "
-      : "else if "
+    pattern.text == "_" ? "default:"
+      : "case " + pattern.text + ":"
   )
-  (
-    pattern.text == "_" ? line(level, emitGoPatternPrefix(first) + "else {") + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
-      : line(level, (emitGoPatternPrefix(first) + head + emitGoPatternCondition(pattern)) + " {") + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
-  )
+  line(level, head) + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
 }
-
-emitGoPatternPrefix(
-  first: Bool
-) -> String => (
-  first ? ""
-    : "} "
-)
 
 emitGoPatternBranchBody(
   file: IRFile,

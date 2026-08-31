@@ -14,7 +14,10 @@ func (s *server) rename(uri string, pos position, newName string) any {
 	if word == "" {
 		return nil
 	}
-	prog, _ := s.analyze(uri)
+	prog, diags := s.analyze(uri)
+	if prog == nil && len(diags) > 0 {
+		return nil
+	}
 	if prog != nil {
 		if target := typeTarget(uri, prog, pos); target != nil {
 			return map[string]any{

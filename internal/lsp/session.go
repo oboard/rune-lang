@@ -1,6 +1,10 @@
 package lsp
 
-import "io"
+import (
+	"io"
+
+	"github.com/oboard/rune-lang/internal/compiler"
+)
 
 type Session struct {
 	server *server
@@ -22,6 +26,10 @@ func (s *Session) SetDocument(uri string, text string) {
 
 func (s *Session) Diagnostics(uri string) []map[string]any {
 	_, diags := s.server.analyze(uri)
+	return diagnosticsToLSP(diags)
+}
+
+func diagnosticsToLSP(diags []compiler.Diagnostic) []map[string]any {
 	items := make([]map[string]any, 0, len(diags))
 	for _, diag := range diags {
 		severity := 1 // Error

@@ -7,6 +7,18 @@ import (
 	"github.com/oboard/rune-lang/internal/compiler"
 )
 
+type analyzeSourceFunc func(string, string) (*compiler.Program, []compiler.Diagnostic)
+type selfhostCheckSourceFunc func(string, string) SelfhostCompileResult
+
+var analyzeSource = compiler.AnalyzeSource
+var selfhostCheckSource selfhostCheckSourceFunc
+
+type SelfhostCompileResult struct {
+	Ok     bool
+	Output string
+	Errors []string
+}
+
 func Serve(in io.Reader, out io.Writer) error {
 	s := &server{
 		reader: bufio.NewReader(in),
@@ -33,6 +45,13 @@ type server struct {
 	out    io.Writer
 	docs   map[string]string
 	cache  map[string]programCacheEntry
+}
+
+func RegisterSelfhostAnalyzer(check selfhostCheckSourceFunc, analyze analyzeSourceFunc) {
+	selfhostCheckSource = check
+	if analyze != nil {
+		analyzeSource = analyze
+	}
 }
 
 type programCacheEntry struct {
@@ -75,7 +94,23 @@ func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) 
 	} else {
 		s.cache = map[string]programCacheEntry{}
 	}
-	prog, diags := compiler.AnalyzeSource(uri, text)
+	if selfhostCheckSource != nil {
+		checked := selfhostCheckSource(text, uri)
+		if !checked.Ok {
+			diags := selfhostDiagnostics(uri, checked.Errors)
+			s.cache[uri] = programCacheEntry{text: text, diags: diags}
+			return nil, diags
+		}
+	}
+	prog, diags := analyzeSource(uri, text)
 	s.cache[uri] = programCacheEntry{text: text, prog: prog, diags: diags}
 	return prog, diags
+}
+
+func selfhostDiagnostics(uri string, messages []string) []compiler.Diagnostic {
+	diags := make([]compiler.Diagnostic, 0, len(messages))
+	for _, message := range messages {
+		diags = append(diags, compiler.Diagnostic{Message: message, Path: uri})
+	}
+	return diags
 }

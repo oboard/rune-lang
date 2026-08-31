@@ -65,7 +65,12 @@ CompilerNamespaceAlias: {
 ) -> CompileResult => compile(source, "dts")
 
 /// Check Rune source without choosing a code-generation backend.
-+ checkSource(source: String) -> CompileResult => checkFile(lowerCompilerSource(source))
++ checkSource(source: String) -> CompileResult => checkSourceWithPath(source, "")
+
++ checkSourceWithPath(
+  source: String,
+  sourcePath: String
+) -> CompileResult => checkFile(lowerCompilerSourceWithPath(source, sourcePath))
 
 + compile(
   source: String,

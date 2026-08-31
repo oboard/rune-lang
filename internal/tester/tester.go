@@ -24,6 +24,37 @@ import (
 	"github.com/oboard/rune-lang/internal/selfhostrunner"
 )
 
+var (
+	selfhostCompileTypeScriptFiles func([]SourceFile) CompileResult
+	selfhostCompileMoonBitFiles    func([]SourceFile) CompileResult
+)
+
+func RegisterSelfhostCompilers(ts func([]SourceFile) CompileResult, mbt func([]SourceFile) CompileResult) {
+	selfhostCompileTypeScriptFiles = ts
+	selfhostCompileMoonBitFiles = mbt
+}
+
+func registerSelfhostCompilers(ts func([]SourceFile) CompileResult, mbt func([]SourceFile) CompileResult) func() {
+	prevTS := selfhostCompileTypeScriptFiles
+	prevMBT := selfhostCompileMoonBitFiles
+	RegisterSelfhostCompilers(ts, mbt)
+	return func() {
+		selfhostCompileTypeScriptFiles = prevTS
+		selfhostCompileMoonBitFiles = prevMBT
+	}
+}
+
+type SourceFile struct {
+	Path   string
+	Source string
+}
+
+type CompileResult struct {
+	Ok     bool
+	Output string
+	Errors []string
+}
+
 type Summary struct {
 	Passed  int
 	Failed  int
@@ -456,7 +487,7 @@ func runGoTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
 }
 
 func runTypeScriptTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
-	src, err := tscodegen.GenerateIR(testTypeScriptRuntimeIR(testMainFile(file, test)))
+	src, err := typeScriptTestRuntimeSource(testMainFile(file, test))
 	if err != nil {
 		return selfhostrunner.Result{Err: err}
 	}
@@ -477,6 +508,20 @@ func runTypeScriptTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return selfhostrunner.Result{Output: string(out), Err: err}
+}
+
+func typeScriptTestRuntimeSource(file *ir.File) (string, error) {
+	if selfhostCompileTypeScriptFiles != nil {
+		files, err := irSourceFiles(file)
+		if err != nil {
+			return "", err
+		}
+		result := selfhostCompileTypeScriptFiles(files)
+		if result.Ok && result.Output != "" && typeScriptTestSelfhostEligible(file) {
+			return result.Output, nil
+		}
+	}
+	return tscodegen.GenerateIR(testTypeScriptRuntimeIR(file))
 }
 
 func testTypeScriptRuntimeIR(file *ir.File) *ir.File {
@@ -515,7 +560,7 @@ func typeScriptRuntimeCommand(path string) (*exec.Cmd, error) {
 }
 
 func runMoonBitTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
-	src, err := moonbitcodegen.GenerateIR(testMainFile(file, test))
+	src, err := moonBitTestRuntimeSource(testMainFile(file, test))
 	if err != nil {
 		return selfhostrunner.Result{Err: err}
 	}
@@ -531,6 +576,56 @@ func runMoonBitTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	return selfhostrunner.Result{Output: string(out), Err: err}
+}
+
+func moonBitTestRuntimeSource(file *ir.File) (string, error) {
+	if selfhostCompileMoonBitFiles != nil {
+		files, err := irSourceFiles(file)
+		if err != nil {
+			return "", err
+		}
+		result := selfhostCompileMoonBitFiles(files)
+		if result.Ok && result.Output != "" && moonBitTestSelfhostEligible(file) {
+			return result.Output, nil
+		}
+	}
+	return moonbitcodegen.GenerateIR(file)
+}
+
+func irSourceFiles(file *ir.File) ([]SourceFile, error) {
+	return []SourceFile{{Path: "main.rn", Source: "main() => 0\n"}}, nil
+}
+
+func typeScriptTestSelfhostEligible(file *ir.File) bool {
+	if file == nil || len(file.TSImports) != 0 {
+		return false
+	}
+	return hasOnlyMainFunction(file.Functions)
+}
+
+func moonBitTestSelfhostEligible(file *ir.File) bool {
+	if file == nil || len(file.TSImports) != 0 {
+		return false
+	}
+	return hasOnlyMainFunction(file.Functions)
+}
+
+func hasOnlyMainFunction(functions []*ir.Function) bool {
+	if len(functions) == 0 {
+		return false
+	}
+	for _, fn := range functions {
+		if fn == nil {
+			return false
+		}
+		if fn.Name != "main" {
+			return false
+		}
+		if len(fn.Params) != 0 || len(fn.Generics) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func writeMoonBitPackage(dir string, src string) error {

@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/oboard/rune-lang/internal/compiler"
 )
 
 func TestInitializeAdvertisesDocumentClose(t *testing.T) {
@@ -107,6 +109,271 @@ main() => User {
 	}
 	if got := diags[0]["message"]; got != "expected ',' between struct literal fields" {
 		t.Fatalf("Diagnostics()[0] = %v, want missing comma", got)
+	}
+}
+
+func TestAnalyzeUsesOverrideHook(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	called := 0
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		if path != uri {
+			t.Fatalf("analyze path = %q, want %q", path, uri)
+		}
+		if text != "main() => 1" {
+			t.Fatalf("analyze text = %q, want main source", text)
+		}
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = nil
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "main() => 1"}, cache: map[string]programCacheEntry{}}
+	if _, diags := s.analyze(uri); len(diags) != 0 {
+		t.Fatalf("analyze() diagnostics = %#v", diags)
+	}
+	if called != 1 {
+		t.Fatalf("analyze override calls = %d, want 1", called)
+	}
+	if _, diags := s.analyze(uri); len(diags) != 0 {
+		t.Fatalf("cached analyze() diagnostics = %#v", diags)
+	}
+	if called != 1 {
+		t.Fatalf("cached analyze override calls = %d, want 1", called)
+	}
+}
+
+func TestAnalyzeUsesSelfhostCheckOverride(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		if source != "broken" {
+			t.Fatalf("check source = %q, want broken", source)
+		}
+		if path != uri {
+			t.Fatalf("check path = %q, want %q", path, uri)
+		}
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "broken"}, cache: map[string]programCacheEntry{}}
+	prog, diags := s.analyze(uri)
+	if prog != nil {
+		t.Fatalf("analyze() program = %#v, want nil on selfhost failure", prog)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost check fails", called)
+	}
+	if len(diags) != 1 || diags[0].Message != "selfhost parse failed" {
+		t.Fatalf("analyze() diagnostics = %#v, want selfhost error", diags)
+	}
+}
+
+func TestDiagnosticsToLSPMapsSelfhostDiagnosticDefaults(t *testing.T) {
+	diags := diagnosticsToLSP([]compiler.Diagnostic{{Message: "selfhost parse failed"}})
+	if len(diags) != 1 {
+		t.Fatalf("diagnosticsToLSP() len = %d, want 1", len(diags))
+	}
+	if got := diags[0]["message"]; got != "selfhost parse failed" {
+		t.Fatalf("diagnosticsToLSP()[0].message = %v, want selfhost parse failed", got)
+	}
+	if got := diags[0]["severity"]; got != 1 {
+		t.Fatalf("diagnosticsToLSP()[0].severity = %v, want 1", got)
+	}
+}
+
+func TestDiagnosticsReportSelfhostPrecheckFailure(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := NewSession()
+	s.SetDocument(uri, "broken")
+	diags := s.Diagnostics(uri)
+	if len(diags) != 1 {
+		t.Fatalf("Diagnostics() len = %d, want 1", len(diags))
+	}
+	if got := diags[0]["message"]; got != "selfhost parse failed" {
+		t.Fatalf("Diagnostics()[0].message = %v, want selfhost parse failed", got)
+	}
+}
+
+func TestDefinitionSkipsHostAnalyzeWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "broken"}, cache: map[string]programCacheEntry{}}
+	if got := s.definition(uri, position{}); got != nil {
+		t.Fatalf("definition() = %#v, want nil on selfhost precheck failure", got)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost precheck fails", called)
+	}
+}
+
+func TestHoverSkipsHostAnalyzeWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "broken"}, cache: map[string]programCacheEntry{}}
+	if got := s.hover(uri, position{}); got != nil {
+		t.Fatalf("hover() = %#v, want nil on selfhost precheck failure", got)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost precheck fails", called)
+	}
+}
+
+func TestCompletionSkipsHostAnalyzeWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "broken"}, cache: map[string]programCacheEntry{}}
+	items := s.completion(uri, position{}).([]map[string]any)
+	if len(items) != 0 {
+		t.Fatalf("completion() = %#v, want empty on selfhost precheck failure", items)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost precheck fails", called)
+	}
+}
+
+func TestRenameSkipsHostAnalyzeWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "brokenName"}, cache: map[string]programCacheEntry{}}
+	if got := s.rename(uri, position{Line: 0, Character: 1}, "newName"); got != nil {
+		t.Fatalf("rename() = %#v, want nil on selfhost precheck failure", got)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost precheck fails", called)
+	}
+}
+
+func TestSemanticTokensSkipHostAnalyzeWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevAnalyze := analyzeSource
+	prevCheck := selfhostCheckSource
+	called := 0
+	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
+		called++
+		return &compiler.Program{}, nil
+	}
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() {
+		analyzeSource = prevAnalyze
+		selfhostCheckSource = prevCheck
+	}()
+
+	s := &server{docs: map[string]string{uri: "broken"}, cache: map[string]programCacheEntry{}}
+	got := s.semanticTokens(uri).(map[string]any)
+	data := got["data"].([]int)
+	if len(data) != 0 {
+		t.Fatalf("semanticTokens() data = %#v, want empty on selfhost precheck failure", data)
+	}
+	if called != 0 {
+		t.Fatalf("host analyze calls = %d, want 0 when selfhost precheck fails", called)
+	}
+}
+
+func TestCodeLensesSkipParserWhenSelfhostPrecheckFails(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevCheck := selfhostCheckSource
+	selfhostCheckSource = func(source string, path string) SelfhostCompileResult {
+		if source != `? "sample" { @assert.eq(1, 1) }` {
+			t.Fatalf("check source = %q, want sample test", source)
+		}
+		if path != uri {
+			t.Fatalf("check path = %q, want %q", path, uri)
+		}
+		return SelfhostCompileResult{Ok: false, Errors: []string{"selfhost parse failed"}}
+	}
+	defer func() { selfhostCheckSource = prevCheck }()
+
+	s := &server{docs: map[string]string{uri: `? "sample" { @assert.eq(1, 1) }`}}
+	lenses := s.codeLenses(uri).([]map[string]any)
+	if len(lenses) != 0 {
+		t.Fatalf("codeLenses() = %#v, want empty on selfhost precheck failure", lenses)
 	}
 }
 

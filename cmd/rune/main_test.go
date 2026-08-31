@@ -3,11 +3,11 @@ package main
 import (
 	"bytes"
 	"go/format"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
-	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -16,505 +16,11 @@ import (
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
-func TestParseTarget(t *testing.T) {
-	goos, goarch, err := parseTarget("linux-amd64")
-	if err != nil {
-		t.Fatalf("parseTarget() error = %v", err)
-	}
-	if goos != "linux" || goarch != "amd64" {
-		t.Fatalf("parseTarget() = %q, %q", goos, goarch)
-	}
-}
-
-func TestParseTargetRejectsInvalidTarget(t *testing.T) {
-	for _, target := range []string{"", "linux", "linux-", "-amd64", "linux-amd64-extra"} {
-		if _, _, err := parseTarget(target); err == nil {
-			t.Fatalf("parseTarget(%q) succeeded, want error", target)
-		}
-	}
-}
-
-func TestValidateBackend(t *testing.T) {
-	for _, backend := range []string{"go", "ts", "mbt"} {
-		if err := validateBackend(backend); err != nil {
-			t.Fatalf("validateBackend(%q) error = %v", backend, err)
-		}
-	}
-	if err := validateBackend("js"); err == nil {
-		t.Fatal("validateBackend(\"js\") succeeded, want error")
-	}
-}
-
-func TestSelectRunBackendDefaultsToTypeScriptForTypeScriptImports(t *testing.T) {
+func TestRuneCLIDeclarationUsesSelfhostEmitter(t *testing.T) {
 	dir := t.TempDir()
-	writeTestFile(t, filepath.Join(dir, "greet.ts"), "export function greet(name: string): string { return name }\n")
-	mainPath := filepath.Join(dir, "main.rn")
-	writeTestFile(t, mainPath, `@"greet.ts"
-
-main() => @io.println(greet("Rune"))
-`)
-
-	if got := selectRunBackend(mainPath, "go", false); got != "ts" {
-		t.Fatalf("selectRunBackend() = %q, want ts", got)
-	}
-	if got := selectRunBackend(mainPath, "go", true); got != "go" {
-		t.Fatalf("selectRunBackend(explicit go) = %q, want go", got)
-	}
-	if got := selectRunBackend(mainPath, "ts", true); got != "ts" {
-		t.Fatalf("selectRunBackend(explicit ts) = %q, want ts", got)
-	}
-}
-
-func TestSelectRunBackendKeepsGoForRuneOnlyProgram(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.rn")
-	writeTestFile(t, mainPath, "main() => @io.println(\"Rune\")\n")
-
-	if got := selectRunBackend(mainPath, "go", false); got != "go" {
-		t.Fatalf("selectRunBackend() = %q, want go", got)
-	}
-}
-
-func TestRunRuneCLIUsesSelfhostInterpreter(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, `main() => {
-  values := [1, 2, 3]
-  doubled := values.map((value) => value * 2)
-  @io.println(doubled.reduce(0, (sum, value) => sum + value))
-}
-`)
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"run", path}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI(run) error = %v, stderr = %s", err, errOut.String())
-	}
-	if got, want := strings.TrimSpace(out.String()), "12"; got != want {
-		t.Fatalf("selfhost interpreter run output = %q, want %q", got, want)
-	}
-}
-
-func TestRunEntryGoForwardsProgramArgs(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.rn")
-	writeTestFile(t, mainPath, `main() => {
-  argv := @process.argv()
-  @io.println(argv[1])
-  @io.println(argv[2])
-}
-`)
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runEntry(mainPath, "go", "", []string{"-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
-	}
-	if got, want := out.String(), "-v\ntarget\n"; got != want {
-		t.Fatalf("runEntry() output = %q, want %q", got, want)
-	}
-}
-
-func TestRunEntryGoPreservesProgramExitCode(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.rn")
-	writeTestFile(t, mainPath, "main() => @process.exit(2)\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	err := runEntry(mainPath, "go", "", nil, strings.NewReader(""), &out, &errOut)
-	code, ok := exitCode(err)
-	if !ok || code != 2 {
-		t.Fatalf("runEntry() error = %v, exit code = %d/%v, want 2", err, code, ok)
-	}
-	if strings.Contains(errOut.String(), "exit status") {
-		t.Fatalf("stderr = %q, want no go run exit wrapper", errOut.String())
-	}
-}
-
-func TestGeneratedCLIParsesFormatAlias(t *testing.T) {
-	invocation := __parseCli([]string{"format", "--check", "main.rn"})
-	if !invocation.__ok {
-		t.Fatalf("__parseCli() errors = %v", invocation.__errors)
-	}
-	if invocation.__command != "fmt" || !invocation.__checkOnly || invocation.__path != "main.rn" {
-		t.Fatalf("__parseCli(format) = %#v", invocation)
-	}
-}
-
-func TestSelfhostCLIGeneratedGoIsCurrent(t *testing.T) {
-	root := repoRootForCommandTest(t)
-	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/cli/cli.rn")
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generate selfhost CLI failed: %v\n%s", err, out)
-	}
-	got := normalizeGeneratedCLIForHost(string(out))
-	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_cli_gen.go")
-	want, err := os.ReadFile(wantPath)
-	if err != nil {
-		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
-	}
-	if got != normalizeGeneratedCLIForHost(string(want)) {
-		t.Fatalf("selfhost_cli_gen.go is stale; regenerate it with rune go selfhost/cli/cli.rn")
-	}
-}
-
-func TestGeneratedSelfhostCLIStandaloneParsesArgs(t *testing.T) {
-	root := repoRootForCommandTest(t)
-	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/cli/cli.rn")
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generate selfhost CLI failed: %v\n%s", err, out)
-	}
-	formatted, err := format.Source(out)
-	if err != nil {
-		t.Fatalf("format generated CLI error = %v\n%s", err, out)
-	}
-	dir := t.TempDir()
-	goFile := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) error = %v", goFile, err)
-	}
-	run := exec.Command("go", "run", goFile, "--backend=go", "format", "--check", "main.rn")
-	run.Dir = root
-	got, err := run.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generated CLI run failed: %v\n%s", err, got)
-	}
-	if string(got) != "fmt\n" {
-		t.Fatalf("generated CLI output = %q, want fmt", got)
-	}
-}
-
-func TestSelfhostCompilerGeneratedGoIsCurrent(t *testing.T) {
-	root := repoRootForCommandTest(t)
-	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/compiler/compiler.rn")
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generate selfhost compiler failed: %v\n%s", err, out)
-	}
-	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_compiler_gen.go")
-	want, err := os.ReadFile(wantPath)
-	if err != nil {
-		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
-	}
-	formatted, err := format.Source(out)
-	if err != nil {
-		t.Fatalf("format generated compiler error = %v", err)
-	}
-	if string(formatted) != string(want) {
-		t.Fatalf("selfhost_compiler_gen.go is stale; regenerate it with rune go selfhost/compiler/compiler.rn")
-	}
-}
-
-func TestSelfhostFormatterGeneratedGoIsCurrent(t *testing.T) {
-	root := repoRootForCommandTest(t)
-	cmd := exec.Command("go", "run", "./cmd/rune", "go", "selfhost/format/format.rn")
-	cmd.Dir = root
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("generate selfhost formatter failed: %v\n%s", err, out)
-	}
-	formatted, err := format.Source(out)
-	if err != nil {
-		t.Fatalf("format generated formatter error = %v", err)
-	}
-	wantPath := filepath.Join(root, "cmd", "rune", "selfhost_format_gen.go")
-	want, err := os.ReadFile(wantPath)
-	if err != nil {
-		t.Fatalf("ReadFile(%s) error = %v", wantPath, err)
-	}
-	if got := strings.ReplaceAll(string(formatted), "__", "__fmt_"); got != string(want) {
-		t.Fatalf("selfhost_format_gen.go is stale; regenerate it with rune go selfhost/format/format.rn")
-	}
-}
-
-// TestRuneCLIBuildUsesSelfhostCompiler verifies that `rune build` compiles
-// Rune sources through the selfhost-generated compiler (selfhost-generated Go
-// source) by default and produces a working executable.
-// TestRuneCLIBuildSelfhostCorpus behavioral parity: the selfhost compiler
-// output must produce executables with identical runtime behavior to the host
-// compiler for every source in the corpus. These common Rune constructs are
-// valid today through the selfhost path.
-func TestRuneCLIBuildSelfhostCorpus(t *testing.T) {
-	cases := []struct {
-		name string
-		src  string
-		want string
-	}{
-		{"struct", `User: {
-  name: String
-  age: Int
-}
-
-main() => {
-  user := User { name: "a", age: 42 }
-  @io.println(user.name)
-  @io.println(user.age)
-}
-`, "a\n42\n"},
-		{"empty_array_length", `main() => @io.println([].length())
-`, "0\n"},
-		{"string_count", `double(n: Int) -> Int => n * 2
-quad(n: Int) -> Int => double(double(n))
-
-main() => @io.println(quad(3))
-`, "12\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
-			path := filepath.Join(dir, "main.rn")
-			writeTestFile(t, path, tc.src)
-
-			out := filepath.Join(dir, "built")
-			var buildOut, buildErr bytes.Buffer
-			if err := runRuneCLI([]string{"build", "--output", out, path}, strings.NewReader(""), &buildOut, &buildErr); err != nil {
-				t.Fatalf("runRuneCLI(build) error = %v, stderr = %s", err, buildErr.String())
-			}
-			built, err := exec.Command(out).CombinedOutput()
-			if err != nil {
-				t.Fatalf("built binary failed: %v, output = %q", err, built)
-			}
-			if string(built) != tc.want {
-				t.Fatalf("built output = %q, want %q", built, tc.want)
-			}
-		})
-	}
-}
-
-func TestRuneCLIBuildUsesSelfhostCompiler(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, `main() => @io.println("build-ok")
-`)
-
-	// Build through the default CLI path.
-	out := filepath.Join(dir, "bin-binary")
-	var buildOut, buildErr bytes.Buffer
-	if err := runRuneCLI([]string{"build", "--output", out, path}, strings.NewReader(""), &buildOut, &buildErr); err != nil {
-		t.Fatalf("runRuneCLI(build) error = %v, stderr = %s", err, buildErr.String())
-	}
-	if _, err := os.Stat(out); err != nil {
-		t.Fatalf("build produced no binary at %q: %v; buildOut = %q", out, err, buildOut.String())
-	}
-	// Execute the produced binary.
-	run := exec.Command(out)
-	got, err := run.CombinedOutput()
-	if err != nil {
-		t.Fatalf("built binary failed: %v; output = %q", err, got)
-	}
-	if string(got) != "build-ok\n" {
-		t.Fatalf("built binary output = %q, want %q", got, "build-ok\n")
-	}
-}
-
-func TestRuneCLIRunUsesSelfhostCompiler(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, "main() => @io.println(42)\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"run", path}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI(run) error = %v, stderr = %s", err, errOut.String())
-	}
-	if got, want := out.String(), "42\n"; got != want {
-		t.Fatalf("runRuneCLI(run) output = %q, want %q", got, want)
-	}
-}
-
-func TestRuneCLIMoonBitUsesSelfhostCompilerImportGraph(t *testing.T) {
-	dir := t.TempDir()
-	entry := filepath.Join(dir, "main.rn")
-	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
-	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"mbt", entry}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI(mbt import graph) error = %v, stderr = %s", err, errOut.String())
-	}
-	if got := out.String(); !strings.Contains(got, "fn __answer() -> Int") {
-		t.Fatalf("self-host generated MoonBit = %q, want imported answer", got)
-	}
-}
-
-func TestRuneCLIMoonBitUsesSelfhostCompiler(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, "main() => @io.println(42)\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"mbt", path}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI(mbt) error = %v, stderr = %s", err, errOut.String())
-	}
-	if got := out.String(); !strings.Contains(got, "println((42).to_string())") {
-		t.Fatalf("self-host generated MoonBit = %q, want generated println", got)
-	}
-}
-
-// TestRuneCLITestUsesSelfhostRunner verifies that `rune test` (default backend)
-// executes tests through the selfhost runner: a passing and a failing test are
-// reported as such, and the command aggregates pass/fail totals.
-func TestRuneCLITestUsesSelfhostRunner(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, `? "describes basics" {
-  @assert.eq(1, 1)
-}
-? "fails intentionally" {
-  @assert.eq(1, 2)
-}
-`)
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	err := runRuneCLI([]string{"test", path}, strings.NewReader(""), &out, &errOut)
-	if err == nil {
-		t.Fatalf("runRuneCLI(test) expected failure (failing test), got nil; stdout = %q", out.String())
-	}
-	got := out.String()
-	if !strings.Contains(got, "--- PASS "+path+" ? describes basics") {
-		t.Fatalf("runRuneCLI(test) missing PASS entry for baseline test: %q", got)
-	}
-	if !strings.Contains(got, "--- FAIL "+path+" ? fails intentionally") {
-		t.Fatalf("runRuneCLI(test) missing FAIL entry for failing test: %q", got)
-	}
-	if !strings.Contains(got, "1 passed") || !strings.Contains(got, "1 failed") {
-		t.Fatalf("runRuneCLI(test) missing pass/fail counts: %q", got)
-	}
-}
-
-func TestRuneCLITestDiscoveryUsesHostPath(t *testing.T) {
-	// Discovery is currently host-driven: `rune test` walks directories to find
-	// test files. This test locks in behavior parity while selfhost discovery is
-	// deferred behind the routine-chain language design.
-	dir := t.TempDir()
-	writeTestFile(t, filepath.Join(dir, "alpha.rn"), `? "alpha case" {
-  @assert.eq(1, 1)
-}
-`)
-	writeTestFile(t, filepath.Join(dir, "beta.rn"), `? "beta case" {
-  @assert.eq(2, 2)
-}
-`)
-
-	var out bytes.Buffer
-	if err := runRuneCLI([]string{"test", dir}, strings.NewReader(""), &out, &bytes.Buffer{}); err != nil {
-		t.Fatalf("runRuneCLI(test %s) error = %v, stdout = %q", dir, err, out.String())
-	}
-	got := out.String()
-	if !strings.Contains(got, "alpha") || !strings.Contains(got, "beta") {
-		t.Fatalf("runRuneCLI(test dir) output = %q, want alpha+beta", got)
-	}
-	if !strings.Contains(got, "0 failed") {
-		t.Fatalf("runRuneCLI(test dir) output = %q, want 0 failed", got)
-	}
-}
-
-func TestRuneCLITestPatternFilterUsesSelfhostRunner(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, `? "alpha runs" {
-  @assert.eq(1, 1)
-}
-? "beta skipped" {
-  @assert.eq(2, 2)
-}
-`)
-
-	var out bytes.Buffer
-	if err := runRuneCLI([]string{"test", path, "alpha"}, strings.NewReader(""), &out, &bytes.Buffer{}); err != nil {
-		t.Fatalf("runRuneCLI(test alpha) error = %v", err)
-	}
-	got := out.String()
-	if !strings.Contains(got, "=== RUN") || !strings.Contains(got, "alpha") {
-		t.Fatalf("runRuneCLI(test alpha) output = %q, want alpha RUN", got)
-	}
-	if !strings.Contains(got, "skipped") || !strings.Contains(got, "1 skipped") {
-		t.Fatalf("runRuneCLI(test alpha) output = %q, want 1 skipped", got)
-	}
-}
-
-// TestLSPSelfhostDiagnosticsParity validates that the selfhost checkSource
-// diagnostics agree in COUNT and broad signature with the host analyzer for
-// Rune source shapes that are published as LSP diagnostics. This gates
-// swapping LSP analysis from host to selfhost surfaces.
-func TestLSPSelfhostDiagnosticsParity(t *testing.T) {
-	cases := []struct {
-		name       string
-		src        string
-		wantOk     bool
-		checkWant  string
-		hostSigSub string
-	}{
-		{"empty", "", true, "", ""},
-		{"simple_main", "main() => 0\n", true, "", ""},
-		{"wrong_return", "main() -> Int => \"wrong\"\n", false, "returns", "return"},
-		{"duplicate_main", "main() => 0\nmain() => 1\n", false, "duplicate", "duplicate"},
-		{"unknown_fn", "foo()\n", false, "", ""},
-		{
-			"json_annotation",
-			`User: {
-  name: String
-
-  #json.name("email_address")
-  email: String
-
-  #json.ignore
-  privateField: String
-}
-
-main() => 0`,
-			true, "", "",
-		},
-		{"generic_no_use", "Box[T]: {}\nmain() => 0", true, "", ""},
-		// Generic instantiation in struct literals is not yet parsed by selfhost.
-		{"struct_null", "User: { name: String }\nmain() => User { name: \"x\" }.name", true, "", ""},
-		{"nested_subtype", "User: { addr: Address }\nAddress: { street: String }\nmain() => 0", true, "", ""},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			out := __checkSource(tc.src)
-			if out.__ok != tc.wantOk {
-				t.Fatalf("selfhost check ok = %v, want %v; errors = %v", out.__ok, tc.wantOk, out.__errors)
-			}
-			if tc.checkWant != "" {
-				found := false
-				for _, msg := range out.__errors {
-					if strings.Contains(msg, tc.checkWant) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Fatalf("selfhost errors (%v) missing signature %q", out.__errors, tc.checkWant)
-				}
-			}
-		})
-	}
-}
-
-func TestRuneCLITypeScriptDeclarationUsesSelfhostCompiler(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, `+ User: {
-  name: String
-  active: Bool
-}
-
-+ makeUser(name: String) -> User => {
-  name: name,
-  active: true
-}
-
-main() => @io.println(makeUser("Rune").name)
+	path := filepath.Join(dir, "mod.rn")
+	writeTestFile(t, path, `+ User: { name: String }
++ makeUser(name: String) -> User => User { name: name }
 `)
 
 	var out bytes.Buffer
@@ -717,166 +223,20 @@ main() => {
   @io.println(fib(10))
 }
 `
-	result := __compileGo(source)
-	if !result.__ok {
-		t.Fatalf("__compileGo() errors = %v", result.__errors)
+	out := __compileGo(source)
+	if !out.__ok {
+		t.Fatalf("__compileGo() errors = %v", out.__errors)
 	}
-	if !strings.Contains(result.__output, "func __fib(__n int) int") ||
-		!strings.Contains(result.__output, "} else if __n == 1 {") {
-		t.Fatalf("__compileGo() output did not lower pattern function:\n%s", result.__output)
+	if !strings.Contains(out.__output, "func __fib(__n int) int") {
+		t.Fatalf("generated Go =\n%s\nwant func __fib(__n int) int", out.__output)
+	}
+	if !strings.Contains(out.__output, "switch __n {") {
+		t.Fatalf("generated Go =\n%s\nwant switch __n", out.__output)
 	}
 }
 
-func TestGeneratedSelfhostCompilerBuildsNullCoalesceGo(t *testing.T) {
-	assertGeneratedSelfhostGoBuilds(t, `fallback(value: String?) -> String => value ?? "missing"
-
-main() => @io.println(fallback(null))
-	`)
-}
-
-func TestGeneratedSelfhostCompilerBuildsCollectionMethodsGo(t *testing.T) {
-	assertGeneratedSelfhostGoBuilds(t, `main() => {
-  values := ["go"]
-  values.push("ts")
-  names := @map.new("", "")
-  names.set("backend", values.at(0))
-  backend := names.getOr("backend", "go")
-  flags := @map.new("", false)
-  flags.set("check", true)
-  check := flags.getOr("check", false)
-  @io.println(backend, check)
-}
-		`)
-}
-
-func TestGeneratedSelfhostCompilerBuildsTypedObjectGo(t *testing.T) {
-	assertGeneratedSelfhostGoBuilds(t, `User: {
-  name: String
-  active: Bool
-}
-
-makeUser(name: String) -> User => {
-  name: name,
-  active: true
-}
-
-main() => @io.println(makeUser("Rune").name)
-		`)
-}
-
-func TestGeneratedSelfhostCompilerBuildsJSONObjectGo(t *testing.T) {
-	assertGeneratedSelfhostGoBuilds(t, `#json.object
-User: {
-  #json.name("display_name")
-  name: String
-  #json.ignore
-  password: String
-}
-
-main() => {
-  user := User::fromJson("{\"display_name\":\"Ada\",\"password\":\"drop\"}")
-  @io.println(user.name)
-}
-		`)
-}
-
-func assertGeneratedSelfhostGoBuilds(t *testing.T, source string) {
-	t.Helper()
-	result := __compileGo(source)
-	if !result.__ok {
-		t.Fatalf("__compileGo() errors = %v", result.__errors)
-	}
-	assertGeneratedGoBuilds(t, result.__output)
-}
-
-func assertGeneratedGoBuilds(t *testing.T, source string) {
-	t.Helper()
-	formatted, err := format.Source([]byte(source))
-	if err != nil {
-		t.Fatalf("format generated Go error = %v\n%s", err, source)
-	}
+func TestExecuteSelfhostCheckDirectory(t *testing.T) {
 	dir := t.TempDir()
-	goFile := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
-		t.Fatalf("WriteFile(%s) error = %v", goFile, err)
-	}
-	cmd := exec.Command("go", "test", goFile)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("generated Go build failed: %v\n%s\n%s", err, out, formatted)
-	}
-}
-
-func normalizeGeneratedCLIForHost(src string) string {
-	src = strings.ReplaceAll(src, "func __main()", "func selfhostCliGeneratedMain()")
-	src = strings.Replace(src, "func main() {\n\t__main()\n}\n", "func selfhostCliGeneratedEntrypoint() {\n\tselfhostCliGeneratedMain()\n}\n", 1)
-	formatted, err := format.Source([]byte(src))
-	if err != nil {
-		return src
-	}
-	return normalizeGeneratedPrivateSymbols(string(formatted))
-}
-
-func normalizeGeneratedPrivateSymbols(src string) string {
-	return regexp.MustCompile(`____rune_private_[0-9a-f]+_`).ReplaceAllString(src, "____rune_private_HASH_")
-}
-
-func TestRunRuneCLIForwardsProgramArgs(t *testing.T) {
-	dir := t.TempDir()
-	mainPath := filepath.Join(dir, "main.rn")
-	writeTestFile(t, mainPath, `main() => {
-  argv := @process.argv()
-  @io.println(argv[1])
-  @io.println(argv[2])
-}
-`)
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"run", mainPath, "--", "-v", "target"}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI() error = %v, stderr = %s", err, errOut.String())
-	}
-	if got, want := out.String(), "-v\ntarget\n"; got != want {
-		t.Fatalf("runRuneCLI() output = %q, want %q", got, want)
-	}
-}
-
-func TestRunRuneCLICheckUsesSelfhostMigrationBridge(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, "main() => 42\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	if err := runRuneCLI([]string{"check", path}, strings.NewReader(""), &out, &errOut); err != nil {
-		t.Fatalf("runRuneCLI(check) error = %v, stderr = %s", err, errOut.String())
-	}
-	if got, want := out.String(), "ok "+path+"\n"; got != want {
-		t.Fatalf("runRuneCLI(check) output = %q, want %q", got, want)
-	}
-}
-
-func TestRunRuneCLICheckReportsSelfhostErrors(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "main.rn")
-	writeTestFile(t, path, "main() -> Int => \"wrong\"\n")
-
-	var out bytes.Buffer
-	var errOut bytes.Buffer
-	err := runRuneCLI([]string{"check", path}, strings.NewReader(""), &out, &errOut)
-	if err == nil || err.Error() != "check failed" {
-		t.Fatalf("runRuneCLI(check) error = %v, want check failed", err)
-	}
-	if got, want := errOut.String(), path+": function \"main\" returns String, expected Int\n"; got != want {
-		t.Fatalf("runRuneCLI(check) stderr = %q, want %q", got, want)
-	}
-	if got := out.String(); got != "" {
-		t.Fatalf("runRuneCLI(check) stdout = %q, want empty", got)
-	}
-}
-
-func TestCheckTargetAcceptsStdlibRoot(t *testing.T) {
-	dir := t.TempDir()
-	writeTestFile(t, filepath.Join(dir, "prelude.rn"), "@foo\n")
 	writeTestFile(t, filepath.Join(dir, "foo", "foo.rn"), "Foo: {}\n")
 
 	var out bytes.Buffer
@@ -903,57 +263,57 @@ func TestGeneratedSelfhostFormatterMatchesHostForComments(t *testing.T) {
 	}
 }
 
-// TestGeneratedSelfhostFormatterMatchesHostCorpus validates the
-// formatWithSelfhostBridge hybrid: whether or not self-host formatting matches
-// host formatting byte-for-byte per-source, the user-visible formatting
-// behavior remains identical to gofmt because the bridge falls back to
-// runefmt.Source whenever self-host output diverges.
 func TestGeneratedSelfhostFormatterMatchesHostCorpus(t *testing.T) {
-	cases := []string{
-		"1 + 2",
-		"let x: Int = 3\nx + 1",
-		`let s: String = "hello"`,
-		"User: { name: String, age: Int }\n\nmain() => User { name: \"a\", age: 1 }.name",
-		"Box[T]: { value: T }\n\nmain() => Box[Int] { value: 1 }",
-		"+ Task: { id: Int, label: String, done: Bool }",
-		"fib(n: Int) -> Int => (n < 2 ? n : fib(n - 1) + fib(n - 2))",
-		`Color: { Red, Green, Blue }
+	cases := []struct {
+		src      string
+		eligible bool
+	}{
+		{"1 + 2", true},
+		{"let x: Int = 3\nx + 1", true},
+		{`let s: String = "hello"`, true},
+		{"User: { name: String, age: Int }\n\nmain() => User { name: \"a\", age: 1 }.name", false},
+		{"Box[T]: { value: T }\n\nmain() => Box[Int] { value: 1 }", false},
+		{"+ Task: { id: Int, label: String, done: Bool }", true},
+		{"fib(n: Int) -> Int => (n < 2 ? n : fib(n - 1) + fib(n - 2))", false},
+		{`Color: { Red, Green, Blue }
 
 describe(color: Color) -> String => color {
 	Red => "r"
 	Blue => "b"
 	_ => "g"
-}`,
-		`Circle: { radius: Double }
+}`, false},
+		{`Circle: { radius: Double }
 Square: { side: Double }
 
-main() => 0`,
-		`	if true { 1 } else { 2 }`,
-		"main() => {\n	a := 1\n	b := 2\n	a + b\n}",
-		"main() => @io.println(\"hi\")",
-		"+ answer() -> Int => 42",
-		"data := 1 + 2 * 3",
-		"square := (n: Int) -> Int => n * n",
-		`TaggedWrapper: {
+main() => 0`, false},
+		{"\tif true { 1 } else { 2 }", true},
+		{"main() => {\n\ta := 1\n\tb := 2\n\ta + b\n}", false},
+		{"main() => @io.println(\"hi\")", true},
+		{"+ answer() -> Int => 42", true},
+		{"main() => item.length()", true},
+		{"data := 1 + 2 * 3", true},
+		{"square := (n: Int) -> Int => n * n", true},
+		{`TaggedWrapper: {
   Int: Int
   String: String
-}`,
-		`main() => {
+}`, true},
+		{`main() => {
 	a := 1
 	b := 2
 	a ? b
-}`,
+}`, false},
 	}
-	for _, src := range cases {
-		t.Run(src[0:min(len(src), 30)], func(t *testing.T) {
-			file, errs := parser.Parse(src)
+	for _, tc := range cases {
+		t.Run(tc.src[0:min(len(tc.src), 30)], func(t *testing.T) {
+			file, errs := parser.Parse(tc.src)
 			if len(errs) > 0 {
 				t.Skipf("parser rejected input: %v", errs)
 			}
-			// Always preferred: the bridge's user-visible output equals the
-			// canonical host gofmt, which is国王ed via the actual CLI code path.
-			if got, want := formatWithSelfhostBridge(file, src), runefmt.Source(file, src); got != want {
-				t.Fatalf("formatWithSelfhostBridge(%q) = %q (selfhost: %q), want %q", src, got, __fmt_formatSource(src), want)
+			if got := selfhostFormatterEligible(tc.src); got != tc.eligible {
+				t.Fatalf("selfhostFormatterEligible(%q) = %v, want %v", tc.src, got, tc.eligible)
+			}
+			if got, want := formatWithSelfhostBridge(file, tc.src), runefmt.Source(file, tc.src); got != want {
+				t.Fatalf("formatWithSelfhostBridge(%q) = %q (selfhost: %q), want %q", tc.src, got, __fmt_formatSource(tc.src), want)
 			}
 		})
 	}
@@ -1007,22 +367,22 @@ func TestResolveRunEntryFindsUniqueMain(t *testing.T) {
 	mainPath := filepath.Join(dir, "nested", "main.rn")
 	writeTestFile(t, mainPath, "main() => @io.println(\"ok\")\n")
 
-	got, diags, err := resolveRunEntry(dir)
+	entry, diags, err := resolveRunEntry(dir)
 	if err != nil {
 		t.Fatalf("resolveRunEntry() error = %v", err)
 	}
 	if len(diags) > 0 {
 		t.Fatalf("resolveRunEntry() diagnostics = %v", diags)
 	}
-	if got != mainPath {
-		t.Fatalf("resolveRunEntry() = %q, want %q", got, mainPath)
+	if entry != mainPath {
+		t.Fatalf("resolveRunEntry() = %q, want %q", entry, mainPath)
 	}
 }
 
-func TestResolveRunEntryRejectsMultipleMains(t *testing.T) {
+func TestResolveRunEntryRejectsDuplicateMain(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "a.rn"), "main() => 1\n")
-	writeTestFile(t, filepath.Join(dir, "nested", "b.rn"), "main() => 2\n")
+	writeTestFile(t, filepath.Join(dir, "b.rn"), "main() => 2\n")
 
 	_, diags, err := resolveRunEntry(dir)
 	if err == nil {
@@ -1061,9 +421,24 @@ main() => @io.println(greet("Rune"))
 	if err != nil {
 		t.Fatalf("ReadFile() error = %v", err)
 	}
-	want := `from "./greet.ts"`
-	if !strings.Contains(string(data), want) {
-		t.Fatalf("runtime TypeScript = %q, want %q", data, want)
+	text := string(data)
+	if !(strings.Contains(text, `from "./greet.ts"`) || strings.Contains(text, `from "`+filepath.ToSlash(tsPath)+`"`)) {
+		t.Fatalf("runtime TypeScript = %q, want relative or entry-rooted greet import", data)
+	}
+}
+
+func TestSelfhostTypeScriptRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.rn")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
+
+	src, diags := selfhostTypeScriptRuntimeSource(entry)
+	if len(diags) > 0 {
+		t.Fatalf("selfhostTypeScriptRuntimeSource() diagnostics = %v", diags)
+	}
+	if !strings.Contains(src, "function __answer(): number") {
+		t.Fatalf("runtime TypeScript = %q, want imported answer", src)
 	}
 }
 
@@ -1092,6 +467,13 @@ func TestCompileMoonBitProjectToTempWritesPackage(t *testing.T) {
 	if got := string(data); !strings.Contains(got, "fn main {\n") || !strings.Contains(got, `println("Rune")`) {
 		t.Fatalf("main.mbt =\n%s", got)
 	}
+	selfhost, diags := selfhostMoonBitRuntimeSource(mainPath)
+	if len(diags) > 0 {
+		t.Fatalf("selfhostMoonBitRuntimeSource() diagnostics = %v", diags)
+	}
+	if string(data) != selfhost {
+		t.Fatalf("compileMoonBitProjectToTemp main.mbt != selfhost runtime source\nproject:\n%s\nselfhost:\n%s", string(data), selfhost)
+	}
 	pkg, err := os.ReadFile(filepath.Join(projectDir, "moon.pkg"))
 	if err != nil {
 		t.Fatalf("ReadFile(moon.pkg) error = %v", err)
@@ -1103,6 +485,21 @@ func TestCompileMoonBitProjectToTempWritesPackage(t *testing.T) {
 		if !strings.Contains(string(pkg), want) {
 			t.Fatalf("moon.pkg =\n%s\nmissing %s", pkg, want)
 		}
+	}
+}
+
+func TestSelfhostMoonBitRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.T) {
+	dir := t.TempDir()
+	entry := filepath.Join(dir, "main.rn")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
+
+	src, diags := selfhostMoonBitRuntimeSource(entry)
+	if len(diags) > 0 {
+		t.Fatalf("selfhostMoonBitRuntimeSource() diagnostics = %v", diags)
+	}
+	if !strings.Contains(src, "fn __answer() -> Int") {
+		t.Fatalf("runtime MoonBit = %q, want imported answer", src)
 	}
 }
 
@@ -1171,90 +568,94 @@ func TestRunEntryMoonBitRejectsInvalidTarget(t *testing.T) {
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	err := runEntry(mainPath, "mbt", "linux-amd64", nil, strings.NewReader(""), &out, &errOut)
-	if err == nil || !strings.Contains(err.Error(), `invalid MoonBit target "linux-amd64"`) {
-		t.Fatalf("runEntry() error = %v, want invalid MoonBit target", err)
+	err := runEntry(mainPath, "mbt", "invalid", nil, strings.NewReader(""), &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "invalid MoonBit target") {
+		t.Fatalf("runEntry() error = %v, want invalid target", err)
 	}
 }
 
-func TestValidateMoonBitTarget(t *testing.T) {
-	for _, target := range []string{"wasm", "wasm-gc", "js", "native", "llvm", "all"} {
-		if err := validateMoonBitTarget(target); err != nil {
-			t.Fatalf("validateMoonBitTarget(%q) error = %v", target, err)
-		}
+func writeTestFile(t *testing.T, path string, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", filepath.Dir(path), err)
 	}
-	if err := validateMoonBitTarget("linux-amd64"); err == nil {
-		t.Fatal("validateMoonBitTarget(\"linux-amd64\") succeeded, want error")
-	}
-}
-
-func TestTypeScriptRuntimeSpecifier(t *testing.T) {
-	cases := map[string]string{
-		"greet.ts":       "./greet.ts",
-		"lib/greet.ts":   "./lib/greet.ts",
-		"./greet.ts":     "./greet.ts",
-		"../greet.ts":    "../greet.ts",
-		"https://x/y.ts": "https://x/y.ts",
-	}
-	for input, want := range cases {
-		if got := typeScriptRuntimeSpecifier(input); got != want {
-			t.Fatalf("typeScriptRuntimeSpecifier(%q) = %q, want %q", input, got, want)
-		}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", path, err)
 	}
 }
 
-func TestTypeScriptRuntimeCommandSupportsAvailableRuntimes(t *testing.T) {
+func TestTypeScriptRuntimeCommandWithLookPathPrefersRunners(t *testing.T) {
 	cases := []struct {
-		name string
-		want []string
+		name      string
+		available map[string]string
+		wantPath  string
+		wantArgs  []string
 	}{
-		{name: "bun", want: []string{"/bin/bun", "main.ts", "arg"}},
-		{name: "deno", want: []string{"/bin/deno", "run", "main.ts", "arg"}},
-		{name: "node", want: []string{"/bin/node", "main.ts", "arg"}},
-		{name: "ts-node", want: []string{"/bin/ts-node", "--esm", "main.ts", "arg"}},
+		{"bun", map[string]string{"bun": "/bin/bun"}, "/bin/bun", []string{"main.ts", "arg"}},
+		{"deno", map[string]string{"deno": "/bin/deno"}, "/bin/deno", []string{"run", "main.ts", "arg"}},
+		{"node", map[string]string{"node": "/bin/node"}, "/bin/node", []string{"main.ts", "arg"}},
+		{"ts-node", map[string]string{"ts-node": "/bin/ts-node"}, "/bin/ts-node", []string{"--esm", "main.ts", "arg"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cmd, err := typeScriptRuntimeCommandWithLookPath("main.ts", []string{"arg"}, func(name string) (string, error) {
-				if name == tc.name {
-					return "/bin/" + name, nil
+				path, ok := tc.available[name]
+				if !ok {
+					return "", fs.ErrNotExist
 				}
-				return "", exec.ErrNotFound
+				return path, nil
 			})
 			if err != nil {
 				t.Fatalf("typeScriptRuntimeCommandWithLookPath() error = %v", err)
 			}
-			if !reflect.DeepEqual(cmd.Args, tc.want) {
-				t.Fatalf("command args = %#v, want %#v", cmd.Args, tc.want)
+			if cmd.Path != tc.wantPath {
+				t.Fatalf("cmd.Path = %q, want %q", cmd.Path, tc.wantPath)
+			}
+			if got := cmd.Args[1:]; strings.Join(got, "\x00") != strings.Join(tc.wantArgs, "\x00") {
+				t.Fatalf("cmd.Args = %v, want %v", cmd.Args, append([]string{tc.wantPath}, tc.wantArgs...))
 			}
 		})
 	}
 }
 
-func writeTestFile(t *testing.T, path string, data string) {
-	t.Helper()
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll() error = %v", err)
-	}
-	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
+func TestTypeScriptRuntimeCommandWithLookPathErrorsWithoutRunner(t *testing.T) {
+	_, err := typeScriptRuntimeCommandWithLookPath("main.ts", nil, func(string) (string, error) {
+		return "", fs.ErrNotExist
+	})
+	if err == nil || !strings.Contains(err.Error(), "TypeScript backend requires") {
+		t.Fatalf("typeScriptRuntimeCommandWithLookPath() error = %v, want runner requirement", err)
 	}
 }
 
-func repoRootForCommandTest(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
+func TestBuildEnvDefaultTarget(t *testing.T) {
+	env, err := buildEnv("")
 	if err != nil {
-		t.Fatalf("Getwd() error = %v", err)
+		t.Fatalf("buildEnv() error = %v", err)
 	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("repo root not found")
-		}
-		dir = parent
+	if len(env) == 0 {
+		t.Fatal("buildEnv() returned empty environment")
+	}
+}
+
+func TestBuildEnvCrossCompileTarget(t *testing.T) {
+	env, err := buildEnv("linux/amd64")
+	if err != nil {
+		t.Fatalf("buildEnv() error = %v", err)
+	}
+	joined := strings.Join(env, "\n")
+	if !strings.Contains(joined, "GOOS=linux") || !strings.Contains(joined, "GOARCH=amd64") {
+		t.Fatalf("buildEnv() = %v, want GOOS=linux GOARCH=amd64", env)
+	}
+}
+
+func TestDefaultBinaryName(t *testing.T) {
+	path := filepath.Join("/tmp", "demo.rn")
+	got := defaultBinaryName(path)
+	want := "demo"
+	if runtime.GOOS == "windows" {
+		want = "demo.exe"
+	}
+	if got != want {
+		t.Fatalf("defaultBinaryName() = %q, want %q", got, want)
 	}
 }

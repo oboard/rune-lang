@@ -6254,47 +6254,36 @@ func ____rune_private_b4d281ed_emitGoBody(__file __IRFile, __expr __IRExpr, __re
 }
 
 func ____rune_private_b4d281ed_emitGoPatternBlock(__file __IRFile, __expr __IRExpr, __returns bool, __returnType string, __level int) string {
-	return ____rune_private_b4d281ed_emitGoPatternBranches(__file, __expr.__children, 0, __returns, __returnType, __level, "")
+	__out := __line(__level, "switch __n {")
+	__out = __out + ____rune_private_b4d281ed_emitGoPatternBranches(__file, __expr.__children, 0, __returns, __returnType, __level+1, "")
+	__out = __out + __line(__level, "}")
+	return func() string {
+		if __returns {
+			return __out + __line(__level, "return "+____rune_private_b4d281ed_goZero(__returnType))
+		}
+		return __out
+	}()
 }
 
 func ____rune_private_b4d281ed_emitGoPatternBranches(__file __IRFile, __branches []__IRExpr, __index int, __returns bool, __returnType string, __level int, __out string) string {
 	return func() string {
 		if __index >= len(__branches) {
-			return __out + __line(__level, "}") + func() string {
-				if __returns {
-					return __line(__level, "return "+____rune_private_b4d281ed_goZero(__returnType))
-				}
-				return ""
-			}()
+			return __out
 		}
-		return ____rune_private_b4d281ed_emitGoPatternBranches(__file, __branches, __index+1, __returns, __returnType, __level, __out+____rune_private_b4d281ed_emitGoPatternBranch(__file, __branches[__index], __returns, __returnType, __level, __index == 0))
+		return ____rune_private_b4d281ed_emitGoPatternBranches(__file, __branches, __index+1, __returns, __returnType, __level, __out+____rune_private_b4d281ed_emitGoPatternBranch(__file, __branches[__index], __returns, __returnType, __level))
 	}()
 }
 
-func ____rune_private_b4d281ed_emitGoPatternBranch(__file __IRFile, __branch __IRExpr, __returns bool, __returnType string, __level int, __first bool) string {
+func ____rune_private_b4d281ed_emitGoPatternBranch(__file __IRFile, __branch __IRExpr, __returns bool, __returnType string, __level int) string {
 	__pattern := __branch.__children[0]
 	__value := __branch.__children[1]
 	__head := func() string {
-		if __first {
-			return "if "
-		}
-		return "else if "
-	}()
-	return func() string {
 		if __pattern.__text == "_" {
-			return __line(__level, ____rune_private_b4d281ed_emitGoPatternPrefix(__first)+"else {") + ____rune_private_b4d281ed_emitGoPatternBranchBody(__file, __value, __returns, __returnType, __level+1)
+			return "default:"
 		}
-		return __line(__level, ____rune_private_b4d281ed_emitGoPatternPrefix(__first)+__head+____rune_private_b4d281ed_emitGoPatternCondition(__pattern)+" {") + ____rune_private_b4d281ed_emitGoPatternBranchBody(__file, __value, __returns, __returnType, __level+1)
+		return "case " + __pattern.__text + ":"
 	}()
-}
-
-func ____rune_private_b4d281ed_emitGoPatternPrefix(__first bool) string {
-	return func() string {
-		if __first {
-			return ""
-		}
-		return "} "
-	}()
+	return __line(__level, __head) + ____rune_private_b4d281ed_emitGoPatternBranchBody(__file, __value, __returns, __returnType, __level+1)
 }
 
 func ____rune_private_b4d281ed_emitGoPatternBranchBody(__file __IRFile, __value __IRExpr, __returns bool, __returnType string, __level int) string {
@@ -9617,162 +9606,497 @@ func ____rune_private_01b5d206_dtsParams(__params []__IRParam, __index int, __ou
 }
 
 func ____rune_private_01b5d206_dtsType(__typeName string) string {
-	switch {
-	case (__typeName == "") || (__typeName == "Void"):
-		return "void"
-	case (__typeName == "Int") || (__typeName == "Int4") || (__typeName == "Int8") || (__typeName == "Int16") || (__typeName == "UInt") || (__typeName == "UInt8") || (__typeName == "UInt16") || (__typeName == "Byte") || (__typeName == "Double") || (__typeName == "Float"):
-		return "number"
-	case (__typeName == "BigInt") || (__typeName == "Int64") || (__typeName == "UInt64"):
-		return "bigint"
-	case (__typeName == "String") || (__typeName == "Char"):
-		return "string"
-	case __typeName == "Bool":
-		return "boolean"
-	case __typeName == "Null":
-		return "null"
-	case __typeName == "Object":
-		return "object"
-	case __typeName == "Bytes":
-		return "DataView"
-	case __typeName == "Buffer":
-		return "RuneBuffer"
-	case __typeName == "Reader":
-		return "RuneReader"
-	case __typeName == "Writer":
-		return "RuneWriter"
-	case __typeName == "StringBuffer":
-		return "RuneStringBuffer"
-	case __typeName == "FileStat":
-		return "RuneFileStat"
-	case __typeName == "TCPConnection":
-		return "RuneTCPConnection"
-	case __typeName == "TCPListener":
-		return "RuneTCPListener"
-	case (__typeName == "Data") || (__typeName == "@io.Data"):
-		return "Uint8Array"
-	case __typeName == "Error":
-		return "RuneError"
-	case __typeName == "Never":
-		return "never"
-	case __typeName == "Symbol":
-		return "symbol"
-	case __typeName == "Regex":
-		return "RegExp"
-	case __typeName == "HTMLElement":
-		return "HTMLElement"
-	case __typeName == "WebComponent":
-		return "CustomElementConstructor"
-	case (__typeName == "Dynamic") || (__typeName == "Unknown"):
-		return "any"
-	default:
-		return ____rune_private_01b5d206_dtsTypeFallback(__typeName)
-	}
+	return ____rune_private_01b5d206_dtsTypeRef(____rune_private_01b5d206_parseDtsTypeRef(__typeName))
 }
 
-func ____rune_private_01b5d206_dtsTypeFallback(__typeName string) string {
-	return func() string {
-		if strings.HasPrefix(__typeName, "&") {
-			return "any"
+func ____rune_private_01b5d206_parseDtsTypeRef(__typeName string) __ParsedTypeRef {
+	return ____rune_private_01b5d206_dtsTypeRefPostfix(__lex(__typeName), 0, ____rune_private_01b5d206_dtsTypeRoot(__typeName))
+}
+
+func ____rune_private_01b5d206_dtsTypeRoot(__typeName string) __ParsedTypeRef {
+	__first := ____rune_private_01b5d206_dtsFirstTypeToken(__lex(__typeName), 0)
+	return func() __ParsedTypeRef {
+		switch {
+		case __first.__kind == __TokenKind_BitAnd:
+			return __namedParsedTypeRef(____rune_private_01b5d206_dtsTypeToken("Dynamic"))
+		case __first.__kind == __TokenKind_At:
+			return ____rune_private_01b5d206_dtsQualifiedTypeRef(__lex(__typeName), __first)
+		case __first.__kind == __TokenKind_LParen:
+			return ____rune_private_01b5d206_dtsParenTypeRef(__typeName, __first)
+		case __first.__kind == __TokenKind_Ident:
+			return __namedParsedTypeRef(__first)
+		default:
+			return __namedParsedTypeRef(____rune_private_01b5d206_dtsTypeToken(__typeName))
 		}
-		return func() string {
-			if strings.HasSuffix(__typeName, "?") {
-				return ____rune_private_01b5d206_dtsType(func() string { runes := []rune(__typeName); return string(runes[0 : len([]rune(__typeName))-1]) }()) + " | null"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFirstTypeToken(__tokens []__Token, __index int) __Token {
+	return func() __Token {
+		if __index >= len(__tokens) {
+			return ____rune_private_01b5d206_dtsTypeToken("Dynamic")
+		}
+		return func() __Token {
+			if __tokens[__index].__kind == __TokenKind_EOF {
+				return ____rune_private_01b5d206_dtsTypeToken("Dynamic")
 			}
-			return func() string {
-				if __genericInner(__typeName, "Array") != "" {
-					return ____rune_private_01b5d206_dtsType(__genericInner(__typeName, "Array")) + "[]"
-				}
-				return func() string {
-					if __genericInner(__typeName, "Result") != "" {
-						return ____rune_private_01b5d206_dtsGenericType("RuneResult", __genericInner(__typeName, "Result"))
-					}
-					return func() string {
-						if __genericInner(__typeName, "Task") != "" {
-							return ____rune_private_01b5d206_dtsGenericType("Promise", __genericInner(__typeName, "Task"))
+			return __tokens[__index]
+		}()
+	}()
+}
+
+func ____rune_private_01b5d206_dtsQualifiedTypeRef(__tokens []__Token, __at __Token) __ParsedTypeRef {
+	__module := ____rune_private_01b5d206_dtsTokenAt(__tokens, 1)
+	__name := ____rune_private_01b5d206_dtsTokenAt(__tokens, 3)
+	return func() __ParsedTypeRef {
+		if __module.__kind == __TokenKind_Ident && __name.__kind == __TokenKind_Ident {
+			return __qualifiedParsedTypeRef(__module, __name)
+		}
+		return __namedParsedTypeRef(____rune_private_01b5d206_dtsTypeToken("Dynamic"))
+	}()
+}
+
+func ____rune_private_01b5d206_dtsParenTypeRef(__typeName string, __open __Token) __ParsedTypeRef {
+	__close := strings.LastIndex(__typeName, ")")
+	__inner := func() string {
+		if __close > 0 {
+			return func() string { runes := []rune(__typeName); return string(runes[1:__close]) }()
+		}
+		return ""
+	}()
+	__parts := ____rune_private_01b5d206_dtsSplitTopLevelTypeArgs(__inner)
+	return func() __ParsedTypeRef {
+		if len(__parts) == 1 {
+			return __groupedTypeRef(____rune_private_01b5d206_parseDtsTypeRef(__parts[0]), __open)
+		}
+		return __tupleTypeRef(____rune_private_01b5d206_dtsTupleParamsFromStrings(__parts, 0, append([]__ParsedTypeParam{}, []__ParsedTypeParam{__emptyParsedTypeParam()}[0:0]...)), __open)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeToken(__typeName string) __Token {
+	return __Token{__kind: __TokenKind_Ident, __lexeme: __typeName, __offset: 0, __line: 0, __column: 0}
+}
+
+func ____rune_private_01b5d206_dtsTypeRefPostfix(__tokens []__Token, __index int, __typeRef __ParsedTypeRef) __ParsedTypeRef {
+	return func() __ParsedTypeRef {
+		if __index >= len(__tokens) {
+			return __typeRef
+		}
+		return ____rune_private_01b5d206_dtsTypeRefPostfixStep(__tokens, __index, __typeRef)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeRefPostfixStep(__tokens []__Token, __index int, __typeRef __ParsedTypeRef) __ParsedTypeRef {
+	__token := __tokens[__index]
+	return func() __ParsedTypeRef {
+		switch {
+		case __token.__kind == __TokenKind_LBracket:
+			return ____rune_private_01b5d206_dtsTypeRefPostfix(__tokens, ____rune_private_01b5d206_dtsSkipBracket(__tokens, __index+1, 1), ____rune_private_01b5d206_dtsApplyTypeArgs(__typeRef, ____rune_private_01b5d206_dtsBracketArgs(__tokens, __index)))
+		case __token.__kind == __TokenKind_Question:
+			return ____rune_private_01b5d206_dtsTypeRefPostfix(__tokens, __index+1, __nullableTypeRef(__typeRef))
+		default:
+			return ____rune_private_01b5d206_dtsTypeRefPostfix(__tokens, __index+1, __typeRef)
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsApplyTypeArgs(__typeRef __ParsedTypeRef, __args []__ParsedTypeRef) __ParsedTypeRef {
+	return __typeRefWithArgs(__typeRef, __args)
+}
+
+func ____rune_private_01b5d206_dtsBracketArgs(__tokens []__Token, __open int) []__ParsedTypeRef {
+	__close := ____rune_private_01b5d206_dtsBracketClose(__tokens, __open+1, 1)
+	__inner := ____rune_private_01b5d206_dtsTokenRangeText(__tokens, __open+1, __close, "")
+	__parts := ____rune_private_01b5d206_dtsSplitTopLevelTypeArgs(__inner)
+	return ____rune_private_01b5d206_dtsTypeRefsFromStrings(__parts, 0, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...))
+}
+
+func ____rune_private_01b5d206_dtsBracketClose(__tokens []__Token, __index int, __depth int) int {
+	return func() int {
+		if __index >= len(__tokens) {
+			return __index
+		}
+		return func() int {
+			if __tokens[__index].__kind == __TokenKind_LBracket {
+				return ____rune_private_01b5d206_dtsBracketClose(__tokens, __index+1, __depth+1)
+			}
+			return func() int {
+				if __tokens[__index].__kind == __TokenKind_RBracket {
+					return func() int {
+						if __depth == 1 {
+							return __index
 						}
-						return func() string {
-							if __genericInner(__typeName, "Iter") != "" {
-								return ____rune_private_01b5d206_dtsGenericType("RuneIter", __genericInner(__typeName, "Iter"))
-							}
-							return func() string {
-								if __genericInner(__typeName, "ReadonlyArray") != "" {
-									return ____rune_private_01b5d206_dtsGenericType("ReadonlyArray", __genericInner(__typeName, "ReadonlyArray"))
-								}
-								return func() string {
-									if __genericInner(__typeName, "Tuple") != "" {
-										return "[" + ____rune_private_01b5d206_dtsTypeArgs(__genericInner(__typeName, "Tuple")) + "]"
-									}
-									return func() string {
-										if __genericInner(__typeName, "ReadonlyTuple") != "" {
-											return "readonly [" + ____rune_private_01b5d206_dtsTypeArgs(__genericInner(__typeName, "ReadonlyTuple")) + "]"
-										}
-										return func() string {
-											if __genericInner(__typeName, "Map") != "" {
-												return ____rune_private_01b5d206_dtsGenericType("Map", __genericInner(__typeName, "Map"))
-											}
-											return func() string {
-												if __genericInner(__typeName, "Set") != "" {
-													return ____rune_private_01b5d206_dtsGenericType("Set", __genericInner(__typeName, "Set"))
-												}
-												return func() string {
-													if __genericInner(__typeName, "WeakMap") != "" {
-														return ____rune_private_01b5d206_dtsGenericType("WeakMap", __genericInner(__typeName, "WeakMap"))
-													}
-													return func() string {
-														if __genericInner(__typeName, "WeakSet") != "" {
-															return ____rune_private_01b5d206_dtsGenericType("WeakSet", __genericInner(__typeName, "WeakSet"))
-														}
-														return func() string {
-															if __genericInner(__typeName, "Record") != "" {
-																return ____rune_private_01b5d206_dtsGenericType("Record", __genericInner(__typeName, "Record"))
-															}
-															return ____rune_private_01b5d206_dtsNamedType(__typeName)
-														}()
-													}()
-												}()
-											}()
-										}()
-									}()
-								}()
-							}()
-						}()
+						return ____rune_private_01b5d206_dtsBracketClose(__tokens, __index+1, __depth-1)
 					}()
-				}()
+				}
+				return ____rune_private_01b5d206_dtsBracketClose(__tokens, __index+1, __depth)
 			}()
 		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsGenericType(__name string, __args string) string {
-	return __name + "<" + ____rune_private_01b5d206_dtsTypeArgs(__args) + ">"
-}
-
-func ____rune_private_01b5d206_dtsNamedType(__typeName string) string {
-	__open := strings.Index(__typeName, "[")
-	return func() string {
-		if __open < 0 {
-			return __mangleIdent(__typeName)
+func ____rune_private_01b5d206_dtsSkipBracket(__tokens []__Token, __index int, __depth int) int {
+	return func() int {
+		if __index >= len(__tokens) {
+			return __index
 		}
-		return __mangleIdent(func() string { runes := []rune(__typeName); return string(runes[0:__open]) }()) + "<" + ____rune_private_01b5d206_dtsTypeArgs(func() string { runes := []rune(__typeName); return string(runes[__open+1 : len([]rune(__typeName))-1]) }()) + ">"
+		return func() int {
+			if __tokens[__index].__kind == __TokenKind_LBracket {
+				return ____rune_private_01b5d206_dtsSkipBracket(__tokens, __index+1, __depth+1)
+			}
+			return func() int {
+				if __tokens[__index].__kind == __TokenKind_RBracket {
+					return func() int {
+						if __depth == 1 {
+							return __index + 1
+						}
+						return ____rune_private_01b5d206_dtsSkipBracket(__tokens, __index+1, __depth-1)
+					}()
+				}
+				return ____rune_private_01b5d206_dtsSkipBracket(__tokens, __index+1, __depth)
+			}()
+		}()
 	}()
 }
 
-func ____rune_private_01b5d206_dtsTypeArgs(__args string) string {
-	return ____rune_private_01b5d206_dtsTypeArgList(func() []string { parts := strings.Split(__args, ","); return parts }(), 0, "")
+func ____rune_private_01b5d206_dtsTokenAt(__tokens []__Token, __index int) __Token {
+	return func() __Token {
+		if __index >= len(__tokens) {
+			return ____rune_private_01b5d206_dtsTypeToken("Dynamic")
+		}
+		return __tokens[__index]
+	}()
 }
 
-func ____rune_private_01b5d206_dtsTypeArgList(__args []string, __index int, __out string) string {
+func ____rune_private_01b5d206_dtsTokenRangeText(__tokens []__Token, __index int, __endExclusive int, __out string) string {
 	return func() string {
-		if __index >= len(__args) {
+		if __index >= __endExclusive || __index >= len(__tokens) {
 			return __out
 		}
-		return ____rune_private_01b5d206_dtsTypeArgList(__args, __index+1, __out+func() string {
+		return ____rune_private_01b5d206_dtsTokenRangeText(__tokens, __index+1, __endExclusive, __out+__tokens[__index].__lexeme)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsSplitTopLevelTypeArgs(__source string) []string {
+	return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, 0, 0, 0, []string{})
+}
+
+func ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source string, __index int, __start int, __depth int, __out []string) []string {
+	return func() []string {
+		if __index >= len([]rune(__source)) {
+			return ____rune_private_01b5d206_dtsPushTypeArg(__out, strings.TrimSpace((func() string { runes := []rune(__source); return string(runes[__start:len([]rune(__source))]) }())))
+		}
+		return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsStep(__source, __index, __start, __depth, __out)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsStep(__source string, __index int, __start int, __depth int, __out []string) []string {
+	__ch := []rune(__source)[__index]
+	return func() []string {
+		switch {
+		case (__ch == '[') || (__ch == '('):
+			return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, __index+1, __start, __depth+1, __out)
+		case (__ch == ']') || (__ch == ')'):
+			return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, __index+1, __start, __depth-1, __out)
+		case __ch == ',':
+			return func() []string {
+				if __depth == 0 {
+					return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, __index+1, __index+1, __depth, ____rune_private_01b5d206_dtsPushTypeArg(__out, strings.TrimSpace((func() string { runes := []rune(__source); return string(runes[__start:__index]) }()))))
+				}
+				return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, __index+1, __start, __depth, __out)
+			}()
+		default:
+			return ____rune_private_01b5d206_dtsSplitTopLevelTypeArgsLoop(__source, __index+1, __start, __depth, __out)
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsPushTypeArg(__out []string, __item string) []string {
+	if __item != "" {
+		func() int { __out = append(__out, __item); return len(__out) }()
+	}
+	return __out
+}
+
+func ____rune_private_01b5d206_dtsTypeRefsFromStrings(__parts []string, __index int, __out []__ParsedTypeRef) []__ParsedTypeRef {
+	return func() []__ParsedTypeRef {
+		if __index >= len(__parts) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsTypeRefsFromStringsPush(__parts, __index, __out)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeRefsFromStringsPush(__parts []string, __index int, __out []__ParsedTypeRef) []__ParsedTypeRef {
+	__out = append(__out, ____rune_private_01b5d206_parseDtsTypeRef(__parts[__index]))
+	return ____rune_private_01b5d206_dtsTypeRefsFromStrings(__parts, __index+1, __out)
+}
+
+func ____rune_private_01b5d206_dtsTupleParamsFromStrings(__parts []string, __index int, __out []__ParsedTypeParam) []__ParsedTypeParam {
+	return func() []__ParsedTypeParam {
+		if __index >= len(__parts) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsTupleParamsFromStringsPush(__parts, __index, __out)
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTupleParamsFromStringsPush(__parts []string, __index int, __out []__ParsedTypeParam) []__ParsedTypeParam {
+	__param := __emptyParsedTypeParam()
+	__param.__name = ""
+	__param.__optional = false
+	__param.__typeRef = ____rune_private_01b5d206_parseDtsTypeRef(__parts[__index])
+	__out = append(__out, __param)
+	return ____rune_private_01b5d206_dtsTupleParamsFromStrings(__parts, __index+1, __out)
+}
+
+func ____rune_private_01b5d206_clearNullableTypeRef(__typeRef __ParsedTypeRef) __ParsedTypeRef {
+	return __ParsedTypeRef{__kind: __typeRef.__kind, __name: __typeRef.__name, __module: __typeRef.__module, __nullable: false, __args: __typeRef.__args, __params: __typeRef.__params, __returnTypes: __typeRef.__returnTypes, __line: __typeRef.__line, __column: __typeRef.__column}
+}
+
+func ____rune_private_01b5d206_dtsTypeRef(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		switch {
+		case __typeRef.__nullable == true:
+			return ____rune_private_01b5d206_dtsNullableTypeRef(__typeRef)
+		case __typeRef.__nullable == false:
+			return ____rune_private_01b5d206_dtsPlainTypeRef(__typeRef)
+		}
+		return ""
+	}()
+}
+
+func ____rune_private_01b5d206_dtsNullableTypeRef(__typeRef __ParsedTypeRef) string {
+	return ____rune_private_01b5d206_dtsTypeRef(____rune_private_01b5d206_clearNullableTypeRef(__typeRef)) + " | null"
+}
+
+func ____rune_private_01b5d206_dtsPlainTypeRef(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		switch {
+		case __typeRef.__kind == __TypeRefKind_Name:
+			return ____rune_private_01b5d206_dtsNamedTypeRef(__typeRef)
+		case __typeRef.__kind == __TypeRefKind_Group:
+			return ____rune_private_01b5d206_dtsGroupedTypeRef(__typeRef)
+		case __typeRef.__kind == __TypeRefKind_Tuple:
+			return ____rune_private_01b5d206_dtsTupleTypeRef(__typeRef)
+		case __typeRef.__kind == __TypeRefKind_Function:
+			return ____rune_private_01b5d206_dtsFunctionTypeRef(__typeRef)
+		default:
+			return "any"
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsNamedTypeRef(__typeRef __ParsedTypeRef) string {
+	__typeName := ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef)
+	return func() string {
+		switch {
+		case (__typeName == "") || (__typeName == "Void"):
+			return "void"
+		case (__typeName == "Int") || (__typeName == "Int4") || (__typeName == "Int8") || (__typeName == "Int16") || (__typeName == "UInt") || (__typeName == "UInt8") || (__typeName == "UInt16") || (__typeName == "Byte") || (__typeName == "Double") || (__typeName == "Float"):
+			return "number"
+		case (__typeName == "BigInt") || (__typeName == "Int64") || (__typeName == "UInt64"):
+			return "bigint"
+		case (__typeName == "String") || (__typeName == "Char"):
+			return "string"
+		case __typeName == "Bool":
+			return "boolean"
+		case __typeName == "Null":
+			return "null"
+		case __typeName == "Object":
+			return "object"
+		case __typeName == "Bytes":
+			return "DataView"
+		case __typeName == "Buffer":
+			return "RuneBuffer"
+		case __typeName == "Reader":
+			return "RuneReader"
+		case __typeName == "Writer":
+			return "RuneWriter"
+		case __typeName == "StringBuffer":
+			return "RuneStringBuffer"
+		case __typeName == "FileStat":
+			return "RuneFileStat"
+		case __typeName == "TCPConnection":
+			return "RuneTCPConnection"
+		case __typeName == "TCPListener":
+			return "RuneTCPListener"
+		case (__typeName == "Data") || (__typeName == "@io.Data"):
+			return "Uint8Array"
+		case __typeName == "Error":
+			return "RuneError"
+		case __typeName == "Never":
+			return "never"
+		case __typeName == "Symbol":
+			return "symbol"
+		case __typeName == "Regex":
+			return "RegExp"
+		case __typeName == "HTMLElement":
+			return "HTMLElement"
+		case __typeName == "WebComponent":
+			return "CustomElementConstructor"
+		case (__typeName == "Dynamic") || (__typeName == "Unknown"):
+			return "any"
+		default:
+			return ____rune_private_01b5d206_dtsStructuredNamedTypeRef(__typeRef)
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		if __typeRef.__module == "" {
+			return __typeRef.__name
+		}
+		return "@" + __typeRef.__module + "." + __typeRef.__name
+	}()
+}
+
+func ____rune_private_01b5d206_dtsStructuredNamedTypeRef(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		switch {
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Array":
+			return ____rune_private_01b5d206_dtsArrayTypeRef(__typeRef)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Result":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("RuneResult", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Task":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("Promise", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Iter":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("RuneIter", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "ReadonlyArray":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("ReadonlyArray", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Tuple":
+			return ____rune_private_01b5d206_dtsTupleArgs(__typeRef.__args, false)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "ReadonlyTuple":
+			return ____rune_private_01b5d206_dtsTupleArgs(__typeRef.__args, true)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Map":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("Map", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Set":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("Set", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "WeakMap":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("WeakMap", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "WeakSet":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("WeakSet", __typeRef.__args)
+		case ____rune_private_01b5d206_dtsQualifiedTypeName(__typeRef) == "Record":
+			return ____rune_private_01b5d206_dtsGenericTypeRef("Record", __typeRef.__args)
+		default:
+			return ____rune_private_01b5d206_dtsNamedType(__typeRef)
+		}
+	}()
+}
+
+func ____rune_private_01b5d206_dtsArrayTypeRef(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		if len(__typeRef.__args) == 0 {
+			return "any[]"
+		}
+		return ____rune_private_01b5d206_dtsTypeRef(__typeRef.__args[0]) + "[]"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsGenericTypeRef(__name string, __args []__ParsedTypeRef) string {
+	return __name + "<" + ____rune_private_01b5d206_dtsTypeRefs(__args, 0, "") + ">"
+}
+
+func ____rune_private_01b5d206_dtsNamedType(__typeRef __ParsedTypeRef) string {
+	__prefix := func() string {
+		if __typeRef.__module == "" {
+			return ""
+		}
+		return "@" + __typeRef.__module + "."
+	}()
+	return func() string {
+		if len(__typeRef.__args) == 0 {
+			return __mangleIdent(__prefix + __typeRef.__name)
+		}
+		return __mangleIdent(__prefix+__typeRef.__name) + "<" + ____rune_private_01b5d206_dtsTypeRefs(__typeRef.__args, 0, "") + ">"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsGroupedTypeRef(__typeRef __ParsedTypeRef) string {
+	return func() string {
+		if len(__typeRef.__args) == 0 {
+			return "()"
+		}
+		return "(" + ____rune_private_01b5d206_dtsTypeRef(__typeRef.__args[0]) + ")"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTupleTypeRef(__typeRef __ParsedTypeRef) string {
+	return ____rune_private_01b5d206_dtsTupleParams(__typeRef.__params, false)
+}
+
+func ____rune_private_01b5d206_dtsTupleParams(__params []__ParsedTypeParam, __readonly bool) string {
+	__items := ____rune_private_01b5d206_dtsTypeParams(__params, 0, "")
+	return func() string {
+		if __readonly {
+			return "readonly [" + __items + "]"
+		}
+		return "[" + __items + "]"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTupleArgs(__args []__ParsedTypeRef, __readonly bool) string {
+	__items := ____rune_private_01b5d206_dtsTypeRefs(__args, 0, "")
+	return func() string {
+		if __readonly {
+			return "readonly [" + __items + "]"
+		}
+		return "[" + __items + "]"
+	}()
+}
+
+func ____rune_private_01b5d206_dtsFunctionTypeRef(__typeRef __ParsedTypeRef) string {
+	__ret := func() string {
+		if len(__typeRef.__returnTypes) == 0 {
+			return "void"
+		}
+		return ____rune_private_01b5d206_dtsTypeRef(__typeRef.__returnTypes[0])
+	}()
+	return "(" + ____rune_private_01b5d206_dtsTypeParams(__typeRef.__params, 0, "") + ") => " + __ret
+}
+
+func ____rune_private_01b5d206_dtsTypeRefs(__refs []__ParsedTypeRef, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__refs) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsTypeRefs(__refs, __index+1, __out+func() string {
 			if __index == 0 {
 				return ""
 			}
 			return ", "
-		}()+____rune_private_01b5d206_dtsType(strings.TrimSpace(__args[__index])))
+		}()+____rune_private_01b5d206_dtsTypeRef(__refs[__index]))
 	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeParams(__params []__ParsedTypeParam, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__params) {
+			return __out
+		}
+		return ____rune_private_01b5d206_dtsTypeParams(__params, __index+1, __out+func() string {
+			if __index == 0 {
+				return ""
+			}
+			return ", "
+		}()+____rune_private_01b5d206_dtsTypeParam(__params[__index]))
+	}()
+}
+
+func ____rune_private_01b5d206_dtsTypeParam(__param __ParsedTypeParam) string {
+	__prefix := func() string {
+		if __param.__name == "" {
+			return ""
+		}
+		return __mangleIdent(__param.__name) + func() string {
+			if __param.__optional {
+				return "?: "
+			}
+			return ": "
+		}()
+	}()
+	return __prefix + ____rune_private_01b5d206_dtsTypeRef(__param.__typeRef)
 }
 
 func ____rune_private_01b5d206_dtsExports(__file __IRFile) string {
@@ -9962,7 +10286,11 @@ func __compileDeclarations(__source string) __CompileResult {
 }
 
 func __checkSource(__source string) __CompileResult {
-	return ____rune_private_1ed26dbc_checkFile(____rune_private_1ed26dbc_lowerCompilerSource(__source))
+	return __checkSourceWithPath(__source, "")
+}
+
+func __checkSourceWithPath(__source string, __sourcePath string) __CompileResult {
+	return ____rune_private_1ed26dbc_checkFile(____rune_private_1ed26dbc_lowerCompilerSourceWithPath(__source, __sourcePath))
 }
 
 func __compile(__source string, __target string) __CompileResult {

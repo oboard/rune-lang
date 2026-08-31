@@ -6,7 +6,14 @@ import (
 )
 
 func (s *server) codeLenses(uri string) any {
-	file, _ := parser.Parse(s.docs[uri])
+	text := s.docs[uri]
+	if selfhostCheckSource != nil {
+		checked := selfhostCheckSource(text, uri)
+		if !checked.Ok {
+			return []map[string]any{}
+		}
+	}
+	file, _ := parser.Parse(text)
 	if file == nil {
 		return []map[string]any{}
 	}

@@ -1,4 +1,6 @@
 @"../ir/ir.rn"
+@"../lexer/lexer.rn"
+@"../parser/ast.rn"
 @"./common.rn"
 
 /// Generate a `.d.ts` declaration file describing the public surface of a
@@ -182,105 +184,403 @@ dtsParams(
     )) + mangleIdent(params[index].name)) + ": ") + dtsType(params[index].typeName))
 )
 
-dtsType(typeName: String) -> String => {
-  "" | "Void" => "void"
-  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Byte" | "Double" | "Float" => "number"
-  "BigInt" | "Int64" | "UInt64" => "bigint"
-  "String" | "Char" => "string"
-  "Bool" => "boolean"
-  "Null" => "null"
-  "Object" => "object"
-  "Bytes" => "DataView"
-  "Buffer" => "RuneBuffer"
-  "Reader" => "RuneReader"
-  "Writer" => "RuneWriter"
-  "StringBuffer" => "RuneStringBuffer"
-  "FileStat" => "RuneFileStat"
-  "TCPConnection" => "RuneTCPConnection"
-  "TCPListener" => "RuneTCPListener"
-  "Data" | "@io.Data" => "Uint8Array"
-  "Error" => "RuneError"
-  "Never" => "never"
-  "Symbol" => "symbol"
-  "Regex" => "RegExp"
-  "HTMLElement" => "HTMLElement"
-  "WebComponent" => "CustomElementConstructor"
-  "Dynamic" | "Unknown" => "any"
-  _ => dtsTypeFallback(typeName)
+dtsType(typeName: String) -> String => dtsTypeRef(parseDtsTypeRef(typeName))
+
+parseDtsTypeRef(typeName: String) -> ParsedTypeRef => dtsTypeRefPostfix(lex(typeName), 0, dtsTypeRoot(typeName))
+
+dtsTypeRoot(typeName: String) -> ParsedTypeRef => {
+  first := dtsFirstTypeToken(lex(typeName), 0)
+  first.kind {
+    TokenKind.BitAnd => namedParsedTypeRef(dtsTypeToken("Dynamic"))
+    TokenKind.At => dtsQualifiedTypeRef(lex(typeName), first)
+    TokenKind.LParen => dtsParenTypeRef(typeName, first)
+    TokenKind.Ident => namedParsedTypeRef(first)
+    _ => namedParsedTypeRef(dtsTypeToken(typeName))
+  }
 }
 
-dtsTypeFallback(
-  typeName: String
-) -> String => (
-  typeName.startsWith("&") ? "any"
+dtsFirstTypeToken(
+  tokens: Array[Token],
+  index: Int
+) -> Token => (
+  index >= tokens.length() ? dtsTypeToken("Dynamic")
     : (
-      typeName.endsWith("?") ? dtsType(typeName.slice(0, typeName.length() - 1)) + " | null"
+      tokens[index].kind == TokenKind.EOF ? dtsTypeToken("Dynamic")
+        : tokens[index]
+    )
+)
+
+dtsQualifiedTypeRef(
+  tokens: Array[Token],
+  at: Token
+) -> ParsedTypeRef => {
+  module := dtsTokenAt(tokens, 1)
+  name := dtsTokenAt(tokens, 3)
+  (module.kind == TokenKind.Ident) && (name.kind == TokenKind.Ident) ? qualifiedParsedTypeRef(module, name)
+    : namedParsedTypeRef(dtsTypeToken("Dynamic"))
+}
+
+dtsParenTypeRef(
+  typeName: String,
+  open: Token
+) -> ParsedTypeRef => {
+  close := typeName.lastIndexOf(")")
+  inner := (
+    close > 0 ? typeName.slice(1, close)
+      : ""
+  )
+  parts := dtsSplitTopLevelTypeArgs(inner)
+  parts.length() == 1 ? groupedTypeRef(parseDtsTypeRef(parts[0]), open)
+    : tupleTypeRef(dtsTupleParamsFromStrings(parts, 0, [emptyParsedTypeParam()].slice(0, 0)), open)
+}
+
+dtsTypeToken(typeName: String) -> Token => {
+  kind: TokenKind.Ident,
+  lexeme: typeName,
+  offset: 0,
+  line: 0,
+  column: 0
+}
+
+dtsTypeRefPostfix(
+  tokens: Array[Token],
+  index: Int,
+  typeRef: ParsedTypeRef
+) -> ParsedTypeRef => (
+  index >= tokens.length() ? typeRef
+    : dtsTypeRefPostfixStep(tokens, index, typeRef)
+)
+
+dtsTypeRefPostfixStep(
+  tokens: Array[Token],
+  index: Int,
+  typeRef: ParsedTypeRef
+) -> ParsedTypeRef => {
+  token := tokens[index]
+  token.kind {
+    TokenKind.LBracket => dtsTypeRefPostfix(tokens, dtsSkipBracket(tokens, index + 1, 1), dtsApplyTypeArgs(typeRef, dtsBracketArgs(tokens, index)))
+    TokenKind.Question => dtsTypeRefPostfix(tokens, index + 1, nullableTypeRef(typeRef))
+    _ => dtsTypeRefPostfix(tokens, index + 1, typeRef)
+  }
+}
+
+dtsApplyTypeArgs(
+  typeRef: ParsedTypeRef,
+  args: Array[ParsedTypeRef]
+) -> ParsedTypeRef => typeRefWithArgs(typeRef, args)
+
+dtsBracketArgs(
+  tokens: Array[Token],
+  open: Int
+) -> Array[ParsedTypeRef] => {
+  close := dtsBracketClose(tokens, open + 1, 1)
+  inner := dtsTokenRangeText(tokens, open + 1, close, "")
+  parts := dtsSplitTopLevelTypeArgs(inner)
+  dtsTypeRefsFromStrings(parts, 0, [emptyParsedTypeRef()].slice(0, 0))
+}
+
+dtsBracketClose(
+  tokens: Array[Token],
+  index: Int,
+  depth: Int
+) -> Int => (
+  index >= tokens.length() ? index
+    : (
+      tokens[index].kind == TokenKind.LBracket ? dtsBracketClose(tokens, index + 1, depth + 1)
         : (
-          genericInner(typeName, "Array") != "" ? dtsType(genericInner(typeName, "Array")) + "[]"
-            : (
-              genericInner(typeName, "Result") != "" ? dtsGenericType("RuneResult", genericInner(typeName, "Result"))
-                : (
-                  genericInner(typeName, "Task") != "" ? dtsGenericType("Promise", genericInner(typeName, "Task"))
-                    : (
-                      genericInner(typeName, "Iter") != "" ? dtsGenericType("RuneIter", genericInner(typeName, "Iter"))
-                        : (
-                          genericInner(typeName, "ReadonlyArray") != "" ? dtsGenericType("ReadonlyArray", genericInner(typeName, "ReadonlyArray"))
-                            : (
-                              genericInner(typeName, "Tuple") != "" ? ("[" + dtsTypeArgs(genericInner(typeName, "Tuple"))) + "]"
-                                : (
-                                  genericInner(typeName, "ReadonlyTuple") != "" ? ("readonly [" + dtsTypeArgs(genericInner(typeName, "ReadonlyTuple"))) + "]"
-                                    : (
-                                      genericInner(typeName, "Map") != "" ? dtsGenericType("Map", genericInner(typeName, "Map"))
-                                        : (
-                                          genericInner(typeName, "Set") != "" ? dtsGenericType("Set", genericInner(typeName, "Set"))
-                                            : (
-                                              genericInner(typeName, "WeakMap") != "" ? dtsGenericType("WeakMap", genericInner(typeName, "WeakMap"))
-                                                : (
-                                                  genericInner(typeName, "WeakSet") != "" ? dtsGenericType("WeakSet", genericInner(typeName, "WeakSet"))
-                                                    : (
-                                                      genericInner(typeName, "Record") != "" ? dtsGenericType("Record", genericInner(typeName, "Record"))
-                                                        : dtsNamedType(typeName)
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
+          tokens[index].kind == TokenKind.RBracket ? (
+            depth == 1 ? index
+              : dtsBracketClose(tokens, index + 1, depth - 1)
+          )
+            : dtsBracketClose(tokens, index + 1, depth)
         )
     )
 )
 
-dtsGenericType(
-  name: String,
-  args: String
-) -> String => ((name + "<") + dtsTypeArgs(args)) + ">"
+dtsSkipBracket(
+  tokens: Array[Token],
+  index: Int,
+  depth: Int
+) -> Int => (
+  index >= tokens.length() ? index
+    : (
+      tokens[index].kind == TokenKind.LBracket ? dtsSkipBracket(tokens, index + 1, depth + 1)
+        : (
+          tokens[index].kind == TokenKind.RBracket ? (
+            depth == 1 ? index + 1
+              : dtsSkipBracket(tokens, index + 1, depth - 1)
+          )
+            : dtsSkipBracket(tokens, index + 1, depth)
+        )
+    )
+)
 
-dtsNamedType(typeName: String) -> String => {
-  open := typeName.indexOf("[")
+dtsTokenAt(
+  tokens: Array[Token],
+  index: Int
+) -> Token => (
+  index >= tokens.length() ? dtsTypeToken("Dynamic")
+    : tokens[index]
+)
+
+dtsTokenRangeText(
+  tokens: Array[Token],
+  index: Int,
+  endExclusive: Int,
+  out: String
+) -> String => (
+  (index >= endExclusive) || (index >= tokens.length()) ? out
+    : dtsTokenRangeText(tokens, index + 1, endExclusive, out + tokens[index].lexeme)
+)
+
+dtsSplitTopLevelTypeArgs(source: String) -> Array[String] => dtsSplitTopLevelTypeArgsLoop(source, 0, 0, 0, [])
+
+dtsSplitTopLevelTypeArgsLoop(
+  source: String,
+  index: Int,
+  start: Int,
+  depth: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= source.length() ? dtsPushTypeArg(out, source.slice(start, source.length()).trim())
+    : dtsSplitTopLevelTypeArgsStep(source, index, start, depth, out)
+)
+
+dtsSplitTopLevelTypeArgsStep(
+  source: String,
+  index: Int,
+  start: Int,
+  depth: Int,
+  out: Array[String]
+) -> Array[String] => {
+  ch := source.at(index)
+  ch {
+    '[' | '(' => dtsSplitTopLevelTypeArgsLoop(source, index + 1, start, depth + 1, out)
+    ']' | ')' => dtsSplitTopLevelTypeArgsLoop(source, index + 1, start, depth - 1, out)
+    ',' => (
+      depth == 0 ? dtsSplitTopLevelTypeArgsLoop(source, index + 1, index + 1, depth, dtsPushTypeArg(out, source.slice(start, index).trim()))
+        : dtsSplitTopLevelTypeArgsLoop(source, index + 1, start, depth, out)
+    )
+    _ => dtsSplitTopLevelTypeArgsLoop(source, index + 1, start, depth, out)
+  }
+}
+
+dtsPushTypeArg(
+  out: Array[String],
+  item: String
+) -> Array[String] => {
+  item != "" ? out.push(item)
+  out
+}
+
+dtsTypeRefsFromStrings(
+  parts: Array[String],
+  index: Int,
+  out: Array[ParsedTypeRef]
+) -> Array[ParsedTypeRef] => {
+  index >= parts.length() ? out
+    : dtsTypeRefsFromStringsPush(parts, index, out)
+}
+
+dtsTypeRefsFromStringsPush(
+  parts: Array[String],
+  index: Int,
+  out: Array[ParsedTypeRef]
+) -> Array[ParsedTypeRef] => {
+  out.push(parseDtsTypeRef(parts[index]))
+  dtsTypeRefsFromStrings(parts, index + 1, out)
+}
+
+dtsTupleParamsFromStrings(
+  parts: Array[String],
+  index: Int,
+  out: Array[ParsedTypeParam]
+) -> Array[ParsedTypeParam] => {
+  index >= parts.length() ? out
+    : dtsTupleParamsFromStringsPush(parts, index, out)
+}
+
+dtsTupleParamsFromStringsPush(
+  parts: Array[String],
+  index: Int,
+  out: Array[ParsedTypeParam]
+) -> Array[ParsedTypeParam] => {
+  param := emptyParsedTypeParam()
+  param.name = ""
+  param.optional = false
+  param.typeRef = parseDtsTypeRef(parts[index])
+  out.push(param)
+  dtsTupleParamsFromStrings(parts, index + 1, out)
+}
+
+clearNullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => {
+  kind: typeRef.kind,
+  name: typeRef.name,
+  module: typeRef.module,
+  nullable: false,
+  args: typeRef.args,
+  params: typeRef.params,
+  returnTypes: typeRef.returnTypes,
+  line: typeRef.line,
+  column: typeRef.column
+}
+
+dtsTypeRef(typeRef: ParsedTypeRef) -> String => {
+  typeRef.nullable {
+    true => dtsNullableTypeRef(typeRef)
+    false => dtsPlainTypeRef(typeRef)
+  }
+}
+
+dtsNullableTypeRef(typeRef: ParsedTypeRef) -> String => dtsTypeRef(clearNullableTypeRef(typeRef)) + " | null"
+
+dtsPlainTypeRef(typeRef: ParsedTypeRef) -> String => typeRef.kind {
+  TypeRefKind.Name => dtsNamedTypeRef(typeRef)
+  TypeRefKind.Group => dtsGroupedTypeRef(typeRef)
+  TypeRefKind.Tuple => dtsTupleTypeRef(typeRef)
+  TypeRefKind.Function => dtsFunctionTypeRef(typeRef)
+  _ => "any"
+}
+
+dtsNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
+  typeName := dtsQualifiedTypeName(typeRef)
+  typeName {
+    "" | "Void" => "void"
+    "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Byte" | "Double" | "Float" => "number"
+    "BigInt" | "Int64" | "UInt64" => "bigint"
+    "String" | "Char" => "string"
+    "Bool" => "boolean"
+    "Null" => "null"
+    "Object" => "object"
+    "Bytes" => "DataView"
+    "Buffer" => "RuneBuffer"
+    "Reader" => "RuneReader"
+    "Writer" => "RuneWriter"
+    "StringBuffer" => "RuneStringBuffer"
+    "FileStat" => "RuneFileStat"
+    "TCPConnection" => "RuneTCPConnection"
+    "TCPListener" => "RuneTCPListener"
+    "Data" | "@io.Data" => "Uint8Array"
+    "Error" => "RuneError"
+    "Never" => "never"
+    "Symbol" => "symbol"
+    "Regex" => "RegExp"
+    "HTMLElement" => "HTMLElement"
+    "WebComponent" => "CustomElementConstructor"
+    "Dynamic" | "Unknown" => "any"
+    _ => dtsStructuredNamedTypeRef(typeRef)
+  }
+}
+
+dtsQualifiedTypeName(typeRef: ParsedTypeRef) -> String => (
+  typeRef.module == "" ? typeRef.name
+    : ("@" + typeRef.module) + "." + typeRef.name
+)
+
+dtsStructuredNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
+  dtsQualifiedTypeName(typeRef) {
+    "Array" => dtsArrayTypeRef(typeRef)
+    "Result" => dtsGenericTypeRef("RuneResult", typeRef.args)
+    "Task" => dtsGenericTypeRef("Promise", typeRef.args)
+    "Iter" => dtsGenericTypeRef("RuneIter", typeRef.args)
+    "ReadonlyArray" => dtsGenericTypeRef("ReadonlyArray", typeRef.args)
+    "Tuple" => dtsTupleArgs(typeRef.args, false)
+    "ReadonlyTuple" => dtsTupleArgs(typeRef.args, true)
+    "Map" => dtsGenericTypeRef("Map", typeRef.args)
+    "Set" => dtsGenericTypeRef("Set", typeRef.args)
+    "WeakMap" => dtsGenericTypeRef("WeakMap", typeRef.args)
+    "WeakSet" => dtsGenericTypeRef("WeakSet", typeRef.args)
+    "Record" => dtsGenericTypeRef("Record", typeRef.args)
+    _ => dtsNamedType(typeRef)
+  }
+}
+
+dtsArrayTypeRef(typeRef: ParsedTypeRef) -> String => (
+  typeRef.args.length() == 0 ? "any[]"
+    : dtsTypeRef(typeRef.args[0]) + "[]"
+)
+
+dtsGenericTypeRef(
+  name: String,
+  args: Array[ParsedTypeRef]
+) -> String => ((name + "<") + dtsTypeRefs(args, 0, "")) + ">"
+
+dtsNamedType(typeRef: ParsedTypeRef) -> String => {
+  prefix := (
+    typeRef.module == "" ? ""
+      : ("@" + typeRef.module) + "."
+  )
   (
-    open < 0 ? mangleIdent(typeName)
-      : ((mangleIdent(typeName.slice(0, open)) + "<") + dtsTypeArgs(typeName.slice(open + 1, typeName.length() - 1))) + ">"
+    typeRef.args.length() == 0 ? mangleIdent(prefix + typeRef.name)
+      : ((mangleIdent(prefix + typeRef.name) + "<") + dtsTypeRefs(typeRef.args, 0, "")) + ">"
   )
 }
 
-dtsTypeArgs(args: String) -> String => dtsTypeArgList(args.split(","), 0, "")
+dtsGroupedTypeRef(typeRef: ParsedTypeRef) -> String => (
+  typeRef.args.length() == 0 ? "()"
+    : ("(" + dtsTypeRef(typeRef.args[0])) + ")"
+)
 
-dtsTypeArgList(
-  args: Array[String],
+dtsTupleTypeRef(typeRef: ParsedTypeRef) -> String => dtsTupleParams(typeRef.params, false)
+
+dtsTupleParams(
+  params: Array[ParsedTypeParam],
+  readonly: Bool
+) -> String => {
+  items := dtsTypeParams(params, 0, "")
+  readonly ? ("readonly [" + items) + "]"
+    : ("[" + items) + "]"
+}
+
+dtsTupleArgs(
+  args: Array[ParsedTypeRef],
+  readonly: Bool
+) -> String => {
+  items := dtsTypeRefs(args, 0, "")
+  readonly ? ("readonly [" + items) + "]"
+    : ("[" + items) + "]"
+}
+
+dtsFunctionTypeRef(typeRef: ParsedTypeRef) -> String => {
+  ret := typeRef.returnTypes.length() == 0 ? "void"
+    : dtsTypeRef(typeRef.returnTypes[0])
+  (("(" + dtsTypeParams(typeRef.params, 0, "")) + ") => ") + ret
+}
+
+dtsTypeRefs(
+  refs: Array[ParsedTypeRef],
   index: Int,
   out: String
 ) -> String => (
-  index >= args.length() ? out
-    : dtsTypeArgList(args, index + 1, (out + (
+  index >= refs.length() ? out
+    : dtsTypeRefs(refs, index + 1, (out + (
       index == 0 ? ""
         : ", "
-    )) + dtsType(args[index].trim()))
+    )) + dtsTypeRef(refs[index]))
 )
+
+dtsTypeParams(
+  params: Array[ParsedTypeParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : dtsTypeParams(params, index + 1, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + dtsTypeParam(params[index]))
+)
+
+dtsTypeParam(param: ParsedTypeParam) -> String => {
+  prefix := (
+    param.name == "" ? ""
+      : mangleIdent(param.name) + (
+        param.optional ? "?: "
+          : ": "
+      )
+  )
+  prefix + dtsTypeRef(param.typeRef)
+}
 
 dtsExports(file: IRFile) -> String => (
   (((file.structs.length() + file.enums.length()) + file.constants.length()) + file.functions.length()) == 0 ? ""
