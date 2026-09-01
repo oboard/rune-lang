@@ -429,22 +429,9 @@ func mangleIdent(name string) string {
 func FunctionSymbolName(fn *ir.Function) string {
 	name := fn.SourceName
 	if name == "" {
-		name = sourceNameFromPrivateLink(fn.Name)
-	}
-	if name == "" {
 		name = fn.Name
 	}
 	return mangleIdent(name)
-}
-
-var privateLinkNameRE = regexp.MustCompile(`^__rune_private_[0-9a-f]{8}_(.+)$`)
-
-func sourceNameFromPrivateLink(name string) string {
-	match := privateLinkNameRE.FindStringSubmatch(name)
-	if len(match) != 2 {
-		return ""
-	}
-	return match[1]
 }
 
 func isSafeMangledIdentRune(ch rune) bool {

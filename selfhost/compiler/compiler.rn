@@ -1,4 +1,5 @@
 @"../ir/ir.rn"
+@"../infer/infer.rn"
 @"./common.rn"
 @"./go.rn"
 @"./mbt.rn"
@@ -21,24 +22,10 @@
   files: Array[SourceFile]
 }
 
-CompilerCallable: {
-  name: String
-  arity: Int
-  returnType: String
-  paramTypes: Array[String]
-  private: Bool
-  sourcePath: String
-}
-
 CompilerMacroBinding: {
   name: String
   macro: Bool
   paramTypes: Array[String]
-}
-
-CompilerTypeBinding: {
-  name: String
-  typeName: String
 }
 
 CompilerNamespaceAlias: {
@@ -210,7 +197,8 @@ checkFile(file: IRFile) -> CompileResult => (
 )
 
 checkCheckedFile(file: IRFile) -> CompileResult => {
-  errors := checkFileErrors(file)
+  inferred := inferFile(file)
+  errors := checkFileErrors(inferred)
   errors.length() > 0 ? compileResult(false, "", errors)
     : compileResult(true, "", [])
 }
@@ -219,16 +207,17 @@ compileCheckedFile(
   file: IRFile,
   target: String
 ) -> CompileResult => {
-  errors := checkFileErrors(file)
-  targetErrors := checkTargetFileErrors(file, target)
+  inferred := inferFile(file)
+  errors := checkFileErrors(inferred)
+  targetErrors := checkTargetFileErrors(inferred, target)
   allErrors := [..errors, ..targetErrors]
   (
     allErrors.length() > 0 ? compileResult(false, "", allErrors)
       : target {
-        "ts" => compileResult(true, generateTypeScript(file), [])
-        "go" => compileResult(true, generateGo(file), [])
-        "mbt" => compileResult(true, generateMoonBit(file), [])
-        "dts" => compileResult(true, generateDeclarations(file), [])
+        "ts" => compileResult(true, generateTypeScript(inferred), [])
+        "go" => compileResult(true, generateGo(inferred), [])
+        "mbt" => compileResult(true, generateMoonBit(inferred), [])
+        "dts" => compileResult(true, generateDeclarations(inferred), [])
         _ => compileResult(false, "", unsupportedTargetErrors(target))
       }
   )
@@ -1487,7 +1476,7 @@ checkBinaryExpr(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
   checked := checkExprDefault(expr, structs, callables, errors, bindings)
-  boolOp := (expr.op == "&&") || (expr.op == "||")
+  boolOp := expr.op ~ ("&&" | "||")
   boolOp {
     true => checkBinaryBoolOperands(expr, callables, bindings, checked)
     _ => checkTypedBinaryExpr(expr, callables, bindings, checked)
@@ -1940,11 +1929,11 @@ checkOrderedComparisonMatch(
 
 compilerOrderedComparisonOp(
   op: String
-) -> Bool => (((op == "<") || (op == "<=")) || (op == ">")) || (op == ">=")
+) -> Bool => op ~ ("<" | "<=" | ">" | ">=")
 
 compilerEqualityComparisonOp(
   op: String
-) -> Bool => (op == "==") || (op == "!=")
+) -> Bool => op ~ ("==" | "!=")
 
 compilerOrderedComparisonType(
   typeName: String
@@ -2197,9 +2186,9 @@ checkModuloOperand(
   }
 }
 
-compilerArithmeticOp(op: String) -> Bool => (((op == "+") || (op == "-")) || (op == "*")) || ((op == "/") || (op == "%"))
+compilerArithmeticOp(op: String) -> Bool => op ~ ("+" | "-" | "*" | "/" | "%")
 
-compilerBitwiseOp(op: String) -> Bool => (((op == "&") || (op == "|")) || ((op == "^") || (op == "<<"))) || ((op == ">>") || (op == ">>>"))
+compilerBitwiseOp(op: String) -> Bool => op ~ ("&" | "|" | "^" | "<<" | ">>" | ">>>")
 
 compilerNumericType(
   typeName: String
@@ -2382,7 +2371,8 @@ checkStructSelectorExpr(
   errors: Array[String]
 ) -> Array[String] => receiverType {
   "" => errors
-  _ => {
+  _ => compilerStructuralObjectFieldType(receiverType, expr.name) {
+    "" => {
     typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
     found := typeDecl.name != ""
     found {
@@ -2392,7 +2382,40 @@ checkStructSelectorExpr(
       }
       _ => [..errors, ("type " + receiverType) + " has no fields"]
     }
+    }
+    _ => errors
   }
+}
+
+compilerStructuralObjectFieldType(
+  typeName: String,
+  fieldName: String
+) -> String => {
+  valid := typeName.startsWith("{") && typeName.endsWith("}")
+  valid {
+    true => compilerStructuralObjectFieldTypeInParts(typeName.slice(1, typeName.length() - 1).split(";"), fieldName, 0)
+    _ => ""
+  }
+}
+
+compilerStructuralObjectFieldTypeInParts(
+  parts: Array[String],
+  fieldName: String,
+  index: Int
+) -> String => (
+  index >= parts.length() ? ""
+    : compilerStructuralObjectFieldTypePart(parts[index], fieldName) {
+      "" => compilerStructuralObjectFieldTypeInParts(parts, fieldName, index + 1)
+      _ => compilerStructuralObjectFieldTypePart(parts[index], fieldName)
+    }
+)
+
+compilerStructuralObjectFieldTypePart(
+  part: String,
+  fieldName: String
+) -> String => {
+  pieces := part.split(":")
+  (pieces.length() == 2) && (pieces[0] == fieldName) ? pieces[1] : ""
 }
 
 checkStructSelectorField(
@@ -4026,8 +4049,8 @@ inferCompilerBinaryType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
-  comparison := (((expr.op == "==") || (expr.op == "!=")) || ((expr.op == "<") || (expr.op == "<="))) || ((expr.op == ">") || (expr.op == ">="))
-  boolOp := (expr.op == "&&") || (expr.op == "||")
+  comparison := expr.op ~ ("==" | "!=" | "<" | "<=" | ">" | ">=")
+  boolOp := expr.op ~ ("&&" | "||")
   knownBool := comparison || boolOp
   knownBool {
     true => "Bool"

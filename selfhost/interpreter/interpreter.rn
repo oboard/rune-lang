@@ -813,45 +813,15 @@ evalBinaryValues(
   op: String,
   left: RuntimeValue,
   right: RuntimeValue
-) -> EvalResult => (
-  op == "+" ? evalPlus(left, right)
-    : (
-      isBitwiseOperator(op) ? evalBitwiseValues(op, left, right)
-        : (
-          op == "-" ? evalIntBinary(left, right, op)
-            : (
-              op == "*" ? evalIntBinary(left, right, op)
-                : (
-                  op == "/" ? evalIntBinary(left, right, op)
-                    : (
-                      op == "%" ? evalIntBinary(left, right, op)
-                        : (
-                          op == "==" ? okResult(boolValue(runtimeEqual(left, right)))
-                            : (
-                              op == "!=" ? okResult(boolValue(!runtimeEqual(left, right)))
-                                : (
-                                  op == "<" ? evalOrdered(left, right, op)
-                                    : (
-                                      op == "<=" ? evalOrdered(left, right, op)
-                                        : (
-                                          op == ">" ? evalOrdered(left, right, op)
-                                            : (
-                                              op == ">=" ? evalOrdered(left, right, op)
-                                                : errorResult("unsupported binary operator " + op)
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
-
-isBitwiseOperator(op: String) -> Bool => (((op == "&") || (op == "|")) || ((op == "^") || (op == "<<"))) || ((op == ">>") || (op == ">>>"))
+) -> EvalResult => op {
+  "+" => evalPlus(left, right)
+  "&" | "|" | "^" | "<<" | ">>" | ">>>" => evalBitwiseValues(op, left, right)
+  "-" | "*" | "/" | "%" => evalIntBinary(left, right, op)
+  "==" => okResult(boolValue(runtimeEqual(left, right)))
+  "!=" => okResult(boolValue(!runtimeEqual(left, right)))
+  "<" | "<=" | ">" | ">=" => evalOrdered(left, right, op)
+  _ => errorResult("unsupported binary operator " + op)
+}
 
 evalBitwiseValues(
   op: String,

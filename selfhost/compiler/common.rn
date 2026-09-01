@@ -1,5 +1,19 @@
 @"../ir/ir.rn"
 
++ CompilerCallable: {
+  name: String
+  arity: Int
+  returnType: String
+  paramTypes: Array[String]
+  private: Bool
+  sourcePath: String
+}
+
++ CompilerTypeBinding: {
+  name: String
+  typeName: String
+}
+
 + enumValue(
   member: IREnumMember,
   index: Int

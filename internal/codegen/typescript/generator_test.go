@@ -178,7 +178,7 @@ render() -> HTMLElement => {
 	}
 }
 
-func TestGeneratePrivateFunctionUsesSourceName(t *testing.T) {
+func TestGeneratePrivateLinkNameWithPathUsesSourceName(t *testing.T) {
 	src := `+ greeting(name: String) -> String => privateGreeting(name)
 
 privateGreeting(name: String) -> String => "hello, " + name

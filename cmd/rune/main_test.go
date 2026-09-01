@@ -142,6 +142,39 @@ func TestRuneCLIGoUsesSelfhostCompilerImportGraph(t *testing.T) {
 	}
 }
 
+func TestGeneratedSelfhostCompilerInfersComplexStructuralTypes(t *testing.T) {
+	source := `fun(flag) => {
+  (flag ? (x) => { k: x.a + 1 } : (y) => { k: y.b + 1 })({ b: 2, z: false, a: 1 }).k
+}
+main() => @io.println(fun(true) + fun(false))
+`
+	result := __compileGo(source)
+	if !result.__ok {
+		t.Fatalf("__compileGo() errors = %v", result.__errors)
+	}
+	if !strings.Contains(result.__output, "func __fun(__flag bool) int") {
+		t.Fatalf("selfhost generated Go = %q, want inferred bool-to-int signature", result.__output)
+	}
+	if !strings.Contains(result.__output, "struct { __k int;") {
+		t.Fatalf("selfhost generated Go = %q, want inferred object result", result.__output)
+	}
+	formatted, err := format.Source([]byte(result.__output))
+	if err != nil {
+		t.Fatalf("format selfhost generated Go: %v\n%s", err, result.__output)
+	}
+	goFile := filepath.Join(t.TempDir(), "main.go")
+	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command("go", "run", goFile).CombinedOutput()
+	if err != nil {
+		t.Fatalf("run selfhost generated Go: %v\n%s", err, out)
+	}
+	if got := string(out); got != "5\n" {
+		t.Fatalf("selfhost generated output = %q, want 5", got)
+	}
+}
+
 func TestRuneCLIGoUsesSelfhostCompiler(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.rn")

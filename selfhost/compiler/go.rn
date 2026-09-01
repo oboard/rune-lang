@@ -700,10 +700,25 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Spread => emitGoExpr(expr.children[0])
   ExprKind.Reactive => emitGoExpr(expr.children[0])
   ExprKind.Struct => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
-  ExprKind.Object => "struct{}{}"
+  ExprKind.Object => emitGoInferredObject(expr)
   ExprKind.Block => ("func() any {\n" + emitGoBlockNoContext(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
   _ => "nil"
 }
+
+emitGoInferredObject(expr: IRExpr) -> String => {
+  typeName := expr.text
+  typeName.startsWith("{") && typeName.endsWith("}") ? ((goStructuralObjectType(typeName) + "{") + emitGoFields(expr.children, 0, "")) + "}"
+    : "struct{}{}"
+}
+
+goStructuralObjectType(typeName: String) -> String => (
+  "struct {" + goStructuralObjectFields(typeName.slice(1, typeName.length() - 1).split(";"), 0, "") + "}"
+)
+
+goStructuralObjectFields(parts: Array[String], index: Int, out: String) -> String => (
+  index >= parts.length() ? out
+    : goStructuralObjectFields(parts, index + 1, out + " " + mangleIdent(parts[index].split(":")[0]) + " " + goType(parts[index].split(":")[1]) + ";")
+)
 
 emitGoExprExpected(
   expr: IRExpr,
@@ -999,10 +1014,25 @@ goCoalesceResultType(
   )
 }
 
-emitGoTernary(expr: IRExpr) -> String => ((((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
-  expr.children.length() > 2 ? emitGoExpr(expr.children[2])
-    : "nil"
-)) + " }()"
+emitGoTernary(expr: IRExpr) -> String => {
+  resultType := expr.text
+  resultType.startsWith("Func[") ? ((((("func() " + goFunctionType(resultType)) + " { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return " + emitGoExpr(expr.children[2])) + " }()"
+    : (((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
+      expr.children.length() > 2 ? emitGoExpr(expr.children[2])
+        : "nil"
+    ) + " }()"
+}
+
+goFunctionType(typeName: String) -> String => {
+  parts := typeName.slice(5, typeName.length() - 1).split("|")
+  last := parts.length() - 1
+  "func(" + goFunctionParamTypes(parts, 0, last, "") + ") " + goType(parts[last])
+}
+
+goFunctionParamTypes(parts: Array[String], index: Int, last: Int, out: String) -> String => (
+  index >= last ? out
+    : goFunctionParamTypes(parts, index + 1, last, out + (index == 0 ? "" : ", ") + goType(parts[index]))
+)
 
 emitGoAssign(expr: IRExpr) -> String => (
   expr.children.length() == 2 ? (emitGoExpr(expr.children[0]) + " = ") + emitGoExpr(expr.children[1])
@@ -1167,7 +1197,15 @@ emitGoCoreToString(receiver: IRExpr) -> String => receiver.text {
   _ => emitGoExpr(receiver)
 }
 
-emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
+emitGoLambda(expr: IRExpr) -> String => {
+  returnType := expr.text.startsWith("Func[") ? goFunctionReturnType(expr.text) : "any"
+  ((("func(" + emitGoParams(expr.params, 0, "")) + ") ") + goType(returnType)) + " { return " + emitGoExpr(expr.children[0]) + " }"
+}
+
+goFunctionReturnType(typeName: String) -> String => {
+  parts := typeName.slice(5, typeName.length() - 1).split("|")
+  parts[parts.length() - 1]
+}
 
 emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
   ExprKind.At => emitGoAtSelector(expr)
@@ -1771,6 +1809,8 @@ goType(typeName: String) -> String => typeName {
 goTypeFallback(
   typeName: String
 ) -> String => (
+  typeName.startsWith("{") && typeName.endsWith("}") ? goStructuralObjectType(typeName)
+    : (
   typeName.endsWith("?") ? "any"
     : (
       genericInner(typeName, "Array") != "" ? "[]" + goType(genericInner(typeName, "Array"))
@@ -1785,6 +1825,7 @@ goTypeFallback(
             )
         )
     )
+)
 )
 
 goNamedType(

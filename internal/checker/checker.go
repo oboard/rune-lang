@@ -1,8 +1,9 @@
 package checker
 
 import (
-	"fmt"
-	"hash/fnv"
+	"path/filepath"
+	"strings"
+	"unicode"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -182,7 +183,27 @@ type Info struct {
 }
 
 func privateLinkName(sourcePath string, name string) string {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(normalizeSourcePath(sourcePath)))
-	return fmt.Sprintf("__rune_private_%08x_%s", h.Sum32(), name)
+	path := strings.TrimSuffix(filepath.ToSlash(privateLinkRelativePath(sourcePath)), filepath.Ext(sourcePath))
+	return privateLinkPathName(path) + "_" + name
+}
+
+func privateLinkRelativePath(path string) string {
+	for _, marker := range []string{"selfhost/", "core/", "examples/", "tests/"} {
+		if index := strings.Index(filepath.ToSlash(path), marker); index >= 0 {
+			return filepath.ToSlash(path)[index:]
+		}
+	}
+	return path
+}
+
+func privateLinkPathName(path string) string {
+	var b strings.Builder
+	for _, ch := range path {
+		if unicode.IsLetter(ch) || unicode.IsDigit(ch) {
+			b.WriteRune(ch)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	return strings.Trim(b.String(), "_")
 }

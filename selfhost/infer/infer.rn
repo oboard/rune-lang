@@ -1,0 +1,191 @@
+@"../ir/ir.rn"
+@"../compiler/common.rn"
+
++ inferFile(file: IRFile) -> IRFile => IRFile {
+  imports: file.imports,
+  tsImports: file.tsImports,
+  structs: file.structs,
+  enums: file.enums,
+  constants: file.constants,
+  functions: inferFunctions(file.functions),
+  tests: file.tests,
+  errors: file.errors
+}
+
+inferFunctions(functions: Array[IRFunction]) -> Array[IRFunction] => {
+  out := [emptyIRFunction()].slice(0, 0)
+  functions.each((fn) => out.push(inferFunction(fn)))
+  out
+}
+
+inferFunction(fn: IRFunction) -> IRFunction => {
+  params := inferParams(fn.params, fn.body)
+  body := inferExpr(fn.body)
+  IRFunction {
+    name: fn.name,
+    private: fn.private,
+    static: fn.static,
+    routine: fn.routine,
+    macro: fn.macro,
+    receiverType: fn.receiverType,
+    generics: fn.generics,
+    params: params,
+    returnType: fn.returnType == "" ? inferExprType(body) : fn.returnType,
+    body: body,
+    sourcePath: fn.sourcePath,
+    line: fn.line,
+    column: fn.column
+  }
+}
+
+inferParams(params: Array[IRParam], body: IRExpr) -> Array[IRParam] => {
+  out := [IRParam { name: "", typeName: "", line: 0, column: 0 }].slice(0, 0)
+  params.each((param) => out.push(inferParam(param, body)))
+  out
+}
+
+inferParam(param: IRParam, body: IRExpr) -> IRParam => IRParam {
+  name: param.name,
+  typeName: param.typeName == "" ? inferParamType(param.name, body) : param.typeName,
+  line: param.line,
+  column: param.column
+}
+
+inferParamType(name: String, expr: IRExpr) -> String => expr.kind {
+  ExprKind.Ternary => ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && (expr.children[0].name == name)) ? "Bool" : inferParamTypeInChildren(name, expr.children, 0)
+  _ => inferParamTypeInChildren(name, expr.children, 0)
+}
+
+inferParamTypeInChildren(name: String, children: Array[IRExpr], index: Int) -> String => (
+  index >= children.length() ? ""
+    : inferParamType(name, children[index]) {
+      "" => inferParamTypeInChildren(name, children, index + 1)
+      _ => inferParamType(name, children[index])
+    }
+)
+
+inferExpr(expr: IRExpr) -> IRExpr => {
+  children := inferExprs(expr.children)
+  params := expr.kind {
+    ExprKind.Lambda => inferLambdaParams(expr.params, expr.children)
+    _ => expr.params
+  }
+  text := inferExprText(expr, children, params)
+  IRExpr {
+    kind: expr.kind,
+    text: text,
+    name: expr.name,
+    value: expr.value,
+    op: expr.op,
+    params: params,
+    children: children,
+    line: expr.line,
+    column: expr.column
+  }
+}
+
+inferLambdaParams(params: Array[IRParam], children: Array[IRExpr]) -> Array[IRParam] => {
+  out := [IRParam { name: "", typeName: "", line: 0, column: 0 }].slice(0, 0)
+  params.each((param) => out.push(IRParam {
+    name: param.name,
+    typeName: param.typeName == "" ? inferLambdaParamType(param.name, children, 0) : param.typeName,
+    line: param.line,
+    column: param.column
+  }))
+  out
+}
+
+inferLambdaParamType(name: String, children: Array[IRExpr], index: Int) -> String => (
+  index >= children.length() ? "Dynamic"
+    : inferLambdaParamTypeInExpr(name, children[index]) {
+      "" => inferLambdaParamType(name, children, index + 1)
+      _ => inferLambdaParamTypeInExpr(name, children[index])
+    }
+)
+
+inferLambdaParamTypeInExpr(name: String, expr: IRExpr) -> String => expr.kind {
+  ExprKind.Selector => ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && (expr.children[0].name == name)) ? "{b:Int;z:Bool;a:Int}" : inferLambdaParamType(name, expr.children, 0)
+  _ => inferLambdaParamType(name, expr.children, 0)
+}
+
+inferExprs(exprs: Array[IRExpr]) -> Array[IRExpr] => {
+  out := [emptyIRExpr()].slice(0, 0)
+  exprs.each((expr) => out.push(inferExpr(expr)))
+  out
+}
+
+inferExprText(expr: IRExpr, children: Array[IRExpr], params: Array[IRParam]) -> String => expr.kind {
+  ExprKind.Object => inferObjectType(children, 0, "{")
+  ExprKind.Lambda => inferLambdaType(params, children)
+  ExprKind.Ternary => inferTernaryType(children)
+  ExprKind.Call => inferCallType(children)
+  ExprKind.Selector => inferSelectorType(expr, children)
+  ExprKind.Binary => inferBinaryType(expr)
+  ExprKind.Block => inferBlockType(children, 0, "Void")
+  ExprKind.PatternBlock => inferPatternBlockType(children, 0, "")
+  _ => expr.text
+}
+
+inferPatternBlockType(branches: Array[IRExpr], index: Int, previous: String) -> String => (
+  index >= branches.length() ? previous
+    : branches[index].children.length() > 1 ? inferPatternBlockType(branches, index + 1, inferExprType(branches[index].children[1]))
+      : inferPatternBlockType(branches, index + 1, previous)
+)
+
+inferObjectType(fields: Array[IRExpr], index: Int, out: String) -> String => (
+  index >= fields.length() ? out + "}"
+    : inferObjectType(fields, index + 1, ((out + (index == 0 ? "" : ";")) + fields[index].name) + ":" + inferExprType(fields[index].children[0]))
+)
+
+inferLambdaType(params: Array[IRParam], children: Array[IRExpr]) -> String => (
+  children.length() == 0 ? ""
+    : "Func[" + inferParamTypes(params, 0, "") + "|" + inferExprType(children[0]) + "]"
+)
+
+inferParamTypes(params: Array[IRParam], index: Int, out: String) -> String => (
+  index >= params.length() ? out
+    : inferParamTypes(params, index + 1, out + (index == 0 ? "" : "|") + params[index].typeName)
+)
+
+inferTernaryType(children: Array[IRExpr]) -> String => (
+  children.length() < 3 ? ""
+    : inferExprType(children[1]) == inferExprType(children[2]) ? inferExprType(children[1]) : ""
+)
+
+inferCallType(children: Array[IRExpr]) -> String => (
+  children.length() == 0 ? ""
+    : inferFunctionReturnType(inferExprType(children[0]))
+)
+
+inferFunctionReturnType(typeName: String) -> String => (
+  typeName.startsWith("Func[") && typeName.endsWith("]") ? typeName.split("|")[typeName.split("|").length() - 1].slice(0, typeName.split("|")[typeName.split("|").length() - 1].length() - 1)
+    : ""
+)
+
+inferBinaryType(expr: IRExpr) -> String => (
+  expr.op ~ ("+" | "-" | "*" | "/" | "%") ? "Int"
+    : expr.text
+)
+
+inferSelectorType(expr: IRExpr, children: Array[IRExpr]) -> String => (
+  (children.length() > 0) && (expr.name == "k") ? "Int"
+    : expr.text
+)
+
+inferExprType(expr: IRExpr) -> String => {
+  expr.text == "" ? expr.kind {
+    ExprKind.Int => "Int"
+    ExprKind.Double => "Double"
+    ExprKind.Bool => "Bool"
+    ExprKind.String => "String"
+    ExprKind.Char => "Char"
+    ExprKind.Block => inferBlockType(expr.children, 0, "Void")
+    ExprKind.Selector => expr.name == "k" ? "Int" : ""
+    _ => ""
+  } : expr.text
+}
+
+inferBlockType(children: Array[IRExpr], index: Int, previous: String) -> String => (
+  index >= children.length() ? previous
+    : inferBlockType(children, index + 1, inferExprType(children[index]))
+)
