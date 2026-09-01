@@ -1,87 +1,129 @@
 + Reader: {
-  length() -> Int => "%reader.length"
+  values: Bytes
+  offset: Int
+  nibble: Int
 
-  byteLength() -> Int => "%reader.length"
+  length() -> Int => .values.length()
 
-  position() -> Int => "%reader.position"
+  byteLength() -> Int => .length()
 
-  remaining() -> Int => "%reader.remaining"
+  position() -> Int => .offset
 
-  isEmpty() -> Bool => "%reader.isEmpty"
+  remaining() -> Int => .length() - .offset
 
-  seek(position: Int) -> Int => "%reader.seek"
+  isEmpty() -> Bool => .remaining() == 0
 
-  skip(count: Int) -> Int => "%reader.skip"
+  seek(position: Int) -> Int => {
+    .values.slice(position, position)
+    .offset = position
+    .nibble = 0
+    .offset
+  }
 
-  read(length: Int) -> Bytes => "%reader.readBytes"
+  skip(count: Int) -> Int => .seek(.offset + count)
 
-  readBytes(length: Int) -> Bytes => "%reader.readBytes"
+  align() -> Void => {
+    (
+      .nibble == 1 ? .offset = .offset + 1
+        : null
+    )
+    .nibble = 0
+  }
 
-  readInt4() -> Int4 => "%reader.readInt4"
+  take(length: Int) -> Bytes => {
+    .align()
+    out := .values.slice(.offset, .offset + length)
+    .offset = .offset + length
+    out
+  }
 
-  readInt8() -> Int8 => "%reader.readInt8"
+  read(length: Int) -> Bytes => .take(length)
 
-  readUInt8() -> UInt8 => "%reader.readUInt8"
+  readBytes(length: Int) -> Bytes => .take(length)
 
-  readUint8() -> UInt8 => "%reader.readUInt8"
+  readInt4() -> Int4 => {
+    value := .values.getInt4((.offset * 2) + .nibble)
+    (
+      .nibble == 0 ? .setNibble(1)
+        : .advanceNibble()
+    )
+    value
+  }
 
-  readInt16(littleEndian: Bool) -> Int16 => "%reader.readInt16"
+  setNibble(value: Int) -> Void => .nibble = value
+
+  advanceNibble() -> Void => {
+    .nibble = 0
+    .offset = .offset + 1
+  }
+
+  readInt8() -> Int8 => .take(1).getInt8(0)
+
+  readUInt8() -> UInt8 => .take(1).getUInt8(0)
+
+  readUint8() -> UInt8 => .readUInt8()
+
+  readInt16(littleEndian: Bool) -> Int16 => .take(2).getInt16(0, littleEndian)
 
   readUInt16(
     littleEndian: Bool
-  ) -> UInt16 => "%reader.readUInt16"
+  ) -> UInt16 => .take(2).getUInt16(0, littleEndian)
 
   readUint16(
     littleEndian: Bool
-  ) -> UInt16 => "%reader.readUInt16"
+  ) -> UInt16 => .readUInt16(littleEndian)
 
-  readInt(littleEndian: Bool) -> Int => "%reader.readInt"
+  readInt(littleEndian: Bool) -> Int => .take(4).getInt(0, littleEndian)
 
-  readInt32(littleEndian: Bool) -> Int => "%reader.readInt"
+  readInt32(littleEndian: Bool) -> Int => .readInt(littleEndian)
 
-  readUInt(littleEndian: Bool) -> UInt => "%reader.readUInt"
+  readUInt(littleEndian: Bool) -> UInt => .take(4).getUInt(0, littleEndian)
 
-  readUint(littleEndian: Bool) -> UInt => "%reader.readUInt"
+  readUint(littleEndian: Bool) -> UInt => .readUInt(littleEndian)
 
-  readUInt32(littleEndian: Bool) -> UInt => "%reader.readUInt"
+  readUInt32(littleEndian: Bool) -> UInt => .readUInt(littleEndian)
 
-  readUint32(littleEndian: Bool) -> UInt => "%reader.readUInt"
+  readUint32(littleEndian: Bool) -> UInt => .readUInt(littleEndian)
 
-  readInt64(littleEndian: Bool) -> Int64 => "%reader.readInt64"
+  readInt64(littleEndian: Bool) -> Int64 => .take(8).getInt64(0, littleEndian)
 
   readBigInt64(
     littleEndian: Bool
-  ) -> Int64 => "%reader.readInt64"
+  ) -> Int64 => .readInt64(littleEndian)
 
   readUInt64(
     littleEndian: Bool
-  ) -> UInt64 => "%reader.readUInt64"
+  ) -> UInt64 => .take(8).getUInt64(0, littleEndian)
 
   readUint64(
     littleEndian: Bool
-  ) -> UInt64 => "%reader.readUInt64"
+  ) -> UInt64 => .readUInt64(littleEndian)
 
   readBigUInt64(
     littleEndian: Bool
-  ) -> UInt64 => "%reader.readUInt64"
+  ) -> UInt64 => .readUInt64(littleEndian)
 
   readBigUint64(
     littleEndian: Bool
-  ) -> UInt64 => "%reader.readUInt64"
+  ) -> UInt64 => .readUInt64(littleEndian)
 
-  readFloat(littleEndian: Bool) -> Float => "%reader.readFloat"
+  readFloat(littleEndian: Bool) -> Float => .take(4).getFloat(0, littleEndian)
 
   readFloat32(
     littleEndian: Bool
-  ) -> Float => "%reader.readFloat"
+  ) -> Float => .readFloat(littleEndian)
 
   readDouble(
     littleEndian: Bool
-  ) -> Double => "%reader.readDouble"
+  ) -> Double => .take(8).getDouble(0, littleEndian)
 
   readFloat64(
     littleEndian: Bool
-  ) -> Double => "%reader.readDouble"
+  ) -> Double => .readDouble(littleEndian)
 }
 
-+ new(value: Bytes) -> Reader => "%reader.new"
++ new(value: Bytes) -> Reader => {
+  values: value.clone(),
+  offset: 0,
+  nibble: 0
+}

@@ -98,6 +98,23 @@
   @assert.eq(fromBytes.toInts()[1], 8)
 }
 
+? "buffer clone and exports do not share storage" {
+  source := @bytes.fromInts([1, 2])
+  buffer := @buffer.fromBytes(source)
+  source.setUInt8(0, @uint8.fromInt(9))
+  @assert.eq(buffer.toInts()[0], 1)
+  clone := buffer.clone()
+  clone.appendInt(3)
+  @assert.eq(buffer.length(), 2)
+  @assert.eq(clone.length(), 3)
+  bytes := buffer.toBytes()
+  bytes.setUInt8(0, @uint8.fromInt(7))
+  @assert.eq(buffer.toInts()[0], 1)
+  ints := buffer.toInts()
+  ints.set(1, 8)
+  @assert.eq(buffer.toInts()[1], 2)
+}
+
 ? "reader module reads sequential values" {
   writer := @writer.new()
   writer.writeInt4(@int4.fromInt(0 - 1))
@@ -121,11 +138,27 @@
   @assert.eq(reader.readFloat64(false), 2.25)
   @assert.eq(reader.remaining(), 0)
   @assert.eq(reader.isEmpty(), true)
-
   sized := @writer.withCapacity(8)
   sized.writeUInt8(@uint8.fromInt(7))
   @assert.eq(sized.length(), 1)
   @assert.eq(@uint8.toInt(sized.toBytes().getUInt8(0)), 7)
+}
+
+? "reader and writer preserve copies and nibble alignment" {
+  source := @bytes.fromInts([18, 52])
+  reader := @reader.new(source)
+  source.setUInt8(0, @uint8.fromInt(255))
+  @assert.eq(@int4.toInt(reader.readInt4()), 1)
+  @assert.eq(@int4.toInt(reader.readInt4()), 2)
+  @assert.eq(@uint8.toInt(reader.readUInt8()), 52)
+  writer := @writer.new()
+  writer.writeInt4(@int4.fromInt(1))
+  writer.writeUInt8(@uint8.fromInt(52))
+  @assert.eq(writer.toInts()[0], 16)
+  @assert.eq(writer.toInts()[1], 52)
+  exported := writer.toBytes()
+  exported.setUInt8(1, @uint8.fromInt(255))
+  @assert.eq(writer.toInts()[1], 52)
 }
 
 ? "reader seek skip and buffer helpers" {

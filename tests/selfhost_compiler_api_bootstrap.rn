@@ -33,6 +33,18 @@ assertCompilesAllBackends(
   assertCompilesAllBackends(source)
 }
 
+? "selfhost compiler resolves methods declared later" {
+  source := `+ Buffer: {
+  appendBytes(values: Array[Int]) -> Buffer => .appendInts(values)
+
+  appendInts(values: Array[Int]) -> Buffer => this
+}
+`
+  result := checkSource(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler compiles binary APIs" {
   source := `main() -> String => {
   writer := @writer.new()

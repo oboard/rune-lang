@@ -1,124 +1,195 @@
 + Writer: {
-  length() -> Int => "%writer.length"
+  values: Array[Int]
+  nibble: Int
 
-  byteLength() -> Int => "%writer.length"
+  length() -> Int => .values.length()
 
-  position() -> Int => "%writer.position"
+  byteLength() -> Int => .length()
 
-  clear() -> Void => "%writer.clear"
+  position() -> Int => .length()
 
-  toBytes() -> Bytes => "%writer.toBytes"
+  clear() -> Void => {
+    .values = []
+    .nibble = 0
+  }
 
-  toInts() -> Array[Int] => "%writer.toInts"
+  toBytes() -> Bytes => @bytes.fromInts(.values.clone())
 
-  write(value: Bytes) -> Writer => "%writer.writeBytes"
+  toInts() -> Array[Int] => .values.clone()
 
-  writeBytes(value: Bytes) -> Writer => "%writer.writeBytes"
+  align() -> Void => .nibble = 0
 
-  writeInt4(value: Int4) -> Writer => "%writer.writeInt4"
+  write(value: Bytes) -> Writer => .writeBytes(value)
 
-  writeInt8(value: Int8) -> Writer => "%writer.writeInt8"
+  writeBytes(value: Bytes) -> Writer => {
+    .align()
+    value.toInts().each((byte) => .values.push(byte))
+    this
+  }
 
-  writeUInt8(value: UInt8) -> Writer => "%writer.writeUInt8"
+  writeInt4(value: Int4) -> Writer => (
+    .nibble == 0 ? .writeInt4High(value)
+      : .writeInt4Low(value)
+  )
 
-  writeUint8(value: UInt8) -> Writer => "%writer.writeUInt8"
+  writeInt4High(value: Int4) -> Writer => {
+    .values.push((@int4.toInt(value) & 15) << 4)
+    .nibble = 1
+    this
+  }
+
+  writeInt4Low(value: Int4) -> Writer => {
+    index := .values.length() - 1
+    .values.set(index, (.values[index] & 240) | (@int4.toInt(value) & 15))
+    .nibble = 0
+    this
+  }
+
+  writeInt8(value: Int8) -> Writer => {
+    bytes := @bytes.new(1)
+    bytes.setInt8(0, value)
+    .writeBytes(bytes)
+  }
+
+  writeUInt8(value: UInt8) -> Writer => {
+    bytes := @bytes.new(1)
+    bytes.setUInt8(0, value)
+    .writeBytes(bytes)
+  }
+
+  writeUint8(value: UInt8) -> Writer => .writeUInt8(value)
 
   writeInt16(
     value: Int16,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeInt16"
+  ) -> Writer => {
+    bytes := @bytes.new(2)
+    bytes.setInt16(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeUInt16(
     value: UInt16,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt16"
+  ) -> Writer => {
+    bytes := @bytes.new(2)
+    bytes.setUInt16(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeUint16(
     value: UInt16,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt16"
+  ) -> Writer => .writeUInt16(value, littleEndian)
 
   writeInt(
     value: Int,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeInt"
+  ) -> Writer => {
+    bytes := @bytes.new(4)
+    bytes.setInt(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeInt32(
     value: Int,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeInt"
+  ) -> Writer => .writeInt(value, littleEndian)
 
   writeUInt(
     value: UInt,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt"
+  ) -> Writer => {
+    bytes := @bytes.new(4)
+    bytes.setUInt(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeUint(
     value: UInt,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt"
+  ) -> Writer => .writeUInt(value, littleEndian)
 
   writeUInt32(
     value: UInt,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt"
+  ) -> Writer => .writeUInt(value, littleEndian)
 
   writeUint32(
     value: UInt,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt"
+  ) -> Writer => .writeUInt(value, littleEndian)
 
   writeInt64(
     value: Int64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeInt64"
+  ) -> Writer => {
+    bytes := @bytes.new(8)
+    bytes.setInt64(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeBigInt64(
     value: Int64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeInt64"
+  ) -> Writer => .writeInt64(value, littleEndian)
 
   writeUInt64(
     value: UInt64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt64"
+  ) -> Writer => {
+    bytes := @bytes.new(8)
+    bytes.setUInt64(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeUint64(
     value: UInt64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt64"
+  ) -> Writer => .writeUInt64(value, littleEndian)
 
   writeBigUInt64(
     value: UInt64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt64"
+  ) -> Writer => .writeUInt64(value, littleEndian)
 
   writeBigUint64(
     value: UInt64,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeUInt64"
+  ) -> Writer => .writeUInt64(value, littleEndian)
 
   writeFloat(
     value: Float,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeFloat"
+  ) -> Writer => {
+    bytes := @bytes.new(4)
+    bytes.setFloat(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeFloat32(
     value: Float,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeFloat"
+  ) -> Writer => .writeFloat(value, littleEndian)
 
   writeDouble(
     value: Double,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeDouble"
+  ) -> Writer => {
+    bytes := @bytes.new(8)
+    bytes.setDouble(0, value, littleEndian)
+    .writeBytes(bytes)
+  }
 
   writeFloat64(
     value: Double,
     littleEndian: Bool
-  ) -> Writer => "%writer.writeDouble"
+  ) -> Writer => .writeDouble(value, littleEndian)
 }
 
-+ new() -> Writer => "%writer.new"
++ new() -> Writer => {
+  values: [],
+  nibble: 0
+}
 
-+ withCapacity(capacity: Int) -> Writer => "%writer.withCapacity"
++ withCapacity(capacity: Int) -> Writer => @writer.new()

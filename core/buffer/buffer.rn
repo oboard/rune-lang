@@ -1,29 +1,43 @@
 + Buffer: {
-  length() -> Int => "%buffer.length"
+  values: Array[Int]
 
-  byteLength() -> Int => "%buffer.length"
+  length() -> Int => .values.length()
 
-  isEmpty() -> Bool => "%buffer.isEmpty"
+  byteLength() -> Int => .length()
 
-  clear() -> Void => "%buffer.clear"
+  isEmpty() -> Bool => .values.isEmpty()
 
-  clone() -> Buffer => "%buffer.clone"
+  clear() -> Void => .values = []
 
-  toBytes() -> Bytes => "%buffer.toBytes"
+  clone() -> Buffer => {
+    values: .values.clone()
+  }
 
-  toInts() -> Array[Int] => "%buffer.toInts"
+  toBytes() -> Bytes => @bytes.fromInts(.values.clone())
 
-  append(value: UInt8) -> Buffer => "%buffer.append"
+  toInts() -> Array[Int] => .values.clone()
 
-  appendInt(value: Int) -> Buffer => "%buffer.appendInt"
+  append(value: UInt8) -> Buffer => .appendInt(@uint8.toInt(value))
 
-  appendBytes(value: Bytes) -> Buffer => "%buffer.appendBytes"
+  appendInt(value: Int) -> Buffer => {
+    .values.push(value)
+    this
+  }
 
-  reader() -> Reader => "%buffer.reader"
+  appendBytes(value: Bytes) -> Buffer => {
+    value.toInts().each((byte) => .appendInt(byte))
+    this
+  }
 
-  writer() -> Writer => "%buffer.writer"
+  reader() -> Reader => @reader.new(.toBytes())
+
+  writer() -> Writer => @writer.new().writeBytes(.toBytes())
 }
 
-+ new() -> Buffer => "%buffer.new"
++ new() -> Buffer => {
+  values: []
+}
 
-+ fromBytes(value: Bytes) -> Buffer => "%buffer.fromBytes"
++ fromBytes(value: Bytes) -> Buffer => {
+  values: value.toInts()
+}
