@@ -1,11 +1,24 @@
 package compiler
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/checker"
 )
+
+func TestAnalyzeFileWithWarningsSkipsPublicCliAPI(t *testing.T) {
+	_, diags := AnalyzeFileWithWarnings(filepath.Join("..", "..", "core", "cli", "cli.rn"))
+	for _, diag := range diags {
+		if diag.Severity != checker.SeverityWarning {
+			continue
+		}
+		if diag.Kind == "unused_value" || diag.Kind == "unused_field" || diag.Kind == "unused_constructor" {
+			t.Fatalf("AnalyzeFileWithWarnings() diagnostics = %#v, do not want public API warning %q", diags, diag.Message)
+		}
+	}
+}
 
 func TestAnalyzeSourceWithWarningsKeepsAnalyzeSourceQuiet(t *testing.T) {
 	src := `Token: {

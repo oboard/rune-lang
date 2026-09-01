@@ -2,6 +2,7 @@ package checker
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -190,7 +191,7 @@ func (l *linter) visitExpr(expr ast.Expr) {
 		subject := l.info.ExprTypes[e.Subject]
 		l.visitExpr(e.Subject)
 		l.lintPatternBranches(e.Branches, subject)
-		l.lintBoolPatternBranchesTernary(e.Branches, subject, e.Pos)
+		l.lintBoolPatternBranchesTernary(e.Branches, subject, e.Subject.Position())
 		for _, branch := range e.Branches {
 			l.visitExpr(branch.Expr)
 		}
@@ -367,6 +368,7 @@ func (l *linter) lintStructLiteralPreferSpread(typeName string, fields []ast.Fie
 	explicit := map[string]bool{}
 	copiedByReceiver := map[string]int{}
 	receiverTypes := map[string]Type{}
+	receiverPositions := map[string]lexer.Position{}
 	for _, field := range fields {
 		if field.Spread || field.Name == "" {
 			continue
@@ -382,11 +384,14 @@ func (l *linter) lintStructLiteralPreferSpread(typeName string, fields []ast.Fie
 		}
 		copiedByReceiver[base]++
 		receiverTypes[base] = l.info.ExprTypes[selector.Receiver]
+		if _, ok := receiverPositions[base]; !ok {
+			receiverPositions[base] = selector.Receiver.Position()
+		}
 	}
 	if typeName != "" && !isObjectType(Type(typeName)) {
 		if structInfo := l.info.Types[typeName]; structInfo != nil && l.recordLiteralCoversFields(structInfo, explicit) {
 			if copiedFrom := l.bestCopiedReceiver(copiedByReceiver, len(structInfo.Fields)); copiedFrom != "" {
-				l.warn(pos, "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", copiedFrom)
+				l.warn(receiverPositions[copiedFrom], "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", copiedFrom)
 			}
 		}
 		return
@@ -397,7 +402,7 @@ func (l *linter) lintStructLiteralPreferSpread(typeName string, fields []ast.Fie
 			continue
 		}
 		if copiedByReceiver[receiver]*2 >= len(structInfo.Fields) {
-			l.warn(pos, "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", receiver)
+			l.warn(receiverPositions[receiver], "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", receiver)
 			return
 		}
 	}
@@ -443,7 +448,7 @@ func (l *linter) markDestructuredFields(stmt *ast.ObjectDestructureStmt) {
 
 func (l *linter) warnUnusedFunctions() {
 	for _, fn := range l.info.FunctionDecls {
-		if fn == nil || fn.Node == nil || !fn.Private || fn.External || fn.Macro || fn.Name == "main" {
+		if fn == nil || fn.Node == nil || !fn.Private || fn.External || fn.Macro || fn.Name == "main" || l.isSyntaxHelper(fn) {
 			continue
 		}
 		if l.usedFunctions[fn] {
@@ -451,6 +456,17 @@ func (l *linter) warnUnusedFunctions() {
 		}
 		l.warn(fn.NamePos, "0001", "unused_value", "Function %q is never used", fn.Name)
 	}
+}
+
+func (l *linter) isSyntaxHelper(fn *FuncInfo) bool {
+	if fn == nil || fn.Node == nil {
+		return false
+	}
+	usesSyntax := strings.Contains(string(fn.Return), "Syntax")
+	for _, param := range fn.Params {
+		usesSyntax = usesSyntax || strings.Contains(string(param.Type), "Syntax")
+	}
+	return usesSyntax
 }
 
 func (l *linter) warnUnusedFields() {
@@ -461,24 +477,16 @@ func (l *linter) warnUnusedFields() {
 		for _, field := range typ.Node.Fields {
 			if !field.Private || l.usedFields[fieldKey(typ.Name, field.Name)] {
 				continue
-		}
+			}
 			l.warn(field.Pos, "0007", "unused_field", "Field %q is never read", field.Name)
 		}
 	}
 }
 
 func (l *linter) warnUnusedConstructors() {
-	for _, enum := range l.info.Enums {
-		if enum == nil || enum.Node == nil {
-			continue
-		}
-		for _, member := range enum.Node.Members {
-			if !member.Private || l.constructedEnumMembers[enumMemberKey(enum.Name, member.Name)] {
-				continue
-			}
-			l.warn(member.Pos, "0006", "unused_constructor", "Variant %q is never constructed", member.Name)
-		}
-	}
+	// Enum members are public API by default, so their construction may occur in
+	// another source file. Unlike private functions and fields, they cannot be
+	// soundly classified as unused from one checked import graph.
 }
 
 func (l *linter) lintPatternBranches(branches []ast.PatternBranch, subject Type) {

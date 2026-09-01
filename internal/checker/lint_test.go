@@ -10,7 +10,7 @@ import (
 func TestLintMoonBitStyleWarnings(t *testing.T) {
 	src := `Token: {
   kind: TokenKind
-  offset: Int
+  - offset: Int
 }
 
 TokenKind: {
@@ -46,12 +46,38 @@ main() => {
 	}
 	warnings := Lint(file, info)
 	for _, want := range []string{
-		"Warning [0007] (unused_field): Field \"offset\" is never read",
 		"Warning [0001] (unused_value): Function \"tokenKindName\" is never used",
 		"Warning [0012] (unreachable_code): Unreachable pattern branch",
 	} {
 		if !hasWarning(warnings, want) {
 			t.Fatalf("warnings = %#v, want %q", warnings, want)
+		}
+	}
+}
+
+func TestLintSkipsPublicDeclarations(t *testing.T) {
+	src := `+ Token: {
+  offset: Int
+}
+
++ TokenKind: {
+  EOF
+}
+
++ tokenKindName(kind: TokenKind) -> String => "EOF"
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	warnings := Lint(file, info)
+	for _, unwanted := range []string{"unused_field", "unused_constructor", "unused_value"} {
+		if hasWarning(warnings, unwanted) {
+			t.Fatalf("warnings = %#v, do not want public %s warning", warnings, unwanted)
 		}
 	}
 }
@@ -176,7 +202,17 @@ func TestLintWarnsPreferTernaryForBoolPatternBlock(t *testing.T) {
 		t.Fatalf("check diagnostics: %v", diags)
 	}
 	diags = Lint(file, info)
-	if !hasWarning(diags, "Warning [0015] (prefer_ternary): Use a ternary expression instead of a Bool pattern block") {
+	var found bool
+	for _, diag := range diags {
+		if diag.Kind != "prefer_ternary" {
+			continue
+		}
+		found = true
+		if diag.Pos.Line != 1 || diag.Pos.Column != 49 {
+			t.Fatalf("prefer_ternary position = %d:%d, want 1:49", diag.Pos.Line, diag.Pos.Column)
+		}
+	}
+	if !found {
 		t.Fatalf("diagnostics = %#v, want prefer ternary warning", diags)
 	}
 }

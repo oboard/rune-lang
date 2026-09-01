@@ -133,6 +133,11 @@ func TestDiagnosticsIncludesWarnings(t *testing.T) {
 			if diag["severity"] != 2 {
 				t.Fatalf("warning severity = %v, want 2", diag["severity"])
 			}
+			rangeValue := diag["range"].(map[string]any)
+			start := rangeValue["start"].(position)
+			if start.Line != 0 || start.Character != 49 {
+				t.Fatalf("warning start = %d:%d, want 0:49", start.Line, start.Character)
+			}
 		}
 	}
 	if !found {
