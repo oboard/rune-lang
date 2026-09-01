@@ -128,17 +128,14 @@ func TestGenerateBufferReaderWriterIntrinsics(t *testing.T) {
 }`
 	got := generateSource(t, src)
 	for _, want := range []string{
-		"let buffer = ([] : Array[Int])",
-		"let __buffer",
-		".push((1) & 255)",
-		"[3, 4].copy().iter().each",
-		"let writer = buffer",
-		"let __writer",
-		"(writer.copy())[4]",
-		"RuneReader::{ data: buffer.copy(), position: 0, nibble: 0 }",
-		".data[",
-		"reinterpret_as_uint64",
-		"reinterpret_as_double",
+		"pub struct Buffer {",
+		"values : Array[Int]",
+		"pub fn buffer_new() -> Array[Int]",
+		"Buffer::{ values: [] }",
+		"let buffer = buffer_new()",
+		"(writer.toInts())[4]",
+		"Float::from_double(1.5)",
+		"reader.readFloat64(false)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated source =\n%s\nmissing %q", got, want)

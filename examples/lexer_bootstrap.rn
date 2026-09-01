@@ -2,5 +2,5 @@
 
 main() => {
   tokens := lex("main() => @io.println(`hello`)")
-  tokens.each((token) => @io.println(token.kind, token.lexeme))
+  @io.println(tokens.length())
 }

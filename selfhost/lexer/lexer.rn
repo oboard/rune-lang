@@ -343,7 +343,7 @@ skipBlockComment(state) => (
     )
 )
 
-isSpace(ch) => ' ' | '\t' | '\r'
+isSpace(ch: Char) -> Bool => ((ch == ' ') || (ch == '\t')) || (ch == '\r')
 
 scanToken(step: Advanced) => {
   { state, ch } := step
@@ -682,29 +682,22 @@ scanIdentifier(
     : state
 )
 
-isDigit(ch: Char) -> Bool => '0'..='9'
+isDigit(ch: Char) -> Bool => (ch >= '0') && (ch <= '9')
 
-isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
+isAlpha(ch: Char) -> Bool => ((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z'))
 
-isIdentStart(ch: Char) -> Bool => {
-  '_' => true
-  _ => isIdentText(ch) && (isDigit(ch) == false)
-}
+isIdentStart(ch: Char) -> Bool => (ch == '_') || (isIdentText(ch) && (isDigit(ch) == false))
 
 isIdentContinue(ch: Char) -> Bool => isIdentStart(ch) || isDigit(ch)
 
 isIdentText(ch: Char) -> Bool => (isIdentBoundary(ch) == false) && (isAsciiPunctuation(ch) == false)
 
-isIdentBoundary(ch: Char) -> Bool => {
-  '\x00' | ' ' | '\t' | '\r' | '\n'
-}
+isIdentBoundary(ch: Char) -> Bool => ((((ch == '\x00') || (ch == ' ')) || (ch == '\t')) || (ch == '\r')) || (ch == '\n')
 
-isAsciiPunctuation(ch: Char) -> Bool => {
-  ('!'..='/') | (':'..='@') | ('['..='^') | '`' | ('{'..='~')
-}
+isAsciiPunctuation(ch: Char) -> Bool => (((((ch >= '!') && (ch <= '/')) || ((ch >= ':') && (ch <= '@'))) || ((ch >= '[') && (ch <= '^'))) || (ch == '`')) || ((ch >= '{') && (ch <= '~'))
 
 isRegexFlag(ch: Char) -> Bool => isAlpha(ch)
 
-isExponentMarker(ch) => 'e' | 'E'
+isExponentMarker(ch: Char) -> Bool => (ch == 'e') || (ch == 'E')
 
-isExponentSign(ch) => '+' | '-'
+isExponentSign(ch: Char) -> Bool => (ch == '+') || (ch == '-')

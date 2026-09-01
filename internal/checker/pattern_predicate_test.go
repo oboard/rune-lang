@@ -75,6 +75,24 @@ isAlpha(ch: Char) -> Bool => ('a'..='z') | ('A'..='Z')
 	}
 }
 
+func TestDeclaredBoolCharAlternativesRewriteToPatternPredicate(t *testing.T) {
+	src := "isBoundary(ch: Char) -> Bool => '\\x00' | ' ' | '\\n'\n"
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got := info.Functions["isBoundary"].Return; got != Bool {
+		t.Fatalf("isBoundary return = %s, want Bool", got)
+	}
+	if _, ok := file.Functions[0].Body.(*ast.PatternBlock); !ok {
+		t.Fatalf("body = %T, want PatternBlock", file.Functions[0].Body)
+	}
+}
+
 func TestFunctionOrPatternBlockChecksAliasPattern(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"

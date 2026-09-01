@@ -22,11 +22,13 @@
 
   skip(count: Int) -> Int => .seek(.offset + count)
 
-  align() -> Void => {
-    (
-      .nibble == 1 ? .offset = .offset + 1
-        : null
-    )
+  align() -> Void => (.nibble == 1) {
+    true => .alignNibble()
+    _ => .nibble = 0
+  }
+
+  alignNibble() -> Void => {
+    .offset = .offset + 1
     .nibble = 0
   }
 

@@ -58,7 +58,7 @@ func Collect(file *ir.File) Closure {
 	requested := map[string]map[string]*stdlib.Function{}
 	var request func(string, *stdlib.Function, bool)
 	request = func(moduleName string, fn *stdlib.Function, allowIntrinsic bool) {
-		if fn == nil || fn.Receiver != "" || fn.Macro || (fn.Body == nil && (!allowIntrinsic || fn.Intrinsic == "")) {
+		if fn == nil || fn.Receiver != "" || fn.Macro || isBackendStreamIntrinsic(fn.Intrinsic) || (fn.Body == nil && (!allowIntrinsic || fn.Intrinsic == "")) {
 			return
 		}
 		if requested[moduleName] == nil {
@@ -183,6 +183,12 @@ func Collect(file *ir.File) Closure {
 	renameHelpers(lowered.Functions, requested)
 	rewriteSelectedCalls(file, requested)
 	return Closure{Types: lowered.Types, Enums: lowered.Enums, Constants: lowered.Constants, Functions: lowered.Functions}
+}
+
+func isBackendStreamIntrinsic(intrinsic string) bool {
+	return intrinsic == "buffer.new" || intrinsic == "buffer.fromBytes" ||
+		intrinsic == "reader.new" || intrinsic == "writer.new" ||
+		intrinsic == "writer.withCapacity"
 }
 
 func selectorModuleName(sel *ir.SelectorExpr) (string, bool) {

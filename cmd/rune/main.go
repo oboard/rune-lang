@@ -806,15 +806,26 @@ func compileGoToTemp(path string) (string, func(), error) {
 	// argv convention used by @process.argv, so retain the host path for it.
 	source, readErr := os.ReadFile(path)
 	usesProcessArgs := readErr == nil && strings.Contains(string(source), "@process.argv")
-	if !usesProcessArgs && !requiresHostCompilerBridge(path, string(source)) {
+	// Bootstrap sources exercise language features that the generated self-host
+	// Go emitter is still bringing online. Compile them with the host backend so
+	// runnable examples remain reliable while the self-host compiler is evolved.
+	usesBootstrapSource := strings.Contains(filepath.ToSlash(path), "/selfhost/") || strings.Contains(string(source), "/selfhost/")
+	if !usesProcessArgs && !usesBootstrapSource && !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
 			result := __compileGoFiles(files)
 			if result.__ok {
 				src = result.__output
 			} else {
-				for _, message := range result.__errors {
-					fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+				// The self-hosted checker currently returns message-only diagnostics.
+				// Re-run the host checker to provide location-aware diagnostics and
+				// fall back to the self-host messages only when it finds none.
+				if _, diags := compiler.AnalyzeFile(path); len(diags) > 0 {
+					printDiagnostics(path, diags)
+				} else {
+					for _, message := range result.__errors {
+						fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
+					}
 				}
 				return "", func() {}, fmt.Errorf("compile failed")
 			}
