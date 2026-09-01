@@ -133,6 +133,7 @@ const (
 	__ExprKind_ObjectDestructure __ExprKind = 44
 	__ExprKind_Error             __ExprKind = 45
 	__ExprKind_Watch             __ExprKind = 46
+	__ExprKind_XMLElement        __ExprKind = 47
 )
 
 type __Token struct {
@@ -152,6 +153,14 @@ type __LexState struct {
 	__startLine     int
 	__startColumn   int
 	__canStartRegex bool
+	__mode          int
+	__xmlDepth      int
+	__xmlClosing    bool
+	__xmlSelfClosed bool
+	__xmlExprMode   int
+	__xmlExprDepth  int
+	__xmlAfterMode  int
+	__xmlAfterDepth int
 }
 
 type __Advanced struct {
@@ -366,6 +375,12 @@ type __ExprStep struct {
 type __TemplateParse struct {
 	__text     string
 	__children []__ParsedExpr
+}
+
+type __XMLAttrStep struct {
+	__state       __ParserState
+	__element     __ParsedExpr
+	__selfClosing bool
 }
 
 type __FileStep struct {
@@ -745,8 +760,24 @@ func runeFsStat(path string) runeTask[runeResult[*runeFileStat, *runeError]] {
 	})
 }
 
+func __selfhost_lexer_lexer_xmlModeCode() int {
+	return 0
+}
+
+func __selfhost_lexer_lexer_xmlModeTag() int {
+	return 1
+}
+
+func __selfhost_lexer_lexer_xmlModeText() int {
+	return 2
+}
+
+func __selfhost_lexer_lexer_xmlModeExpr() int {
+	return 3
+}
+
 func __lex(__source string) []__Token {
-	return __selfhost_lexer_lexer_scan(__LexState{__source: __source, __start: 0, __current: 0, __line: 1, __column: 1, __startLine: 1, __startColumn: 1, __canStartRegex: true}, __selfhost_lexer_lexer_emptyTokens())
+	return __selfhost_lexer_lexer_scan(__LexState{__source: __source, __start: 0, __current: 0, __line: 1, __column: 1, __startLine: 1, __startColumn: 1, __canStartRegex: true, __mode: __selfhost_lexer_lexer_xmlModeCode(), __xmlDepth: 0, __xmlClosing: false, __xmlSelfClosed: false, __xmlExprMode: __selfhost_lexer_lexer_xmlModeCode(), __xmlExprDepth: 0, __xmlAfterMode: __selfhost_lexer_lexer_xmlModeCode(), __xmlAfterDepth: 0}, __selfhost_lexer_lexer_emptyTokens())
 }
 
 func __selfhost_lexer_lexer_emptyTokens() []__Token {
@@ -754,13 +785,39 @@ func __selfhost_lexer_lexer_emptyTokens() []__Token {
 }
 
 func __selfhost_lexer_lexer_scan(__state __LexState, __tokens []__Token) []__Token {
-	__skipped := __selfhost_lexer_lexer_skipIgnored(__state)
-	__started := __selfhost_lexer_lexer_markStart(__skipped)
+	__prepared := __selfhost_lexer_lexer_prepareLexState(__state)
+	__started := __selfhost_lexer_lexer_markStart(__prepared)
 	return func() []__Token {
 		if __selfhost_lexer_lexer_atEnd(__started) {
 			return __selfhost_lexer_lexer_appendToken(__tokens, __selfhost_lexer_lexer_makeToken(__started, __TokenKind_EOF))
 		}
-		return __selfhost_lexer_lexer_scanLexed(__selfhost_lexer_lexer_scanToken(__selfhost_lexer_lexer_advance(__started)), __tokens)
+		return __selfhost_lexer_lexer_scanLexed(__selfhost_lexer_lexer_scanModeToken(__started), __tokens)
+	}()
+}
+
+func __selfhost_lexer_lexer_prepareLexState(__state __LexState) __LexState {
+	return func() __LexState {
+		switch {
+		case __state.__mode == __selfhost_lexer_lexer_xmlModeCode() || __state.__mode == __selfhost_lexer_lexer_xmlModeExpr() == true:
+			return __selfhost_lexer_lexer_skipIgnored(__state)
+		default:
+			return __selfhost_lexer_lexer_skipXMLSpaces(__state)
+		}
+	}()
+}
+
+func __selfhost_lexer_lexer_scanModeToken(__state __LexState) __Lexed {
+	return func() __Lexed {
+		switch {
+		case __state.__mode == 1:
+			return __selfhost_lexer_lexer_scanXMLTagToken(__selfhost_lexer_lexer_advance(__state))
+		case __state.__mode == 2:
+			return __selfhost_lexer_lexer_scanXMLTextToken(__state)
+		case __state.__mode == 3:
+			return __selfhost_lexer_lexer_scanXMLExprToken(__selfhost_lexer_lexer_advance(__state))
+		default:
+			return __selfhost_lexer_lexer_scanToken(__selfhost_lexer_lexer_advance(__state))
+		}
 	}()
 }
 
@@ -782,7 +839,29 @@ func __selfhost_lexer_lexer_makeToken(__state __LexState, __kind __TokenKind) __
 }
 
 func __selfhost_lexer_lexer_finishToken(__state __LexState, __kind __TokenKind) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: !(__selfhost_lexer_lexer_canEndExpression(__state, __kind))}
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: !(__selfhost_lexer_lexer_canEndExpression(__state, __kind)), __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+}
+
+func __selfhost_lexer_lexer_lexStateWithMode(__state __LexState, __mode int) __LexState {
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+}
+
+func __selfhost_lexer_lexer_lexStateXML(__state __LexState, __mode int, __depth int, __closing bool, __selfClosed bool, __exprMode int, __exprDepth int) __LexState {
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __mode, __xmlDepth: __depth, __xmlClosing: __closing, __xmlSelfClosed: __selfClosed, __xmlExprMode: __exprMode, __xmlExprDepth: __exprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+}
+
+func __selfhost_lexer_lexer_enterXMLTagState(__state __LexState) __LexState {
+	__depth := func() int {
+		if __state.__mode == __selfhost_lexer_lexer_xmlModeExpr() {
+			return 0
+		}
+		return __state.__xmlDepth
+	}()
+	return __selfhost_lexer_lexer_lexStateXMLAfterMode(__selfhost_lexer_lexer_lexStateXML(__state, __selfhost_lexer_lexer_xmlModeTag(), __depth, false, false, __state.__xmlExprMode, __state.__xmlExprDepth), __state.__mode, __state.__xmlDepth)
+}
+
+func __selfhost_lexer_lexer_lexStateXMLAfterMode(__state __LexState, __afterMode int, __afterDepth int) __LexState {
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __afterMode, __xmlAfterDepth: __afterDepth}
 }
 
 func __selfhost_lexer_lexer_canEndExpression(__state __LexState, __kind __TokenKind) bool {
@@ -934,7 +1013,7 @@ func __tokenKindName(__kind __TokenKind) string {
 }
 
 func __selfhost_lexer_lexer_markStart(__state __LexState) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__current, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__line, __startColumn: __state.__column, __canStartRegex: __state.__canStartRegex}
+	return __LexState{__source: __state.__source, __start: __state.__current, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__line, __startColumn: __state.__column, __canStartRegex: __state.__canStartRegex, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
 }
 
 func __selfhost_lexer_lexer_atEnd(__state __LexState) bool {
@@ -986,7 +1065,7 @@ func __selfhost_lexer_lexer_advanceChar(__state __LexState, __ch rune) __Advance
 			return 1
 		}
 		return __state.__column + 1
-	}(), __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex}, __ch: __ch}
+	}(), __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}, __ch: __ch}
 }
 
 func __selfhost_lexer_lexer_skipIgnored(__state __LexState) __LexState {
@@ -1042,6 +1121,24 @@ func __selfhost_lexer_lexer_skipBlockComment(__state __LexState) __LexState {
 
 func __selfhost_lexer_lexer_isSpace(__ch rune) bool {
 	return __ch == ' ' || __ch == '\t' || __ch == '\r'
+}
+
+func __selfhost_lexer_lexer_isXMLSpace(__ch rune) bool {
+	return __ch == ' ' || __ch == '\t' || __ch == '\r' || __ch == '\n'
+}
+
+func __selfhost_lexer_lexer_skipXMLSpaces(__state __LexState) __LexState {
+	return func() __LexState {
+		if __selfhost_lexer_lexer_atEnd(__state) {
+			return __state
+		}
+		return func() __LexState {
+			if __selfhost_lexer_lexer_isXMLSpace(__selfhost_lexer_lexer_peek(__state)) {
+				return __selfhost_lexer_lexer_skipXMLSpaces(__selfhost_lexer_lexer_advanceState(__state))
+			}
+			return __state
+		}()
+	}()
 }
 
 func __selfhost_lexer_lexer_scanToken(__step __Advanced) __Lexed {
@@ -1141,6 +1238,115 @@ func __selfhost_lexer_lexer_scanToken(__step __Advanced) __Lexed {
 			}()
 		}
 	}()
+}
+
+func __selfhost_lexer_lexer_scanXMLTagToken(__step __Advanced) __Lexed {
+	__destructure2 := __step
+	__state := __destructure2.__state
+	__ch := __destructure2.__ch
+	return func() __Lexed {
+		switch {
+		case __ch == '@':
+			return __selfhost_lexer_lexer_lexed(__state, __TokenKind_At)
+		case __ch == '=':
+			return __selfhost_lexer_lexer_lexed(__state, __TokenKind_Assign)
+		case __ch == '{':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_lexStateXML(__state, __selfhost_lexer_lexer_xmlModeExpr(), __state.__xmlDepth, __state.__xmlClosing, __state.__xmlSelfClosed, __selfhost_lexer_lexer_xmlModeTag(), 1), __TokenKind_LBrace)
+		case __ch == '/':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_lexStateXML(__state, __state.__mode, __state.__xmlDepth, __selfhost_lexer_lexer_peek(__state) != '>', __selfhost_lexer_lexer_peek(__state) == '>', __state.__xmlExprMode, __state.__xmlExprDepth), __TokenKind_Slash)
+		case __ch == '>':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_xmlStateAfterTagEnd(__state), __TokenKind_Greater)
+		case __ch == '"':
+			return __selfhost_lexer_lexer_lexStringToken(__state)
+		default:
+			return func() __Lexed {
+				if __selfhost_lexer_lexer_isIdentStart(__ch) {
+					return __selfhost_lexer_lexer_lexXMLIdentifierToken(__state)
+				}
+				return __selfhost_lexer_lexer_lexed(__state, __TokenKind_Illegal)
+			}()
+		}
+	}()
+}
+
+func __selfhost_lexer_lexer_xmlStateAfterTagEnd(__state __LexState) __LexState {
+	__nextDepth := func() int {
+		if __state.__xmlClosing {
+			return __state.__xmlDepth - 1
+		}
+		return func() int {
+			if __state.__xmlSelfClosed {
+				return __state.__xmlDepth
+			}
+			return __state.__xmlDepth + 1
+		}()
+	}()
+	__nextMode := func() int {
+		if __nextDepth > 0 {
+			return __selfhost_lexer_lexer_xmlModeText()
+		}
+		return __state.__xmlAfterMode
+	}()
+	__restoredDepth := func() int {
+		if __nextDepth > 0 {
+			return __nextDepth
+		}
+		return __state.__xmlAfterDepth
+	}()
+	return __selfhost_lexer_lexer_lexStateXML(__state, __nextMode, __restoredDepth, false, false, __state.__xmlExprMode, __state.__xmlExprDepth)
+}
+
+func __selfhost_lexer_lexer_scanXMLTextToken(__state __LexState) __Lexed {
+	return func() __Lexed {
+		switch {
+		case __selfhost_lexer_lexer_peek(__state) == '<':
+			return __selfhost_lexer_lexer_scanXMLTextLess(__selfhost_lexer_lexer_advanceState(__state))
+		case __selfhost_lexer_lexer_peek(__state) == '{':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_lexStateXML(__selfhost_lexer_lexer_advanceState(__state), __selfhost_lexer_lexer_xmlModeExpr(), __state.__xmlDepth, __state.__xmlClosing, __state.__xmlSelfClosed, __selfhost_lexer_lexer_xmlModeText(), 1), __TokenKind_LBrace)
+		default:
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_scanXMLTextContent(__state), __TokenKind_XMLText)
+		}
+	}()
+}
+
+func __selfhost_lexer_lexer_scanXMLTextLess(__state __LexState) __Lexed {
+	return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_lexStateXML(__state, __selfhost_lexer_lexer_xmlModeTag(), __state.__xmlDepth, __selfhost_lexer_lexer_peek(__state) == '/', false, __state.__xmlExprMode, __state.__xmlExprDepth), __TokenKind_Less)
+}
+
+func __selfhost_lexer_lexer_scanXMLTextContent(__state __LexState) __LexState {
+	return func() __LexState {
+		if __selfhost_lexer_lexer_atEnd(__state) || __selfhost_lexer_lexer_peek(__state) == '<' || __selfhost_lexer_lexer_peek(__state) == '{' {
+			return __state
+		}
+		return __selfhost_lexer_lexer_scanXMLTextContent(__selfhost_lexer_lexer_advanceState(__state))
+	}()
+}
+
+func __selfhost_lexer_lexer_scanXMLExprToken(__step __Advanced) __Lexed {
+	__destructure3 := __step
+	__state := __destructure3.__state
+	__ch := __destructure3.__ch
+	return func() __Lexed {
+		switch {
+		case __ch == '{':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_lexStateXML(__state, __selfhost_lexer_lexer_xmlModeExpr(), __state.__xmlDepth, __state.__xmlClosing, __state.__xmlSelfClosed, __state.__xmlExprMode, __state.__xmlExprDepth+1), __TokenKind_LBrace)
+		case __ch == '}':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_xmlStateAfterExprBrace(__state), __TokenKind_RBrace)
+		default:
+			return __selfhost_lexer_lexer_scanToken(__step)
+		}
+	}()
+}
+
+func __selfhost_lexer_lexer_xmlStateAfterExprBrace(__state __LexState) __LexState {
+	__nextDepth := __state.__xmlExprDepth - 1
+	__nextMode := func() int {
+		if __nextDepth <= 0 {
+			return __state.__xmlExprMode
+		}
+		return __selfhost_lexer_lexer_xmlModeExpr()
+	}()
+	return __selfhost_lexer_lexer_lexStateXMLAfterMode(__selfhost_lexer_lexer_lexStateXML(__state, __nextMode, __state.__xmlDepth, __state.__xmlClosing, __state.__xmlSelfClosed, __selfhost_lexer_lexer_xmlModeCode(), __nextDepth), __selfhost_lexer_lexer_xmlModeCode(), 0)
 }
 
 func __selfhost_lexer_lexer_lexed(__state __LexState, __kind __TokenKind) __Lexed {
@@ -1295,8 +1501,15 @@ func __selfhost_lexer_lexer_lexLess(__state __LexState) __Lexed {
 			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_advanceState(__state), __TokenKind_LessEqual)
 		case __selfhost_lexer_lexer_peek(__state) == '<':
 			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_advanceState(__state), __TokenKind_ShiftLeft)
+		case __selfhost_lexer_lexer_peek(__state) == '/':
+			return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_enterXMLTagState(__state), __TokenKind_Less)
 		default:
-			return __selfhost_lexer_lexer_lexed(__state, __TokenKind_Less)
+			return func() __Lexed {
+				if __selfhost_lexer_lexer_isIdentStart(__selfhost_lexer_lexer_peek(__state)) {
+					return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_enterXMLTagState(__state), __TokenKind_Less)
+				}
+				return __selfhost_lexer_lexer_lexed(__state, __TokenKind_Less)
+			}()
 		}
 	}()
 }
@@ -1570,10 +1783,23 @@ func __selfhost_lexer_lexer_lexIdentifierToken(__state __LexState) __Lexed {
 	return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_scanIdentifier(__state), __TokenKind_Ident)
 }
 
+func __selfhost_lexer_lexer_lexXMLIdentifierToken(__state __LexState) __Lexed {
+	return __selfhost_lexer_lexer_lexed(__selfhost_lexer_lexer_scanXMLIdentifier(__state), __TokenKind_Ident)
+}
+
 func __selfhost_lexer_lexer_scanIdentifier(__state __LexState) __LexState {
 	return func() __LexState {
 		if __selfhost_lexer_lexer_isIdentContinue(__selfhost_lexer_lexer_peek(__state)) {
 			return __selfhost_lexer_lexer_scanIdentifier(__selfhost_lexer_lexer_advanceState(__state))
+		}
+		return __state
+	}()
+}
+
+func __selfhost_lexer_lexer_scanXMLIdentifier(__state __LexState) __LexState {
+	return func() __LexState {
+		if __selfhost_lexer_lexer_isIdentContinue(__selfhost_lexer_lexer_peek(__state)) || __selfhost_lexer_lexer_peek(__state) == '-' || __selfhost_lexer_lexer_peek(__state) == ':' {
+			return __selfhost_lexer_lexer_scanXMLIdentifier(__selfhost_lexer_lexer_advanceState(__state))
 		}
 		return __state
 	}()
@@ -1847,6 +2073,8 @@ func __exprKindName(__kind __ExprKind) string {
 			return "error"
 		case __kind == __ExprKind_Watch:
 			return "watch"
+		case __kind == __ExprKind_XMLElement:
+			return "xmlElement"
 		default:
 			return "unknown"
 		}
@@ -3408,8 +3636,180 @@ func __selfhost_parser_parser_parsePrimary(__state __ParserState) __ExprStep {
 			return __selfhost_parser_parser_parseBraceLiteral(__state)
 		case __token.__kind == __TokenKind_LParen:
 			return __selfhost_parser_parser_parseParenOrTuple(__state)
+		case __token.__kind == __TokenKind_Less:
+			return __selfhost_parser_parser_parseXMLElement(__state)
 		default:
 			return __selfhost_parser_parser_parsePrimaryError(__state)
+		}
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLElement(__state __ParserState) __ExprStep {
+	__open := __selfhost_parser_parser_parserConsume(__state, __TokenKind_Less, "expected '<'")
+	__name := __selfhost_parser_parser_parserConsume(__open.__state, __TokenKind_Ident, "expected XML tag name")
+	__element := __selfhost_parser_parser_namedNode(__ExprKind_XMLElement, __name.__token.__lexeme, __open.__token)
+	__attrs := __selfhost_parser_parser_parseXMLAttributes(__name.__state, __element)
+	__greater := __selfhost_parser_parser_parserConsume(__attrs.__state, __TokenKind_Greater, "expected '>' after XML tag")
+	return func() __ExprStep {
+		if __attrs.__selfClosing {
+			return __ExprStep{__state: __greater.__state, __expr: __attrs.__element}
+		}
+		return __selfhost_parser_parser_parseXMLChildren(__greater.__state, __attrs.__element)
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLAttributes(__state __ParserState, __element __ParsedExpr) __XMLAttrStep {
+	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
+	return func() __XMLAttrStep {
+		if __selfhost_parser_parser_parserCheck(__current, __TokenKind_Slash) {
+			return __XMLAttrStep{__state: __selfhost_parser_parser_parserAdvance(__current).__state, __element: __element, __selfClosing: true}
+		}
+		return func() __XMLAttrStep {
+			if __selfhost_parser_parser_parserCheck(__current, __TokenKind_Greater) || __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF) {
+				return __XMLAttrStep{__state: __current, __element: __element, __selfClosing: false}
+			}
+			return __selfhost_parser_parser_parseXMLAttribute(__current, __element)
+		}()
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLAttribute(__state __ParserState, __element __ParsedExpr) __XMLAttrStep {
+	__eventStep := __selfhost_parser_parser_parserMatch(__state, __TokenKind_At)
+	__name := __selfhost_parser_parser_parserConsume(__eventStep.__state, __TokenKind_Ident, "expected XML attribute name")
+	__valueStep := func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__name.__state, __TokenKind_Assign) {
+			return __selfhost_parser_parser_parseXMLAttributeValue(__selfhost_parser_parser_parserAdvance(__name.__state).__state)
+		}
+		return __ExprStep{__state: __name.__state, __expr: __selfhost_parser_parser_emptyExpr()}
+	}()
+	__op := func() string {
+		if __eventStep.__ok {
+			return "xmlEvent"
+		}
+		return func() string {
+			if __valueStep.__expr.__kind == __ExprKind_Unknown {
+				return "xmlBareAttr"
+			}
+			return "xmlAttr"
+		}()
+	}()
+	__attr := __selfhost_parser_parser_makeExpr(__ExprKind_Field, __name.__token.__lexeme, __name.__token.__lexeme, "", __op, []__ParsedParam{}, func() []__ParsedExpr {
+		if __valueStep.__expr.__kind == __ExprKind_Unknown {
+			return append([]__ParsedExpr{}, []__ParsedExpr{__selfhost_parser_parser_emptyExpr()}[0:0]...)
+		}
+		return []__ParsedExpr{__valueStep.__expr}
+	}(), __name.__token.__line, __name.__token.__column)
+	return __selfhost_parser_parser_parseXMLAttributes(__valueStep.__state, __selfhost_parser_parser_appendChild(__element, __attr))
+}
+
+func __selfhost_parser_parser_parseXMLAttributeValue(__state __ParserState) __ExprStep {
+	return func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__state, __TokenKind_LBrace) {
+			return __selfhost_parser_parser_parseXMLBracedExpression(__state)
+		}
+		return __selfhost_parser_parser_parseLiteral(__state, __ExprKind_String)
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLChildren(__state __ParserState, __element __ParsedExpr) __ExprStep {
+	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
+	return func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF) {
+			return __ExprStep{__state: __current, __expr: __element}
+		}
+		return func() __ExprStep {
+			if __selfhost_parser_parser_parserCheck(__current, __TokenKind_Less) && __selfhost_parser_parser_parserCheckNext(__current, __TokenKind_Slash) {
+				return __ExprStep{__state: __selfhost_parser_parser_parseXMLClose(__current, __element.__name), __expr: __element}
+			}
+			return __selfhost_parser_parser_parseXMLChild(__current, __element)
+		}()
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLChild(__state __ParserState, __element __ParsedExpr) __ExprStep {
+	return func() __ExprStep {
+		switch {
+		case __selfhost_parser_parser_parserPeek(__state).__kind == __TokenKind_XMLText:
+			return __selfhost_parser_parser_parseXMLTextChild(__state, __element)
+		case __selfhost_parser_parser_parserPeek(__state).__kind == __TokenKind_Less:
+			return __selfhost_parser_parser_parseXMLNestedElementChild(__state, __element)
+		case __selfhost_parser_parser_parserPeek(__state).__kind == __TokenKind_LBrace:
+			return __selfhost_parser_parser_parseXMLExpressionChild(__state, __element)
+		default:
+			return __ExprStep{__state: __selfhost_parser_parser_parserAdvance(__selfhost_parser_parser_parserErrorAt(__state, __selfhost_parser_parser_parserPeek(__state), "expected XML child")).__state, __expr: __element}
+		}
+	}()
+}
+
+func __selfhost_parser_parser_parseXMLTextChild(__state __ParserState, __element __ParsedExpr) __ExprStep {
+	__text := __selfhost_parser_parser_parserAdvance(__state)
+	__normalized := __selfhost_parser_parser_normalizeXMLText(__text.__token.__lexeme)
+	__nextElement := func() __ParsedExpr {
+		if __normalized == "" {
+			return __element
+		}
+		return __selfhost_parser_parser_appendChild(__element, __selfhost_parser_parser_valueNode(__ExprKind_XMLText, __normalized, __text.__token))
+	}()
+	return __selfhost_parser_parser_parseXMLChildren(__text.__state, __nextElement)
+}
+
+func __selfhost_parser_parser_parseXMLNestedElementChild(__state __ParserState, __element __ParsedExpr) __ExprStep {
+	__child := __selfhost_parser_parser_parseXMLElement(__state)
+	return __selfhost_parser_parser_parseXMLChildren(__child.__state, __selfhost_parser_parser_appendChild(__element, __child.__expr))
+}
+
+func __selfhost_parser_parser_parseXMLExpressionChild(__state __ParserState, __element __ParsedExpr) __ExprStep {
+	__child := __selfhost_parser_parser_parseXMLBracedExpression(__state)
+	return __selfhost_parser_parser_parseXMLChildren(__child.__state, __selfhost_parser_parser_appendChild(__element, __child.__expr))
+}
+
+func __selfhost_parser_parser_parseXMLBracedExpression(__state __ParserState) __ExprStep {
+	__open := __selfhost_parser_parser_parserConsume(__state, __TokenKind_LBrace, "expected '{'")
+	__expr := __selfhost_parser_parser_parseExpression(__selfhost_parser_parser_parserSkipNewlines(__open.__state), 1)
+	__close := __selfhost_parser_parser_parserConsume(__selfhost_parser_parser_parserSkipNewlines(__expr.__state), __TokenKind_RBrace, "expected '}' after XML expression")
+	return __ExprStep{__state: __close.__state, __expr: __expr.__expr}
+}
+
+func __selfhost_parser_parser_parseXMLClose(__state __ParserState, __tag string) __ParserState {
+	__less := __selfhost_parser_parser_parserConsume(__state, __TokenKind_Less, "expected XML closing tag")
+	__slash := __selfhost_parser_parser_parserConsume(__less.__state, __TokenKind_Slash, "expected '/' in XML closing tag")
+	__name := __selfhost_parser_parser_parserConsume(__slash.__state, __TokenKind_Ident, "expected XML closing tag name")
+	__checked := func() __ParserState {
+		if __name.__token.__lexeme == __tag {
+			return __name.__state
+		}
+		return __selfhost_parser_parser_parserErrorAt(__name.__state, __name.__token, "mismatched XML closing tag </"+__name.__token.__lexeme+">, expected </"+__tag+">")
+	}()
+	return __selfhost_parser_parser_parserConsume(__checked, __TokenKind_Greater, "expected '>' after XML closing tag").__state
+}
+
+func __selfhost_parser_parser_normalizeXMLText(__text string) string {
+	return __selfhost_parser_parser_normalizeXMLTextLoop(strings.TrimSpace(__text), 0, false, "")
+}
+
+func __selfhost_parser_parser_normalizeXMLTextLoop(__text string, __index int, __spacing bool, __out string) string {
+	return func() string {
+		if __index >= len([]rune(__text)) {
+			return __out
+		}
+		return __selfhost_parser_parser_normalizeXMLTextChar(__text, __index, __spacing, __out)
+	}()
+}
+
+func __selfhost_parser_parser_normalizeXMLTextChar(__text string, __index int, __spacing bool, __out string) string {
+	__ch := []rune(__text)[__index]
+	__isSpace := __ch == ' ' || __ch == '\t' || __ch == '\r' || __ch == '\n'
+	return func() string {
+		switch {
+		case __isSpace == true:
+			return __selfhost_parser_parser_normalizeXMLTextLoop(__text, __index+1, true, __out)
+		default:
+			return __selfhost_parser_parser_normalizeXMLTextLoop(__text, __index+1, false, __out+func() string {
+				if __spacing && __out != "" {
+					return " "
+				}
+				return ""
+			}()+string(__ch))
 		}
 	}()
 }
@@ -5361,6 +5761,10 @@ func __selfhost_ir_ir_inferIRExprText(__expr __ParsedExpr, __children []__IRExpr
 			return "String"
 		case __expr.__kind == __ExprKind_Template:
 			return "String"
+		case __expr.__kind == __ExprKind_XMLText:
+			return "String"
+		case __expr.__kind == __ExprKind_XMLElement:
+			return "HTMLElement"
 		case __expr.__kind == __ExprKind_Int:
 			return "Int"
 		case __expr.__kind == __ExprKind_Double:
@@ -6699,6 +7103,8 @@ func __selfhost_compiler_go_emitGoExpr(__expr __IRExpr) string {
 			return __mangleIdent(__expr.__name) + "{" + __selfhost_compiler_go_emitGoFields(__expr.__children, 0, "") + "}"
 		case __expr.__kind == __ExprKind_Object:
 			return __selfhost_compiler_go_emitGoInferredObject(__expr)
+		case __expr.__kind == __ExprKind_XMLElement:
+			return "/* XML is only supported by the TypeScript backend */"
 		case __expr.__kind == __ExprKind_Block:
 			return "func() any {\n" + __selfhost_compiler_go_emitGoBlockNoContext(__expr.__children, 0, true, "Dynamic", 1, "") + "}()"
 		default:
@@ -8610,6 +9016,8 @@ func __selfhost_compiler_mbt_emitMoonBitExpr(__expr __IRExpr) string {
 			return __selfhost_compiler_mbt_moonBitTypeIdent(__expr.__name) + "::{ " + __selfhost_compiler_mbt_emitMoonBitFields(__expr.__children, 0, "") + " }"
 		case __expr.__kind == __ExprKind_Object:
 			return "{ " + __selfhost_compiler_mbt_emitMoonBitFields(__expr.__children, 0, "") + " }"
+		case __expr.__kind == __ExprKind_XMLElement:
+			return "()"
 		case __expr.__kind == __ExprKind_Block:
 			return "{\n" + __selfhost_compiler_mbt_emitMoonBitBlock(__expr.__children, 0, true, "Dynamic", 1, "") + "}"
 		default:
@@ -9784,6 +10192,10 @@ func __selfhost_compiler_ts_emitTSExpr(__expr __IRExpr) string {
 			return __expr.__value
 		case __expr.__kind == __ExprKind_Regex:
 			return __expr.__value
+		case __expr.__kind == __ExprKind_XMLText:
+			return __selfhost_compiler_ts_tsQuoteString(__expr.__value)
+		case __expr.__kind == __ExprKind_XMLElement:
+			return __selfhost_compiler_ts_emitTSXMLExpr(__expr)
 		case __expr.__kind == __ExprKind_Bool:
 			return __expr.__value
 		case __expr.__kind == __ExprKind_Null:
@@ -9829,6 +10241,84 @@ func __selfhost_compiler_ts_emitTSExpr(__expr __IRExpr) string {
 		default:
 			return "undefined"
 		}
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSXMLExpr(__expr __IRExpr) string {
+	return "(() => {\n" + __selfhost_compiler_ts_emitTSXMLExprBody(__expr, "__el0", 1) + __line(1, "return __el0;") + "})()"
+}
+
+func __selfhost_compiler_ts_emitTSXMLExprBody(__expr __IRExpr, __name string, __level int) string {
+	__out := __line(__level, "const "+__name+" = document.createElement("+__selfhost_compiler_ts_tsQuoteString(__expr.__name)+");")
+	__out = __out + __selfhost_compiler_ts_emitTSXMLParts(__name, __expr.__children, 0, __level, 1)
+	return __out
+}
+
+func __selfhost_compiler_ts_emitTSXMLParts(__parent string, __children []__IRExpr, __index int, __level int, __childIndex int) string {
+	return func() string {
+		if __index >= len(__children) {
+			return ""
+		}
+		return __selfhost_compiler_ts_emitTSXMLPart(__parent, __children, __index, __level, __childIndex)
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSXMLPart(__parent string, __children []__IRExpr, __index int, __level int, __childIndex int) string {
+	__child := __children[__index]
+	__nextIndex := func() int {
+		if __child.__kind == __ExprKind_XMLElement {
+			return __childIndex + 1
+		}
+		return __childIndex
+	}()
+	return __selfhost_compiler_ts_emitTSXMLChild(__parent, __child, __level, __childIndex) + __selfhost_compiler_ts_emitTSXMLParts(__parent, __children, __index+1, __level, __nextIndex)
+}
+
+func __selfhost_compiler_ts_emitTSXMLChild(__parent string, __child __IRExpr, __level int, __childIndex int) string {
+	return func() string {
+		switch {
+		case __child.__kind == __ExprKind_Field:
+			return __selfhost_compiler_ts_emitTSXMLAttr(__parent, __child, __level)
+		case __child.__kind == __ExprKind_XMLText:
+			return __line(__level, __parent+".appendChild(document.createTextNode("+__selfhost_compiler_ts_tsQuoteString(__child.__value)+"));")
+		case __child.__kind == __ExprKind_XMLElement:
+			return __selfhost_compiler_ts_emitTSXMLNestedChild(__parent, __child, __level, __childIndex)
+		default:
+			return __line(__level, __parent+".appendChild(document.createTextNode(String("+__selfhost_compiler_ts_emitTSExpr(__child)+")));")
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSXMLNestedChild(__parent string, __child __IRExpr, __level int, __childIndex int) string {
+	__name := __parent + "_" + strconv.Itoa(__childIndex)
+	return __selfhost_compiler_ts_emitTSXMLExprBody(__child, __name, __level) + __line(__level, __parent+".appendChild("+__name+");")
+}
+
+func __selfhost_compiler_ts_emitTSXMLAttr(__parent string, __attr __IRExpr, __level int) string {
+	return func() string {
+		if __attr.__op == "xmlEvent" {
+			return __selfhost_compiler_ts_emitTSXMLEventAttr(__parent, __attr, __level)
+		}
+		return __selfhost_compiler_ts_emitTSXMLPlainAttr(__parent, __attr, __level)
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSXMLEventAttr(__parent string, __attr __IRExpr, __level int) string {
+	return func() string {
+		if len(__attr.__children) == 0 {
+			return ""
+		}
+		return __line(__level, __parent+".addEventListener("+__selfhost_compiler_ts_tsQuoteString(__attr.__name)+", () => { "+__selfhost_compiler_ts_emitTSExpr(__attr.__children[0])+"; });")
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSXMLPlainAttr(__parent string, __attr __IRExpr, __level int) string {
+	__prefix := __parent + ".setAttribute(" + __selfhost_compiler_ts_tsQuoteString(__attr.__name)
+	return func() string {
+		if len(__attr.__children) == 0 {
+			return __line(__level, __prefix+", \"\");")
+		}
+		return __line(__level, __prefix+", String("+__selfhost_compiler_ts_emitTSExpr(__attr.__children[0])+"));")
 	}()
 }
 
@@ -10214,6 +10704,10 @@ func __selfhost_compiler_ts_tsType(__typeName string) string {
 		return "boolean"
 	case __typeName == "Dynamic":
 		return "any"
+	case __typeName == "HTMLElement":
+		return "HTMLElement"
+	case __typeName == "WebComponent":
+		return "CustomElementConstructor"
 	case (__typeName == "Data") || (__typeName == "@io.Data"):
 		return "Uint8Array"
 	default:
@@ -11211,11 +11705,11 @@ func __compileFiles(__files []__SourceFile, __target string) __CompileResult {
 
 func __discoverSources(__root string) runeTask[runeResult[[]__SourceFile, *runeError]] {
 	return runeGo(func() runeResult[[]__SourceFile, *runeError] {
-		__result2 := runeAwait(runeFsReadFileText(__root))
-		if !__result2.ok {
-			return runeErr[[]__SourceFile, *runeError](__result2.err)
+		__result4 := runeAwait(runeFsReadFileText(__root))
+		if !__result4.ok {
+			return runeErr[[]__SourceFile, *runeError](__result4.err)
 		}
-		__source := __result2.value
+		__source := __result4.value
 		return runeOk[[]__SourceFile, *runeError](__selfhost_compiler_compiler_discoverSourceGraph([]__SourceFile{__SourceFile{__path: __root, __source: __source}}))
 	})
 }
@@ -11230,22 +11724,22 @@ func __selfhost_compiler_compiler_discoverSourceGraph(__files []__SourceFile) []
 
 func __getSelfhostSources(__root string) runeTask[runeResult[__SelfhostSources, *runeError]] {
 	return runeGo(func() runeResult[__SelfhostSources, *runeError] {
-		__result3 := runeAwait(__discoverSources(__root))
-		if !__result3.ok {
-			return runeErr[__SelfhostSources, *runeError](__result3.err)
+		__result5 := runeAwait(__discoverSources(__root))
+		if !__result5.ok {
+			return runeErr[__SelfhostSources, *runeError](__result5.err)
 		}
-		__files := __result3.value
+		__files := __result5.value
 		return runeOk[__SelfhostSources, *runeError](__SelfhostSources{__files: __files})
 	})
 }
 
 func ____discoverSourcesPath(__root string) runeTask[runeResult[[]__SourceFile, *runeError]] {
 	return runeGo(func() runeResult[[]__SourceFile, *runeError] {
-		__result4 := runeAwait(__discoverSources(__root))
-		if !__result4.ok {
-			return runeErr[[]__SourceFile, *runeError](__result4.err)
+		__result6 := runeAwait(__discoverSources(__root))
+		if !__result6.ok {
+			return runeErr[[]__SourceFile, *runeError](__result6.err)
 		}
-		__files := __result4.value
+		__files := __result6.value
 		return runeOk[[]__SourceFile, *runeError](__files)
 	})
 }
@@ -11582,7 +12076,7 @@ func __selfhost_compiler_compiler_compilerKnownTypes(__file __IRFile) []string {
 }
 
 func __selfhost_compiler_compiler_compilerBuiltinTypes() []string {
-	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"}
+	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "HTMLElement", "WebComponent", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"}
 }
 
 func __selfhost_compiler_compiler_checkDuplicateDeclarations(__file __IRFile, __errors []string) []string {
@@ -14426,12 +14920,12 @@ func __selfhost_compiler_compiler_checkGoModuleSelectorCall(__expr __IRExpr, __n
 
 func __selfhost_compiler_compiler_checkGoExprCall(__expr __IRExpr, __errors []string) []string {
 	return func() []string {
-		__match5 := __selfhost_compiler_compiler_compilerCallArgCount(__expr)
+		__match7 := __selfhost_compiler_compiler_compilerCallArgCount(__expr)
 		switch {
-		case __match5 == 1:
+		case __match7 == 1:
 			return __selfhost_compiler_compiler_checkGoExprStringLiteral(__expr, __errors)
 		case true:
-			__count := __match5
+			__count := __match7
 			_ = __count
 			return func() []string {
 				out := []string{}
@@ -14446,12 +14940,12 @@ func __selfhost_compiler_compiler_checkGoExprCall(__expr __IRExpr, __errors []st
 
 func __selfhost_compiler_compiler_checkGoStmtCall(__expr __IRExpr, __errors []string) []string {
 	return func() []string {
-		__match6 := __selfhost_compiler_compiler_compilerCallArgCount(__expr)
+		__match8 := __selfhost_compiler_compiler_compilerCallArgCount(__expr)
 		switch {
-		case __match6 == 1:
+		case __match8 == 1:
 			return __selfhost_compiler_compiler_checkGoStmtStringLiteral(__expr, __errors)
 		case true:
-			__count := __match6
+			__count := __match8
 			_ = __count
 			return func() []string {
 				out := []string{}
@@ -14743,10 +15237,39 @@ func __selfhost_compiler_compiler_checkFunctionReturn(__fn __IRFunction, __struc
 	return func() []string {
 		switch {
 		case __shouldCheck == true:
-			return __selfhost_compiler_compiler_checkFunctionReturnType(__fn.__name, __expected, __actual, __checked)
+			return func() []string {
+				if __expected == "WebComponent" && __actual == "HTMLElement" && __selfhost_compiler_compiler_compilerExprCanBuildWebComponent(__fn.__body) {
+					return __checked
+				}
+				return __selfhost_compiler_compiler_checkFunctionReturnType(__fn.__name, __expected, __actual, __checked)
+			}()
 		default:
 			return __checked
 		}
+	}()
+}
+
+func __selfhost_compiler_compiler_compilerExprCanBuildWebComponent(__expr __IRExpr) bool {
+	return func() bool {
+		switch {
+		case __expr.__kind == __ExprKind_XMLElement:
+			return true
+		case __expr.__kind == __ExprKind_Block:
+			return __selfhost_compiler_compiler_compilerLastExprCanBuildWebComponent(__expr.__children)
+		case __expr.__kind == __ExprKind_Ternary:
+			return len(__expr.__children) >= 3 && __selfhost_compiler_compiler_compilerExprCanBuildWebComponent(__expr.__children[1]) && __selfhost_compiler_compiler_compilerExprCanBuildWebComponent(__expr.__children[2])
+		default:
+			return false
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_compilerLastExprCanBuildWebComponent(__exprs []__IRExpr) bool {
+	return func() bool {
+		if len(__exprs) == 0 {
+			return false
+		}
+		return __selfhost_compiler_compiler_compilerExprCanBuildWebComponent(__exprs[len(__exprs)-1])
 	}()
 }
 
@@ -15101,6 +15624,10 @@ func __selfhost_compiler_compiler_inferCompilerExprType(__expr __IRExpr, __calla
 			return "String"
 		case __expr.__kind == __ExprKind_Template:
 			return "String"
+		case __expr.__kind == __ExprKind_XMLText:
+			return "String"
+		case __expr.__kind == __ExprKind_XMLElement:
+			return "HTMLElement"
 		case __expr.__kind == __ExprKind_Int:
 			return "Int"
 		case __expr.__kind == __ExprKind_Double:
@@ -16450,12 +16977,12 @@ func __selfhost_compiler_compiler_compilerMacroFunctionError(__fn __ParsedFuncti
 
 func __selfhost_compiler_compiler_compilerMacroPurityError(__fn __ParsedFunction, __errors []__ParseError) []__ParseError {
 	return func() []__ParseError {
-		__match7 := __selfhost_compiler_compiler_compilerParsedMacroPurityMessage(__fn.__body)
+		__match9 := __selfhost_compiler_compiler_compilerParsedMacroPurityMessage(__fn.__body)
 		switch {
-		case __match7 == "":
+		case __match9 == "":
 			return __errors
 		case true:
-			__message := __match7
+			__message := __match9
 			_ = __message
 			return func() []__ParseError {
 				out := []__ParseError{}
@@ -16811,6 +17338,10 @@ func __selfhost_compiler_compiler_compilerParsedAnnotationArgType(__expr __Parse
 			return "String"
 		case __expr.__kind == __ExprKind_Template:
 			return "String"
+		case __expr.__kind == __ExprKind_XMLText:
+			return "String"
+		case __expr.__kind == __ExprKind_XMLElement:
+			return "HTMLElement"
 		case __expr.__kind == __ExprKind_Int:
 			return "Int"
 		case __expr.__kind == __ExprKind_Double:

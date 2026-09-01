@@ -12,6 +12,27 @@
   @assert.eq(result.output.includes("export { __add as add, __main as main };"), true)
 }
 
+? "selfhost compiler checks xml and web components" {
+  source := `HelloWorld(text: String) -> WebComponent => {
+  <div>{text}</div>
+}
+
+render() => {
+  <div>
+    <h1>Web Component Example</h1>
+    <HelloWorld text={"hello"} />
+  </div>
+}
+`
+  checked := checkSource(source)
+  @assert.eq(checked.ok, true)
+  @assert.eq(checked.errors.length(), 0)
+  ts := compileTypeScript(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.output.includes(`document.createElement("div")`), true)
+  @assert.eq(ts.output.includes(`document.createElement("HelloWorld")`), true)
+}
+
 ? "selfhost compiler checks source without selecting a backend" {
   valid := checkSource(`main() -> Int => 42
 `)

@@ -67,6 +67,12 @@ TemplateParse: {
   children: Array[ParsedExpr]
 }
 
+XMLAttrStep: {
+  state: ParserState
+  element: ParsedExpr
+  selfClosing: Bool
+}
+
 FileStep: {
   state: ParserState
   file: ParsedFile
@@ -2230,7 +2236,195 @@ parsePrimary(
     TokenKind.Dollar => parseDollarExpression(state)
     TokenKind.LBrace => parseBraceLiteral(state)
     TokenKind.LParen => parseParenOrTuple(state)
+    TokenKind.Less => parseXMLElement(state)
     _ => parsePrimaryError(state)
+  }
+}
+
+parseXMLElement(
+  state: ParserState
+) -> ExprStep => {
+  open := parserConsume(state, TokenKind.Less, "expected '<'")
+  name := parserConsume(open.state, TokenKind.Ident, "expected XML tag name")
+  element := namedNode(ExprKind.XMLElement, name.token.lexeme, open.token)
+  attrs := parseXMLAttributes(name.state, element)
+  greater := parserConsume(attrs.state, TokenKind.Greater, "expected '>' after XML tag")
+  (
+    attrs.selfClosing ? ExprStep {
+      state: greater.state,
+      expr: attrs.element
+    }
+      : parseXMLChildren(greater.state, attrs.element)
+  )
+}
+
+parseXMLAttributes(
+  state: ParserState,
+  element: ParsedExpr
+) -> XMLAttrStep => {
+  current := parserSkipNewlines(state)
+  (
+    parserCheck(current, TokenKind.Slash) ? XMLAttrStep {
+      state: parserAdvance(current).state,
+      element: element,
+      selfClosing: true
+    }
+      : (
+        parserCheck(current, TokenKind.Greater) || parserCheck(current, TokenKind.EOF) ? XMLAttrStep {
+          state: current,
+          element: element,
+          selfClosing: false
+        }
+          : parseXMLAttribute(current, element)
+      )
+  )
+}
+
+parseXMLAttribute(
+  state: ParserState,
+  element: ParsedExpr
+) -> XMLAttrStep => {
+  eventStep := parserMatch(state, TokenKind.At)
+  name := parserConsume(eventStep.state, TokenKind.Ident, "expected XML attribute name")
+  valueStep := (
+    parserCheck(name.state, TokenKind.Assign) ? parseXMLAttributeValue(parserAdvance(name.state).state)
+      : ExprStep {
+        state: name.state,
+        expr: emptyExpr()
+      }
+  )
+  op := (
+    eventStep.ok ? "xmlEvent"
+      : (
+        valueStep.expr.kind == ExprKind.Unknown ? "xmlBareAttr"
+          : "xmlAttr"
+      )
+  )
+  attr := makeExpr(ExprKind.Field, name.token.lexeme, name.token.lexeme, "", op, [], (
+    valueStep.expr.kind == ExprKind.Unknown ? [emptyExpr()].slice(0, 0)
+      : [valueStep.expr]
+  ), name.token.line, name.token.column)
+  parseXMLAttributes(valueStep.state, appendChild(element, attr))
+}
+
+parseXMLAttributeValue(
+  state: ParserState
+) -> ExprStep => (
+  parserCheck(state, TokenKind.LBrace) ? parseXMLBracedExpression(state)
+    : parseLiteral(state, ExprKind.String)
+)
+
+parseXMLChildren(
+  state: ParserState,
+  element: ParsedExpr
+) -> ExprStep => {
+  current := parserSkipNewlines(state)
+  (
+    parserCheck(current, TokenKind.EOF) ? ExprStep {
+      state: current,
+      expr: element
+    }
+      : (
+        parserCheck(current, TokenKind.Less) && parserCheckNext(current, TokenKind.Slash) ? ExprStep {
+          state: parseXMLClose(current, element.name),
+          expr: element
+        }
+          : parseXMLChild(current, element)
+      )
+  )
+}
+
+parseXMLChild(
+  state: ParserState,
+  element: ParsedExpr
+) -> ExprStep => parserPeek(state).kind {
+  TokenKind.XMLText => parseXMLTextChild(state, element)
+  TokenKind.Less => parseXMLNestedElementChild(state, element)
+  TokenKind.LBrace => parseXMLExpressionChild(state, element)
+  _ => ExprStep {
+    state: parserAdvance(parserErrorAt(state, parserPeek(state), "expected XML child")).state,
+    expr: element
+  }
+}
+
+parseXMLTextChild(
+  state: ParserState,
+  element: ParsedExpr
+) -> ExprStep => {
+  text := parserAdvance(state)
+  normalized := normalizeXMLText(text.token.lexeme)
+  nextElement := (
+    normalized == "" ? element
+      : appendChild(element, valueNode(ExprKind.XMLText, normalized, text.token))
+  )
+  parseXMLChildren(text.state, nextElement)
+}
+
+parseXMLNestedElementChild(
+  state: ParserState,
+  element: ParsedExpr
+) -> ExprStep => {
+  child := parseXMLElement(state)
+  parseXMLChildren(child.state, appendChild(element, child.expr))
+}
+
+parseXMLExpressionChild(
+  state: ParserState,
+  element: ParsedExpr
+) -> ExprStep => {
+  child := parseXMLBracedExpression(state)
+  parseXMLChildren(child.state, appendChild(element, child.expr))
+}
+
+parseXMLBracedExpression(
+  state: ParserState
+) -> ExprStep => {
+  open := parserConsume(state, TokenKind.LBrace, "expected '{'")
+  expr := parseExpression(parserSkipNewlines(open.state), 1)
+  close := parserConsume(parserSkipNewlines(expr.state), TokenKind.RBrace, "expected '}' after XML expression")
+  ExprStep {
+    state: close.state,
+    expr: expr.expr
+  }
+}
+
+parseXMLClose(
+  state: ParserState,
+  tag: String
+) -> ParserState => {
+  less := parserConsume(state, TokenKind.Less, "expected XML closing tag")
+  slash := parserConsume(less.state, TokenKind.Slash, "expected '/' in XML closing tag")
+  name := parserConsume(slash.state, TokenKind.Ident, "expected XML closing tag name")
+  checked := (
+    name.token.lexeme == tag ? name.state
+      : parserErrorAt(name.state, name.token, (("mismatched XML closing tag </" + name.token.lexeme) + ">, expected </") + tag + ">")
+  )
+  parserConsume(checked, TokenKind.Greater, "expected '>' after XML closing tag").state
+}
+
+normalizeXMLText(text: String) -> String => normalizeXMLTextLoop(text.trim(), 0, false, "")
+
+normalizeXMLTextLoop(
+  text: String,
+  index: Int,
+  spacing: Bool,
+  out: String
+) -> String => (
+  index >= text.length() ? out
+    : normalizeXMLTextChar(text, index, spacing, out)
+)
+
+normalizeXMLTextChar(
+  text: String,
+  index: Int,
+  spacing: Bool,
+  out: String
+) -> String => {
+  ch := text.at(index)
+  isSpace := (((ch == ' ') || (ch == '\t')) || (ch == '\r')) || (ch == '\n')
+  isSpace {
+    true => normalizeXMLTextLoop(text, index + 1, true, out)
+    _ => normalizeXMLTextLoop(text, index + 1, false, out + ((spacing && (out != "")) ? " " : "") + ch.toString())
   }
 }
 

@@ -387,10 +387,28 @@ prependThisParam(
   out
 }
 
-emitTSFunction(fn: IRFunction) -> String => {
+emitTSFunction(fn: IRFunction) -> String => (
+  fn.returnType == "WebComponent" ? emitTSWebComponentFunction(fn)
+    : emitTSPlainFunction(fn)
+)
+
+emitTSPlainFunction(fn: IRFunction) -> String => {
   ret := tsType(fn.returnType)
   out :=: (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
   out = out + emitTSBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
+  out + "}\n"
+}
+
+emitTSWebComponentFunction(fn: IRFunction) -> String => {
+  out :=: (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + tsType(fn.returnType)) + " {\n"
+  out = out + line(1, "return class extends HTMLElement {")
+  out = out + line(2, "connectedCallback(): void {")
+  out = out + line(3, "if ((this as any).__runeMounted) return;")
+  out = out + line(3, "(this as any).__runeMounted = true;")
+  out = out + line(3, "const __root = " + emitTSExprExpected(fn.body, "HTMLElement") + ";")
+  out = out + line(3, "this.appendChild(__root);")
+  out = out + line(2, "}")
+  out = out + line(1, "};")
   out + "}\n"
 }
 
@@ -546,6 +564,8 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Template => emitTSTemplate(expr)
   ExprKind.Char => expr.value
   ExprKind.Regex => expr.value
+  ExprKind.XMLText => tsQuoteString(expr.value)
+  ExprKind.XMLElement => emitTSXMLExpr(expr)
   ExprKind.Bool => expr.value
   ExprKind.Null => "null"
   ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
@@ -568,6 +588,111 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Object => ("{" + emitTSFields(expr.children, 0, "")) + "}"
   ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, "Dynamic", 1, "")) + "})()"
   _ => "undefined"
+}
+
+emitTSXMLExpr(expr: IRExpr) -> String => (("(() => {\n" + emitTSXMLExprBody(expr, "__el0", 1)) + line(1, "return __el0;")) + "})()"
+
+emitTSXMLCreateElement(expr: IRExpr) -> String => "document.createElement(" + tsQuoteString(expr.name) + ")"
+
+emitTSXMLExprBody(
+  expr: IRExpr,
+  name: String,
+  level: Int
+) -> String => {
+  out := line(level, (("const " + name) + " = ") + emitTSXMLCreateElement(expr) + ";")
+  out = out + emitTSXMLParts(name, expr.children, 0, level, 1)
+  out
+}
+
+emitTSXMLParts(
+  parent: String,
+  children: Array[IRExpr],
+  index: Int,
+  level: Int,
+  childIndex: Int
+) -> String => (
+  index >= children.length() ? ""
+    : emitTSXMLPart(parent, children, index, level, childIndex)
+)
+
+emitTSXMLPart(
+  parent: String,
+  children: Array[IRExpr],
+  index: Int,
+  level: Int,
+  childIndex: Int
+) -> String => {
+  child := children[index]
+  nextIndex := (
+    child.kind == ExprKind.XMLElement ? childIndex + 1
+      : childIndex
+  )
+  emitTSXMLChild(parent, child, level, childIndex) + emitTSXMLParts(parent, children, index + 1, level, nextIndex)
+}
+
+emitTSXMLChild(
+  parent: String,
+  child: IRExpr,
+  level: Int,
+  childIndex: Int
+) -> String => child.kind {
+  ExprKind.Field => emitTSXMLAttr(parent, child, level)
+  ExprKind.XMLText => line(level, ((parent + ".appendChild(document.createTextNode(") + tsQuoteString(child.value)) + "));")
+  ExprKind.XMLElement => emitTSXMLNestedChild(parent, child, level, childIndex)
+  _ => emitTSXMLExprChild(parent, child, level, childIndex)
+}
+
+emitTSXMLNestedChild(
+  parent: String,
+  child: IRExpr,
+  level: Int,
+  childIndex: Int
+) -> String => {
+  name := (parent + "_") + childIndex.toString()
+  emitTSXMLExprBody(child, name, level) + line(level, (parent + ".appendChild(") + name + ");")
+}
+
+emitTSXMLExprChild(
+  parent: String,
+  child: IRExpr,
+  level: Int,
+  childIndex: Int
+) -> String => {
+  childType := child.text
+  childName := (parent + "_child") + childIndex.toString()
+  childType.startsWith("Array[") ? line(level, ("for (const " + childName) + " of " + emitTSExpr(child) + ") {") + line(level + 1, (parent + ".appendChild(") + childName + ");") + line(level, "}")
+    : (
+      childType == "HTMLElement" ? line(level, (parent + ".appendChild(") + emitTSExpr(child) + ");")
+        : line(level, ((parent + ".appendChild(document.createTextNode(String(") + emitTSExpr(child)) + ")));" )
+    )
+}
+
+emitTSXMLAttr(
+  parent: String,
+  attr: IRExpr,
+  level: Int
+) -> String => {
+  attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, attr, level)
+    : emitTSXMLPlainAttr(parent, attr, level)
+}
+
+emitTSXMLEventAttr(
+  parent: String,
+  attr: IRExpr,
+  level: Int
+) -> String => (
+  attr.children.length() == 0 ? ""
+    : line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", () => { ") + emitTSExpr(attr.children[0])) + "; });")
+)
+
+emitTSXMLPlainAttr(
+  parent: String,
+  attr: IRExpr,
+  level: Int
+) -> String => {
+  prefix := (parent + ".setAttribute(") + tsQuoteString(attr.name)
+  attr.children.length() == 0 ? line(level, prefix + ", \"\");")
+    : line(level, (prefix + ", String(") + emitTSExpr(attr.children[0]) + "));")
 }
 
 emitTSTemplate(expr: IRExpr) -> String => {
@@ -840,6 +965,8 @@ tsType(typeName: String) -> String => {
   "String" | "Char" => "string"
   "Bool" => "boolean"
   "Dynamic" => "any"
+  "HTMLElement" => "HTMLElement"
+  "WebComponent" => "CustomElementConstructor"
   "Data" | "@io.Data" => "Uint8Array"
   _ => tsTypeFallback(typeName)
 }

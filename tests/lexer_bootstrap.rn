@@ -83,6 +83,30 @@ newline := '\\n'`)
   @assert.eq(tokens[7].lexeme, "'b'")
 }
 
+? "selfhost lexer reads xml literals" {
+  tokens := lex(`<div><h1>Hello</h1>{name}</div>`)
+  @assert.eq(tokens[0].kind, TokenKind.Less)
+  @assert.eq(tokens[1].kind, TokenKind.Ident)
+  @assert.eq(tokens[1].lexeme, "div")
+  @assert.eq(tokens[3].kind, TokenKind.Less)
+  @assert.eq(tokens[6].kind, TokenKind.XMLText)
+  @assert.eq(tokens[7].kind, TokenKind.Less)
+  @assert.eq(tokens[8].kind, TokenKind.Slash)
+  @assert.eq(tokens[11].kind, TokenKind.LBrace)
+  @assert.eq(tokens[12].kind, TokenKind.Ident)
+  @assert.eq(tokens[13].kind, TokenKind.RBrace)
+}
+
+? "selfhost lexer reads xml inside expressions" {
+  tokens := lex(`render() => <ul>{items.map((item) => (<li>{item}</li>))}</ul>`)
+  @assert.eq(tokens[17].kind, TokenKind.Less)
+  @assert.eq(tokens[18].kind, TokenKind.Ident)
+  @assert.eq(tokens[18].lexeme, "li")
+  @assert.eq(tokens[29].kind, TokenKind.RBrace)
+  @assert.eq(tokens[30].kind, TokenKind.Less)
+  @assert.eq(tokens[31].kind, TokenKind.Slash)
+}
+
 ? "selfhost lexer reads compile-time marker" {
   tokens := lex("value := (1)'")
   @assert.eq(tokens[0].kind, TokenKind.Ident)

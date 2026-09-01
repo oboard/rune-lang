@@ -189,6 +189,7 @@
   ObjectDestructure = 44
   Error = 45
   Watch = 46
+  XMLElement = 47
 }
 
 + emptyParsedTypeRef() -> ParsedTypeRef => {
@@ -439,5 +440,6 @@ typeParamsToString(
   ExprKind.ObjectDestructure => "objectDestructure"
   ExprKind.Error => "error"
   ExprKind.Watch => "watch"
+  ExprKind.XMLElement => "xmlElement"
   _ => "unknown"
 }

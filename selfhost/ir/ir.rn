@@ -517,6 +517,8 @@ inferIRExprText(
     ExprKind.Call => inferIRCallText(children)
     ExprKind.String => "String"
     ExprKind.Template => "String"
+    ExprKind.XMLText => "String"
+    ExprKind.XMLElement => "HTMLElement"
     ExprKind.Int => "Int"
     ExprKind.Double => "Double"
     ExprKind.BigInt => "BigInt"

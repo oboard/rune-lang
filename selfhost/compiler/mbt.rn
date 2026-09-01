@@ -415,6 +415,7 @@ emitMoonBitExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Reactive => emitMoonBitExpr(expr.children[0])
   ExprKind.Struct => (moonBitTypeIdent(expr.name) + "::{ ") + emitMoonBitFields(expr.children, 0, "") + " }"
   ExprKind.Object => ("{ " + emitMoonBitFields(expr.children, 0, "")) + " }"
+  ExprKind.XMLElement => "()"
   ExprKind.Block => ("{\n" + emitMoonBitBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}"
   _ => "()"
 }

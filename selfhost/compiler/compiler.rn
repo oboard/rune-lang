@@ -379,7 +379,7 @@ compilerKnownTypes(
   names
 }
 
-compilerBuiltinTypes() -> Array[String] => ["Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"]
+compilerBuiltinTypes() -> Array[String] => ["Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "HTMLElement", "WebComponent", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"]
 
 checkDuplicateDeclarations(
   file: IRFile,
@@ -3271,10 +3271,29 @@ checkFunctionReturn(
   actual := inferCompilerExprTypeWithStructs(fn.body, structs, callables, bindings)
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
-    true => checkFunctionReturnType(fn.name, expected, actual, checked)
+    true => (
+      (expected == "WebComponent") && (actual == "HTMLElement") && compilerExprCanBuildWebComponent(fn.body) ? checked
+        : checkFunctionReturnType(fn.name, expected, actual, checked)
+    )
     _ => checked
   }
 }
+
+compilerExprCanBuildWebComponent(
+  expr: IRExpr
+) -> Bool => expr.kind {
+  ExprKind.XMLElement => true
+  ExprKind.Block => compilerLastExprCanBuildWebComponent(expr.children)
+  ExprKind.Ternary => (expr.children.length() >= 3) && compilerExprCanBuildWebComponent(expr.children[1]) && compilerExprCanBuildWebComponent(expr.children[2])
+  _ => false
+}
+
+compilerLastExprCanBuildWebComponent(
+  exprs: Array[IRExpr]
+) -> Bool => (
+  exprs.length() == 0 ? false
+    : compilerExprCanBuildWebComponent(exprs[exprs.length() - 1])
+)
 
 checkFunctionReturnType(
   name: String,
@@ -3577,6 +3596,8 @@ inferCompilerExprType(
   ExprKind.Selector => inferCompilerSelectorType(expr, callables, bindings)
   ExprKind.String => "String"
   ExprKind.Template => "String"
+  ExprKind.XMLText => "String"
+  ExprKind.XMLElement => "HTMLElement"
   ExprKind.Int => "Int"
   ExprKind.Double => "Double"
   ExprKind.BigInt => "BigInt"
@@ -5262,6 +5283,8 @@ compilerParsedAnnotationArgType(
 ) -> String => expr.kind {
   ExprKind.String => "String"
   ExprKind.Template => "String"
+  ExprKind.XMLText => "String"
+  ExprKind.XMLElement => "HTMLElement"
   ExprKind.Int => "Int"
   ExprKind.Double => "Double"
   ExprKind.BigInt => "BigInt"

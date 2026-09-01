@@ -538,15 +538,9 @@ func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer)
 }
 
 func checkFileWithHostCompiler(path string, out io.Writer, errOut io.Writer) error {
-	source, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	result := __checkSource(string(source))
-	if !result.__ok {
-		for _, message := range result.__errors {
-			fmt.Fprintf(errOut, "%s: %s\n", path, message)
-		}
+	_, diags := compiler.AnalyzeFile(path)
+	if len(diags) > 0 {
+		printDiagnosticsTo(errOut, path, diags)
 		return fmt.Errorf("check failed")
 	}
 	fmt.Fprintf(out, "ok %s\n", path)
@@ -1268,6 +1262,10 @@ func validateBackend(value string) error {
 }
 
 func printDiagnostics(path string, diags []compiler.Diagnostic) {
+	printDiagnosticsTo(os.Stderr, path, diags)
+}
+
+func printDiagnosticsTo(out io.Writer, path string, diags []compiler.Diagnostic) {
 	for _, diag := range diags {
 		diagPath := path
 		if diag.Path != "" {
@@ -1278,9 +1276,9 @@ func printDiagnostics(path string, diags []compiler.Diagnostic) {
 			prefix = "warning: "
 		}
 		if diag.Pos.Line > 0 {
-			fmt.Fprintf(os.Stderr, "%s:%d:%d: %s%s\n", diagPath, diag.Pos.Line, diag.Pos.Column, prefix, diag.Message)
+			fmt.Fprintf(out, "%s:%d:%d: %s%s\n", diagPath, diag.Pos.Line, diag.Pos.Column, prefix, diag.Message)
 		} else {
-			fmt.Fprintf(os.Stderr, "%s: %s%s\n", diagPath, prefix, diag.Message)
+			fmt.Fprintf(out, "%s: %s%s\n", diagPath, prefix, diag.Message)
 		}
 	}
 }

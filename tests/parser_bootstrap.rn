@@ -147,6 +147,21 @@ Command: {
   @assert.eq(file.functions[1].annotations.length(), 0)
 }
 
+? "selfhost parser reads xml literals" {
+  file := parse(`render() => <div class="root"><h1>Hello</h1>{name}</div>`)
+  elem := file.functions[0].body
+  @assert.eq(file.errors.length(), 0)
+  @assert.eq(elem.kind, ExprKind.XMLElement)
+  @assert.eq(elem.name, "div")
+  @assert.eq(elem.children[0].kind, ExprKind.Field)
+  @assert.eq(elem.children[0].name, "class")
+  @assert.eq(elem.children[1].kind, ExprKind.XMLElement)
+  @assert.eq(elem.children[1].name, "h1")
+  @assert.eq(elem.children[1].children[0].kind, ExprKind.XMLText)
+  @assert.eq(elem.children[1].children[0].value, "Hello")
+  @assert.eq(elem.children[2].kind, ExprKind.Identifier)
+}
+
 ? "selfhost parser reads static selectors" {
   file := parse(`main() => User::fromJson("{}")`)
   call := file.functions[0].body

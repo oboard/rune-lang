@@ -701,6 +701,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Reactive => emitGoExpr(expr.children[0])
   ExprKind.Struct => ((mangleIdent(expr.name) + "{") + emitGoFields(expr.children, 0, "")) + "}"
   ExprKind.Object => emitGoInferredObject(expr)
+  ExprKind.XMLElement => "/* XML is only supported by the TypeScript backend */"
   ExprKind.Block => ("func() any {\n" + emitGoBlockNoContext(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
   _ => "nil"
 }
