@@ -15,6 +15,9 @@ GoJSONDeclResult: {
   (
     fileUsesPathFamily(file) ? out = out + emitGoPathHelpers()
   )
+  (
+    fileUsesTemplate(file) ? out = out + emitGoTemplateHelper()
+  )
   file.enums.each((enumDecl) => out = (out + emitGoEnum(enumDecl)) + "\n")
   file.enums.each((enumDecl) => out = out + emitGoEnumMethods(file, enumDecl))
   file.structs.each((typeDecl) => out = (out + emitGoStruct(typeDecl)) + "\n")
@@ -39,12 +42,12 @@ emitGoImports(
   file: IRFile
 ) -> String => {
   imports :=: appendGoImportDecls([], file.imports, 0)
-  imports = appendGoImportIf(imports, usesPrintFile(file), "fmt")
+  imports = appendGoImportIf(imports, usesPrintFile(file) || fileUsesTemplate(file), "fmt")
   imports = appendGoImportIf(imports, fileUsesGoStrings(file), "strings")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.platform"), "runtime")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit"), "os")
   imports = appendGoImportIf(imports, fileUsesDoubleMath(file), "math")
-  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString"), "strconv")
+  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString") || fileUsesToString(file), "strconv")
   imports = appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "json.parse") || fileUsesModuleCall(file, "json.stringify"), "encoding/json")
   empty := imports.length() == 0
@@ -675,7 +678,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Double => expr.value
   ExprKind.BigInt => "int64(" + bigintLiteralDigits(expr.value) + ")"
   ExprKind.String => expr.value
-  ExprKind.Template => "\"\""
+  ExprKind.Template => emitGoTemplate(expr)
   ExprKind.Char => expr.value
   ExprKind.Regex => expr.value
   ExprKind.Bool => expr.value
@@ -722,6 +725,131 @@ emitGoExprExpectedForFile(
   ExprKind.Binary => emitGoBinaryExpectedForFile(file, expr, expected)
   _ => emitGoExpr(expr)
 }
+
+/// Compile a template literal into a Go string concatenation. The parser encodes
+/// interpolations as `<<<RUNE_TEMPLATE_PART>>>` markers inside `expr.value` (the
+/// backtick-wrapped raw text) with the interpolated expressions in `expr.children`.
+emitGoTemplate(expr: IRExpr) -> String => {
+  raw := expr.value
+  inner := (
+    raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
+      : raw
+  )
+  parts := goTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [""].slice(0, 0))
+  parts.length() == 0 ? "\"\"" : joinGoTemplateParts(parts, 0, "")
+}
+
+goTemplateAccumulate(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => (
+  index >= segments.length() ? out
+    : goTemplateAccumulate(segments, children, index + 1, goTemplateAppendStep(segments, children, index, out))
+)
+
+goTemplateAppendStep(
+  segments: Array[String],
+  children: Array[IRExpr],
+  index: Int,
+  out: Array[String]
+) -> Array[String] => {
+  withText := (
+    segments[index].isEmpty() ? out
+      : [..out, goStringLiteral(segments[index])]
+  )
+  (
+    index < children.length() ? [..withText, ("__runeTemplateString(" + emitGoExpr(children[index])) + ")"]
+      : withText
+  )
+}
+
+joinGoTemplateParts(
+  parts: Array[String],
+  index: Int,
+  out: String
+) -> String => (
+  index >= parts.length() ? out
+    : joinGoTemplateParts(parts, index + 1, (
+      index == 0 ? out + parts[index]
+        : (out + " + ") + parts[index]
+    ))
+)
+
+/// Produce a Go double-quoted string literal from a raw source string (which may
+/// carry Rune backslash escapes). Escape sequences are decoded and re-encoded as
+/// Go escapes so the emitted literal is a faithful rendition of the source text.
+goStringLiteral(raw: String) -> String => ("\"" + goStringLiteralChars(raw, 0, "")) + "\""
+
+goStringLiteralChars(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => (index >= raw.length() ? out
+  : goStringLiteralChar(raw, index, out))
+
+goStringLiteralChar(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => ((raw.at(index) == '\\') && ((index + 1) < raw.length())) {
+  true => goStringLiteralNext(raw, index + 2, out + goStringLiteralEscaped(raw.at(index + 1)))
+  _ => goStringLiteralNext(raw, index + 1, out + goStringLiteralPlain(raw.at(index)))
+}
+
+goStringLiteralEscaped(ch: Char) -> String => (
+  ch == 'n' ? "\\n"
+    : (
+      ch == 't' ? "\\t"
+        : (
+          ch == 'r' ? "\\r"
+            : (
+              ch == '\\' ? "\\\\"
+                : (
+                  ch == '"' ? "\\\""
+                    : goStringLiteralPlain(ch)
+                )
+            )
+        )
+    )
+)
+
+goStringLiteralPlain(ch: Char) -> String => (
+  ch == '"' ? "\\\""
+    : (
+      ch == '\\' ? "\\\\"
+        : (
+          ch == '\n' ? "\\n"
+            : (
+              ch == '\t' ? "\\t"
+                : (
+                  ch == '\r' ? "\\r"
+                    : ch.toString()
+                )
+            )
+        )
+    )
+)
+
+goStringLiteralNext(
+  raw: String,
+  index: Int,
+  out: String
+) -> String => goStringLiteralChars(raw, index, out)
+
+emitGoTemplateHelper() -> String => `func __runeTemplateString(value any) string {
+	switch v := value.(type) {
+	case nil:
+		return "null"
+	case rune:
+		return string(v)
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
+`
 
 emitGoObjectExpected(
   expr: IRExpr,
@@ -966,6 +1094,7 @@ emitGoCoreMethodCall(
     "set" => emitGoCoreSet(expr, selector.children[0])
     "getOr" => emitGoCoreGetOr(expr, selector.children[0])
     "toDouble" | "toInt" => emitGoCoreNumericConversion(selector.children[0], selector.name)
+    "toString" => emitGoCoreToString(selector.children[0])
     _ => emitGoDefaultCall(expr)
   }
     : emitGoDefaultCall(expr)
@@ -1027,6 +1156,16 @@ emitGoCoreNumericConversion(
     : method == "toInt" ? "int(" + emitGoExpr(receiver) + ")"
     : emitGoExpr(receiver)
 )
+
+emitGoCoreToString(receiver: IRExpr) -> String => receiver.text {
+  "Bool" => "strconv.FormatBool(" + emitGoExpr(receiver) + ")"
+  "Int" | "int4" | "int8" | "int16" | "int64" | "uint" | "uint8" | "uint16" | "uint64" => "strconv.Itoa(int(" + emitGoExpr(receiver) + "))"
+  "Double" => "strconv.FormatFloat(" + emitGoExpr(receiver) + ", 'f', -1, 64)"
+  "Float" => "strconv.FormatFloat(float64(" + emitGoExpr(receiver) + "), 'f', -1, 32)"
+  "Char" => "string(" + emitGoExpr(receiver) + ")"
+  "BigInt" => "strconv.FormatInt(int64(" + emitGoExpr(receiver) + "), 10)"
+  _ => emitGoExpr(receiver)
+}
 
 emitGoLambda(expr: IRExpr) -> String => ((("func(" + emitGoParams(expr.params, 0, "")) + ") any { return ") + emitGoExpr(expr.children[0])) + " }"
 
@@ -1122,6 +1261,113 @@ hasFunction(
 )
 
 usesPrintFile(file: IRFile) -> Bool => functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0) || enumsUsePrint(file.enums, 0)
+
+fileUsesTemplate(file: IRFile) -> Bool => functionsUseTemplate(file.functions, 0) || structsUseTemplate(file.structs, 0) || enumsUseTemplate(file.enums, 0)
+
+functionsUseTemplate(
+  functions: Array[IRFunction],
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : (
+      functions[index].macro ? functionsUseTemplate(functions, index + 1)
+        : exprUsesTemplate(functions[index].body) ? true
+        : functionsUseTemplate(functions, index + 1)
+    )
+)
+
+structsUseTemplate(
+  structs: Array[IRStructType],
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : (
+      functionsUseTemplate(structs[index].methods, 0) ? true
+        : structsUseTemplate(structs, index + 1)
+    )
+)
+
+enumsUseTemplate(
+  enums: Array[IREnumType],
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : (
+      functionsUseTemplate(enums[index].methods, 0) ? true
+        : enumsUseTemplate(enums, index + 1)
+    )
+)
+
+exprUsesTemplate(expr: IRExpr) -> Bool => (expr.kind == ExprKind.Template) || exprChildrenUseTemplate(expr.children, 0)
+
+exprChildrenUseTemplate(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : (
+      exprUsesTemplate(children[index]) ? true
+        : exprChildrenUseTemplate(children, index + 1)
+    )
+)
+
+fileUsesToString(file: IRFile) -> Bool => functionsUseToString(file.functions, 0) || structsUseToString(file.structs, 0) || enumsUseToString(file.enums, 0)
+
+functionsUseToString(
+  functions: Array[IRFunction],
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : (
+      functions[index].macro ? functionsUseToString(functions, index + 1)
+        : exprUsesToString(functions[index].body) ? true
+        : functionsUseToString(functions, index + 1)
+    )
+)
+
+structsUseToString(
+  structs: Array[IRStructType],
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : (
+      functionsUseToString(structs[index].methods, 0) ? true
+        : structsUseToString(structs, index + 1)
+    )
+)
+
+enumsUseToString(
+  enums: Array[IREnumType],
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : (
+      functionsUseToString(enums[index].methods, 0) ? true
+        : enumsUseToString(enums, index + 1)
+    )
+)
+
+exprUsesToString(expr: IRExpr) -> Bool => exprIsScalarToStringCall(expr) || exprChildrenUseToString(expr.children, 0)
+
+exprIsScalarToStringCall(expr: IRExpr) -> Bool => (
+  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) && (expr.children[0].name == "toString") && (expr.children[0].children.length() > 0) ? goScalarToStringReceiver(expr.children[0].children[0].text)
+    : false
+)
+
+goScalarToStringReceiver(typeName: String) -> Bool => (
+  (typeName == "Bool") || (typeName == "Int") || (typeName == "int4") || (typeName == "int8") || (typeName == "int16") || (typeName == "int64") || (typeName == "uint") || (typeName == "uint8") || (typeName == "uint16") || (typeName == "uint64") || (typeName == "Double") || (typeName == "Float") || (typeName == "Char") || (typeName == "BigInt")
+)
+
+exprChildrenUseToString(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : (
+      exprUsesToString(children[index]) ? true
+        : exprChildrenUseToString(children, index + 1)
+    )
+)
 
 functionsUsePrint(
   functions: Array[IRFunction],

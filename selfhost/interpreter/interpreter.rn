@@ -224,6 +224,24 @@ RuntimeValueKind: {
   }
 }
 
+/// Run a single top-level function in `file` with caller-supplied argument
+/// values, binding them positionally to the function's parameters. This is the
+/// entry point the self-hosted compiler uses to execute the `@syntax` macro
+/// modules: a macro function like `#renameDeclaration(tree, context, name)` is
+/// called with `[encodedSyntaxFile, macroContext, arg...]`.
++ runFunction(
+  file: IRFile,
+  funcName: String,
+  args: Array[RuntimeValue]
+) -> EvalResult => {
+  interpreter := newInterpreter(file)
+  fn := findFunction(interpreter, funcName)
+  (
+    fn.name == "" ? errorResult("function " + funcName + " not found")
+      : callFunction(interpreter, fn, args)
+  )
+}
+
 newInterpreter(
   file: IRFile
 ) -> Interpreter => {

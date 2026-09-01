@@ -295,10 +295,67 @@ func emitGo(path string, output string, stdout io.Writer) error {
 	return emitGoWithHostImportGraph(path, output, stdout)
 }
 
-// requiresHostCompilerBridge keeps bootstrap artifacts and Rune import graphs
-// on the host compiler until self-hosted source discovery is wired into the CLI.
+// requiresHostCompilerBridge keeps bootstrap artifacts, Rune import graphs, and
+// sources using `#module.func` @syntax macros on the host compiler until the
+// self-hosted compiler grows a language-level macro executor.
 func requiresHostCompilerBridge(path string, source string) bool {
-	return strings.Contains(path, "selfhost/")
+	return strings.Contains(path, "selfhost/") || usesMacroAnnotations(source)
+}
+
+// usesMacroAnnotations reports whether the source uses any `#module.func`
+// syntax macro (e.g. `#cli.command`, `#macro.renameDeclaration`, `#json.object`).
+// These are expanded generically by the host compiler's @syntax engine (the
+// self-hosted compiler does not yet execute them).
+func usesMacroAnnotations(source string) bool {
+	file, errs := parser.Parse(source)
+	if len(errs) > 0 {
+		return false
+	}
+	for _, fn := range file.Functions {
+		if annotationUsesMacro(fn.Annotations) {
+			return true
+		}
+	}
+	for _, typ := range file.Types {
+		if annotationUsesMacro(typ.Annotations) {
+			return true
+		}
+		for _, field := range typ.Fields {
+			if annotationUsesMacro(field.Annotations) {
+				return true
+			}
+		}
+		for _, method := range typ.Methods {
+			if annotationUsesMacro(method.Annotations) {
+				return true
+			}
+		}
+	}
+	for _, enum := range file.Enums {
+		if annotationUsesMacro(enum.Annotations) {
+			return true
+		}
+		for _, member := range enum.Members {
+			if annotationUsesMacro(member.Annotations) {
+				return true
+			}
+		}
+		for _, method := range enum.Methods {
+			if annotationUsesMacro(method.Annotations) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func annotationUsesMacro(annotations []ast.Annotation) bool {
+	for _, annotation := range annotations {
+		if annotation.Module != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func collectSelfhostSourceFiles(entryPath string) ([]__SourceFile, error) {
