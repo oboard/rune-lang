@@ -121,7 +121,13 @@ func (p *Parser) looksLikeObjectLiteralBody() bool {
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
 		i++
 	}
-	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Ident || isLiteralIdentifier(p.tokens[i].Lexeme) {
+	if i >= len(p.tokens) || p.tokens[i].Kind == lexer.RBrace {
+		return false
+	}
+	if p.tokens[i].Kind == lexer.DotDot {
+		return true
+	}
+	if p.tokens[i].Kind != lexer.Ident || isLiteralIdentifier(p.tokens[i].Lexeme) {
 		return false
 	}
 	if i+1 >= len(p.tokens) {

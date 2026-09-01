@@ -228,6 +228,11 @@ func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLi
 			return typ
 		}
 	}
+	if selfName == "" && c.expectedType == Unknown {
+		if typ, ok := c.inferAnonymousObjectLiteralStructFromSpread(lit, env); ok {
+			return typ
+		}
+	}
 	var fields []FieldInfo
 	byName := map[string]FieldInfo{}
 	for _, field := range lit.Fields {
@@ -285,13 +290,43 @@ func (c *checker) inferAnonymousObjectLiteralAsStruct(lit *ast.AnonymousObjectLi
 		return Unknown, true
 	}
 
+	c.checkAnonymousObjectLiteralAsStruct(lit, expected, typeName, structInfo, typeParamBindingsForStruct(structInfo, expected), env)
+	c.info.ExprTypes[lit] = expected
+	return expected, true
+}
+
+func (c *checker) inferAnonymousObjectLiteralStructFromSpread(lit *ast.AnonymousObjectLiteral, env map[string]Type) (Type, bool) {
+	for _, field := range lit.Fields {
+		if !field.Spread {
+			continue
+		}
+		spreadType := c.inferExpr(field.Value, env)
+		if spreadType == Unknown || isObjectType(spreadType) {
+			continue
+		}
+		typeName := baseTypeName(spreadType)
+		structInfo := c.info.Types[typeName]
+		if structInfo == nil {
+			continue
+		}
+		if !c.checkPrivateAccess("type", typeName, structInfo.Private, structInfo.SourcePath, lit.Pos) {
+			return Unknown, true
+		}
+		c.checkAnonymousObjectLiteralAsStruct(lit, spreadType, typeName, structInfo, typeParamBindingsForStruct(structInfo, spreadType), env)
+		c.info.ExprTypes[lit] = spreadType
+		return spreadType, true
+	}
+	return Unknown, false
+}
+
+func (c *checker) checkAnonymousObjectLiteralAsStruct(lit *ast.AnonymousObjectLiteral, expected Type, typeName string, structInfo *StructInfo, typeBindings map[string]Type, env map[string]Type) {
 	c.checkAnonymousObjectLiteralCommas(lit)
 	c.checkAnonymousObjectLiteralDuplicateFields(lit)
 	fields := c.expandStructLiteralFields(&ast.StructLiteral{
 		TypeName: typeName,
 		Fields:   lit.Fields,
 		Pos:      lit.Pos,
-	}, structInfo, typeParamBindingsForStruct(structInfo, expected), env)
+	}, structInfo, typeBindings, env)
 	seen := map[string]bool{}
 	for _, field := range fields {
 		fieldInfo, ok := structInfo.ByName[field.Name]
@@ -317,8 +352,6 @@ func (c *checker) inferAnonymousObjectLiteralAsStruct(lit *ast.AnonymousObjectLi
 			c.errorf(lit.Pos, "missing field %s.%s", typeName, field.Name)
 		}
 	}
-	c.info.ExprTypes[lit] = expected
-	return expected, true
 }
 
 func (c *checker) checkAnonymousObjectLiteralCommas(lit *ast.AnonymousObjectLiteral) {

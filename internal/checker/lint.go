@@ -163,10 +163,12 @@ func (l *linter) visitExpr(expr ast.Expr) {
 			l.visitExpr(entry.Value)
 		}
 	case *ast.StructLiteral:
+		l.lintStructLiteralPreferSpread(e.TypeName, e.Fields, e.Pos)
 		for _, field := range e.Fields {
 			l.visitExpr(field.Value)
 		}
 	case *ast.AnonymousObjectLiteral:
+		l.lintStructLiteralPreferSpread(baseTypeName(l.info.ExprTypes[e]), e.Fields, e.Pos)
 		for _, field := range e.Fields {
 			l.visitExpr(field.Value)
 		}
@@ -329,6 +331,73 @@ func isPatternPredicateValue(expr ast.Expr) bool {
 	default:
 		return false
 	}
+}
+
+func (l *linter) lintStructLiteralPreferSpread(typeName string, fields []ast.FieldValue, pos lexer.Position) {
+	explicit := map[string]bool{}
+	copiedByReceiver := map[string]int{}
+	receiverTypes := map[string]Type{}
+	for _, field := range fields {
+		if field.Spread || field.Name == "" {
+			continue
+		}
+		explicit[field.Name] = true
+		selector, ok := field.Value.(*ast.SelectorExpr)
+		if !ok || selector.Name != field.Name {
+			continue
+		}
+		base := ast.ExprName(selector.Receiver)
+		if base == "" {
+			continue
+		}
+		copiedByReceiver[base]++
+		receiverTypes[base] = l.info.ExprTypes[selector.Receiver]
+	}
+	if typeName != "" && !isObjectType(Type(typeName)) {
+		if structInfo := l.info.Types[typeName]; structInfo != nil && l.recordLiteralCoversFields(structInfo, explicit) {
+			if copiedFrom := l.bestCopiedReceiver(copiedByReceiver, len(structInfo.Fields)); copiedFrom != "" {
+				l.warn(pos, "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", copiedFrom)
+			}
+		}
+		return
+	}
+	for receiver, receiverType := range receiverTypes {
+		structInfo := l.info.Types[baseTypeName(receiverType)]
+		if structInfo == nil || !l.recordLiteralCoversFields(structInfo, explicit) {
+			continue
+		}
+		if copiedByReceiver[receiver]*2 >= len(structInfo.Fields) {
+			l.warn(pos, "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", receiver)
+			return
+		}
+	}
+}
+
+func (l *linter) recordLiteralCoversFields(structInfo *StructInfo, explicit map[string]bool) bool {
+	if structInfo == nil || len(structInfo.Fields) == 0 || len(explicit) < len(structInfo.Fields) {
+		return false
+	}
+	for _, field := range structInfo.Fields {
+		if !explicit[field.Name] {
+			return false
+		}
+	}
+	return true
+}
+
+func (l *linter) bestCopiedReceiver(copiedByReceiver map[string]int, fieldCount int) string {
+	copiedFrom := ""
+	copiedCount := 0
+	for receiver, count := range copiedByReceiver {
+		if count > copiedCount {
+			copiedFrom = receiver
+			copiedCount = count
+		}
+	}
+	if copiedFrom == "" || copiedCount*2 < fieldCount {
+		return ""
+	}
+	return copiedFrom
 }
 
 func (l *linter) markDestructuredFields(stmt *ast.ObjectDestructureStmt) {

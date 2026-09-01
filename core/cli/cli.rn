@@ -321,65 +321,40 @@ parserBody(
 + withVersion(
   command: CliCommand,
   version: String
-) -> CliCommand => {
-  name: command.name,
-  version: version,
-  about: command.about,
-  options: command.options,
-  arguments: command.arguments,
-  commands: command.commands,
-  aliases: command.aliases
+) => CliCommand {
+  ..command,
+  version: version
 }
 
 + withOption(
   command: CliCommand,
   option: CliOption
-) -> CliCommand => {
-  name: command.name,
-  version: command.version,
-  about: command.about,
-  options: [..command.options, option],
-  arguments: command.arguments,
-  commands: command.commands,
-  aliases: command.aliases
+) => CliCommand {
+  ..command,
+  options: [..command.options, option]
 }
 
 + withArgument(
   command: CliCommand,
   argument: CliArgument
-) -> CliCommand => {
-  name: command.name,
-  version: command.version,
-  about: command.about,
-  options: command.options,
-  arguments: [..command.arguments, argument],
-  commands: command.commands,
-  aliases: command.aliases
+) => CliCommand {
+  ..command,
+  arguments: [..command.arguments, argument]
 }
 
 + withCommands(
   command: CliCommand,
   commands: Array[CliCommand]
-) -> CliCommand => CliCommand {
-  name: command.name,
-  version: command.version,
-  about: command.about,
-  options: command.options,
-  arguments: command.arguments,
-  commands: commands,
-  aliases: command.aliases
+) => CliCommand {
+  ..command,
+  commands: commands
 }
 
 + withAliases(
   command: CliCommand,
   aliases: Array[CliCommandAlias]
-) -> CliCommand => CliCommand {
-  name: command.name,
-  version: command.version,
-  about: command.about,
-  options: command.options,
-  arguments: command.arguments,
-  commands: command.commands,
+) => CliCommand {
+  ..command,
   aliases: aliases
 }
 
@@ -732,8 +707,8 @@ containsAt(
       )
       storeShortValue := (((active && !shortHelp) && shortFound) && shortTakesValue) && parseError.isEmpty()
       (
-      storeShortValue ? values.set(shortOptionName, shortValue)
-        : values
+        storeShortValue ? values.set(shortOptionName, shortValue)
+          : values
       )
       (
         storeShortValue ? explicitOptions.push(shortOptionName)
@@ -870,7 +845,7 @@ parseKnownCommandArgs(
 withReportedArgs(
   result: CliParseResult,
   args: Array[String]
-) -> CliParseResult => CliParseResult {
+) -> CliParseResult => {
   command: result.command,
   values: result.values,
   flags: result.flags,
@@ -984,9 +959,7 @@ rootOption(
   }
 }
 
-longOptionName(
-  arg: String
-) -> String => {
+longOptionName(arg: String) -> String => {
   raw := arg.slice(2, arg.length())
   equal := raw.indexOf("=")
   (equal >= 0) {
@@ -1019,7 +992,7 @@ findOptionByShort(
   }
 }
 
-emptyOption() -> CliOption => CliOption {
+emptyOption() -> CliOption => {
   name: "",
   short: "",
   valueName: "",
@@ -1028,9 +1001,7 @@ emptyOption() -> CliOption => CliOption {
   defaultValue: null
 }
 
-optionFound(
-  option: CliOption
-) -> Bool => option.name != ""
+optionFound(option: CliOption) -> Bool => option.name != ""
 
 findCommand(
   commands: Array[CliCommand],
@@ -1050,7 +1021,7 @@ findCommand(
   }
 }
 
-emptyCommand() -> CliCommand => CliCommand {
+emptyCommand() -> CliCommand => {
   name: "",
   version: null,
   about: "",
@@ -1127,9 +1098,7 @@ commandOptionConsumesNext(
   arg: String
 ) -> Bool => rootOptionConsumesNext(command, arg)
 
-positionalIncrement(
-  arg: String
-) -> Int => arg.startsWith("-") {
+positionalIncrement(arg: String) -> Int => (arg.startsWith("-")) {
   true => 0
   _ => 1
 }
@@ -1177,7 +1146,7 @@ appendRuntimeRest(
         : (text + "\t") + child.about
     )
     aliasesForCommand(command.aliases, child.name, 0).each((aliasName) => {
-      text = text + " (alias: " + aliasName + ")"
+      text = ((text + " (alias: ") + aliasName) + ")"
     })
     text = text + "\n"
   })

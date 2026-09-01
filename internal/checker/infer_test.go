@@ -107,6 +107,37 @@ make() -> User => {
 	}
 }
 
+func TestAnonymousObjectLiteralInfersStructReturnTypeFromSpread(t *testing.T) {
+	src := `User: {
+  name: String
+  age: Int
+}
+
+rename(user: User, name: String) => {
+  ..user,
+  name: name
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	fn := info.Functions["rename"]
+	if fn == nil {
+		t.Fatalf("missing function rename")
+	}
+	if got := fn.Return; got != Type("User") {
+		t.Fatalf("rename return = %s, want User", got)
+	}
+	if got := info.ExprTypes[fn.Node.Body]; got != Type("User") {
+		t.Fatalf("rename body type = %s, want User", got)
+	}
+}
+
 func TestGenericNumberConstraintAllowsNumericBinaryOps(t *testing.T) {
 	src := `add[T: Number](a: T, b: T) -> T => a + b
 

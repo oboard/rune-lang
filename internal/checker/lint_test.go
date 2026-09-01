@@ -96,6 +96,71 @@ canEndValueToken(kind: TokenKind) -> Bool => ((kind == TokenKind.Ident) || (kind
 	}
 }
 
+func TestLintWarnsPreferRecordSpread(t *testing.T) {
+	src := `CliCommand: {
+  name: String
+  version: String?
+  about: String
+  options: Array[String]
+  arguments: Array[String]
+  commands: Array[CliCommand]
+  aliases: Array[String]
+}
+
+withVersion(command: CliCommand, version: String) -> CliCommand => {
+  name: command.name,
+  version: version,
+  about: command.about,
+  options: command.options,
+  arguments: command.arguments,
+  commands: command.commands,
+  aliases: command.aliases
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	diags = Lint(file, info)
+	if !hasWarning(diags, "Warning [0014] (prefer_record_spread): Use '..command' in this record update instead of copying fields manually") {
+		t.Fatalf("diagnostics = %#v, want prefer record spread warning", diags)
+	}
+}
+
+func TestLintWarnsPreferRecordSpreadForInferredAnonymousObject(t *testing.T) {
+	src := `CliCommand: {
+  name: String
+  version: String?
+  about: String
+  options: Array[String]
+  arguments: Array[String]
+  commands: Array[CliCommand]
+  aliases: Array[String]
+}
+
+withAliases(command: CliCommand, aliases: Array[String]) => {
+  ..command,
+  aliases: aliases
+}
+
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	if got := info.Functions["withAliases"].Return; got != Type("CliCommand") {
+		t.Fatalf("withAliases return = %s, want CliCommand", got)
+	}
+}
+
 func hasLintDiagnostic(diags []Diagnostic, want string) bool {
 	for _, diag := range diags {
 		if diag.Severity != SeverityWarning && strings.Contains(diag.Message, want) {
