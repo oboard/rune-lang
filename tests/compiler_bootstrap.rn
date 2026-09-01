@@ -1745,6 +1745,19 @@ main(user: User) -> Int => user.age
   @assert.eq(result.errors[0], "function \"label\" returns String, expected Int")
 }
 
+? "selfhost compiler checks anonymous object methods with this and parameters" {
+  result := compileGo(`main() => {
+  account := {
+    name: "Rune",
+    label(prefix: String) -> String => prefix + .name
+  }
+  account.label("hello ")
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler rejects implicit this outside methods" {
   result := compileGo(`main() -> String => .name
 `)

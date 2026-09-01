@@ -12167,6 +12167,8 @@ func __selfhost_compiler_compiler_checkExpr(__expr __IRExpr, __structs []__IRStr
 			return __selfhost_compiler_compiler_checkLetExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Struct:
 			return __selfhost_compiler_compiler_checkStructExpr(__expr, __structs, __callables, __errors, __bindings)
+		case __expr.__kind == __ExprKind_Object:
+			return __selfhost_compiler_compiler_checkObjectExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Ternary:
 			return __selfhost_compiler_compiler_checkTernaryExpr(__expr, __structs, __callables, __errors, __bindings)
 		case __expr.__kind == __ExprKind_Unary:
@@ -12328,6 +12330,91 @@ func __selfhost_compiler_compiler_checkLambdaExpr(__expr __IRExpr, __structs []_
 		switch {
 		case __hasBody == true:
 			return __selfhost_compiler_compiler_checkExpr(__expr.__children[0], __structs, __callables, __errors, __selfhost_compiler_compiler_compilerFunctionBindings(__expr.__params, __bindings))
+		default:
+			return __errors
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_checkObjectExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
+	return __selfhost_compiler_compiler_checkObjectMembers(__expr.__children, 0, __structs, __callables, __errors, __bindings, __selfhost_compiler_compiler_compilerObjectType(__expr.__children, 0, __structs, __callables, __bindings, "{"))
+}
+
+func __selfhost_compiler_compiler_compilerObjectType(__members []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __out string) string {
+	__done := __index >= len(__members)
+	return func() string {
+		switch {
+		case __done == true:
+			return __out + "}"
+		default:
+			return __selfhost_compiler_compiler_compilerObjectTypeMember(__members, __index, __structs, __callables, __bindings, __out)
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_compilerObjectTypeMember(__members []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __out string) string {
+	__member := __members[__index]
+	__separator := func() string {
+		if __index == 0 {
+			return ""
+		}
+		return ";"
+	}()
+	__typeName := func() string {
+		switch {
+		case __member.__kind == __ExprKind_Method:
+			return __member.__text
+		case __member.__kind == __ExprKind_PrivateMethod:
+			return __member.__text
+		default:
+			return func() string {
+				if len(__member.__children) > 0 {
+					return __selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(__member.__children[0], __structs, __callables, __bindings)
+				}
+				return ""
+			}()
+		}
+	}()
+	return __selfhost_compiler_compiler_compilerObjectType(__members, __index+1, __structs, __callables, __bindings, __out+__separator+__member.__name+":"+__typeName)
+}
+
+func __selfhost_compiler_compiler_checkObjectMembers(__members []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __objectType string) []string {
+	__done := __index >= len(__members)
+	return func() []string {
+		switch {
+		case __done == true:
+			return __errors
+		default:
+			return __selfhost_compiler_compiler_checkObjectMember(__members, __index, __structs, __callables, __errors, __bindings, __objectType)
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_checkObjectMember(__members []__IRExpr, __index int, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __objectType string) []string {
+	__member := __members[__index]
+	__next := __selfhost_compiler_compiler_checkObjectMemberExpr(__member, __structs, __callables, __errors, __bindings, __objectType)
+	return __selfhost_compiler_compiler_checkObjectMembers(__members, __index+1, __structs, __callables, __next, __bindings, __objectType)
+}
+
+func __selfhost_compiler_compiler_checkObjectMemberExpr(__member __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __objectType string) []string {
+	return func() []string {
+		switch {
+		case __member.__kind == __ExprKind_Method:
+			return __selfhost_compiler_compiler_checkObjectMethodExpr(__member, __structs, __callables, __errors, __bindings, __objectType)
+		case __member.__kind == __ExprKind_PrivateMethod:
+			return __selfhost_compiler_compiler_checkObjectMethodExpr(__member, __structs, __callables, __errors, __bindings, __objectType)
+		default:
+			return __selfhost_compiler_compiler_checkExprDefault(__member, __structs, __callables, __errors, __bindings)
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_checkObjectMethodExpr(__method __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding, __objectType string) []string {
+	__hasBody := len(__method.__children) > 0
+	return func() []string {
+		switch {
+		case __hasBody == true:
+			return __selfhost_compiler_compiler_checkExpr(__method.__children[0], __structs, __callables, __errors, __selfhost_compiler_compiler_compilerFunctionBindings(__method.__params, __selfhost_compiler_compiler_addCompilerTypeBinding(__bindings, "this", __objectType)))
 		default:
 			return __errors
 		}

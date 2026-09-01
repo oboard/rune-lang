@@ -874,6 +874,7 @@ checkExpr(
   ExprKind.Block => checkBlockExpr(expr.children, 0, structs, callables, errors, bindings)
   ExprKind.Let => checkLetExpr(expr, structs, callables, errors, bindings)
   ExprKind.Struct => checkStructExpr(expr, structs, callables, errors, bindings)
+  ExprKind.Object => checkObjectExpr(expr, structs, callables, errors, bindings)
   ExprKind.Ternary => checkTernaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Unary => checkUnaryExpr(expr, structs, callables, errors, bindings)
   ExprKind.Postfix => checkPostfixExpr(expr, structs, callables, errors, bindings)
@@ -1014,6 +1015,105 @@ checkLambdaExpr(
   hasBody := expr.children.length() > 0
   hasBody {
     true => checkExpr(expr.children[0], structs, callables, errors, compilerFunctionBindings(expr.params, bindings))
+    _ => errors
+  }
+}
+
+checkObjectExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkObjectMembers(expr.children, 0, structs, callables, errors, bindings, compilerObjectType(expr.children, 0, structs, callables, bindings, "{"))
+
+compilerObjectType(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  out: String
+) -> String => {
+  done := index >= members.length()
+  done {
+    true => out + "}"
+    _ => compilerObjectTypeMember(members, index, structs, callables, bindings, out)
+  }
+}
+
+compilerObjectTypeMember(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  out: String
+) -> String => {
+  member := members[index]
+  separator := index == 0 ? "" : ";"
+  typeName := member.kind {
+    ExprKind.Method => member.text
+    ExprKind.PrivateMethod => member.text
+    _ => (member.children.length() > 0) ? inferCompilerExprTypeWithStructs(member.children[0], structs, callables, bindings) : ""
+  }
+  compilerObjectType(members, index + 1, structs, callables, bindings, ((out + separator) + member.name) + ":" + typeName)
+}
+
+checkObjectMembers(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  objectType: String
+) -> Array[String] => {
+  done := index >= members.length()
+  done {
+    true => errors
+    _ => checkObjectMember(members, index, structs, callables, errors, bindings, objectType)
+  }
+}
+
+checkObjectMember(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  objectType: String
+) -> Array[String] => {
+  member := members[index]
+  next := checkObjectMemberExpr(member, structs, callables, errors, bindings, objectType)
+  checkObjectMembers(members, index + 1, structs, callables, next, bindings, objectType)
+}
+
+checkObjectMemberExpr(
+  member: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  objectType: String
+) -> Array[String] => member.kind {
+  ExprKind.Method => checkObjectMethodExpr(member, structs, callables, errors, bindings, objectType)
+  ExprKind.PrivateMethod => checkObjectMethodExpr(member, structs, callables, errors, bindings, objectType)
+  _ => checkExprDefault(member, structs, callables, errors, bindings)
+}
+
+checkObjectMethodExpr(
+  method: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  objectType: String
+) -> Array[String] => {
+  hasBody := method.children.length() > 0
+  hasBody {
+    true => checkExpr(method.children[0], structs, callables, errors, compilerFunctionBindings(method.params, addCompilerTypeBinding(bindings, "this", objectType)))
     _ => errors
   }
 }
