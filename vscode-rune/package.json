@@ -12,14 +12,7 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onLanguage:rune",
-    "onDebug:rune",
-    "onCommand:rune.runFile",
-    "onCommand:rune.runTest",
-    "onCommand:rune.debugFile",
-    "onCommand:rune.showMacroExpansion",
-    "onCommand:rune.restartLanguageServer",
-    "onCommand:rune.showLanguageServerOutput"
+    "onDebug:rune"
   ],
   "main": "./extension.js",
   "contributes": {
