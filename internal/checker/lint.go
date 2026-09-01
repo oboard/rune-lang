@@ -182,6 +182,7 @@ func (l *linter) visitExpr(expr ast.Expr) {
 	case *ast.BlockExpr:
 		l.visitBlock(e)
 	case *ast.PatternBlock:
+		l.lintBoolPatternBlockTernary(e)
 		for _, branch := range e.Branches {
 			l.visitExpr(branch.Expr)
 		}
@@ -189,6 +190,7 @@ func (l *linter) visitExpr(expr ast.Expr) {
 		subject := l.info.ExprTypes[e.Subject]
 		l.visitExpr(e.Subject)
 		l.lintPatternBranches(e.Branches, subject)
+		l.lintBoolPatternBranchesTernary(e.Branches, subject, e.Pos)
 		for _, branch := range e.Branches {
 			l.visitExpr(branch.Expr)
 		}
@@ -241,6 +243,34 @@ func (l *linter) visitExprNode(expr ast.Expr) {
 			}
 		}
 	}
+}
+
+func (l *linter) lintBoolPatternBlockTernary(block *ast.PatternBlock) {
+	l.lintBoolPatternBranchesTernary(block.Branches, Bool, block.Pos)
+}
+
+func (l *linter) lintBoolPatternBranchesTernary(branches []ast.PatternBranch, subject Type, pos lexer.Position) {
+	if subject != Bool || len(branches) != 2 {
+		return
+	}
+	if !isBoolLiteralPattern(branches[0].Pattern, true) || !isWildcardPattern(branches[1].Pattern) {
+		return
+	}
+	l.warn(pos, "0015", "prefer_ternary", "Use a ternary expression instead of a Bool pattern block")
+}
+
+func isBoolLiteralPattern(pattern ast.Pattern, value bool) bool {
+	literal, ok := pattern.(*ast.LiteralPattern)
+	if !ok {
+		return false
+	}
+	boolLit, ok := literal.Value.(*ast.BoolLiteral)
+	return ok && boolLit.Value == value
+}
+
+func isWildcardPattern(pattern ast.Pattern) bool {
+	_, ok := pattern.(*ast.WildcardPattern)
+	return ok
 }
 
 func (l *linter) lintPatternPredicateBinary(expr *ast.BinaryExpr) {

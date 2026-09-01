@@ -161,6 +161,26 @@ withAliases(command: CliCommand, aliases: Array[String]) => {
 	}
 }
 
+func TestLintWarnsPreferTernaryForBoolPatternBlock(t *testing.T) {
+	src := `choose(aaa: Bool, bbb: Int, ccc: Int) -> Int => aaa {
+  true => bbb
+  _ => ccc
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	diags = Lint(file, info)
+	if !hasWarning(diags, "Warning [0015] (prefer_ternary): Use a ternary expression instead of a Bool pattern block") {
+		t.Fatalf("diagnostics = %#v, want prefer ternary warning", diags)
+	}
+}
+
 func hasLintDiagnostic(diags []Diagnostic, want string) bool {
 	for _, diag := range diags {
 		if diag.Severity != SeverityWarning && strings.Contains(diag.Message, want) {

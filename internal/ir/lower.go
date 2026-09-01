@@ -450,7 +450,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.StructLiteral:
 		out := &StructLiteral{ExprBase: l.base(e), TypeName: e.TypeName}
 		for _, field := range l.structLiteralFields(e) {
-			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
+			out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.structFieldExpr(e.TypeName, field.Name, field.Value), Pos: field.Pos})
 		}
 		return out
 	case *ast.AnonymousObjectLiteral:
@@ -511,6 +511,17 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	default:
 		return nil
 	}
+}
+
+func (l lowerer) structFieldExpr(typeName string, fieldName string, value ast.Expr) Expr {
+	if l.info == nil || typeName == "" || value == nil {
+		return l.expr(value)
+	}
+	fieldType, ok := checker.FieldType(l.info, checker.Type(typeName), fieldName)
+	if !ok {
+		return l.expr(value)
+	}
+	return l.exprExpected(value, fieldType)
 }
 
 func (l lowerer) namedStructLiteralType(expr ast.Expr) (string, bool) {

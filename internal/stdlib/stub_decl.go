@@ -313,7 +313,14 @@ func (p *stubParser) parseFunction(receiver string, annotations []annotation) (F
 		fn.Body = nil
 	}
 	if fn.Return == "" {
-		fn.Return = inferredReturn(fn)
+		if lit, ok := body.(*ast.StructLiteral); ok && lit.TypeName != "" {
+			fn.Return = lit.TypeName
+		} else {
+			fn.Return = inferredReturn(fn)
+		}
+	}
+	if fn.Return == "Void" && returnType != "" {
+		fn.Return = returnType
 	}
 	return fn, nil
 }
