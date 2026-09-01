@@ -10,7 +10,7 @@ Args: {
 
 #cli.main
 main(args: Args) => {
-  @io.println("target: " + args.target)
-  @io.println("output: " + args.output)
-  @io.println("verbose: " + args.verbose.toString())
+  @io.println(`target: \(args.target)`)
+  @io.println(`output: \(args.output)`)
+  @io.println(`verbose: \(args.verbose.toString())`)
 }

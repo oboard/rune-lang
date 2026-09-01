@@ -108,11 +108,11 @@
           },
           "patterns": [
             {
-              "name": "constant.character.escape.rune",
-              "match": "\\\\."
+              "include": "#templateInterpolation"
             },
             {
-              "include": "#templateInterpolation"
+              "name": "constant.character.escape.rune",
+              "match": "\\\\."
             }
           ]
         },
