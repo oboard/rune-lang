@@ -228,23 +228,12 @@ parserBody(
       : found
   ))
   generated := SyntaxFunction {
-    id: target.id,
-    name: target.name,
-    private: target.private,
-    static: target.static,
-    routine: target.routine,
-    generics: target.generics,
+    ..target,
     annotations: [],
-    receiverType: target.receiverType,
-    params: target.params,
-    returnType: target.returnType,
-    bodyID: target.bodyID,
-    generatedBody: @cli.parserBody(target, rootName, commandsName, aliasesName, trailingRestName, handlerName),
-    sourcePath: target.sourcePath
+    generatedBody: @cli.parserBody(target, rootName, commandsName, aliasesName, trailingRestName, handlerName)
   }
   SyntaxFile {
-    types: tree.types,
-    enums: tree.enums,
+    ..tree,
     functions: tree.functions.map((function) => (
       function.id == target.id ? generated
         : function
@@ -266,19 +255,11 @@ parserBody(
       : found
   ))
   handler := SyntaxFunction {
-    id: target.id,
+    ..target,
     name: "__cliMain",
     private: true,
     static: false,
-    routine: target.routine,
-    generics: target.generics,
-    annotations: [],
-    receiverType: target.receiverType,
-    params: target.params,
-    returnType: target.returnType,
-    bodyID: target.bodyID,
-    generatedBody: target.generatedBody,
-    sourcePath: target.sourcePath
+    annotations: []
   }
   entry := SyntaxFunction {
     id: "",
@@ -296,8 +277,7 @@ parserBody(
     sourcePath: target.sourcePath
   }
   SyntaxFile {
-    types: tree.types,
-    enums: tree.enums,
+    ..tree,
     functions: [..tree.functions.map((function) => (
       function.id == target.id ? handler
         : function
@@ -791,16 +771,16 @@ containsAt(
 ) -> CliCommandParseResult => {
   split := splitCommandArgs(root, aliases, args, 0, [], "", [], false)
   rootResult := parseArgs(root, split.rootArgs)
-  split.commandName.isEmpty() {
-    true => CliCommandParseResult {
+  (
+    split.commandName.isEmpty() ? CliCommandParseResult {
       root: rootResult,
       command: rootResult,
       commandName: "",
       commandArgs: [],
       error: null
     }
-    _ => parseNamedCommandArgs(rootResult, commands, trailingRest, split)
-  }
+      : parseNamedCommandArgs(rootResult, commands, trailingRest, split)
+  )
 }
 
 parseNamedCommandArgs(
@@ -810,16 +790,16 @@ parseNamedCommandArgs(
   split: CliCommandArgs
 ) -> CliCommandParseResult => {
   lookup := findCommand(commands, split.commandName, 0)
-  lookup.found {
-    true => parseKnownCommandArgs(rootResult, lookup.command, trailingRest, split)
-    _ => CliCommandParseResult {
-      root: rootResult,
-      command: rootResult,
-      commandName: split.commandName,
-      commandArgs: split.commandArgs,
-      error: "unknown command " + split.commandName
-    }
-  }
+  (
+    lookup.found ? parseKnownCommandArgs(rootResult, lookup.command, trailingRest, split)
+      : CliCommandParseResult {
+        root: rootResult,
+        command: rootResult,
+        commandName: split.commandName,
+        commandArgs: split.commandArgs,
+        error: "unknown command " + split.commandName
+      }
+  )
 }
 
 parseKnownCommandArgs(
@@ -828,10 +808,10 @@ parseKnownCommandArgs(
   trailingRest: Array[String],
   split: CliCommandArgs
 ) -> CliCommandParseResult => {
-  args := contains(trailingRest, split.commandName) {
-    true => normalizeTrailingRestArgs(command, split.commandArgs)
-    _ => split.commandArgs
-  }
+  args := (
+    contains(trailingRest, split.commandName) ? normalizeTrailingRestArgs(command, split.commandArgs)
+      : split.commandArgs
+  )
   parsed := withReportedArgs(parseArgs(command, args), split.commandArgs)
   CliCommandParseResult {
     root: rootResult,
@@ -846,15 +826,8 @@ withReportedArgs(
   result: CliParseResult,
   args: Array[String]
 ) -> CliParseResult => {
-  command: result.command,
-  values: result.values,
-  flags: result.flags,
-  positionals: result.positionals,
-  explicitOptions: result.explicitOptions,
-  args: args,
-  rest: result.rest,
-  help: result.help,
-  error: result.error
+  ..result,
+  args: args
 }
 
 splitCommandArgs(
@@ -866,13 +839,15 @@ splitCommandArgs(
   commandName: String,
   commandArgs: Array[String],
   skipNext: Bool
-) -> CliCommandArgs => (index >= args.length()) {
-  true => CliCommandArgs {
-    rootArgs: rootArgs,
-    commandName: commandName,
-    commandArgs: commandArgs
-  }
-  _ => splitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
+) -> CliCommandArgs => {
+  (
+    index >= args.length() ? CliCommandArgs {
+      rootArgs: rootArgs,
+      commandName: commandName,
+      commandArgs: commandArgs
+    }
+      : splitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
+  )
 }
 
 splitCommandArg(
@@ -884,10 +859,10 @@ splitCommandArg(
   commandName: String,
   commandArgs: Array[String],
   skipNext: Bool
-) -> CliCommandArgs => skipNext {
-  true => splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false)
-  _ => splitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
-}
+) -> CliCommandArgs => (
+  skipNext ? splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false)
+    : splitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
+)
 
 splitCommandArgValue(
   root: CliCommand,
@@ -901,16 +876,16 @@ splitCommandArgValue(
   arg := args[index]
   isRootHelp := (commandName == "") && ((arg == "--help") || (arg == "-h"))
   isRootOption := rootOptionArg(root, arg)
-  isRootHelp {
-    true => splitCommandArgs(root, aliases, args, index + 1, [..rootArgs, arg], commandName, commandArgs, false)
-    _ => isRootOption {
-      true => splitRootOptionArg(root, aliases, args, index, rootArgs, commandName, commandArgs, rootOptionConsumesNext(root, arg))
-      _ => commandName.isEmpty() {
-        true => splitCommandArgs(root, aliases, args, index + 1, rootArgs, resolveAlias(aliases, arg, 0), commandArgs, false)
-        _ => splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, [..commandArgs, arg], false)
-      }
-    }
-  }
+  (
+    isRootHelp ? splitCommandArgs(root, aliases, args, index + 1, [..rootArgs, arg], commandName, commandArgs, false)
+      : (
+        isRootOption ? splitRootOptionArg(root, aliases, args, index, rootArgs, commandName, commandArgs, rootOptionConsumesNext(root, arg))
+          : (
+            commandName.isEmpty() ? splitCommandArgs(root, aliases, args, index + 1, rootArgs, resolveAlias(aliases, arg, 0), commandArgs, false)
+              : splitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, [..commandArgs, arg], false)
+          )
+      )
+  )
 }
 
 splitRootOptionArg(
@@ -929,10 +904,10 @@ appendRootOptionArgs(
   args: Array[String],
   index: Int,
   consumesNext: Bool
-) -> Array[String] => (consumesNext && ((index + 1) < args.length())) {
-  true => [..rootArgs, args[index], args[index + 1]]
-  _ => [..rootArgs, args[index]]
-}
+) -> Array[String] => (
+  consumesNext && ((index + 1) < args.length()) ? [..rootArgs, args[index], args[index + 1]]
+    : [..rootArgs, args[index]]
+)
 
 rootOptionArg(
   root: CliCommand,
@@ -951,46 +926,46 @@ rootOptionConsumesNext(
 rootOption(
   root: CliCommand,
   arg: String
-) -> CliOption => (arg.startsWith("--") && (arg.length() > 2)) {
-  true => findOptionByName(root.options, longOptionName(arg), 0)
-  _ => (arg.startsWith("-") && (arg != "-")) {
-    true => findOptionByShort(root.options, arg.slice(1, 2), 0)
-    _ => emptyOption()
-  }
-}
+) -> CliOption => (
+  arg.startsWith("--") && (arg.length() > 2) ? findOptionByName(root.options, longOptionName(arg), 0)
+    : (
+      arg.startsWith("-") && (arg != "-") ? findOptionByShort(root.options, arg.slice(1, 2), 0)
+        : emptyOption()
+    )
+)
 
 longOptionName(arg: String) -> String => {
   raw := arg.slice(2, arg.length())
   equal := raw.indexOf("=")
-  (equal >= 0) {
-    true => raw.slice(0, equal)
-    _ => raw
-  }
+  (
+    equal >= 0 ? raw.slice(0, equal)
+      : raw
+  )
 }
 
 findOptionByName(
   options: Array[CliOption],
   name: String,
   index: Int
-) -> CliOption => (index >= options.length()) {
-  true => emptyOption()
-  _ => (options[index].name == name) {
-    true => options[index]
-    _ => findOptionByName(options, name, index + 1)
-  }
-}
+) -> CliOption => (
+  index >= options.length() ? emptyOption()
+    : (
+      options[index].name == name ? options[index]
+        : findOptionByName(options, name, index + 1)
+    )
+)
 
 findOptionByShort(
   options: Array[CliOption],
   short: String,
   index: Int
-) -> CliOption => (index >= options.length()) {
-  true => emptyOption()
-  _ => (options[index].short == short) {
-    true => options[index]
-    _ => findOptionByShort(options, short, index + 1)
-  }
-}
+) -> CliOption => (
+  index >= options.length() ? emptyOption()
+    : (
+      options[index].short == short ? options[index]
+        : findOptionByShort(options, short, index + 1)
+    )
+)
 
 emptyOption() -> CliOption => {
   name: "",
@@ -1007,19 +982,19 @@ findCommand(
   commands: Array[CliCommand],
   name: String,
   index: Int
-) -> CliCommandLookup => (name.isEmpty() || (index >= commands.length())) {
-  true => CliCommandLookup {
+) -> CliCommandLookup => (
+  name.isEmpty() || (index >= commands.length()) ? CliCommandLookup {
     command: emptyCommand(),
     found: false
   }
-  _ => (commands[index].name == name) {
-    true => CliCommandLookup {
-      command: commands[index],
-      found: true
-    }
-    _ => findCommand(commands, name, index + 1)
-  }
-}
+    : (
+      commands[index].name == name ? CliCommandLookup {
+        command: commands[index],
+        found: true
+      }
+        : findCommand(commands, name, index + 1)
+    )
+)
 
 emptyCommand() -> CliCommand => {
   name: "",
@@ -1035,25 +1010,25 @@ aliasesForCommand(
   aliases: Array[CliCommandAlias],
   commandName: String,
   index: Int
-) -> Array[String] => (index >= aliases.length()) {
-  true => []
-  _ => (aliases[index].to == commandName) {
-    true => [aliases[index].from, ..aliasesForCommand(aliases, commandName, index + 1)]
-    _ => aliasesForCommand(aliases, commandName, index + 1)
-  }
-}
+) -> Array[String] => (
+  index >= aliases.length() ? []
+    : (
+      aliases[index].to == commandName ? [aliases[index].from, ..aliasesForCommand(aliases, commandName, index + 1)]
+        : aliasesForCommand(aliases, commandName, index + 1)
+    )
+)
 
 resolveAlias(
   aliases: Array[CliCommandAlias],
   name: String,
   index: Int
-) -> String => (index >= aliases.length()) {
-  true => name
-  _ => (aliases[index].from == name) {
-    true => aliases[index].to
-    _ => resolveAlias(aliases, name, index + 1)
-  }
-}
+) -> String => (
+  index >= aliases.length() ? name
+    : (
+      aliases[index].from == name ? aliases[index].to
+        : resolveAlias(aliases, name, index + 1)
+    )
+)
 
 normalizeTrailingRestArgs(
   command: CliCommand,
@@ -1067,10 +1042,10 @@ normalizeTrailingRestArgsAt(
   out: Array[String],
   positionalCount: Int,
   skipNext: Bool
-) -> Array[String] => (index >= args.length()) {
-  true => out
-  _ => normalizeTrailingRestArg(command, args, index, out, positionalCount, skipNext)
-}
+) -> Array[String] => (
+  index >= args.length() ? out
+    : normalizeTrailingRestArg(command, args, index, out, positionalCount, skipNext)
+)
 
 normalizeTrailingRestArg(
   command: CliCommand,
@@ -1081,16 +1056,16 @@ normalizeTrailingRestArg(
   skipNext: Bool
 ) -> Array[String] => {
   arg := args[index]
-  (positionalCount >= command.arguments.length()) {
-    true => appendRestSeparator(args, index, out)
-    _ => skipNext {
-      true => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, false)
-      _ => commandOptionConsumesNext(command, arg) {
-        true => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, true)
-        _ => normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount + positionalIncrement(arg), false)
-      }
-    }
-  }
+  (
+    positionalCount >= command.arguments.length() ? appendRestSeparator(args, index, out)
+      : (
+        skipNext ? normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, false)
+          : (
+            commandOptionConsumesNext(command, arg) ? normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount, true)
+              : normalizeTrailingRestArgsAt(command, args, index + 1, [..out, arg], positionalCount + positionalIncrement(arg), false)
+          )
+      )
+  )
 }
 
 commandOptionConsumesNext(
@@ -1098,28 +1073,28 @@ commandOptionConsumesNext(
   arg: String
 ) -> Bool => rootOptionConsumesNext(command, arg)
 
-positionalIncrement(arg: String) -> Int => arg.startsWith("-") {
-  true => 0
-  _ => 1
-}
+positionalIncrement(arg: String) -> Int => (
+  arg.startsWith("-") ? 0
+    : 1
+)
 
 appendRestSeparator(
   args: Array[String],
   index: Int,
   out: Array[String]
-) -> Array[String] => (args[index] == "--") {
-  true => appendRuntimeRest(args, index, out)
-  _ => appendRuntimeRest(args, index, [..out, "--"])
-}
+) -> Array[String] => (
+  args[index] == "--" ? appendRuntimeRest(args, index, out)
+    : appendRuntimeRest(args, index, [..out, "--"])
+)
 
 appendRuntimeRest(
   args: Array[String],
   index: Int,
   out: Array[String]
-) -> Array[String] => (index >= args.length()) {
-  true => out
-  _ => appendRuntimeRest(args, index + 1, [..out, args[index]])
-}
+) -> Array[String] => (
+  index >= args.length() ? out
+    : appendRuntimeRest(args, index + 1, [..out, args[index]])
+)
 
 + help(command: CliCommand) -> String => {
   text :=: "Usage: " + command.name
