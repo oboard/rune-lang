@@ -217,7 +217,7 @@ func TestParseRuneMacroDeclaration(t *testing.T) {
 		t.Fatal("missing flag declaration")
 	}
 	if !fn.Macro || fn.Body == nil || fn.Intrinsic != "" {
-		t.Fatalf("flag = %#v, want pure Rune macro", fn)
+		t.Fatalf("flag = %#v, want Rune macro", fn)
 	}
 	if len(fn.ParamNames) != 4 || fn.ParamNames[2] != "short" || fn.ParamNames[3] != "help" {
 		t.Fatalf("parameter names = %v", fn.ParamNames)

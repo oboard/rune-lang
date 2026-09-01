@@ -76,10 +76,6 @@ func (c *checker) checkAnnotation(annotation *ast.Annotation) {
 		return
 	}
 	c.info.ResolvedMacros[annotation] = fn
-	if message := c.stdlibMacroPurityError(fn); message != "" {
-		c.errorf(annotation.NamePos, "macro #%s.%s is not pure: %s", annotation.Module, annotation.Name, message)
-		return
-	}
 	argTypes := make([]Type, 0, len(annotation.Args))
 	for _, arg := range annotation.Args {
 		argTypes = append(argTypes, c.inferExpr(arg, map[string]Type{}))

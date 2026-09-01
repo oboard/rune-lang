@@ -10,14 +10,15 @@ import (
 )
 
 type Interpreter struct {
-	file        *ir.File
-	functions   map[string]*ir.Function
-	types       map[string]*ir.StructType
-	enums       map[string]*ir.EnumType
-	globals     *Env
-	in          *bufio.Reader
-	out         io.Writer
-	compileTime bool
+	file                  *ir.File
+	functions             map[string]*ir.Function
+	types                 map[string]*ir.StructType
+	enums                 map[string]*ir.EnumType
+	globals               *Env
+	in                    *bufio.Reader
+	out                   io.Writer
+	compileTime           bool
+	compileTimeLocalNames map[string]bool
 }
 
 func New(file *ir.File, opts ...Option) *Interpreter {
@@ -54,6 +55,15 @@ func WithCompileTime() Option {
 	return func(i *Interpreter) {
 		i.compileTime = true
 	}
+}
+
+// EnableCompileTimeLocalName allows a bare-identifier call inside a compile-time
+// macro body to resolve to the same-named stdlib function with a Rune body.
+func (i *Interpreter) EnableCompileTimeLocalName(name string) {
+	if i.compileTimeLocalNames == nil {
+		i.compileTimeLocalNames = map[string]bool{}
+	}
+	i.compileTimeLocalNames[name] = true
 }
 
 func (i *Interpreter) Load(file *ir.File) {

@@ -17,6 +17,9 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 		if fn := i.functions[ident.Name]; fn != nil {
 			return i.callFunction(fn, call.Args, env)
 		}
+		if value, ok, err := i.callCompileTimeLocalFunction(ident.Name, call.Args, env); ok || err != nil {
+			return value, err
+		}
 	}
 	if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 		if at, ok := sel.Receiver.(*ir.AtExpr); ok {
@@ -104,6 +107,35 @@ func (i *Interpreter) evalCall(call *ir.CallExpr, env *Env) (Value, error) {
 	default:
 		return i.callCallable(fn, call.Args, env)
 	}
+}
+
+// callCompileTimeLocalFunction resolves a bare-identifier call inside a macro body
+// by consulting the stdlib functions that were registered by name for this
+// compile-time evaluation. This covers helpers declared in the same core module
+// as the macro, which Rune writes without the '@module.' prefix.
+func (i *Interpreter) callCompileTimeLocalFunction(name string, args []ir.Expr, env *Env) (Value, bool, error) {
+	if !i.compileTime || i.compileTimeLocalNames == nil || !i.compileTimeLocalNames[name] {
+		return nil, false, nil
+	}
+	if i.file == nil || i.file.Stdlib == nil {
+		return nil, false, nil
+	}
+	for moduleName, mod := range i.file.Stdlib.Modules {
+		for _, fn := range mod.Functions {
+			if fn.Name == name && fn.Receiver == "" && fn.Body != nil {
+				values, err := i.evalArgs(args, env)
+				if err != nil {
+					return nil, true, err
+				}
+				result, err := i.callModuleFunctionValue(moduleName, name, values, checker.Type(fn.Return))
+				if err != nil {
+					return nil, true, err
+				}
+				return result, true, nil
+			}
+		}
+	}
+	return nil, false, nil
 }
 
 func (i *Interpreter) callAtSelector(at *ir.AtExpr, sel *ir.SelectorExpr, args []ir.Expr, resultType checker.Type, env *Env) (Value, error) {

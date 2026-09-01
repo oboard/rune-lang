@@ -74,7 +74,6 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	for _, test := range file.Tests {
 		c.inferTest(test)
 	}
-	c.checkMacroPurity(file)
 	return c.info, c.diags
 }
 
@@ -93,7 +92,6 @@ type checker struct {
 	currentSourcePath   string
 	routineDepth        int
 	unwrapErrors        []Type
-	stdlibMacroPurity   map[*stdlib.Function]string
 }
 
 func (c *checker) collectCoreTraits() {

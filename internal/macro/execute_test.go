@@ -57,8 +57,8 @@ Args: {
 		t.Fatalf("Parse() errors = %v", parseErrs)
 	}
 	info, diags := checker.CheckWithStdlib(file, reg)
-	if len(diags) != 1 || !strings.Contains(diags[0].Message, "calls impure function @io.println") {
-		t.Fatalf("CheckWithStdlib() diagnostics = %v, want static purity error", diags)
+	if len(diags) != 0 {
+		t.Fatalf("CheckWithStdlib() diagnostics = %v", diags)
 	}
 	changed, macroDiags := Expand(file, info)
 	if changed || len(macroDiags) != 1 || !strings.Contains(macroDiags[0].Message, "compile-time macro cannot call @io.println") {

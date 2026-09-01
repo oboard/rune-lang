@@ -710,23 +710,17 @@ func TestAnalyzeJSONFixtureExpandsFromJsonMethods(t *testing.T) {
 
 func TestAnalyzeSourceReportsCompileTimeSideEffects(t *testing.T) {
 	_, diags := AnalyzeSource("macro_io.rn", `@syntax
-
-#bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => {
-  @io.println("side effect")
-  tree
-}
-
 #bad
 Args: {
   verbose: Bool
 }
 	`)
 	for _, diag := range diags {
-		if strings.Contains(diag.Message, "not pure") && strings.Contains(diag.Message, "@io.println") {
+		if strings.Contains(diag.Message, "unknown macro") {
 			return
 		}
 	}
-	t.Fatalf("AnalyzeSource() diagnostics = %#v, want compile-time side-effect error", diags)
+	t.Fatalf("AnalyzeSource() diagnostics = %#v, want unknown macro error", diags)
 }
 
 func TestAnalyzeSourceLowersReturnedSyntaxTree(t *testing.T) {

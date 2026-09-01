@@ -32,6 +32,15 @@ func Expand(file *ast.File, info *checker.Info) (bool, []checker.Diagnostic) {
 
 func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info) (bool, error) {
 	runtime := interpreter.New(&ir.File{Stdlib: info.Stdlib}, interpreter.WithCompileTime())
+	if invocation.Macro != nil && info.Stdlib != nil {
+		if mod := info.Stdlib.Modules[invocation.Annotation.Module]; mod != nil {
+			for _, fn := range mod.Functions {
+				if fn.Body != nil && fn.SourcePath == invocation.Macro.SourcePath {
+					runtime.EnableCompileTimeLocalName(fn.Name)
+				}
+			}
+		}
+	}
 	args := make([]interpreter.Value, 0, len(invocation.Annotation.Args))
 	for _, arg := range invocation.Annotation.Args {
 		value, err := runtime.Eval(ir.LowerExpr(arg, info))
