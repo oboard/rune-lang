@@ -2,7 +2,6 @@ package checker
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/lexer"
@@ -390,7 +389,7 @@ func (l *linter) lintStructLiteralPreferSpread(typeName string, fields []ast.Fie
 	}
 	if typeName != "" && !isObjectType(Type(typeName)) {
 		if structInfo := l.info.Types[typeName]; structInfo != nil && l.recordLiteralCoversFields(structInfo, explicit) {
-			if copiedFrom := l.bestCopiedReceiver(copiedByReceiver, len(structInfo.Fields)); copiedFrom != "" {
+			if copiedFrom := l.bestCopiedReceiver(copiedByReceiver, len(structInfo.Fields)); copiedFrom != "" && baseTypeName(receiverTypes[copiedFrom]) == typeName {
 				l.warn(receiverPositions[copiedFrom], "0014", "prefer_record_spread", "Use '..%s' in this record update instead of copying fields manually", copiedFrom)
 			}
 		}
@@ -448,7 +447,7 @@ func (l *linter) markDestructuredFields(stmt *ast.ObjectDestructureStmt) {
 
 func (l *linter) warnUnusedFunctions() {
 	for _, fn := range l.info.FunctionDecls {
-		if fn == nil || fn.Node == nil || !fn.Private || fn.External || fn.Macro || fn.Name == "main" || l.isSyntaxHelper(fn) {
+		if fn == nil || fn.Node == nil || !fn.Private || fn.External || fn.Macro || fn.Name == "main" {
 			continue
 		}
 		if l.usedFunctions[fn] {
@@ -456,17 +455,6 @@ func (l *linter) warnUnusedFunctions() {
 		}
 		l.warn(fn.NamePos, "0001", "unused_value", "Function %q is never used", fn.Name)
 	}
-}
-
-func (l *linter) isSyntaxHelper(fn *FuncInfo) bool {
-	if fn == nil || fn.Node == nil {
-		return false
-	}
-	usesSyntax := strings.Contains(string(fn.Return), "Syntax")
-	for _, param := range fn.Params {
-		usesSyntax = usesSyntax || strings.Contains(string(param.Type), "Syntax")
-	}
-	return usesSyntax
 }
 
 func (l *linter) warnUnusedFields() {

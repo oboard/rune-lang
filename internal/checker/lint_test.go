@@ -157,6 +157,36 @@ withVersion(command: CliCommand, version: String) -> CliCommand => {
 	}
 }
 
+func TestLintDoesNotWarnRecordSpreadForDifferentSourceType(t *testing.T) {
+	src := `SyntaxField: {
+  name: String
+  value: Int
+}
+
+SyntaxExprField: {
+  name: String
+  value: String
+}
+
+make(field: SyntaxField) -> SyntaxExprField => {
+  name: field.name,
+  value: "expr"
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := CheckWithStdlib(file, nil)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	diags = Lint(file, info)
+	if hasWarning(diags, "prefer_record_spread") {
+		t.Fatalf("diagnostics = %#v, do not want prefer record spread warning", diags)
+	}
+}
+
 func TestLintWarnsPreferRecordSpreadForInferredAnonymousObject(t *testing.T) {
 	src := `CliCommand: {
   name: String
