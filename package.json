@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "vitepress dev docs --host 0.0.0.0",
-    "build": "bash scripts/build-docs.sh",
-    "preview": "vitepress preview docs --host 0.0.0.0"
+    "dev": "bash scripts/dev.sh",
+    "docs:dev": "vitepress dev docs --host 0.0.0.0",
+    "docs:build": "bash scripts/build-docs.sh",
+    "docs:preview": "vitepress preview docs --host 0.0.0.0"
   },
   "devDependencies": {
     "vitepress": "2.0.0-alpha.12"
