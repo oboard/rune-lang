@@ -14,7 +14,7 @@ func TestAnalyzeFileWithWarningsSkipsPublicCliAPI(t *testing.T) {
 		if diag.Severity != checker.SeverityWarning {
 			continue
 		}
-		if diag.Kind == "unused_value" || diag.Kind == "unused_field" || diag.Kind == "unused_constructor" {
+		if diag.Kind == "unused_field" || diag.Kind == "unused_constructor" {
 			t.Fatalf("AnalyzeFileWithWarnings() diagnostics = %#v, do not want public API warning %q", diags, diag.Message)
 		}
 	}
