@@ -9998,9 +9998,31 @@ func __selfhost_compiler_ts_prependThisParam(__typeName string, __params []__IRP
 }
 
 func __selfhost_compiler_ts_emitTSFunction(__fn __IRFunction) string {
+	return func() string {
+		if __fn.__returnType == "WebComponent" {
+			return __selfhost_compiler_ts_emitTSWebComponentFunction(__fn)
+		}
+		return __selfhost_compiler_ts_emitTSPlainFunction(__fn)
+	}()
+}
+
+func __selfhost_compiler_ts_emitTSPlainFunction(__fn __IRFunction) string {
 	__ret := __selfhost_compiler_ts_tsType(__fn.__returnType)
 	__out := "function " + __mangleIdent(__fn.__name) + __selfhost_compiler_ts_emitTSGenerics(__fn.__generics) + "(" + __selfhost_compiler_ts_emitTSParams(__fn.__params, 0, "") + "): " + __ret + " {\n"
 	__out = __out + __selfhost_compiler_ts_emitTSBody(__fn.__body, __returnsValue(__fn.__returnType), __fn.__returnType, 1)
+	return __out + "}\n"
+}
+
+func __selfhost_compiler_ts_emitTSWebComponentFunction(__fn __IRFunction) string {
+	__out := "function " + __mangleIdent(__fn.__name) + __selfhost_compiler_ts_emitTSGenerics(__fn.__generics) + "(" + __selfhost_compiler_ts_emitTSParams(__fn.__params, 0, "") + "): " + __selfhost_compiler_ts_tsType(__fn.__returnType) + " {\n"
+	__out = __out + __line(1, "return class extends HTMLElement {")
+	__out = __out + __line(2, "connectedCallback(): void {")
+	__out = __out + __line(3, "if ((this as any).__runeMounted) return;")
+	__out = __out + __line(3, "(this as any).__runeMounted = true;")
+	__out = __out + __line(3, "const __root = "+__selfhost_compiler_ts_emitTSExprExpected(__fn.__body, "HTMLElement")+";")
+	__out = __out + __line(3, "this.appendChild(__root);")
+	__out = __out + __line(2, "}")
+	__out = __out + __line(1, "};")
 	return __out + "}\n"
 }
 
@@ -10248,8 +10270,12 @@ func __selfhost_compiler_ts_emitTSXMLExpr(__expr __IRExpr) string {
 	return "(() => {\n" + __selfhost_compiler_ts_emitTSXMLExprBody(__expr, "__el0", 1) + __line(1, "return __el0;") + "})()"
 }
 
+func __selfhost_compiler_ts_emitTSXMLCreateElement(__expr __IRExpr) string {
+	return "document.createElement(" + __selfhost_compiler_ts_tsQuoteString(__expr.__name) + ")"
+}
+
 func __selfhost_compiler_ts_emitTSXMLExprBody(__expr __IRExpr, __name string, __level int) string {
-	__out := __line(__level, "const "+__name+" = document.createElement("+__selfhost_compiler_ts_tsQuoteString(__expr.__name)+");")
+	__out := __line(__level, "const "+__name+" = "+__selfhost_compiler_ts_emitTSXMLCreateElement(__expr)+";")
 	__out = __out + __selfhost_compiler_ts_emitTSXMLParts(__name, __expr.__children, 0, __level, 1)
 	return __out
 }
@@ -10284,7 +10310,7 @@ func __selfhost_compiler_ts_emitTSXMLChild(__parent string, __child __IRExpr, __
 		case __child.__kind == __ExprKind_XMLElement:
 			return __selfhost_compiler_ts_emitTSXMLNestedChild(__parent, __child, __level, __childIndex)
 		default:
-			return __line(__level, __parent+".appendChild(document.createTextNode(String("+__selfhost_compiler_ts_emitTSExpr(__child)+")));")
+			return __selfhost_compiler_ts_emitTSXMLExprChild(__parent, __child, __level, __childIndex)
 		}
 	}()
 }
@@ -10292,6 +10318,22 @@ func __selfhost_compiler_ts_emitTSXMLChild(__parent string, __child __IRExpr, __
 func __selfhost_compiler_ts_emitTSXMLNestedChild(__parent string, __child __IRExpr, __level int, __childIndex int) string {
 	__name := __parent + "_" + strconv.Itoa(__childIndex)
 	return __selfhost_compiler_ts_emitTSXMLExprBody(__child, __name, __level) + __line(__level, __parent+".appendChild("+__name+");")
+}
+
+func __selfhost_compiler_ts_emitTSXMLExprChild(__parent string, __child __IRExpr, __level int, __childIndex int) string {
+	__childType := __child.__text
+	__childName := __parent + "_child" + strconv.Itoa(__childIndex)
+	return func() string {
+		if strings.HasPrefix(__childType, "Array[") {
+			return __line(__level, "for (const "+__childName+" of "+__selfhost_compiler_ts_emitTSExpr(__child)+") {") + __line(__level+1, __parent+".appendChild("+__childName+");") + __line(__level, "}")
+		}
+		return func() string {
+			if __childType == "HTMLElement" {
+				return __line(__level, __parent+".appendChild("+__selfhost_compiler_ts_emitTSExpr(__child)+");")
+			}
+			return __line(__level, __parent+".appendChild(document.createTextNode(String("+__selfhost_compiler_ts_emitTSExpr(__child)+")));")
+		}()
+	}()
 }
 
 func __selfhost_compiler_ts_emitTSXMLAttr(__parent string, __attr __IRExpr, __level int) string {
