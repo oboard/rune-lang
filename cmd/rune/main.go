@@ -223,7 +223,7 @@ func runEntryViaSelfhostInterpreter(entry string, programArgs []string, stdout i
 	if err != nil {
 		return false
 	}
-	if strings.Contains(string(source), "@process.argv") || len(programArgs) > 0 {
+	if strings.Contains(string(source), "@process.argv") || usesMacroAnnotations(string(source)) || len(programArgs) > 0 {
 		return false
 	}
 	result := selfhostrunner.RunMainSource(string(source))
@@ -806,7 +806,7 @@ func compileGoToTemp(path string) (string, func(), error) {
 	// argv convention used by @process.argv, so retain the host path for it.
 	source, readErr := os.ReadFile(path)
 	usesProcessArgs := readErr == nil && strings.Contains(string(source), "@process.argv")
-	if !usesProcessArgs && !requiresHostCompilerBridge(path, "") {
+	if !usesProcessArgs && !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
 			result := __compileGoFiles(files)
