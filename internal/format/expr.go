@@ -518,7 +518,7 @@ func (f *formatter) matchExpr(match *ast.MatchExpr) string {
 		return f.expr(match.Subject) + " ~ " + formatted
 	}
 	var b strings.Builder
-	b.WriteString(f.expr(match.Subject))
+	b.WriteString(f.matchSubjectExpr(match.Subject))
 	b.WriteString(" {\n")
 	branchIndent := f.indentString(f.indent + 1)
 	closeIndent := f.indentString(f.indent)
@@ -532,6 +532,16 @@ func (f *formatter) matchExpr(match *ast.MatchExpr) string {
 	b.WriteString(closeIndent)
 	b.WriteString("}")
 	return b.String()
+}
+
+func (f *formatter) matchSubjectExpr(expr ast.Expr) string {
+	formatted := f.expr(expr)
+	switch expr.(type) {
+	case *ast.BinaryExpr, *ast.TernaryExpr, *ast.AssignExpr:
+		return "(" + formatted + ")"
+	default:
+		return formatted
+	}
 }
 
 func patternPredicateMatchPattern(match *ast.MatchExpr) (ast.Pattern, bool) {

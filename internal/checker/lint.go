@@ -443,7 +443,7 @@ func (l *linter) markDestructuredFields(stmt *ast.ObjectDestructureStmt) {
 
 func (l *linter) warnUnusedFunctions() {
 	for _, fn := range l.info.FunctionDecls {
-		if fn == nil || fn.Node == nil || fn.External || fn.Macro || fn.Name == "main" {
+		if fn == nil || fn.Node == nil || !fn.Private || fn.External || fn.Macro || fn.Name == "main" {
 			continue
 		}
 		if l.usedFunctions[fn] {
@@ -459,9 +459,9 @@ func (l *linter) warnUnusedFields() {
 			continue
 		}
 		for _, field := range typ.Node.Fields {
-			if l.usedFields[fieldKey(typ.Name, field.Name)] {
+			if !field.Private || l.usedFields[fieldKey(typ.Name, field.Name)] {
 				continue
-			}
+		}
 			l.warn(field.Pos, "0007", "unused_field", "Field %q is never read", field.Name)
 		}
 	}
@@ -473,7 +473,7 @@ func (l *linter) warnUnusedConstructors() {
 			continue
 		}
 		for _, member := range enum.Node.Members {
-			if l.constructedEnumMembers[enumMemberKey(enum.Name, member.Name)] {
+			if !member.Private || l.constructedEnumMembers[enumMemberKey(enum.Name, member.Name)] {
 				continue
 			}
 			l.warn(member.Pos, "0006", "unused_constructor", "Variant %q is never constructed", member.Name)

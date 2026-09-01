@@ -58,9 +58,10 @@ func RegisterSelfhostAnalyzer(check selfhostCheckSourceFunc, analyze analyzeSour
 }
 
 type programCacheEntry struct {
-	text  string
-	prog  *compiler.Program
-	diags []compiler.Diagnostic
+	text     string
+	prog     *compiler.Program
+	diags    []compiler.Diagnostic
+	warnings bool
 }
 
 func (s *server) setDocument(uri string, text string) {
@@ -89,9 +90,13 @@ func (s *server) clearProgramCache() {
 }
 
 func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) {
+	return s.analyzeWithWarnings(uri, false)
+}
+
+func (s *server) analyzeWithWarnings(uri string, includeWarnings bool) (*compiler.Program, []compiler.Diagnostic) {
 	text := s.docs[uri]
 	if s.cache != nil {
-		if entry, ok := s.cache[uri]; ok && entry.text == text {
+		if entry, ok := s.cache[uri]; ok && entry.text == text && (!includeWarnings || entry.warnings) {
 			return entry.prog, entry.diags
 		}
 	} else {
@@ -105,12 +110,20 @@ func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) 
 		checked := selfhostCheckSource(text, uri)
 		if !checked.Ok {
 			diags := selfhostDiagnostics(uri, checked.Errors)
-			s.cache[uri] = programCacheEntry{text: text, diags: diags}
+			s.cache[uri] = programCacheEntry{text: text, diags: diags, warnings: includeWarnings}
 			return nil, diags
 		}
 	}
 	prog, diags := analyzeSource(uri, text)
-	s.cache[uri] = programCacheEntry{text: text, prog: prog, diags: diags}
+	if includeWarnings && len(diags) == 0 {
+		_, warningDiags := compiler.AnalyzeSourceWithWarnings(uri, text)
+		for _, diag := range warningDiags {
+			if diag.Severity == "warning" {
+				diags = append(diags, diag)
+			}
+		}
+	}
+	s.cache[uri] = programCacheEntry{text: text, prog: prog, diags: diags, warnings: includeWarnings}
 	return prog, diags
 }
 

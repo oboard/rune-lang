@@ -25,7 +25,7 @@ func (s *Session) SetDocument(uri string, text string) {
 }
 
 func (s *Session) Diagnostics(uri string) []map[string]any {
-	_, diags := s.server.analyze(uri)
+	_, diags := s.server.analyzeWithWarnings(uri, true)
 	return diagnosticsToLSP(diags)
 }
 

@@ -113,6 +113,33 @@ func TestAnalyzeSkipsSelfhostPrecheckForBootstrapSources(t *testing.T) {
 	}
 }
 
+func TestDiagnosticsIncludesWarnings(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `choose(aaa: Bool, bbb: Int, ccc: Int) -> Int => (aaa) {
+  true => bbb
+  _ => ccc
+}
+`
+	s := NewSession()
+	s.SetDocument(uri, src)
+	diags := s.Diagnostics(uri)
+	if len(diags) == 0 {
+		t.Fatalf("Diagnostics() = none, want warning")
+	}
+	found := false
+	for _, diag := range diags {
+		if strings.Contains(diag["message"].(string), "prefer_ternary") {
+			found = true
+			if diag["severity"] != 2 {
+				t.Fatalf("warning severity = %v, want 2", diag["severity"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("Diagnostics() = %#v, want prefer_ternary warning", diags)
+	}
+}
+
 func TestDiagnosticsReportMissingStructLiteralComma(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {

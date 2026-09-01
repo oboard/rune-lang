@@ -132,7 +132,7 @@ main()=>{}`
 	}
 
 	got := File(file)
-want := `@"go:fmt"
+	want := `@"go:fmt"
 
 main() => {
 }
@@ -247,6 +247,33 @@ func TestPatternPredicateExpressionFormatting(t *testing.T) {
 
 	got := File(file)
 	want := `canEnd(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestMatchSubjectKeepsAmbiguousParens(t *testing.T) {
+	src := `pick(a: Int, b: Int, yes: String, no: String) -> String => (a < b) {
+  true => yes
+  _ => no
+}
+`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `pick(
+  a: Int,
+  b: Int,
+  yes: String,
+  no: String
+) -> String => (a < b) {
+  true => yes
+  _ => no
+}
 `
 	if got != want {
 		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
@@ -647,7 +674,7 @@ lc001TwoSum(nums:Array[Int],target:Int)->Array[Int]=>nums`
 
 	got := Source(file, src)
 	want := `// file header
-maxInt(a: Int, b: Int) -> Int => a > b {
+maxInt(a: Int, b: Int) -> Int => (a > b) {
   true => a
   false => b
 }

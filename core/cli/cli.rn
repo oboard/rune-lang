@@ -1098,7 +1098,7 @@ commandOptionConsumesNext(
   arg: String
 ) -> Bool => rootOptionConsumesNext(command, arg)
 
-positionalIncrement(arg: String) -> Int => (arg.startsWith("-")) {
+positionalIncrement(arg: String) -> Int => arg.startsWith("-") {
   true => 0
   _ => 1
 }

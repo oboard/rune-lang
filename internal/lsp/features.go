@@ -1,7 +1,7 @@
 package lsp
 
 func (s *server) publishDiagnostics(uri string) error {
-	_, diags := s.analyze(uri)
+	_, diags := s.analyzeWithWarnings(uri, true)
 	items := make([]map[string]any, 0, len(diags))
 	for _, diag := range diags {
 		severity := 1 // Error
