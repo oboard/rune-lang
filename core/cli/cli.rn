@@ -104,10 +104,10 @@ commandFromStruct(
   name := @cli.annotationString(annotation, 0, structure.name)
   about := @cli.annotationString(annotation, 1, "")
   version := @cli.annotationString(annotation, 2, "")
-  base := @cli.moduleCall("command", [StringExpr(name), StringExpr(about)])
+  base := moduleCall("command", [StringExpr(name), StringExpr(about)])
   initial := (
     version.isEmpty() ? base
-      : @cli.moduleCall("withVersion", [base, StringExpr(version)])
+      : moduleCall("withVersion", [base, StringExpr(version)])
   )
   structure.fields.foldl(initial, (current, field) => @cli.commandWithField(current, field))
 }
@@ -118,10 +118,10 @@ commandWithField(
 ) -> SyntaxExpr => {
   annotation := @cli.fieldAnnotation(field)
   (
-    annotation.name == "flag" ? @cli.moduleCall("withOption", [command, @cli.moduleCall("flag", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, ""))])])
+    annotation.name == "flag" ? moduleCall("withOption", [command, moduleCall("flag", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, ""))])])
       : (
-        annotation.name == "option" ? @cli.moduleCall("withOption", [command, @cli.moduleCall("option", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, field.name)), StringExpr(@cli.annotationString(annotation, 2, "")), BoolExpr(false), StringExpr(@cli.annotationString(annotation, 3, ""))])])
-          : @cli.moduleCall("withArgument", [command, @cli.moduleCall("argument", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), BoolExpr(true)])])
+        annotation.name == "option" ? moduleCall("withOption", [command, moduleCall("option", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), StringExpr(@cli.annotationString(annotation, 1, field.name)), StringExpr(@cli.annotationString(annotation, 2, "")), BoolExpr(false), StringExpr(@cli.annotationString(annotation, 3, ""))])])
+          : moduleCall("withArgument", [command, moduleCall("argument", [StringExpr(field.name), StringExpr(@cli.annotationString(annotation, 0, "")), BoolExpr(true)])])
       )
   )
 }
@@ -152,7 +152,7 @@ mainBody(
 ) -> SyntaxExpr => BlockExpr([SyntaxStatement {
   kind: "let",
   name: "result",
-  value: @cli.moduleCall("parseOrExit", [@cli.commandFromStruct(structure)])
+  value: moduleCall("parseOrExit", [@cli.commandFromStruct(structure)])
 }, SyntaxStatement {
   kind: "expr",
   name: "",
@@ -172,7 +172,7 @@ parserBody(
   commands := CallExpr(IdentifierExpr(commandsName), [])
   aliases := CallExpr(IdentifierExpr(aliasesName), [])
   trailingRest := CallExpr(IdentifierExpr(trailingRestName), [])
-  parsed := @cli.moduleCall("parseCommandArgs", [root, commands, aliases, trailingRest, IdentifierExpr(argsName)])
+  parsed := moduleCall("parseCommandArgs", [root, commands, aliases, trailingRest, IdentifierExpr(argsName)])
   BlockExpr([SyntaxStatement {
     kind: "let",
     name: "parsed",
