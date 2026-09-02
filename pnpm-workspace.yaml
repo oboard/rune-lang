@@ -9,4 +9,6 @@ allowBuilds:
   edgedriver: false
   esbuild: true
   geckodriver: false
+  kerberos: true
+  msw: true
   utf-8-validate: false
