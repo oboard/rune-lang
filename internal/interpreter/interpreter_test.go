@@ -304,3 +304,31 @@ main() => {
 		t.Fatalf("output = %q, want destructuring pattern output", got)
 	}
 }
+
+func TestInterpreterStructSpreadMergesFields(t *testing.T) {
+	src := `Point: {
+  x: Int
+  y: Int
+}
+
+main() => {
+  p := Point { x: 1, y: 2 }
+  q := Point { ..p, y: 3 }
+  @io.println(q.x.toString())
+  @io.println(q.y.toString())
+}
+`
+	prog, diags := compiler.AnalyzeSource("struct_spread.rn", src)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+
+	var out bytes.Buffer
+	interp := interpreter.New(prog.IR, interpreter.WithOutput(&out))
+	if err := interp.RunMain(); err != nil {
+		t.Fatalf("RunMain() error = %v", err)
+	}
+	if got := strings.TrimSpace(out.String()); got != "1\n3" {
+		t.Fatalf("output = %q, want %q", got, "1\\n3")
+	}
+}

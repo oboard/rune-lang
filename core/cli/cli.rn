@@ -277,8 +277,7 @@ parserBody(
     sourcePath: target.sourcePath
   }
   SyntaxFile {
-    types: tree.types,
-    enums: tree.enums,
+    ..tree,
     functions: [..tree.functions.map((function) => (
       function.id == target.id ? handler
         : function

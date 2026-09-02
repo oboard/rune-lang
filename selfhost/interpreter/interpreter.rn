@@ -7761,11 +7761,64 @@ evalField(
 ) -> Array[RuntimeField] => {
   field := children[index]
   value := evalExpr(interpreter, env, field.children[0])
-  evalFields(interpreter, env, children, index + 1, pushRuntimeField(out, RuntimeField {
-    name: field.name,
-    value: value.value
-  }))
+  next := (
+    field.kind == ExprKind.Spread ? mergeRuntimeFields(out, runtimeFields(value.value), 0)
+      : mergeRuntimeField(out, RuntimeField {
+        name: field.name,
+        value: value.value
+      })
+  )
+  evalFields(interpreter, env, children, index + 1, next)
 }
+
+mergeRuntimeFields(
+  out: Array[RuntimeField],
+  fields: Array[RuntimeField],
+  index: Int
+) -> Array[RuntimeField] => (
+  index >= fields.length() ? out
+    : mergeRuntimeFields(mergeRuntimeField(out, fields[index]), fields, index + 1)
+)
+
+mergeRuntimeField(
+  out: Array[RuntimeField],
+  field: RuntimeField
+) -> Array[RuntimeField] => (
+  runtimeFieldIndex(out, field.name, 0) >= 0 ? replaceRuntimeFieldAt(out, runtimeFieldIndex(out, field.name, 0), field)
+    : pushRuntimeField(out, field)
+)
+
+runtimeFieldIndex(
+  fields: Array[RuntimeField],
+  name: String,
+  index: Int
+) -> Int => (
+  index >= fields.length() ? -1
+    : (
+      fields[index].name == name ? index
+        : runtimeFieldIndex(fields, name, index + 1)
+    )
+)
+
+replaceRuntimeFieldAt(
+  fields: Array[RuntimeField],
+  index: Int,
+  field: RuntimeField
+) -> Array[RuntimeField] => collectRuntimeFields(fields, index, field, 0, [])
+
+collectRuntimeFields(
+  fields: Array[RuntimeField],
+  index: Int,
+  field: RuntimeField,
+  current: Int,
+  out: Array[RuntimeField]
+) -> Array[RuntimeField] => (
+  current >= fields.length() ? out
+    : collectRuntimeFields(fields, index, field, current + 1, pushRuntimeField(out, (
+      current == index ? field
+        : fields[current]
+    )))
+)
 
 fillObjectFields(
   interpreter: Interpreter,

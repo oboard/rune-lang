@@ -160,8 +160,24 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			if err != nil {
 				return nil, err
 			}
+			if field.Name == "" {
+				// A spread field ('..value') merges the operand's struct fields.
+				spread, ok := value.(*Struct)
+				if !ok {
+					return nil, fmt.Errorf("struct spread expects a struct, got %v", value)
+				}
+				for _, name := range spread.Order {
+					if _, seen := fields[name]; !seen {
+						order = append(order, name)
+					}
+					fields[name] = spread.Fields[name]
+				}
+				continue
+			}
+			if _, seen := fields[field.Name]; !seen {
+				order = append(order, field.Name)
+			}
 			fields[field.Name] = value
-			order = append(order, field.Name)
 		}
 		return &Struct{TypeName: e.TypeName, Fields: fields, Order: order}, nil
 	case *ir.AnonymousObjectLiteral:

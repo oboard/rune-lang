@@ -857,3 +857,23 @@ func writeTextFile(t *testing.T, path string, src string) {
 		t.Fatalf("WriteFile(%s) error = %v", path, err)
 	}
 }
+
+func TestGenerateTernaryEmptyArrayBranch(t *testing.T) {
+	src := `keep(values: Array[String], drop: Bool) -> Array[String] => drop ? [] : values
+
+main() => {
+  out := keep(["a", "b"], true)
+  @io.println(out.length().toString())
+}
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTextFile(t, path, src)
+	got, diags := GenerateGoFile(path)
+	if len(diags) > 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+	if strings.Contains(got, "[]any{}") {
+		t.Fatalf("generated Go still uses []any{} for typed empty array:\n%s", got)
+	}
+}

@@ -113,16 +113,21 @@ type lowerer struct {
 }
 
 func (l lowerer) exprType(expr ast.Expr) checker.Type {
-	if l.info == nil || expr == nil {
-		if l.expected != nil {
-			if typ, ok := l.expected[expr]; ok {
+	inferred := checker.Unknown
+	if l.info != nil && expr != nil {
+		if typ, ok := l.info.ExprTypes[expr]; ok {
+			inferred = typ
+		}
+	}
+	if l.expected != nil {
+		if typ, ok := l.expected[expr]; ok && typ != checker.Unknown && typ != checker.Void {
+			if inferred == checker.Unknown || inferred == checker.Type("Array[Unknown]") || inferred == checker.Type("Array[]") {
 				return typ
 			}
 		}
-		return checker.Unknown
 	}
-	if typ, ok := l.info.ExprTypes[expr]; ok {
-		return typ
+	if inferred != checker.Unknown {
+		return inferred
 	}
 	if l.expected != nil {
 		if typ, ok := l.expected[expr]; ok {
@@ -327,6 +332,21 @@ func (l lowerer) fillFunctionInfo(fn *Function, info *checker.FuncInfo) {
 	}
 }
 
+// exprWithType lowers expr seeding an expected result type when the expected
+// type is concrete and the checker's own inference left the node untyped (for
+// example, an empty array literal inside a ternary branch).
+func (l lowerer) exprWithType(expr ast.Expr, expected checker.Type) Expr {
+	if expected == checker.Unknown || expected == checker.Void || expected == "" {
+		return l.expr(expr)
+	}
+	if l.info != nil {
+		if typ, ok := l.info.ExprTypes[expr]; ok && typ != checker.Unknown && typ != checker.ArrayOf(checker.Unknown) {
+			return l.expr(expr)
+		}
+	}
+	return l.exprExpected(expr, expected)
+}
+
 func (l lowerer) exprExpected(expr ast.Expr, expected checker.Type) Expr {
 	if expected == checker.Unknown || expr == nil {
 		return l.expr(expr)
@@ -394,11 +414,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.BinaryExpr:
 		return &BinaryExpr{ExprBase: l.base(e), Left: l.expr(e.Left), Op: e.Op, Right: l.expr(e.Right)}
 	case *ast.TernaryExpr:
+		resultType := l.exprType(ast.Expr(e))
 		var alternative Expr
 		if e.Alternative != nil {
-			alternative = l.expr(e.Alternative)
+			alternative = l.exprWithType(e.Alternative, resultType)
 		}
-		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.expr(e.Consequence), Alternative: alternative}
+		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.exprWithType(e.Consequence, resultType), Alternative: alternative}
 	case *ast.AssignExpr:
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Target: l.expr(e.Target), Value: l.expr(e.Value)}
 	case *ast.CallExpr:
