@@ -143,6 +143,28 @@
           },
           "patterns": [
             {
+              "name": "meta.group.rune",
+              "begin": "\\(",
+              "beginCaptures": {
+                "0": { "name": "punctuation.section.group.begin.rune" }
+              },
+              "end": "\\)",
+              "endCaptures": {
+                "0": { "name": "punctuation.section.group.end.rune" }
+              },
+              "patterns": [
+                {
+                  "include": "#templateInterpolation"
+                },
+                {
+                  "include": "#strings"
+                },
+                {
+                  "include": "$self"
+                }
+              ]
+            },
+            {
               "include": "$self"
             }
           ]

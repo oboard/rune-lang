@@ -1267,6 +1267,7 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         [/\/\/.*$/, "comment"],
         [/"([^"\\]|\\.)*$/, "string.invalid"],
         [/"/, "string", "@string"],
+        [/`/, "string", "@template"],
         [/\d+\.\d+/, "number.float"],
         [/\d+/, "number"],
         [/[{}()[\]]/, "@brackets"],
@@ -1276,6 +1277,36 @@ function configureRuneLanguage(monacoModule: MonacoModule) {
         [/[^\\"]+/, "string"],
         [/\\./, "string.escape"],
         [/"/, "string", "@pop"],
+      ],
+      // Backtick template string, e.g. `verbose: \(args.verbose.toString())`.
+      // The opening `\(` is highlighted as part of the string (string.escape);
+      // the inner code is tokenized with the root rules so brackets pair up
+      // correctly, and the interpolation's closing `)` becomes string.escape
+      // again instead of counting as a bracket.
+      template: [
+        [/\\\(/, { token: "string.escape", next: "@templateBody" }],
+        [/\\./, "string.escape"],
+        [/`/, { token: "string", next: "@pop" }],
+        [/[^\\`]+/, "string"],
+      ],
+      templateBody: [
+        // Nested `\(` interpolation inside the expression.
+        [/\\\(/, { token: "string.escape", next: "@templateBody" }],
+        // Plain `(` group inside the expression: push a dedicated level so
+        // each `(` is matched by exactly one `)` code bracket.
+        [/\(/, { token: "@brackets", next: "@templateGroup" }],
+        [/`/, { token: "string", next: "@pop" }],
+        // The interpolation's closing `)`: part of the string, not a bracket,
+        // so outer code brackets keep pairing correctly (red, red, black).
+        [/\)/, { token: "string.escape", next: "@pop" }],
+        { include: "root" },
+      ],
+      templateGroup: [
+        [/\(/, { token: "@brackets", next: "@templateGroup" }],
+        [/\\\(/, { token: "string.escape", next: "@templateBody" }],
+        [/`/, { token: "string", next: "@pop" }],
+        [/\)/, { token: "@brackets", next: "@pop" }],
+        { include: "root" },
       ],
     },
   }));

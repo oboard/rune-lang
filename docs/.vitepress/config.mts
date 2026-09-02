@@ -31,7 +31,7 @@ const runeLanguage = {
 }
 
 function buildEmbeddedPlayground() {
-  execFileSync('bun', ['run', 'build'], {
+  execFileSync('pnpm', ['run', 'build'], {
     cwd: playgroundDir,
     env: {
       ...process.env,
