@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "dev": "bash scripts/dev.sh",
+    "generate": "bash scripts/generate-selfhost.sh",
     "docs:dev": "vitepress dev docs --host 0.0.0.0",
     "docs:build": "bash scripts/build-docs.sh",
     "docs:preview": "vitepress preview docs --host 0.0.0.0"
