@@ -661,6 +661,40 @@ main(args: Args) => {
 	}
 }
 
+func TestRunEntryMoonBitSignalWatch(t *testing.T) {
+	if _, err := exec.LookPath("moon"); err != nil {
+		t.Skip("moon command not available")
+	}
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println(`+"`"+`count: \($count)`+"`"+`)
+    @io.println(`+"`"+`double: \($double)`+"`"+`)
+  }
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  $count = $count + 1
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runEntry(mainPath, "mbt", "native", nil, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runEntry() error = %v, stderr = %s", err, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{"count: 0\n", "double: 0\n", "count: 1\n", "double: 2\n", "0\n", "1\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("runEntry() output = %q, missing %q", got, want)
+		}
+	}
+}
+
 func TestRunEntryMoonBitRejectsInvalidTarget(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := filepath.Join(dir, "main.rn")

@@ -593,6 +593,40 @@ func TestGenerateIterAndStringBuffer(t *testing.T) {
 	}
 }
 
+func TestGenerateSignalWatch(t *testing.T) {
+	src := `main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println(` + "`" + `count: \($count)` + "`" + `)
+    @io.println(` + "`" + `double: \($double)` + "`" + `)
+  }
+  $count -> (old, new) => {
+    @io.println(old)
+  }
+  $count = $count + 1
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"let count = RuneSignal::new(0)",
+		"let double = RuneSignal::new(count.get() * 2)",
+		"count.watch(fn(_, _) { double.set(count.get() * 2) })",
+		"RuneSignal::new",
+		"RuneSignal::get",
+		"RuneSignal::set",
+		"RuneSignal::watch",
+		"count.watch(fn(old, new) {",
+		"count.set(count.get() + 1)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\n%s\nmissing %q", got, want)
+		}
+	}
+	if strings.Contains(got, "MoonBit backend does not support") {
+		t.Fatalf("generated source still traps signal/watch:\n%s", got)
+	}
+}
+
 func generateSource(t *testing.T, src string) string {
 	t.Helper()
 	prog, diags := compiler.AnalyzeSource("test.rn", src)

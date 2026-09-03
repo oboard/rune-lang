@@ -18,6 +18,9 @@ func (g *generator) expr(expr ir.Expr) string {
 func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	switch e := expr.(type) {
 	case *ir.Identifier:
+		if g.isSignal(e.Name) {
+			return mangleIdent(e.Name) + ".get()"
+		}
 		return mangleIdent(e.Name)
 	case *ir.AtExpr:
 		return "()"
@@ -185,7 +188,6 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		g.addError(fmt.Errorf("MoonBit backend does not support spread expressions yet"))
 		return g.expr(e.Expr)
 	case *ir.ReactiveLiteral:
-		g.addError(fmt.Errorf("MoonBit backend does not support reactive literals"))
 		return g.expr(e.Value)
 	case *ir.StructLiteral:
 		if e.TypeName == string(checker.Error) {
@@ -213,8 +215,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 	case *ir.MatchExpr:
 		return g.matchExpr(e)
 	case *ir.WatchExpr:
-		g.addError(fmt.Errorf("MoonBit backend does not support watch expressions"))
-		return "()"
+		return g.watchExpr(e)
 	case *ir.XMLElement:
 		g.addError(fmt.Errorf("MoonBit backend does not support XML expressions"))
 		return "()"
@@ -501,6 +502,9 @@ func (g *generator) assignExpr(e *ir.AssignExpr, keepValue bool) string {
 			}
 		}
 	}
+	if g.isSignal(e.Name) {
+		return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
+	}
 	if e.Target != nil && e.Name == "" {
 		return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
 	}
@@ -734,18 +738,60 @@ func lambdaParamTypes(typ checker.Type) ([]string, string) {
 	return nil, ""
 }
 
+func (g *generator) watchExpr(watch *ir.WatchExpr) string {
+	target, ok := watch.Target.(*ir.Identifier)
+	if !ok || !g.isSignal(target.Name) {
+		return "()"
+	}
+	handler, ok := watch.Handler.(*ir.LambdaExpr)
+	if !ok {
+		return "()"
+	}
+	params := handler.Params
+	mbtParams := make([]string, 0, len(params))
+	if len(params) == 0 {
+		mbtParams = append(mbtParams, "_", "_")
+	} else {
+		for _, name := range params {
+			mbtParams = append(mbtParams, mangleIdent(name))
+		}
+	}
+	return fmt.Sprintf("%s.watch(fn(%s) { %s })", mangleIdent(target.Name), strings.Join(mbtParams, ", "), g.lambdaBody(handler))
+}
+
+func (g *generator) lambdaBody(lambda *ir.LambdaExpr) string {
+	if block, ok := lambda.Body.(*ir.BlockExpr); ok {
+		return g.blockInline(block, checker.Void)
+	}
+	return g.discardExpr(lambda.Body, g.expr(lambda.Body))
+}
+
 func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 	parts := make([]string, 0, len(block.Statements))
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ir.LetStmt:
+			if s.Signal || g.exprUsesSignal(s.Value) {
+				parts = append(parts, fmt.Sprintf("let %s = RuneSignal::new(%s)", mangleIdent(s.Name), g.expr(s.Value)))
+				g.addSignal(s.Name, s.Value.ResultType())
+				deps := g.exprSignalDeps(s.Value)
+				g.setSignalDeps(s.Name, deps)
+				for _, dep := range deps {
+					parts = append(parts, fmt.Sprintf("%s.watch(fn(_, _) { %s.set(%s) })", mangleIdent(dep), mangleIdent(s.Name), g.expr(s.Value)))
+				}
+				continue
+			}
 			keyword := "let"
 			if s.Mutable || g.inlineBindingAssigned(block, s.Name) || (s.Name == "positionIndex" && g.inlineContainsAssignment(block, s.Name)) {
 				keyword = "let mut"
 			}
 			parts = append(parts, fmt.Sprintf("%s %s = %s", keyword, mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.AssignStmt:
+			if g.isSignal(s.Name) {
+				parts = append(parts, fmt.Sprintf("%s.set(%s)", mangleIdent(s.Name), g.expr(s.Value)))
+				continue
+			}
 			parts = append(parts, fmt.Sprintf("%s = %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.ExprStmt:
 			if last && ret != checker.Void {

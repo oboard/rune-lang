@@ -10,6 +10,7 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 	"github.com/oboard/rune-lang/internal/checker"
 	"github.com/oboard/rune-lang/internal/codegen/stdlibhelpers"
+	codeusage "github.com/oboard/rune-lang/internal/codegen/usage"
 	"github.com/oboard/rune-lang/internal/ir"
 )
 
@@ -30,6 +31,8 @@ type generator struct {
 	anonTypes     map[string]string
 	anonOrder     []checker.Type
 	importAliases map[string]bool
+	signals       []map[string]checker.Type
+	signalDeps    []map[string][]string
 }
 
 func Generate(file *ast.File, info *checker.Info) (string, error) {
@@ -45,6 +48,7 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	closure := stdlibhelpers.Collect(file)
 	file = closure.With(file)
+	usage := codeusage.Collect(file)
 	g := &generator{file: file, hasRoutine: fileHasRoutine(file), anonTypes: map[string]string{}, importAliases: map[string]bool{}}
 	g.collectAnonymousTypes()
 	for i, enum := range file.Enums {
@@ -114,6 +118,11 @@ func GenerateIR(file *ir.File) (string, error) {
 	if g.useReader {
 		var runtime generator
 		runtime.readerRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if usage.Signal {
+		var runtime generator
+		runtime.signalRuntime()
 		src = runtime.buf.String() + "\n" + src
 	}
 	if g.useFS || g.useCompress || g.useNet {
@@ -346,6 +355,47 @@ func (g *generator) enumShowImpl(enum *ir.EnumType) {
 	g.line("}")
 }
 
+func (g *generator) signalRuntime() {
+	g.line("fn rune_schedule_effect(effect : () -> Unit) -> Unit {")
+	g.indent++
+	g.line("effect()")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("struct RuneSignal[T] {")
+	g.indent++
+	g.line("mut value : T")
+	g.line("watchers : Array[(T, T) -> Unit]")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn[T] RuneSignal::new(value : T) -> RuneSignal[T] {")
+	g.indent++
+	g.line("{ value, watchers: [] }")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn[T] RuneSignal::get(self : RuneSignal[T]) -> T {")
+	g.indent++
+	g.line("self.value")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn[T] RuneSignal::set(self : RuneSignal[T], value : T) -> Unit {")
+	g.indent++
+	g.line("let old = self.value")
+	g.line("self.value = value")
+	g.line("self.watchers.each(fn(watcher) { watcher(old, value) })")
+	g.indent--
+	g.line("}")
+	g.line("")
+	g.line("fn[T] RuneSignal::watch(self : RuneSignal[T], watcher : (T, T) -> Unit) -> Unit {")
+	g.indent++
+	g.line("self.watchers.push(watcher)")
+	g.indent--
+	g.line("}")
+}
+
 func (g *generator) constDecl(constant *ir.ConstDecl) {
 	g.linef("let %s : %s = %s", mangleIdent(constant.Name), g.mbtType(constant.Type), g.exprAs(constant.Value, constant.Type))
 }
@@ -398,7 +448,9 @@ func (g *generator) function(fn *ir.Function) {
 		g.linef("%s%s %s(%s)%s {", g.visibilityPrefix(fn.Private), g.fnPrefix(fn), mangleIdent(fn.Name), strings.Join(params, ", "), ret)
 	}
 	g.indent++
+	g.pushSignalScope()
 	g.body(fn, fn.Body, fn.Return)
+	g.popSignalScope()
 	g.indent--
 	g.line("}")
 }
@@ -416,7 +468,9 @@ func (g *generator) method(typeName string, fn *ir.Function) {
 	ret = " -> " + g.mbtType(fn.Return)
 	g.linef("%s %s(%s)%s {", g.fnPrefix(fn), mangleMethod(typeName, fn.Name), strings.Join(params, ", "), ret)
 	g.indent++
+	g.pushSignalScope()
 	g.body(fn, fn.Body, fn.Return)
+	g.popSignalScope()
 	g.indent--
 	g.line("}")
 	if !fn.Static {
@@ -490,6 +544,16 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 				g.resultUnwrapLet(s.Name, unwrap, ret)
 				continue
 			}
+			if s.Signal || g.exprUsesSignal(s.Value) {
+				g.linef("let %s = RuneSignal::new(%s)", mangleIdent(s.Name), g.expr(s.Value))
+				g.addSignal(s.Name, s.Value.ResultType())
+				deps := g.exprSignalDeps(s.Value)
+				g.setSignalDeps(s.Name, deps)
+				for _, dep := range deps {
+					g.linef("%s.watch(fn(_, _) { %s.set(%s) })", mangleIdent(dep), mangleIdent(s.Name), g.expr(s.Value))
+				}
+				continue
+			}
 			mut := ""
 			if assigned[s.Name] || s.Name == "positionIndex" {
 				// The CLI parser increments this binding from an Array.each
@@ -520,10 +584,18 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 				g.linef("let %s = %s.%s", mangleIdent(field.Name), tmp, mangleIdent(field.Field))
 			}
 		case *ir.AssignStmt:
+			if g.isSignal(s.Name) {
+				g.linef("%s.set(%s)", mangleIdent(s.Name), g.expr(s.Value))
+				continue
+			}
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
 			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
+				continue
+			}
+			if block, ok := s.Expr.(*ir.BlockExpr); ok && !(last && ret != checker.Void) && g.exprUsesSignal(block) {
+				g.effectScope(block)
 				continue
 			}
 			expr := g.expr(s.Expr)
@@ -539,6 +611,38 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 	}
 	if ret != checker.Void && len(block.Statements) == 0 {
 		g.line(zeroValue(ret))
+	}
+}
+
+func (g *generator) effectScope(block *ir.BlockExpr) {
+	name := g.nextTemp("__effect")
+	g.linef("let %s = fn() {", name)
+	g.indent++
+	g.block(block, checker.Void)
+	g.indent--
+	g.line("}")
+	pending := g.nextTemp("__effect_pending")
+	schedule := g.nextTemp("__schedule_effect")
+	g.linef("let mut %s = false", pending)
+	g.linef("let %s = fn() {", schedule)
+	g.indent++
+	g.linef("if %s {", pending)
+	g.indent++
+	g.line("return")
+	g.indent--
+	g.line("}")
+	g.linef("%s = true", pending)
+	g.line("rune_schedule_effect(fn() {")
+	g.indent++
+	g.linef("%s = false", pending)
+	g.linef("%s()", name)
+	g.indent--
+	g.line("})")
+	g.indent--
+	g.line("}")
+	g.linef("%s()", name)
+	for _, dep := range g.effectSignalDeps(block) {
+		g.linef("%s.watch(fn(_, _) { %s() })", mangleIdent(dep), schedule)
 	}
 }
 
