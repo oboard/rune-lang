@@ -55,7 +55,7 @@ rewriteTSStructs(
     sourcePath: "",
     line: 0,
     column: 0
-  }].slice(0, 0)
+  ]
   structs.each((typeDecl) => out.push(IRStructType {
     name: typeDecl.name,
     private: typeDecl.private,
@@ -83,7 +83,7 @@ rewriteTSEnums(
     sourcePath: "",
     line: 0,
     column: 0
-  }].slice(0, 0)
+  ]
   enums.each((typeDecl) => out.push(IREnumType {
     name: typeDecl.name,
     private: typeDecl.private,
@@ -102,16 +102,9 @@ rewriteTSConstants(
   structs: Array[IRStructType],
   enums: Array[IREnumType]
 ) -> Array[IRConst] => {
-  out := [IRConst {
-    name: "",
-    private: false,
-    typeName: "",
-    value: emptyIRExpr(),
-    line: 0,
-    column: 0
-  }].slice(0, 0)
+  out := []
   constants.each((constant) => {
-    value := rewriteTSExpr(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0))
+    value := rewriteTSExpr(constant.value, structs, enums, [])
     out.push(IRConst {
       name: constant.name,
       private: constant.private,
@@ -129,14 +122,9 @@ rewriteTSTests(
   structs: Array[IRStructType],
   enums: Array[IREnumType]
 ) -> Array[IRTest] => {
-  out := [IRTest {
-    name: "",
-    body: emptyIRExpr(),
-    line: 0,
-    column: 0
-  }].slice(0, 0)
+  out := []
   tests.each((test) => {
-    bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+    bindings := []
     body := rewriteTSExpr(test.body, structs, enums, bindings)
     out.push(IRTest {
       name: test.name,
@@ -153,7 +141,7 @@ rewriteTSFunctions(
   structs: Array[IRStructType],
   enums: Array[IREnumType]
 ) -> Array[IRFunction] => {
-  out := [emptyIRFunction()].slice(0, 0)
+  out := []
   functions.each((fn) => out.push(rewriteTSFunction(fn, structs, enums)))
   out
 }
@@ -170,7 +158,7 @@ rewriteTSTypeMethods(
   structs: Array[IRStructType],
   enums: Array[IREnumType]
 ) -> Array[IRFunction] => {
-  out := [emptyIRFunction()].slice(0, 0)
+  out := []
   methods.each((method) => out.push(rewriteTSFunctionWithThis(method, structs, enums, typeName)))
   out
 }
@@ -188,7 +176,7 @@ rewriteTSFunctionBody(
   enums: Array[IREnumType],
   thisType: String
 ) -> IRFunction => {
-  bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  bindings := []
   fn.params.each((param) => bindings = tsAddBinding(bindings, param.name, param.typeName))
   bindings = (thisType == "") ? bindings : tsAddBinding(bindings, "this", thisType)
   body := rewriteTSExpr(fn.body, structs, enums, bindings)
@@ -218,7 +206,7 @@ tsAddBinding(
   bindings: Array[CompilerTypeBinding],
   name: String,
   typeName: String
-) -> Array[CompilerTypeBinding] => [..dropTSBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), tsBinding(name, typeName)]
+) -> Array[CompilerTypeBinding] => []), tsBinding(name, typeName)]
 
 tsBinding(
   name: String,
@@ -275,7 +263,7 @@ rewriteTSBlockExpr(
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
 ) -> IRExpr => {
-  result := rewriteTSBlockStatements(expr.children, 0, structs, enums, bindings, [emptyIRExpr()].slice(0, 0))
+  result := rewriteTSBlockStatements(expr.children, 0, structs, enums, bindings, [])
   IRExpr {
     kind: expr.kind,
     text: expr.text,
@@ -481,7 +469,7 @@ tsRewriteChildren(
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[IRExpr] => {
-  out := [emptyIRExpr()].slice(0, 0)
+  out := []
   children.each((child) => out.push(rewriteTSExpr(child, structs, enums, bindings)))
   out
 }
@@ -492,7 +480,7 @@ rewriteTSChildren(
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[IRExpr] => {
-  out := [emptyIRExpr()].slice(0, 0)
+  out := []
   children.each((child) => out.push(rewriteTSExpr(child, structs, enums, bindings)))
   out
 }
@@ -502,7 +490,7 @@ tsRewriteArgs(
   structs: Array[IRStructType],
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
-) -> Array[IRExpr] => tsRewriteArgsFrom(children, 1, structs, enums, bindings, [emptyIRExpr()].slice(0, 0))
+) -> Array[IRExpr] => tsRewriteArgsFrom(children, 1, structs, enums, bindings, [])
 
 tsRewriteArgsFrom(
   children: Array[IRExpr],

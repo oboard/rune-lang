@@ -2238,7 +2238,7 @@ runtimeBytesText(
 
 fsKnownPaths(
   interpreter: Interpreter
-) -> Array[String] => fsKnownFilePaths(interpreter, fsKnownDirPaths(interpreter, [""].slice(0, 0)), [""].slice(0, 0))
+) -> Array[String] => fsKnownFilePaths(interpreter, fsKnownDirPaths(interpreter, []), [])
 
 fsKnownDirPaths(
   interpreter: Interpreter,
@@ -2414,7 +2414,7 @@ pathJoin(parts: Array[String]) -> String => pathNormalize(pathJoinParts(parts, 0
 pathNormalize(path: String) -> String => {
   absolute := pathIsAbsolute(path)
   pieces := path.split("/")
-  out := pathNormalizeParts(pieces, 0, absolute, pieces.slice(0, 0))
+  out := pathNormalizeParts(pieces, 0, absolute, [])
   joined := pathJoinParts(out, 0, "")
   (
     absolute ? "/" + joined
@@ -2521,7 +2521,7 @@ pathNormalizePush(
 pathParts(path: String) -> Array[String] => {
   clean := pathNormalize(path)
   pieces := clean.split("/")
-  pathCollectParts(pieces, 0, pieces.slice(0, 0))
+  pathCollectParts(pieces, 0, [])
 }
 
 pathCollectParts(
@@ -6508,7 +6508,7 @@ stringSplitMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   parts := runtimeText(receiver).split(runtimeText(args[0]))
-  out := [stringValue("")].slice(0, 0)
+  out := []
   parts.each((part) => out = pushRuntime(out, stringValue(part)))
   okResult(arrayValue(out))
 }
@@ -6741,7 +6741,7 @@ pushRuntime(
   values
 }
 
-emptyRuntimeArray() -> Array[RuntimeValue] => [emptyValue()].slice(0, 0)
+emptyRuntimeArray() -> Array[RuntimeValue] => []
 
 pushString(
   values: Array[String],
@@ -7730,10 +7730,7 @@ evalObjectLiteral(
   env: RuntimeEnv,
   expr: IRExpr
 ) -> EvalResult => {
-  fields := [RuntimeField {
-    name: "",
-    value: emptyValue()
-  }].slice(0, 0)
+  fields := []
   object := structValue("Object", fields)
   objectEnv := envDefine(env, "this", object)
   finalObject := structValue("Object", fillObjectFields(interpreter, objectEnv, fields, expr.children, 0))
@@ -10220,8 +10217,8 @@ runtimeFieldsAsValues(
 splitPatternArgs(
   text: String
 ) -> Array[String] => (
-  text.trim() == "" ? [""].slice(0, 0)
-    : splitPatternArgsLoop(text, 0, 0, 0, '\x00', [""].slice(0, 0))
+  text.trim() == "" ? []
+    : splitPatternArgsLoop(text, 0, 0, 0, '\x00', [])
 )
 
 splitPatternArgsLoop(

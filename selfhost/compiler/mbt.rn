@@ -426,7 +426,7 @@ emitMoonBitTemplate(expr: IRExpr) -> String => {
     raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
       : raw
   )
-  parts := mbtTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [""].slice(0, 0))
+  parts := mbtTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [])
   parts.length() == 0 ? "\"\"" : joinMoonBitTemplateParts(parts, 0, "")
 }
 
@@ -537,9 +537,38 @@ mbtStringLiteralNext(
 emitMoonBitDiscard(
   expr: IRExpr
 ) -> String => (
-  expr.kind == ExprKind.Call ? emitMoonBitExpr(expr)
+  (expr.kind == ExprKind.Call) && moonBitUnitCallResult(expr) ? emitMoonBitExpr(expr)
     : "ignore(" + emitMoonBitExpr(expr) + ")"
 )
+
+/// A call is safe to leave bare in statement position only when it returns Unit
+/// (or `()`), because MoonBit rejects implicitly ignored values otherwise. The
+/// inferred result text marks value-producing calls such as `array.push`, which
+/// therefore get wrapped in `ignore(...)`, while Unit-returning calls like
+/// `println` keep their noise-free form. Array/collection methods that yield a
+/// value are recognised by selector name for cases the text inference leaves
+/// blank (for example `array.set`).
+moonBitUnitCallResult(
+  expr: IRExpr
+) -> Bool => (
+  (expr.text != "Unit") && (expr.text != "()") && (expr.text != "") ? false
+    : !moonBitValueCoreMethodCall(expr)
+)
+
+moonBitValueCoreMethodCall(
+  expr: IRExpr
+) -> Bool => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? moonBitValueCoreMethodName(expr.children[0].name)
+    : false
+)
+
+moonBitValueCoreMethodName(
+  name: String
+) -> Bool => name {
+  "length" | "byteLength" | "isEmpty" | "at" | "slice" | "toString" => true
+  "push" | "set" | "pop" | "first" | "last" | "clone" | "reverse" | "contains" => true
+  _ => false
+}
 
 emitMoonBitBinary(
   expr: IRExpr

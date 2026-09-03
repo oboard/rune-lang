@@ -36,7 +36,7 @@
 + normalize(path: String) -> String => {
   absolute := isAbsolute(path)
   pieces := path.split("/")
-  out := normalizeParts(pieces, 0, absolute, pieces.slice(0, 0))
+  out := normalizeParts(pieces, 0, absolute, [])
   joined := joinParts(out, 0, "")
   (
     absolute ? "/" + joined
@@ -147,7 +147,7 @@
 ) -> Array[String] => {
   clean := normalize(path)
   pieces := clean.split("/")
-  collectPathParts(pieces, 0, pieces.slice(0, 0))
+  collectPathParts(pieces, 0, [])
 }
 
 + collectPathParts(

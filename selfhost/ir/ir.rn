@@ -388,7 +388,7 @@ withIRFunctionSourcePaths(
   functions: Array[IRFunction],
   sourcePath: String
 ) -> Array[IRFunction] => {
-  out := functions.slice(0, 0)
+  out := []
   functions.each((fn) => out.push(withIRFunctionSourcePath(fn, sourcePath)))
   out
 }
@@ -411,7 +411,7 @@ withIRStructSourcePaths(
   structs: Array[IRStructType],
   sourcePath: String
 ) -> Array[IRStructType] => {
-  out := structs.slice(0, 0)
+  out := []
   structs.each((typeDecl) => out.push(withIRStructSourcePath(typeDecl, sourcePath)))
   out
 }
@@ -434,7 +434,7 @@ withIREnumSourcePaths(
   enums: Array[IREnumType],
   sourcePath: String
 ) -> Array[IREnumType] => {
-  out := enums.slice(0, 0)
+  out := []
   enums.each((typeDecl) => out.push(withIREnumSourcePath(typeDecl, sourcePath)))
   out
 }
@@ -578,12 +578,7 @@ inferIRSelectorCallText(
 lowerParams(
   params: Array[ParsedParam]
 ) -> Array[IRParam] => {
-  out := [IRParam {
-    name: "",
-    typeName: "",
-    line: 0,
-    column: 0
-  }].slice(0, 0)
+  out := []
   params.each((param) => out.push(lowerParam(param)))
   out
 }
@@ -591,15 +586,7 @@ lowerParams(
 lowerFields(
   fields: Array[ParsedField]
 ) -> Array[IRField] => {
-  out := [IRField {
-    name: "",
-    private: false,
-    typeName: "",
-    jsonName: "",
-    jsonIgnore: false,
-    line: 0,
-    column: 0
-  }].slice(0, 0)
+  out := []
   fields.each((field) => out.push(lowerField(field)))
   out
 }
@@ -614,7 +601,7 @@ lowerEnumMembers(
     params: [],
     line: 0,
     column: 0
-  }].slice(0, 0)
+  ]
   members.each((member) => out.push(lowerEnumMember(member)))
   out
 }
@@ -622,7 +609,7 @@ lowerEnumMembers(
 lowerFunctions(
   functions: Array[ParsedFunction]
 ) -> Array[IRFunction] => {
-  out := [emptyIRFunction()].slice(0, 0)
+  out := []
   functions.each((fn) => out.push(lowerFunction(fn)))
   out
 }
@@ -630,7 +617,7 @@ lowerFunctions(
 lowerExprs(
   exprs: Array[ParsedExpr]
 ) -> Array[IRExpr] => {
-  out := [emptyIRExpr()].slice(0, 0)
+  out := []
   exprs.each((expr) => out.push(lowerExpr(expr)))
   out
 }

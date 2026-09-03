@@ -18,12 +18,12 @@ InferBlockOut: {
 }
 
 inferConstants(constants: Array[IRConst], structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[IRConst] => {
-  out := [IRConst { name: "", private: false, typeName: "", value: emptyIRExpr(), line: 0, column: 0 }].slice(0, 0)
+  out := []
   constants.each((constant) => out.push(IRConst {
     name: constant.name,
     private: constant.private,
-    typeName: constant.typeName == "" ? inferExprType(inferAnnotate(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0))) : constant.typeName,
-    value: inferAnnotate(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0)),
+    typeName: constant.typeName == "" ? inferExprType(inferAnnotate(constant.value, structs, enums, [])) : constant.typeName,
+    value: inferAnnotate(constant.value, structs, enums, []),
     line: constant.line,
     column: constant.column
   }))
@@ -31,13 +31,13 @@ inferConstants(constants: Array[IRConst], structs: Array[IRStructType], enums: A
 }
 
 inferFunctions(functions: Array[IRFunction], structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[IRFunction] => {
-  out := [emptyIRFunction()].slice(0, 0)
+  out := []
   functions.each((fn) => out.push(inferFunction(fn, structs, enums)))
   out
 }
 
 inferFunction(fn: IRFunction, structs: Array[IRStructType], enums: Array[IREnumType]) -> IRFunction => {
-  seed := inferSeedBindings(fn.params, fn.receiverType, [emptyCompilerTypeBinding()].slice(0, 0))
+  seed := inferSeedBindings(fn.params, fn.receiverType, [])
   body := inferBody(fn.body, structs, enums, seed)
   IRFunction {
     name: fn.name,
@@ -64,7 +64,7 @@ inferSeedBindingsStep(params: Array[IRParam], receiverType: String, bindings: Ar
 )
 
 inferParams(params: Array[IRParam], body: IRExpr) -> Array[IRParam] => {
-  out := [emptyIRParam()].slice(0, 0)
+  out := []
   params.each((param) => out.push(inferParam(param, body)))
   out
 }
@@ -96,8 +96,8 @@ inferBody(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], 
 }
 
 inferBlock(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> IRExpr => {
-  result := inferBlockStatements(expr.children, structs, enums, bindings, 0, [emptyIRExpr()].slice(0, 0))
-  synced := inferSyncStatements(result.statements, result.bindings, 0, [emptyIRExpr()].slice(0, 0))
+  result := inferBlockStatements(expr.children, structs, enums, bindings, 0, [])
+  synced := inferSyncStatements(result.statements, result.bindings, 0, [])
   IRExpr {
     kind: ExprKind.Block,
     text: inferBlockType(synced, 0, "Void"),
@@ -197,7 +197,7 @@ inferRefineFromSelector(bindings: Array[CompilerTypeBinding], expr: IRExpr, sele
 
 inferRefineArrayBinding(bindings: Array[CompilerTypeBinding], name: String, elemType: String) -> Array[CompilerTypeBinding] => (
   elemType == "" ? bindings
-    : inferRefineStep(bindings, name, elemType, 0, [emptyCompilerTypeBinding()].slice(0, 0))
+    : inferRefineStep(bindings, name, elemType, 0, [])
 )
 
 inferRefineStep(bindings: Array[CompilerTypeBinding], name: String, elemType: String, index: Int, out: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => (
@@ -224,7 +224,7 @@ emptyCompilerTypeBinding() -> CompilerTypeBinding => CompilerTypeBinding { name:
 
 emptyIRParam() -> IRParam => IRParam { name: "", typeName: "", line: 0, column: 0 }
 
-inferAddBinding(bindings: Array[CompilerTypeBinding], name: String, typeName: String) -> Array[CompilerTypeBinding] => [..inferDropBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+inferAddBinding(bindings: Array[CompilerTypeBinding], name: String, typeName: String) -> Array[CompilerTypeBinding] => []), compilerTypeBinding(name, typeName)]
 
 inferDropBinding(bindings: Array[CompilerTypeBinding], name: String, index: Int, out: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => (
   index >= bindings.length() ? out
@@ -258,7 +258,7 @@ inferAnnotate(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumTyp
   }
 }
 
-inferChildren(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> Array[IRExpr] => inferChildrenStep(exprs, structs, enums, bindings, 0, [emptyIRExpr()].slice(0, 0))
+inferChildren(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> Array[IRExpr] => inferChildrenStep(exprs, structs, enums, bindings, 0, [])
 
 inferChildrenStep(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> Array[IRExpr] => (
   index >= exprs.length() ? out
@@ -394,7 +394,7 @@ inferBlockType(children: Array[IRExpr], index: Int, previous: String) -> String 
 )
 
 inferLambdaParams(params: Array[IRParam], children: Array[IRExpr]) -> Array[IRParam] => {
-  out := [emptyIRParam()].slice(0, 0)
+  out := []
   params.each((param) => out.push(IRParam {
     name: param.name,
     typeName: param.typeName == "" ? inferLambdaParamType(param.name, children, 0) : param.typeName,

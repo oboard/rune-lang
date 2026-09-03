@@ -112,7 +112,7 @@ CompilerNamespaceAlias: {
 /// Plain graph normalization is shared by host bridges and compileFiles callers.
 discoverSourceGraph(
   files: Array[SourceFile]
-) -> Array[SourceFile] => discoverMergeSourceFiles([emptySourceFile()].slice(0, 0), files, 0)
+) -> Array[SourceFile] => discoverMergeSourceFiles([], files, 0)
 
 /// Exposes the root discovery result as a stable self-host API object.
 + ~ getSelfhostSources(
@@ -259,7 +259,7 @@ checkGoTargetFileErrors(
 checkMoonBitTargetFileErrors(
   file: IRFile
 ) -> Array[String] => {
-  errors :=: [""].slice(0, 0)
+  errors :=: []
   hasTypeScriptImports := file.tsImports.length() > 0
   errors = compilerAppendErrorIf(errors, hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
   hasGoImports := fileHasGoImports(file)
@@ -309,7 +309,7 @@ checkFileErrors(
   callables := compilerCallables(file)
   bindings := compilerInitialBindings(file, callables)
   knownTypes := compilerKnownTypes(file)
-  errors := checkDuplicateDeclarations(file, [""].slice(0, 0))
+  errors := checkDuplicateDeclarations(file, [])
   errors = checkDeclarationTypes(file, knownTypes, errors)
   file.constants.each((constant) => errors = checkConstantErrors(constant, file.structs, callables, errors, bindings))
   file.functions.each((fn) => errors = checkTopLevelFunctionErrors(fn, file.structs, callables, errors, bindings))
@@ -796,7 +796,7 @@ compilerGenericInner(
 compilerCallables(
   file: IRFile
 ) -> Array[CompilerCallable] => {
-  callables := [emptyCompilerCallable()].slice(0, 0)
+  callables := []
   file.functions.each((fn) => (
     fn.macro ? 0
       : callables.push(compilerFunctionCallable(fn))
@@ -2826,7 +2826,7 @@ addCompilerTypeBinding(
 ) -> Array[CompilerTypeBinding] => {
   known := typeName != ""
   known {
-    true => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+    true => [..dropCompilerTypeBinding(bindings, name, 0, []), compilerTypeBinding(name, typeName)]
     _ => bindings
   }
 }
@@ -2835,7 +2835,7 @@ addCompilerValueBinding(
   bindings: Array[CompilerTypeBinding],
   name: String,
   typeName: String
-) -> Array[CompilerTypeBinding] => [..dropCompilerTypeBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+) -> Array[CompilerTypeBinding] => [..dropCompilerTypeBinding(bindings, name, 0, []), compilerTypeBinding(name, typeName)]
 
 bindCompilerObjectDestructure(
   expr: IRExpr,
@@ -3819,13 +3819,13 @@ inferCompilerPatternBlockType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => inferCompilerPatternBlockTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+) -> String => inferCompilerPatternBlockTypeWithStructs(expr, [], callables, bindings)
 
 inferCompilerMatchType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => inferCompilerMatchTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+) -> String => inferCompilerMatchTypeWithStructs(expr, [], callables, bindings)
 
 inferCompilerMatchTypeWithStructs(
   expr: IRExpr,
@@ -3838,7 +3838,7 @@ inferCompilerUnwrapType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => inferCompilerUnwrapTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+) -> String => inferCompilerUnwrapTypeWithStructs(expr, [], callables, bindings)
 
 inferCompilerUnwrapTypeWithStructs(
   expr: IRExpr,
@@ -4108,7 +4108,7 @@ inferCompilerBlockType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => inferCompilerBlockTypeWithStructs(expr, [emptyCompilerStruct()].slice(0, 0), callables, bindings)
+) -> String => inferCompilerBlockTypeWithStructs(expr, [], callables, bindings)
 
 inferCompilerBlockTypeWithStructs(
   expr: IRExpr,
@@ -4291,7 +4291,7 @@ emptyCompilerCallable(
 compilerParamTypeNames(
   params: Array[IRParam]
 ) -> Array[String] => {
-  names := [""].slice(0, 0)
+  names := []
   params.each((param) => names.push(param.typeName))
   names
 }
@@ -4299,14 +4299,14 @@ compilerParamTypeNames(
 compilerParamBindings(
   params: Array[IRParam]
 ) -> Array[CompilerTypeBinding] => {
-  compilerFunctionBindings(params, [emptyCompilerTypeBinding()].slice(0, 0))
+  compilerFunctionBindings(params, [])
 }
 
 compilerInitialBindings(
   file: IRFile,
   callables: Array[CompilerCallable]
 ) -> Array[CompilerTypeBinding] => {
-  bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  bindings := []
   bindings = compilerMacroFunctionBindings(file.functions, bindings)
   file.constants.each((constant) => bindings = compilerConstBinding(file.structs, callables, bindings, constant))
   file.tsImports.each((importDecl) => bindings = compilerImportValueBindings(importDecl.values, bindings))
@@ -4665,9 +4665,9 @@ expandCompilerTypeMacros(
   typeDecl: ParsedType
 ) -> ParsedType => {
   typeName := compilerRenameDeclarationName(typeDecl.annotations, typeDecl.name)
-  fields := typeDecl.fields.slice(0, 0)
-  methods := typeDecl.methods.slice(0, 0)
-  members := typeDecl.members.slice(0, 0)
+  fields := []
+  methods := []
+  members := []
   typeDecl.fields.each((field) => fields.push(expandCompilerFieldMacros(field)))
   typeDecl.methods.each((method) => methods.push(expandCompilerFunctionMacros(method)))
   typeDecl.members.each((member) => members.push(expandCompilerEnumMemberMacros(member)))
@@ -4748,7 +4748,7 @@ compilerEmptyAnnotations(
   args: [],
   line: 0,
   column: 0
-}].slice(0, 0)
+}]
 
 compilerParsedExpr(
   kind: ExprKind,
@@ -4778,7 +4778,7 @@ compilerGenericTypeRef(
   line: Int,
   column: Int
 ) -> ParsedTypeRef => {
-  args := compilerGenericTypeRefArgs(generics, 0, line, column, [emptyParsedTypeRef()].slice(0, 0))
+  args := compilerGenericTypeRefArgs(generics, 0, line, column, [])
   compilerTypeRefWithArgs(name, args, line, column)
 }
 
@@ -4811,7 +4811,7 @@ compilerTypeRef(
   name: String,
   line: Int,
   column: Int
-) -> ParsedTypeRef => compilerTypeRefWithArgs(name, [emptyParsedTypeRef()].slice(0, 0), line, column)
+) -> ParsedTypeRef => compilerTypeRefWithArgs(name, [], line, column)
 
 compilerTypeRefWithArgs(
   name: String,
@@ -4924,7 +4924,7 @@ expandCompilerFunctionMacros(
   generics: fn.generics,
   params: fn.params,
   returnType: fn.returnType,
-  body: expandCompilerNamespaceAliases(fn.body, [emptyCompilerNamespaceAlias()].slice(0, 0)),
+  body: expandCompilerNamespaceAliases(fn.body, []),
   line: fn.line,
   column: fn.column
 }
@@ -5325,8 +5325,8 @@ compilerMacroBindingFromFunction(
   name: fn.name,
   macro: fn.macro,
   paramTypes: fn.macro {
-    true => compilerVisibleMacroParamTypes(fn.params, 2, [""].slice(0, 0))
-    _ => compilerParsedParamTypeNames(fn.params, 0, [""].slice(0, 0))
+    true => compilerVisibleMacroParamTypes(fn.params, 2, [])
+    _ => compilerParsedParamTypeNames(fn.params, 0, [])
   }
 }
 
@@ -5428,7 +5428,7 @@ expandCompilerTestMacros(
   testDecl: ParsedTest
 ) -> ParsedTest => {
   name: testDecl.name,
-  body: expandCompilerNamespaceAliases(testDecl.body, [emptyCompilerNamespaceAlias()].slice(0, 0)),
+  body: expandCompilerNamespaceAliases(testDecl.body, []),
   line: testDecl.line,
   column: testDecl.column
 }
@@ -5436,7 +5436,7 @@ expandCompilerTestMacros(
 compilerImportExpressions(
   file: ParsedFile
 ) -> Array[ParsedImport] => {
-  imports := [compilerEmptyParsedImport()].slice(0, 0)
+  imports := []
   file.types.each((typeDecl) => imports = compilerCollectTypeImportExprs(typeDecl, imports))
   file.functions.each((fn) => imports = compilerCollectFunctionImportExprs(fn, imports))
   file.tests.each((testDecl) => imports = compilerCollectImportExprs(testDecl.body, imports))
@@ -5543,7 +5543,7 @@ expandCompilerNamespaceAliases(
 expandCompilerNamespaceAliasBlock(
   expr: ParsedExpr,
   aliases: Array[CompilerNamespaceAlias]
-) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasBlockChildren(expr.children, 0, aliases, expr.children.slice(0, 0)))
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasBlockChildren(expr.children, 0, aliases, []))
 
 expandCompilerNamespaceAliasBlockChildren(
   statements: Array[ParsedExpr],
@@ -5581,7 +5581,7 @@ compilerNamespaceAliasesAfterBinding(
   statement: ParsedExpr,
   aliases: Array[CompilerNamespaceAlias]
 ) -> Array[CompilerNamespaceAlias] => statement.kind {
-  ExprKind.Let => dropCompilerNamespaceAlias(aliases, statement.name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0))
+  ExprKind.Let => dropCompilerNamespaceAlias(aliases, statement.name, 0, [])
   ExprKind.ObjectDestructure => dropCompilerNamespaceAliasParams(aliases, statement.params, 0)
   _ => aliases
 }
@@ -5592,13 +5592,13 @@ dropCompilerNamespaceAliasParams(
   index: Int
 ) -> Array[CompilerNamespaceAlias] => (
   index >= params.length() ? aliases
-    : dropCompilerNamespaceAliasParams(dropCompilerNamespaceAlias(aliases, params[index].name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0)), params, index + 1)
+    : dropCompilerNamespaceAliasParams(dropCompilerNamespaceAlias(aliases, params[index].name, 0, []), params, index + 1)
 )
 
 expandCompilerNamespaceAliasLambda(
   expr: ParsedExpr,
   aliases: Array[CompilerNamespaceAlias]
-) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, dropCompilerNamespaceAliasParams(aliases, expr.params, 0), expr.children.slice(0, 0)))
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, dropCompilerNamespaceAliasParams(aliases, expr.params, 0), []))
 
 expandCompilerNamespaceAliasSelector(
   expr: ParsedExpr,
@@ -5646,7 +5646,7 @@ expandCompilerNamespaceAliasSelectorFound(
 expandCompilerNamespaceAliasChildren(
   expr: ParsedExpr,
   aliases: Array[CompilerNamespaceAlias]
-) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, aliases, expr.children.slice(0, 0)))
+) -> ParsedExpr => compilerWithChildren(expr, expandCompilerNamespaceAliasChildrenList(expr.children, 0, aliases, []))
 
 expandCompilerNamespaceAliasChildrenList(
   children: Array[ParsedExpr],
@@ -5747,7 +5747,7 @@ emptyCompilerNamespaceAlias(
 addCompilerNamespaceAlias(
   aliases: Array[CompilerNamespaceAlias],
   alias: CompilerNamespaceAlias
-) -> Array[CompilerNamespaceAlias] => [..dropCompilerNamespaceAlias(aliases, alias.name, 0, [emptyCompilerNamespaceAlias()].slice(0, 0)), alias]
+) -> Array[CompilerNamespaceAlias] => [..dropCompilerNamespaceAlias(aliases, alias.name, 0, []), alias]
 
 dropCompilerNamespaceAlias(
   aliases: Array[CompilerNamespaceAlias],
@@ -6100,7 +6100,7 @@ compilerPathNormalize(
 ) -> String => {
   absolute := path.startsWith("/")
   parts := path.split("/")
-  normalized := compilerPathNormalizeParts(parts, 0, absolute, parts.slice(0, 0))
+  normalized := compilerPathNormalizeParts(parts, 0, absolute, [])
   joined := compilerPathJoinParts(normalized, 0, "")
   absolute {
     true => "/" + joined
@@ -6203,8 +6203,8 @@ parseTypeScriptImport(
   imports := IRTSImport {
     path: path,
     specifier: specifier,
-    functions: [emptyIRFunction()].slice(0, 0),
-    values: [emptyIRConst()].slice(0, 0),
+    functions: [],
+    values: [],
     line: 0,
     column: 0
   }
@@ -6255,7 +6255,7 @@ pushTypeScriptFunction(
       generics: [],
       params: (
         (open >= 0) && (close > open) ? parseTypeScriptParams(text.slice(open + 1, close))
-          : [emptyIRParam()].slice(0, 0)
+          : []
       ),
       returnType: returnType,
       body: emptyIRExpr(),
@@ -6340,7 +6340,7 @@ typeScriptValueTypeName(
 parseTypeScriptParams(
   text: String
 ) -> Array[IRParam] => {
-  params := [emptyIRParam()].slice(0, 0)
+  params := []
   text.split(",").each((param) => (
     param.trim() != "" ? params.push(parseTypeScriptParam(param.trim()))
   ))

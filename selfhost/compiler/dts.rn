@@ -231,7 +231,7 @@ dtsParenTypeRef(
   )
   parts := dtsSplitTopLevelTypeArgs(inner)
   parts.length() == 1 ? groupedTypeRef(parseDtsTypeRef(parts[0]), open)
-    : tupleTypeRef(dtsTupleParamsFromStrings(parts, 0, [emptyParsedTypeParam()].slice(0, 0)), open)
+    : tupleTypeRef(dtsTupleParamsFromStrings(parts, 0, []), open)
 }
 
 dtsTypeToken(typeName: String) -> Token => {
@@ -276,7 +276,7 @@ dtsBracketArgs(
   close := dtsBracketClose(tokens, open + 1, 1)
   inner := dtsTokenRangeText(tokens, open + 1, close, "")
   parts := dtsSplitTopLevelTypeArgs(inner)
-  dtsTypeRefsFromStrings(parts, 0, [emptyParsedTypeRef()].slice(0, 0))
+  dtsTypeRefsFromStrings(parts, 0, [])
 }
 
 dtsBracketClose(

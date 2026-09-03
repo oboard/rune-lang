@@ -127,13 +127,7 @@ ScannedString: {
   xmlAfterDepth: 0
 }, emptyTokens())
 
-emptyTokens() -> Array[Token] => [Token {
-  kind: TokenKind.EOF,
-  lexeme: "",
-  offset: 0,
-  line: 0,
-  column: 0
-}].slice(0, 0)
+emptyTokens() -> Array[Token] => []
 
 scan(
   state: LexState,

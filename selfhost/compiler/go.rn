@@ -788,7 +788,7 @@ emitGoTemplate(expr: IRExpr) -> String => {
     raw.length() >= 2 ? raw.slice(1, raw.length() - 1)
       : raw
   )
-  parts := goTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [""].slice(0, 0))
+  parts := goTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [])
   parts.length() == 0 ? "\"\"" : joinGoTemplateParts(parts, 0, "")
 }
 

@@ -137,11 +137,7 @@ emptyFile(
   errors: errors
 }
 
-emptyParseErrors() -> Array[ParseError] => [ParseError {
-  message: "",
-  line: 0,
-  column: 0
-}].slice(0, 0)
+emptyParseErrors() -> Array[ParseError] => []
 
 emptyToken() -> Token => {
   kind: TokenKind.EOF,
@@ -170,7 +166,7 @@ emptyAnnotations() -> Array[ParsedAnnotation] => [ParsedAnnotation {
   args: [],
   line: 0,
   column: 0
-}].slice(0, 0)
+]
 
 makeExpr(
   kind: ExprKind,
@@ -2229,7 +2225,7 @@ parseXMLAttribute(
       )
   )
   attr := makeExpr(ExprKind.Field, name.token.lexeme, name.token.lexeme, "", op, [], (
-    valueStep.expr.kind == ExprKind.Unknown ? [emptyExpr()].slice(0, 0)
+    valueStep.expr.kind == ExprKind.Unknown ? []
       : [valueStep.expr]
   ), name.token.line, name.token.column)
   parseXMLAttributes(valueStep.state, appendChild(element, attr))
@@ -3616,7 +3612,7 @@ parseAnnotation(
   )
   open := parserMatch(name.state, TokenKind.LParen)
   args := (
-    open.ok ? parseArgumentList(parserSkipNewlines(open.state), [emptyExpr()].slice(0, 0), TokenKind.RParen)
+    open.ok ? parseArgumentList(parserSkipNewlines(open.state), [], TokenKind.RParen)
       : ExprStep {
         state: name.state,
         expr: makeExpr(ExprKind.Args, "", "", "", "", [], [], 0, 0)

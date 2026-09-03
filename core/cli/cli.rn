@@ -453,9 +453,9 @@ containsAt(
   values := @map.new("", "")
   flags := @map.new("", false)
   positionals := @map.new("", "")
-  rest := args.slice(0, 0)
-  explicitOptions := args.slice(0, 0)
-  positionalValues := args.slice(0, 0)
+  rest := []
+  explicitOptions := []
+  positionalValues := []
   helpValue :=: false
   parseError :=: ""
   afterDoubleDash :=: false
