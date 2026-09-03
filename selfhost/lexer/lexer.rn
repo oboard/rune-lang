@@ -194,44 +194,8 @@ finishToken(
   state: LexState,
   kind: TokenKind
 ) -> LexState => {
-  source: state.source,
-  start: state.start,
-  current: state.current,
-  line: state.line,
-  column: state.column,
-  startLine: state.startLine,
-  startColumn: state.startColumn,
+  ..state,
   canStartRegex: !canEndExpression(state, kind),
-  mode: state.mode,
-  xmlDepth: state.xmlDepth,
-  xmlClosing: state.xmlClosing,
-  xmlSelfClosed: state.xmlSelfClosed,
-  xmlExprMode: state.xmlExprMode,
-  xmlExprDepth: state.xmlExprDepth,
-  xmlAfterMode: state.xmlAfterMode,
-  xmlAfterDepth: state.xmlAfterDepth
-}
-
-lexStateWithMode(
-  state: LexState,
-  mode: Int
-) -> LexState => {
-  source: state.source,
-  start: state.start,
-  current: state.current,
-  line: state.line,
-  column: state.column,
-  startLine: state.startLine,
-  startColumn: state.startColumn,
-  canStartRegex: state.canStartRegex,
-  mode: mode,
-  xmlDepth: state.xmlDepth,
-  xmlClosing: state.xmlClosing,
-  xmlSelfClosed: state.xmlSelfClosed,
-  xmlExprMode: state.xmlExprMode,
-  xmlExprDepth: state.xmlExprDepth,
-  xmlAfterMode: state.xmlAfterMode,
-  xmlAfterDepth: state.xmlAfterDepth
 }
 
 lexStateXML(
@@ -243,22 +207,13 @@ lexStateXML(
   exprMode: Int,
   exprDepth: Int
 ) -> LexState => {
-  source: state.source,
-  start: state.start,
-  current: state.current,
-  line: state.line,
-  column: state.column,
-  startLine: state.startLine,
-  startColumn: state.startColumn,
-  canStartRegex: state.canStartRegex,
+  ..state,
   mode: mode,
   xmlDepth: depth,
   xmlClosing: closing,
   xmlSelfClosed: selfClosed,
   xmlExprMode: exprMode,
-  xmlExprDepth: exprDepth,
-  xmlAfterMode: state.xmlAfterMode,
-  xmlAfterDepth: state.xmlAfterDepth
+  xmlExprDepth: exprDepth
 }
 
 enterXMLTagState(
@@ -276,20 +231,7 @@ lexStateXMLAfterMode(
   afterMode: Int,
   afterDepth: Int
 ) -> LexState => {
-  source: state.source,
-  start: state.start,
-  current: state.current,
-  line: state.line,
-  column: state.column,
-  startLine: state.startLine,
-  startColumn: state.startColumn,
-  canStartRegex: state.canStartRegex,
-  mode: state.mode,
-  xmlDepth: state.xmlDepth,
-  xmlClosing: state.xmlClosing,
-  xmlSelfClosed: state.xmlSelfClosed,
-  xmlExprMode: state.xmlExprMode,
-  xmlExprDepth: state.xmlExprDepth,
+  ..state,
   xmlAfterMode: afterMode,
   xmlAfterDepth: afterDepth
 }
@@ -373,22 +315,10 @@ canEndXmlLess(
 }
 
 markStart(state: LexState) -> LexState => {
-  source: state.source,
+  ..source,
   start: state.current,
-  current: state.current,
-  line: state.line,
-  column: state.column,
   startLine: state.line,
   startColumn: state.column,
-  canStartRegex: state.canStartRegex,
-  mode: state.mode,
-  xmlDepth: state.xmlDepth,
-  xmlClosing: state.xmlClosing,
-  xmlSelfClosed: state.xmlSelfClosed,
-  xmlExprMode: state.xmlExprMode,
-  xmlExprDepth: state.xmlExprDepth,
-  xmlAfterMode: state.xmlAfterMode,
-  xmlAfterDepth: state.xmlAfterDepth
 }
 
 atEnd(state: LexState) -> Bool => state.current >= state.source.length()

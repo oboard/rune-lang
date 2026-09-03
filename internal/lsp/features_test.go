@@ -983,6 +983,31 @@ increment(value) => value + 1
 	}
 }
 
+func TestInlayHintsShowInferredLocalVariableTypes(t *testing.T) {
+	uri := "file:///tmp/local_variable_types.rn"
+	src := `main() => {
+  out := []
+  out.push("hello")
+  @io.println(out)
+
+  count := 42
+  declared := "Rune": String
+}`
+	s := &server{docs: map[string]string{uri: src}}
+	hints := s.inlayHints(uri).([]map[string]any)
+
+	outPos := position{Line: 1, Character: len("  out")}
+	if countHintAt(hints, outPos, ": Array[String]") != 1 {
+		t.Fatalf("inlay hints = %#v, want one inferred Array[String] hint for out", hints)
+	}
+	if !inlayLabelsContain(hints, ": Int") {
+		t.Fatalf("inlay hints = %#v, want inferred Int hint for count", hints)
+	}
+	if inlayLabelsContain(hints, ": String") {
+		t.Fatalf("inlay hints = %#v, declared variables must not receive a type hint", hints)
+	}
+}
+
 func TestInlayHintsShowCallArgumentNames(t *testing.T) {
 	uri := "file:///tmp/call_args.rn"
 	src := `fib(n: Int) -> Int => n

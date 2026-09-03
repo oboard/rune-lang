@@ -109,42 +109,35 @@ func __cli_alias(__from string, __to string) __CliCommandAlias {
 
 func __cli_aliasesForCommand(__aliases []__CliCommandAlias, __commandName string, __index int) []string {
 	return func() []string {
-		switch {
-		case __index >= len(__aliases) == true:
+		if __index >= len(__aliases) {
 			return []string{}
-		default:
-			return func() []string {
-				switch {
-				case __aliases[__index].__to == __commandName == true:
-					return func() []string {
-						out := []string{}
-						out = append(out, __aliases[__index].__from)
-						out = append(out, __cli_aliasesForCommand(__aliases, __commandName, __index+1)...)
-						return out
-					}()
-				default:
-					return __cli_aliasesForCommand(__aliases, __commandName, __index+1)
-				}
-			}()
 		}
+		return func() []string {
+			if __aliases[__index].__to == __commandName {
+				return func() []string {
+					out := []string{}
+					out = append(out, __aliases[__index].__from)
+					out = append(out, __cli_aliasesForCommand(__aliases, __commandName, __index+1)...)
+					return out
+				}()
+			}
+			return __cli_aliasesForCommand(__aliases, __commandName, __index+1)
+		}()
 	}()
 }
 
 func __cli_appendRestSeparator(__args []string, __index int, __out []string) []string {
 	return func() []string {
-		switch {
-		case __args[__index] == "--" == true:
+		if __args[__index] == "--" {
 			return __cli_appendRuntimeRest(__args, __index, __out)
-		default:
-			return __cli_appendRuntimeRest(__args, __index, func() []string { out := []string{}; out = append(out, __out...); out = append(out, "--"); return out }())
 		}
+		return __cli_appendRuntimeRest(__args, __index, func() []string { out := []string{}; out = append(out, __out...); out = append(out, "--"); return out }())
 	}()
 }
 
 func __cli_appendRootOptionArgs(__rootArgs []string, __args []string, __index int, __consumesNext bool) []string {
 	return func() []string {
-		switch {
-		case __consumesNext && __index+1 < len(__args) == true:
+		if __consumesNext && __index+1 < len(__args) {
 			return func() []string {
 				out := []string{}
 				out = append(out, __rootArgs...)
@@ -152,30 +145,27 @@ func __cli_appendRootOptionArgs(__rootArgs []string, __args []string, __index in
 				out = append(out, __args[__index+1])
 				return out
 			}()
-		default:
-			return func() []string {
-				out := []string{}
-				out = append(out, __rootArgs...)
-				out = append(out, __args[__index])
-				return out
-			}()
 		}
+		return func() []string {
+			out := []string{}
+			out = append(out, __rootArgs...)
+			out = append(out, __args[__index])
+			return out
+		}()
 	}()
 }
 
 func __cli_appendRuntimeRest(__args []string, __index int, __out []string) []string {
 	return func() []string {
-		switch {
-		case __index >= len(__args) == true:
+		if __index >= len(__args) {
 			return __out
-		default:
-			return __cli_appendRuntimeRest(__args, __index+1, func() []string {
-				out := []string{}
-				out = append(out, __out...)
-				out = append(out, __args[__index])
-				return out
-			}())
 		}
+		return __cli_appendRuntimeRest(__args, __index+1, func() []string {
+			out := []string{}
+			out = append(out, __out...)
+			out = append(out, __args[__index])
+			return out
+		}())
 	}()
 }
 
@@ -219,55 +209,43 @@ func __cli_emptyOption() __CliOption {
 
 func __cli_findCommand(__commands []__CliCommand, __name string, __index int) __CliCommandLookup {
 	return func() __CliCommandLookup {
-		switch {
-		case len(__name) == 0 || __index >= len(__commands) == true:
+		if len(__name) == 0 || __index >= len(__commands) {
 			return __CliCommandLookup{__command: __cli_emptyCommand(), __found: false}
-		default:
-			return func() __CliCommandLookup {
-				switch {
-				case __commands[__index].__name == __name == true:
-					return __CliCommandLookup{__command: __commands[__index], __found: true}
-				default:
-					return __cli_findCommand(__commands, __name, __index+1)
-				}
-			}()
 		}
+		return func() __CliCommandLookup {
+			if __commands[__index].__name == __name {
+				return __CliCommandLookup{__command: __commands[__index], __found: true}
+			}
+			return __cli_findCommand(__commands, __name, __index+1)
+		}()
 	}()
 }
 
 func __cli_findOptionByName(__options []__CliOption, __name string, __index int) __CliOption {
 	return func() __CliOption {
-		switch {
-		case __index >= len(__options) == true:
+		if __index >= len(__options) {
 			return __cli_emptyOption()
-		default:
-			return func() __CliOption {
-				switch {
-				case __options[__index].__name == __name == true:
-					return __options[__index]
-				default:
-					return __cli_findOptionByName(__options, __name, __index+1)
-				}
-			}()
 		}
+		return func() __CliOption {
+			if __options[__index].__name == __name {
+				return __options[__index]
+			}
+			return __cli_findOptionByName(__options, __name, __index+1)
+		}()
 	}()
 }
 
 func __cli_findOptionByShort(__options []__CliOption, __short string, __index int) __CliOption {
 	return func() __CliOption {
-		switch {
-		case __index >= len(__options) == true:
+		if __index >= len(__options) {
 			return __cli_emptyOption()
-		default:
-			return func() __CliOption {
-				switch {
-				case __options[__index].__short == __short == true:
-					return __options[__index]
-				default:
-					return __cli_findOptionByShort(__options, __short, __index+1)
-				}
-			}()
 		}
+		return func() __CliOption {
+			if __options[__index].__short == __short {
+				return __options[__index]
+			}
+			return __cli_findOptionByShort(__options, __short, __index+1)
+		}()
 	}()
 }
 
@@ -417,38 +395,30 @@ func __cli_longOptionName(__arg string) string {
 	__raw := func() string { runes := []rune(__arg); return string(runes[2:len([]rune(__arg))]) }()
 	__equal := strings.Index(__raw, "=")
 	return func() string {
-		switch {
-		case __equal >= 0 == true:
+		if __equal >= 0 {
 			return func() string { runes := []rune(__raw); return string(runes[0:__equal]) }()
-		default:
-			return __raw
 		}
+		return __raw
 	}()
 }
 
 func __cli_normalizeTrailingRestArg(__command __CliCommand, __args []string, __index int, __out []string, __positionalCount int, __skipNext bool) []string {
 	__arg := __args[__index]
 	return func() []string {
-		switch {
-		case __positionalCount >= len(__command.__arguments) == true:
+		if __positionalCount >= len(__command.__arguments) {
 			return __cli_appendRestSeparator(__args, __index, __out)
-		default:
-			return func() []string {
-				switch {
-				case __skipNext == true:
-					return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, false)
-				default:
-					return func() []string {
-						switch {
-						case __cli_commandOptionConsumesNext(__command, __arg) == true:
-							return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, true)
-						default:
-							return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount+__cli_positionalIncrement(__arg), false)
-						}
-					}()
-				}
-			}()
 		}
+		return func() []string {
+			if __skipNext {
+				return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, false)
+			}
+			return func() []string {
+				if __cli_commandOptionConsumesNext(__command, __arg) {
+					return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, true)
+				}
+				return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount+__cli_positionalIncrement(__arg), false)
+			}()
+		}()
 	}()
 }
 
@@ -458,12 +428,10 @@ func __cli_normalizeTrailingRestArgs(__command __CliCommand, __args []string) []
 
 func __cli_normalizeTrailingRestArgsAt(__command __CliCommand, __args []string, __index int, __out []string, __positionalCount int, __skipNext bool) []string {
 	return func() []string {
-		switch {
-		case __index >= len(__args) == true:
+		if __index >= len(__args) {
 			return __out
-		default:
-			return __cli_normalizeTrailingRestArg(__command, __args, __index, __out, __positionalCount, __skipNext)
 		}
+		return __cli_normalizeTrailingRestArg(__command, __args, __index, __out, __positionalCount, __skipNext)
 	}()
 }
 
@@ -1006,23 +974,19 @@ func __cli_parseCommandArgs(__root __CliCommand, __commands []__CliCommand, __al
 	__split := __cli_splitCommandArgs(__root, __aliases, __args, 0, []string{}, "", []string{}, false)
 	__rootResult := __cli_parseArgs(__root, __split.__rootArgs)
 	return func() __CliCommandParseResult {
-		switch {
-		case len(__split.__commandName) == 0 == true:
+		if len(__split.__commandName) == 0 {
 			return __CliCommandParseResult{__root: __rootResult, __command: __rootResult, __commandName: "", __commandArgs: []string{}, __error: any(nil)}
-		default:
-			return __cli_parseNamedCommandArgs(__rootResult, __commands, __trailingRest, __split)
 		}
+		return __cli_parseNamedCommandArgs(__rootResult, __commands, __trailingRest, __split)
 	}()
 }
 
 func __cli_parseKnownCommandArgs(__rootResult __CliParseResult, __command __CliCommand, __trailingRest []string, __split __CliCommandArgs) __CliCommandParseResult {
 	__args := func() []string {
-		switch {
-		case __cli_contains(__trailingRest, __split.__commandName) == true:
+		if __cli_contains(__trailingRest, __split.__commandName) {
 			return __cli_normalizeTrailingRestArgs(__command, __split.__commandArgs)
-		default:
-			return __split.__commandArgs
 		}
+		return __split.__commandArgs
 	}()
 	__parsed := __cli_withReportedArgs(__cli_parseArgs(__command, __args), __split.__commandArgs)
 	return __CliCommandParseResult{__root: __rootResult, __command: __parsed, __commandName: __split.__commandName, __commandArgs: __split.__commandArgs, __error: any(nil)}
@@ -1031,59 +995,47 @@ func __cli_parseKnownCommandArgs(__rootResult __CliParseResult, __command __CliC
 func __cli_parseNamedCommandArgs(__rootResult __CliParseResult, __commands []__CliCommand, __trailingRest []string, __split __CliCommandArgs) __CliCommandParseResult {
 	__lookup := __cli_findCommand(__commands, __split.__commandName, 0)
 	return func() __CliCommandParseResult {
-		switch {
-		case __lookup.__found == true:
+		if __lookup.__found {
 			return __cli_parseKnownCommandArgs(__rootResult, __lookup.__command, __trailingRest, __split)
-		default:
-			return __CliCommandParseResult{__root: __rootResult, __command: __rootResult, __commandName: __split.__commandName, __commandArgs: __split.__commandArgs, __error: "unknown command " + __split.__commandName}
 		}
+		return __CliCommandParseResult{__root: __rootResult, __command: __rootResult, __commandName: __split.__commandName, __commandArgs: __split.__commandArgs, __error: "unknown command " + __split.__commandName}
 	}()
 }
 
 func __cli_positionalIncrement(__arg string) int {
 	return func() int {
-		switch {
-		case strings.HasPrefix(__arg, "-") == true:
+		if strings.HasPrefix(__arg, "-") {
 			return 0
-		default:
-			return 1
 		}
+		return 1
 	}()
 }
 
 func __cli_resolveAlias(__aliases []__CliCommandAlias, __name string, __index int) string {
 	return func() string {
-		switch {
-		case __index >= len(__aliases) == true:
+		if __index >= len(__aliases) {
 			return __name
-		default:
-			return func() string {
-				switch {
-				case __aliases[__index].__from == __name == true:
-					return __aliases[__index].__to
-				default:
-					return __cli_resolveAlias(__aliases, __name, __index+1)
-				}
-			}()
 		}
+		return func() string {
+			if __aliases[__index].__from == __name {
+				return __aliases[__index].__to
+			}
+			return __cli_resolveAlias(__aliases, __name, __index+1)
+		}()
 	}()
 }
 
 func __cli_rootOption(__root __CliCommand, __arg string) __CliOption {
 	return func() __CliOption {
-		switch {
-		case strings.HasPrefix(__arg, "--") && len([]rune(__arg)) > 2 == true:
+		if strings.HasPrefix(__arg, "--") && len([]rune(__arg)) > 2 {
 			return __cli_findOptionByName(__root.__options, __cli_longOptionName(__arg), 0)
-		default:
-			return func() __CliOption {
-				switch {
-				case strings.HasPrefix(__arg, "-") && __arg != "-" == true:
-					return __cli_findOptionByShort(__root.__options, func() string { runes := []rune(__arg); return string(runes[1:2]) }(), 0)
-				default:
-					return __cli_emptyOption()
-				}
-			}()
 		}
+		return func() __CliOption {
+			if strings.HasPrefix(__arg, "-") && __arg != "-" {
+				return __cli_findOptionByShort(__root.__options, func() string { runes := []rune(__arg); return string(runes[1:2]) }(), 0)
+			}
+			return __cli_emptyOption()
+		}()
 	}()
 }
 
@@ -1099,12 +1051,10 @@ func __cli_rootOptionConsumesNext(__root __CliCommand, __arg string) bool {
 
 func __cli_splitCommandArg(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string, __skipNext bool) __CliCommandArgs {
 	return func() __CliCommandArgs {
-		switch {
-		case __skipNext == true:
+		if __skipNext {
 			return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __commandName, __commandArgs, false)
-		default:
-			return __cli_splitCommandArgValue(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs)
 		}
+		return __cli_splitCommandArgValue(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs)
 	}()
 }
 
@@ -1113,47 +1063,39 @@ func __cli_splitCommandArgValue(__root __CliCommand, __aliases []__CliCommandAli
 	__isRootHelp := __commandName == "" && (__arg == "--help" || __arg == "-h")
 	__isRootOption := __cli_rootOptionArg(__root, __arg)
 	return func() __CliCommandArgs {
-		switch {
-		case __isRootHelp == true:
+		if __isRootHelp {
 			return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, func() []string {
 				out := []string{}
 				out = append(out, __rootArgs...)
 				out = append(out, __arg)
 				return out
 			}(), __commandName, __commandArgs, false)
-		default:
-			return func() __CliCommandArgs {
-				switch {
-				case __isRootOption == true:
-					return __cli_splitRootOptionArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __cli_rootOptionConsumesNext(__root, __arg))
-				default:
-					return func() __CliCommandArgs {
-						switch {
-						case len(__commandName) == 0 == true:
-							return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __cli_resolveAlias(__aliases, __arg, 0), __commandArgs, false)
-						default:
-							return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __commandName, func() []string {
-								out := []string{}
-								out = append(out, __commandArgs...)
-								out = append(out, __arg)
-								return out
-							}(), false)
-						}
-					}()
-				}
-			}()
 		}
+		return func() __CliCommandArgs {
+			if __isRootOption {
+				return __cli_splitRootOptionArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __cli_rootOptionConsumesNext(__root, __arg))
+			}
+			return func() __CliCommandArgs {
+				if len(__commandName) == 0 {
+					return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __cli_resolveAlias(__aliases, __arg, 0), __commandArgs, false)
+				}
+				return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __commandName, func() []string {
+					out := []string{}
+					out = append(out, __commandArgs...)
+					out = append(out, __arg)
+					return out
+				}(), false)
+			}()
+		}()
 	}()
 }
 
 func __cli_splitCommandArgs(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string, __skipNext bool) __CliCommandArgs {
 	return func() __CliCommandArgs {
-		switch {
-		case __index >= len(__args) == true:
+		if __index >= len(__args) {
 			return __CliCommandArgs{__rootArgs: __rootArgs, __commandName: __commandName, __commandArgs: __commandArgs}
-		default:
-			return __cli_splitCommandArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __skipNext)
 		}
+		return __cli_splitCommandArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __skipNext)
 	}()
 }
 
@@ -1166,37 +1108,37 @@ func __cli_withAliases(__command __CliCommand, __aliases []__CliCommandAlias) __
 }
 
 func __cli_withArgument(__command __CliCommand, __argument __CliArgument) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __arguments: func() []__CliArgument {
+	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __commands: __command.__commands, __aliases: __command.__aliases, __arguments: func() []__CliArgument {
 		out := []__CliArgument{}
 		out = append(out, __command.__arguments...)
 		out = append(out, __argument)
 		return out
-	}(), __commands: __command.__commands, __aliases: __command.__aliases}
+	}()}
 }
 
 func __cli_withCommands(__command __CliCommand, __commands []__CliCommand) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __arguments: __command.__arguments, __commands: __commands, __aliases: __command.__aliases}
+	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __arguments: __command.__arguments, __aliases: __command.__aliases, __commands: __commands}
 }
 
 func __cli_withOption(__command __CliCommand, __option __CliOption) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: func() []__CliOption {
+	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __arguments: __command.__arguments, __commands: __command.__commands, __aliases: __command.__aliases, __options: func() []__CliOption {
 		out := []__CliOption{}
 		out = append(out, __command.__options...)
 		out = append(out, __option)
 		return out
-	}(), __arguments: __command.__arguments, __commands: __command.__commands, __aliases: __command.__aliases}
+	}()}
 }
 
 func __cli_withReportedArgs(__result __CliParseResult, __args []string) __CliParseResult {
-	return __CliParseResult{__command: __result.__command, __values: __result.__values, __flags: __result.__flags, __positionals: __result.__positionals, __explicitOptions: __result.__explicitOptions, __args: __args, __rest: __result.__rest, __help: __result.__help, __error: __result.__error}
+	return __CliParseResult{__command: __result.__command, __values: __result.__values, __flags: __result.__flags, __positionals: __result.__positionals, __explicitOptions: __result.__explicitOptions, __rest: __result.__rest, __help: __result.__help, __error: __result.__error, __args: __args}
 }
 
 func __parseCli(__args []string) __RuneCliInvocation {
 	__parsed := __cli_parseCommandArgs(__runeCommand(), __runeCommands(), __runeAliases(), __runeTrailingRest(), __args)
-	return ____rune_private_db6df590_invocationFromParsed(__parsed, __runeCommand(), __runeCommands())
+	return __selfhost_cli_cli_invocationFromParsed(__parsed, __runeCommand(), __runeCommands())
 }
 
-func ____rune_private_db6df590_invocationFromParsed(__parsed __CliCommandParseResult, __rootCommand __CliCommand, __commands []__CliCommand) __RuneCliInvocation {
+func __selfhost_cli_cli_invocationFromParsed(__parsed __CliCommandParseResult, __rootCommand __CliCommand, __commands []__CliCommand) __RuneCliInvocation {
 	__root := __parsed.__root
 	__backend := func() string {
 		value, ok := __root.__values["backend"]
@@ -1205,7 +1147,7 @@ func ____rune_private_db6df590_invocationFromParsed(__parsed __CliCommandParseRe
 		}
 		return "go"
 	}()
-	__errors := ____rune_private_db6df590_cliErrors(__root)
+	__errors := __selfhost_cli_cli_cliErrors(__root)
 	__commandError := func() string {
 		__coalesce4 := __parsed.__error
 		if __coalesce4 != nil {
@@ -1229,19 +1171,19 @@ func ____rune_private_db6df590_invocationFromParsed(__parsed __CliCommandParseRe
 	__backendExplicit := __cli_contains(__root.__explicitOptions, "backend")
 	return func() __RuneCliInvocation {
 		if len(__errors) > 0 {
-			return ____rune_private_db6df590_errorInvocation(__backend, __errors)
+			return __selfhost_cli_cli_errorInvocation(__backend, __errors)
 		}
 		return func() __RuneCliInvocation {
 			if len(__parsed.__commandName) == 0 {
-				return ____rune_private_db6df590_helpInvocation(__rootCommand, __backend, __backendExplicit)
+				return __selfhost_cli_cli_helpInvocation(__rootCommand, __backend, __backendExplicit)
 			}
-			return ____rune_private_db6df590_invocationFromResult(__parsed.__commandName, __rootCommand, __commands, __backend, __backendExplicit, __parsed.__command)
+			return __selfhost_cli_cli_invocationFromResult(__parsed.__commandName, __rootCommand, __commands, __backend, __backendExplicit, __parsed.__command)
 		}()
 	}()
 }
 
-func ____rune_private_db6df590_invocationFromResult(__name string, __rootCommand __CliCommand, __commands []__CliCommand, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
-	__errors := ____rune_private_db6df590_cliErrors(__result)
+func __selfhost_cli_cli_invocationFromResult(__name string, __rootCommand __CliCommand, __commands []__CliCommand, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
+	__errors := __selfhost_cli_cli_cliErrors(__result)
 	__target := func() string {
 		value, ok := __result.__values["target"]
 		if ok {
@@ -1249,9 +1191,9 @@ func ____rune_private_db6df590_invocationFromResult(__name string, __rootCommand
 		}
 		return ""
 	}()
-	__target = ____rune_private_db6df590_defaultTargetForCommand(__name, __backend, __target)
-	__errors = ____rune_private_db6df590_invocationErrors(__name, __backend, __target, __errors)
-	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: ____rune_private_db6df590_defaultPathForCommand(__name, func() string {
+	__target = __selfhost_cli_cli_defaultTargetForCommand(__name, __backend, __target)
+	__errors = __selfhost_cli_cli_invocationErrors(__name, __backend, __target, __errors)
+	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: __selfhost_cli_cli_defaultPathForCommand(__name, func() string {
 		value, ok := __result.__positionals["path"]
 		if ok {
 			return value
@@ -1281,10 +1223,10 @@ func ____rune_private_db6df590_invocationFromResult(__name string, __rootCommand
 			return value
 		}
 		return false
-	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: __cli_help(____rune_private_db6df590_invocationHelpCommand(__rootCommand, __commands, __name))}
+	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: __cli_help(__selfhost_cli_cli_invocationHelpCommand(__rootCommand, __commands, __name))}
 }
 
-func ____rune_private_db6df590_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
+func __selfhost_cli_cli_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
 	return func() []string {
 		if __name == "build" && __cli_contains([]string{"go", "mbt"}, __backend) == false {
 			return func() []string {
@@ -1308,7 +1250,7 @@ func ____rune_private_db6df590_invocationErrors(__name string, __backend string,
 	}()
 }
 
-func ____rune_private_db6df590_defaultTargetForCommand(__name string, __backend string, __target string) string {
+func __selfhost_cli_cli_defaultTargetForCommand(__name string, __backend string, __target string) string {
 	return func() string {
 		if __name == "run" && __backend == "mbt" && len(__target) == 0 {
 			return "native"
@@ -1317,7 +1259,7 @@ func ____rune_private_db6df590_defaultTargetForCommand(__name string, __backend 
 	}()
 }
 
-func ____rune_private_db6df590_defaultPathForCommand(__name string, __path string) string {
+func __selfhost_cli_cli_defaultPathForCommand(__name string, __path string) string {
 	return func() string {
 		if __name == "test" && len(__path) == 0 {
 			return "tests"
@@ -1326,7 +1268,7 @@ func ____rune_private_db6df590_defaultPathForCommand(__name string, __path strin
 	}()
 }
 
-func ____rune_private_db6df590_invocationHelpCommand(__rootCommand __CliCommand, __commands []__CliCommand, __name string) __CliCommand {
+func __selfhost_cli_cli_invocationHelpCommand(__rootCommand __CliCommand, __commands []__CliCommand, __name string) __CliCommand {
 	return func() __CliCommand {
 		__array5 := __commands
 		__result6 := __rootCommand
@@ -1344,7 +1286,7 @@ func ____rune_private_db6df590_invocationHelpCommand(__rootCommand __CliCommand,
 	}()
 }
 
-func ____rune_private_db6df590_cliErrors(__result __CliParseResult) []string {
+func __selfhost_cli_cli_cliErrors(__result __CliParseResult) []string {
 	__error := func() string {
 		__coalesce9 := __result.__error
 		if __coalesce9 != nil {
@@ -1362,16 +1304,16 @@ func ____rune_private_db6df590_cliErrors(__result __CliParseResult) []string {
 	return __errors
 }
 
-func ____rune_private_db6df590_helpInvocation(__rootCommand __CliCommand, __backend string, __backendExplicit bool) __RuneCliInvocation {
+func __selfhost_cli_cli_helpInvocation(__rootCommand __CliCommand, __backend string, __backendExplicit bool) __RuneCliInvocation {
 	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: __backendExplicit, __runArgs: []string{}, __errors: []string{}, __help: true, __helpText: __cli_help(__rootCommand)}
 }
 
-func ____rune_private_db6df590_errorInvocation(__backend string, __errors []string) __RuneCliInvocation {
+func __selfhost_cli_cli_errorInvocation(__backend string, __errors []string) __RuneCliInvocation {
 	return __RuneCliInvocation{__ok: false, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
 }
 
-func ____rune_private_db6df590_emptyInvocation() __RuneCliInvocation {
-	return ____rune_private_db6df590_errorInvocation("", []string{})
+func __selfhost_cli_cli_emptyInvocation() __RuneCliInvocation {
+	return __selfhost_cli_cli_errorInvocation("", []string{})
 }
 
 func __runeCommand() __CliCommand {

@@ -57,6 +57,26 @@ func (s *server) inlayHints(uri string) any {
 			})
 		}
 	}
+	walkDocumentStatements(uri, prog.File, func(stmt ast.Stmt) {
+		let, ok := stmt.(*ast.LetStmt)
+		if !ok || !let.Type.IsZero() || !hasSourcePosition(let.Pos) {
+			return
+		}
+		typ := prog.Info.ExprTypes[let.Value]
+		if !isInlayDisplayType(typ) {
+			return
+		}
+		pos := position{
+			Line:      max(let.Pos.Line-1, 0),
+			Character: max(let.Pos.Column-1, 0) + len(let.Name),
+		}
+		hints = append(hints, map[string]any{
+			"position": pos,
+			"label":    ": " + displayCheckerTypeOneLine(prog.Info, typ),
+			"kind":     1,
+			"tooltip":  let.Name + ": " + displayCheckerType(prog.Info, typ),
+		})
+	})
 	walkDocumentExprs(uri, prog.File, func(expr ast.Expr) {
 		lambda, ok := expr.(*ast.LambdaExpr)
 		if !ok || !hasSourcePosition(lambda.Pos) {
@@ -117,6 +137,16 @@ func (s *server) inlayHints(uri string) any {
 		hints = append(hints, annotationArgumentNameHints(prog, annotation)...)
 	})
 	return normalizeInlayHints(hints)
+}
+
+func isInlayDisplayType(typ checker.Type) bool {
+	if typ == "" || typ == checker.Unknown {
+		return false
+	}
+	if elem, ok := checker.ArrayElement(typ); ok && elem == checker.Unknown {
+		return false
+	}
+	return true
 }
 
 func annotationArgumentNameHints(prog *compiler.Program, annotation *ast.Annotation) []map[string]any {

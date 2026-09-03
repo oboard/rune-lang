@@ -844,15 +844,11 @@ func __selfhost_lexer_lexer_makeToken(__state __LexState, __kind __TokenKind) __
 }
 
 func __selfhost_lexer_lexer_finishToken(__state __LexState, __kind __TokenKind) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: !(__selfhost_lexer_lexer_canEndExpression(__state, __kind)), __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
-}
-
-func __selfhost_lexer_lexer_lexStateWithMode(__state __LexState, __mode int) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth, __canStartRegex: !(__selfhost_lexer_lexer_canEndExpression(__state, __kind))}
 }
 
 func __selfhost_lexer_lexer_lexStateXML(__state __LexState, __mode int, __depth int, __closing bool, __selfClosed bool, __exprMode int, __exprDepth int) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __mode: __mode, __xmlDepth: __depth, __xmlClosing: __closing, __xmlSelfClosed: __selfClosed, __xmlExprMode: __exprMode, __xmlExprDepth: __exprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+	return __LexState{__source: __state.__source, __start: __state.__start, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__startLine, __startColumn: __state.__startColumn, __canStartRegex: __state.__canStartRegex, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth, __mode: __mode, __xmlDepth: __depth, __xmlClosing: __closing, __xmlSelfClosed: __selfClosed, __xmlExprMode: __exprMode, __xmlExprDepth: __exprDepth}
 }
 
 func __selfhost_lexer_lexer_enterXMLTagState(__state __LexState) __LexState {
@@ -2113,34 +2109,6 @@ func __selfhost_parser_parser_emptyExpr() __ParsedExpr {
 
 func __selfhost_parser_parser_emptyAnnotations() []__ParsedAnnotation {
 	return append([]__ParsedAnnotation{}, []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}[0:0]...)
-}
-
-func __selfhost_parser_parser_emptyFunction() __ParsedFunction {
-	return __ParsedFunction{__name: "", __private: true, __static: false, __routine: false, __macro: false, __annotations: __selfhost_parser_parser_emptyAnnotations(), __receiverType: "", __generics: []string{}, __params: []__ParsedParam{}, __returnType: __emptyParsedTypeRef(), __body: __selfhost_parser_parser_emptyExpr(), __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyType() __ParsedType {
-	return __ParsedType{__name: "", __private: true, __enum: false, __annotations: __selfhost_parser_parser_emptyAnnotations(), __generics: []string{}, __fields: []__ParsedField{}, __methods: []__ParsedFunction{}, __members: []__ParsedEnumMember{}, __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyImport() __ParsedImport {
-	return __ParsedImport{__path: "", __go: false, __module: false, __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyConst() __ParsedConst {
-	return __ParsedConst{__name: "", __private: true, __typeRef: __emptyParsedTypeRef(), __value: __selfhost_parser_parser_emptyExpr(), __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyTest() __ParsedTest {
-	return __ParsedTest{__name: "", __body: __selfhost_parser_parser_emptyExpr(), __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyField() __ParsedField {
-	return __ParsedField{__name: "", __private: true, __annotations: __selfhost_parser_parser_emptyAnnotations(), __typeRef: __emptyParsedTypeRef(), __line: 0, __column: 0}
-}
-
-func __selfhost_parser_parser_emptyMember() __ParsedEnumMember {
-	return __ParsedEnumMember{__name: "", __private: true, __annotations: __selfhost_parser_parser_emptyAnnotations(), __value: "", __params: []__ParsedParam{}, __line: 0, __column: 0}
 }
 
 func __selfhost_parser_parser_makeExpr(__kind __ExprKind, __text string, __name string, __value string, __op string, __params []__ParsedParam, __children []__ParsedExpr, __line int, __column int) __ParsedExpr {
@@ -9850,6 +9818,22 @@ func __selfhost_compiler_mbt_emitMoonBitCoreMethodCall(__expr __IRExpr, __select
 					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + "[" + __selfhost_compiler_mbt_emitMoonBitExpr(__expr.__children[1]) + ":" + __selfhost_compiler_mbt_emitMoonBitExpr(__expr.__children[2]) + "].to_owned()"
 				case __selector.__name == "toString":
 					return __selfhost_compiler_mbt_emitMoonBitCoreToString(__expr, __selector.__children[0])
+				case __selector.__name == "push":
+					return __selfhost_compiler_mbt_emitMoonBitArrayPush(__selector.__children[0], __expr.__children[1])
+				case __selector.__name == "set":
+					return __selfhost_compiler_mbt_emitMoonBitArraySet(__selector.__children[0], __expr.__children[1], __expr.__children[2])
+				case __selector.__name == "pop":
+					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + ".pop().unwrap()"
+				case __selector.__name == "first":
+					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + "[0]"
+				case __selector.__name == "last":
+					return __selfhost_compiler_mbt_emitMoonBitArrayLast(__selector.__children[0])
+				case __selector.__name == "clone":
+					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + ".copy()"
+				case __selector.__name == "reverse":
+					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + ".rev()"
+				case __selector.__name == "contains":
+					return __selfhost_compiler_mbt_emitMoonBitExpr(__selector.__children[0]) + ".contains(" + __selfhost_compiler_mbt_emitMoonBitExpr(__expr.__children[1]) + ")"
 				default:
 					return __selfhost_compiler_mbt_emitMoonBitDefaultCall(__expr)
 				}
@@ -9857,6 +9841,23 @@ func __selfhost_compiler_mbt_emitMoonBitCoreMethodCall(__expr __IRExpr, __select
 		}
 		return __selfhost_compiler_mbt_emitMoonBitDefaultCall(__expr)
 	}()
+}
+
+func __selfhost_compiler_mbt_emitMoonBitArrayPush(__receiver __IRExpr, __value __IRExpr) string {
+	__out := "{ let __array = " + __selfhost_compiler_mbt_emitMoonBitExpr(__receiver)
+	__out = __out + "; __array.push(" + __selfhost_compiler_mbt_emitMoonBitExpr(__value)
+	return __out + "); __array.length() }"
+}
+
+func __selfhost_compiler_mbt_emitMoonBitArraySet(__receiver __IRExpr, __index __IRExpr, __value __IRExpr) string {
+	__out := "{ let __array = " + __selfhost_compiler_mbt_emitMoonBitExpr(__receiver)
+	__out = __out + "; let __index = " + __selfhost_compiler_mbt_emitMoonBitExpr(__index)
+	__out = __out + "; let __value = " + __selfhost_compiler_mbt_emitMoonBitExpr(__value)
+	return __out + "; __array[__index] = __value; __value }"
+}
+
+func __selfhost_compiler_mbt_emitMoonBitArrayLast(__receiver __IRExpr) string {
+	return __selfhost_compiler_mbt_emitMoonBitExpr(__receiver) + "[" + __selfhost_compiler_mbt_emitMoonBitExpr(__receiver) + ".length() - 1]"
 }
 
 func __selfhost_compiler_mbt_emitMoonBitCoreToString(__expr __IRExpr, __receiver __IRExpr) string {
