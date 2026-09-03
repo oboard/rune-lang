@@ -30,6 +30,33 @@ func functionRange(fn *ast.Function) map[string]any {
 	}
 }
 
+func rangeContains(outer map[string]any, inner map[string]any) bool {
+	outerStart, ok := outer["start"].(position)
+	if !ok {
+		return false
+	}
+	outerEnd, ok := outer["end"].(position)
+	if !ok {
+		return false
+	}
+	innerStart, ok := inner["start"].(position)
+	if !ok {
+		return false
+	}
+	innerEnd, ok := inner["end"].(position)
+	if !ok {
+		return false
+	}
+	return !positionBefore(innerStart, outerStart) && !positionBefore(outerEnd, innerEnd)
+}
+
+func positionBefore(a position, b position) bool {
+	if a.Line != b.Line {
+		return a.Line < b.Line
+	}
+	return a.Character < b.Character
+}
+
 func fatArrowPosition(text string, fn *ast.Function) (position, bool) {
 	return fatArrowPositionFromOffset(text, fn.NamePos.Offset)
 }

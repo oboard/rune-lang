@@ -22,12 +22,16 @@ func (s *server) documentSymbols(uri string) any {
 		if !sourceMatchesDocument(uri, fn.SourcePath) {
 			continue
 		}
+		selection := symbolRange(fn.NamePos, len(fn.Name))
 		rng := functionRange(fn)
+		if !rangeContains(rng, selection) {
+			rng = selection
+		}
 		items = append(items, map[string]any{
 			"name":           fn.Name,
 			"kind":           12,
 			"range":          rng,
-			"selectionRange": symbolRange(fn.NamePos, len(fn.Name)),
+			"selectionRange": selection,
 			"detail":         functionSignature(prog.Info, fn),
 		})
 	}

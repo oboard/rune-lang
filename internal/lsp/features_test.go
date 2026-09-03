@@ -1092,6 +1092,27 @@ func TestSignalExampleDoesNotReportUnknownTypeEquals(t *testing.T) {
 	}
 }
 
+func TestDocumentSymbolsSelectionRangeContainedInRange(t *testing.T) {
+	uri := "file:///tmp/signal.rn"
+	src := `main() => {
+  $count := 0
+  $count = $count + 1
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	symbols := s.documentSymbols(uri).([]map[string]any)
+	if len(symbols) == 0 {
+		t.Fatalf("documentSymbols = %#v, want function symbol", symbols)
+	}
+	for _, symbol := range symbols {
+		rng, _ := symbol["range"].(map[string]any)
+		selection, _ := symbol["selectionRange"].(map[string]any)
+		if !rangeContains(rng, selection) {
+			t.Fatalf("symbol %q range = %#v selectionRange = %#v, want containment", symbol["name"], rng, selection)
+		}
+	}
+}
+
 func decodeSemanticTokenRanges(data []int) map[position]int {
 	out := map[position]int{}
 	line := 0
