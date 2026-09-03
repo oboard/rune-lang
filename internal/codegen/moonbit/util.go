@@ -169,9 +169,12 @@ func mbtType(typ checker.Type) string {
 		return "RuneFileStat"
 	case checker.Object:
 		return "Json"
-	case checker.HTMLElement, checker.WebComponent,
-		checker.TCPConnection, checker.TCPListener:
+	case checker.HTMLElement, checker.WebComponent:
 		return "Unit"
+	case checker.TCPConnection:
+		return "RuneTCPConnection"
+	case checker.TCPListener:
+		return "RuneTCPListener"
 	default:
 		if mbtJSONValueType(typ) {
 			return "Json"

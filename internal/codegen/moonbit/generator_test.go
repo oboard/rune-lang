@@ -521,6 +521,48 @@ main() => {
 	}
 }
 
+func TestGenerateNetIntrinsics(t *testing.T) {
+	src := `~ main() => {
+  listener := @net.listen("127.0.0.1:0")?
+  conn := listener.accept()?
+  data := conn.read(1024)?
+  conn.write(data)?
+  conn.close()?
+  listener.close()?
+}`
+	got := generateSource(t, src)
+	for _, want := range []string{
+		"struct RuneTCPConnection {",
+		"tcp : @socket.Tcp",
+		"struct RuneTCPListener {",
+		"server : @socket.TcpServer",
+		"async fn rune_net_connect(address : String) -> Result[RuneTCPConnection, String]",
+		"async fn rune_net_listen(address : String) -> Result[RuneTCPListener, String]",
+		"async fn rune_net_connection_read(connection : RuneTCPConnection, length : Int) -> Result[Array[Int], String]",
+		"async fn rune_net_connection_write(connection : RuneTCPConnection, data : Array[Int]) -> Result[Int, String]",
+		"async fn rune_net_listener_accept(listener : RuneTCPListener) -> Result[RuneTCPConnection, String]",
+		"rune_net_listen(\"127.0.0.1:0\")",
+		"rune_net_listener_accept(listener)",
+		"rune_net_connection_read(conn, 1024)",
+		"rune_net_connection_write(conn, data)",
+		"rune_net_connection_close(conn)",
+		"rune_net_listener_close(listener)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated source =\\n%s\\nmissing %q", got, want)
+		}
+	}
+	for _, trap := range []string{
+		"MoonBit intrinsic net.",
+		"MoonBit intrinsic netConnection.",
+		"MoonBit intrinsic netListener.",
+	} {
+		if strings.Contains(got, trap) {
+			t.Fatalf("generated source still traps TCP intrinsics:\\n%s", got)
+		}
+	}
+}
+
 func TestGenerateIterAndStringBuffer(t *testing.T) {
 	src := `main() => {
   values := @iter.range(1, 3)

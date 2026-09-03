@@ -130,6 +130,8 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		"compress.zstd", "compress.unzstd", "compress.brotliText", "compress.unbrotliText",
 		"compress.zstdText", "compress.unzstdText":
 		return g.compressModuleCall(fn, args, call.ResultType()), true
+	case "net.connect", "net.listen":
+		return g.netModuleCall(fn, args, call.ResultType()), true
 	case "map.new":
 		return "{}", true
 	case "set.new":
@@ -167,6 +169,59 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return runtimeTrap(fn.Intrinsic), true
 	}
 	return runtimeTrap(fn.Intrinsic), true
+}
+
+func (g *generator) netModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
+	g.useNet = true
+	if len(args) != 1 {
+		return zeroValue(resultType)
+	}
+	switch fn.Intrinsic {
+	case "net.connect":
+		return fmt.Sprintf("rune_net_connect(%s)", args[0])
+	case "net.listen":
+		return fmt.Sprintf("rune_net_listen(%s)", args[0])
+	default:
+		return runtimeTrap(fn.Intrinsic)
+	}
+}
+
+func (g *generator) netConnectionIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	g.useNet = true
+	switch fn.Intrinsic {
+	case "netConnection.read":
+		if len(args) == 1 {
+			return fmt.Sprintf("rune_net_connection_read(%s, %s)", receiver, args[0])
+		}
+	case "netConnection.write":
+		if len(args) == 1 {
+			return fmt.Sprintf("rune_net_connection_write(%s, %s)", receiver, args[0])
+		}
+	case "netConnection.close":
+		if len(args) == 0 {
+			return fmt.Sprintf("rune_net_connection_close(%s)", receiver)
+		}
+	}
+	return zeroValue(resultType)
+}
+
+func (g *generator) netListenerIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+	g.useNet = true
+	switch fn.Intrinsic {
+	case "netListener.address":
+		if len(args) == 0 {
+			return fmt.Sprintf("rune_net_listener_address(%s)", receiver)
+		}
+	case "netListener.accept":
+		if len(args) == 0 {
+			return fmt.Sprintf("rune_net_listener_accept(%s)", receiver)
+		}
+	case "netListener.close":
+		if len(args) == 0 {
+			return fmt.Sprintf("rune_net_listener_close(%s)", receiver)
+		}
+	}
+	return zeroValue(resultType)
 }
 
 func (g *generator) equalityArg(expr ir.Expr, other checker.Type) string {
@@ -248,6 +303,10 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.readerIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "writer."):
 		return g.writerIntrinsicCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "netConnection."):
+		return g.netConnectionIntrinsicCall(fn, receiver, args, call.ResultType()), true
+	case strings.HasPrefix(fn.Intrinsic, "netListener."):
+		return g.netListenerIntrinsicCall(fn, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."):
 		return g.mapIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):

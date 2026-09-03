@@ -672,6 +672,9 @@ func moonBitPkg(src string) string {
 	if strings.Contains(src, "@io.") {
 		imports = append(imports, "moonbitlang/async/io")
 	}
+	if strings.Contains(src, "@socket.") {
+		imports = append(imports, "moonbitlang/async/socket")
+	}
 	if strings.Contains(src, "@gzip.") {
 		imports = append(imports, "moonbitlang/async/gzip")
 	}
@@ -695,7 +698,7 @@ func moonBitPkg(src string) string {
 		b.WriteByte('\n')
 	}
 	b.WriteString("}\n\nwarnings = \"-1-7-23-67\"\n\n")
-	if strings.Contains(src, "@fs.") || strings.Contains(src, "@gzip.") {
+	if strings.Contains(src, "@fs.") || strings.Contains(src, "@gzip.") || strings.Contains(src, "@socket.") {
 		b.WriteString("supported_targets = \"+native\"\n\n")
 	}
 	b.WriteString("options(\n  \"is-main\": true,\n)\n")

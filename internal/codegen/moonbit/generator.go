@@ -25,6 +25,7 @@ type generator struct {
 	useRegex      bool
 	useString     bool
 	useReader     bool
+	useNet        bool
 	hasRoutine    bool
 	anonTypes     map[string]string
 	anonOrder     []checker.Type
@@ -115,9 +116,14 @@ func GenerateIR(file *ir.File) (string, error) {
 		runtime.readerRuntime()
 		src = runtime.buf.String() + "\n" + src
 	}
-	if g.useFS || g.useCompress {
+	if g.useFS || g.useCompress || g.useNet {
 		var runtime generator
 		runtime.bytesRuntime()
+		src = runtime.buf.String() + "\n" + src
+	}
+	if g.useNet {
+		var runtime generator
+		runtime.netRuntime()
 		src = runtime.buf.String() + "\n" + src
 	}
 	if g.useCompress {

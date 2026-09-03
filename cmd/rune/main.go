@@ -295,11 +295,13 @@ func emitGo(path string, output string, stdout io.Writer) error {
 	return emitGoWithHostImportGraph(path, output, stdout)
 }
 
-// requiresHostCompilerBridge keeps bootstrap artifacts, Rune import graphs, and
-// sources using `#module.func` @syntax macros on the host compiler until the
-// self-hosted compiler grows a language-level macro executor.
+// requiresHostCompilerBridge keeps bootstrap artifacts, Rune import graphs,
+// TCP networking, and sources using `#module.func` @syntax macros on the host
+// compiler until the self-hosted compiler grows matching backend support.
 func requiresHostCompilerBridge(path string, source string) bool {
-	return strings.Contains(path, "selfhost/") || usesMacroAnnotations(source)
+	return strings.Contains(path, "selfhost/") ||
+		strings.Contains(source, "@net.") ||
+		usesMacroAnnotations(source)
 }
 
 // usesMacroAnnotations reports whether the source uses any `#module.func`
@@ -808,6 +810,9 @@ func compileGoToTemp(path string) (string, func(), error) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
 			result := __compileGoFiles(files)
+			if os.Getenv("RUNE_DEBUG_SELFHOST_COMPILE") != "" {
+				fmt.Fprintf(os.Stderr, "SELFHOST compile ok=%v errors=%v\n", result.__ok, result.__errors)
+			}
 			if result.__ok {
 				src = result.__output
 			} else {
@@ -1075,6 +1080,9 @@ func moonBitPkg(src string) string {
 	if moonBitUsesAsyncIO(src) {
 		imports = append(imports, "moonbitlang/async/io")
 	}
+	if moonBitUsesAsyncNet(src) {
+		imports = append(imports, "moonbitlang/async/socket")
+	}
 	if moonBitUsesAsyncGzip(src) {
 		imports = append(imports, "moonbitlang/async/gzip")
 	}
@@ -1099,7 +1107,7 @@ func moonBitPkg(src string) string {
 	}
 	b.WriteString("}\n\n")
 	b.WriteString("warnings = \"-1-7-23-67\"\n\n")
-	if moonBitUsesAsyncFS(src) || moonBitUsesAsyncGzip(src) {
+	if moonBitUsesAsyncFS(src) || moonBitUsesAsyncGzip(src) || moonBitUsesAsyncNet(src) {
 		b.WriteString("supported_targets = \"+native\"\n\n")
 	}
 	b.WriteString("options(\n  \"is-main\": true,\n)\n")
@@ -1110,6 +1118,7 @@ func moonBitUsesAsync(src string) bool {
 	return strings.Contains(src, "async fn") ||
 		moonBitUsesAsyncFS(src) ||
 		moonBitUsesAsyncIO(src) ||
+		moonBitUsesAsyncNet(src) ||
 		moonBitUsesAsyncGzip(src)
 }
 
@@ -1119,6 +1128,10 @@ func moonBitUsesAsyncFS(src string) bool {
 
 func moonBitUsesAsyncIO(src string) bool {
 	return strings.Contains(src, "@io.")
+}
+
+func moonBitUsesAsyncNet(src string) bool {
+	return strings.Contains(src, "@socket.")
 }
 
 func moonBitUsesAsyncGzip(src string) bool {

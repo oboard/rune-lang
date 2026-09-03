@@ -190,6 +190,54 @@ func TestRuneCLIGoUsesSelfhostCompiler(t *testing.T) {
 	}
 }
 
+func TestRuneCLIGoHandlesSignalExample(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "signal.rn")
+	writeTestFile(t, path, `main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println("count")
+    @io.println("double")
+  }
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  $count = $count + 1
+}
+`)
+
+	files, err := collectSelfhostSourceFiles(path)
+	if err != nil {
+		t.Fatalf("collectSelfhostSourceFiles() error = %v", err)
+	}
+	result := __checkSourceWithPath(`main() => {
+  $count := 0
+  @io.println($count)
+}
+`, path)
+	if !result.__ok {
+		t.Fatalf("__checkSourceWithPath() errors = %v", result.__errors)
+	}
+	result = __compileGoFiles(files)
+	if !result.__ok {
+		for _, file := range files {
+			t.Logf("file %s:\n%s", file.__path, file.__source)
+		}
+		t.Fatalf("__compileGoFiles() errors = %v", result.__errors)
+	}
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err = runRuneCLI([]string{"go", path}, strings.NewReader(""), &out, &errOut)
+	if err != nil {
+		t.Fatalf("runRuneCLI(go signal) error = %v, stdout = %s, stderr = %s", err, out.String(), errOut.String())
+	}
+	if got := out.String(); !strings.Contains(got, "fmt.Println") {
+		t.Fatalf("signal generated Go = %q, want generated Go output", got)
+	}
+}
+
 // TestGeneratedSelfhostCompilerMatchesGoHostCompiled validates that the
 // self-hosted compiler is the mainline path: for canonical single-file
 // programs it must build and run with output identical to the Go-host
@@ -518,6 +566,47 @@ func TestCompileMoonBitProjectToTempWritesPackage(t *testing.T) {
 		if !strings.Contains(string(pkg), want) {
 			t.Fatalf("moon.pkg =\n%s\nmissing %s", pkg, want)
 		}
+	}
+}
+
+func TestCompileMoonBitProjectToTempSupportsNet(t *testing.T) {
+	if _, err := exec.LookPath("moon"); err != nil {
+		t.Skip("moon command not available")
+	}
+	dir := t.TempDir()
+	mainPath := filepath.Join(dir, "main.rn")
+	writeTestFile(t, mainPath, `~ main() => {
+  listener := @net.listen("127.0.0.1:0")?
+  conn := listener.accept()?
+  data := conn.read(1024)?
+  conn.write(data)?
+  conn.close()?
+  listener.close()?
+}
+`)
+
+	projectDir, cleanup, err := compileMoonBitProjectToTemp(mainPath)
+	if err != nil {
+		t.Fatalf("compileMoonBitProjectToTemp() error = %v", err)
+	}
+	defer cleanup()
+	pkg, err := os.ReadFile(filepath.Join(projectDir, "moon.pkg"))
+	if err != nil {
+		t.Fatalf("ReadFile(moon.pkg) error = %v", err)
+	}
+	for _, want := range []string{
+		`"moonbitlang/async"`,
+		`"moonbitlang/async/socket"`,
+		`supported_targets = "+native"`,
+	} {
+		if !strings.Contains(string(pkg), want) {
+			t.Fatalf("moon.pkg =\n%s\nmissing %s", pkg, want)
+		}
+	}
+	cmd := exec.Command("moon", "check", "--target", "native", ".")
+	cmd.Dir = projectDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("moon check failed: %v\n%s", err, out)
 	}
 }
 

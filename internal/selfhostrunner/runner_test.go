@@ -65,6 +65,13 @@ func TestRunSelfhostBootstrapTestsIR(t *testing.T) {
 	runSelfhostIRAllTests(t, "format_bootstrap.rn")
 }
 
+func TestRunSignalExampleViaSelfhostCompilePath(t *testing.T) {
+	path := filepath.Join("..", "..", "examples", "signal.rn")
+	if _, diags := compiler.AnalyzeFile(path); len(diags) != 0 {
+		t.Fatalf("AnalyzeFile(%s) diagnostics = %v", path, diags)
+	}
+}
+
 func runSelfhostIRTests(t *testing.T, file string, names []string) {
 	t.Helper()
 	path := filepath.Join("..", "..", "tests", file)

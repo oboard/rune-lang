@@ -900,18 +900,29 @@ checkIdentifierExpr(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
-) -> Array[String] => compilerIdentifierDefined(expr.name, callables, bindings) {
+) -> Array[String] => compilerIdentifierDefined(expr, callables, bindings) {
   true => errors
   _ => [..errors, ("undefined name \"" + expr.name) + "\""]
 }
 
 compilerIdentifierDefined(
-  name: String,
+  expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> Bool => findCompilerTypeBinding(bindings, name, 0).name {
-  "" => findCompilerCallable(callables, name, 0).name != ""
-  _ => true
+) -> Bool => {
+  binding := compilerIdentifierBinding(expr, bindings)
+  binding.name == "" ? findCompilerCallable(callables, expr.name, 0).name != ""
+    : true
+}
+
+compilerIdentifierBinding(
+  expr: IRExpr,
+  bindings: Array[CompilerTypeBinding]
+) -> CompilerTypeBinding => {
+  binding := findCompilerTypeBinding(bindings, expr.name, 0)
+  binding.name != "" ? binding
+    : expr.text.startsWith("$") ? findCompilerTypeBinding(bindings, expr.text, 0)
+      : emptyCompilerTypeBinding()
 }
 
 checkThisExpr(
@@ -1124,27 +1135,7 @@ checkAssignExpr(
   callables: Array[CompilerCallable],
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
-) -> Array[String] => {
-  named := expr.name != ""
-  named {
-    true => checkNamedAssignExpr(expr, structs, callables, errors, bindings)
-    _ => checkAssignExpressionExpr(expr, structs, callables, errors, bindings)
-  }
-}
-
-checkNamedAssignExpr(
-  expr: IRExpr,
-  structs: Array[IRStructType],
-  callables: Array[CompilerCallable],
-  errors: Array[String],
-  bindings: Array[CompilerTypeBinding]
-) -> Array[String] => {
-  complete := expr.children.length() > 0
-  complete {
-    true => checkIdentifierAssignExpr(expr, expr.children[0], structs, callables, errors, bindings)
-    _ => errors
-  }
-}
+) -> Array[String] => checkAssignExpressionExpr(expr, structs, callables, errors, bindings)
 
 checkAssignExpressionExpr(
   expr: IRExpr,
@@ -1181,7 +1172,7 @@ checkIdentifierAssignExpr(
   errors: Array[String],
   bindings: Array[CompilerTypeBinding]
 ) -> Array[String] => {
-  binding := findCompilerTypeBinding(bindings, target.name, 0)
+  binding := compilerIdentifierBinding(target, bindings)
   checked := checkExpr(value, structs, callables, errors, bindings)
   binding.name {
     "" => [..checked, ("cannot assign undefined name \"" + target.name) + "\""]
@@ -3453,10 +3444,15 @@ compilerRightNullableInnerComparable(
 compilerTypeBase(
   typeName: String
 ) -> String => {
-  generic := typeName.indexOf("[")
+  signal := typeName.startsWith("$")
+  base := (
+    signal ? typeName.slice(1, typeName.length())
+      : typeName
+  )
+  generic := base.indexOf("[")
   (
-    generic < 0 ? typeName
-      : typeName.slice(0, generic)
+    generic < 0 ? base
+      : base.slice(0, generic)
   )
 }
 
@@ -3591,7 +3587,7 @@ inferCompilerExprType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => expr.kind {
-  ExprKind.Identifier => findCompilerTypeBinding(bindings, expr.name, 0).typeName
+  ExprKind.Identifier => inferCompilerIdentifierType(expr, bindings)
   ExprKind.This => findCompilerTypeBinding(bindings, "this", 0).typeName
   ExprKind.Selector => inferCompilerSelectorType(expr, callables, bindings)
   ExprKind.String => "String"
@@ -3621,6 +3617,11 @@ inferCompilerExprType(
   ExprKind.Unwrap => inferCompilerUnwrapType(expr, callables, bindings)
   _ => ""
 }
+
+inferCompilerIdentifierType(
+  expr: IRExpr,
+  bindings: Array[CompilerTypeBinding]
+) -> String => compilerIdentifierBinding(expr, bindings).typeName
 
 inferCompilerExprTypeWithStructs(
   expr: IRExpr,
