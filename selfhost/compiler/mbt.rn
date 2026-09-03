@@ -655,10 +655,50 @@ emitMoonBitCoreMethodCall(
     "at" => ((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + "]"
     "slice" => ((((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + ":") + emitMoonBitExpr(expr.children[2])) + "].to_owned()"
     "toString" => emitMoonBitCoreToString(expr, selector.children[0])
+    "push" => emitMoonBitArrayPush(selector.children[0], expr.children[1])
+    "set" => emitMoonBitArraySet(selector.children[0], expr.children[1], expr.children[2])
+    "pop" => emitMoonBitExpr(selector.children[0]) + ".pop().unwrap()"
+    "first" => emitMoonBitExpr(selector.children[0]) + "[0]"
+    "last" => emitMoonBitArrayLast(selector.children[0])
+    "clone" => emitMoonBitExpr(selector.children[0]) + ".copy()"
+    "reverse" => emitMoonBitExpr(selector.children[0]) + ".rev()"
+    "contains" => emitMoonBitExpr(selector.children[0]) + ".contains(" + emitMoonBitExpr(expr.children[1]) + ")"
     _ => emitMoonBitDefaultCall(expr)
   }
     : emitMoonBitDefaultCall(expr)
 )
+
+/// `array.push(value)` lowers to a value block that returns the new length,
+/// because MoonBit's `Array.push` returns Unit. Binding the receiver once also
+/// mirrors the host backend and keeps compound receivers from re-evaluating.
+emitMoonBitArrayPush(
+  receiver: IRExpr,
+  value: IRExpr
+) -> String => {
+  out :=: "{ let __array = " + emitMoonBitExpr(receiver)
+  out = out + "; __array.push(" + emitMoonBitExpr(value)
+  out + "); __array.length() }"
+}
+
+/// `array.set(index, value)` lowers to a value block that returns the value,
+/// since MoonBit assignment is a Unit expression. The receiver binds once.
+emitMoonBitArraySet(
+  receiver: IRExpr,
+  index: IRExpr,
+  value: IRExpr
+) -> String => {
+  out :=: "{ let __array = " + emitMoonBitExpr(receiver)
+  out = out + "; let __index = " + emitMoonBitExpr(index)
+  out = out + "; let __value = " + emitMoonBitExpr(value)
+  out + "; __array[__index] = __value; __value }"
+}
+
+/// `array.last()` mirrors the host backend: `array[array.length() - 1]`.
+emitMoonBitArrayLast(
+  receiver: IRExpr
+) -> String => {
+  emitMoonBitExpr(receiver) + "[" + emitMoonBitExpr(receiver) + ".length() - 1]"
+}
 
 emitMoonBitCoreToString(
   expr: IRExpr,
