@@ -224,7 +224,7 @@ emptyCompilerTypeBinding() -> CompilerTypeBinding => CompilerTypeBinding { name:
 
 emptyIRParam() -> IRParam => IRParam { name: "", typeName: "", line: 0, column: 0 }
 
-inferAddBinding(bindings: Array[CompilerTypeBinding], name: String, typeName: String) -> Array[CompilerTypeBinding] => []), compilerTypeBinding(name, typeName)]
+inferAddBinding(bindings: Array[CompilerTypeBinding], name: String, typeName: String) -> Array[CompilerTypeBinding] => [..bindings, compilerTypeBinding(name, typeName)]
 
 inferDropBinding(bindings: Array[CompilerTypeBinding], name: String, index: Int, out: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => (
   index >= bindings.length() ? out

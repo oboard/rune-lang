@@ -6508,7 +6508,7 @@ stringSplitMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   parts := runtimeText(receiver).split(runtimeText(args[0]))
-  out := []
+  out := [stringValue("")].slice(0, 0)
   parts.each((part) => out = pushRuntime(out, stringValue(part)))
   okResult(arrayValue(out))
 }
@@ -7730,7 +7730,10 @@ evalObjectLiteral(
   env: RuntimeEnv,
   expr: IRExpr
 ) -> EvalResult => {
-  fields := []
+  fields := [RuntimeField {
+    name: "",
+    value: emptyValue()
+  }].slice(0, 0)
   object := structValue("Object", fields)
   objectEnv := envDefine(env, "this", object)
   finalObject := structValue("Object", fillObjectFields(interpreter, objectEnv, fields, expr.children, 0))

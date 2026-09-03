@@ -786,7 +786,7 @@ func __lex(__source string) []__Token {
 }
 
 func __selfhost_lexer_lexer_emptyTokens() []__Token {
-	return append([]__Token{}, []__Token{__Token{__kind: __TokenKind_EOF, __lexeme: "", __offset: 0, __line: 0, __column: 0}}[0:0]...)
+	return []__Token{}
 }
 
 func __selfhost_lexer_lexer_scan(__state __LexState, __tokens []__Token) []__Token {
@@ -1014,7 +1014,7 @@ func __tokenKindName(__kind __TokenKind) string {
 }
 
 func __selfhost_lexer_lexer_markStart(__state __LexState) __LexState {
-	return __LexState{__source: __state.__source, __start: __state.__current, __current: __state.__current, __line: __state.__line, __column: __state.__column, __startLine: __state.__line, __startColumn: __state.__column, __canStartRegex: __state.__canStartRegex, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth}
+	return __LexState{__source: __state.__source, __current: __state.__current, __line: __state.__line, __column: __state.__column, __canStartRegex: __state.__canStartRegex, __mode: __state.__mode, __xmlDepth: __state.__xmlDepth, __xmlClosing: __state.__xmlClosing, __xmlSelfClosed: __state.__xmlSelfClosed, __xmlExprMode: __state.__xmlExprMode, __xmlExprDepth: __state.__xmlExprDepth, __xmlAfterMode: __state.__xmlAfterMode, __xmlAfterDepth: __state.__xmlAfterDepth, __start: __state.__current, __startLine: __state.__line, __startColumn: __state.__column}
 }
 
 func __selfhost_lexer_lexer_atEnd(__state __LexState) bool {
@@ -2096,7 +2096,7 @@ func __selfhost_parser_parser_emptyFile(__errors []__ParseError) __ParsedFile {
 }
 
 func __selfhost_parser_parser_emptyParseErrors() []__ParseError {
-	return append([]__ParseError{}, []__ParseError{__ParseError{__message: "", __line: 0, __column: 0}}[0:0]...)
+	return []__ParseError{}
 }
 
 func __selfhost_parser_parser_emptyToken() __Token {
@@ -2108,7 +2108,7 @@ func __selfhost_parser_parser_emptyExpr() __ParsedExpr {
 }
 
 func __selfhost_parser_parser_emptyAnnotations() []__ParsedAnnotation {
-	return append([]__ParsedAnnotation{}, []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}[0:0]...)
+	return []__ParsedAnnotation{}
 }
 
 func __selfhost_parser_parser_makeExpr(__kind __ExprKind, __text string, __name string, __value string, __op string, __params []__ParsedParam, __children []__ParsedExpr, __line int, __column int) __ParsedExpr {
@@ -3668,7 +3668,7 @@ func __selfhost_parser_parser_parseXMLAttribute(__state __ParserState, __element
 	}()
 	__attr := __selfhost_parser_parser_makeExpr(__ExprKind_Field, __name.__token.__lexeme, __name.__token.__lexeme, "", __op, []__ParsedParam{}, func() []__ParsedExpr {
 		if __valueStep.__expr.__kind == __ExprKind_Unknown {
-			return append([]__ParsedExpr{}, []__ParsedExpr{__selfhost_parser_parser_emptyExpr()}[0:0]...)
+			return []__ParsedExpr{}
 		}
 		return []__ParsedExpr{__valueStep.__expr}
 	}(), __name.__token.__line, __name.__token.__column)
@@ -4869,7 +4869,7 @@ func __selfhost_parser_parser_parseAnnotation(__state __ParserState) __Annotatio
 	__open := __selfhost_parser_parser_parserMatch(__name.__state, __TokenKind_LParen)
 	__args := func() __ExprStep {
 		if __open.__ok {
-			return __selfhost_parser_parser_parseArgumentList(__selfhost_parser_parser_parserSkipNewlines(__open.__state), append([]__ParsedExpr{}, []__ParsedExpr{__selfhost_parser_parser_emptyExpr()}[0:0]...), __TokenKind_RParen)
+			return __selfhost_parser_parser_parseArgumentList(__selfhost_parser_parser_parserSkipNewlines(__open.__state), []__ParsedExpr{}, __TokenKind_RParen)
 		}
 		return __ExprStep{__state: __name.__state, __expr: __selfhost_parser_parser_makeExpr(__ExprKind_Args, "", "", "", "", []__ParsedParam{}, []__ParsedExpr{}, 0, 0)}
 	}()
@@ -5823,7 +5823,7 @@ func __selfhost_ir_ir_inferIRSelectorCallText(__selector __IRExpr, __children []
 }
 
 func __selfhost_ir_ir_lowerParams(__params []__ParsedParam) []__IRParam {
-	__out := append([]__IRParam{}, []__IRParam{__IRParam{__name: "", __typeName: "", __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRParam{}
 	for _, __param := range __params {
 		_ = __param
 		func() int { __out = append(__out, __selfhost_ir_ir_lowerParam(__param)); return len(__out) }()
@@ -5832,7 +5832,7 @@ func __selfhost_ir_ir_lowerParams(__params []__ParsedParam) []__IRParam {
 }
 
 func __selfhost_ir_ir_lowerFields(__fields []__ParsedField) []__IRField {
-	__out := append([]__IRField{}, []__IRField{__IRField{__name: "", __private: false, __typeName: "", __jsonName: "", __jsonIgnore: false, __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRField{}
 	for _, __field := range __fields {
 		_ = __field
 		func() int { __out = append(__out, __selfhost_ir_ir_lowerField(__field)); return len(__out) }()
@@ -5841,7 +5841,7 @@ func __selfhost_ir_ir_lowerFields(__fields []__ParsedField) []__IRField {
 }
 
 func __selfhost_ir_ir_lowerEnumMembers(__members []__ParsedEnumMember) []__IREnumMember {
-	__out := append([]__IREnumMember{}, []__IREnumMember{__IREnumMember{__name: "", __private: false, __value: "", __params: []__IRParam{}, __line: 0, __column: 0}}[0:0]...)
+	__out := []__IREnumMember{}
 	for _, __member := range __members {
 		_ = __member
 		func() int { __out = append(__out, __selfhost_ir_ir_lowerEnumMember(__member)); return len(__out) }()
@@ -5850,7 +5850,7 @@ func __selfhost_ir_ir_lowerEnumMembers(__members []__ParsedEnumMember) []__IREnu
 }
 
 func __selfhost_ir_ir_lowerFunctions(__functions []__ParsedFunction) []__IRFunction {
-	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	__out := []__IRFunction{}
 	for _, __fn := range __functions {
 		_ = __fn
 		func() int { __out = append(__out, __selfhost_ir_ir_lowerFunction(__fn)); return len(__out) }()
@@ -5859,7 +5859,7 @@ func __selfhost_ir_ir_lowerFunctions(__functions []__ParsedFunction) []__IRFunct
 }
 
 func __selfhost_ir_ir_lowerExprs(__exprs []__ParsedExpr) []__IRExpr {
-	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
+	__out := []__IRExpr{}
 	for _, __expr := range __exprs {
 		_ = __expr
 		func() int { __out = append(__out, __selfhost_ir_ir_lowerExpr(__expr)); return len(__out) }()
@@ -6176,16 +6176,16 @@ func __inferFile(__file __IRFile) __IRFile {
 }
 
 func __selfhost_infer_infer_inferConstants(__constants []__IRConst, __structs []__IRStructType, __enums []__IREnumType) []__IRConst {
-	__out := append([]__IRConst{}, []__IRConst{__IRConst{__name: "", __private: false, __typeName: "", __value: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRConst{}
 	for _, __constant := range __constants {
 		_ = __constant
 		func() int {
 			__out = append(__out, __IRConst{__name: __constant.__name, __private: __constant.__private, __typeName: func() string {
 				if __constant.__typeName == "" {
-					return __selfhost_infer_infer_inferExprType(__selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...)))
+					return __selfhost_infer_infer_inferExprType(__selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, []__CompilerTypeBinding{}))
 				}
 				return __constant.__typeName
-			}(), __value: __selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...)), __line: __constant.__line, __column: __constant.__column})
+			}(), __value: __selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, []__CompilerTypeBinding{}), __line: __constant.__line, __column: __constant.__column})
 			return len(__out)
 		}()
 	}
@@ -6193,7 +6193,7 @@ func __selfhost_infer_infer_inferConstants(__constants []__IRConst, __structs []
 }
 
 func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
-	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	__out := []__IRFunction{}
 	for _, __fn := range __functions {
 		_ = __fn
 		func() int {
@@ -6205,7 +6205,7 @@ func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction, __structs
 }
 
 func __selfhost_infer_infer_inferFunction(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType) __IRFunction {
-	__seed := __selfhost_infer_infer_inferSeedBindings(__fn.__params, __fn.__receiverType, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))
+	__seed := __selfhost_infer_infer_inferSeedBindings(__fn.__params, __fn.__receiverType, []__CompilerTypeBinding{})
 	__body := __selfhost_infer_infer_inferBody(__fn.__body, __structs, __enums, __seed)
 	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __selfhost_infer_infer_inferParams(__fn.__params, __fn.__body), __returnType: func() string {
 		if __fn.__returnType == "" {
@@ -6234,7 +6234,7 @@ func __selfhost_infer_infer_inferSeedBindingsStep(__params []__IRParam, __receiv
 }
 
 func __selfhost_infer_infer_inferParams(__params []__IRParam, __body __IRExpr) []__IRParam {
-	__out := append([]__IRParam{}, []__IRParam{__selfhost_infer_infer_emptyIRParam()}[0:0]...)
+	__out := []__IRParam{}
 	for _, __param := range __params {
 		_ = __param
 		func() int {
@@ -6298,8 +6298,8 @@ func __selfhost_infer_infer_inferBody(__expr __IRExpr, __structs []__IRStructTyp
 }
 
 func __selfhost_infer_infer_inferBlock(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
-	__result := __selfhost_infer_infer_inferBlockStatements(__expr.__children, __structs, __enums, __bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
-	__synced := __selfhost_infer_infer_inferSyncStatements(__result.__statements, __result.__bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	__result := __selfhost_infer_infer_inferBlockStatements(__expr.__children, __structs, __enums, __bindings, 0, []__IRExpr{})
+	__synced := __selfhost_infer_infer_inferSyncStatements(__result.__statements, __result.__bindings, 0, []__IRExpr{})
 	return __IRExpr{__kind: __ExprKind_Block, __text: __selfhost_infer_infer_inferBlockType(__synced, 0, "Void"), __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __synced, __line: __expr.__line, __column: __expr.__column}
 }
 
@@ -6431,7 +6431,7 @@ func __selfhost_infer_infer_inferRefineArrayBinding(__bindings []__CompilerTypeB
 		if __elemType == "" {
 			return __bindings
 		}
-		return __selfhost_infer_infer_inferRefineStep(__bindings, __name, __elemType, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))
+		return __selfhost_infer_infer_inferRefineStep(__bindings, __name, __elemType, 0, []__CompilerTypeBinding{})
 	}()
 }
 
@@ -6503,7 +6503,7 @@ func __selfhost_infer_infer_emptyIRParam() __IRParam {
 func __selfhost_infer_infer_inferAddBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
 	return func() []__CompilerTypeBinding {
 		out := []__CompilerTypeBinding{}
-		out = append(out, __selfhost_infer_infer_inferDropBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))...)
+		out = append(out, __bindings...)
 		out = append(out, __selfhost_infer_infer_compilerTypeBinding(__name, __typeName))
 		return out
 	}()
@@ -6556,7 +6556,7 @@ func __selfhost_infer_infer_inferAnnotate(__expr __IRExpr, __structs []__IRStruc
 }
 
 func __selfhost_infer_infer_inferChildren(__exprs []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
-	return __selfhost_infer_infer_inferChildrenStep(__exprs, __structs, __enums, __bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	return __selfhost_infer_infer_inferChildrenStep(__exprs, __structs, __enums, __bindings, 0, []__IRExpr{})
 }
 
 func __selfhost_infer_infer_inferChildrenStep(__exprs []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) []__IRExpr {
@@ -6876,7 +6876,7 @@ func __selfhost_infer_infer_inferBlockType(__children []__IRExpr, __index int, _
 }
 
 func __selfhost_infer_infer_inferLambdaParams(__params []__IRParam, __children []__IRExpr) []__IRParam {
-	__out := append([]__IRParam{}, []__IRParam{__selfhost_infer_infer_emptyIRParam()}[0:0]...)
+	__out := []__IRParam{}
 	for _, __param := range __params {
 		_ = __param
 		func() int {
@@ -7635,7 +7635,7 @@ func __selfhost_compiler_go_emitGoTemplate(__expr __IRExpr) string {
 		}
 		return __raw
 	}()
-	__parts := __selfhost_compiler_go_goTemplateAccumulate(func() []string { parts := strings.Split(__inner, "<<<RUNE_TEMPLATE_PART>>>"); return parts }(), __expr.__children, 0, append([]string{}, []string{""}[0:0]...))
+	__parts := __selfhost_compiler_go_goTemplateAccumulate(func() []string { parts := strings.Split(__inner, "<<<RUNE_TEMPLATE_PART>>>"); return parts }(), __expr.__children, 0, []string{})
 	return func() string {
 		if len(__parts) == 0 {
 			return "\"\""
@@ -9492,7 +9492,7 @@ func __selfhost_compiler_mbt_emitMoonBitTemplate(__expr __IRExpr) string {
 		}
 		return __raw
 	}()
-	__parts := __selfhost_compiler_mbt_mbtTemplateAccumulate(func() []string { parts := strings.Split(__inner, "<<<RUNE_TEMPLATE_PART>>>"); return parts }(), __expr.__children, 0, append([]string{}, []string{""}[0:0]...))
+	__parts := __selfhost_compiler_mbt_mbtTemplateAccumulate(func() []string { parts := strings.Split(__inner, "<<<RUNE_TEMPLATE_PART>>>"); return parts }(), __expr.__children, 0, []string{})
 	return func() string {
 		if len(__parts) == 0 {
 			return "\"\""
@@ -9646,10 +9646,41 @@ func __selfhost_compiler_mbt_mbtStringLiteralNext(__raw string, __index int, __o
 
 func __selfhost_compiler_mbt_emitMoonBitDiscard(__expr __IRExpr) string {
 	return func() string {
-		if __expr.__kind == __ExprKind_Call {
+		if __expr.__kind == __ExprKind_Call && __selfhost_compiler_mbt_moonBitUnitCallResult(__expr) {
 			return __selfhost_compiler_mbt_emitMoonBitExpr(__expr)
 		}
 		return "ignore(" + __selfhost_compiler_mbt_emitMoonBitExpr(__expr) + ")"
+	}()
+}
+
+func __selfhost_compiler_mbt_moonBitUnitCallResult(__expr __IRExpr) bool {
+	return func() bool {
+		if __expr.__text != "Unit" && __expr.__text != "()" && __expr.__text != "" {
+			return false
+		}
+		return !(__selfhost_compiler_mbt_moonBitValueCoreMethodCall(__expr))
+	}()
+}
+
+func __selfhost_compiler_mbt_moonBitValueCoreMethodCall(__expr __IRExpr) bool {
+	return func() bool {
+		if len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Selector {
+			return __selfhost_compiler_mbt_moonBitValueCoreMethodName(__expr.__children[0].__name)
+		}
+		return false
+	}()
+}
+
+func __selfhost_compiler_mbt_moonBitValueCoreMethodName(__name string) bool {
+	return func() bool {
+		switch {
+		case (__name == "length") || (__name == "byteLength") || (__name == "isEmpty") || (__name == "at") || (__name == "slice") || (__name == "toString"):
+			return true
+		case (__name == "push") || (__name == "set") || (__name == "pop") || (__name == "first") || (__name == "last") || (__name == "clone") || (__name == "reverse") || (__name == "contains"):
+			return true
+		default:
+			return false
+		}
 	}()
 }
 
@@ -10259,7 +10290,7 @@ func __selfhost_compiler_ts_rewriteTSMethodCalls(__file __IRFile) __IRFile {
 }
 
 func __selfhost_compiler_ts_rewriteTSStructs(__structs []__IRStructType, __allStructs []__IRStructType, __enums []__IREnumType) []__IRStructType {
-	__out := append([]__IRStructType{}, []__IRStructType{__IRStructType{__name: "", __private: false, __generics: []string{}, __fields: []__IRField{}, __methods: []__IRFunction{}, __sourcePath: "", __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRStructType{}
 	for _, __typeDecl := range __structs {
 		_ = __typeDecl
 		func() int {
@@ -10271,7 +10302,7 @@ func __selfhost_compiler_ts_rewriteTSStructs(__structs []__IRStructType, __allSt
 }
 
 func __selfhost_compiler_ts_rewriteTSEnums(__enums []__IREnumType, __structs []__IRStructType, __allEnums []__IREnumType) []__IREnumType {
-	__out := append([]__IREnumType{}, []__IREnumType{__IREnumType{__name: "", __private: false, __generics: []string{}, __members: []__IREnumMember{}, __methods: []__IRFunction{}, __sourcePath: "", __line: 0, __column: 0}}[0:0]...)
+	__out := []__IREnumType{}
 	for _, __typeDecl := range __enums {
 		_ = __typeDecl
 		func() int {
@@ -10283,11 +10314,11 @@ func __selfhost_compiler_ts_rewriteTSEnums(__enums []__IREnumType, __structs []_
 }
 
 func __selfhost_compiler_ts_rewriteTSConstants(__constants []__IRConst, __structs []__IRStructType, __enums []__IREnumType) []__IRConst {
-	__out := append([]__IRConst{}, []__IRConst{__IRConst{__name: "", __private: false, __typeName: "", __value: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRConst{}
 	for _, __constant := range __constants {
 		_ = __constant
 		func() int {
-			__value := __selfhost_compiler_ts_rewriteTSExpr(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...))
+			__value := __selfhost_compiler_ts_rewriteTSExpr(__constant.__value, __structs, __enums, []__CompilerTypeBinding{})
 			return func() int {
 				__out = append(__out, __IRConst{__name: __constant.__name, __private: __constant.__private, __typeName: __constant.__typeName, __value: __value, __line: __constant.__line, __column: __constant.__column})
 				return len(__out)
@@ -10298,11 +10329,11 @@ func __selfhost_compiler_ts_rewriteTSConstants(__constants []__IRConst, __struct
 }
 
 func __selfhost_compiler_ts_rewriteTSTests(__tests []__IRTest, __structs []__IRStructType, __enums []__IREnumType) []__IRTest {
-	__out := append([]__IRTest{}, []__IRTest{__IRTest{__name: "", __body: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	__out := []__IRTest{}
 	for _, __test := range __tests {
 		_ = __test
 		func() int {
-			__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...)
+			__bindings := []__CompilerTypeBinding{}
 			__body := __selfhost_compiler_ts_rewriteTSExpr(__test.__body, __structs, __enums, __bindings)
 			return func() int {
 				__out = append(__out, __IRTest{__name: __test.__name, __body: __body, __line: __test.__line, __column: __test.__column})
@@ -10314,7 +10345,7 @@ func __selfhost_compiler_ts_rewriteTSTests(__tests []__IRTest, __structs []__IRS
 }
 
 func __selfhost_compiler_ts_rewriteTSFunctions(__functions []__IRFunction, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
-	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	__out := []__IRFunction{}
 	for _, __fn := range __functions {
 		_ = __fn
 		func() int {
@@ -10330,7 +10361,7 @@ func __selfhost_compiler_ts_rewriteTSFunction(__fn __IRFunction, __structs []__I
 }
 
 func __selfhost_compiler_ts_rewriteTSTypeMethods(__methods []__IRFunction, __typeName string, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
-	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	__out := []__IRFunction{}
 	for _, __method := range __methods {
 		_ = __method
 		func() int {
@@ -10346,7 +10377,7 @@ func __selfhost_compiler_ts_rewriteTSFunctionWithThis(__fn __IRFunction, __struc
 }
 
 func __selfhost_compiler_ts_rewriteTSFunctionBody(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType, __thisType string) __IRFunction {
-	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...)
+	__bindings := []__CompilerTypeBinding{}
 	for _, __param := range __fn.__params {
 		_ = __param
 		__bindings = __selfhost_compiler_ts_tsAddBinding(__bindings, __param.__name, __param.__typeName)
@@ -10368,7 +10399,7 @@ func __selfhost_compiler_ts_emptyCompilerTypeBinding() __CompilerTypeBinding {
 func __selfhost_compiler_ts_tsAddBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
 	return func() []__CompilerTypeBinding {
 		out := []__CompilerTypeBinding{}
-		out = append(out, __selfhost_compiler_ts_dropTSBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...))...)
+		out = append(out, __bindings...)
 		out = append(out, __selfhost_compiler_ts_tsBinding(__name, __typeName))
 		return out
 	}()
@@ -10437,7 +10468,7 @@ func __selfhost_compiler_ts_rewriteTSExpr(__expr __IRExpr, __structs []__IRStruc
 }
 
 func __selfhost_compiler_ts_rewriteTSBlockExpr(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
-	__result := __selfhost_compiler_ts_rewriteTSBlockStatements(__expr.__children, 0, __structs, __enums, __bindings, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	__result := __selfhost_compiler_ts_rewriteTSBlockStatements(__expr.__children, 0, __structs, __enums, __bindings, []__IRExpr{})
 	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __result, __line: __expr.__line, __column: __expr.__column}
 }
 
@@ -10578,7 +10609,7 @@ func __selfhost_compiler_ts_tsRebuildExpr(__expr __IRExpr, __children []__IRExpr
 }
 
 func __selfhost_compiler_ts_tsRewriteChildren(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
-	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
+	__out := []__IRExpr{}
 	for _, __child := range __children {
 		_ = __child
 		func() int {
@@ -10590,7 +10621,7 @@ func __selfhost_compiler_ts_tsRewriteChildren(__children []__IRExpr, __structs [
 }
 
 func __selfhost_compiler_ts_rewriteTSChildren(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
-	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
+	__out := []__IRExpr{}
 	for _, __child := range __children {
 		_ = __child
 		func() int {
@@ -10602,7 +10633,7 @@ func __selfhost_compiler_ts_rewriteTSChildren(__children []__IRExpr, __structs [
 }
 
 func __selfhost_compiler_ts_tsRewriteArgs(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
-	return __selfhost_compiler_ts_tsRewriteArgsFrom(__children, 1, __structs, __enums, __bindings, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	return __selfhost_compiler_ts_tsRewriteArgsFrom(__children, 1, __structs, __enums, __bindings, []__IRExpr{})
 }
 
 func __selfhost_compiler_ts_tsRewriteArgsFrom(__children []__IRExpr, __index int, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __out []__IRExpr) []__IRExpr {
@@ -12076,7 +12107,7 @@ func __selfhost_compiler_dts_dtsParenTypeRef(__typeName string, __open __Token) 
 		if len(__parts) == 1 {
 			return __groupedTypeRef(__selfhost_compiler_dts_parseDtsTypeRef(__parts[0]), __open)
 		}
-		return __tupleTypeRef(__selfhost_compiler_dts_dtsTupleParamsFromStrings(__parts, 0, append([]__ParsedTypeParam{}, []__ParsedTypeParam{__emptyParsedTypeParam()}[0:0]...)), __open)
+		return __tupleTypeRef(__selfhost_compiler_dts_dtsTupleParamsFromStrings(__parts, 0, []__ParsedTypeParam{}), __open)
 	}()
 }
 
@@ -12115,7 +12146,7 @@ func __selfhost_compiler_dts_dtsBracketArgs(__tokens []__Token, __open int) []__
 	__close := __selfhost_compiler_dts_dtsBracketClose(__tokens, __open+1, 1)
 	__inner := __selfhost_compiler_dts_dtsTokenRangeText(__tokens, __open+1, __close, "")
 	__parts := __selfhost_compiler_dts_dtsSplitTopLevelTypeArgs(__inner)
-	return __selfhost_compiler_dts_dtsTypeRefsFromStrings(__parts, 0, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...))
+	return __selfhost_compiler_dts_dtsTypeRefsFromStrings(__parts, 0, []__ParsedTypeRef{})
 }
 
 func __selfhost_compiler_dts_dtsBracketClose(__tokens []__Token, __index int, __depth int) int {
@@ -12742,7 +12773,7 @@ func __hostBridgeSources(__root string, __files []__SourceFile) []__SourceFile {
 }
 
 func __selfhost_compiler_compiler_discoverSourceGraph(__files []__SourceFile) []__SourceFile {
-	return __selfhost_compiler_compiler_discoverMergeSourceFiles(append([]__SourceFile{}, []__SourceFile{__selfhost_compiler_compiler_emptySourceFile()}[0:0]...), __files, 0)
+	return __selfhost_compiler_compiler_discoverMergeSourceFiles([]__SourceFile{}, __files, 0)
 }
 
 func __getSelfhostSources(__root string) runeTask[runeResult[__SelfhostSources, *runeError]] {
@@ -12934,7 +12965,7 @@ func __selfhost_compiler_compiler_checkGoTargetFileErrors(__file __IRFile) []str
 }
 
 func __selfhost_compiler_compiler_checkMoonBitTargetFileErrors(__file __IRFile) []string {
-	__errors := append([]string{}, []string{""}[0:0]...)
+	__errors := []string{}
 	__hasTypeScriptImports := len(__file.__tsImports) > 0
 	__errors = __selfhost_compiler_compiler_compilerAppendErrorIf(__errors, __hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
 	__hasGoImports := __selfhost_compiler_compiler_fileHasGoImports(__file)
@@ -12995,7 +13026,7 @@ func __selfhost_compiler_compiler_checkFileErrors(__file __IRFile) []string {
 	__callables := __selfhost_compiler_compiler_compilerCallables(__file)
 	__bindings := __selfhost_compiler_compiler_compilerInitialBindings(__file, __callables)
 	__knownTypes := __selfhost_compiler_compiler_compilerKnownTypes(__file)
-	__errors := __selfhost_compiler_compiler_checkDuplicateDeclarations(__file, append([]string{}, []string{""}[0:0]...))
+	__errors := __selfhost_compiler_compiler_checkDuplicateDeclarations(__file, []string{})
 	__errors = __selfhost_compiler_compiler_checkDeclarationTypes(__file, __knownTypes, __errors)
 	for _, __constant := range __file.__constants {
 		_ = __constant
@@ -13564,7 +13595,7 @@ func __selfhost_compiler_compiler_compilerGenericInner(__typeName string) string
 }
 
 func __selfhost_compiler_compiler_compilerCallables(__file __IRFile) []__CompilerCallable {
-	__callables := append([]__CompilerCallable{}, []__CompilerCallable{__selfhost_compiler_compiler_emptyCompilerCallable()}[0:0]...)
+	__callables := []__CompilerCallable{}
 	for _, __fn := range __file.__functions {
 		_ = __fn
 		func() int {
@@ -15758,7 +15789,7 @@ func __selfhost_compiler_compiler_addCompilerTypeBinding(__bindings []__Compiler
 		case __known == true:
 			return func() []__CompilerTypeBinding {
 				out := []__CompilerTypeBinding{}
-				out = append(out, __selfhost_compiler_compiler_dropCompilerTypeBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_compiler_emptyCompilerTypeBinding()}[0:0]...))...)
+				out = append(out, __selfhost_compiler_compiler_dropCompilerTypeBinding(__bindings, __name, 0, []__CompilerTypeBinding{})...)
 				out = append(out, __selfhost_compiler_compiler_compilerTypeBinding(__name, __typeName))
 				return out
 			}()
@@ -15771,7 +15802,7 @@ func __selfhost_compiler_compiler_addCompilerTypeBinding(__bindings []__Compiler
 func __selfhost_compiler_compiler_addCompilerValueBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
 	return func() []__CompilerTypeBinding {
 		out := []__CompilerTypeBinding{}
-		out = append(out, __selfhost_compiler_compiler_dropCompilerTypeBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_compiler_emptyCompilerTypeBinding()}[0:0]...))...)
+		out = append(out, __selfhost_compiler_compiler_dropCompilerTypeBinding(__bindings, __name, 0, []__CompilerTypeBinding{})...)
 		out = append(out, __selfhost_compiler_compiler_compilerTypeBinding(__name, __typeName))
 		return out
 	}()
@@ -16887,11 +16918,11 @@ func __selfhost_compiler_compiler_inferCompilerIndexType(__expr __IRExpr, __call
 }
 
 func __selfhost_compiler_compiler_inferCompilerPatternBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	return __selfhost_compiler_compiler_inferCompilerPatternBlockTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{__selfhost_compiler_compiler_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+	return __selfhost_compiler_compiler_inferCompilerPatternBlockTypeWithStructs(__expr, []__IRStructType{}, __callables, __bindings)
 }
 
 func __selfhost_compiler_compiler_inferCompilerMatchType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	return __selfhost_compiler_compiler_inferCompilerMatchTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{__selfhost_compiler_compiler_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+	return __selfhost_compiler_compiler_inferCompilerMatchTypeWithStructs(__expr, []__IRStructType{}, __callables, __bindings)
 }
 
 func __selfhost_compiler_compiler_inferCompilerMatchTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
@@ -16899,7 +16930,7 @@ func __selfhost_compiler_compiler_inferCompilerMatchTypeWithStructs(__expr __IRE
 }
 
 func __selfhost_compiler_compiler_inferCompilerUnwrapType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	return __selfhost_compiler_compiler_inferCompilerUnwrapTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{__selfhost_compiler_compiler_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+	return __selfhost_compiler_compiler_inferCompilerUnwrapTypeWithStructs(__expr, []__IRStructType{}, __callables, __bindings)
 }
 
 func __selfhost_compiler_compiler_inferCompilerUnwrapTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
@@ -17173,7 +17204,7 @@ func __selfhost_compiler_compiler_inferCompilerInstanceSelectorCallType(__expr _
 }
 
 func __selfhost_compiler_compiler_inferCompilerBlockType(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
-	return __selfhost_compiler_compiler_inferCompilerBlockTypeWithStructs(__expr, append([]__IRStructType{}, []__IRStructType{__selfhost_compiler_compiler_emptyCompilerStruct()}[0:0]...), __callables, __bindings)
+	return __selfhost_compiler_compiler_inferCompilerBlockTypeWithStructs(__expr, []__IRStructType{}, __callables, __bindings)
 }
 
 func __selfhost_compiler_compiler_inferCompilerBlockTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
@@ -17356,7 +17387,7 @@ func __selfhost_compiler_compiler_emptyCompilerCallable() __CompilerCallable {
 }
 
 func __selfhost_compiler_compiler_compilerParamTypeNames(__params []__IRParam) []string {
-	__names := append([]string{}, []string{""}[0:0]...)
+	__names := []string{}
 	for _, __param := range __params {
 		_ = __param
 		func() int { __names = append(__names, __param.__typeName); return len(__names) }()
@@ -17365,11 +17396,11 @@ func __selfhost_compiler_compiler_compilerParamTypeNames(__params []__IRParam) [
 }
 
 func __selfhost_compiler_compiler_compilerParamBindings(__params []__IRParam) []__CompilerTypeBinding {
-	return __selfhost_compiler_compiler_compilerFunctionBindings(__params, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_compiler_emptyCompilerTypeBinding()}[0:0]...))
+	return __selfhost_compiler_compiler_compilerFunctionBindings(__params, []__CompilerTypeBinding{})
 }
 
 func __selfhost_compiler_compiler_compilerInitialBindings(__file __IRFile, __callables []__CompilerCallable) []__CompilerTypeBinding {
-	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_compiler_emptyCompilerTypeBinding()}[0:0]...)
+	__bindings := []__CompilerTypeBinding{}
 	__bindings = __selfhost_compiler_compiler_compilerMacroFunctionBindings(__file.__functions, __bindings)
 	for _, __constant := range __file.__constants {
 		_ = __constant
@@ -17750,9 +17781,9 @@ func __selfhost_compiler_compiler_expandCompilerMacros(__file __ParsedFile) __Pa
 
 func __selfhost_compiler_compiler_expandCompilerTypeMacros(__typeDecl __ParsedType) __ParsedType {
 	__typeName := __selfhost_compiler_compiler_compilerRenameDeclarationName(__typeDecl.__annotations, __typeDecl.__name)
-	__fields := append([]__ParsedField{}, __typeDecl.__fields[0:0]...)
-	__methods := append([]__ParsedFunction{}, __typeDecl.__methods[0:0]...)
-	__members := append([]__ParsedEnumMember{}, __typeDecl.__members[0:0]...)
+	__fields := []__ParsedField{}
+	__methods := []__ParsedFunction{}
+	__members := []__ParsedEnumMember{}
 	for _, __field := range __typeDecl.__fields {
 		_ = __field
 		func() int {
@@ -17817,7 +17848,7 @@ func __selfhost_compiler_compiler_compilerJsonParseExpr(__line int, __column int
 }
 
 func __selfhost_compiler_compiler_compilerEmptyAnnotations() []__ParsedAnnotation {
-	return append([]__ParsedAnnotation{}, []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}[0:0]...)
+	return []__ParsedAnnotation{__ParsedAnnotation{__marker: "", __module: "", __name: "", __args: []__ParsedExpr{}, __line: 0, __column: 0}}
 }
 
 func __selfhost_compiler_compiler_compilerParsedExpr(__kind __ExprKind, __text string, __name string, __value string, __op string, __params []__ParsedParam, __children []__ParsedExpr, __line int, __column int) __ParsedExpr {
@@ -17825,7 +17856,7 @@ func __selfhost_compiler_compiler_compilerParsedExpr(__kind __ExprKind, __text s
 }
 
 func __selfhost_compiler_compiler_compilerGenericTypeRef(__name string, __generics []string, __line int, __column int) __ParsedTypeRef {
-	__args := __selfhost_compiler_compiler_compilerGenericTypeRefArgs(__generics, 0, __line, __column, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...))
+	__args := __selfhost_compiler_compiler_compilerGenericTypeRefArgs(__generics, 0, __line, __column, []__ParsedTypeRef{})
 	return __selfhost_compiler_compiler_compilerTypeRefWithArgs(__name, __args, __line, __column)
 }
 
@@ -17847,7 +17878,7 @@ func __selfhost_compiler_compiler_compilerGenericTypeRefArgsStep(__generics []st
 }
 
 func __selfhost_compiler_compiler_compilerTypeRef(__name string, __line int, __column int) __ParsedTypeRef {
-	return __selfhost_compiler_compiler_compilerTypeRefWithArgs(__name, append([]__ParsedTypeRef{}, []__ParsedTypeRef{__emptyParsedTypeRef()}[0:0]...), __line, __column)
+	return __selfhost_compiler_compiler_compilerTypeRefWithArgs(__name, []__ParsedTypeRef{}, __line, __column)
 }
 
 func __selfhost_compiler_compiler_compilerTypeRefWithArgs(__name string, __args []__ParsedTypeRef, __line int, __column int) __ParsedTypeRef {
@@ -17916,7 +17947,7 @@ func __selfhost_compiler_compiler_expandCompilerEnumMemberMacros(__member __Pars
 }
 
 func __selfhost_compiler_compiler_expandCompilerFunctionMacros(__fn __ParsedFunction) __ParsedFunction {
-	return __ParsedFunction{__name: __selfhost_compiler_compiler_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __selfhost_compiler_compiler_expandCompilerNamespaceAliases(__fn.__body, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{__selfhost_compiler_compiler_emptyCompilerNamespaceAlias()}[0:0]...)), __line: __fn.__line, __column: __fn.__column}
+	return __ParsedFunction{__name: __selfhost_compiler_compiler_compilerRenameDeclarationName(__fn.__annotations, __fn.__name), __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __annotations: __fn.__annotations, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __selfhost_compiler_compiler_expandCompilerNamespaceAliases(__fn.__body, []__CompilerNamespaceAlias{}), __line: __fn.__line, __column: __fn.__column}
 }
 
 func __selfhost_compiler_compiler_compilerMacroErrors(__file __ParsedFile, __errors []__ParseError) []__ParseError {
@@ -18416,9 +18447,9 @@ func __selfhost_compiler_compiler_compilerMacroBindingFromFunction(__fn __Parsed
 	return __CompilerMacroBinding{__name: __fn.__name, __macro: __fn.__macro, __paramTypes: func() []string {
 		switch {
 		case __fn.__macro == true:
-			return __selfhost_compiler_compiler_compilerVisibleMacroParamTypes(__fn.__params, 2, append([]string{}, []string{""}[0:0]...))
+			return __selfhost_compiler_compiler_compilerVisibleMacroParamTypes(__fn.__params, 2, []string{})
 		default:
-			return __selfhost_compiler_compiler_compilerParsedParamTypeNames(__fn.__params, 0, append([]string{}, []string{""}[0:0]...))
+			return __selfhost_compiler_compiler_compilerParsedParamTypeNames(__fn.__params, 0, []string{})
 		}
 	}()}
 }
@@ -18545,11 +18576,11 @@ func __selfhost_compiler_compiler_compilerParseError(__message string, __line in
 }
 
 func __selfhost_compiler_compiler_expandCompilerTestMacros(__testDecl __ParsedTest) __ParsedTest {
-	return __ParsedTest{__name: __testDecl.__name, __body: __selfhost_compiler_compiler_expandCompilerNamespaceAliases(__testDecl.__body, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{__selfhost_compiler_compiler_emptyCompilerNamespaceAlias()}[0:0]...)), __line: __testDecl.__line, __column: __testDecl.__column}
+	return __ParsedTest{__name: __testDecl.__name, __body: __selfhost_compiler_compiler_expandCompilerNamespaceAliases(__testDecl.__body, []__CompilerNamespaceAlias{}), __line: __testDecl.__line, __column: __testDecl.__column}
 }
 
 func __selfhost_compiler_compiler_compilerImportExpressions(__file __ParsedFile) []__ParsedImport {
-	__imports := append([]__ParsedImport{}, []__ParsedImport{__selfhost_compiler_compiler_compilerEmptyParsedImport()}[0:0]...)
+	__imports := []__ParsedImport{}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		__imports = __selfhost_compiler_compiler_compilerCollectTypeImportExprs(__typeDecl, __imports)
@@ -18669,7 +18700,7 @@ func __selfhost_compiler_compiler_expandCompilerNamespaceAliases(__expr __Parsed
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasBlock(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
-	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(__expr.__children, 0, __aliases, append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(__expr.__children, 0, __aliases, []__ParsedExpr{}))
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(__statements []__ParsedExpr, __index int, __aliases []__CompilerNamespaceAlias, __out []__ParsedExpr) []__ParsedExpr {
@@ -18711,7 +18742,7 @@ func __selfhost_compiler_compiler_compilerNamespaceAliasesAfterBinding(__stateme
 	return func() []__CompilerNamespaceAlias {
 		switch {
 		case __statement.__kind == __ExprKind_Let:
-			return __selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __statement.__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{__selfhost_compiler_compiler_emptyCompilerNamespaceAlias()}[0:0]...))
+			return __selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __statement.__name, 0, []__CompilerNamespaceAlias{})
 		case __statement.__kind == __ExprKind_ObjectDestructure:
 			return __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__aliases, __statement.__params, 0)
 		default:
@@ -18725,12 +18756,12 @@ func __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__aliases []_
 		if __index >= len(__params) {
 			return __aliases
 		}
-		return __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __params[__index].__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{__selfhost_compiler_compiler_emptyCompilerNamespaceAlias()}[0:0]...)), __params, __index+1)
+		return __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __params[__index].__name, 0, []__CompilerNamespaceAlias{}), __params, __index+1)
 	}()
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasLambda(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
-	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__aliases, __expr.__params, 0), append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, __selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(__aliases, __expr.__params, 0), []__ParsedExpr{}))
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasSelector(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
@@ -18784,7 +18815,7 @@ func __selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorFound(__ex
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildren(__expr __ParsedExpr, __aliases []__CompilerNamespaceAlias) __ParsedExpr {
-	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, __aliases, append([]__ParsedExpr{}, __expr.__children[0:0]...)))
+	return __selfhost_compiler_compiler_compilerWithChildren(__expr, __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(__expr.__children, 0, __aliases, []__ParsedExpr{}))
 }
 
 func __selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(__children []__ParsedExpr, __index int, __aliases []__CompilerNamespaceAlias, __out []__ParsedExpr) []__ParsedExpr {
@@ -18882,7 +18913,7 @@ func __selfhost_compiler_compiler_emptyCompilerNamespaceAlias() __CompilerNamesp
 func __selfhost_compiler_compiler_addCompilerNamespaceAlias(__aliases []__CompilerNamespaceAlias, __alias __CompilerNamespaceAlias) []__CompilerNamespaceAlias {
 	return func() []__CompilerNamespaceAlias {
 		out := []__CompilerNamespaceAlias{}
-		out = append(out, __selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __alias.__name, 0, append([]__CompilerNamespaceAlias{}, []__CompilerNamespaceAlias{__selfhost_compiler_compiler_emptyCompilerNamespaceAlias()}[0:0]...))...)
+		out = append(out, __selfhost_compiler_compiler_dropCompilerNamespaceAlias(__aliases, __alias.__name, 0, []__CompilerNamespaceAlias{})...)
 		out = append(out, __alias)
 		return out
 	}()
@@ -19233,7 +19264,7 @@ func __selfhost_compiler_compiler_compilerPathJoin(__base string, __child string
 func __selfhost_compiler_compiler_compilerPathNormalize(__path string) string {
 	__absolute := strings.HasPrefix(__path, "/")
 	__parts := func() []string { parts := strings.Split(__path, "/"); return parts }()
-	__normalized := __selfhost_compiler_compiler_compilerPathNormalizeParts(__parts, 0, __absolute, append([]string{}, __parts[0:0]...))
+	__normalized := __selfhost_compiler_compiler_compilerPathNormalizeParts(__parts, 0, __absolute, []string{})
 	__joined := __selfhost_compiler_compiler_compilerPathJoinParts(__normalized, 0, "")
 	return func() string {
 		switch {
@@ -19336,7 +19367,7 @@ func __selfhost_compiler_compiler_compilerPathBasename(__path string) string {
 }
 
 func __selfhost_compiler_compiler_parseTypeScriptImport(__path string, __specifier string, __source string) __IRTSImport {
-	__imports := __IRTSImport{__path: __path, __specifier: __specifier, __functions: append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...), __values: append([]__IRConst{}, []__IRConst{__selfhost_compiler_compiler_emptyIRConst()}[0:0]...), __line: 0, __column: 0}
+	__imports := __IRTSImport{__path: __path, __specifier: __specifier, __functions: []__IRFunction{}, __values: []__IRConst{}, __line: 0, __column: 0}
 	for _, __line := range func() []string { parts := strings.Split(__source, "\n"); return parts }() {
 		_ = __line
 		__imports = __selfhost_compiler_compiler_parseTypeScriptExportLine(__imports, strings.TrimSpace(__line))
@@ -19404,7 +19435,7 @@ func __selfhost_compiler_compiler_pushTypeScriptFunction(__imports __IRTSImport,
 				if __open >= 0 && __close > __open {
 					return __selfhost_compiler_compiler_parseTypeScriptParams(func() string { runes := []rune(__text); return string(runes[__open+1 : __close]) }())
 				}
-				return append([]__IRParam{}, []__IRParam{__selfhost_compiler_compiler_emptyIRParam()}[0:0]...)
+				return []__IRParam{}
 			}(), __returnType: __returnType, __body: __emptyIRExpr(), __sourcePath: "", __line: 0, __column: 0})
 			return len(__imports.__functions)
 		}()
@@ -19490,7 +19521,7 @@ func __selfhost_compiler_compiler_typeScriptValueTypeName(__text string) string 
 }
 
 func __selfhost_compiler_compiler_parseTypeScriptParams(__text string) []__IRParam {
-	__params := append([]__IRParam{}, []__IRParam{__selfhost_compiler_compiler_emptyIRParam()}[0:0]...)
+	__params := []__IRParam{}
 	for _, __param := range func() []string { parts := strings.Split(__text, ","); return parts }() {
 		_ = __param
 		func() {

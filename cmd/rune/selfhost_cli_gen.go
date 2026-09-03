@@ -447,9 +447,9 @@ func __cli_parseArgs(__command __CliCommand, __args []string) __CliParseResult {
 	__values := map[string]string{}
 	__flags := map[string]bool{}
 	__positionals := map[string]string{}
-	__rest := append([]string{}, __args[0:0]...)
-	__explicitOptions := append([]string{}, __args[0:0]...)
-	__positionalValues := append([]string{}, __args[0:0]...)
+	__rest := []string{}
+	__explicitOptions := []string{}
+	__positionalValues := []string{}
 	__helpValue := false
 	__parseError := ""
 	__afterDoubleDash := false

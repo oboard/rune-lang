@@ -309,7 +309,7 @@ canEndXmlLess(
 }
 
 markStart(state: LexState) -> LexState => {
-  ..source,
+  ..state,
   start: state.current,
   startLine: state.line,
   startColumn: state.column,

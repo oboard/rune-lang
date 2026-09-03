@@ -159,14 +159,7 @@ emptyExpr() -> ParsedExpr => {
   column: 0
 }
 
-emptyAnnotations() -> Array[ParsedAnnotation] => [ParsedAnnotation {
-  marker: "",
-  module: "",
-  name: "",
-  args: [],
-  line: 0,
-  column: 0
-]
+emptyAnnotations() -> Array[ParsedAnnotation] => []
 
 makeExpr(
   kind: ExprKind,

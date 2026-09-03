@@ -388,7 +388,7 @@ withIRFunctionSourcePaths(
   functions: Array[IRFunction],
   sourcePath: String
 ) -> Array[IRFunction] => {
-  out := []
+  out := functions.slice(0, 0)
   functions.each((fn) => out.push(withIRFunctionSourcePath(fn, sourcePath)))
   out
 }
@@ -411,7 +411,7 @@ withIRStructSourcePaths(
   structs: Array[IRStructType],
   sourcePath: String
 ) -> Array[IRStructType] => {
-  out := []
+  out := structs.slice(0, 0)
   structs.each((typeDecl) => out.push(withIRStructSourcePath(typeDecl, sourcePath)))
   out
 }
@@ -434,7 +434,7 @@ withIREnumSourcePaths(
   enums: Array[IREnumType],
   sourcePath: String
 ) -> Array[IREnumType] => {
-  out := []
+  out := enums.slice(0, 0)
   enums.each((typeDecl) => out.push(withIREnumSourcePath(typeDecl, sourcePath)))
   out
 }
@@ -594,14 +594,7 @@ lowerFields(
 lowerEnumMembers(
   members: Array[ParsedEnumMember]
 ) -> Array[IREnumMember] => {
-  out := [IREnumMember {
-    name: "",
-    private: false,
-    value: "",
-    params: [],
-    line: 0,
-    column: 0
-  ]
+  out := []
   members.each((member) => out.push(lowerEnumMember(member)))
   out
 }

@@ -46,16 +46,7 @@ rewriteTSStructs(
   allStructs: Array[IRStructType],
   enums: Array[IREnumType]
 ) -> Array[IRStructType] => {
-  out := [IRStructType {
-    name: "",
-    private: false,
-    generics: [],
-    fields: [],
-    methods: [],
-    sourcePath: "",
-    line: 0,
-    column: 0
-  ]
+  out := []
   structs.each((typeDecl) => out.push(IRStructType {
     name: typeDecl.name,
     private: typeDecl.private,
@@ -74,16 +65,7 @@ rewriteTSEnums(
   structs: Array[IRStructType],
   allEnums: Array[IREnumType]
 ) -> Array[IREnumType] => {
-  out := [IREnumType {
-    name: "",
-    private: false,
-    generics: [],
-    members: [],
-    methods: [],
-    sourcePath: "",
-    line: 0,
-    column: 0
-  ]
+  out := []
   enums.each((typeDecl) => out.push(IREnumType {
     name: typeDecl.name,
     private: typeDecl.private,
@@ -206,7 +188,7 @@ tsAddBinding(
   bindings: Array[CompilerTypeBinding],
   name: String,
   typeName: String
-) -> Array[CompilerTypeBinding] => []), tsBinding(name, typeName)]
+) -> Array[CompilerTypeBinding] => [..bindings, tsBinding(name, typeName)]
 
 tsBinding(
   name: String,
