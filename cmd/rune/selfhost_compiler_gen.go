@@ -12499,7 +12499,7 @@ func __selfhost_compiler_compiler_compilerMergeGenerics(__parentGenerics []strin
 
 func __selfhost_compiler_compiler_checkCompilerTypeName(__typeName string, __knownTypes []string, __generics []string, __errors []string) []string {
 	__normalized := __selfhost_compiler_compiler_compilerNormalizeTypeName(__typeName)
-	__shouldSkip := __selfhost_compiler_compiler_compilerShouldSkipTypeName(__normalized)
+	__shouldSkip := __selfhost_compiler_compiler_compilerShouldSkipTypeName(__normalized) || strings.Contains(__normalized, "=")
 	return func() []string {
 		switch {
 		case __shouldSkip == true:
@@ -12748,7 +12748,7 @@ func __selfhost_compiler_compiler_checkExpr(__expr __IRExpr, __structs []__IRStr
 func __selfhost_compiler_compiler_checkIdentifierExpr(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	return func() []string {
 		switch {
-		case __selfhost_compiler_compiler_compilerIdentifierDefined(__expr.__name, __callables, __bindings) == true:
+		case __selfhost_compiler_compiler_compilerIdentifierDefined(__expr, __callables, __bindings) == true:
 			return __errors
 		default:
 			return func() []string {
@@ -12761,13 +12761,28 @@ func __selfhost_compiler_compiler_checkIdentifierExpr(__expr __IRExpr, __callabl
 	}()
 }
 
-func __selfhost_compiler_compiler_compilerIdentifierDefined(__name string, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) bool {
+func __selfhost_compiler_compiler_compilerIdentifierDefined(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) bool {
+	__binding := __selfhost_compiler_compiler_compilerIdentifierBinding(__expr, __bindings)
 	return func() bool {
 		switch {
-		case __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __name, 0).__name == "":
-			return __selfhost_compiler_compiler_findCompilerCallable(__callables, __name, 0).__name != ""
+		case __binding.__name == "":
+			return __selfhost_compiler_compiler_findCompilerCallable(__callables, __expr.__name, 0).__name != ""
 		default:
 			return true
+		}
+	}()
+}
+
+func __selfhost_compiler_compiler_compilerIdentifierBinding(__expr __IRExpr, __bindings []__CompilerTypeBinding) __CompilerTypeBinding {
+	__binding := __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__name, 0)
+	return func() __CompilerTypeBinding {
+		switch {
+		case __binding.__name != "":
+			return __binding
+		case strings.HasPrefix(__expr.__text, "$"):
+			return __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__text, 0)
+		default:
+			return __selfhost_compiler_compiler_emptyCompilerTypeBinding()
 		}
 	}()
 }
@@ -12958,27 +12973,7 @@ func __selfhost_compiler_compiler_checkObjectMethodExpr(__method __IRExpr, __str
 }
 
 func __selfhost_compiler_compiler_checkAssignExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__named := __expr.__name != ""
-	return func() []string {
-		switch {
-		case __named == true:
-			return __selfhost_compiler_compiler_checkNamedAssignExpr(__expr, __structs, __callables, __errors, __bindings)
-		default:
-			return __selfhost_compiler_compiler_checkAssignExpressionExpr(__expr, __structs, __callables, __errors, __bindings)
-		}
-	}()
-}
-
-func __selfhost_compiler_compiler_checkNamedAssignExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__complete := len(__expr.__children) > 0
-	return func() []string {
-		switch {
-		case __complete == true:
-			return __selfhost_compiler_compiler_checkIdentifierAssignExpr(__expr, __expr.__children[0], __structs, __callables, __errors, __bindings)
-		default:
-			return __errors
-		}
-	}()
+	return __selfhost_compiler_compiler_checkAssignExpressionExpr(__expr, __structs, __callables, __errors, __bindings)
 }
 
 func __selfhost_compiler_compiler_checkAssignExpressionExpr(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
@@ -13007,7 +13002,7 @@ func __selfhost_compiler_compiler_checkAssignTargetExpr(__target __IRExpr, __val
 }
 
 func __selfhost_compiler_compiler_checkIdentifierAssignExpr(__target __IRExpr, __value __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __errors []string, __bindings []__CompilerTypeBinding) []string {
-	__binding := __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __target.__name, 0)
+	__binding := __selfhost_compiler_compiler_compilerIdentifierBinding(__target, __bindings)
 	__checked := __selfhost_compiler_compiler_checkExpr(__value, __structs, __callables, __errors, __bindings)
 	return func() []string {
 		switch {
@@ -15489,12 +15484,20 @@ func __selfhost_compiler_compiler_compilerRightNullableInnerComparable(__left st
 }
 
 func __selfhost_compiler_compiler_compilerTypeBase(__typeName string) string {
-	__generic := strings.Index(__typeName, "[")
+	__signal := strings.HasPrefix(__typeName, "$")
+	__base := func() string {
+		if __signal {
+			runes := []rune(__typeName)
+			return string(runes[1:])
+		}
+		return __typeName
+	}()
+	__generic := strings.Index(__base, "[")
 	return func() string {
 		if __generic < 0 {
-			return __typeName
+			return __base
 		}
-		return func() string { runes := []rune(__typeName); return string(runes[0:__generic]) }()
+		return func() string { runes := []rune(__base); return string(runes[0:__generic]) }()
 	}()
 }
 
@@ -15657,7 +15660,7 @@ func __selfhost_compiler_compiler_inferCompilerExprType(__expr __IRExpr, __calla
 	return func() string {
 		switch {
 		case __expr.__kind == __ExprKind_Identifier:
-			return __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__name, 0).__typeName
+			return __selfhost_compiler_compiler_inferCompilerIdentifierType(__expr, __bindings)
 		case __expr.__kind == __ExprKind_This:
 			return __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, "this", 0).__typeName
 		case __expr.__kind == __ExprKind_Selector:
@@ -15716,6 +15719,10 @@ func __selfhost_compiler_compiler_inferCompilerExprType(__expr __IRExpr, __calla
 			return ""
 		}
 	}()
+}
+
+func __selfhost_compiler_compiler_inferCompilerIdentifierType(__expr __IRExpr, __bindings []__CompilerTypeBinding) string {
+	return __selfhost_compiler_compiler_compilerIdentifierBinding(__expr, __bindings).__typeName
 }
 
 func __selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {

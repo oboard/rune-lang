@@ -1180,6 +1180,25 @@ Status: {
   @assert.eq(result.errors[0], "assignment has type String, expected Int")
 }
 
+? "selfhost compiler handles signal assignment" {
+  result := compileGo(`main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println("count")
+    @io.println("double")
+  }
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  $count = $count + 1
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler reports function call arity errors" {
   result := compileGo(`add(a: Int, b: Int) -> Int => a + b
 main() -> Int => add(1)

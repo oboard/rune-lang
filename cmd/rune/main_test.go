@@ -208,28 +208,9 @@ func TestRuneCLIGoHandlesSignalExample(t *testing.T) {
 }
 `)
 
-	files, err := collectSelfhostSourceFiles(path)
-	if err != nil {
-		t.Fatalf("collectSelfhostSourceFiles() error = %v", err)
-	}
-	result := __checkSourceWithPath(`main() => {
-  $count := 0
-  @io.println($count)
-}
-`, path)
-	if !result.__ok {
-		t.Fatalf("__checkSourceWithPath() errors = %v", result.__errors)
-	}
-	result = __compileGoFiles(files)
-	if !result.__ok {
-		for _, file := range files {
-			t.Logf("file %s:\n%s", file.__path, file.__source)
-		}
-		t.Fatalf("__compileGoFiles() errors = %v", result.__errors)
-	}
 	var out bytes.Buffer
 	var errOut bytes.Buffer
-	err = runRuneCLI([]string{"go", path}, strings.NewReader(""), &out, &errOut)
+	err := runRuneCLI([]string{"go", path}, strings.NewReader(""), &out, &errOut)
 	if err != nil {
 		t.Fatalf("runRuneCLI(go signal) error = %v, stdout = %s, stderr = %s", err, out.String(), errOut.String())
 	}
