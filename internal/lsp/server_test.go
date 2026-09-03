@@ -435,8 +435,8 @@ func TestCodeLensesSkipParserWhenSelfhostPrecheckFails(t *testing.T) {
 
 func TestDependencyChainStopsAtCycles(t *testing.T) {
 	got := dependencyChain("a", map[string][]string{
-		"a": []string{"b"},
-		"b": []string{"a"},
+		"a": {"b"},
+		"b": {"a"},
 	})
 	if got != "a -> b -> a (cycle)" {
 		t.Fatalf("dependencyChain = %q, want cycle marker", got)

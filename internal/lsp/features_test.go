@@ -1052,6 +1052,46 @@ func TestSignalHoverShowsDependencyChain(t *testing.T) {
 	}
 }
 
+func TestSignalExampleDoesNotReportUnknownTypeEquals(t *testing.T) {
+	uri := "file:///tmp/signal.rn"
+	src := `main() => {
+  // new signal
+  $count := 0
+  // computed，自动推导
+  $double := $count * 2
+  // effect scope
+  // 编译期进行依赖收集 -> 监听 $count和$double，发生变化的时候执行 scope
+  {
+    @io.println("count")
+    @io.println("double")
+  }
+  // watch with old/new
+  // -> is watch
+  // signal -> function(old, new)
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  // update
+  $count = $count + 1
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, compileDiags := compiler.AnalyzeSource(uri, src)
+	for _, diag := range compileDiags {
+		if diag.Message == `unknown type "="` {
+			t.Fatalf("compiler diagnostics = %#v, unexpected unknown type '='", compileDiags)
+		}
+	}
+	_, lspDiags := s.analyzeWithWarnings(uri, true)
+	for _, diag := range diagnosticsToLSP(lspDiags) {
+		message, _ := diag["message"].(string)
+		if message == `unknown type "="` {
+			t.Fatalf("lsp diagnostics = %#v, unexpected unknown type '='", lspDiags)
+		}
+	}
+}
+
 func decodeSemanticTokenRanges(data []int) map[position]int {
 	out := map[position]int{}
 	line := 0
@@ -1270,6 +1310,57 @@ fun(flag) => {
 	hints := s.inlayHints(uri).([]map[string]any)
 	if !inlayLabelsContain(hints, "-> { k: Int } ") {
 		t.Fatalf("inlay hints = %#v, want anonymous lambda return hint", hints)
+	}
+}
+
+func TestComplexTypeTernaryLambdaCalleeHasNoDiagnostics(t *testing.T) {
+	uri := "file:///tmp/complex_type2.rn"
+	src := `h(x) => h(x) + 1
+
+f(x) => ({
+  k: x.a + h(1)
+})
+
+g(y) => ({
+  k: y.b + 1
+})
+
+r(flag) => {
+  j := (
+    flag ? (x) => f(x)
+      : (y) => g(y)
+  )
+  j({
+    b: 2,
+    z: false,
+    a: 1
+  }).k
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	_, diags := compiler.AnalyzeSource(uri, src)
+	if len(diags) != 0 {
+		t.Fatalf("diagnostics = %#v, want none", diags)
+	}
+	_, lspDiags := s.analyzeWithWarnings(uri, true)
+
+	hover := s.hover(uri, positionOf(src, "j({", "j")).(map[string]any)
+	if got := hoverValue(hover); !strings.Contains(got, "j: {") || !strings.Contains(got, "} -> {") || !strings.Contains(got, "k: Int") {
+		t.Fatalf("hover = %q, want inferred function signature", got)
+	}
+	foundUnknownType := false
+	foundUndefinedFunction := false
+	for _, diag := range diagnosticsToLSP(lspDiags) {
+		message, _ := diag["message"].(string)
+		if strings.Contains(message, `unknown type "{k:Int}"`) {
+			foundUnknownType = true
+		}
+		if strings.Contains(message, "undefined function j") {
+			foundUndefinedFunction = true
+		}
+	}
+	if foundUnknownType || foundUndefinedFunction {
+		t.Fatalf("unexpected editor diagnostics: unknownType=%v undefinedFunction=%v", foundUnknownType, foundUndefinedFunction)
 	}
 }
 

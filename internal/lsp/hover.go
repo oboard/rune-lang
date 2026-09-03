@@ -19,7 +19,7 @@ func (s *server) hover(uri string, pos position) any {
 	if h := annotationHover(prog, pos); h != nil {
 		return h
 	}
-	if h := s.methodHover(uri, prog, pos); h != nil {
+	if h := s.methodHover(prog, pos); h != nil {
 		return h
 	}
 	if h := s.exprHover(prog, pos); h != nil {
@@ -81,8 +81,8 @@ func annotationHover(prog *compiler.Program, pos position) any {
 	return nil
 }
 
-func (s *server) methodHover(uri string, prog *compiler.Program, pos position) any {
-	if hover := methodDeclHover(uri, prog, pos); hover != nil {
+func (s *server) methodHover(prog *compiler.Program, pos position) any {
+	if hover := methodDeclHover(prog, pos); hover != nil {
 		return hover
 	}
 	sel := selectorAt(prog.File, pos)
@@ -270,7 +270,7 @@ func structTypeByName(file *ast.File, name string) *ast.StructType {
 	return nil
 }
 
-func methodDeclHover(uri string, prog *compiler.Program, pos position) any {
+func methodDeclHover(prog *compiler.Program, pos position) any {
 	for _, trait := range prog.File.Traits {
 		traitInfo := prog.Info.Traits[trait.Name]
 		if traitInfo == nil {

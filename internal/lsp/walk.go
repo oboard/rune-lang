@@ -115,18 +115,6 @@ func annotationAt(file *ast.File, pos position) *ast.Annotation {
 	return found
 }
 
-func walkTemplateExprs(file *ast.File, visit func(ast.Expr)) {
-	walkFileExprs(file, func(expr ast.Expr) {
-		lit, ok := expr.(*ast.TemplateLiteral)
-		if !ok {
-			return
-		}
-		for _, part := range lit.Parts {
-			ast.WalkExpr(part.Expr, visit)
-		}
-	})
-}
-
 func walkDocumentExprs(uri string, file *ast.File, visit func(ast.Expr)) {
 	walkDocumentAnnotations(uri, file, func(annotation *ast.Annotation) {
 		for _, arg := range annotation.Args {

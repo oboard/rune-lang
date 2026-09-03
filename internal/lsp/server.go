@@ -2,8 +2,10 @@ package lsp
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -95,6 +97,7 @@ func (s *server) analyze(uri string) (*compiler.Program, []compiler.Diagnostic) 
 
 func (s *server) analyzeWithWarnings(uri string, includeWarnings bool) (*compiler.Program, []compiler.Diagnostic) {
 	text := s.docs[uri]
+	traceLSPAnalyze(uri, text)
 	if s.cache != nil {
 		if entry, ok := s.cache[uri]; ok && entry.text == text && (!includeWarnings || entry.warnings) {
 			return entry.prog, entry.diags
@@ -144,4 +147,17 @@ func selfhostDiagnostics(uri string, messages []string) []compiler.Diagnostic {
 		diags = append(diags, compiler.Diagnostic{Message: message, Path: uri})
 	}
 	return diags
+}
+
+func traceLSPAnalyze(uri string, text string) {
+	path := os.Getenv("RUNE_LSP_TRACE_PATH")
+	if path == "" {
+		return
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "URI=%s\nTEXT=%q\n---\n", uri, text)
 }
