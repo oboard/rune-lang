@@ -188,7 +188,18 @@ class RuneCodeLensProvider {
     const lenses = [];
     for (let line = 0; line < document.lineCount; line++) {
       const text = document.lineAt(line).text;
-      if (!/^\s*main\s*\(/.test(text)) {
+      // Any function whose name is `main` gets a Run/Debug button. `main` may be
+      // written bare (`main()`), exported (`+ main()`), or with the `~` marker
+      // (`~ main()`), with optional indentation inside a struct/type. `main` must
+      // be a standalone token (so a `.main()` receiver call, a `foo(main())`
+      // argument, or string content is not treated as a declaration) AND be
+      // followed by a `=>` body arrow on the same line, so real declarations get
+      // the button while invocations do not.
+      const mainMatch = /(?<![\w.'"(])main\s*\(/.exec(text);
+      if (!mainMatch) {
+        continue;
+      }
+      if (text.indexOf("=>", mainMatch.index) === -1) {
         continue;
       }
       const range = new vscode.Range(line, 0, line, text.length);
