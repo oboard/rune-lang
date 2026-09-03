@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/parser"
 )
 
 type analyzeSourceFunc func(string, string) (*compiler.Program, []compiler.Diagnostic)
@@ -105,11 +106,11 @@ func (s *server) analyzeWithWarnings(uri string, includeWarnings bool) (*compile
 	} else {
 		s.cache = map[string]programCacheEntry{}
 	}
-	// Core modules are the standard library's own implementation sources. They
-	// intentionally reference declarations that the regular user-file checker
-	// hides to prevent duplicate definitions, so do not publish selfhost's
-	// incomplete-bootstrap diagnostics for these files.
-	if selfhostCheckSource != nil && !isBootstrapSourceURI(uri) {
+	// Core/selfhost modules and tests that import selfhost modules rely on the
+	// host import graph to bring bootstrap declarations into scope. The selfhost
+	// single-source precheck cannot see those imports from an open editor buffer,
+	// so skip it and let the host analyzer report authoritative diagnostics.
+	if selfhostCheckSource != nil && !isBootstrapSourceURI(uri) && !sourceImportsBootstrap(text) {
 		checked := selfhostCheckSource(text, uri)
 		if !checked.Ok {
 			diags := selfhostDiagnostics(uri, checked.Errors)
@@ -139,6 +140,20 @@ func isBootstrapSourceURI(uri string) bool {
 	}
 	path = filepath.ToSlash(filepath.Clean(path))
 	return strings.Contains(path, "/core/") || strings.Contains(path, "/selfhost/")
+}
+
+func sourceImportsBootstrap(text string) bool {
+	file, errs := parser.Parse(text)
+	if len(errs) > 0 || file == nil {
+		return false
+	}
+	for _, imp := range file.Imports {
+		path := filepath.ToSlash(filepath.Clean(imp.Path))
+		if strings.Contains(path, "selfhost/") || strings.Contains(path, "core/") {
+			return true
+		}
+	}
+	return false
 }
 
 func selfhostDiagnostics(uri string, messages []string) []compiler.Diagnostic {

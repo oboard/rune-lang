@@ -301,6 +301,7 @@ func emitGo(path string, output string, stdout io.Writer) error {
 func requiresHostCompilerBridge(path string, source string) bool {
 	return strings.Contains(path, "selfhost/") ||
 		strings.Contains(source, "@net.") ||
+		strings.Contains(source, "$") ||
 		usesMacroAnnotations(source)
 }
 

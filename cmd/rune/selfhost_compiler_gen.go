@@ -6366,6 +6366,10 @@ func __selfhost_infer_infer_inferExprText(__expr __IRExpr, __children []__IRExpr
 			return __selfhost_infer_infer_inferBlockType(__children, 0, "Void")
 		case __expr.__kind == __ExprKind_PatternBlock:
 			return __selfhost_infer_infer_inferPatternBlockType(__children, 0, "")
+		case __expr.__kind == __ExprKind_Assign:
+			return ""
+		case __expr.__kind == __ExprKind_Watch:
+			return ""
 		default:
 			return __expr.__text
 		}
@@ -6485,34 +6489,43 @@ func __selfhost_infer_infer_inferSelectorType(__expr __IRExpr, __children []__IR
 
 func __selfhost_infer_infer_inferExprType(__expr __IRExpr) string {
 	return func() string {
-		if __expr.__text == "" {
+		switch {
+		case __expr.__kind == __ExprKind_Assign:
+			return ""
+		case __expr.__kind == __ExprKind_Watch:
+			return ""
+		default:
 			return func() string {
-				switch {
-				case __expr.__kind == __ExprKind_Int:
-					return "Int"
-				case __expr.__kind == __ExprKind_Double:
-					return "Double"
-				case __expr.__kind == __ExprKind_Bool:
-					return "Bool"
-				case __expr.__kind == __ExprKind_String:
-					return "String"
-				case __expr.__kind == __ExprKind_Char:
-					return "Char"
-				case __expr.__kind == __ExprKind_Block:
-					return __selfhost_infer_infer_inferBlockType(__expr.__children, 0, "Void")
-				case __expr.__kind == __ExprKind_Selector:
+				if __expr.__text == "" {
 					return func() string {
-						if __expr.__name == "k" {
+						switch {
+						case __expr.__kind == __ExprKind_Int:
 							return "Int"
+						case __expr.__kind == __ExprKind_Double:
+							return "Double"
+						case __expr.__kind == __ExprKind_Bool:
+							return "Bool"
+						case __expr.__kind == __ExprKind_String:
+							return "String"
+						case __expr.__kind == __ExprKind_Char:
+							return "Char"
+						case __expr.__kind == __ExprKind_Block:
+							return __selfhost_infer_infer_inferBlockType(__expr.__children, 0, "Void")
+						case __expr.__kind == __ExprKind_Selector:
+							return func() string {
+								if __expr.__name == "k" {
+									return "Int"
+								}
+								return ""
+							}()
+						default:
+							return ""
 						}
-						return ""
 					}()
-				default:
-					return ""
 				}
+				return __expr.__text
 			}()
 		}
-		return __expr.__text
 	}()
 }
 
@@ -6867,8 +6880,41 @@ func __selfhost_compiler_go_inferredGoReturnType(__fn __IRFunction) string {
 			if __fn.__body.__kind == __ExprKind_PatternBlock {
 				return "Int"
 			}
-			return ""
+			return __selfhost_compiler_go_inferGoExprReturnType(__fn.__body)
 		}()
+	}()
+}
+
+func __selfhost_compiler_go_inferGoExprReturnType(__expr __IRExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Block:
+			return __selfhost_compiler_go_inferGoBlockReturnType(__expr.__children)
+		default:
+			return ""
+		}
+	}()
+}
+
+func __selfhost_compiler_go_inferGoBlockReturnType(__statements []__IRExpr) string {
+	return func() string {
+		if len(__statements) == 0 {
+			return ""
+		}
+		return __selfhost_compiler_go_inferGoStatementReturnType(__statements[len(__statements)-1])
+	}()
+}
+
+func __selfhost_compiler_go_inferGoStatementReturnType(__expr __IRExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Assign:
+			return ""
+		case __expr.__kind == __ExprKind_Watch:
+			return ""
+		default:
+			return __expr.__value
+		}
 	}()
 }
 
@@ -6987,11 +7033,24 @@ func __selfhost_compiler_go_emitGoStatement(__file __IRFile, __expr __IRExpr, __
 			return __selfhost_compiler_go_emitGoObjectDestructure(__expr, __level)
 		default:
 			return func() string {
-				if __last && __returns {
+				if __last && __returns && __selfhost_compiler_go_goStatementReturnsValue(__expr) {
 					return __line(__level, "return "+__selfhost_compiler_go_emitGoExprExpectedForFile(__file, __expr, __returnType))
 				}
 				return __line(__level, __selfhost_compiler_go_emitGoExpr(__expr))
 			}()
+		}
+	}()
+}
+
+func __selfhost_compiler_go_goStatementReturnsValue(__expr __IRExpr) bool {
+	return func() bool {
+		switch {
+		case __expr.__kind == __ExprKind_Assign:
+			return false
+		case __expr.__kind == __ExprKind_Watch:
+			return false
+		default:
+			return true
 		}
 	}()
 }
@@ -12499,7 +12558,7 @@ func __selfhost_compiler_compiler_compilerMergeGenerics(__parentGenerics []strin
 
 func __selfhost_compiler_compiler_checkCompilerTypeName(__typeName string, __knownTypes []string, __generics []string, __errors []string) []string {
 	__normalized := __selfhost_compiler_compiler_compilerNormalizeTypeName(__typeName)
-	__shouldSkip := __selfhost_compiler_compiler_compilerShouldSkipTypeName(__normalized) || strings.Contains(__normalized, "=")
+	__shouldSkip := __selfhost_compiler_compiler_compilerShouldSkipTypeName(__normalized)
 	return func() []string {
 		switch {
 		case __shouldSkip == true:
@@ -12764,26 +12823,25 @@ func __selfhost_compiler_compiler_checkIdentifierExpr(__expr __IRExpr, __callabl
 func __selfhost_compiler_compiler_compilerIdentifierDefined(__expr __IRExpr, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) bool {
 	__binding := __selfhost_compiler_compiler_compilerIdentifierBinding(__expr, __bindings)
 	return func() bool {
-		switch {
-		case __binding.__name == "":
+		if __binding.__name == "" {
 			return __selfhost_compiler_compiler_findCompilerCallable(__callables, __expr.__name, 0).__name != ""
-		default:
-			return true
 		}
+		return true
 	}()
 }
 
 func __selfhost_compiler_compiler_compilerIdentifierBinding(__expr __IRExpr, __bindings []__CompilerTypeBinding) __CompilerTypeBinding {
 	__binding := __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__name, 0)
 	return func() __CompilerTypeBinding {
-		switch {
-		case __binding.__name != "":
+		if __binding.__name != "" {
 			return __binding
-		case strings.HasPrefix(__expr.__text, "$"):
-			return __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__text, 0)
-		default:
-			return __selfhost_compiler_compiler_emptyCompilerTypeBinding()
 		}
+		return func() __CompilerTypeBinding {
+			if strings.HasPrefix(__expr.__text, "$") {
+				return __selfhost_compiler_compiler_findCompilerTypeBinding(__bindings, __expr.__text, 0)
+			}
+			return __selfhost_compiler_compiler_emptyCompilerTypeBinding()
+		}()
 	}()
 }
 
@@ -15487,8 +15545,7 @@ func __selfhost_compiler_compiler_compilerTypeBase(__typeName string) string {
 	__signal := strings.HasPrefix(__typeName, "$")
 	__base := func() string {
 		if __signal {
-			runes := []rune(__typeName)
-			return string(runes[1:])
+			return func() string { runes := []rune(__typeName); return string(runes[1:len([]rune(__typeName))]) }()
 		}
 		return __typeName
 	}()

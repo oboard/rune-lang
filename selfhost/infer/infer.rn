@@ -123,6 +123,8 @@ inferExprText(expr: IRExpr, children: Array[IRExpr], params: Array[IRParam]) -> 
   ExprKind.Binary => inferBinaryType(expr)
   ExprKind.Block => inferBlockType(children, 0, "Void")
   ExprKind.PatternBlock => inferPatternBlockType(children, 0, "")
+  ExprKind.Assign => ""
+  ExprKind.Watch => ""
   _ => expr.text
 }
 
@@ -172,8 +174,10 @@ inferSelectorType(expr: IRExpr, children: Array[IRExpr]) -> String => (
     : expr.text
 )
 
-inferExprType(expr: IRExpr) -> String => {
-  expr.text == "" ? expr.kind {
+inferExprType(expr: IRExpr) -> String => expr.kind {
+  ExprKind.Assign => ""
+  ExprKind.Watch => ""
+  _ => expr.text == "" ? expr.kind {
     ExprKind.Int => "Int"
     ExprKind.Double => "Double"
     ExprKind.Bool => "Bool"

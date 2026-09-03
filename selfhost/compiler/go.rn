@@ -495,9 +495,29 @@ inferredGoReturnType(
   fn.returnType != "" ? fn.returnType
     : (
       fn.body.kind == ExprKind.PatternBlock ? "Int"
-        : ""
+        : inferGoExprReturnType(fn.body)
     )
 )
+
+inferGoExprReturnType(
+  expr: IRExpr
+) -> String => expr.kind {
+  ExprKind.Block => inferGoBlockReturnType(expr.children)
+  _ => ""
+}
+
+inferGoBlockReturnType(
+  statements: Array[IRExpr]
+) -> String => statements.length() == 0 ? ""
+  : inferGoStatementReturnType(statements[statements.length() - 1])
+
+inferGoStatementReturnType(
+  expr: IRExpr
+) -> String => expr.kind {
+  ExprKind.Assign => ""
+  ExprKind.Watch => ""
+  _ => expr.value
+}
 
 emitGoFunctionParams(
   fn: IRFunction,
@@ -622,9 +642,17 @@ emitGoStatement(
   ExprKind.Let => emitGoLet(file, expr, level)
   ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
   _ => (
-    last && returns ? line(level, "return " + emitGoExprExpectedForFile(file, expr, returnType))
+    (last && returns) && goStatementReturnsValue(expr) ? line(level, "return " + emitGoExprExpectedForFile(file, expr, returnType))
       : line(level, emitGoExpr(expr))
   )
+}
+
+goStatementReturnsValue(
+  expr: IRExpr
+) -> Bool => expr.kind {
+  ExprKind.Assign => false
+  ExprKind.Watch => false
+  _ => true
 }
 
 emitGoLet(

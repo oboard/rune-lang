@@ -3,6 +3,8 @@ package lsp
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -102,14 +104,61 @@ func TestAnalyzeSkipsSelfhostPrecheckForBootstrapSources(t *testing.T) {
 	analyzeSource = func(path string, text string) (*compiler.Program, []compiler.Diagnostic) {
 		return nil, nil
 	}
-	for _, uri := range []string{
-		"file:///workspace/core/cli/cli.rn",
-		"file:///workspace/selfhost/cli/cli.rn",
+	for _, tc := range []struct {
+		uri  string
+		text string
+	}{
+		{uri: "file:///workspace/core/cli/cli.rn", text: "main() => 1"},
+		{uri: "file:///workspace/selfhost/cli/cli.rn", text: "main() => 1"},
+		{uri: "file:///workspace/tests/compiler_bootstrap.rn", text: "@\"../selfhost/compiler/compiler.rn\"\n\n? \"ok\" {\n  result := compileGo(`main() => 1`)\n}\n"},
 	} {
-		s := &server{docs: map[string]string{uri: "main() => 1"}, cache: map[string]programCacheEntry{}}
-		if _, diags := s.analyze(uri); len(diags) != 0 {
-			t.Fatalf("analyze(%s) diagnostics = %#v, want none", uri, diags)
+		s := &server{docs: map[string]string{tc.uri: tc.text}, cache: map[string]programCacheEntry{}}
+		if _, diags := s.analyze(tc.uri); len(diags) != 0 {
+			t.Fatalf("analyze(%s) diagnostics = %#v, want none", tc.uri, diags)
 		}
+	}
+}
+
+func TestDiagnosticsHandlesCompilerBootstrapImports(t *testing.T) {
+	root := repoRootForLSPTest(t)
+	path := filepath.Join(root, "tests", "compiler_bootstrap.rn")
+	uri := "file://" + filepath.ToSlash(path)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", path, err)
+	}
+
+	prevCheck := selfhostCheckSource
+	selfhostCheckSource = func(string, string) SelfhostCompileResult {
+		return SelfhostCompileResult{Ok: false, Errors: []string{"undefined function compileGo"}}
+	}
+	defer func() { selfhostCheckSource = prevCheck }()
+
+	s := NewSession()
+	s.SetDocument(uri, string(data))
+	for _, diag := range s.Diagnostics(uri) {
+		message, _ := diag["message"].(string)
+		if strings.Contains(message, "compileTypeScript") || strings.Contains(message, "checkSource") || strings.Contains(message, "compileGo") || strings.Contains(message, "SourceFile") {
+			t.Fatalf("Diagnostics(%s) = %#v, want imported compiler declarations resolved", uri, s.Diagnostics(uri))
+		}
+	}
+}
+
+func repoRootForLSPTest(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repo root from %s", dir)
+		}
+		dir = parent
 	}
 }
 

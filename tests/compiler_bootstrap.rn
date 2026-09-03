@@ -1180,6 +1180,27 @@ Status: {
   @assert.eq(result.errors[0], "assignment has type String, expected Int")
 }
 
+? "selfhost compiler emits go signal assignment statements" {
+  result := compileGo(`main() => {
+  $count := 0
+  $double := $count * 2
+  {
+    @io.println("count")
+    @io.println("double")
+  }
+  $count -> (old, new) => {
+    @io.println(old)
+    @io.println(new)
+  }
+  $count = $count + 1
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+  @assert.eq(result.output.includes("func __main() {"), true)
+  @assert.eq(result.output.includes("__count = __count + 1"), true)
+}
+
 ? "selfhost compiler handles signal assignment" {
   result := compileGo(`main() => {
   $count := 0
