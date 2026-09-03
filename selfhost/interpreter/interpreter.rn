@@ -6338,67 +6338,29 @@ callStringMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  name == "length" ? okResult(intValue(runtimeText(receiver).length()))
-    : (
-      name == "isEmpty" ? okResult(boolValue(runtimeText(receiver).length() == 0))
-        : (
-          name == "toString" ? okResult(receiver)
-            : (
-              (name == "at") || (name == "charAt") ? stringAtMethod(interpreter, env, receiver, children)
-                : (
-                  name == "slice" ? stringSliceMethod(interpreter, env, receiver, children)
-                    : (
-                      name == "concat" ? stringConcatMethod(interpreter, env, receiver, children)
-                        : (
-                          name == "includes" ? stringSearchMethod(interpreter, env, receiver, children, "includes")
-                            : (
-                              name == "startsWith" ? stringSearchMethod(interpreter, env, receiver, children, "startsWith")
-                                : (
-                                  name == "endsWith" ? stringSearchMethod(interpreter, env, receiver, children, "endsWith")
-                                    : (
-                                      name == "indexOf" ? stringIndexMethod(interpreter, env, receiver, children, false)
-                                        : (
-                                          name == "lastIndexOf" ? stringIndexMethod(interpreter, env, receiver, children, true)
-                                            : (
-                                              name == "trim" ? okResult(stringValue(runtimeText(receiver).trim()))
-                                                : (
-                                                  name == "trimStart" ? okResult(stringValue(runtimeText(receiver).trimStart()))
-                                                    : (
-                                                      name == "trimEnd" ? okResult(stringValue(runtimeText(receiver).trimEnd()))
-                                                        : (
-                                                          name == "toLowerCase" ? okResult(stringValue(runtimeText(receiver).toLowerCase()))
-                                                            : (
-                                                              name == "toUpperCase" ? okResult(stringValue(runtimeText(receiver).toUpperCase()))
-                                                                : (
-                                                                  name == "repeat" ? stringRepeatMethod(interpreter, env, receiver, children)
-                                                                    : (
-                                                                      name == "replace" ? stringReplaceMethod(interpreter, env, receiver, children, false)
-                                                                        : (
-                                                                          name == "replaceAll" ? stringReplaceMethod(interpreter, env, receiver, children, true)
-                                                                            : (
-                                                                              name == "split" ? stringSplitMethod(interpreter, env, receiver, children)
-                                                                                : errorResult("String has no method " + name)
-                                                                            )
-                                                                        )
-                                                                    )
-                                                                )
-                                                            )
-                                                        )
-                                                    )
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+) -> EvalResult => name {
+  "length" => okResult(intValue(runtimeText(receiver).length()))
+  "isEmpty" => okResult(boolValue(runtimeText(receiver).length() == 0))
+  "toString" => okResult(receiver)
+  "at" | "charAt" => stringAtMethod(interpreter, env, receiver, children)
+  "slice" => stringSliceMethod(interpreter, env, receiver, children)
+  "concat" => stringConcatMethod(interpreter, env, receiver, children)
+  "includes" => stringSearchMethod(interpreter, env, receiver, children, "includes")
+  "startsWith" => stringSearchMethod(interpreter, env, receiver, children, "startsWith")
+  "endsWith" => stringSearchMethod(interpreter, env, receiver, children, "endsWith")
+  "indexOf" => stringIndexMethod(interpreter, env, receiver, children, false)
+  "lastIndexOf" => stringIndexMethod(interpreter, env, receiver, children, true)
+  "trim" => okResult(stringValue(runtimeText(receiver).trim()))
+  "trimStart" => okResult(stringValue(runtimeText(receiver).trimStart()))
+  "trimEnd" => okResult(stringValue(runtimeText(receiver).trimEnd()))
+  "toLowerCase" => okResult(stringValue(runtimeText(receiver).toLowerCase()))
+  "toUpperCase" => okResult(stringValue(runtimeText(receiver).toUpperCase()))
+  "repeat" => stringRepeatMethod(interpreter, env, receiver, children)
+  "replace" => stringReplaceMethod(interpreter, env, receiver, children, false)
+  "replaceAll" => stringReplaceMethod(interpreter, env, receiver, children, true)
+  "split" => stringSplitMethod(interpreter, env, receiver, children)
+  _ => errorResult("String has no method " + name)
+}
 
 stringAtMethod(
   interpreter: Interpreter,

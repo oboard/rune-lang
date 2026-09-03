@@ -354,7 +354,7 @@ lowerFunction(
 + withIRFileSourcePath(
   file: IRFile,
   sourcePath: String
-) -> IRFile => IRFile {
+) -> IRFile => {
   imports: file.imports,
   tsImports: file.tsImports,
   structs: withIRStructSourcePaths(file.structs, sourcePath),
@@ -368,27 +368,16 @@ lowerFunction(
 withIRFunctionSourcePath(
   fn: IRFunction,
   sourcePath: String
-) -> IRFunction => IRFunction {
-  name: fn.name,
-  private: fn.private,
-  static: fn.static,
-  routine: fn.routine,
-  macro: fn.macro,
-  receiverType: fn.receiverType,
-  generics: fn.generics,
-  params: fn.params,
-  returnType: fn.returnType,
-  body: fn.body,
-  sourcePath: sourcePath,
-  line: fn.line,
-  column: fn.column
+) -> IRFunction => {
+  ..fn,
+  sourcePath: sourcePath
 }
 
 withIRFunctionSourcePaths(
   functions: Array[IRFunction],
   sourcePath: String
 ) -> Array[IRFunction] => {
-  out := functions.slice(0, 0)
+  out := []
   functions.each((fn) => out.push(withIRFunctionSourcePath(fn, sourcePath)))
   out
 }
@@ -396,22 +385,17 @@ withIRFunctionSourcePaths(
 withIRStructSourcePath(
   typeDecl: IRStructType,
   sourcePath: String
-) -> IRStructType => IRStructType {
-  name: typeDecl.name,
-  private: typeDecl.private,
-  generics: typeDecl.generics,
-  fields: typeDecl.fields,
+) -> IRStructType => {
+  ..typeDecl,
   methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
   sourcePath: sourcePath,
-  line: typeDecl.line,
-  column: typeDecl.column
 }
 
 withIRStructSourcePaths(
   structs: Array[IRStructType],
   sourcePath: String
 ) -> Array[IRStructType] => {
-  out := structs.slice(0, 0)
+  out := []
   structs.each((typeDecl) => out.push(withIRStructSourcePath(typeDecl, sourcePath)))
   out
 }
@@ -419,29 +403,24 @@ withIRStructSourcePaths(
 withIREnumSourcePath(
   typeDecl: IREnumType,
   sourcePath: String
-) -> IREnumType => IREnumType {
-  name: typeDecl.name,
-  private: typeDecl.private,
-  generics: typeDecl.generics,
-  members: typeDecl.members,
+) -> IREnumType => {
+  ..typeDecl,
   methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
   sourcePath: sourcePath,
-  line: typeDecl.line,
-  column: typeDecl.column
 }
 
 withIREnumSourcePaths(
   enums: Array[IREnumType],
   sourcePath: String
 ) -> Array[IREnumType] => {
-  out := enums.slice(0, 0)
+  out := []
   enums.each((typeDecl) => out.push(withIREnumSourcePath(typeDecl, sourcePath)))
   out
 }
 
 parsedFunctionCompileTimeOnly(
   fn: ParsedFunction
-) -> Bool => fn.macro || typeRefIsSyntaxOnly(fn.returnType) || paramsUseSyntaxOnly(fn.params, 0)
+) -> Bool => (fn.macro || typeRefIsSyntaxOnly(fn.returnType)) || paramsUseSyntaxOnly(fn.params, 0)
 
 paramsUseSyntaxOnly(
   params: Array[ParsedParam],
@@ -511,26 +490,24 @@ lowerExpr(expr: ParsedExpr) -> IRExpr => {
 inferIRExprText(
   expr: ParsedExpr,
   children: Array[IRExpr]
-) -> String => (
-  expr.kind {
-    ExprKind.Binary => inferIRBinaryText(expr, children)
-    ExprKind.Call => inferIRCallText(children)
-    ExprKind.String => "String"
-    ExprKind.Template => "String"
-    ExprKind.XMLText => "String"
-    ExprKind.XMLElement => "HTMLElement"
-    ExprKind.Int => "Int"
-    ExprKind.Double => "Double"
-    ExprKind.BigInt => "BigInt"
-    ExprKind.Char => "Char"
-    ExprKind.Bool => "Bool"
-    ExprKind.Null => "Null"
-    _ => (
-      expr.text != "" ? expr.text
-        : ""
-    )
-  }
-)
+) -> String => expr.kind {
+  ExprKind.Binary => inferIRBinaryText(expr, children)
+  ExprKind.Call => inferIRCallText(children)
+  ExprKind.String => "String"
+  ExprKind.Template => "String"
+  ExprKind.XMLText => "String"
+  ExprKind.XMLElement => "HTMLElement"
+  ExprKind.Int => "Int"
+  ExprKind.Double => "Double"
+  ExprKind.BigInt => "BigInt"
+  ExprKind.Char => "Char"
+  ExprKind.Bool => "Bool"
+  ExprKind.Null => "Null"
+  _ => (
+    expr.text != "" ? expr.text
+      : ""
+  )
+}
 
 inferIRBinaryText(
   expr: ParsedExpr,

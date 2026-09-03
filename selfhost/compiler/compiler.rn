@@ -1046,6 +1046,31 @@ compilerObjectType(
   bindings: Array[CompilerTypeBinding],
   out: String
 ) -> String => {
+  spreadType := compilerObjectSpreadType(members, index, structs, callables, bindings)
+  spreadType == "" ? compilerObjectTypeFields(members, index, structs, callables, bindings, out)
+    : spreadType
+}
+
+compilerObjectSpreadType(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  index >= members.length() ? ""
+    : members[index].kind == ExprKind.Spread ? inferCompilerExprTypeWithStructs(members[index].children[0], structs, callables, bindings)
+      : compilerObjectSpreadType(members, index + 1, structs, callables, bindings)
+}
+
+compilerObjectTypeFields(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  out: String
+) -> String => {
   done := index >= members.length()
   done {
     true => out + "}"
@@ -1062,13 +1087,26 @@ compilerObjectTypeMember(
   out: String
 ) -> String => {
   member := members[index]
-  separator := index == 0 ? "" : ";"
+  member.kind == ExprKind.Spread ? compilerObjectTypeFields(members, index + 1, structs, callables, bindings, out)
+    : compilerObjectTypeNamedMember(members, index, structs, callables, bindings, out)
+}
+
+compilerObjectTypeNamedMember(
+  members: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding],
+  out: String
+) -> String => {
+  member := members[index]
+  separator := out == "{" ? "" : ";"
   typeName := member.kind {
     ExprKind.Method => member.text
     ExprKind.PrivateMethod => member.text
     _ => (member.children.length() > 0) ? inferCompilerExprTypeWithStructs(member.children[0], structs, callables, bindings) : ""
   }
-  compilerObjectType(members, index + 1, structs, callables, bindings, ((out + separator) + member.name) + ":" + typeName)
+  compilerObjectTypeFields(members, index + 1, structs, callables, bindings, ((out + separator) + member.name) + ":" + typeName)
 }
 
 checkObjectMembers(
@@ -1109,9 +1147,25 @@ checkObjectMemberExpr(
   bindings: Array[CompilerTypeBinding],
   objectType: String
 ) -> Array[String] => member.kind {
+  ExprKind.Spread => checkObjectSpreadExpr(member, structs, callables, errors, bindings, objectType)
   ExprKind.Method => checkObjectMethodExpr(member, structs, callables, errors, bindings, objectType)
   ExprKind.PrivateMethod => checkObjectMethodExpr(member, structs, callables, errors, bindings, objectType)
   _ => checkExprDefault(member, structs, callables, errors, bindings)
+}
+
+checkObjectSpreadExpr(
+  member: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding],
+  objectType: String
+) -> Array[String] => {
+  value := member.children[0]
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+  valid := (actual != "") && (actual != "Dynamic") && (actual == objectType)
+  checked := checkExpr(value, structs, callables, errors, bindings)
+  valid ? checked : [..checked, "object spread expects " + objectType + ", got " + actual]
 }
 
 checkObjectMethodExpr(

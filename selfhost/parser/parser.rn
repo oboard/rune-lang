@@ -1588,7 +1588,7 @@ looksLikeObjectLiteralBody(
   state: ParserState
 ) -> Bool => {
   first := skipNewlinesAt(state, state.current + 1)
-  parserKindAt(state, first) == TokenKind.Ident && parserKindAt(state, skipNewlinesAt(state, first + 1)) == TokenKind.Colon
+  (parserKindAt(state, first) == TokenKind.DotDot) || (parserKindAt(state, first) == TokenKind.Ident && parserKindAt(state, skipNewlinesAt(state, first + 1)) == TokenKind.Colon)
 }
 
 parseBlock(
@@ -2692,6 +2692,14 @@ parseObjectLiteralLoop(
 parseObjectLiteralMember(
   state: ParserState,
   object: ParsedExpr
+) -> ExprStep => (
+  parserCheck(state, TokenKind.DotDot) ? parseObjectLiteralSpreadMember(state, object)
+    : parseObjectLiteralNamedMember(state, object)
+)
+
+parseObjectLiteralNamedMember(
+  state: ParserState,
+  object: ParsedExpr
 ) -> ExprStep => {
   privateStep := parseObjectPrivateModifier(state)
   memberState := privateStep.state
@@ -2701,6 +2709,17 @@ parseObjectLiteralMember(
   )
   nextObject := appendChild(object, member.expr)
   parseObjectLiteralLoop(consumeFieldSeparator(member.state, TokenKind.RBrace, "expected ',' between object literal fields"), nextObject)
+}
+
+parseObjectLiteralSpreadMember(
+  state: ParserState,
+  object: ParsedExpr
+) -> ExprStep => {
+  spread := parserConsume(state, TokenKind.DotDot, "expected '..'")
+  value := parseExpression(parserSkipNewlines(spread.state), 1)
+  member := opNode(ExprKind.Spread, "..", spread.token, [value.expr])
+  nextObject := appendChild(object, member)
+  parseObjectLiteralLoop(consumeFieldSeparator(value.state, TokenKind.RBrace, "expected ',' between object literal fields"), nextObject)
 }
 
 parseObjectMethod(
