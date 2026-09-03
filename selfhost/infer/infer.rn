@@ -1,26 +1,44 @@
 @"../ir/ir.rn"
 @"../compiler/common.rn"
 
+InferBlockOut: {
+  statements: Array[IRExpr]
+  bindings: Array[CompilerTypeBinding]
+}
+
 + inferFile(file: IRFile) -> IRFile => IRFile {
   imports: file.imports,
   tsImports: file.tsImports,
   structs: file.structs,
   enums: file.enums,
-  constants: file.constants,
-  functions: inferFunctions(file.functions),
+  constants: inferConstants(file.constants, file.structs, file.enums),
+  functions: inferFunctions(file.functions, file.structs, file.enums),
   tests: file.tests,
   errors: file.errors
 }
 
-inferFunctions(functions: Array[IRFunction]) -> Array[IRFunction] => {
-  out := [emptyIRFunction()].slice(0, 0)
-  functions.each((fn) => out.push(inferFunction(fn)))
+inferConstants(constants: Array[IRConst], structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[IRConst] => {
+  out := [IRConst { name: "", private: false, typeName: "", value: emptyIRExpr(), line: 0, column: 0 }].slice(0, 0)
+  constants.each((constant) => out.push(IRConst {
+    name: constant.name,
+    private: constant.private,
+    typeName: constant.typeName == "" ? inferExprType(inferAnnotate(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0))) : constant.typeName,
+    value: inferAnnotate(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0)),
+    line: constant.line,
+    column: constant.column
+  }))
   out
 }
 
-inferFunction(fn: IRFunction) -> IRFunction => {
-  params := inferParams(fn.params, fn.body)
-  body := inferExpr(fn.body)
+inferFunctions(functions: Array[IRFunction], structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[IRFunction] => {
+  out := [emptyIRFunction()].slice(0, 0)
+  functions.each((fn) => out.push(inferFunction(fn, structs, enums)))
+  out
+}
+
+inferFunction(fn: IRFunction, structs: Array[IRStructType], enums: Array[IREnumType]) -> IRFunction => {
+  seed := inferSeedBindings(fn.params, fn.receiverType, [emptyCompilerTypeBinding()].slice(0, 0))
+  body := inferBody(fn.body, structs, enums, seed)
   IRFunction {
     name: fn.name,
     private: fn.private,
@@ -29,7 +47,7 @@ inferFunction(fn: IRFunction) -> IRFunction => {
     macro: fn.macro,
     receiverType: fn.receiverType,
     generics: fn.generics,
-    params: params,
+    params: inferParams(fn.params, fn.body),
     returnType: fn.returnType == "" ? inferExprType(body) : fn.returnType,
     body: body,
     sourcePath: fn.sourcePath,
@@ -38,8 +56,15 @@ inferFunction(fn: IRFunction) -> IRFunction => {
   }
 }
 
+inferSeedBindings(params: Array[IRParam], receiverType: String, bindings: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => inferSeedBindingsStep(params, receiverType, bindings, 0)
+
+inferSeedBindingsStep(params: Array[IRParam], receiverType: String, bindings: Array[CompilerTypeBinding], index: Int) -> Array[CompilerTypeBinding] => (
+  index >= params.length() ? (receiverType == "" ? bindings : inferAddBinding(bindings, "this", receiverType))
+    : inferSeedBindingsStep(params, receiverType, inferAddBinding(bindings, params[index].name, params[index].typeName), index + 1)
+)
+
 inferParams(params: Array[IRParam], body: IRExpr) -> Array[IRParam] => {
-  out := [IRParam { name: "", typeName: "", line: 0, column: 0 }].slice(0, 0)
+  out := [emptyIRParam()].slice(0, 0)
   params.each((param) => out.push(inferParam(param, body)))
   out
 }
@@ -64,16 +89,165 @@ inferParamTypeInChildren(name: String, children: Array[IRExpr], index: Int) -> S
     }
 )
 
-inferExpr(expr: IRExpr) -> IRExpr => {
-  children := inferExprs(expr.children)
+// ---- Environment-aware body inference ---------------------------------------
+inferBody(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> IRExpr => expr.kind {
+  ExprKind.Block => inferBlock(expr, structs, enums, bindings)
+  _ => inferAnnotate(expr, structs, enums, bindings)
+}
+
+inferBlock(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> IRExpr => {
+  result := inferBlockStatements(expr.children, structs, enums, bindings, 0, [emptyIRExpr()].slice(0, 0))
+  synced := inferSyncStatements(result.statements, result.bindings, 0, [emptyIRExpr()].slice(0, 0))
+  IRExpr {
+    kind: ExprKind.Block,
+    text: inferBlockType(synced, 0, "Void"),
+    name: expr.name,
+    value: expr.value,
+    op: expr.op,
+    params: expr.params,
+    children: synced,
+    line: expr.line,
+    column: expr.column
+  }
+}
+
+inferBlockStatements(children: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> InferBlockOut => (
+  index >= children.length() ? InferBlockOut { statements: out, bindings: bindings }
+    : inferBlockStep(children, structs, enums, bindings, index, out)
+)
+
+inferBlockStep(children: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> InferBlockOut => (
+  children[index].kind == ExprKind.Let ? inferLetStep(children, structs, enums, bindings, index, out)
+    : inferPlainStep(children[index], children, structs, enums, inferMaybeRefine(bindings, children[index], structs, enums), index, out)
+)
+
+inferLetStep(children: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> InferBlockOut => {
+  value := inferAnnotate(children[index].children[0], structs, enums, bindings)
+  newBindings := inferAddBinding(bindings, children[index].name, inferExprType(value))
+  next := inferBlockStatements(children, structs, enums, newBindings, index + 1, [..out, inferLetRebuild(children[index], value)])
+  next
+}
+
+inferPlainStep(expr: IRExpr, children: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> InferBlockOut => {
+  statement := inferAnnotate(expr, structs, enums, bindings)
+  inferBlockStatements(children, structs, enums, bindings, index + 1, [..out, statement])
+}
+
+inferLetRebuild(expr: IRExpr, value: IRExpr) -> IRExpr => IRExpr {
+  kind: ExprKind.Let,
+  text: expr.text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: expr.params,
+  children: [value],
+  line: expr.line,
+  column: expr.column
+}
+
+// After a whole block is inferred, the binding environment may have been refined
+// (e.g. `out := []` + `out.push("x")` peaks out as `Array[String]`). Stamp that
+// refined type back onto the `let` node's `.text` so emitters can render a typed
+// array literal instead of a plain `[]any`.
+inferSyncStatements(
+  statements: Array[IRExpr],
+  bindings: Array[CompilerTypeBinding],
+  index: Int,
+  out: Array[IRExpr]
+) -> Array[IRExpr] => (
+  index >= statements.length() ? out
+    : statements[index].kind == ExprKind.Let ? inferSyncStatements(statements, bindings, index + 1, [..out, inferSyncLet(statements[index], bindings)])
+      : inferSyncStatements(statements, bindings, index + 1, [..out, statements[index]])
+)
+
+inferSyncLet(expr: IRExpr, bindings: Array[CompilerTypeBinding]) -> IRExpr => {
+  bindingType := inferBindingTypeOf(bindings, expr.name, 0)
+  bindingType.startsWith("Array[") ? inferSetLetText(expr, bindingType) : expr
+}
+
+inferBindingTypeOf(bindings: Array[CompilerTypeBinding], name: String, index: Int) -> String => (
+  index >= bindings.length() ? ""
+    : bindings[index].name == name ? bindings[index].typeName
+      : inferBindingTypeOf(bindings, name, index + 1)
+)
+
+inferSetLetText(expr: IRExpr, text: String) -> IRExpr => IRExpr {
+  kind: ExprKind.Let,
+  text: text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: expr.params,
+  children: expr.children,
+  line: expr.line,
+  column: expr.column
+}
+
+// `let x := []`, then a later `x.push(y)` refines x's binding to `Array[Y]`.
+inferMaybeRefine(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => (
+  expr.kind == ExprKind.Call ? inferMaybeRefineCall(bindings, expr, structs, enums) : bindings
+)
+
+inferMaybeRefineCall(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => (
+  (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? inferRefineFromSelector(bindings, expr, expr.children[0], structs, enums)
+    : bindings
+)
+
+inferRefineFromSelector(bindings: Array[CompilerTypeBinding], expr: IRExpr, selector: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => ((selector.name == "push") && (expr.children.length() > 1) && (selector.children.length() > 0) && (selector.children[0].kind == ExprKind.Identifier)) ? inferRefineArrayBinding(bindings, selector.children[0].name, inferValueType(inferAnnotate(expr.children[1], structs, enums, bindings))) : bindings
+
+inferRefineArrayBinding(bindings: Array[CompilerTypeBinding], name: String, elemType: String) -> Array[CompilerTypeBinding] => (
+  elemType == "" ? bindings
+    : inferRefineStep(bindings, name, elemType, 0, [emptyCompilerTypeBinding()].slice(0, 0))
+)
+
+inferRefineStep(bindings: Array[CompilerTypeBinding], name: String, elemType: String, index: Int, out: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => (
+  index >= bindings.length() ? inferRefineFinish(out, name, elemType)
+    : bindings[index].name == name ? inferRefineStep(bindings, name, elemType, index + 1, [..out, compilerTypeBinding(name, "Array[" + elemType + "]")])
+      : inferRefineStep(bindings, name, elemType, index + 1, [..out, bindings[index]])
+)
+
+inferRefineFinish(out: Array[CompilerTypeBinding], name: String, elemType: String) -> Array[CompilerTypeBinding] => {
+  hasName := inferHasBinding(out, name, 0)
+  hasName ? out : [..out, compilerTypeBinding(name, "Array[" + elemType + "]")]
+}
+
+inferHasBinding(bindings: Array[CompilerTypeBinding], name: String, index: Int) -> Bool => (
+  index >= bindings.length() ? false
+    : bindings[index].name == name ? true
+      : inferHasBinding(bindings, name, index + 1)
+)
+
+// Binding helpers (self-contained; infer.rn cannot import compiler.rn).
+compilerTypeBinding(name: String, typeName: String) -> CompilerTypeBinding => CompilerTypeBinding { name: name, typeName: typeName }
+
+emptyCompilerTypeBinding() -> CompilerTypeBinding => CompilerTypeBinding { name: "", typeName: "" }
+
+emptyIRParam() -> IRParam => IRParam { name: "", typeName: "", line: 0, column: 0 }
+
+inferAddBinding(bindings: Array[CompilerTypeBinding], name: String, typeName: String) -> Array[CompilerTypeBinding] => [..inferDropBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), compilerTypeBinding(name, typeName)]
+
+inferDropBinding(bindings: Array[CompilerTypeBinding], name: String, index: Int, out: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => (
+  index >= bindings.length() ? out
+    : bindings[index].name == name ? inferDropBinding(bindings, name, index + 1, out)
+      : inferDropBinding(bindings, name, index + 1, [..out, bindings[index]])
+)
+
+inferFindBinding(bindings: Array[CompilerTypeBinding], name: String, index: Int) -> CompilerTypeBinding => (
+  index >= bindings.length() ? emptyCompilerTypeBinding()
+    : bindings[index].name == name ? bindings[index]
+      : inferFindBinding(bindings, name, index + 1)
+)
+
+// Expression-level annotation ------------------------------------------------------
+inferAnnotate(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> IRExpr => {
+  children := inferChildren(expr.children, structs, enums, bindings)
   params := expr.kind {
-    ExprKind.Lambda => inferLambdaParams(expr.params, expr.children)
+    ExprKind.Lambda => inferLambdaParams(expr.params, children)
     _ => expr.params
   }
-  text := inferExprText(expr, children, params)
   IRExpr {
     kind: expr.kind,
-    text: text,
+    text: inferAnnotateText(expr, children, params, structs, enums, bindings),
     name: expr.name,
     value: expr.value,
     op: expr.op,
@@ -84,55 +258,77 @@ inferExpr(expr: IRExpr) -> IRExpr => {
   }
 }
 
-inferLambdaParams(params: Array[IRParam], children: Array[IRExpr]) -> Array[IRParam] => {
-  out := [IRParam { name: "", typeName: "", line: 0, column: 0 }].slice(0, 0)
-  params.each((param) => out.push(IRParam {
-    name: param.name,
-    typeName: param.typeName == "" ? inferLambdaParamType(param.name, children, 0) : param.typeName,
-    line: param.line,
-    column: param.column
-  }))
-  out
-}
+inferChildren(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> Array[IRExpr] => inferChildrenStep(exprs, structs, enums, bindings, 0, [emptyIRExpr()].slice(0, 0))
 
-inferLambdaParamType(name: String, children: Array[IRExpr], index: Int) -> String => (
-  index >= children.length() ? "Dynamic"
-    : inferLambdaParamTypeInExpr(name, children[index]) {
-      "" => inferLambdaParamType(name, children, index + 1)
-      _ => inferLambdaParamTypeInExpr(name, children[index])
-    }
+inferChildrenStep(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> Array[IRExpr] => (
+  index >= exprs.length() ? out
+    : inferChildrenStep(exprs, structs, enums, bindings, index + 1, [..out, inferChild(exprs[index], structs, enums, bindings)])
 )
 
-inferLambdaParamTypeInExpr(name: String, expr: IRExpr) -> String => expr.kind {
-  ExprKind.Selector => ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && (expr.children[0].name == name)) ? "{b:Int;z:Bool;a:Int}" : inferLambdaParamType(name, expr.children, 0)
-  _ => inferLambdaParamType(name, expr.children, 0)
+inferChild(child: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> IRExpr => child.kind {
+  ExprKind.Block => inferBlock(child, structs, enums, bindings)
+  _ => inferAnnotate(child, structs, enums, bindings)
 }
 
-inferExprs(exprs: Array[IRExpr]) -> Array[IRExpr] => {
-  out := [emptyIRExpr()].slice(0, 0)
-  exprs.each((expr) => out.push(inferExpr(expr)))
-  out
-}
-
-inferExprText(expr: IRExpr, children: Array[IRExpr], params: Array[IRParam]) -> String => expr.kind {
+inferAnnotateText(expr: IRExpr, children: Array[IRExpr], params: Array[IRParam], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> String => expr.kind {
+  ExprKind.Identifier => inferIdentifierText(expr, bindings)
+  ExprKind.Selector => inferFieldSelectorText(expr, children, structs)
   ExprKind.Object => inferObjectType(children, 0, "{")
   ExprKind.Lambda => inferLambdaType(params, children)
   ExprKind.Ternary => inferTernaryType(children)
   ExprKind.Call => inferCallType(children)
-  ExprKind.Selector => inferSelectorType(expr, children)
   ExprKind.Binary => inferBinaryType(expr)
-  ExprKind.Block => inferBlockType(children, 0, "Void")
   ExprKind.PatternBlock => inferPatternBlockType(children, 0, "")
   ExprKind.Assign => ""
   ExprKind.Watch => ""
+  ExprKind.Block => "Void"
+  ExprKind.Struct => expr.name
+  ExprKind.Array => inferArrayText(children)
+  ExprKind.Let => children.length() > 0 ? inferExprType(children[0]) : ""
   _ => expr.text
 }
 
-inferPatternBlockType(branches: Array[IRExpr], index: Int, previous: String) -> String => (
-  index >= branches.length() ? previous
-    : branches[index].children.length() > 1 ? inferPatternBlockType(branches, index + 1, inferExprType(branches[index].children[1]))
-      : inferPatternBlockType(branches, index + 1, previous)
+inferIdentifierText(expr: IRExpr, bindings: Array[CompilerTypeBinding]) -> String => (
+  (expr.text.startsWith("$") || expr.name == "this") ? inferFindBinding(bindings, "this", 0).typeName
+    : inferFindBinding(bindings, expr.name, 0).typeName
 )
+
+inferFieldSelectorText(expr: IRExpr, children: Array[IRExpr], structs: Array[IRStructType]) -> String => (
+  children.length() == 0 ? expr.text
+    : inferFieldSelectorFromType(inferExprType(children[0]), expr.name, structs)
+)
+
+inferFieldSelectorFromType(criteria: String, fieldName: String, structs: Array[IRStructType]) -> String => (
+  criteria == "" ? ""
+    : (criteria.startsWith("Array") || criteria.startsWith("Map") || criteria.startsWith("Nullable") || criteria.startsWith("Iter") || criteria.startsWith("Result")) ? inferReceiverRootField(fieldName)
+      : inferFieldInStruct(criteria, fieldName, structs, 0)
+)
+
+inferReceiverRootField(fieldName: String) -> String => (
+  fieldName == "length" ? "Int"
+    : fieldName == "size" ? "Int"
+      : fieldName == "isEmpty" || fieldName == "nonEmpty" ? "Bool"
+        : ""
+)
+
+inferFieldInStruct(typeName: String, fieldName: String, structs: Array[IRStructType], index: Int) -> String => (
+  index >= structs.length() ? ""
+    : structs[index].name == typeName ? inferFieldByName(structs[index].fields, fieldName, 0)
+      : inferFieldInStruct(typeName, fieldName, structs, index + 1)
+)
+
+inferFieldByName(fields: Array[IRField], fieldName: String, index: Int) -> String => (
+  index >= fields.length() ? ""
+    : fields[index].name == fieldName ? fields[index].typeName
+      : inferFieldByName(fields, fieldName, index + 1)
+)
+
+inferArrayText(children: Array[IRExpr]) -> String => (
+  children.length() == 0 ? "Array"
+    : "Array[" + inferExprType(children[0]) + "]"
+)
+
+inferValueType(expr: IRExpr) -> String => inferExprType(expr)
 
 inferObjectType(fields: Array[IRExpr], index: Int, out: String) -> String => (
   index >= fields.length() ? out + "}"
@@ -144,33 +340,36 @@ inferLambdaType(params: Array[IRParam], children: Array[IRExpr]) -> String => (
     : "Func[" + inferParamTypes(params, 0, "") + "|" + inferExprType(children[0]) + "]"
 )
 
-inferParamTypes(params: Array[IRParam], index: Int, out: String) -> String => (
-  index >= params.length() ? out
-    : inferParamTypes(params, index + 1, out + (index == 0 ? "" : "|") + params[index].typeName)
-)
-
 inferTernaryType(children: Array[IRExpr]) -> String => (
   children.length() < 3 ? ""
     : inferExprType(children[1]) == inferExprType(children[2]) ? inferExprType(children[1]) : ""
 )
 
 inferCallType(children: Array[IRExpr]) -> String => (
-  children.length() == 0 ? ""
-    : inferFunctionReturnType(inferExprType(children[0]))
+  children.length() == 0 ? "" : inferFunctionReturnType(inferExprType(children[0]))
 )
 
 inferFunctionReturnType(typeName: String) -> String => (
-  typeName.startsWith("Func[") && typeName.endsWith("]") ? typeName.split("|")[typeName.split("|").length() - 1].slice(0, typeName.split("|")[typeName.split("|").length() - 1].length() - 1)
+  typeName.startsWith("Func[") && typeName.endsWith("]") ? inferReturnPart(typeName)
     : ""
+)
+
+inferReturnPart(typeName: String) -> String => (
+  typeName.split("|")[typeName.split("|").length() - 1].slice(0, typeName.split("|")[typeName.split("|").length() - 1].length() - 1)
+)
+
+inferParamTypes(params: Array[IRParam], index: Int, out: String) -> String => (
+  index >= params.length() ? out : inferParamTypes(params, index + 1, out + (index == 0 ? "" : "|") + params[index].typeName)
+)
+
+inferPatternBlockType(branches: Array[IRExpr], index: Int, previous: String) -> String => (
+  index >= branches.length() ? previous
+    : branches[index].children.length() > 1 ? inferPatternBlockType(branches, index + 1, inferExprType(branches[index].children[1]))
+      : inferPatternBlockType(branches, index + 1, previous)
 )
 
 inferBinaryType(expr: IRExpr) -> String => (
   expr.op ~ ("+" | "-" | "*" | "/" | "%") ? "Int"
-    : expr.text
-)
-
-inferSelectorType(expr: IRExpr, children: Array[IRExpr]) -> String => (
-  (children.length() > 0) && (expr.name == "k") ? "Int"
     : expr.text
 )
 
@@ -193,3 +392,27 @@ inferBlockType(children: Array[IRExpr], index: Int, previous: String) -> String 
   index >= children.length() ? previous
     : inferBlockType(children, index + 1, inferExprType(children[index]))
 )
+
+inferLambdaParams(params: Array[IRParam], children: Array[IRExpr]) -> Array[IRParam] => {
+  out := [emptyIRParam()].slice(0, 0)
+  params.each((param) => out.push(IRParam {
+    name: param.name,
+    typeName: param.typeName == "" ? inferLambdaParamType(param.name, children, 0) : param.typeName,
+    line: param.line,
+    column: param.column
+  }))
+  out
+}
+
+inferLambdaParamType(name: String, children: Array[IRExpr], index: Int) -> String => (
+  index >= children.length() ? "Dynamic"
+    : inferLambdaParamTypeInExpr(name, children[index]) {
+      "" => inferLambdaParamType(name, children, index + 1)
+      _ => inferLambdaParamTypeInExpr(name, children[index])
+    }
+)
+
+inferLambdaParamTypeInExpr(name: String, expr: IRExpr) -> String => expr.kind {
+  ExprKind.Selector => ((expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && (expr.children[0].name == name)) ? "{b:Int;z:Bool;a:Int}" : inferLambdaParamType(name, expr.children, 0)
+  _ => inferLambdaParamType(name, expr.children, 0)
+}

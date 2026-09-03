@@ -126,6 +126,42 @@ func TestRuneCLITypeScriptUsesSelfhostCompiler(t *testing.T) {
 	}
 }
 
+func TestRuneCLITypeScriptRewritesInstanceMethodCalls(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `User: {
+  id: Int
+  name: String
+  age: Int
+  isAdult() -> Bool => .age >= 18
+}
+main() => {
+  user := User { id: 1, name: "oboard", age: 22 }
+  @io.println(user.name)
+  @io.println(user.isAdult())
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts) error = %v, stderr = %s", err, errOut.String())
+	}
+	got := out.String()
+	if !strings.Contains(got, "function __User_isAdult(__this: __User): boolean") {
+		t.Fatalf("self-hosted TypeScript missing mangled method: %q", got)
+	}
+	if !strings.Contains(got, "console.log(__user.name)") {
+		t.Fatalf("self-hosted TypeScript should keep field access, got %q", got)
+	}
+	if !strings.Contains(got, "console.log(__User_isAdult(__user))") {
+		t.Fatalf("self-hosted TypeScript should rewrite instance method call, got %q", got)
+	}
+	if strings.Contains(got, "__user.isAdult()") {
+		t.Fatalf("self-hosted TypeScript must not emit uncallable __user.isAdult(): %q", got)
+	}
+}
+
 func TestRuneCLIGoUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")

@@ -953,7 +953,7 @@ main() => {
   @assert.eq(mbt.output.includes("enum RuneStatus"), true)
   @assert.eq(mbt.output.includes("struct RuneUser"), true)
   @assert.eq(mbt.output.includes("RuneUser::{ __name: \"Rune\" }"), true)
-  @assert.eq(mbt.output.includes("println((__user.__name).to_string() + \" \" + (RuneStatus::RuneReady).to_string())"), true)
+  @assert.eq(mbt.output.includes("println(__user.__name + \" \" + (RuneStatus::RuneReady).to_string())"), true)
 }
 
 ? "selfhost compiler emits static methods" {

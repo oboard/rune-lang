@@ -4,26 +4,616 @@
 + generateTypeScript(
   file: IRFile
 ) -> String => {
-  out :=: emitTSImports(file)
+  resolved := rewriteTSMethodCalls(file)
+  out :=: emitTSImports(resolved)
   (
-    fileUsesUnwrap(file) ? out = out + emitTSUnwrapHelper()
+    fileUsesUnwrap(resolved) ? out = out + emitTSUnwrapHelper()
   )
   (
-    fileUsesPathFamily(file) ? out = out + emitTSPathHelpers()
+    fileUsesPathFamily(resolved) ? out = out + emitTSPathHelpers()
   )
-  file.enums.each((enumDecl) => out = (out + emitTSEnum(enumDecl)) + "\n")
-  file.enums.each((enumDecl) => out = out + emitTSEnumMethods(enumDecl))
-  file.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
-  file.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
-  file.constants.each((constant) => out = (out + emitTSConst(constant)) + "\n")
-  file.functions.each((fn) => out = (
+  resolved.enums.each((enumDecl) => out = (out + emitTSEnum(enumDecl)) + "\n")
+  resolved.enums.each((enumDecl) => out = out + emitTSEnumMethods(enumDecl))
+  resolved.structs.each((typeDecl) => out = (out + emitTSStruct(typeDecl)) + "\n")
+  resolved.structs.each((typeDecl) => out = out + emitTSMethods(typeDecl))
+  resolved.constants.each((constant) => out = (out + emitTSConst(constant)) + "\n")
+  resolved.functions.each((fn) => out = (
     fn.macro ? out
       : (out + emitTSFunction(fn)) + "\n"
   ))
-  out + emitTSExports(file)
+  out + emitTSExports(resolved)
 }
 
 emitTSImports(file: IRFile) -> String => emitTSImportList(file.tsImports, 0, "")
+
+rewriteTSMethodCalls(file: IRFile) -> IRFile => {
+  structs := rewriteTSStructs(file.structs, file.structs, file.enums)
+  enums := rewriteTSEnums(file.enums, file.structs, file.enums)
+  IRFile {
+    imports: file.imports,
+    tsImports: file.tsImports,
+    structs: structs,
+    enums: enums,
+    constants: rewriteTSConstants(file.constants, file.structs, file.enums),
+    functions: rewriteTSFunctions(file.functions, file.structs, file.enums),
+    tests: rewriteTSTests(file.tests, file.structs, file.enums),
+    errors: file.errors
+  }
+}
+
+rewriteTSStructs(
+  structs: Array[IRStructType],
+  allStructs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> Array[IRStructType] => {
+  out := [IRStructType {
+    name: "",
+    private: false,
+    generics: [],
+    fields: [],
+    methods: [],
+    sourcePath: "",
+    line: 0,
+    column: 0
+  }].slice(0, 0)
+  structs.each((typeDecl) => out.push(IRStructType {
+    name: typeDecl.name,
+    private: typeDecl.private,
+    generics: typeDecl.generics,
+    fields: typeDecl.fields,
+    methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums),
+    sourcePath: typeDecl.sourcePath,
+    line: typeDecl.line,
+    column: typeDecl.column
+  }))
+  out
+}
+
+rewriteTSEnums(
+  enums: Array[IREnumType],
+  structs: Array[IRStructType],
+  allEnums: Array[IREnumType]
+) -> Array[IREnumType] => {
+  out := [IREnumType {
+    name: "",
+    private: false,
+    generics: [],
+    members: [],
+    methods: [],
+    sourcePath: "",
+    line: 0,
+    column: 0
+  }].slice(0, 0)
+  enums.each((typeDecl) => out.push(IREnumType {
+    name: typeDecl.name,
+    private: typeDecl.private,
+    generics: typeDecl.generics,
+    members: typeDecl.members,
+    methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, structs, allEnums),
+    sourcePath: typeDecl.sourcePath,
+    line: typeDecl.line,
+    column: typeDecl.column
+  }))
+  out
+}
+
+rewriteTSConstants(
+  constants: Array[IRConst],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> Array[IRConst] => {
+  out := [IRConst {
+    name: "",
+    private: false,
+    typeName: "",
+    value: emptyIRExpr(),
+    line: 0,
+    column: 0
+  }].slice(0, 0)
+  constants.each((constant) => {
+    value := rewriteTSExpr(constant.value, structs, enums, [emptyCompilerTypeBinding()].slice(0, 0))
+    out.push(IRConst {
+      name: constant.name,
+      private: constant.private,
+      typeName: constant.typeName,
+      value: value,
+      line: constant.line,
+      column: constant.column
+    })
+  })
+  out
+}
+
+rewriteTSTests(
+  tests: Array[IRTest],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> Array[IRTest] => {
+  out := [IRTest {
+    name: "",
+    body: emptyIRExpr(),
+    line: 0,
+    column: 0
+  }].slice(0, 0)
+  tests.each((test) => {
+    bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+    body := rewriteTSExpr(test.body, structs, enums, bindings)
+    out.push(IRTest {
+      name: test.name,
+      body: body,
+      line: test.line,
+      column: test.column
+    })
+  })
+  out
+}
+
+rewriteTSFunctions(
+  functions: Array[IRFunction],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> Array[IRFunction] => {
+  out := [emptyIRFunction()].slice(0, 0)
+  functions.each((fn) => out.push(rewriteTSFunction(fn, structs, enums)))
+  out
+}
+
+rewriteTSFunction(
+  fn: IRFunction,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> IRFunction => rewriteTSFunctionWithThis(fn, structs, enums, "")
+
+rewriteTSTypeMethods(
+  methods: Array[IRFunction],
+  typeName: String,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType]
+) -> Array[IRFunction] => {
+  out := [emptyIRFunction()].slice(0, 0)
+  methods.each((method) => out.push(rewriteTSFunctionWithThis(method, structs, enums, typeName)))
+  out
+}
+
+rewriteTSFunctionWithThis(
+  fn: IRFunction,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  thisType: String
+) -> IRFunction => rewriteTSFunctionBody(fn, structs, enums, thisType)
+
+rewriteTSFunctionBody(
+  fn: IRFunction,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  thisType: String
+) -> IRFunction => {
+  bindings := [emptyCompilerTypeBinding()].slice(0, 0)
+  fn.params.each((param) => bindings = tsAddBinding(bindings, param.name, param.typeName))
+  bindings = (thisType == "") ? bindings : tsAddBinding(bindings, "this", thisType)
+  body := rewriteTSExpr(fn.body, structs, enums, bindings)
+  IRFunction {
+    name: fn.name,
+    private: fn.private,
+    static: fn.static,
+    routine: fn.routine,
+    macro: fn.macro,
+    receiverType: fn.receiverType,
+    generics: fn.generics,
+    params: fn.params,
+    returnType: fn.returnType,
+    body: body,
+    sourcePath: fn.sourcePath,
+    line: fn.line,
+    column: fn.column
+  }
+}
+
+emptyCompilerTypeBinding() -> CompilerTypeBinding => {
+  name: "",
+  typeName: ""
+}
+
+tsAddBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  typeName: String
+) -> Array[CompilerTypeBinding] => [..dropTSBinding(bindings, name, 0, [emptyCompilerTypeBinding()].slice(0, 0)), tsBinding(name, typeName)]
+
+tsBinding(
+  name: String,
+  typeName: String
+) -> CompilerTypeBinding => {
+  name: name,
+  typeName: typeName
+}
+
+dropTSBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int,
+  out: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => (
+  index >= bindings.length() ? out
+    : bindings[index].name == name ? dropTSBinding(bindings, name, index + 1, out)
+      : dropTSBinding(bindings, name, index + 1, [..out, bindings[index]])
+)
+
+tsLookupBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String,
+  index: Int
+) -> CompilerTypeBinding => (
+  index >= bindings.length() ? emptyCompilerTypeBinding()
+    : bindings[index].name == name ? bindings[index]
+      : tsLookupBinding(bindings, name, index + 1)
+)
+
+tsTypeBase(typeName: String) -> String => {
+  open := typeName.indexOf("[")
+  (
+    open < 0 ? typeName
+      : typeName.slice(0, open)
+  )
+}
+
+rewriteTSExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => expr.kind {
+  ExprKind.Call => rewriteTSCall(expr, structs, enums, bindings)
+  ExprKind.Block => rewriteTSBlockExpr(expr, structs, enums, bindings)
+  ExprKind.Let => rewriteTSLet(expr, structs, enums, bindings)
+  _ => tsRebuildExpr(expr, rewriteTSChildren(expr.children, structs, enums, bindings))
+}
+
+rewriteTSBlockExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => {
+  result := rewriteTSBlockStatements(expr.children, 0, structs, enums, bindings, [emptyIRExpr()].slice(0, 0))
+  IRExpr {
+    kind: expr.kind,
+    text: expr.text,
+    name: expr.name,
+    value: expr.value,
+    op: expr.op,
+    params: expr.params,
+    children: result,
+    line: expr.line,
+    column: expr.column
+  }
+}
+
+rewriteTSBlockStatements(
+  statements: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding],
+  out: Array[IRExpr]
+) -> Array[IRExpr] => (
+  index >= statements.length() ? out
+    : rewriteTSBlockStep(statements, index, structs, enums, bindings, out)
+)
+
+rewriteTSBlockStep(
+  statements: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding],
+  out: Array[IRExpr]
+) => {
+  statement := rewriteTSStatement(statements[index], structs, enums, bindings)
+  nextBindings := tsStatementBindings(statements[index], structs, enums, bindings)
+  rewriteTSBlockStatements(statements, index + 1, structs, enums, nextBindings, [..out, statement])
+}
+
+rewriteTSStatement(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => (
+  expr.kind == ExprKind.Let ? rewriteTSLet(expr, structs, enums, bindings)
+    : rewriteTSExpr(expr, structs, enums, bindings)
+)
+
+rewriteTSLet(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => IRExpr {
+  kind: expr.kind,
+  text: expr.text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: expr.params,
+  children: tsRewriteChildren(expr.children, structs, enums, bindings),
+  line: expr.line,
+  column: expr.column
+}
+
+tsLetBindingType(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> String => (
+  expr.value != "" ? tsTypeBase(expr.value)
+    : (
+      expr.children.length() > 0 ? (
+        expr.children[0].kind == ExprKind.Struct ? tsTypeBase(expr.children[0].name)
+          : tsResolveReceiverType(expr.children[0], structs, enums, bindings)
+      )
+        : ""
+    )
+)
+
+tsStatementBindings(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  kind := expr.kind
+  kind == ExprKind.Let ? tsAddBinding(bindings, expr.name, tsLetBindingType(expr, structs, enums, bindings))
+    : bindings
+}
+
+rewriteTSCall(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => {
+  hasSelectorCallee := (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector)
+  hasSelectorCallee {
+    true => rewriteTSSelectorCall(expr, structs, enums, bindings)
+    _ => tsRebuildExpr(expr, tsRewriteChildren(expr.children, structs, enums, bindings))
+  }
+}
+
+rewriteTSSelectorCall(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> IRExpr => {
+  callee := expr.children[0]
+  hasReceiver := callee.children.length() > 0
+  receiver := (
+    hasReceiver ? rewriteTSExpr(callee.children[0], structs, enums, bindings)
+      : emptyIRExpr()
+  )
+  receiverType := tsResolveReceiverType(receiver, structs, enums, bindings)
+  rewrittenArgs := tsRewriteArgs(expr.children, structs, enums, bindings)
+  shouldRewrite := tsFindMethodCall(structs, enums, receiverType, callee.name)
+  shouldRewrite {
+    true => tsBuildMethodCall(expr, receiverType, callee.name, receiver, rewrittenArgs)
+    _ => tsRebuildExpr(expr, tsPrependExpr(tsRebuildExpr(callee, hasReceiver ? [receiver] : []), rewrittenArgs))
+  }
+}
+
+tsBuildMethodCall(
+  expr: IRExpr,
+  receiverType: String,
+  methodName: String,
+  receiver: IRExpr,
+  args: Array[IRExpr]
+) -> IRExpr => {
+  calleeIdent := tsMethodCallee((tsTypeBase(receiverType) + "_") + methodName)
+  IRExpr {
+    kind: expr.kind,
+    text: expr.text,
+    name: expr.name,
+    value: expr.value,
+    op: expr.op,
+    params: expr.params,
+    children: tsCallChildren(calleeIdent, receiver, args),
+    line: expr.line,
+    column: expr.column
+  }
+}
+
+tsMethodCallee(name: String) -> IRExpr => IRExpr {
+  kind: ExprKind.Identifier,
+  text: name,
+  name: name,
+  value: "",
+  op: "",
+  params: [],
+  children: [],
+  line: 0,
+  column: 0
+}
+
+tsCallChildren(
+  callee: IRExpr,
+  receiver: IRExpr,
+  args: Array[IRExpr]
+) -> Array[IRExpr] => tsPrependExprAll(callee, receiver, args)
+
+tsPrependExprAll(
+  callee: IRExpr,
+  receiver: IRExpr,
+  args: Array[IRExpr]
+) -> Array[IRExpr] => {
+  out := [callee, receiver]
+  args.each((arg) => out.push(arg))
+  out
+}
+
+tsPrependExpr(
+  head: IRExpr,
+  rest: Array[IRExpr]
+) -> Array[IRExpr] => {
+  out := [head]
+  rest.each((item) => out.push(item))
+  out
+}
+
+tsRebuildExpr(
+  expr: IRExpr,
+  children: Array[IRExpr]
+) -> IRExpr => IRExpr {
+  kind: expr.kind,
+  text: expr.text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: expr.params,
+  children: children,
+  line: expr.line,
+  column: expr.column
+}
+
+tsRewriteChildren(
+  children: Array[IRExpr],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[IRExpr] => {
+  out := [emptyIRExpr()].slice(0, 0)
+  children.each((child) => out.push(rewriteTSExpr(child, structs, enums, bindings)))
+  out
+}
+
+rewriteTSChildren(
+  children: Array[IRExpr],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[IRExpr] => {
+  out := [emptyIRExpr()].slice(0, 0)
+  children.each((child) => out.push(rewriteTSExpr(child, structs, enums, bindings)))
+  out
+}
+
+tsRewriteArgs(
+  children: Array[IRExpr],
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[IRExpr] => tsRewriteArgsFrom(children, 1, structs, enums, bindings, [emptyIRExpr()].slice(0, 0))
+
+tsRewriteArgsFrom(
+  children: Array[IRExpr],
+  index: Int,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding],
+  out: Array[IRExpr]
+) -> Array[IRExpr] => (
+  index >= children.length() ? out
+    : tsRewriteArgsFrom(children, index + 1, structs, enums, bindings, [..out, rewriteTSExpr(children[index], structs, enums, bindings)])
+)
+
+tsResolveReceiverType(
+  receiver: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> String => (
+  receiver.text != "" ? receiver.text
+    : receiver.kind {
+      ExprKind.Identifier => tsLookupBinding(bindings, receiver.name, 0).typeName
+      ExprKind.This => tsLookupBinding(bindings, "this", 0).typeName
+      ExprKind.Struct => receiver.name
+      ExprKind.Selector => tsResolveSelectorFieldType(receiver, structs, enums, bindings)
+      _ => ""
+    }
+)
+
+tsResolveSelectorFieldType(
+  receiver: IRExpr,
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  empty := receiver.children.length() == 0
+  empty {
+    true => ""
+    _ => receiver.children[0].text != "" ? receiver.children[0].text
+      : tsStructFieldType(structs, tsTypeBase(tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
+  }
+}
+
+tsStructFieldType(
+  structs: Array[IRStructType],
+  typeName: String,
+  fieldName: String,
+  index: Int
+) -> String => (
+  index >= structs.length() ? ""
+    : structs[index].name == typeName ? tsStructFieldTypeIn(structs[index].fields, fieldName, 0)
+      : tsStructFieldType(structs, typeName, fieldName, index + 1)
+)
+
+tsStructFieldTypeIn(
+  fields: Array[IRField],
+  fieldName: String,
+  index: Int
+) -> String => (
+  index >= fields.length() ? ""
+    : fields[index].name == fieldName ? fields[index].typeName
+      : tsStructFieldTypeIn(fields, fieldName, index + 1)
+)
+
+tsFindMethodCall(
+  structs: Array[IRStructType],
+  enums: Array[IREnumType],
+  receiverType: String,
+  methodName: String
+) -> Bool => {
+  base := tsTypeBase(receiverType)
+  found := tsStructHasInstanceMethod(structs, base, methodName, 0)
+  found {
+    true => true
+    _ => tsEnumHasInstanceMethod(enums, base, methodName, 0)
+  }
+}
+
+tsEnumHasInstanceMethod(
+  enums: Array[IREnumType],
+  typeName: String,
+  methodName: String,
+  index: Int
+) -> Bool => (
+  index >= enums.length() ? false
+    : enums[index].name == typeName ? tsStructMethodMatches(enums[index].methods, methodName, 0)
+      : tsEnumHasInstanceMethod(enums, typeName, methodName, index + 1)
+)
+
+tsStructHasInstanceMethod(
+  structs: Array[IRStructType],
+  typeName: String,
+  methodName: String,
+  index: Int
+) -> Bool => (
+  index >= structs.length() ? false
+    : structs[index].name == typeName ? tsStructMethodMatches(structs[index].methods, methodName, 0)
+      : tsStructHasInstanceMethod(structs, typeName, methodName, index + 1)
+)
+
+tsStructMethodMatches(
+  methods: Array[IRFunction],
+  methodName: String,
+  index: Int
+) -> Bool => (
+  index >= methods.length() ? false
+    : (
+      (methods[index].name == methodName) && (methods[index].static == false) ? true
+        : tsStructMethodMatches(methods, methodName, index + 1)
+    )
+)
 
 emitTSConst(
   constant: IRConst

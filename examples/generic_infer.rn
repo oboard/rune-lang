@@ -1,0 +1,5 @@
+main() => {
+    out := []
+    out.push("hello")
+    @io.println(out)
+}

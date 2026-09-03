@@ -668,12 +668,21 @@ emitGoLet(
   line(level, (mangleIdent(expr.name) + " := ") + value) + line(level, "_ = " + mangleIdent(expr.name))
 }
 
+// When infer infers `x := []` as `Array[Elem]` (an empty array that later gets
+// `x.push(...)` calls), declare a typed empty array (`[]Elem{}`) instead of the
+// generic `[]any{}`, matching the host Go emitter. Only applies to empty array
+// literals; non-empty/homeosmocic literals are left as `[]any{...}`.
+goLetArrayElem(file: IRFile, expr: IRExpr) -> String => (
+  (expr.text.startsWith("Array[") && (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0)) ? genericInner(expr.text, "Array") : ""
+)
+
 emitGoLetValue(
   file: IRFile,
   expr: IRExpr
-) -> String => expr.value {
-  "" => emitGoExpr(expr.children[0])
-  _ => emitGoExprExpectedForFile(file, expr.children[0], expr.value)
+) -> String => {
+  elem := goLetArrayElem(file, expr)
+  elem != "" ? (("[]" + goType(elem)) + "{}")
+    : (expr.value == "" ? emitGoExpr(expr.children[0]) : emitGoExprExpectedForFile(file, expr.children[0], expr.value))
 }
 
 emitGoObjectDestructure(

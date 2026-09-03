@@ -568,6 +568,11 @@ type __CompilerTypeBinding struct {
 	__typeName string
 }
 
+type __InferBlockOut struct {
+	__statements []__IRExpr
+	__bindings   []__CompilerTypeBinding
+}
+
 type __GoJSONDeclResult struct {
 	__names []string
 	__text  string
@@ -6199,22 +6204,42 @@ func __selfhost_compiler_common_compilerDigitString(__value int) string {
 }
 
 func __inferFile(__file __IRFile) __IRFile {
-	return __IRFile{__imports: __file.__imports, __tsImports: __file.__tsImports, __structs: __file.__structs, __enums: __file.__enums, __constants: __file.__constants, __functions: __selfhost_infer_infer_inferFunctions(__file.__functions), __tests: __file.__tests, __errors: __file.__errors}
+	return __IRFile{__imports: __file.__imports, __tsImports: __file.__tsImports, __structs: __file.__structs, __enums: __file.__enums, __constants: __selfhost_infer_infer_inferConstants(__file.__constants, __file.__structs, __file.__enums), __functions: __selfhost_infer_infer_inferFunctions(__file.__functions, __file.__structs, __file.__enums), __tests: __file.__tests, __errors: __file.__errors}
 }
 
-func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction) []__IRFunction {
-	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
-	for _, __fn := range __functions {
-		_ = __fn
-		func() int { __out = append(__out, __selfhost_infer_infer_inferFunction(__fn)); return len(__out) }()
+func __selfhost_infer_infer_inferConstants(__constants []__IRConst, __structs []__IRStructType, __enums []__IREnumType) []__IRConst {
+	__out := append([]__IRConst{}, []__IRConst{__IRConst{__name: "", __private: false, __typeName: "", __value: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	for _, __constant := range __constants {
+		_ = __constant
+		func() int {
+			__out = append(__out, __IRConst{__name: __constant.__name, __private: __constant.__private, __typeName: func() string {
+				if __constant.__typeName == "" {
+					return __selfhost_infer_infer_inferExprType(__selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...)))
+				}
+				return __constant.__typeName
+			}(), __value: __selfhost_infer_infer_inferAnnotate(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...)), __line: __constant.__line, __column: __constant.__column})
+			return len(__out)
+		}()
 	}
 	return __out
 }
 
-func __selfhost_infer_infer_inferFunction(__fn __IRFunction) __IRFunction {
-	__params := __selfhost_infer_infer_inferParams(__fn.__params, __fn.__body)
-	__body := __selfhost_infer_infer_inferExpr(__fn.__body)
-	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __params, __returnType: func() string {
+func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
+	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	for _, __fn := range __functions {
+		_ = __fn
+		func() int {
+			__out = append(__out, __selfhost_infer_infer_inferFunction(__fn, __structs, __enums))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_infer_infer_inferFunction(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType) __IRFunction {
+	__seed := __selfhost_infer_infer_inferSeedBindings(__fn.__params, __fn.__receiverType, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))
+	__body := __selfhost_infer_infer_inferBody(__fn.__body, __structs, __enums, __seed)
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __selfhost_infer_infer_inferParams(__fn.__params, __fn.__body), __returnType: func() string {
 		if __fn.__returnType == "" {
 			return __selfhost_infer_infer_inferExprType(__body)
 		}
@@ -6222,8 +6247,26 @@ func __selfhost_infer_infer_inferFunction(__fn __IRFunction) __IRFunction {
 	}(), __body: __body, __sourcePath: __fn.__sourcePath, __line: __fn.__line, __column: __fn.__column}
 }
 
+func __selfhost_infer_infer_inferSeedBindings(__params []__IRParam, __receiverType string, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return __selfhost_infer_infer_inferSeedBindingsStep(__params, __receiverType, __bindings, 0)
+}
+
+func __selfhost_infer_infer_inferSeedBindingsStep(__params []__IRParam, __receiverType string, __bindings []__CompilerTypeBinding, __index int) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __index >= len(__params) {
+			return func() []__CompilerTypeBinding {
+				if __receiverType == "" {
+					return __bindings
+				}
+				return __selfhost_infer_infer_inferAddBinding(__bindings, "this", __receiverType)
+			}()
+		}
+		return __selfhost_infer_infer_inferSeedBindingsStep(__params, __receiverType, __selfhost_infer_infer_inferAddBinding(__bindings, __params[__index].__name, __params[__index].__typeName), __index+1)
+	}()
+}
+
 func __selfhost_infer_infer_inferParams(__params []__IRParam, __body __IRExpr) []__IRParam {
-	__out := append([]__IRParam{}, []__IRParam{__IRParam{__name: "", __typeName: "", __line: 0, __column: 0}}[0:0]...)
+	__out := append([]__IRParam{}, []__IRParam{__selfhost_infer_infer_emptyIRParam()}[0:0]...)
 	for _, __param := range __params {
 		_ = __param
 		func() int {
@@ -6275,81 +6318,311 @@ func __selfhost_infer_infer_inferParamTypeInChildren(__name string, __children [
 	}()
 }
 
-func __selfhost_infer_infer_inferExpr(__expr __IRExpr) __IRExpr {
-	__children := __selfhost_infer_infer_inferExprs(__expr.__children)
+func __selfhost_infer_infer_inferBody(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	return func() __IRExpr {
+		switch {
+		case __expr.__kind == __ExprKind_Block:
+			return __selfhost_infer_infer_inferBlock(__expr, __structs, __enums, __bindings)
+		default:
+			return __selfhost_infer_infer_inferAnnotate(__expr, __structs, __enums, __bindings)
+		}
+	}()
+}
+
+func __selfhost_infer_infer_inferBlock(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	__result := __selfhost_infer_infer_inferBlockStatements(__expr.__children, __structs, __enums, __bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	__synced := __selfhost_infer_infer_inferSyncStatements(__result.__statements, __result.__bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	return __IRExpr{__kind: __ExprKind_Block, __text: __selfhost_infer_infer_inferBlockType(__synced, 0, "Void"), __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __synced, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferBlockStatements(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) __InferBlockOut {
+	return func() __InferBlockOut {
+		if __index >= len(__children) {
+			return __InferBlockOut{__statements: __out, __bindings: __bindings}
+		}
+		return __selfhost_infer_infer_inferBlockStep(__children, __structs, __enums, __bindings, __index, __out)
+	}()
+}
+
+func __selfhost_infer_infer_inferBlockStep(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) __InferBlockOut {
+	return func() __InferBlockOut {
+		if __children[__index].__kind == __ExprKind_Let {
+			return __selfhost_infer_infer_inferLetStep(__children, __structs, __enums, __bindings, __index, __out)
+		}
+		return __selfhost_infer_infer_inferPlainStep(__children[__index], __children, __structs, __enums, __selfhost_infer_infer_inferMaybeRefine(__bindings, __children[__index], __structs, __enums), __index, __out)
+	}()
+}
+
+func __selfhost_infer_infer_inferLetStep(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) __InferBlockOut {
+	__value := __selfhost_infer_infer_inferAnnotate(__children[__index].__children[0], __structs, __enums, __bindings)
+	__newBindings := __selfhost_infer_infer_inferAddBinding(__bindings, __children[__index].__name, __selfhost_infer_infer_inferExprType(__value))
+	__next := __selfhost_infer_infer_inferBlockStatements(__children, __structs, __enums, __newBindings, __index+1, func() []__IRExpr {
+		out := []__IRExpr{}
+		out = append(out, __out...)
+		out = append(out, __selfhost_infer_infer_inferLetRebuild(__children[__index], __value))
+		return out
+	}())
+	return __next
+}
+
+func __selfhost_infer_infer_inferPlainStep(__expr __IRExpr, __children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) __InferBlockOut {
+	__statement := __selfhost_infer_infer_inferAnnotate(__expr, __structs, __enums, __bindings)
+	return __selfhost_infer_infer_inferBlockStatements(__children, __structs, __enums, __bindings, __index+1, func() []__IRExpr {
+		out := []__IRExpr{}
+		out = append(out, __out...)
+		out = append(out, __statement)
+		return out
+	}())
+}
+
+func __selfhost_infer_infer_inferLetRebuild(__expr __IRExpr, __value __IRExpr) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Let, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: []__IRExpr{__value}, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferSyncStatements(__statements []__IRExpr, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) []__IRExpr {
+	return func() []__IRExpr {
+		if __index >= len(__statements) {
+			return __out
+		}
+		return func() []__IRExpr {
+			if __statements[__index].__kind == __ExprKind_Let {
+				return __selfhost_infer_infer_inferSyncStatements(__statements, __bindings, __index+1, func() []__IRExpr {
+					out := []__IRExpr{}
+					out = append(out, __out...)
+					out = append(out, __selfhost_infer_infer_inferSyncLet(__statements[__index], __bindings))
+					return out
+				}())
+			}
+			return __selfhost_infer_infer_inferSyncStatements(__statements, __bindings, __index+1, func() []__IRExpr {
+				out := []__IRExpr{}
+				out = append(out, __out...)
+				out = append(out, __statements[__index])
+				return out
+			}())
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferSyncLet(__expr __IRExpr, __bindings []__CompilerTypeBinding) __IRExpr {
+	__bindingType := __selfhost_infer_infer_inferBindingTypeOf(__bindings, __expr.__name, 0)
+	return func() __IRExpr {
+		if strings.HasPrefix(__bindingType, "Array[") {
+			return __selfhost_infer_infer_inferSetLetText(__expr, __bindingType)
+		}
+		return __expr
+	}()
+}
+
+func __selfhost_infer_infer_inferBindingTypeOf(__bindings []__CompilerTypeBinding, __name string, __index int) string {
+	return func() string {
+		if __index >= len(__bindings) {
+			return ""
+		}
+		return func() string {
+			if __bindings[__index].__name == __name {
+				return __bindings[__index].__typeName
+			}
+			return __selfhost_infer_infer_inferBindingTypeOf(__bindings, __name, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferSetLetText(__expr __IRExpr, __text string) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Let, __text: __text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __expr.__children, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferMaybeRefine(__bindings []__CompilerTypeBinding, __expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __expr.__kind == __ExprKind_Call {
+			return __selfhost_infer_infer_inferMaybeRefineCall(__bindings, __expr, __structs, __enums)
+		}
+		return __bindings
+	}()
+}
+
+func __selfhost_infer_infer_inferMaybeRefineCall(__bindings []__CompilerTypeBinding, __expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Selector {
+			return __selfhost_infer_infer_inferRefineFromSelector(__bindings, __expr, __expr.__children[0], __structs, __enums)
+		}
+		return __bindings
+	}()
+}
+
+func __selfhost_infer_infer_inferRefineFromSelector(__bindings []__CompilerTypeBinding, __expr __IRExpr, __selector __IRExpr, __structs []__IRStructType, __enums []__IREnumType) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __selector.__name == "push" && len(__expr.__children) > 1 && len(__selector.__children) > 0 && __selector.__children[0].__kind == __ExprKind_Identifier {
+			return __selfhost_infer_infer_inferRefineArrayBinding(__bindings, __selector.__children[0].__name, __selfhost_infer_infer_inferValueType(__selfhost_infer_infer_inferAnnotate(__expr.__children[1], __structs, __enums, __bindings)))
+		}
+		return __bindings
+	}()
+}
+
+func __selfhost_infer_infer_inferRefineArrayBinding(__bindings []__CompilerTypeBinding, __name string, __elemType string) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __elemType == "" {
+			return __bindings
+		}
+		return __selfhost_infer_infer_inferRefineStep(__bindings, __name, __elemType, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))
+	}()
+}
+
+func __selfhost_infer_infer_inferRefineStep(__bindings []__CompilerTypeBinding, __name string, __elemType string, __index int, __out []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __index >= len(__bindings) {
+			return __selfhost_infer_infer_inferRefineFinish(__out, __name, __elemType)
+		}
+		return func() []__CompilerTypeBinding {
+			if __bindings[__index].__name == __name {
+				return __selfhost_infer_infer_inferRefineStep(__bindings, __name, __elemType, __index+1, func() []__CompilerTypeBinding {
+					out := []__CompilerTypeBinding{}
+					out = append(out, __out...)
+					out = append(out, __selfhost_infer_infer_compilerTypeBinding(__name, "Array["+__elemType+"]"))
+					return out
+				}())
+			}
+			return __selfhost_infer_infer_inferRefineStep(__bindings, __name, __elemType, __index+1, func() []__CompilerTypeBinding {
+				out := []__CompilerTypeBinding{}
+				out = append(out, __out...)
+				out = append(out, __bindings[__index])
+				return out
+			}())
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferRefineFinish(__out []__CompilerTypeBinding, __name string, __elemType string) []__CompilerTypeBinding {
+	__hasName := __selfhost_infer_infer_inferHasBinding(__out, __name, 0)
+	return func() []__CompilerTypeBinding {
+		if __hasName {
+			return __out
+		}
+		return func() []__CompilerTypeBinding {
+			out := []__CompilerTypeBinding{}
+			out = append(out, __out...)
+			out = append(out, __selfhost_infer_infer_compilerTypeBinding(__name, "Array["+__elemType+"]"))
+			return out
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferHasBinding(__bindings []__CompilerTypeBinding, __name string, __index int) bool {
+	return func() bool {
+		if __index >= len(__bindings) {
+			return false
+		}
+		return func() bool {
+			if __bindings[__index].__name == __name {
+				return true
+			}
+			return __selfhost_infer_infer_inferHasBinding(__bindings, __name, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_compilerTypeBinding(__name string, __typeName string) __CompilerTypeBinding {
+	return __CompilerTypeBinding{__name: __name, __typeName: __typeName}
+}
+
+func __selfhost_infer_infer_emptyCompilerTypeBinding() __CompilerTypeBinding {
+	return __CompilerTypeBinding{__name: "", __typeName: ""}
+}
+
+func __selfhost_infer_infer_emptyIRParam() __IRParam {
+	return __IRParam{__name: "", __typeName: "", __line: 0, __column: 0}
+}
+
+func __selfhost_infer_infer_inferAddBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		out := []__CompilerTypeBinding{}
+		out = append(out, __selfhost_infer_infer_inferDropBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_infer_infer_emptyCompilerTypeBinding()}[0:0]...))...)
+		out = append(out, __selfhost_infer_infer_compilerTypeBinding(__name, __typeName))
+		return out
+	}()
+}
+
+func __selfhost_infer_infer_inferDropBinding(__bindings []__CompilerTypeBinding, __name string, __index int, __out []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __index >= len(__bindings) {
+			return __out
+		}
+		return func() []__CompilerTypeBinding {
+			if __bindings[__index].__name == __name {
+				return __selfhost_infer_infer_inferDropBinding(__bindings, __name, __index+1, __out)
+			}
+			return __selfhost_infer_infer_inferDropBinding(__bindings, __name, __index+1, func() []__CompilerTypeBinding {
+				out := []__CompilerTypeBinding{}
+				out = append(out, __out...)
+				out = append(out, __bindings[__index])
+				return out
+			}())
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferFindBinding(__bindings []__CompilerTypeBinding, __name string, __index int) __CompilerTypeBinding {
+	return func() __CompilerTypeBinding {
+		if __index >= len(__bindings) {
+			return __selfhost_infer_infer_emptyCompilerTypeBinding()
+		}
+		return func() __CompilerTypeBinding {
+			if __bindings[__index].__name == __name {
+				return __bindings[__index]
+			}
+			return __selfhost_infer_infer_inferFindBinding(__bindings, __name, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferAnnotate(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	__children := __selfhost_infer_infer_inferChildren(__expr.__children, __structs, __enums, __bindings)
 	__params := func() []__IRParam {
 		switch {
 		case __expr.__kind == __ExprKind_Lambda:
-			return __selfhost_infer_infer_inferLambdaParams(__expr.__params, __expr.__children)
+			return __selfhost_infer_infer_inferLambdaParams(__expr.__params, __children)
 		default:
 			return __expr.__params
 		}
 	}()
-	__text := __selfhost_infer_infer_inferExprText(__expr, __children, __params)
-	return __IRExpr{__kind: __expr.__kind, __text: __text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __params, __children: __children, __line: __expr.__line, __column: __expr.__column}
+	return __IRExpr{__kind: __expr.__kind, __text: __selfhost_infer_infer_inferAnnotateText(__expr, __children, __params, __structs, __enums, __bindings), __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __params, __children: __children, __line: __expr.__line, __column: __expr.__column}
 }
 
-func __selfhost_infer_infer_inferLambdaParams(__params []__IRParam, __children []__IRExpr) []__IRParam {
-	__out := append([]__IRParam{}, []__IRParam{__IRParam{__name: "", __typeName: "", __line: 0, __column: 0}}[0:0]...)
-	for _, __param := range __params {
-		_ = __param
-		func() int {
-			__out = append(__out, __IRParam{__name: __param.__name, __typeName: func() string {
-				if __param.__typeName == "" {
-					return __selfhost_infer_infer_inferLambdaParamType(__param.__name, __children, 0)
-				}
-				return __param.__typeName
-			}(), __line: __param.__line, __column: __param.__column})
-			return len(__out)
-		}()
-	}
-	return __out
+func __selfhost_infer_infer_inferChildren(__exprs []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
+	return __selfhost_infer_infer_inferChildrenStep(__exprs, __structs, __enums, __bindings, 0, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
 }
 
-func __selfhost_infer_infer_inferLambdaParamType(__name string, __children []__IRExpr, __index int) string {
-	return func() string {
-		if __index >= len(__children) {
-			return "Dynamic"
+func __selfhost_infer_infer_inferChildrenStep(__exprs []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) []__IRExpr {
+	return func() []__IRExpr {
+		if __index >= len(__exprs) {
+			return __out
 		}
-		return func() string {
-			switch {
-			case __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name, __children[__index]) == "":
-				return __selfhost_infer_infer_inferLambdaParamType(__name, __children, __index+1)
-			default:
-				return __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name, __children[__index])
-			}
-		}()
+		return __selfhost_infer_infer_inferChildrenStep(__exprs, __structs, __enums, __bindings, __index+1, func() []__IRExpr {
+			out := []__IRExpr{}
+			out = append(out, __out...)
+			out = append(out, __selfhost_infer_infer_inferChild(__exprs[__index], __structs, __enums, __bindings))
+			return out
+		}())
 	}()
 }
 
-func __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name string, __expr __IRExpr) string {
-	return func() string {
+func __selfhost_infer_infer_inferChild(__child __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	return func() __IRExpr {
 		switch {
-		case __expr.__kind == __ExprKind_Selector:
-			return func() string {
-				if len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier && __expr.__children[0].__name == __name {
-					return "{b:Int;z:Bool;a:Int}"
-				}
-				return __selfhost_infer_infer_inferLambdaParamType(__name, __expr.__children, 0)
-			}()
+		case __child.__kind == __ExprKind_Block:
+			return __selfhost_infer_infer_inferBlock(__child, __structs, __enums, __bindings)
 		default:
-			return __selfhost_infer_infer_inferLambdaParamType(__name, __expr.__children, 0)
+			return __selfhost_infer_infer_inferAnnotate(__child, __structs, __enums, __bindings)
 		}
 	}()
 }
 
-func __selfhost_infer_infer_inferExprs(__exprs []__IRExpr) []__IRExpr {
-	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
-	for _, __expr := range __exprs {
-		_ = __expr
-		func() int { __out = append(__out, __selfhost_infer_infer_inferExpr(__expr)); return len(__out) }()
-	}
-	return __out
-}
-
-func __selfhost_infer_infer_inferExprText(__expr __IRExpr, __children []__IRExpr, __params []__IRParam) string {
+func __selfhost_infer_infer_inferAnnotateText(__expr __IRExpr, __children []__IRExpr, __params []__IRParam, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) string {
 	return func() string {
 		switch {
+		case __expr.__kind == __ExprKind_Identifier:
+			return __selfhost_infer_infer_inferIdentifierText(__expr, __bindings)
+		case __expr.__kind == __ExprKind_Selector:
+			return __selfhost_infer_infer_inferFieldSelectorText(__expr, __children, __structs)
 		case __expr.__kind == __ExprKind_Object:
 			return __selfhost_infer_infer_inferObjectType(__children, 0, "{")
 		case __expr.__kind == __ExprKind_Lambda:
@@ -6358,36 +6631,123 @@ func __selfhost_infer_infer_inferExprText(__expr __IRExpr, __children []__IRExpr
 			return __selfhost_infer_infer_inferTernaryType(__children)
 		case __expr.__kind == __ExprKind_Call:
 			return __selfhost_infer_infer_inferCallType(__children)
-		case __expr.__kind == __ExprKind_Selector:
-			return __selfhost_infer_infer_inferSelectorType(__expr, __children)
 		case __expr.__kind == __ExprKind_Binary:
 			return __selfhost_infer_infer_inferBinaryType(__expr)
-		case __expr.__kind == __ExprKind_Block:
-			return __selfhost_infer_infer_inferBlockType(__children, 0, "Void")
 		case __expr.__kind == __ExprKind_PatternBlock:
 			return __selfhost_infer_infer_inferPatternBlockType(__children, 0, "")
 		case __expr.__kind == __ExprKind_Assign:
 			return ""
 		case __expr.__kind == __ExprKind_Watch:
 			return ""
+		case __expr.__kind == __ExprKind_Block:
+			return "Void"
+		case __expr.__kind == __ExprKind_Struct:
+			return __expr.__name
+		case __expr.__kind == __ExprKind_Array:
+			return __selfhost_infer_infer_inferArrayText(__children)
+		case __expr.__kind == __ExprKind_Let:
+			return func() string {
+				if len(__children) > 0 {
+					return __selfhost_infer_infer_inferExprType(__children[0])
+				}
+				return ""
+			}()
 		default:
 			return __expr.__text
 		}
 	}()
 }
 
-func __selfhost_infer_infer_inferPatternBlockType(__branches []__IRExpr, __index int, __previous string) string {
+func __selfhost_infer_infer_inferIdentifierText(__expr __IRExpr, __bindings []__CompilerTypeBinding) string {
 	return func() string {
-		if __index >= len(__branches) {
-			return __previous
+		if strings.HasPrefix(__expr.__text, "$") || __expr.__name == "this" {
+			return __selfhost_infer_infer_inferFindBinding(__bindings, "this", 0).__typeName
+		}
+		return __selfhost_infer_infer_inferFindBinding(__bindings, __expr.__name, 0).__typeName
+	}()
+}
+
+func __selfhost_infer_infer_inferFieldSelectorText(__expr __IRExpr, __children []__IRExpr, __structs []__IRStructType) string {
+	return func() string {
+		if len(__children) == 0 {
+			return __expr.__text
+		}
+		return __selfhost_infer_infer_inferFieldSelectorFromType(__selfhost_infer_infer_inferExprType(__children[0]), __expr.__name, __structs)
+	}()
+}
+
+func __selfhost_infer_infer_inferFieldSelectorFromType(__criteria string, __fieldName string, __structs []__IRStructType) string {
+	return func() string {
+		if __criteria == "" {
+			return ""
 		}
 		return func() string {
-			if len(__branches[__index].__children) > 1 {
-				return __selfhost_infer_infer_inferPatternBlockType(__branches, __index+1, __selfhost_infer_infer_inferExprType(__branches[__index].__children[1]))
+			if strings.HasPrefix(__criteria, "Array") || strings.HasPrefix(__criteria, "Map") || strings.HasPrefix(__criteria, "Nullable") || strings.HasPrefix(__criteria, "Iter") || strings.HasPrefix(__criteria, "Result") {
+				return __selfhost_infer_infer_inferReceiverRootField(__fieldName)
 			}
-			return __selfhost_infer_infer_inferPatternBlockType(__branches, __index+1, __previous)
+			return __selfhost_infer_infer_inferFieldInStruct(__criteria, __fieldName, __structs, 0)
 		}()
 	}()
+}
+
+func __selfhost_infer_infer_inferReceiverRootField(__fieldName string) string {
+	return func() string {
+		if __fieldName == "length" {
+			return "Int"
+		}
+		return func() string {
+			if __fieldName == "size" {
+				return "Int"
+			}
+			return func() string {
+				if __fieldName == "isEmpty" || __fieldName == "nonEmpty" {
+					return "Bool"
+				}
+				return ""
+			}()
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferFieldInStruct(__typeName string, __fieldName string, __structs []__IRStructType, __index int) string {
+	return func() string {
+		if __index >= len(__structs) {
+			return ""
+		}
+		return func() string {
+			if __structs[__index].__name == __typeName {
+				return __selfhost_infer_infer_inferFieldByName(__structs[__index].__fields, __fieldName, 0)
+			}
+			return __selfhost_infer_infer_inferFieldInStruct(__typeName, __fieldName, __structs, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferFieldByName(__fields []__IRField, __fieldName string, __index int) string {
+	return func() string {
+		if __index >= len(__fields) {
+			return ""
+		}
+		return func() string {
+			if __fields[__index].__name == __fieldName {
+				return __fields[__index].__typeName
+			}
+			return __selfhost_infer_infer_inferFieldByName(__fields, __fieldName, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferArrayText(__children []__IRExpr) string {
+	return func() string {
+		if len(__children) == 0 {
+			return "Array"
+		}
+		return "Array[" + __selfhost_infer_infer_inferExprType(__children[0]) + "]"
+	}()
+}
+
+func __selfhost_infer_infer_inferValueType(__expr __IRExpr) string {
+	return __selfhost_infer_infer_inferExprType(__expr)
 }
 
 func __selfhost_infer_infer_inferObjectType(__fields []__IRExpr, __index int, __out string) string {
@@ -6410,20 +6770,6 @@ func __selfhost_infer_infer_inferLambdaType(__params []__IRParam, __children []_
 			return ""
 		}
 		return "Func[" + __selfhost_infer_infer_inferParamTypes(__params, 0, "") + "|" + __selfhost_infer_infer_inferExprType(__children[0]) + "]"
-	}()
-}
-
-func __selfhost_infer_infer_inferParamTypes(__params []__IRParam, __index int, __out string) string {
-	return func() string {
-		if __index >= len(__params) {
-			return __out
-		}
-		return __selfhost_infer_infer_inferParamTypes(__params, __index+1, __out+func() string {
-			if __index == 0 {
-				return ""
-			}
-			return "|"
-		}()+__params[__index].__typeName)
 	}()
 }
 
@@ -6453,12 +6799,44 @@ func __selfhost_infer_infer_inferCallType(__children []__IRExpr) string {
 func __selfhost_infer_infer_inferFunctionReturnType(__typeName string) string {
 	return func() string {
 		if strings.HasPrefix(__typeName, "Func[") && strings.HasSuffix(__typeName, "]") {
-			return func() string {
-				runes := []rune(func() []string { parts := strings.Split(__typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(__typeName, "|"); return parts }())-1])
-				return string(runes[0 : len([]rune(func() []string { parts := strings.Split(__typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(__typeName, "|"); return parts }())-1]))-1])
-			}()
+			return __selfhost_infer_infer_inferReturnPart(__typeName)
 		}
 		return ""
+	}()
+}
+
+func __selfhost_infer_infer_inferReturnPart(__typeName string) string {
+	return func() string {
+		runes := []rune(func() []string { parts := strings.Split(__typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(__typeName, "|"); return parts }())-1])
+		return string(runes[0 : len([]rune(func() []string { parts := strings.Split(__typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(__typeName, "|"); return parts }())-1]))-1])
+	}()
+}
+
+func __selfhost_infer_infer_inferParamTypes(__params []__IRParam, __index int, __out string) string {
+	return func() string {
+		if __index >= len(__params) {
+			return __out
+		}
+		return __selfhost_infer_infer_inferParamTypes(__params, __index+1, __out+func() string {
+			if __index == 0 {
+				return ""
+			}
+			return "|"
+		}()+__params[__index].__typeName)
+	}()
+}
+
+func __selfhost_infer_infer_inferPatternBlockType(__branches []__IRExpr, __index int, __previous string) string {
+	return func() string {
+		if __index >= len(__branches) {
+			return __previous
+		}
+		return func() string {
+			if len(__branches[__index].__children) > 1 {
+				return __selfhost_infer_infer_inferPatternBlockType(__branches, __index+1, __selfhost_infer_infer_inferExprType(__branches[__index].__children[1]))
+			}
+			return __selfhost_infer_infer_inferPatternBlockType(__branches, __index+1, __previous)
+		}()
 	}()
 }
 
@@ -6472,15 +6850,6 @@ func __selfhost_infer_infer_inferBinaryType(__expr __IRExpr) string {
 				return false
 			}
 		}() {
-			return "Int"
-		}
-		return __expr.__text
-	}()
-}
-
-func __selfhost_infer_infer_inferSelectorType(__expr __IRExpr, __children []__IRExpr) string {
-	return func() string {
-		if len(__children) > 0 && __expr.__name == "k" {
 			return "Int"
 		}
 		return __expr.__text
@@ -6535,6 +6904,55 @@ func __selfhost_infer_infer_inferBlockType(__children []__IRExpr, __index int, _
 			return __previous
 		}
 		return __selfhost_infer_infer_inferBlockType(__children, __index+1, __selfhost_infer_infer_inferExprType(__children[__index]))
+	}()
+}
+
+func __selfhost_infer_infer_inferLambdaParams(__params []__IRParam, __children []__IRExpr) []__IRParam {
+	__out := append([]__IRParam{}, []__IRParam{__selfhost_infer_infer_emptyIRParam()}[0:0]...)
+	for _, __param := range __params {
+		_ = __param
+		func() int {
+			__out = append(__out, __IRParam{__name: __param.__name, __typeName: func() string {
+				if __param.__typeName == "" {
+					return __selfhost_infer_infer_inferLambdaParamType(__param.__name, __children, 0)
+				}
+				return __param.__typeName
+			}(), __line: __param.__line, __column: __param.__column})
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_infer_infer_inferLambdaParamType(__name string, __children []__IRExpr, __index int) string {
+	return func() string {
+		if __index >= len(__children) {
+			return "Dynamic"
+		}
+		return func() string {
+			switch {
+			case __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name, __children[__index]) == "":
+				return __selfhost_infer_infer_inferLambdaParamType(__name, __children, __index+1)
+			default:
+				return __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name, __children[__index])
+			}
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferLambdaParamTypeInExpr(__name string, __expr __IRExpr) string {
+	return func() string {
+		switch {
+		case __expr.__kind == __ExprKind_Selector:
+			return func() string {
+				if len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Identifier && __expr.__children[0].__name == __name {
+					return "{b:Int;z:Bool;a:Int}"
+				}
+				return __selfhost_infer_infer_inferLambdaParamType(__name, __expr.__children, 0)
+			}()
+		default:
+			return __selfhost_infer_infer_inferLambdaParamType(__name, __expr.__children, 0)
+		}
 	}()
 }
 
@@ -7064,14 +7482,27 @@ func __selfhost_compiler_go_emitGoLet(__file __IRFile, __expr __IRExpr, __level 
 	return __line(__level, __mangleIdent(__expr.__name)+" := "+__value) + __line(__level, "_ = "+__mangleIdent(__expr.__name))
 }
 
-func __selfhost_compiler_go_emitGoLetValue(__file __IRFile, __expr __IRExpr) string {
+func __selfhost_compiler_go_goLetArrayElem(__file __IRFile, __expr __IRExpr) string {
 	return func() string {
-		switch {
-		case __expr.__value == "":
-			return __selfhost_compiler_go_emitGoExpr(__expr.__children[0])
-		default:
-			return __selfhost_compiler_go_emitGoExprExpectedForFile(__file, __expr.__children[0], __expr.__value)
+		if strings.HasPrefix(__expr.__text, "Array[") && __expr.__children[0].__kind == __ExprKind_Array && len(__expr.__children[0].__children) == 0 {
+			return __genericInner(__expr.__text, "Array")
 		}
+		return ""
+	}()
+}
+
+func __selfhost_compiler_go_emitGoLetValue(__file __IRFile, __expr __IRExpr) string {
+	__elem := __selfhost_compiler_go_goLetArrayElem(__file, __expr)
+	return func() string {
+		if __elem != "" {
+			return "[]" + __selfhost_compiler_go_goType(__elem) + "{}"
+		}
+		return func() string {
+			if __expr.__value == "" {
+				return __selfhost_compiler_go_emitGoExpr(__expr.__children[0])
+			}
+			return __selfhost_compiler_go_emitGoExprExpectedForFile(__file, __expr.__children[0], __expr.__value)
+		}()
 	}()
 }
 
@@ -9776,34 +10207,35 @@ func __selfhost_compiler_mbt_moonBitIsUpperLetter(__ch rune) bool {
 }
 
 func __generateTypeScript(__file __IRFile) string {
-	__out := __selfhost_compiler_ts_emitTSImports(__file)
-	if __fileUsesUnwrap(__file) {
+	__resolved := __selfhost_compiler_ts_rewriteTSMethodCalls(__file)
+	__out := __selfhost_compiler_ts_emitTSImports(__resolved)
+	if __fileUsesUnwrap(__resolved) {
 		__out = __out + __selfhost_compiler_ts_emitTSUnwrapHelper()
 	}
-	if __fileUsesPathFamily(__file) {
+	if __fileUsesPathFamily(__resolved) {
 		__out = __out + __selfhost_compiler_ts_emitTSPathHelpers()
 	}
-	for _, __enumDecl := range __file.__enums {
+	for _, __enumDecl := range __resolved.__enums {
 		_ = __enumDecl
 		__out = __out + __selfhost_compiler_ts_emitTSEnum(__enumDecl) + "\n"
 	}
-	for _, __enumDecl := range __file.__enums {
+	for _, __enumDecl := range __resolved.__enums {
 		_ = __enumDecl
 		__out = __out + __selfhost_compiler_ts_emitTSEnumMethods(__enumDecl)
 	}
-	for _, __typeDecl := range __file.__structs {
+	for _, __typeDecl := range __resolved.__structs {
 		_ = __typeDecl
 		__out = __out + __selfhost_compiler_ts_emitTSStruct(__typeDecl) + "\n"
 	}
-	for _, __typeDecl := range __file.__structs {
+	for _, __typeDecl := range __resolved.__structs {
 		_ = __typeDecl
 		__out = __out + __selfhost_compiler_ts_emitTSMethods(__typeDecl)
 	}
-	for _, __constant := range __file.__constants {
+	for _, __constant := range __resolved.__constants {
 		_ = __constant
 		__out = __out + __selfhost_compiler_ts_emitTSConst(__constant) + "\n"
 	}
-	for _, __fn := range __file.__functions {
+	for _, __fn := range __resolved.__functions {
 		_ = __fn
 		__out = func() string {
 			if __fn.__macro {
@@ -9812,11 +10244,500 @@ func __generateTypeScript(__file __IRFile) string {
 			return __out + __selfhost_compiler_ts_emitTSFunction(__fn) + "\n"
 		}()
 	}
-	return __out + __selfhost_compiler_ts_emitTSExports(__file)
+	return __out + __selfhost_compiler_ts_emitTSExports(__resolved)
 }
 
 func __selfhost_compiler_ts_emitTSImports(__file __IRFile) string {
 	return __selfhost_compiler_ts_emitTSImportList(__file.__tsImports, 0, "")
+}
+
+func __selfhost_compiler_ts_rewriteTSMethodCalls(__file __IRFile) __IRFile {
+	__structs := __selfhost_compiler_ts_rewriteTSStructs(__file.__structs, __file.__structs, __file.__enums)
+	__enums := __selfhost_compiler_ts_rewriteTSEnums(__file.__enums, __file.__structs, __file.__enums)
+	return __IRFile{__imports: __file.__imports, __tsImports: __file.__tsImports, __structs: __structs, __enums: __enums, __constants: __selfhost_compiler_ts_rewriteTSConstants(__file.__constants, __file.__structs, __file.__enums), __functions: __selfhost_compiler_ts_rewriteTSFunctions(__file.__functions, __file.__structs, __file.__enums), __tests: __selfhost_compiler_ts_rewriteTSTests(__file.__tests, __file.__structs, __file.__enums), __errors: __file.__errors}
+}
+
+func __selfhost_compiler_ts_rewriteTSStructs(__structs []__IRStructType, __allStructs []__IRStructType, __enums []__IREnumType) []__IRStructType {
+	__out := append([]__IRStructType{}, []__IRStructType{__IRStructType{__name: "", __private: false, __generics: []string{}, __fields: []__IRField{}, __methods: []__IRFunction{}, __sourcePath: "", __line: 0, __column: 0}}[0:0]...)
+	for _, __typeDecl := range __structs {
+		_ = __typeDecl
+		func() int {
+			__out = append(__out, __IRStructType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __fields: __typeDecl.__fields, __methods: __selfhost_compiler_ts_rewriteTSTypeMethods(__typeDecl.__methods, __typeDecl.__name, __allStructs, __enums), __sourcePath: __typeDecl.__sourcePath, __line: __typeDecl.__line, __column: __typeDecl.__column})
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSEnums(__enums []__IREnumType, __structs []__IRStructType, __allEnums []__IREnumType) []__IREnumType {
+	__out := append([]__IREnumType{}, []__IREnumType{__IREnumType{__name: "", __private: false, __generics: []string{}, __members: []__IREnumMember{}, __methods: []__IRFunction{}, __sourcePath: "", __line: 0, __column: 0}}[0:0]...)
+	for _, __typeDecl := range __enums {
+		_ = __typeDecl
+		func() int {
+			__out = append(__out, __IREnumType{__name: __typeDecl.__name, __private: __typeDecl.__private, __generics: __typeDecl.__generics, __members: __typeDecl.__members, __methods: __selfhost_compiler_ts_rewriteTSTypeMethods(__typeDecl.__methods, __typeDecl.__name, __structs, __allEnums), __sourcePath: __typeDecl.__sourcePath, __line: __typeDecl.__line, __column: __typeDecl.__column})
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSConstants(__constants []__IRConst, __structs []__IRStructType, __enums []__IREnumType) []__IRConst {
+	__out := append([]__IRConst{}, []__IRConst{__IRConst{__name: "", __private: false, __typeName: "", __value: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	for _, __constant := range __constants {
+		_ = __constant
+		func() int {
+			__value := __selfhost_compiler_ts_rewriteTSExpr(__constant.__value, __structs, __enums, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...))
+			return func() int {
+				__out = append(__out, __IRConst{__name: __constant.__name, __private: __constant.__private, __typeName: __constant.__typeName, __value: __value, __line: __constant.__line, __column: __constant.__column})
+				return len(__out)
+			}()
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSTests(__tests []__IRTest, __structs []__IRStructType, __enums []__IREnumType) []__IRTest {
+	__out := append([]__IRTest{}, []__IRTest{__IRTest{__name: "", __body: __emptyIRExpr(), __line: 0, __column: 0}}[0:0]...)
+	for _, __test := range __tests {
+		_ = __test
+		func() int {
+			__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...)
+			__body := __selfhost_compiler_ts_rewriteTSExpr(__test.__body, __structs, __enums, __bindings)
+			return func() int {
+				__out = append(__out, __IRTest{__name: __test.__name, __body: __body, __line: __test.__line, __column: __test.__column})
+				return len(__out)
+			}()
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSFunctions(__functions []__IRFunction, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
+	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	for _, __fn := range __functions {
+		_ = __fn
+		func() int {
+			__out = append(__out, __selfhost_compiler_ts_rewriteTSFunction(__fn, __structs, __enums))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSFunction(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType) __IRFunction {
+	return __selfhost_compiler_ts_rewriteTSFunctionWithThis(__fn, __structs, __enums, "")
+}
+
+func __selfhost_compiler_ts_rewriteTSTypeMethods(__methods []__IRFunction, __typeName string, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
+	__out := append([]__IRFunction{}, []__IRFunction{__emptyIRFunction()}[0:0]...)
+	for _, __method := range __methods {
+		_ = __method
+		func() int {
+			__out = append(__out, __selfhost_compiler_ts_rewriteTSFunctionWithThis(__method, __structs, __enums, __typeName))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSFunctionWithThis(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType, __thisType string) __IRFunction {
+	return __selfhost_compiler_ts_rewriteTSFunctionBody(__fn, __structs, __enums, __thisType)
+}
+
+func __selfhost_compiler_ts_rewriteTSFunctionBody(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType, __thisType string) __IRFunction {
+	__bindings := append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...)
+	for _, __param := range __fn.__params {
+		_ = __param
+		__bindings = __selfhost_compiler_ts_tsAddBinding(__bindings, __param.__name, __param.__typeName)
+	}
+	__bindings = func() []__CompilerTypeBinding {
+		if __thisType == "" {
+			return __bindings
+		}
+		return __selfhost_compiler_ts_tsAddBinding(__bindings, "this", __thisType)
+	}()
+	__body := __selfhost_compiler_ts_rewriteTSExpr(__fn.__body, __structs, __enums, __bindings)
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __fn.__params, __returnType: __fn.__returnType, __body: __body, __sourcePath: __fn.__sourcePath, __line: __fn.__line, __column: __fn.__column}
+}
+
+func __selfhost_compiler_ts_emptyCompilerTypeBinding() __CompilerTypeBinding {
+	return __CompilerTypeBinding{__name: "", __typeName: ""}
+}
+
+func __selfhost_compiler_ts_tsAddBinding(__bindings []__CompilerTypeBinding, __name string, __typeName string) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		out := []__CompilerTypeBinding{}
+		out = append(out, __selfhost_compiler_ts_dropTSBinding(__bindings, __name, 0, append([]__CompilerTypeBinding{}, []__CompilerTypeBinding{__selfhost_compiler_ts_emptyCompilerTypeBinding()}[0:0]...))...)
+		out = append(out, __selfhost_compiler_ts_tsBinding(__name, __typeName))
+		return out
+	}()
+}
+
+func __selfhost_compiler_ts_tsBinding(__name string, __typeName string) __CompilerTypeBinding {
+	return __CompilerTypeBinding{__name: __name, __typeName: __typeName}
+}
+
+func __selfhost_compiler_ts_dropTSBinding(__bindings []__CompilerTypeBinding, __name string, __index int, __out []__CompilerTypeBinding) []__CompilerTypeBinding {
+	return func() []__CompilerTypeBinding {
+		if __index >= len(__bindings) {
+			return __out
+		}
+		return func() []__CompilerTypeBinding {
+			if __bindings[__index].__name == __name {
+				return __selfhost_compiler_ts_dropTSBinding(__bindings, __name, __index+1, __out)
+			}
+			return __selfhost_compiler_ts_dropTSBinding(__bindings, __name, __index+1, func() []__CompilerTypeBinding {
+				out := []__CompilerTypeBinding{}
+				out = append(out, __out...)
+				out = append(out, __bindings[__index])
+				return out
+			}())
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsLookupBinding(__bindings []__CompilerTypeBinding, __name string, __index int) __CompilerTypeBinding {
+	return func() __CompilerTypeBinding {
+		if __index >= len(__bindings) {
+			return __selfhost_compiler_ts_emptyCompilerTypeBinding()
+		}
+		return func() __CompilerTypeBinding {
+			if __bindings[__index].__name == __name {
+				return __bindings[__index]
+			}
+			return __selfhost_compiler_ts_tsLookupBinding(__bindings, __name, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsTypeBase(__typeName string) string {
+	__open := strings.Index(__typeName, "[")
+	return func() string {
+		if __open < 0 {
+			return __typeName
+		}
+		return func() string { runes := []rune(__typeName); return string(runes[0:__open]) }()
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSExpr(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	return func() __IRExpr {
+		switch {
+		case __expr.__kind == __ExprKind_Call:
+			return __selfhost_compiler_ts_rewriteTSCall(__expr, __structs, __enums, __bindings)
+		case __expr.__kind == __ExprKind_Block:
+			return __selfhost_compiler_ts_rewriteTSBlockExpr(__expr, __structs, __enums, __bindings)
+		case __expr.__kind == __ExprKind_Let:
+			return __selfhost_compiler_ts_rewriteTSLet(__expr, __structs, __enums, __bindings)
+		default:
+			return __selfhost_compiler_ts_tsRebuildExpr(__expr, __selfhost_compiler_ts_rewriteTSChildren(__expr.__children, __structs, __enums, __bindings))
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSBlockExpr(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	__result := __selfhost_compiler_ts_rewriteTSBlockStatements(__expr.__children, 0, __structs, __enums, __bindings, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __result, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_compiler_ts_rewriteTSBlockStatements(__statements []__IRExpr, __index int, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __out []__IRExpr) []__IRExpr {
+	return func() []__IRExpr {
+		if __index >= len(__statements) {
+			return __out
+		}
+		return __selfhost_compiler_ts_rewriteTSBlockStep(__statements, __index, __structs, __enums, __bindings, __out)
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSBlockStep(__statements []__IRExpr, __index int, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __out []__IRExpr) []__IRExpr {
+	__statement := __selfhost_compiler_ts_rewriteTSStatement(__statements[__index], __structs, __enums, __bindings)
+	__nextBindings := __selfhost_compiler_ts_tsStatementBindings(__statements[__index], __structs, __enums, __bindings)
+	return __selfhost_compiler_ts_rewriteTSBlockStatements(__statements, __index+1, __structs, __enums, __nextBindings, func() []__IRExpr {
+		out := []__IRExpr{}
+		out = append(out, __out...)
+		out = append(out, __statement)
+		return out
+	}())
+}
+
+func __selfhost_compiler_ts_rewriteTSStatement(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	return func() __IRExpr {
+		if __expr.__kind == __ExprKind_Let {
+			return __selfhost_compiler_ts_rewriteTSLet(__expr, __structs, __enums, __bindings)
+		}
+		return __selfhost_compiler_ts_rewriteTSExpr(__expr, __structs, __enums, __bindings)
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSLet(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __selfhost_compiler_ts_tsRewriteChildren(__expr.__children, __structs, __enums, __bindings), __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_compiler_ts_tsLetBindingType(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		if __expr.__value != "" {
+			return __selfhost_compiler_ts_tsTypeBase(__expr.__value)
+		}
+		return func() string {
+			if len(__expr.__children) > 0 {
+				return func() string {
+					if __expr.__children[0].__kind == __ExprKind_Struct {
+						return __selfhost_compiler_ts_tsTypeBase(__expr.__children[0].__name)
+					}
+					return __selfhost_compiler_ts_tsResolveReceiverType(__expr.__children[0], __structs, __enums, __bindings)
+				}()
+			}
+			return ""
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsStatementBindings(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
+	__kind := __expr.__kind
+	return func() []__CompilerTypeBinding {
+		if __kind == __ExprKind_Let {
+			return __selfhost_compiler_ts_tsAddBinding(__bindings, __expr.__name, __selfhost_compiler_ts_tsLetBindingType(__expr, __structs, __enums, __bindings))
+		}
+		return __bindings
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSCall(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	__hasSelectorCallee := len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Selector
+	return func() __IRExpr {
+		switch {
+		case __hasSelectorCallee == true:
+			return __selfhost_compiler_ts_rewriteTSSelectorCall(__expr, __structs, __enums, __bindings)
+		default:
+			return __selfhost_compiler_ts_tsRebuildExpr(__expr, __selfhost_compiler_ts_tsRewriteChildren(__expr.__children, __structs, __enums, __bindings))
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_rewriteTSSelectorCall(__expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) __IRExpr {
+	__callee := __expr.__children[0]
+	__hasReceiver := len(__callee.__children) > 0
+	__receiver := func() __IRExpr {
+		if __hasReceiver {
+			return __selfhost_compiler_ts_rewriteTSExpr(__callee.__children[0], __structs, __enums, __bindings)
+		}
+		return __emptyIRExpr()
+	}()
+	__receiverType := __selfhost_compiler_ts_tsResolveReceiverType(__receiver, __structs, __enums, __bindings)
+	__rewrittenArgs := __selfhost_compiler_ts_tsRewriteArgs(__expr.__children, __structs, __enums, __bindings)
+	__shouldRewrite := __selfhost_compiler_ts_tsFindMethodCall(__structs, __enums, __receiverType, __callee.__name)
+	return func() __IRExpr {
+		switch {
+		case __shouldRewrite == true:
+			return __selfhost_compiler_ts_tsBuildMethodCall(__expr, __receiverType, __callee.__name, __receiver, __rewrittenArgs)
+		default:
+			return __selfhost_compiler_ts_tsRebuildExpr(__expr, __selfhost_compiler_ts_tsPrependExpr(__selfhost_compiler_ts_tsRebuildExpr(__callee, func() []__IRExpr {
+				if __hasReceiver {
+					return []__IRExpr{__receiver}
+				}
+				return []__IRExpr{}
+			}()), __rewrittenArgs))
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_tsBuildMethodCall(__expr __IRExpr, __receiverType string, __methodName string, __receiver __IRExpr, __args []__IRExpr) __IRExpr {
+	__calleeIdent := __selfhost_compiler_ts_tsMethodCallee(__selfhost_compiler_ts_tsTypeBase(__receiverType) + "_" + __methodName)
+	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __selfhost_compiler_ts_tsCallChildren(__calleeIdent, __receiver, __args), __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_compiler_ts_tsMethodCallee(__name string) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Identifier, __text: __name, __name: __name, __value: "", __op: "", __params: []__IRParam{}, __children: []__IRExpr{}, __line: 0, __column: 0}
+}
+
+func __selfhost_compiler_ts_tsCallChildren(__callee __IRExpr, __receiver __IRExpr, __args []__IRExpr) []__IRExpr {
+	return __selfhost_compiler_ts_tsPrependExprAll(__callee, __receiver, __args)
+}
+
+func __selfhost_compiler_ts_tsPrependExprAll(__callee __IRExpr, __receiver __IRExpr, __args []__IRExpr) []__IRExpr {
+	__out := []__IRExpr{__callee, __receiver}
+	for _, __arg := range __args {
+		_ = __arg
+		func() int { __out = append(__out, __arg); return len(__out) }()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_tsPrependExpr(__head __IRExpr, __rest []__IRExpr) []__IRExpr {
+	__out := []__IRExpr{__head}
+	for _, __item := range __rest {
+		_ = __item
+		func() int { __out = append(__out, __item); return len(__out) }()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_tsRebuildExpr(__expr __IRExpr, __children []__IRExpr) __IRExpr {
+	return __IRExpr{__kind: __expr.__kind, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __children, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_compiler_ts_tsRewriteChildren(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
+	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
+	for _, __child := range __children {
+		_ = __child
+		func() int {
+			__out = append(__out, __selfhost_compiler_ts_rewriteTSExpr(__child, __structs, __enums, __bindings))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_rewriteTSChildren(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
+	__out := append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...)
+	for _, __child := range __children {
+		_ = __child
+		func() int {
+			__out = append(__out, __selfhost_compiler_ts_rewriteTSExpr(__child, __structs, __enums, __bindings))
+			return len(__out)
+		}()
+	}
+	return __out
+}
+
+func __selfhost_compiler_ts_tsRewriteArgs(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
+	return __selfhost_compiler_ts_tsRewriteArgsFrom(__children, 1, __structs, __enums, __bindings, append([]__IRExpr{}, []__IRExpr{__emptyIRExpr()}[0:0]...))
+}
+
+func __selfhost_compiler_ts_tsRewriteArgsFrom(__children []__IRExpr, __index int, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __out []__IRExpr) []__IRExpr {
+	return func() []__IRExpr {
+		if __index >= len(__children) {
+			return __out
+		}
+		return __selfhost_compiler_ts_tsRewriteArgsFrom(__children, __index+1, __structs, __enums, __bindings, func() []__IRExpr {
+			out := []__IRExpr{}
+			out = append(out, __out...)
+			out = append(out, __selfhost_compiler_ts_rewriteTSExpr(__children[__index], __structs, __enums, __bindings))
+			return out
+		}())
+	}()
+}
+
+func __selfhost_compiler_ts_tsResolveReceiverType(__receiver __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) string {
+	return func() string {
+		if __receiver.__text != "" {
+			return __receiver.__text
+		}
+		return func() string {
+			switch {
+			case __receiver.__kind == __ExprKind_Identifier:
+				return __selfhost_compiler_ts_tsLookupBinding(__bindings, __receiver.__name, 0).__typeName
+			case __receiver.__kind == __ExprKind_This:
+				return __selfhost_compiler_ts_tsLookupBinding(__bindings, "this", 0).__typeName
+			case __receiver.__kind == __ExprKind_Struct:
+				return __receiver.__name
+			case __receiver.__kind == __ExprKind_Selector:
+				return __selfhost_compiler_ts_tsResolveSelectorFieldType(__receiver, __structs, __enums, __bindings)
+			default:
+				return ""
+			}
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsResolveSelectorFieldType(__receiver __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) string {
+	__empty := len(__receiver.__children) == 0
+	return func() string {
+		switch {
+		case __empty == true:
+			return ""
+		default:
+			return func() string {
+				if __receiver.__children[0].__text != "" {
+					return __receiver.__children[0].__text
+				}
+				return __selfhost_compiler_ts_tsStructFieldType(__structs, __selfhost_compiler_ts_tsTypeBase(__selfhost_compiler_ts_tsResolveReceiverType(__receiver.__children[0], __structs, __enums, __bindings)), __receiver.__name, 0)
+			}()
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_tsStructFieldType(__structs []__IRStructType, __typeName string, __fieldName string, __index int) string {
+	return func() string {
+		if __index >= len(__structs) {
+			return ""
+		}
+		return func() string {
+			if __structs[__index].__name == __typeName {
+				return __selfhost_compiler_ts_tsStructFieldTypeIn(__structs[__index].__fields, __fieldName, 0)
+			}
+			return __selfhost_compiler_ts_tsStructFieldType(__structs, __typeName, __fieldName, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsStructFieldTypeIn(__fields []__IRField, __fieldName string, __index int) string {
+	return func() string {
+		if __index >= len(__fields) {
+			return ""
+		}
+		return func() string {
+			if __fields[__index].__name == __fieldName {
+				return __fields[__index].__typeName
+			}
+			return __selfhost_compiler_ts_tsStructFieldTypeIn(__fields, __fieldName, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsFindMethodCall(__structs []__IRStructType, __enums []__IREnumType, __receiverType string, __methodName string) bool {
+	__base := __selfhost_compiler_ts_tsTypeBase(__receiverType)
+	__found := __selfhost_compiler_ts_tsStructHasInstanceMethod(__structs, __base, __methodName, 0)
+	return func() bool {
+		switch {
+		case __found == true:
+			return true
+		default:
+			return __selfhost_compiler_ts_tsEnumHasInstanceMethod(__enums, __base, __methodName, 0)
+		}
+	}()
+}
+
+func __selfhost_compiler_ts_tsEnumHasInstanceMethod(__enums []__IREnumType, __typeName string, __methodName string, __index int) bool {
+	return func() bool {
+		if __index >= len(__enums) {
+			return false
+		}
+		return func() bool {
+			if __enums[__index].__name == __typeName {
+				return __selfhost_compiler_ts_tsStructMethodMatches(__enums[__index].__methods, __methodName, 0)
+			}
+			return __selfhost_compiler_ts_tsEnumHasInstanceMethod(__enums, __typeName, __methodName, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsStructHasInstanceMethod(__structs []__IRStructType, __typeName string, __methodName string, __index int) bool {
+	return func() bool {
+		if __index >= len(__structs) {
+			return false
+		}
+		return func() bool {
+			if __structs[__index].__name == __typeName {
+				return __selfhost_compiler_ts_tsStructMethodMatches(__structs[__index].__methods, __methodName, 0)
+			}
+			return __selfhost_compiler_ts_tsStructHasInstanceMethod(__structs, __typeName, __methodName, __index+1)
+		}()
+	}()
+}
+
+func __selfhost_compiler_ts_tsStructMethodMatches(__methods []__IRFunction, __methodName string, __index int) bool {
+	return func() bool {
+		if __index >= len(__methods) {
+			return false
+		}
+		return func() bool {
+			if __methods[__index].__name == __methodName && __methods[__index].__static == false {
+				return true
+			}
+			return __selfhost_compiler_ts_tsStructMethodMatches(__methods, __methodName, __index+1)
+		}()
+	}()
 }
 
 func __selfhost_compiler_ts_emitTSConst(__constant __IRConst) string {
