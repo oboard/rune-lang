@@ -252,10 +252,10 @@ lowerJsonFieldNameAt(
   index: Int
 ) -> String => {
   done := index >= annotations.length()
-  done {
-    true => fallback
-    _ => lowerJsonFieldNameStep(annotations, fallback, index)
-  }
+  (
+    done ? fallback
+      : lowerJsonFieldNameStep(annotations, fallback, index)
+  )
 }
 
 lowerJsonFieldNameStep(
@@ -265,10 +265,10 @@ lowerJsonFieldNameStep(
 ) -> String => {
   annotation := annotations[index]
   matched := (((annotation.marker == "#") && (annotation.module == "json")) && (annotation.name == "name")) && (annotation.args.length() > 0)
-  matched {
-    true => lowerAnnotationStringArg(annotation, 0, fallback)
-    _ => lowerJsonFieldNameAt(annotations, fallback, index + 1)
-  }
+  (
+    matched ? lowerAnnotationStringArg(annotation, 0, fallback)
+      : lowerJsonFieldNameAt(annotations, fallback, index + 1)
+  )
 }
 
 lowerHasAnnotation(
@@ -279,10 +279,10 @@ lowerHasAnnotation(
   index: Int
 ) -> Bool => {
   done := index >= annotations.length()
-  done {
-    true => false
-    _ => lowerHasAnnotationStep(annotations, marker, module, name, index)
-  }
+  (
+    done ? false
+      : lowerHasAnnotationStep(annotations, marker, module, name, index)
+  )
 }
 
 lowerHasAnnotationStep(
@@ -294,10 +294,10 @@ lowerHasAnnotationStep(
 ) -> Bool => {
   annotation := annotations[index]
   matched := ((annotation.marker == marker) && (annotation.module == module)) && (annotation.name == name)
-  matched {
-    true => true
-    _ => lowerHasAnnotation(annotations, marker, module, name, index + 1)
-  }
+  (
+    matched ? true
+      : lowerHasAnnotation(annotations, marker, module, name, index + 1)
+  )
 }
 
 lowerAnnotationStringArg(
@@ -306,20 +306,20 @@ lowerAnnotationStringArg(
   fallback: String
 ) -> String => {
   valid := (index < annotation.args.length()) && (annotation.args[index].kind == ExprKind.String)
-  valid {
-    true => lowerUnquoteString(annotation.args[index].value)
-    _ => fallback
-  }
+  (
+    valid ? lowerUnquoteString(annotation.args[index].value)
+      : fallback
+  )
 }
 
 lowerUnquoteString(
   raw: String
 ) -> String => {
   quoted := raw.length() >= 2
-  quoted {
-    true => raw.slice(1, raw.length() - 1)
-    _ => raw
-  }
+  (
+    quoted ? raw.slice(1, raw.length() - 1)
+      : raw
+  )
 }
 
 lowerEnumMember(
@@ -355,14 +355,10 @@ lowerFunction(
   file: IRFile,
   sourcePath: String
 ) -> IRFile => {
-  imports: file.imports,
-  tsImports: file.tsImports,
+  ..file,
   structs: withIRStructSourcePaths(file.structs, sourcePath),
   enums: withIREnumSourcePaths(file.enums, sourcePath),
-  constants: file.constants,
-  functions: withIRFunctionSourcePaths(file.functions, sourcePath),
-  tests: file.tests,
-  errors: file.errors
+  functions: withIRFunctionSourcePaths(file.functions, sourcePath)
 }
 
 withIRFunctionSourcePath(
@@ -388,7 +384,7 @@ withIRStructSourcePath(
 ) -> IRStructType => {
   ..typeDecl,
   methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
-  sourcePath: sourcePath,
+  sourcePath: sourcePath
 }
 
 withIRStructSourcePaths(
@@ -406,7 +402,7 @@ withIREnumSourcePath(
 ) -> IREnumType => {
   ..typeDecl,
   methods: withIRFunctionSourcePaths(typeDecl.methods, sourcePath),
-  sourcePath: sourcePath,
+  sourcePath: sourcePath
 }
 
 withIREnumSourcePaths(
