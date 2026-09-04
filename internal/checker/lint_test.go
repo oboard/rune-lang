@@ -53,6 +53,16 @@ main() => {
 			t.Fatalf("warnings = %#v, want %q", warnings, want)
 		}
 	}
+	for _, warning := range warnings {
+		if warning.Kind != "unreachable_code" {
+			continue
+		}
+		if warning.Pos.Line != 16 || warning.Pos.Column != 3 {
+			t.Fatalf("unreachable pattern position = %d:%d, want 16:3", warning.Pos.Line, warning.Pos.Column)
+		}
+		return
+	}
+	t.Fatalf("warnings = %#v, want unreachable pattern warning", warnings)
 }
 
 func TestLintSkipsPublicDeclarations(t *testing.T) {

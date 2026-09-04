@@ -127,8 +127,22 @@ func (s *server) analyzeWithWarnings(uri string, includeWarnings bool) (*compile
 			}
 		}
 	}
+	diags = diagnosticsForDocument(uri, diags)
 	s.cache[uri] = programCacheEntry{text: text, prog: prog, diags: diags, warnings: includeWarnings}
 	return prog, diags
+}
+
+func diagnosticsForDocument(uri string, diags []compiler.Diagnostic) []compiler.Diagnostic {
+	if len(diags) == 0 {
+		return diags
+	}
+	filtered := diags[:0]
+	for _, diag := range diags {
+		if diag.Path == "" || diag.Path == uri || sourceMatchesDocument(uri, diag.Path) {
+			filtered = append(filtered, diag)
+		}
+	}
+	return filtered
 }
 
 func isBootstrapSourceURI(uri string) bool {

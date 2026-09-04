@@ -571,6 +571,7 @@ func (l *linter) warn(pos lexer.Position, code string, kind string, format strin
 	l.diags = append(l.diags, Diagnostic{
 		Message:  message,
 		Pos:      pos,
+		Path:     l.currentSourcePath,
 		Severity: SeverityWarning,
 		Code:     code,
 		Kind:     kind,

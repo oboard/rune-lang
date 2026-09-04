@@ -118,7 +118,11 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 	}
 	if includeWarnings && len(parseErrs) == 0 && !hasErrorDiagnostics(checkDiags) {
 		for _, diag := range checker.Lint(file, info) {
-			diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
+			diagnosticPath := path
+			if diag.Path != "" {
+				diagnosticPath = diag.Path
+			}
+			diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: diagnosticPath, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
 		}
 	}
 	lowered := ir.LowerFile(file, info)

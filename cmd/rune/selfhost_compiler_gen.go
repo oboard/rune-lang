@@ -15681,7 +15681,7 @@ func __selfhost_compiler_compiler_checkStructSelectorField(__expr __IRExpr, __re
 
 func __selfhost_compiler_compiler_checkLetDeclaredType(__name string, __value __IRExpr, __expected string, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding, __errors []string) []string {
 	__actual := __selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(__value, __structs, __callables, __bindings)
-	__mismatch := __selfhost_compiler_compiler_compilerShouldCheckArgType(__expected, __actual) && __selfhost_compiler_compiler_compilerTypesCompatible(__expected, __actual) == false
+	__mismatch := __expected != "?" && __selfhost_compiler_compiler_compilerShouldCheckArgType(__expected, __actual) && __selfhost_compiler_compiler_compilerTypesCompatible(__expected, __actual) == false
 	return func() []string {
 		switch {
 		case __mismatch == true:
@@ -15977,7 +15977,7 @@ func __selfhost_compiler_compiler_bindCompilerLet(__expr __IRExpr, __structs []_
 func __selfhost_compiler_compiler_compilerLetBindingType(__expr __IRExpr, __structs []__IRStructType, __callables []__CompilerCallable, __bindings []__CompilerTypeBinding) string {
 	return func() string {
 		switch {
-		case __expr.__value == "":
+		case (__expr.__value == "") || (__expr.__value == "?"):
 			return __selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(__expr.__children[0], __structs, __callables, __bindings)
 		default:
 			return __expr.__value

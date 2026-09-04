@@ -20,6 +20,36 @@ func TestAnalyzeFileWithWarningsSkipsPublicCliAPI(t *testing.T) {
 	}
 }
 
+func TestAnalyzeFileWithWarningsPreservesImportedDiagnosticPath(t *testing.T) {
+	dir := t.TempDir()
+	dependencyPath := filepath.Join(dir, "dependency.rn")
+	entryPath := filepath.Join(dir, "entry.rn")
+	writeRuneFile(t, dependencyPath, `Choice: {
+  First
+  Second
+}
+
+choose(value: Choice) -> Int => value {
+  First => 1
+  Second => 2
+  _ => 3
+}
+`)
+	writeRuneFile(t, entryPath, "@\"dependency.rn\"\n\nmain() => 1\n")
+
+	_, diags := AnalyzeFileWithWarnings(entryPath)
+	for _, diag := range diags {
+		if diag.Kind != "unreachable_code" {
+			continue
+		}
+		if diag.Path != dependencyPath {
+			t.Fatalf("unreachable warning path = %q, want %q", diag.Path, dependencyPath)
+		}
+		return
+	}
+	t.Fatalf("AnalyzeFileWithWarnings() diagnostics = %#v, want unreachable warning", diags)
+}
+
 func TestAnalyzeSourceWithWarningsKeepsAnalyzeSourceQuiet(t *testing.T) {
 	src := `Token: {
   value: Int

@@ -2588,7 +2588,9 @@ checkLetDeclaredType(
   errors: Array[String]
 ) -> Array[String] => {
   actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
-  mismatch := compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  // The parser uses `?` on a let node to mark an unwrap; it is not an
+  // annotation to validate against the payload's inferred type.
+  mismatch := (expected != "?") && compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
     true => [..errors, (((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected]
     _ => errors
@@ -2869,7 +2871,9 @@ compilerLetBindingType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => expr.value {
-  "" => inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings)
+  // `?` is the parser's unwrap marker, not a user-declared binding type.
+  // Infer the payload type from the unwrap expression just like an unannotated let.
+  "" | "?" => inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings)
   _ => expr.value
 }
 
