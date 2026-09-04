@@ -1,5 +1,5 @@
 main() => {
-    out := []
-    out.push("hello")
-    @io.println(out)
+  out := []
+  out.push("hello")
+  @io.println(out)
 }

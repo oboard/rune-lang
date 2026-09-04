@@ -186,7 +186,10 @@ indentText(indent: Int) -> String => (
     : "  " + indentText(indent - 1)
 )
 
-preserveComments(source: String, formatted: String) -> String => preserveCommentLines(formatted.split("\n"), source.split("\n"), 0, "")
+preserveComments(
+  source: String,
+  formatted: String
+) -> String => preserveCommentLines(formatted.split("\n"), source.split("\n"), 0, "")
 
 preserveCommentLines(
   formatted: Array[String],
@@ -195,15 +198,10 @@ preserveCommentLines(
   out: String
 ) -> String => (
   index >= formatted.length() ? out
-    : preserveCommentLines(
-      formatted,
-      source,
-      index + 1,
-      out + preserveCommentLine(formatted[index], source, 0) + (
-        index + 1 < formatted.length() ? "\n"
-          : ""
-      )
-    )
+    : preserveCommentLines(formatted, source, index + 1, (out + preserveCommentLine(formatted[index], source, 0)) + (
+      (index + 1) < formatted.length() ? "\n"
+        : ""
+    ))
 )
 
 preserveCommentLine(
@@ -212,8 +210,10 @@ preserveCommentLine(
   index: Int
 ) -> String => {
   comment := findInlineComment(source, canonicalLine(formatted), index)
-  comment == "" ? formatted
-    : formatted + " " + comment
+  (
+    comment == "" ? formatted
+      : (formatted + " ") + comment
+  )
 }
 
 findInlineComment(
@@ -232,11 +232,13 @@ inlineCommentForLine(
   index: Int
 ) -> String => {
   commentStart := firstCommentStart(line)
-  commentStart < 0 ? findInlineComment(source, formatted, index + 1)
-    : (
-      canonicalLine(line.slice(0, commentStart)) == formatted ? line.slice(commentStart, line.length()).trim()
-        : findInlineComment(source, formatted, index + 1)
-    )
+  (
+    commentStart < 0 ? findInlineComment(source, formatted, index + 1)
+      : (
+        canonicalLine(line.slice(0, commentStart)) == formatted ? line.slice(commentStart, line.length()).trim()
+          : findInlineComment(source, formatted, index + 1)
+      )
+  )
 }
 
 firstCommentStart(line: String) -> Int => line.indexOf("//")

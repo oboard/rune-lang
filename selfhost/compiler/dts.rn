@@ -186,9 +186,13 @@ dtsParams(
 
 dtsType(typeName: String) -> String => dtsTypeRef(parseDtsTypeRef(typeName))
 
-parseDtsTypeRef(typeName: String) -> ParsedTypeRef => dtsTypeRefPostfix(lex(typeName), 0, dtsTypeRoot(typeName))
+parseDtsTypeRef(
+  typeName: String
+) -> ParsedTypeRef => dtsTypeRefPostfix(lex(typeName), 0, dtsTypeRoot(typeName))
 
-dtsTypeRoot(typeName: String) -> ParsedTypeRef => {
+dtsTypeRoot(
+  typeName: String
+) -> ParsedTypeRef => {
   first := dtsFirstTypeToken(lex(typeName), 0)
   first.kind {
     TokenKind.BitAnd => namedParsedTypeRef(dtsTypeToken("Dynamic"))
@@ -216,8 +220,10 @@ dtsQualifiedTypeRef(
 ) -> ParsedTypeRef => {
   module := dtsTokenAt(tokens, 1)
   name := dtsTokenAt(tokens, 3)
-  (module.kind == TokenKind.Ident) && (name.kind == TokenKind.Ident) ? qualifiedParsedTypeRef(module, name)
-    : namedParsedTypeRef(dtsTypeToken("Dynamic"))
+  (
+    (module.kind == TokenKind.Ident) && (name.kind == TokenKind.Ident) ? qualifiedParsedTypeRef(module, name)
+      : namedParsedTypeRef(dtsTypeToken("Dynamic"))
+  )
 }
 
 dtsParenTypeRef(
@@ -230,8 +236,10 @@ dtsParenTypeRef(
       : ""
   )
   parts := dtsSplitTopLevelTypeArgs(inner)
-  parts.length() == 1 ? groupedTypeRef(parseDtsTypeRef(parts[0]), open)
-    : tupleTypeRef(dtsTupleParamsFromStrings(parts, 0, []), open)
+  (
+    parts.length() == 1 ? groupedTypeRef(parseDtsTypeRef(parts[0]), open)
+      : tupleTypeRef(dtsTupleParamsFromStrings(parts, 0, []), open)
+  )
 }
 
 dtsTypeToken(typeName: String) -> Token => {
@@ -333,7 +341,9 @@ dtsTokenRangeText(
     : dtsTokenRangeText(tokens, index + 1, endExclusive, out + tokens[index].lexeme)
 )
 
-dtsSplitTopLevelTypeArgs(source: String) -> Array[String] => dtsSplitTopLevelTypeArgsLoop(source, 0, 0, 0, [])
+dtsSplitTopLevelTypeArgs(
+  source: String
+) -> Array[String] => dtsSplitTopLevelTypeArgsLoop(source, 0, 0, 0, [])
 
 dtsSplitTopLevelTypeArgsLoop(
   source: String,
@@ -369,7 +379,9 @@ dtsPushTypeArg(
   out: Array[String],
   item: String
 ) -> Array[String] => {
-  item != "" ? out.push(item)
+  (
+    item != "" ? out.push(item)
+  )
   out
 }
 
@@ -378,8 +390,10 @@ dtsTypeRefsFromStrings(
   index: Int,
   out: Array[ParsedTypeRef]
 ) -> Array[ParsedTypeRef] => {
-  index >= parts.length() ? out
-    : dtsTypeRefsFromStringsPush(parts, index, out)
+  (
+    index >= parts.length() ? out
+      : dtsTypeRefsFromStringsPush(parts, index, out)
+  )
 }
 
 dtsTypeRefsFromStringsPush(
@@ -396,8 +410,10 @@ dtsTupleParamsFromStrings(
   index: Int,
   out: Array[ParsedTypeParam]
 ) -> Array[ParsedTypeParam] => {
-  index >= parts.length() ? out
-    : dtsTupleParamsFromStringsPush(parts, index, out)
+  (
+    index >= parts.length() ? out
+      : dtsTupleParamsFromStringsPush(parts, index, out)
+  )
 }
 
 dtsTupleParamsFromStringsPush(
@@ -413,7 +429,9 @@ dtsTupleParamsFromStringsPush(
   dtsTupleParamsFromStrings(parts, index + 1, out)
 }
 
-clearNullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => {
+clearNullableTypeRef(
+  typeRef: ParsedTypeRef
+) -> ParsedTypeRef => {
   kind: typeRef.kind,
   name: typeRef.name,
   module: typeRef.module,
@@ -425,16 +443,22 @@ clearNullableTypeRef(typeRef: ParsedTypeRef) -> ParsedTypeRef => {
   column: typeRef.column
 }
 
-dtsTypeRef(typeRef: ParsedTypeRef) -> String => {
+dtsTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => {
   typeRef.nullable {
     true => dtsNullableTypeRef(typeRef)
     false => dtsPlainTypeRef(typeRef)
   }
 }
 
-dtsNullableTypeRef(typeRef: ParsedTypeRef) -> String => dtsTypeRef(clearNullableTypeRef(typeRef)) + " | null"
+dtsNullableTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => dtsTypeRef(clearNullableTypeRef(typeRef)) + " | null"
 
-dtsPlainTypeRef(typeRef: ParsedTypeRef) -> String => typeRef.kind {
+dtsPlainTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => typeRef.kind {
   TypeRefKind.Name => dtsNamedTypeRef(typeRef)
   TypeRefKind.Group => dtsGroupedTypeRef(typeRef)
   TypeRefKind.Tuple => dtsTupleTypeRef(typeRef)
@@ -442,7 +466,9 @@ dtsPlainTypeRef(typeRef: ParsedTypeRef) -> String => typeRef.kind {
   _ => "any"
 }
 
-dtsNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
+dtsNamedTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => {
   typeName := dtsQualifiedTypeName(typeRef)
   typeName {
     "" | "Void" => "void"
@@ -472,12 +498,16 @@ dtsNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
   }
 }
 
-dtsQualifiedTypeName(typeRef: ParsedTypeRef) -> String => (
+dtsQualifiedTypeName(
+  typeRef: ParsedTypeRef
+) -> String => (
   typeRef.module == "" ? typeRef.name
-    : ("@" + typeRef.module) + "." + typeRef.name
+    : (("@" + typeRef.module) + ".") + typeRef.name
 )
 
-dtsStructuredNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
+dtsStructuredNamedTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => {
   dtsQualifiedTypeName(typeRef) {
     "Array" => dtsArrayTypeRef(typeRef)
     "Result" => dtsGenericTypeRef("RuneResult", typeRef.args)
@@ -495,7 +525,9 @@ dtsStructuredNamedTypeRef(typeRef: ParsedTypeRef) -> String => {
   }
 }
 
-dtsArrayTypeRef(typeRef: ParsedTypeRef) -> String => (
+dtsArrayTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => (
   typeRef.args.length() == 0 ? "any[]"
     : dtsTypeRef(typeRef.args[0]) + "[]"
 )
@@ -505,7 +537,9 @@ dtsGenericTypeRef(
   args: Array[ParsedTypeRef]
 ) -> String => ((name + "<") + dtsTypeRefs(args, 0, "")) + ">"
 
-dtsNamedType(typeRef: ParsedTypeRef) -> String => {
+dtsNamedType(
+  typeRef: ParsedTypeRef
+) -> String => {
   prefix := (
     typeRef.module == "" ? ""
       : ("@" + typeRef.module) + "."
@@ -516,20 +550,26 @@ dtsNamedType(typeRef: ParsedTypeRef) -> String => {
   )
 }
 
-dtsGroupedTypeRef(typeRef: ParsedTypeRef) -> String => (
+dtsGroupedTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => (
   typeRef.args.length() == 0 ? "()"
     : ("(" + dtsTypeRef(typeRef.args[0])) + ")"
 )
 
-dtsTupleTypeRef(typeRef: ParsedTypeRef) -> String => dtsTupleParams(typeRef.params, false)
+dtsTupleTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => dtsTupleParams(typeRef.params, false)
 
 dtsTupleParams(
   params: Array[ParsedTypeParam],
   readonly: Bool
 ) -> String => {
   items := dtsTypeParams(params, 0, "")
-  readonly ? ("readonly [" + items) + "]"
-    : ("[" + items) + "]"
+  (
+    readonly ? ("readonly [" + items) + "]"
+      : ("[" + items) + "]"
+  )
 }
 
 dtsTupleArgs(
@@ -537,13 +577,19 @@ dtsTupleArgs(
   readonly: Bool
 ) -> String => {
   items := dtsTypeRefs(args, 0, "")
-  readonly ? ("readonly [" + items) + "]"
-    : ("[" + items) + "]"
+  (
+    readonly ? ("readonly [" + items) + "]"
+      : ("[" + items) + "]"
+  )
 }
 
-dtsFunctionTypeRef(typeRef: ParsedTypeRef) -> String => {
-  ret := typeRef.returnTypes.length() == 0 ? "void"
-    : dtsTypeRef(typeRef.returnTypes[0])
+dtsFunctionTypeRef(
+  typeRef: ParsedTypeRef
+) -> String => {
+  ret := (
+    typeRef.returnTypes.length() == 0 ? "void"
+      : dtsTypeRef(typeRef.returnTypes[0])
+  )
   (("(" + dtsTypeParams(typeRef.params, 0, "")) + ") => ") + ret
 }
 
@@ -571,7 +617,9 @@ dtsTypeParams(
     )) + dtsTypeParam(params[index]))
 )
 
-dtsTypeParam(param: ParsedTypeParam) -> String => {
+dtsTypeParam(
+  param: ParsedTypeParam
+) -> String => {
   prefix := (
     param.name == "" ? ""
       : mangleIdent(param.name) + (

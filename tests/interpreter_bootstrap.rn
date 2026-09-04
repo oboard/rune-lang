@@ -226,13 +226,11 @@ main() -> Int => {
   result := interpret(source)
   @assert.eq(result.ok, false)
   @assert.eq(result.error, "process.exit(7)")
-
   helpSource := `main() -> Never => @cli.exitHelp(@cli.command("noop", "No operation"))
 `
   help := interpret(helpSource)
   @assert.eq(help.ok, false)
   @assert.eq(help.error, "process.exit(0)")
-
   errorSource := `main() -> Never => @cli.exitError(@cli.command("noop", "No operation"), "boom")
 `
   failed := interpret(errorSource)

@@ -10,24 +10,6 @@ RuntimeEntry: {
   value: RuntimeValue
 }
 
-+ RuntimeValue: {
-  Void
-  Null
-  Bool(value: Bool)
-  Int(value: Int, typeName: String)
-  Double(value: Double, text: String, typeName: String)
-  String(value: String, typeName: String)
-  Char(value: Char)
-  Array(values: Array[RuntimeValue])
-  Tuple(values: Array[RuntimeValue])
-  Map(entries: Array[RuntimeEntry])
-  Set(entries: Array[RuntimeEntry])
-  Struct(typeName: String, fields: Array[RuntimeField])
-  Module(name: String)
-  Closure(index: Int)
-  Enum(typeName: String, name: String, value: Int, payload: Array[RuntimeValue])
-}
-
 RuntimeBinding: {
   name: String
   value: RuntimeValue
@@ -134,6 +116,31 @@ Interpreter: {
   interpreter: Interpreter
 }
 
+RegexMatch: {
+  found: Bool
+  start: Int
+  end: Int
+  groups: Array[String]
+}
+
++ RuntimeValue: {
+  Void
+  Null
+  Bool(value: Bool)
+  Int(value: Int, typeName: String)
+  Double(value: Double, text: String, typeName: String)
+  String(value: String, typeName: String)
+  Char(value: Char)
+  Array(values: Array[RuntimeValue])
+  Tuple(values: Array[RuntimeValue])
+  Map(entries: Array[RuntimeEntry])
+  Set(entries: Array[RuntimeEntry])
+  Struct(typeName: String, fields: Array[RuntimeField])
+  Module(name: String)
+  Closure(index: Int)
+  Enum(typeName: String, name: String, value: Int, payload: Array[RuntimeValue])
+}
+
 RuntimeValueKind: {
   Void = 0
   Null = 1
@@ -237,7 +244,7 @@ RuntimeValueKind: {
   interpreter := newInterpreter(file)
   fn := findFunction(interpreter, funcName)
   (
-    fn.name == "" ? errorResult("function " + funcName + " not found")
+    fn.name == "" ? errorResult(("function " + funcName) + " not found")
       : callFunction(interpreter, fn, args)
   )
 }
@@ -250,14 +257,21 @@ newInterpreter(
   structs: file.structs,
   enums: file.enums,
   closures: {},
-  closureCount: { "count": 0 },
+  closureCount: {
+    "count": 0,
+  },
   output: [],
   outputLog: {},
-  outputCount: { "count": 0 },
+  outputCount: {
+    "count": 0,
+  },
   fsFiles: {},
   fsFileBytes: {},
   fsFileExists: {},
-  fsDirs: { ".": true, "/": true }
+  fsDirs: {
+    ".": true,
+    "/": true,
+  }
 }
 
 snapshotInterpreter(
@@ -290,7 +304,9 @@ runTest(
 
 emptyEnv() -> RuntimeEnv => {
   bindings: {},
-  bindingCount: { "count": 0 }
+  bindingCount: {
+    "count": 0,
+  }
 }
 
 emptyValue() -> RuntimeValue => RuntimeValue.Void
@@ -328,7 +344,10 @@ bigIntValue(
 
 normalizeBigIntText(
   value: String
-) -> String => value.endsWith("n") ? value.slice(0, value.length() - 1) : value
+) -> String => (
+  value.endsWith("n") ? value.slice(0, value.length() - 1)
+    : value
+)
 
 charValue(value: Char) -> RuntimeValue => RuntimeValue.Char(value)
 
@@ -372,49 +391,55 @@ enumPayloadValue(
   payload: Array[RuntimeValue]
 ) -> RuntimeValue => RuntimeValue.Enum(typeName, name, value, payload)
 
-runtimeKind(value: RuntimeValue) -> RuntimeValueKind => value {
+runtimeKind(
+  value: RuntimeValue
+) -> RuntimeValueKind => value {
   Void => RuntimeValueKind.Void
   Null => RuntimeValueKind.Null
   Bool(value) => RuntimeValueKind.Bool
-  Int(value, typeName) => RuntimeValueKind.Int
-  Double(value, text, typeName) => RuntimeValueKind.Double
-  String(text, typeName) => RuntimeValueKind.String
+  Int(value) => RuntimeValueKind.Int
+  Double(value) => RuntimeValueKind.Double
+  String(text) => RuntimeValueKind.String
   Char(value) => RuntimeValueKind.Char
   Array(values) => RuntimeValueKind.Array
   Tuple(values) => RuntimeValueKind.Tuple
   Map(entries) => RuntimeValueKind.Map
   Set(entries) => RuntimeValueKind.Set
-  Struct(typeName, fields) => RuntimeValueKind.Struct
+  Struct(typeName) => RuntimeValueKind.Struct
   Module(name) => RuntimeValueKind.Module
   Closure(index) => RuntimeValueKind.Closure
-  Enum(typeName, name, value, payload) => RuntimeValueKind.Enum
+  Enum(typeName) => RuntimeValueKind.Enum
 }
 
-runtimeText(value: RuntimeValue) -> String => value {
+runtimeText(
+  value: RuntimeValue
+) -> String => value {
   Void => ""
   Null => "null"
   Bool(v) => (
     v ? "true"
       : "false"
   )
-  Int(v, typeName) => intToString(v)
-  Double(v, text, typeName) => text
-  String(text, typeName) => text
+  Int(v) => intToString(v)
+  Double(v) => text
+  String(text) => text
   Char(ch) => ch.toString()
   Module(name) => name
-  Enum(typeName, name, value, payload) => name
+  Enum(typeName) => name
   _ => ""
 }
 
 runtimeInt(value: RuntimeValue) -> Int => value {
-  Int(v, typeName) => v
-  Enum(typeName, name, v, payload) => v
+  Int(v) => v
+  Enum(typeName) => v
   Closure(index) => index
   _ => 0
 }
 
-runtimeDouble(value: RuntimeValue) -> Double => value {
-  Double(v, text, typeName) => v
+runtimeDouble(
+  value: RuntimeValue
+) -> Double => value {
+  Double(v) => v
   _ => 0.0
 }
 
@@ -428,34 +453,44 @@ runtimeChar(value: RuntimeValue) -> Char => value {
   _ => '\x00'
 }
 
-runtimeArray(value: RuntimeValue) -> Array[RuntimeValue] => value {
+runtimeArray(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => value {
   Array(values) => values
   Tuple(values) => values
-  Enum(typeName, name, value, payload) => payload
+  Enum(typeName) => payload
   _ => []
 }
 
-runtimeEntries(value: RuntimeValue) -> Array[RuntimeEntry] => value {
+runtimeEntries(
+  value: RuntimeValue
+) -> Array[RuntimeEntry] => value {
   Map(entries) => entries
   Set(entries) => entries
   _ => []
 }
 
-runtimeFields(value: RuntimeValue) -> Array[RuntimeField] => value {
-  Struct(typeName, fields) => fields
+runtimeFields(
+  value: RuntimeValue
+) -> Array[RuntimeField] => value {
+  Struct(typeName) => fields
   _ => []
 }
 
-runtimeTypeName(value: RuntimeValue) -> String => value {
-  Int(value, typeName) => typeName
-  Double(value, text, typeName) => typeName
-  String(text, typeName) => typeName
-  Struct(typeName, fields) => typeName
-  Enum(typeName, name, value, payload) => typeName
+runtimeTypeName(
+  value: RuntimeValue
+) -> String => value {
+  Int(value) => typeName
+  Double(value) => typeName
+  String(text) => typeName
+  Struct(typeName) => typeName
+  Enum(typeName) => typeName
   _ => ""
 }
 
-runtimeClosureIndex(value: RuntimeValue) -> Int => value {
+runtimeClosureIndex(
+  value: RuntimeValue
+) -> Int => value {
   Closure(index) => index
   _ => -1
 }
@@ -482,7 +517,7 @@ runtimeWithFields(
   value: RuntimeValue,
   fields: Array[RuntimeField]
 ) -> RuntimeValue => value {
-  Struct(typeName, old) => structValue(typeName, fields)
+  Struct(typeName) => structValue(typeName, fields)
   _ => value
 }
 
@@ -552,13 +587,16 @@ evalResultUnwrap(
   expr: IRExpr
 ) -> EvalResult => {
   result := evalExpr(interpreter, env, expr.children[0])
-  result.ok ? unwrapRuntimeResult(result.value) : result
+  (
+    result.ok ? unwrapRuntimeResult(result.value)
+      : result
+  )
 }
 
 unwrapRuntimeResult(
   value: RuntimeValue
 ) -> EvalResult => value {
-  Enum(typeName, name, raw, payload) => unwrapRuntimeResultEnum(typeName, name, payload)
+  Enum(typeName) => unwrapRuntimeResultEnum(typeName, name, payload)
   _ => errorResult("operator '?' expects Result")
 }
 
@@ -575,19 +613,25 @@ unwrapResultPayload(
   name: String,
   payload: Array[RuntimeValue]
 ) -> EvalResult => name {
-  "Ok" => (payload.length() > 0) ? okResult(payload[0]) : okResult(voidValue())
-  "Err" => (payload.length() > 0) ? errorResult(runtimeErrorMessage(payload[0])) : errorResult("Result.Err")
+  "Ok" => (
+    payload.length() > 0 ? okResult(payload[0])
+      : okResult(voidValue())
+  )
+  "Err" => (
+    payload.length() > 0 ? errorResult(runtimeErrorMessage(payload[0]))
+      : errorResult("Result.Err")
+  )
   _ => errorResult("operator '?' expects Result")
 }
 
 runtimeErrorMessage(
   value: RuntimeValue
 ) -> String => value {
-  Struct(typeName, fields) => typeName {
+  Struct(typeName) => typeName {
     "Error" => runtimeText(runtimeStructField(value, "message"))
     _ => formatRuntimeValue(value)
   }
-  String(text, typeName) => text
+  String(text) => text
   _ => formatRuntimeValue(value)
 }
 
@@ -886,11 +930,17 @@ evalNumericBinary(
     )
 )
 
-isBigIntRuntime(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.String) && (runtimeTypeName(value) == "BigInt")
+isBigIntRuntime(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.String) && (runtimeTypeName(value) == "BigInt")
 
-parseBigIntRuntime(value: RuntimeValue) -> Int => parseIntText(runtimeText(value))
+parseBigIntRuntime(
+  value: RuntimeValue
+) -> Int => parseIntText(runtimeText(value))
 
-bigIntRuntimeValue(value: Int) -> RuntimeValue => bigIntValue(intToString(value))
+bigIntRuntimeValue(
+  value: Int
+) -> RuntimeValue => bigIntValue(intToString(value))
 
 evalBigIntBinary(
   left: RuntimeValue,
@@ -968,7 +1018,7 @@ bigIntAddAbsLoop(
   carry: Int,
   out: String
 ) -> String => (
-  (leftIndex < 0) && (rightIndex < 0) && (carry == 0) ? out
+  ((leftIndex < 0) && (rightIndex < 0)) && (carry == 0) ? out
     : bigIntAddAbsStep(left, right, leftIndex, rightIndex, carry, out)
 )
 
@@ -980,7 +1030,7 @@ bigIntAddAbsStep(
   carry: Int,
   out: String
 ) -> String => {
-  sum := bigIntDigitAt(left, leftIndex) + bigIntDigitAt(right, rightIndex) + carry
+  sum := (bigIntDigitAt(left, leftIndex) + bigIntDigitAt(right, rightIndex)) + carry
   bigIntAddAbsLoop(left, right, leftIndex - 1, rightIndex - 1, sum / 10, digitString(sum % 10) + out)
 }
 
@@ -1009,7 +1059,7 @@ bigIntSubAbsStep(
   borrow: Int,
   out: String
 ) -> String => {
-  raw := bigIntDigitAt(left, leftIndex) - borrow - bigIntDigitAt(right, rightIndex)
+  raw := (bigIntDigitAt(left, leftIndex) - borrow) - bigIntDigitAt(right, rightIndex)
   digit := (
     raw < 0 ? raw + 10
       : raw
@@ -1331,7 +1381,7 @@ callEnumConstructorValue(
   (
     !args.ok ? errorResult(args.error)
       : (
-        args.values.length() != member.params.length() ? errorResult("constructor " + member.name + " argument count mismatch")
+        args.values.length() != member.params.length() ? errorResult(("constructor " + member.name) + " argument count mismatch")
           : okResult(enumPayloadValue(typeName, member.name, parseIntText(member.value), args.values))
       )
   )
@@ -1612,13 +1662,17 @@ callFunction(
     native.handled ? native.result
       : (
         (fn.body.kind == ExprKind.PatternBlock) && (args.length() > 0) ? evalPatternBlockWithSubject(interpreter, env, args[0], fn.body)
-          : (functionAllowsPredicateBody(fn) && exprLooksPatternPredicate(fn.body)) && (args.length() > 0) ? okResult(boolValue(matchPredicateExpr(args[0], fn.body)))
-          : evalFunctionBody(interpreter, fn, env)
+          : (
+            (functionAllowsPredicateBody(fn) && exprLooksPatternPredicate(fn.body)) && (args.length() > 0) ? okResult(boolValue(matchPredicateExpr(args[0], fn.body)))
+              : evalFunctionBody(interpreter, fn, env)
+          )
       )
   )
 }
 
-functionAllowsPredicateBody(fn: IRFunction) -> Bool => (fn.returnType == "") || (fn.returnType == "Bool")
+functionAllowsPredicateBody(
+  fn: IRFunction
+) -> Bool => (fn.returnType == "") || (fn.returnType == "Bool")
 
 globalEnv(
   interpreter: Interpreter
@@ -1659,16 +1713,12 @@ callNativeSelfhostFunction(
 isNativeInterpretFunction(
   fn: IRFunction,
   args: Array[RuntimeValue]
-) -> Bool => (
-  (fn.name == "interpret") && (fn.returnType == "InterpretResult") && (fn.params.length() == 1) && (args.length() == 1) && (runtimeKind(args[0]) == RuntimeValueKind.String)
-)
+) -> Bool => ((((fn.name == "interpret") && (fn.returnType == "InterpretResult")) && (fn.params.length() == 1)) && (args.length() == 1)) && (runtimeKind(args[0]) == RuntimeValueKind.String)
 
 isNativeInterpretTestFunction(
   fn: IRFunction,
   args: Array[RuntimeValue]
-) -> Bool => (
-  (fn.name == "interpretTest") && (fn.returnType == "InterpretResult") && (fn.params.length() == 2) && (args.length() == 2) && (runtimeKind(args[0]) == RuntimeValueKind.String) && (runtimeKind(args[1]) == RuntimeValueKind.String)
-)
+) -> Bool => (((((fn.name == "interpretTest") && (fn.returnType == "InterpretResult")) && (fn.params.length() == 2)) && (args.length() == 2)) && (runtimeKind(args[0]) == RuntimeValueKind.String)) && (runtimeKind(args[1]) == RuntimeValueKind.String)
 
 handledNative(
   result: EvalResult
@@ -1684,19 +1734,29 @@ unhandledNative() -> NativeCallResult => {
 
 interpretResultRuntimeValue(
   result: InterpretResult
-) -> RuntimeValue => structValue("InterpretResult", [
-  RuntimeField { name: "ok", value: boolValue(result.ok) },
-  RuntimeField { name: "error", value: stringValue(result.error) },
-  RuntimeField { name: "value", value: result.value },
-  RuntimeField { name: "output", value: arrayValue(stringArrayValues(result.output, 0, [])) },
-  RuntimeField { name: "interpreter", value: interpreterRuntimeValue(result.interpreter) }
-])
+) -> RuntimeValue => structValue("InterpretResult", [RuntimeField {
+  name: "ok",
+  value: boolValue(result.ok)
+}, RuntimeField {
+  name: "error",
+  value: stringValue(result.error)
+}, RuntimeField {
+  name: "value",
+  value: result.value
+}, RuntimeField {
+  name: "output",
+  value: arrayValue(stringArrayValues(result.output, 0, []))
+}, RuntimeField {
+  name: "interpreter",
+  value: interpreterRuntimeValue(result.interpreter)
+}])
 
 interpreterRuntimeValue(
   interpreter: Interpreter
-) -> RuntimeValue => structValue("Interpreter", [
-  RuntimeField { name: "output", value: arrayValue(stringArrayValues(interpreter.output, 0, [])) }
-])
+) -> RuntimeValue => structValue("Interpreter", [RuntimeField {
+  name: "output",
+  value: arrayValue(stringArrayValues(interpreter.output, 0, []))
+}])
 
 stringArrayValues(
   values: Array[String],
@@ -1719,19 +1779,40 @@ stringArrayValuesNext(
 
 reflectRuntimeValue(
   value: RuntimeValue
-) -> RuntimeValue => structValue("RuntimeValue", [
-  RuntimeField { name: "kind", value: reflectRuntimeValueKind(runtimeKind(value)) },
-  RuntimeField { name: "text", value: stringValue(runtimeText(value)) },
-  RuntimeField { name: "intValue", value: intValue(runtimeInt(value)) },
-  RuntimeField { name: "doubleValue", value: doubleValue(runtimeDouble(value), runtimeText(value)) },
-  RuntimeField { name: "boolValue", value: boolValue(runtimeBool(value)) },
-  RuntimeField { name: "charValue", value: charValue(runtimeChar(value)) },
-  RuntimeField { name: "array", value: arrayValue(reflectRuntimeValues(runtimeArray(value), 0, [])) },
-  RuntimeField { name: "entries", value: arrayValue(reflectRuntimeEntries(runtimeEntries(value), 0, [])) },
-  RuntimeField { name: "fields", value: arrayValue(reflectRuntimeFields(runtimeFields(value), 0, [])) },
-  RuntimeField { name: "typeName", value: stringValue(runtimeTypeName(value)) },
-  RuntimeField { name: "closureIndex", value: intValue(runtimeClosureIndex(value)) }
-])
+) -> RuntimeValue => structValue("RuntimeValue", [RuntimeField {
+  name: "kind",
+  value: reflectRuntimeValueKind(runtimeKind(value))
+}, RuntimeField {
+  name: "text",
+  value: stringValue(runtimeText(value))
+}, RuntimeField {
+  name: "intValue",
+  value: intValue(runtimeInt(value))
+}, RuntimeField {
+  name: "doubleValue",
+  value: doubleValue(runtimeDouble(value), runtimeText(value))
+}, RuntimeField {
+  name: "boolValue",
+  value: boolValue(runtimeBool(value))
+}, RuntimeField {
+  name: "charValue",
+  value: charValue(runtimeChar(value))
+}, RuntimeField {
+  name: "array",
+  value: arrayValue(reflectRuntimeValues(runtimeArray(value), 0, []))
+}, RuntimeField {
+  name: "entries",
+  value: arrayValue(reflectRuntimeEntries(runtimeEntries(value), 0, []))
+}, RuntimeField {
+  name: "fields",
+  value: arrayValue(reflectRuntimeFields(runtimeFields(value), 0, []))
+}, RuntimeField {
+  name: "typeName",
+  value: stringValue(runtimeTypeName(value))
+}, RuntimeField {
+  name: "closureIndex",
+  value: intValue(runtimeClosureIndex(value))
+}])
 
 reflectRuntimeValueKind(
   kind: RuntimeValueKind
@@ -1751,7 +1832,6 @@ reflectRuntimeValueKind(
   RuntimeValueKind.Module => enumValue("RuntimeValueKind", "Module", 12)
   RuntimeValueKind.Closure => enumValue("RuntimeValueKind", "Closure", 13)
   RuntimeValueKind.Enum => enumValue("RuntimeValueKind", "Enum", 14)
-  _ => enumValue("RuntimeValueKind", "Void", 0)
 }
 
 reflectRuntimeValues(
@@ -1786,10 +1866,13 @@ reflectRuntimeEntriesNext(
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   entry := entries[index]
-  reflectRuntimeEntries(entries, index + 1, pushRuntime(out, structValue("RuntimeEntry", [
-    RuntimeField { name: "key", value: reflectRuntimeValue(entry.key) },
-    RuntimeField { name: "value", value: reflectRuntimeValue(entry.value) }
-  ])))
+  reflectRuntimeEntries(entries, index + 1, pushRuntime(out, structValue("RuntimeEntry", [RuntimeField {
+    name: "key",
+    value: reflectRuntimeValue(entry.key)
+  }, RuntimeField {
+    name: "value",
+    value: reflectRuntimeValue(entry.value)
+  }])))
 }
 
 reflectRuntimeFields(
@@ -1807,10 +1890,13 @@ reflectRuntimeFieldsNext(
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   field := fields[index]
-  reflectRuntimeFields(fields, index + 1, pushRuntime(out, structValue("RuntimeField", [
-    RuntimeField { name: "name", value: stringValue(field.name) },
-    RuntimeField { name: "value", value: reflectRuntimeValue(field.value) }
-  ])))
+  reflectRuntimeFields(fields, index + 1, pushRuntime(out, structValue("RuntimeField", [RuntimeField {
+    name: "name",
+    value: stringValue(field.name)
+  }, RuntimeField {
+    name: "value",
+    value: reflectRuntimeValue(field.value)
+  }])))
 }
 
 evalFunctionBody(
@@ -1911,12 +1997,10 @@ callSymbolModuleFunction(
     "create" => okResult(symbolValue(runtimeText(args[0]), "", false))
     "unique" => okResult(symbolValue(runtimeText(args[0]), "", false))
     "for" => okResult(symbolValue(runtimeText(args[0]), runtimeText(args[0]), true))
-    "keyFor" => (
-      symbolGlobal(args[0]) {
-        true => okResult(stringValue(symbolKey(args[0])))
-        false => okResult(nullValue())
-      }
-    )
+    "keyFor" => symbolGlobal(args[0]) {
+      true => okResult(stringValue(symbolKey(args[0])))
+      false => okResult(nullValue())
+    }
     "description" => okResult(stringValue(symbolDescription(args[0])))
     "toString" => okResult(stringValue(("Symbol(" + symbolDescription(args[0])) + ")"))
     _ => callImportedModuleFunction(interpreter, env, "symbol", name, children)
@@ -1927,17 +2011,26 @@ symbolValue(
   description: String,
   key: String,
   global: Bool
-) -> RuntimeValue => structValue("Symbol", [
-  RuntimeField { name: "description", value: stringValue(description) },
-  RuntimeField { name: "key", value: stringValue(key) },
-  RuntimeField { name: "global", value: boolValue(global) }
-])
+) -> RuntimeValue => structValue("Symbol", [RuntimeField {
+  name: "description",
+  value: stringValue(description)
+}, RuntimeField {
+  name: "key",
+  value: stringValue(key)
+}, RuntimeField {
+  name: "global",
+  value: boolValue(global)
+}])
 
-symbolDescription(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "description"))
+symbolDescription(
+  value: RuntimeValue
+) -> String => runtimeText(runtimeStructField(value, "description"))
 
 symbolKey(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "key"))
 
-symbolGlobal(value: RuntimeValue) -> Bool => runtimeBool(runtimeStructField(value, "global"))
+symbolGlobal(
+  value: RuntimeValue
+) -> Bool => runtimeBool(runtimeStructField(value, "global"))
 
 callIterModuleFunction(
   interpreter: Interpreter,
@@ -2014,7 +2107,7 @@ callProcessModuleFunction(
     "argv" => okResult(arrayValue(emptyRuntimeArray()))
     "cwd" => okResult(stringValue("."))
     "env" => okResult(nullValue())
-    "exit" => errorResult("process.exit(" + intToString(runtimeInt(evalArgs(interpreter, env, children, 1)[0])) + ")")
+    "exit" => errorResult(("process.exit(" + intToString(runtimeInt(evalArgs(interpreter, env, children, 1)[0]))) + ")")
     _ => callImportedModuleFunction(interpreter, env, "process", name, children)
   }
 }
@@ -2057,34 +2150,56 @@ callNetModuleFunction(
 netListenerValue(
   address: String,
   closed: Bool
-) -> RuntimeValue => structValue("TCPListener", [
-  RuntimeField { name: "address", value: stringValue(address) },
-  RuntimeField { name: "closed", value: boolValue(closed) }
-])
+) -> RuntimeValue => structValue("TCPListener", [RuntimeField {
+  name: "address",
+  value: stringValue(address)
+}, RuntimeField {
+  name: "closed",
+  value: boolValue(closed)
+}])
 
 netConnectionValue(
   address: String,
   data: Array[RuntimeValue],
   closed: Bool
-) -> RuntimeValue => structValue("TCPConnection", [
-  RuntimeField { name: "address", value: stringValue(address) },
-  RuntimeField { name: "data", value: arrayValue(data) },
-  RuntimeField { name: "closed", value: boolValue(closed) }
-])
+) -> RuntimeValue => structValue("TCPConnection", [RuntimeField {
+  name: "address",
+  value: stringValue(address)
+}, RuntimeField {
+  name: "data",
+  value: arrayValue(data)
+}, RuntimeField {
+  name: "closed",
+  value: boolValue(closed)
+}])
 
-isNetListenerValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPListener")
+isNetListenerValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPListener")
 
-isNetConnectionValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPConnection")
+isNetConnectionValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPConnection")
 
-netListenerAddress(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "address"))
+netListenerAddress(
+  value: RuntimeValue
+) -> String => runtimeText(runtimeStructField(value, "address"))
 
-netListenerClosed(value: RuntimeValue) -> Bool => runtimeBool(runtimeStructField(value, "closed"))
+netListenerClosed(
+  value: RuntimeValue
+) -> Bool => runtimeBool(runtimeStructField(value, "closed"))
 
-netConnectionAddress(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "address"))
+netConnectionAddress(
+  value: RuntimeValue
+) -> String => runtimeText(runtimeStructField(value, "address"))
 
-netConnectionData(value: RuntimeValue) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
+netConnectionData(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
 
-netConnectionClosed(value: RuntimeValue) -> Bool => runtimeBool(runtimeStructField(value, "closed"))
+netConnectionClosed(
+  value: RuntimeValue
+) -> Bool => runtimeBool(runtimeStructField(value, "closed"))
 
 fsWriteText(
   interpreter: Interpreter,
@@ -2187,11 +2302,16 @@ fileStatValue(
   size: Int,
   isFile: Bool,
   isDirectory: Bool
-) -> RuntimeValue => structValue("FileStat", [
-  RuntimeField { name: "size", value: intValue(size) },
-  RuntimeField { name: "isFile", value: boolValue(isFile) },
-  RuntimeField { name: "isDirectory", value: boolValue(isDirectory) }
-])
+) -> RuntimeValue => structValue("FileStat", [RuntimeField {
+  name: "size",
+  value: intValue(size)
+}, RuntimeField {
+  name: "isFile",
+  value: boolValue(isFile)
+}, RuntimeField {
+  name: "isDirectory",
+  value: boolValue(isDirectory)
+}])
 
 resultOk(
   value: RuntimeValue
@@ -2203,11 +2323,16 @@ resultErr(
 
 errorValue(
   message: String
-) -> RuntimeValue => structValue("Error", [
-  RuntimeField { name: "code", value: intValue(1) },
-  RuntimeField { name: "message", value: stringValue(message) },
-  RuntimeField { name: "cause", value: nullValue() }
-])
+) -> RuntimeValue => structValue("Error", [RuntimeField {
+  name: "code",
+  value: intValue(1)
+}, RuntimeField {
+  name: "message",
+  value: stringValue(message)
+}, RuntimeField {
+  name: "cause",
+  value: nullValue()
+}])
 
 runtimeBytesText(
   value: RuntimeValue
@@ -2272,9 +2397,7 @@ fsReaddirValues(
 fsDirectChild(
   dir: String,
   child: String
-) -> Bool => (
-  (child != dir) && (pathDirname(child) == dir)
-)
+) -> Bool => (child != dir) && (pathDirname(child) == dir)
 
 appendStringArrays(
   values: Array[String],
@@ -2288,22 +2411,32 @@ appendStringArrays(
 iteratorValue(
   values: Array[RuntimeValue],
   index: Int
-) -> RuntimeValue => structValue("Iterator", [
-  RuntimeField { name: "values", value: arrayValue(values) },
-  RuntimeField { name: "index", value: intValue(index) }
-])
+) -> RuntimeValue => structValue("Iterator", [RuntimeField {
+  name: "values",
+  value: arrayValue(values)
+}, RuntimeField {
+  name: "index",
+  value: intValue(index)
+}])
 
 iteratorNextValue(
   iterator: RuntimeValue
-) -> RuntimeValue => structValue("IteratorNext", [
-  RuntimeField { name: "iterator", value: iterator }
-])
+) -> RuntimeValue => structValue("IteratorNext", [RuntimeField {
+  name: "iterator",
+  value: iterator
+}])
 
-isIteratorValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Iterator")
+isIteratorValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Iterator")
 
-isIteratorNextValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "IteratorNext")
+isIteratorNextValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "IteratorNext")
 
-iterNewValue(value: RuntimeValue) -> RuntimeValue => (
+iterNewValue(
+  value: RuntimeValue
+) -> RuntimeValue => (
   isIteratorNextValue(value) ? runtimeStructField(value, "iterator")
     : value
 )
@@ -2336,13 +2469,20 @@ iterRepeatValues(
     : iterRepeatValues(value, count - 1, pushRuntime(out, value))
 )
 
-stringBufferValue(text: String) -> RuntimeValue => structValue("StringBuffer", [
-  RuntimeField { name: "text", value: stringValue(text) }
-])
+stringBufferValue(
+  text: String
+) -> RuntimeValue => structValue("StringBuffer", [RuntimeField {
+  name: "text",
+  value: stringValue(text)
+}])
 
-isStringBufferValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "StringBuffer")
+isStringBufferValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "StringBuffer")
 
-runtimeStringArray(value: RuntimeValue) -> Array[String] => runtimeStringArrayAt(runtimeArray(value), 0, [])
+runtimeStringArray(
+  value: RuntimeValue
+) -> Array[String] => runtimeStringArrayAt(runtimeArray(value), 0, [])
 
 runtimeStringArrayAt(
   values: Array[RuntimeValue],
@@ -2402,7 +2542,9 @@ pathNormalize(path: String) -> String => {
   )
 }
 
-pathResolve(parts: Array[String]) -> String => (
+pathResolve(
+  parts: Array[String]
+) -> String => (
   parts.length() == 0 ? "."
     : (
       pathIsAbsolute(parts[0]) ? pathNormalize(pathJoin(parts))
@@ -2610,16 +2752,19 @@ callCompressModuleFunction(
 compressedTextValue(
   codec: String,
   text: String
-) -> RuntimeValue => structValue("CompressedData", [
-  RuntimeField { name: "codec", value: stringValue(codec) },
-  RuntimeField { name: "text", value: stringValue(text) }
-])
+) -> RuntimeValue => structValue("CompressedData", [RuntimeField {
+  name: "codec",
+  value: stringValue(codec)
+}, RuntimeField {
+  name: "text",
+  value: stringValue(text)
+}])
 
 decompressTextValue(
   codec: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Struct(typeName, fields) => (
+  Struct(typeName) => (
     typeName == "CompressedData" ? decompressCompressedText(codec, value)
       : okResult(resultErr("compressed data expected"))
   )
@@ -2689,53 +2834,89 @@ callWriterModuleFunction(
   }
 }
 
-bytesValue(values: Array[RuntimeValue]) -> RuntimeValue => structValue("Bytes", [
-  RuntimeField { name: "data", value: arrayValue(values) }
-])
+bytesValue(
+  values: Array[RuntimeValue]
+) -> RuntimeValue => structValue("Bytes", [RuntimeField {
+  name: "data",
+  value: arrayValue(values)
+}])
 
-isBytesValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Bytes")
+isBytesValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Bytes")
 
-runtimeBytes(value: RuntimeValue) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
+runtimeBytes(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
 
-bufferValue(values: Array[RuntimeValue]) -> RuntimeValue => structValue("Buffer", [
-  RuntimeField { name: "data", value: arrayValue(values) }
-])
+bufferValue(
+  values: Array[RuntimeValue]
+) -> RuntimeValue => structValue("Buffer", [RuntimeField {
+  name: "data",
+  value: arrayValue(values)
+}])
 
-isBufferValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Buffer")
+isBufferValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Buffer")
 
-runtimeBuffer(value: RuntimeValue) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
+runtimeBuffer(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
 
 readerValue(
   values: Array[RuntimeValue],
   offset: Int,
   nibble: Int
-) -> RuntimeValue => structValue("Reader", [
-  RuntimeField { name: "data", value: arrayValue(values) },
-  RuntimeField { name: "offset", value: intValue(offset) },
-  RuntimeField { name: "nibble", value: intValue(nibble) }
-])
+) -> RuntimeValue => structValue("Reader", [RuntimeField {
+  name: "data",
+  value: arrayValue(values)
+}, RuntimeField {
+  name: "offset",
+  value: intValue(offset)
+}, RuntimeField {
+  name: "nibble",
+  value: intValue(nibble)
+}])
 
-isReaderValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Reader")
+isReaderValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Reader")
 
-runtimeReaderData(value: RuntimeValue) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
+runtimeReaderData(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
 
-runtimeReaderOffset(value: RuntimeValue) -> Int => runtimeInt(runtimeStructField(value, "offset"))
+runtimeReaderOffset(
+  value: RuntimeValue
+) -> Int => runtimeInt(runtimeStructField(value, "offset"))
 
-runtimeReaderNibble(value: RuntimeValue) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
+runtimeReaderNibble(
+  value: RuntimeValue
+) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
 
 writerValue(
   values: Array[RuntimeValue],
   nibble: Int
-) -> RuntimeValue => structValue("Writer", [
-  RuntimeField { name: "data", value: arrayValue(values) },
-  RuntimeField { name: "nibble", value: intValue(nibble) }
-])
+) -> RuntimeValue => structValue("Writer", [RuntimeField {
+  name: "data",
+  value: arrayValue(values)
+}, RuntimeField {
+  name: "nibble",
+  value: intValue(nibble)
+}])
 
-isWriterValue(value: RuntimeValue) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Writer")
+isWriterValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Writer")
 
-runtimeWriterData(value: RuntimeValue) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
+runtimeWriterData(
+  value: RuntimeValue
+) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
 
-runtimeWriterNibble(value: RuntimeValue) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
+runtimeWriterNibble(
+  value: RuntimeValue
+) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
 
 bytesZeroes(
   count: Int,
@@ -2780,15 +2961,15 @@ callIntModuleFunction(
   args := evalArgs(interpreter, env, children, 1)
   name {
     "toString" => args[0] {
-      Int(raw, typeName) => okResult(stringValue(intToString(raw)))
+      Int(raw) => okResult(stringValue(intToString(raw)))
       _ => errorResult("int.toString expects Int")
     }
     "toDouble" => args[0] {
-      Int(raw, typeName) => okResult(doubleRuntimeValue(raw.toDouble()))
+      Int(raw) => okResult(doubleRuntimeValue(raw.toDouble()))
       _ => errorResult("int.toDouble expects Int")
     }
     "toBigInt" => args[0] {
-      Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
+      Int(raw) => okResult(bigIntRuntimeValue(raw))
       _ => errorResult("int.toBigInt expects Int")
     }
     _ => callImportedModuleFunction(interpreter, env, "int", name, children)
@@ -2804,7 +2985,7 @@ callBigIntModuleFunction(
   args := evalArgs(interpreter, env, children, 1)
   name {
     "fromInt" => args[0] {
-      Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
+      Int(raw) => okResult(bigIntRuntimeValue(raw))
       _ => errorResult("bigint.fromInt expects Int")
     }
     "toDouble" => (
@@ -2866,14 +3047,14 @@ callDoubleModuleFunction(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Double(raw, text, typeName) => name {
+    Double(raw) => name {
       "trunc" => okResult(intValue(doubleTruncToInt(raw)))
       "floor" => okResult(intValue(doubleFloorToInt(raw)))
       "ceil" => okResult(intValue(doubleCeilToInt(raw)))
       "round" => okResult(intValue(doubleRoundToInt(raw)))
       _ => callImportedModuleFunction(interpreter, env, "double", name, children)
     }
-    _ => errorResult("double." + name + " expects Double")
+    _ => errorResult(("double." + name) + " expects Double")
   }
 }
 
@@ -2881,12 +3062,14 @@ numericFromInt(
   module: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Int(raw, typeName) => okResult(typedIntValue(wrapNumericInt(module, raw), numericTypeName(module)))
+  Int(raw) => okResult(typedIntValue(wrapNumericInt(module, raw), numericTypeName(module)))
   _ => errorResult("numeric conversion expects Int")
 }
 
-numericToInt(value: RuntimeValue) -> EvalResult => value {
-  Int(raw, typeName) => okResult(intValue(raw))
+numericToInt(
+  value: RuntimeValue
+) -> EvalResult => value {
+  Int(raw) => okResult(intValue(raw))
   _ => errorResult("numeric conversion expects integer value")
 }
 
@@ -2894,19 +3077,23 @@ numericFromDouble(
   module: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Double(raw, text, typeName) => module {
+  Double(raw) => module {
     "float" => okResult(typedDoubleValue(raw, "Float"))
     _ => errorResult("float.fromDouble expects Double")
   }
   _ => errorResult("float.fromDouble expects Double")
 }
 
-numericToDouble(value: RuntimeValue) -> EvalResult => value {
-  Double(raw, text, typeName) => okResult(doubleRuntimeValue(raw))
+numericToDouble(
+  value: RuntimeValue
+) -> EvalResult => value {
+  Double(raw) => okResult(doubleRuntimeValue(raw))
   _ => errorResult("float.toDouble expects Float")
 }
 
-numericTypeName(module: String) -> String => module {
+numericTypeName(
+  module: String
+) -> String => module {
   "int4" => "Int4"
   "int8" => "Int8"
   "int16" => "Int16"
@@ -2972,12 +3159,16 @@ doubleRoundToInt(value: Double) -> Int => (value < 0.0) {
   false => doubleFloorToInt(value + 0.5)
 }
 
-doubleFloorPositiveToInt(value: Double) -> Int => doubleFloorSearch(value, 0, doubleUpperBound(value, 1))
+doubleFloorPositiveToInt(
+  value: Double
+) -> Int => doubleFloorSearch(value, 0, doubleUpperBound(value, 1))
 
-doubleCeilPositiveToInt(value: Double) -> Int => {
+doubleCeilPositiveToInt(
+  value: Double
+) -> Int => {
   floor := doubleFloorPositiveToInt(value)
   (
-    (floor).toDouble() == value ? floor
+    floor.toDouble() == value ? floor
       : floor + 1
   )
 }
@@ -2986,7 +3177,7 @@ doubleUpperBound(
   value: Double,
   upper: Int
 ) -> Int => (
-  (upper).toDouble() > value ? upper
+  upper.toDouble() > value ? upper
     : doubleUpperBound(value, upper * 2)
 )
 
@@ -2995,7 +3186,7 @@ doubleFloorSearch(
   low: Int,
   high: Int
 ) -> Int => (
-  low + 1 >= high ? low
+  (low + 1) >= high ? low
     : doubleFloorSearchStep(value, low, high, (low + high) / 2)
 )
 
@@ -3005,7 +3196,7 @@ doubleFloorSearchStep(
   high: Int,
   mid: Int
 ) -> Int => (
-  (mid).toDouble() <= value ? doubleFloorSearch(value, mid, high)
+  mid.toDouble() <= value ? doubleFloorSearch(value, mid, high)
     : doubleFloorSearch(value, low, mid)
 )
 
@@ -3056,7 +3247,9 @@ cliContainsStringAt(
     )
 )
 
-cliParseOrExitResult(command: RuntimeValue) -> EvalResult => {
+cliParseOrExitResult(
+  command: RuntimeValue
+) -> EvalResult => {
   result := cliParseArgsValue(command, emptyRuntimeArray())
   help := runtimeBool(runtimeStructField(result, "help"))
   error := runtimeStructField(result, "error")
@@ -3072,15 +3265,28 @@ cliParseOrExitResult(command: RuntimeValue) -> EvalResult => {
 cliCommandValue(
   name: String,
   about: String
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: stringValue(name) },
-  RuntimeField { name: "version", value: nullValue() },
-  RuntimeField { name: "about", value: stringValue(about) },
-  RuntimeField { name: "options", value: arrayValue(emptyRuntimeArray()) },
-  RuntimeField { name: "arguments", value: arrayValue(emptyRuntimeArray()) },
-  RuntimeField { name: "commands", value: arrayValue(emptyRuntimeArray()) },
-  RuntimeField { name: "aliases", value: arrayValue(emptyRuntimeArray()) }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: stringValue(name)
+}, RuntimeField {
+  name: "version",
+  value: nullValue()
+}, RuntimeField {
+  name: "about",
+  value: stringValue(about)
+}, RuntimeField {
+  name: "options",
+  value: arrayValue(emptyRuntimeArray())
+}, RuntimeField {
+  name: "arguments",
+  value: arrayValue(emptyRuntimeArray())
+}, RuntimeField {
+  name: "commands",
+  value: arrayValue(emptyRuntimeArray())
+}, RuntimeField {
+  name: "aliases",
+  value: arrayValue(emptyRuntimeArray())
+}])
 
 cliOptionValue(
   name: String,
@@ -3089,14 +3295,25 @@ cliOptionValue(
   help: String,
   required: Bool,
   defaultValue: RuntimeValue
-) -> RuntimeValue => structValue("CliOption", [
-  RuntimeField { name: "name", value: stringValue(name) },
-  RuntimeField { name: "short", value: stringValue(short) },
-  RuntimeField { name: "valueName", value: stringValue(valueName) },
-  RuntimeField { name: "help", value: stringValue(help) },
-  RuntimeField { name: "required", value: boolValue(required) },
-  RuntimeField { name: "defaultValue", value: defaultValue }
-])
+) -> RuntimeValue => structValue("CliOption", [RuntimeField {
+  name: "name",
+  value: stringValue(name)
+}, RuntimeField {
+  name: "short",
+  value: stringValue(short)
+}, RuntimeField {
+  name: "valueName",
+  value: stringValue(valueName)
+}, RuntimeField {
+  name: "help",
+  value: stringValue(help)
+}, RuntimeField {
+  name: "required",
+  value: boolValue(required)
+}, RuntimeField {
+  name: "defaultValue",
+  value: defaultValue
+}])
 
 cliFlagValue(
   name: String,
@@ -3108,84 +3325,157 @@ cliArgumentValue(
   name: String,
   help: String,
   required: Bool
-) -> RuntimeValue => structValue("CliArgument", [
-  RuntimeField { name: "name", value: stringValue(name) },
-  RuntimeField { name: "help", value: stringValue(help) },
-  RuntimeField { name: "required", value: boolValue(required) }
-])
+) -> RuntimeValue => structValue("CliArgument", [RuntimeField {
+  name: "name",
+  value: stringValue(name)
+}, RuntimeField {
+  name: "help",
+  value: stringValue(help)
+}, RuntimeField {
+  name: "required",
+  value: boolValue(required)
+}])
 
 cliAliasValue(
   from: String,
   to: String
-) -> RuntimeValue => structValue("CliCommandAlias", [
-  RuntimeField { name: "from", value: stringValue(from) },
-  RuntimeField { name: "to", value: stringValue(to) }
-])
+) -> RuntimeValue => structValue("CliCommandAlias", [RuntimeField {
+  name: "from",
+  value: stringValue(from)
+}, RuntimeField {
+  name: "to",
+  value: stringValue(to)
+}])
 
 cliWithVersion(
   command: RuntimeValue,
   version: RuntimeValue
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: cliField(command, "name") },
-  RuntimeField { name: "version", value: version },
-  RuntimeField { name: "about", value: cliField(command, "about") },
-  RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
-  RuntimeField { name: "commands", value: cliField(command, "commands") },
-  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: cliField(command, "name")
+}, RuntimeField {
+  name: "version",
+  value: version
+}, RuntimeField {
+  name: "about",
+  value: cliField(command, "about")
+}, RuntimeField {
+  name: "options",
+  value: cliField(command, "options")
+}, RuntimeField {
+  name: "arguments",
+  value: cliField(command, "arguments")
+}, RuntimeField {
+  name: "commands",
+  value: cliField(command, "commands")
+}, RuntimeField {
+  name: "aliases",
+  value: cliField(command, "aliases")
+}])
 
 cliWithOption(
   command: RuntimeValue,
   option: RuntimeValue
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: cliField(command, "name") },
-  RuntimeField { name: "version", value: cliField(command, "version") },
-  RuntimeField { name: "about", value: cliField(command, "about") },
-  RuntimeField { name: "options", value: arrayValue(pushRuntime(runtimeArray(cliField(command, "options")), option)) },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
-  RuntimeField { name: "commands", value: cliField(command, "commands") },
-  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: cliField(command, "name")
+}, RuntimeField {
+  name: "version",
+  value: cliField(command, "version")
+}, RuntimeField {
+  name: "about",
+  value: cliField(command, "about")
+}, RuntimeField {
+  name: "options",
+  value: arrayValue(pushRuntime(runtimeArray(cliField(command, "options")), option))
+}, RuntimeField {
+  name: "arguments",
+  value: cliField(command, "arguments")
+}, RuntimeField {
+  name: "commands",
+  value: cliField(command, "commands")
+}, RuntimeField {
+  name: "aliases",
+  value: cliField(command, "aliases")
+}])
 
 cliWithArgument(
   command: RuntimeValue,
   argument: RuntimeValue
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: cliField(command, "name") },
-  RuntimeField { name: "version", value: cliField(command, "version") },
-  RuntimeField { name: "about", value: cliField(command, "about") },
-  RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: arrayValue(pushRuntime(runtimeArray(cliField(command, "arguments")), argument)) },
-  RuntimeField { name: "commands", value: cliField(command, "commands") },
-  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: cliField(command, "name")
+}, RuntimeField {
+  name: "version",
+  value: cliField(command, "version")
+}, RuntimeField {
+  name: "about",
+  value: cliField(command, "about")
+}, RuntimeField {
+  name: "options",
+  value: cliField(command, "options")
+}, RuntimeField {
+  name: "arguments",
+  value: arrayValue(pushRuntime(runtimeArray(cliField(command, "arguments")), argument))
+}, RuntimeField {
+  name: "commands",
+  value: cliField(command, "commands")
+}, RuntimeField {
+  name: "aliases",
+  value: cliField(command, "aliases")
+}])
 
 cliWithCommands(
   command: RuntimeValue,
   commands: RuntimeValue
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: cliField(command, "name") },
-  RuntimeField { name: "version", value: cliField(command, "version") },
-  RuntimeField { name: "about", value: cliField(command, "about") },
-  RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
-  RuntimeField { name: "commands", value: commands },
-  RuntimeField { name: "aliases", value: cliField(command, "aliases") }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: cliField(command, "name")
+}, RuntimeField {
+  name: "version",
+  value: cliField(command, "version")
+}, RuntimeField {
+  name: "about",
+  value: cliField(command, "about")
+}, RuntimeField {
+  name: "options",
+  value: cliField(command, "options")
+}, RuntimeField {
+  name: "arguments",
+  value: cliField(command, "arguments")
+}, RuntimeField {
+  name: "commands",
+  value: commands
+}, RuntimeField {
+  name: "aliases",
+  value: cliField(command, "aliases")
+}])
 
 cliWithAliases(
   command: RuntimeValue,
   aliases: RuntimeValue
-) -> RuntimeValue => structValue("CliCommand", [
-  RuntimeField { name: "name", value: cliField(command, "name") },
-  RuntimeField { name: "version", value: cliField(command, "version") },
-  RuntimeField { name: "about", value: cliField(command, "about") },
-  RuntimeField { name: "options", value: cliField(command, "options") },
-  RuntimeField { name: "arguments", value: cliField(command, "arguments") },
-  RuntimeField { name: "commands", value: cliField(command, "commands") },
-  RuntimeField { name: "aliases", value: aliases }
-])
+) -> RuntimeValue => structValue("CliCommand", [RuntimeField {
+  name: "name",
+  value: cliField(command, "name")
+}, RuntimeField {
+  name: "version",
+  value: cliField(command, "version")
+}, RuntimeField {
+  name: "about",
+  value: cliField(command, "about")
+}, RuntimeField {
+  name: "options",
+  value: cliField(command, "options")
+}, RuntimeField {
+  name: "arguments",
+  value: cliField(command, "arguments")
+}, RuntimeField {
+  name: "commands",
+  value: cliField(command, "commands")
+}, RuntimeField {
+  name: "aliases",
+  value: aliases
+}])
 
 cliParseArgsValue(
   command: RuntimeValue,
@@ -3193,20 +3483,37 @@ cliParseArgsValue(
 ) -> RuntimeValue => {
   state := cliParseArgsLoop(command, args, 0, cliInitialParseState(command))
   finalState := cliFinalizeParse(command, state)
-  structValue("CliParseResult", [
-    RuntimeField { name: "command", value: command },
-    RuntimeField { name: "values", value: finalState.values },
-    RuntimeField { name: "flags", value: finalState.flags },
-    RuntimeField { name: "positionals", value: finalState.positionals },
-    RuntimeField { name: "explicitOptions", value: arrayValue(finalState.explicitOptions) },
-    RuntimeField { name: "args", value: arrayValue(args) },
-    RuntimeField { name: "rest", value: arrayValue(finalState.rest) },
-    RuntimeField { name: "help", value: boolValue(finalState.help) },
-    RuntimeField { name: "error", value: (
+  structValue("CliParseResult", [RuntimeField {
+    name: "command",
+    value: command
+  }, RuntimeField {
+    name: "values",
+    value: finalState.values
+  }, RuntimeField {
+    name: "flags",
+    value: finalState.flags
+  }, RuntimeField {
+    name: "positionals",
+    value: finalState.positionals
+  }, RuntimeField {
+    name: "explicitOptions",
+    value: arrayValue(finalState.explicitOptions)
+  }, RuntimeField {
+    name: "args",
+    value: arrayValue(args)
+  }, RuntimeField {
+    name: "rest",
+    value: arrayValue(finalState.rest)
+  }, RuntimeField {
+    name: "help",
+    value: boolValue(finalState.help)
+  }, RuntimeField {
+    name: "error",
+    value: (
       finalState.error == "" ? nullValue()
         : stringValue(finalState.error)
-    ) }
-  ])
+    )
+  }])
 }
 
 cliParseCommandArgsValue(
@@ -3234,16 +3541,25 @@ cliParseCommandArgsValue(
           : rootResult
       )
   )
-  structValue("CliCommandParseResult", [
-    RuntimeField { name: "root", value: rootResult },
-    RuntimeField { name: "command", value: commandResult },
-    RuntimeField { name: "commandName", value: stringValue(commandName) },
-    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) },
-    RuntimeField { name: "error", value: (
+  structValue("CliCommandParseResult", [RuntimeField {
+    name: "root",
+    value: rootResult
+  }, RuntimeField {
+    name: "command",
+    value: commandResult
+  }, RuntimeField {
+    name: "commandName",
+    value: stringValue(commandName)
+  }, RuntimeField {
+    name: "commandArgs",
+    value: arrayValue(commandArgs)
+  }, RuntimeField {
+    name: "error",
+    value: (
       (commandName != "") && !commandFound ? stringValue("unknown command " + commandName)
         : nullValue()
-    ) }
-  ])
+    )
+  }])
 }
 
 cliSplitCommandArgs(
@@ -3256,11 +3572,16 @@ cliSplitCommandArgs(
   commandArgs: Array[RuntimeValue],
   skipNext: Bool
 ) -> RuntimeValue => (
-  index >= args.length() ? structValue("CliCommandArgs", [
-    RuntimeField { name: "rootArgs", value: arrayValue(rootArgs) },
-    RuntimeField { name: "commandName", value: stringValue(commandName) },
-    RuntimeField { name: "commandArgs", value: arrayValue(commandArgs) }
-  ])
+  index >= args.length() ? structValue("CliCommandArgs", [RuntimeField {
+    name: "rootArgs",
+    value: arrayValue(rootArgs)
+  }, RuntimeField {
+    name: "commandName",
+    value: stringValue(commandName)
+  }, RuntimeField {
+    name: "commandArgs",
+    value: arrayValue(commandArgs)
+  }])
     : cliSplitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
 )
 
@@ -3273,7 +3594,10 @@ cliSplitCommandArg(
   commandName: String,
   commandArgs: Array[RuntimeValue],
   skipNext: Bool
-) -> RuntimeValue => skipNext ? cliSplitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false) : cliSplitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
+) -> RuntimeValue => (
+  skipNext ? cliSplitCommandArgs(root, aliases, args, index + 1, rootArgs, commandName, commandArgs, false)
+    : cliSplitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
+)
 
 cliSplitCommandArgValue(
   root: RuntimeValue,
@@ -3338,14 +3662,12 @@ cliRootOption(
 ) -> RuntimeValue => (
   arg.startsWith("--") && (arg.length() > 2) ? cliFindOptionByName(runtimeArray(cliField(root, "options")), cliLongOptionName(arg), 0)
     : (
-      (arg.startsWith("-") && (arg != "-")) ? cliFindOptionByShort(runtimeArray(cliField(root, "options")), arg.slice(1, 2), 0)
+      arg.startsWith("-") && (arg != "-") ? cliFindOptionByShort(runtimeArray(cliField(root, "options")), arg.slice(1, 2), 0)
         : emptyValue()
     )
 )
 
-cliLongOptionName(
-  arg: String
-) -> String => {
+cliLongOptionName(arg: String) -> String => {
   raw := arg.slice(2, arg.length())
   eq := raw.indexOf("=")
   (
@@ -3411,7 +3733,10 @@ cliNormalizeTrailingRestArg(
         skipNext ? cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount, false)
           : (
             cliCommandOptionConsumesNext(command, arg) ? cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount, true)
-              : cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount + (arg.startsWith("-") ? 0 : 1), false)
+              : cliNormalizeTrailingRestArgsAt(command, args, index + 1, pushRuntime(out, args[index]), positionalCount + (
+                arg.startsWith("-") ? 0
+                  : 1
+              ), false)
           )
       )
   )
@@ -3504,9 +3829,9 @@ cliParseArg(
           : (
             (arg == "--help") || (arg == "-h") ? cliParseArgsLoop(command, args, index + 1, cliStateHelp(state))
               : (
-                (arg.startsWith("--") && (arg.length() > 2)) ? cliParseLong(command, args, index, state, arg.slice(2, arg.length()))
+                arg.startsWith("--") && (arg.length() > 2) ? cliParseLong(command, args, index, state, arg.slice(2, arg.length()))
                   : (
-                    (arg.startsWith("-") && (arg != "-")) ? cliParseShort(command, args, index, state, arg.slice(1, arg.length()))
+                    arg.startsWith("-") && (arg != "-") ? cliParseShort(command, args, index, state, arg.slice(1, arg.length()))
                       : cliParseArgsLoop(command, args, index + 1, cliStatePositional(state, args[index]))
                   )
               )
@@ -3548,7 +3873,7 @@ cliParseLong(
   noOption := cliFindOptionByName(runtimeArray(cliField(command, "options")), noName, 0)
   option := cliFindOptionByName(runtimeArray(cliField(command, "options")), name, 0)
   (
-    (noName != "") && cliOptionFound(noOption) && (runtimeText(cliField(noOption, "valueName")) == "") ? cliParseArgsLoop(command, args, index + 1, cliStateFlag(state, noName, false))
+    ((noName != "") && cliOptionFound(noOption)) && (runtimeText(cliField(noOption, "valueName")) == "") ? cliParseArgsLoop(command, args, index + 1, cliStateFlag(state, noName, false))
       : (
         !cliOptionFound(option) ? cliParseArgsLoop(command, args, index + 1, cliStateError(state, "unknown option --" + name))
           : cliParseLongOption(command, args, index, state, option, name, value, hasValue)
@@ -3776,12 +4101,12 @@ cliHelpCommand(
   text := "  " + name
   text = (
     about == "" ? text
-      : text + "\t" + about
+      : (text + "\t") + about
   )
   aliasesFor := cliHelpAliases(aliases, name, 0, "")
   text = (
     aliasesFor == "" ? text
-      : text + " (alias: " + aliasesFor + ")"
+      : ((text + " (alias: ") + aliasesFor) + ")"
   )
   text + "\n"
 }
@@ -3794,7 +4119,10 @@ cliHelpAliases(
 ) -> String => (
   index >= aliases.length() ? out
     : (
-      runtimeText(cliField(aliases[index], "to")) == commandName ? cliHelpAliases(aliases, commandName, index + 1, (out == "" ? "" : out + ", ") + runtimeText(cliField(aliases[index], "from")))
+      runtimeText(cliField(aliases[index], "to")) == commandName ? cliHelpAliases(aliases, commandName, index + 1, (
+        out == "" ? ""
+          : out + ", "
+      ) + runtimeText(cliField(aliases[index], "from")))
         : cliHelpAliases(aliases, commandName, index + 1, out)
     )
 )
@@ -3811,8 +4139,8 @@ cliHelpUsageArgs(
 cliHelpUsageArg(
   arg: RuntimeValue
 ) -> String => (
-  runtimeBool(cliField(arg, "required")) ? " <" + runtimeText(cliField(arg, "name")) + ">"
-    : " [" + runtimeText(cliField(arg, "name")) + "]"
+  runtimeBool(cliField(arg, "required")) ? (" <" + runtimeText(cliField(arg, "name"))) + ">"
+    : (" [" + runtimeText(cliField(arg, "name"))) + "]"
 )
 
 cliHelpOptions(
@@ -3834,12 +4162,12 @@ cliHelpOption(
   )
   valueName := runtimeText(cliField(option, "valueName"))
   suffix := (
-    valueName != "" ? " <" + valueName + ">"
+    valueName != "" ? (" <" + valueName) + ">"
       : ""
   )
   help := runtimeText(cliField(option, "help"))
   (((prefix + "--") + runtimeText(cliField(option, "name"))) + suffix) + (
-    help != "" ? "\t" + help + "\n"
+    help != "" ? ("\t" + help) + "\n"
       : "\n"
   )
 }
@@ -3943,15 +4271,9 @@ cliStateRest(
   state
 }
 
-runeCliRootCommand() -> RuntimeValue => cliWithOption(
-  cliCommandValue("rune", "Rune language toolchain"),
-  cliOptionValue("backend", "b", "BACKEND", "target backend", false, stringValue("go"))
-)
+runeCliRootCommand() -> RuntimeValue => cliWithOption(cliCommandValue("rune", "Rune language toolchain"), cliOptionValue("backend", "b", "BACKEND", "target backend", false, stringValue("go")))
 
-runeCliRunCommand() -> RuntimeValue => cliWithArgument(
-  cliWithOption(cliCommandValue("run", "Compile and run a Rune program"), cliOptionValue("target", "", "TARGET", "MoonBit run target", false, nullValue())),
-  cliArgumentValue("path", "Rune source path", true)
-)
+runeCliRunCommand() -> RuntimeValue => cliWithArgument(cliWithOption(cliCommandValue("run", "Compile and run a Rune program"), cliOptionValue("target", "", "TARGET", "MoonBit run target", false, nullValue())), cliArgumentValue("path", "Rune source path", true))
 
 callImportedModuleFunction(
   interpreter: Interpreter,
@@ -4043,16 +4365,16 @@ jsonStringify(
     raw ? "true"
       : "false"
   )
-  Int(raw, typeName) => intToString(raw)
-  Double(raw, text, typeName) => text
-  String(raw, typeName) => jsonQuote(raw)
+  Int(raw) => intToString(raw)
+  Double(raw) => text
+  String(raw) => jsonQuote(raw)
   Char(raw) => jsonQuote(raw.toString())
-  Array(values) => "[" + jsonStringifyValues(interpreter, values, 0, "") + "]"
-  Tuple(values) => "[" + jsonStringifyValues(interpreter, values, 0, "") + "]"
-  Map(entries) => "{" + jsonStringifyEntries(interpreter, entries, 0, "") + "}"
-  Set(entries) => "[" + jsonStringifySetEntries(interpreter, entries, 0, "") + "]"
-  Struct(typeName, fields) => "{" + jsonStringifyFields(interpreter, typeName, fields, 0, "") + "}"
-  Enum(typeName, name, value, payload) => jsonQuote(name)
+  Array(values) => ("[" + jsonStringifyValues(interpreter, values, 0, "")) + "]"
+  Tuple(values) => ("[" + jsonStringifyValues(interpreter, values, 0, "")) + "]"
+  Map(entries) => ("{" + jsonStringifyEntries(interpreter, entries, 0, "")) + "}"
+  Set(entries) => ("[" + jsonStringifySetEntries(interpreter, entries, 0, "")) + "]"
+  Struct(typeName) => ("{" + jsonStringifyFields(interpreter, typeName, fields, 0, "")) + "}"
+  Enum(typeName) => jsonQuote(name)
   Module(name) => "null"
   Closure(index) => "null"
 }
@@ -4126,7 +4448,7 @@ jsonAppendValue(
     : (out + ",") + value
 )
 
-jsonQuote(text: String) -> String => "\"" + jsonEscapeText(text, 0, "") + "\""
+jsonQuote(text: String) -> String => ("\"" + jsonEscapeText(text, 0, "")) + "\""
 
 jsonEscapeText(
   text: String,
@@ -4253,7 +4575,9 @@ jsonDefaultValue(
     )
 )
 
-jsonDefaultScalar(typeName: String) -> RuntimeValue => typeName {
+jsonDefaultScalar(
+  typeName: String
+) -> RuntimeValue => typeName {
   "String" => stringValue("")
   "Char" => charValue('\x00')
   "Bool" => boolValue(false)
@@ -4269,7 +4593,10 @@ jsonRuntimeFieldName(
 ) -> String => {
   field := findJsonStructField(interpreter, typeName, fieldName)
   missing := field.name == ""
-  missing ? fieldName : jsonIRFieldName(field)
+  (
+    missing ? fieldName
+      : jsonIRFieldName(field)
+  )
 }
 
 jsonRuntimeFieldIgnored(
@@ -4297,7 +4624,10 @@ findJsonStructFieldAt(
   index: Int
 ) -> IRField => {
   done := index >= fields.length()
-  done ? emptyJsonIRField() : findJsonStructFieldStep(fields, fieldName, index)
+  (
+    done ? emptyJsonIRField()
+      : findJsonStructFieldStep(fields, fieldName, index)
+  )
 }
 
 findJsonStructFieldStep(
@@ -4306,7 +4636,10 @@ findJsonStructFieldStep(
   index: Int
 ) -> IRField => {
   matched := fields[index].name == fieldName
-  matched ? fields[index] : findJsonStructFieldAt(fields, fieldName, index + 1)
+  (
+    matched ? fields[index]
+      : findJsonStructFieldAt(fields, fieldName, index + 1)
+  )
 }
 
 emptyJsonIRField() -> IRField => {
@@ -4323,13 +4656,20 @@ regexValue(
   source: String,
   flags: String,
   lastIndex: Int
-) -> RuntimeValue => structValue("Regex", [
-  RuntimeField { name: "source", value: stringValue(source) },
-  RuntimeField { name: "flags", value: stringValue(flags) },
-  RuntimeField { name: "lastIndex", value: intValue(lastIndex) }
-])
+) -> RuntimeValue => structValue("Regex", [RuntimeField {
+  name: "source",
+  value: stringValue(source)
+}, RuntimeField {
+  name: "flags",
+  value: stringValue(flags)
+}, RuntimeField {
+  name: "lastIndex",
+  value: intValue(lastIndex)
+}])
 
-regexLiteralValue(raw: String) -> RuntimeValue => {
+regexLiteralValue(
+  raw: String
+) -> RuntimeValue => {
   slash := lastRegexSlash(raw, raw.length() - 1)
   source := (
     slash <= 0 ? raw
@@ -4353,13 +4693,21 @@ lastRegexSlash(
     )
 )
 
-isRegexValue(value: RuntimeValue) -> Bool => runtimeKind(value) == RuntimeValueKind.Struct && runtimeTypeName(value) == "Regex"
+isRegexValue(
+  value: RuntimeValue
+) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Regex")
 
-regexSource(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "source"))
+regexSource(
+  value: RuntimeValue
+) -> String => runtimeText(runtimeStructField(value, "source"))
 
-regexFlags(value: RuntimeValue) -> String => runtimeText(runtimeStructField(value, "flags"))
+regexFlags(
+  value: RuntimeValue
+) -> String => runtimeText(runtimeStructField(value, "flags"))
 
-regexLastIndex(value: RuntimeValue) -> Int => runtimeInt(runtimeStructField(value, "lastIndex"))
+regexLastIndex(
+  value: RuntimeValue
+) -> Int => runtimeInt(runtimeStructField(value, "lastIndex"))
 
 regexSetLastIndexValue(
   value: RuntimeValue,
@@ -4401,7 +4749,9 @@ callRegexMethod(
   }
 }
 
-regexStartIndex(receiver: RuntimeValue) -> Int => (
+regexStartIndex(
+  receiver: RuntimeValue
+) -> Int => (
   regexHasFlag(regexFlags(receiver), 'g') || regexHasFlag(regexFlags(receiver), 'y') ? regexLastIndex(receiver)
     : 0
 )
@@ -4443,13 +4793,6 @@ regexExecHit(
   okResult(arrayValue(stringsToRuntime(found.groups, 0, [])))
 }
 
-RegexMatch: {
-  found: Bool
-  start: Int
-  end: Int
-  groups: Array[String]
-}
-
 regexNoMatch() -> RegexMatch => {
   found: false,
   start: -1,
@@ -4474,7 +4817,7 @@ regexFind(
   input: String,
   start: Int
 ) -> RegexMatch => (
-  start < 0 || start > input.length() ? regexNoMatch()
+  (start < 0) || (start > input.length()) ? regexNoMatch()
     : regexFindAt(source, flags, input, start)
 )
 
@@ -4546,11 +4889,7 @@ regexMatchWordDashDigits(
   digitStart := wordEnd + 1
   digitEnd := consumeDigits(input, digitStart)
   (
-    (wordEnd > index) && (wordEnd < input.length()) && (input.at(wordEnd) == '-') && (digitEnd > digitStart) ? regexFound(index, digitEnd, [
-      input.slice(index, digitEnd),
-      input.slice(index, wordEnd),
-      input.slice(digitStart, digitEnd)
-    ])
+    (((wordEnd > index) && (wordEnd < input.length())) && (input.at(wordEnd) == '-')) && (digitEnd > digitStart) ? regexFound(index, digitEnd, [input.slice(index, digitEnd), input.slice(index, wordEnd), input.slice(digitStart, digitEnd)])
       : regexNoMatch()
   )
 }
@@ -4562,11 +4901,7 @@ regexMatchLettersDigits(
   lettersEnd := consumeLowerLetters(input, index)
   digitsEnd := consumeDigits(input, lettersEnd)
   (
-    (lettersEnd > index) && (digitsEnd > lettersEnd) ? regexFound(index, digitsEnd, [
-      input.slice(index, digitsEnd),
-      input.slice(index, lettersEnd),
-      input.slice(lettersEnd, digitsEnd)
-    ])
+    (lettersEnd > index) && (digitsEnd > lettersEnd) ? regexFound(index, digitsEnd, [input.slice(index, digitsEnd), input.slice(index, lettersEnd), input.slice(lettersEnd, digitsEnd)])
       : regexNoMatch()
   )
 }
@@ -4630,7 +4965,9 @@ regexMatchAllValues(
   )
 }
 
-regexNextSearchIndex(found: RegexMatch) -> Int => (
+regexNextSearchIndex(
+  found: RegexMatch
+) -> Int => (
   found.end > found.start ? found.end
     : found.end + 1
 )
@@ -4675,7 +5012,7 @@ regexExpandReplacementAt(
 ) -> String => (
   index >= replacement.length() ? out
     : (
-      (replacement.at(index) == '$') && ((index + 1) < replacement.length()) && isDigitChar(replacement.at(index + 1)) ? regexExpandReplacementAt(replacement, found, index + 2, out + regexGroup(found, digitValue(replacement.at(index + 1))))
+      ((replacement.at(index) == '$') && ((index + 1) < replacement.length())) && isDigitChar(replacement.at(index + 1)) ? regexExpandReplacementAt(replacement, found, index + 2, out + regexGroup(found, digitValue(replacement.at(index + 1))))
         : regexExpandReplacementAt(replacement, found, index + 1, out + replacement.at(index).toString())
     )
 )
@@ -4710,7 +5047,9 @@ stringsToRuntime(
     : stringsToRuntime(values, index + 1, pushRuntime(out, stringValue(values[index])))
 )
 
-canonicalRegexFlags(flags: String) -> String => canonicalRegexFlagsInOrder(flags, "dgimsuvy", 0, "")
+canonicalRegexFlags(
+  flags: String
+) -> String => canonicalRegexFlagsInOrder(flags, "dgimsuvy", 0, "")
 
 canonicalRegexFlagsInOrder(
   flags: String,
@@ -4809,37 +5148,55 @@ lowerAsciiChar(ch: Char) -> Char => ch {
   _ => ch
 }
 
-consumeDigits(input: String, index: Int) -> Int => (
+consumeDigits(
+  input: String,
+  index: Int
+) -> Int => (
   (index < input.length()) && isDigitChar(input.at(index)) ? consumeDigits(input, index + 1)
     : index
 )
 
-consumeSpaces(input: String, index: Int) -> Int => (
+consumeSpaces(
+  input: String,
+  index: Int
+) -> Int => (
   (index < input.length()) && regexSpaceAt(input, index) ? consumeSpaces(input, index + 1)
     : index
 )
 
-regexSpaceAt(input: String, index: Int) -> Bool => (
-  index < input.length() ? ((input.at(index) == ' ') || (input.at(index) == '\t'))
+regexSpaceAt(
+  input: String,
+  index: Int
+) -> Bool => (
+  index < input.length() ? (input.at(index) == ' ') || (input.at(index) == '\t')
     : false
 )
 
-consumeWord(input: String, index: Int) -> Int => (
+consumeWord(
+  input: String,
+  index: Int
+) -> Int => (
   (index < input.length()) && isWordChar(input.at(index)) ? consumeWord(input, index + 1)
     : index
 )
 
-consumeLowerLetters(input: String, index: Int) -> Int => (
+consumeLowerLetters(
+  input: String,
+  index: Int
+) -> Int => (
   (index < input.length()) && isLowerLetter(input.at(index)) ? consumeLowerLetters(input, index + 1)
     : index
 )
 
-consumeUpperLetters(input: String, index: Int) -> Int => (
+consumeUpperLetters(
+  input: String,
+  index: Int
+) -> Int => (
   (index < input.length()) && isUpperLetter(input.at(index)) ? consumeUpperLetters(input, index + 1)
     : index
 )
 
-isWordChar(ch: Char) -> Bool => isLowerLetter(ch) || isUpperLetter(ch) || isDigitChar(ch) || (ch == '_')
+isWordChar(ch: Char) -> Bool => ((isLowerLetter(ch) || isUpperLetter(ch)) || isDigitChar(ch)) || (ch == '_')
 
 isLowerLetter(ch: Char) -> Bool => (ch >= 'a') && (ch <= 'z')
 
@@ -4855,7 +5212,9 @@ jsonOk(
   error: ""
 }
 
-jsonError(message: String) -> JsonParseResult => {
+jsonError(
+  message: String
+) -> JsonParseResult => {
   ok: false,
   value: voidValue(),
   index: 0,
@@ -4903,7 +5262,7 @@ parseJsonObject(
 ) -> JsonParseResult => {
   pos := skipJsonSpace(text, index)
   (
-    pos < text.length() && text.at(pos) == '}' ? jsonOk(mapValue(entries), pos + 1)
+    (pos < text.length()) && (text.at(pos) == '}') ? jsonOk(mapValue(entries), pos + 1)
       : parseJsonObjectEntry(text, pos, entries)
   )
 }
@@ -4939,7 +5298,10 @@ parseJsonObjectAfterColon(
   value := parseJsonValue(text, index)
   (
     !value.ok ? value
-      : parseJsonObjectNext(text, skipJsonSpace(text, value.index), pushEntry(entries, RuntimeEntry { key: stringValue(key), value: value.value }))
+      : parseJsonObjectNext(text, skipJsonSpace(text, value.index), pushEntry(entries, RuntimeEntry {
+        key: stringValue(key),
+        value: value.value
+      }))
   )
 }
 
@@ -4962,7 +5324,7 @@ parseJsonArray(
 ) -> JsonParseResult => {
   pos := skipJsonSpace(text, index)
   (
-    pos < text.length() && text.at(pos) == ']' ? jsonOk(arrayValue(values), pos + 1)
+    (pos < text.length()) && (text.at(pos) == ']') ? jsonOk(arrayValue(values), pos + 1)
       : parseJsonArrayValue(text, pos, values)
   )
 }
@@ -5057,9 +5419,7 @@ jsonNumberEnd(
     )
 )
 
-isJsonNumberChar(ch: Char) -> Bool => (
-  ((ch >= '0') && (ch <= '9')) || (ch == '-')
-)
+isJsonNumberChar(ch: Char) -> Bool => ((ch >= '0') && (ch <= '9')) || (ch == '-')
 
 skipJsonSpace(
   text: String,
@@ -5121,9 +5481,9 @@ isMutableStructMethod(
                     : (
                       isStringBufferValue(receiver) ? ((name == "append") || (name == "appendLine")) || (name == "clear")
                         : (
-                          isNetConnectionValue(receiver) ? (((name == "read") || (name == "write")) || (name == "close"))
+                          isNetConnectionValue(receiver) ? ((name == "read") || (name == "write")) || (name == "close")
                             : (
-                              isNetListenerValue(receiver) ? ((name == "accept") || (name == "close"))
+                              isNetListenerValue(receiver) ? (name == "accept") || (name == "close")
                                 : false
                             )
                         )
@@ -5134,13 +5494,21 @@ isMutableStructMethod(
     )
 )
 
-isMutableBytesMethod(name: String) -> Bool => name.startsWith("set") || name.startsWith("Set")
+isMutableBytesMethod(
+  name: String
+) -> Bool => name.startsWith("set") || name.startsWith("Set")
 
-isMutableBufferMethod(name: String) -> Bool => (((name == "append") || (name == "appendInt")) || (name == "appendBytes")) || (name == "clear")
+isMutableBufferMethod(
+  name: String
+) -> Bool => (((name == "append") || (name == "appendInt")) || (name == "appendBytes")) || (name == "clear")
 
-isMutableReaderMethod(name: String) -> Bool => name.startsWith("read") || ((name == "seek") || (name == "skip"))
+isMutableReaderMethod(
+  name: String
+) -> Bool => name.startsWith("read") || ((name == "seek") || (name == "skip"))
 
-isMutableWriterMethod(name: String) -> Bool => name.startsWith("write") || (name == "clear")
+isMutableWriterMethod(
+  name: String
+) -> Bool => name.startsWith("write") || (name == "clear")
 
 callMutableReceiverMethod(
   interpreter: Interpreter,
@@ -5574,13 +5942,13 @@ callMethodValue(
 ) -> EvalResult => receiver {
   Array(values) => callArrayMethod(interpreter, env, receiver, name, children)
   Tuple(values) => callArrayMethod(interpreter, env, receiver, name, children)
-  String(value, typeName) => (
+  String(value) => (
     isBigIntRuntime(receiver) ? callBigIntReceiverMethod(interpreter, env, receiver, name, children)
       : callStringMethod(interpreter, env, receiver, name, children)
   )
   Map(entries) => callMapMethod(interpreter, env, receiver, name, children)
   Set(entries) => callSetMethod(interpreter, env, receiver, name, children)
-  Int(value, typeName) => (
+  Int(value) => (
     name == "toString" ? okResult(stringValue(intToString(value)))
       : (
         name == "toDouble" ? okResult(doubleRuntimeValue(value.toDouble()))
@@ -5590,14 +5958,14 @@ callMethodValue(
           )
       )
   )
-  Double(value, text, typeName) => callDoubleReceiverMethod(interpreter, env, receiver, name)
+  Double(value) => callDoubleReceiverMethod(interpreter, env, receiver, name)
   Bool(value) => callBoolMethod(interpreter, env, receiver, name, children)
   Char(value) => (
     name == "toString" ? okResult(stringValue(value.toString()))
       : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
   )
-  Struct(typeName, fields) => callStructMethod(interpreter, env, receiver, name, children)
-  Enum(typeName, memberName, value, payload) => callDeclaredStructMethod(interpreter, env, receiver, name, children)
+  Struct(typeName) => callStructMethod(interpreter, env, receiver, name, children)
+  Enum(typeName) => callDeclaredStructMethod(interpreter, env, receiver, name, children)
   Module(moduleName) => callModuleFunction(interpreter, env, moduleName, name, children)
   _ => errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
 }
@@ -5679,7 +6047,9 @@ arrayPushMethod(
   okResult(intValue(values.length()))
 }
 
-arrayPopMethod(receiver: RuntimeValue) -> EvalResult => {
+arrayPopMethod(
+  receiver: RuntimeValue
+) -> EvalResult => {
   values := runtimeArray(receiver)
   value := values[values.length() - 1]
   values = values.slice(0, values.length() - 1)
@@ -5694,7 +6064,7 @@ arraySetMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Int(index, _) => okResult(runtimeArray(receiver).set(index, args[1]))
+    Int(index) => okResult(runtimeArray(receiver).set(index, args[1]))
     _ => errorResult("Array.set index expects Int")
   }
 }
@@ -5747,7 +6117,7 @@ arrayAtMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Int(index, _) => indexArrayValue(runtimeArray(receiver), index)
+    Int(index) => indexArrayValue(runtimeArray(receiver), index)
     _ => errorResult("Array.at index expects Int")
   }
 }
@@ -5772,12 +6142,10 @@ reduceArrayLoop(
   callback: RuntimeValue,
   index: Int,
   accumulator: RuntimeValue
-) -> EvalResult => (
-  (index >= values.length()) {
-    true => okResult(accumulator)
-    false => reduceArrayNext(interpreter, values, callback, index, accumulator, false)
-  }
-)
+) -> EvalResult => (index >= values.length()) {
+  true => okResult(accumulator)
+  false => reduceArrayNext(interpreter, values, callback, index, accumulator, false)
+}
 
 reduceArrayReverseLoop(
   interpreter: Interpreter,
@@ -5785,12 +6153,10 @@ reduceArrayReverseLoop(
   callback: RuntimeValue,
   index: Int,
   accumulator: RuntimeValue
-) -> EvalResult => (
-  (index < 0) {
-    true => okResult(accumulator)
-    false => reduceArrayNext(interpreter, values, callback, index, accumulator, true)
-  }
-)
+) -> EvalResult => (index < 0) {
+  true => okResult(accumulator)
+  false => reduceArrayNext(interpreter, values, callback, index, accumulator, true)
+}
 
 reduceArrayNext(
   interpreter: Interpreter,
@@ -5815,12 +6181,10 @@ callEachLoop(
   values: Array[RuntimeValue],
   callback: RuntimeValue,
   index: Int
-) -> EvalResult => (
-  (index >= values.length()) {
-    true => okResult(voidValue())
-    false => callEachNext(interpreter, values, callback, index)
-  }
-)
+) -> EvalResult => (index >= values.length()) {
+  true => okResult(voidValue())
+  false => callEachNext(interpreter, values, callback, index)
+}
 
 callEachNext(
   interpreter: Interpreter,
@@ -5841,12 +6205,10 @@ mapArrayLoop(
   callback: RuntimeValue,
   index: Int,
   out: Array[RuntimeValue]
-) -> Array[RuntimeValue] => (
-  (index >= values.length()) {
-    true => out
-    false => mapArrayNext(interpreter, values, callback, index, out)
-  }
-)
+) -> Array[RuntimeValue] => (index >= values.length()) {
+  true => out
+  false => mapArrayNext(interpreter, values, callback, index, out)
+}
 
 mapArrayNext(
   interpreter: Interpreter,
@@ -6079,19 +6441,26 @@ mapDeleteMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   idx := mapEntryIndex(runtimeEntries(receiver), args[0], 0)
-  idx < 0 ? okResult(boolValue(false))
-    : mapDeleteAt(receiver, idx)
+  (
+    idx < 0 ? okResult(boolValue(false))
+      : mapDeleteAt(receiver, idx)
+  )
 }
 
 mapDeleteAt(
   receiver: RuntimeValue,
   index: Int
 ) -> EvalResult => {
-  runtimeEntries(receiver).set(index, RuntimeEntry { key: voidValue(), value: voidValue() })
+  runtimeEntries(receiver).set(index, RuntimeEntry {
+    key: voidValue(),
+    value: voidValue()
+  })
   okResult(boolValue(true))
 }
 
-mapClearMethod(receiver: RuntimeValue) -> EvalResult => {
+mapClearMethod(
+  receiver: RuntimeValue
+) -> EvalResult => {
   mapClearEntries(runtimeEntries(receiver), 0)
   okResult(voidValue())
 }
@@ -6108,7 +6477,10 @@ mapClearEntryAt(
   entries: Array[RuntimeEntry],
   index: Int
 ) -> Array[RuntimeEntry] => {
-  entries.set(index, RuntimeEntry { key: voidValue(), value: voidValue() })
+  entries.set(index, RuntimeEntry {
+    key: voidValue(),
+    value: voidValue()
+  })
   mapClearEntries(entries, index + 1)
 }
 
@@ -6230,7 +6602,8 @@ pushRuntime(
   values
 }
 
-emptyRuntimeArray() -> Array[RuntimeValue] => []
+emptyRuntimeArray(
+) -> Array[RuntimeValue] => []
 
 pushString(
   values: Array[String],
@@ -6302,7 +6675,9 @@ mapEntryIndex(
     )
 )
 
-entryIsDeleted(entry: RuntimeEntry) -> Bool => runtimeKind(entry.key) == RuntimeValueKind.Void
+entryIsDeleted(
+  entry: RuntimeEntry
+) -> Bool => runtimeKind(entry.key) == RuntimeValueKind.Void
 
 mapEntryCount(
   entries: Array[RuntimeEntry],
@@ -6378,10 +6753,10 @@ callIteratorMethod(
 iterNextResult(
   values: Array[RuntimeValue],
   index: Int
-) -> RuntimeValue => arrayValue([
-  index < values.length() ? values[index] : nullValue(),
-  boolValue(index < values.length())
-])
+) -> RuntimeValue => arrayValue([(
+  index < values.length() ? values[index]
+    : nullValue()
+), boolValue(index < values.length())])
 
 iteratorEachMethod(
   interpreter: Interpreter,
@@ -6668,7 +7043,7 @@ bytesGetSigned(
   raw := bytesReadUnsigned(data, offset, size, little)
   sign := pow2((size * 8) - 1)
   (
-    (raw / sign) % 2 != 0 ? raw - pow2(size * 8)
+    ((raw / sign) % 2) != 0 ? raw - pow2(size * 8)
       : raw
   )
 }
@@ -6746,7 +7121,7 @@ bytesWriteUnsignedBig(
   index: Int
 ) -> Array[RuntimeValue] => (
   index >= size ? data
-    : bytesWriteUnsignedBig(bytesSetByte(data, offset + index, (value / pow2(8 * (size - index - 1))) % 256), offset, value, size, index + 1)
+    : bytesWriteUnsignedBig(bytesSetByte(data, offset + index, (value / pow2(8 * ((size - index) - 1))) % 256), offset, value, size, index + 1)
 )
 
 bytesWriteFloatValue(
@@ -7036,10 +7411,10 @@ evalSelectorReceiver(
   (
     !receiver.ok ? receiver
       : (
-        (isIteratorValue(receiver.value) && (name == "next")) ? okResult(iteratorNextValue(receiver.value))
+        isIteratorValue(receiver.value) && (name == "next") ? okResult(iteratorNextValue(receiver.value))
           : (
-        runtimeKind(receiver.value) == RuntimeValueKind.Struct ? selectField(receiver.value, name)
-          : errorResult((("cannot select " + name) + " from ") + runtimeValueKindName(runtimeKind(receiver.value)))
+            runtimeKind(receiver.value) == RuntimeValueKind.Struct ? selectField(receiver.value, name)
+              : errorResult((("cannot select " + name) + " from ") + runtimeValueKindName(runtimeKind(receiver.value)))
           )
       )
   )
@@ -7523,9 +7898,7 @@ envDefine(
   env
 }
 
-envBindingCount(
-  env: RuntimeEnv
-) -> Int => env.bindingCount["count"] ?? 0
+envBindingCount(env: RuntimeEnv) -> Int => env.bindingCount["count"] ?? 0
 
 envGet(
   env: RuntimeEnv,
@@ -7555,9 +7928,7 @@ emptyRuntimeBinding() -> RuntimeBinding => {
   value: emptyValue()
 }
 
-envCopy(
-  env: RuntimeEnv
-) -> RuntimeEnv => envCopyLoop(env, emptyEnv(), 0, envBindingCount(env))
+envCopy(env: RuntimeEnv) -> RuntimeEnv => envCopyLoop(env, emptyEnv(), 0, envBindingCount(env))
 
 envCopyLoop(
   env: RuntimeEnv,
@@ -7666,9 +8037,7 @@ findTestAt(
     )
 )
 
-moduleNameFromAt(
-  expr: IRExpr
-) -> String => (
+moduleNameFromAt(expr: IRExpr) -> String => (
   expr.name != "" ? expr.name
     : moduleNameFromPath(decodeQuoted(expr.value))
 )
@@ -7727,8 +8096,10 @@ findMethod(
   name: String
 ) -> IRFunction => {
   method := findMethodAt(findStruct(interpreter, typeName).methods, name, 0)
-  method.name == "" ? findMethodAt(findEnum(interpreter, typeName).methods, name, 0)
-    : method
+  (
+    method.name == "" ? findMethodAt(findEnum(interpreter, typeName).methods, name, 0)
+      : method
+  )
 }
 
 findMethodAt(
@@ -7975,7 +8346,6 @@ runtimeValueKindName(
   RuntimeValueKind.Module => "module"
   RuntimeValueKind.Closure => "closure"
   RuntimeValueKind.Enum => "enum"
-  _ => "unknown"
 }
 
 + formatRuntimeValue(
@@ -8175,10 +8545,8 @@ exponentIndex(text: String) -> Int => {
 parseDecimalText(text: String) -> Double => {
   dot := text.indexOf(".")
   (
-    dot < 0 ? (parseIntText(text).toDouble())
-      : (
-        (parseIntText(text.slice(0, dot)).toDouble()) + parseFractionText(text.slice(dot + 1, text.length()), 0, 0.0, 10.0)
-      )
+    dot < 0 ? parseIntText(text).toDouble()
+      : parseIntText(text.slice(0, dot)).toDouble() + parseFractionText(text.slice(dot + 1, text.length()), 0, 0.0, 10.0)
   )
 }
 
@@ -8190,7 +8558,7 @@ parseFractionText(
 ) -> Double => (
   index >= text.length() ? out
     : (
-      isDigitChar(text.at(index)) ? parseFractionText(text, index + 1, out + ((digitValue(text.at(index)).toDouble()) / scale), scale * 10.0)
+      isDigitChar(text.at(index)) ? parseFractionText(text, index + 1, out + (digitValue(text.at(index)).toDouble() / scale), scale * 10.0)
         : out
     )
 )
@@ -8388,7 +8756,7 @@ matchPatternTextEnv(
 stripGroupedOrPatternText(
   text: String
 ) -> String => (
-  (text.length() >= 2) && (text.at(0) == '(') && (text.at(text.length() - 1) == ')') && text.slice(1, text.length() - 1).includes("|") ? text.slice(1, text.length() - 1).trim()
+  (((text.length() >= 2) && (text.at(0) == '(')) && (text.at(text.length() - 1) == ')')) && text.slice(1, text.length() - 1).includes("|") ? text.slice(1, text.length() - 1).trim()
     : text
 )
 
@@ -8452,9 +8820,7 @@ matchConstantPatternText(
   )
 }
 
-isMapPatternText(
-  text: String
-) -> Bool => text.startsWith("{") && text.endsWith("}") && text.includes(":")
+isMapPatternText(text: String) -> Bool => (text.startsWith("{") && text.endsWith("}")) && text.includes(":")
 
 matchMapPatternText(
   subject: RuntimeValue,
@@ -8555,7 +8921,7 @@ patternKeyValue(
   text: String,
   env: RuntimeEnv
 ) -> RuntimeValue => (
-  text.startsWith("=") ? (envGet(env, text.slice(1, text.length())).value)
+  text.startsWith("=") ? envGet(env, text.slice(1, text.length())).value
     : (
       text.startsWith("\"") ? stringValue(decodeQuoted(text))
         : (
@@ -8630,9 +8996,7 @@ matchOrPatternTextEnv(
   )
 }
 
-isOrPatternText(
-  text: String
-) -> Bool => text.includes("|") && !isQuotedPatternText(text)
+isOrPatternText(text: String) -> Bool => text.includes("|") && !isQuotedPatternText(text)
 
 isQuotedPatternText(
   text: String
@@ -8662,9 +9026,7 @@ quotedPatternEndsAt(
     )
 )
 
-isAliasPatternText(
-  text: String
-) -> Bool => topLevelAliasIndex(text, 0, 0, '\x00') >= 0
+isAliasPatternText(text: String) -> Bool => topLevelAliasIndex(text, 0, 0, '\x00') >= 0
 
 topLevelAliasIndex(
   text: String,
@@ -8692,7 +9054,7 @@ topLevelAliasIndexStep(
         )
     )
       : (
-        ((depth == 0) && (ch == '@')) ? index
+        (depth == 0) && (ch == '@') ? index
           : (
             (ch == '"') || (ch == '\'') ? topLevelAliasIndex(text, index + 1, depth, ch)
               : (
@@ -8729,9 +9091,7 @@ matchAliasPatternText(
   )
 }
 
-isArrayPatternText(
-  text: String
-) -> Bool => text.startsWith("[") && text.endsWith("]")
+isArrayPatternText(text: String) -> Bool => text.startsWith("[") && text.endsWith("]")
 
 matchArrayPatternText(
   subject: RuntimeValue,
@@ -8742,14 +9102,14 @@ matchArrayPatternText(
   (
     isBitArrayPatternText(parts) ? matchBitArrayPatternText(subject, parts, env)
       : (
-    runtimeKind(subject) == RuntimeValueKind.Array ? matchArrayParts(runtimeArray(subject), parts, env)
-      : (
-        isBytesValue(subject) ? matchBytesArrayParts(subject, parts, env)
+        runtimeKind(subject) == RuntimeValueKind.Array ? matchArrayParts(runtimeArray(subject), parts, env)
           : (
-            runtimeKind(subject) == RuntimeValueKind.String ? matchStringArrayParts(runtimeText(subject), parts, env)
-              : patternNotMatched(env)
+            isBytesValue(subject) ? matchBytesArrayParts(subject, parts, env)
+              : (
+                runtimeKind(subject) == RuntimeValueKind.String ? matchStringArrayParts(runtimeText(subject), parts, env)
+                  : patternNotMatched(env)
+              )
           )
-      )
       )
   )
 }
@@ -8792,8 +9152,8 @@ matchBytesArrayPartsWithRest(
   rest: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  suffix := parts.length() - rest - 1
-  restLen := values.length() - rest - suffix
+  suffix := (parts.length() - rest) - 1
+  restLen := (values.length() - rest) - suffix
   (
     restLen < 0 ? patternNotMatched(env)
       : matchBytesArrayPrefix(subject, values, parts, 0, rest, restLen, env)
@@ -8867,7 +9227,7 @@ matchBytesArraySuffixPart(
   restLen: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  valueIndex := rest + restLen + (partIndex - rest - 1)
+  valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
   matched := matchPatternTextEnv(values[valueIndex], parts[partIndex].trim(), env)
   (
     matched.matched ? matchBytesArraySuffix(subject, values, parts, partIndex + 1, rest, restLen, matched.env)
@@ -8875,7 +9235,9 @@ matchBytesArraySuffixPart(
   )
 }
 
-isArrayContainsPattern(parts: Array[String]) -> Bool => (
+isArrayContainsPattern(
+  parts: Array[String]
+) -> Bool => (
   parts.length() == 2 ? isSequenceSpreadPattern(parts[0]) && (parts[1].trim() == "..")
     : false
 )
@@ -8978,7 +9340,9 @@ bitPatternArg(text: String) -> String => {
 
 bitPatternSigned(name: String) -> Bool => name.startsWith("i")
 
-bitPatternLittleEndian(name: String) -> Bool => name.endsWith("le")
+bitPatternLittleEndian(
+  name: String
+) -> Bool => name.endsWith("le")
 
 bitPatternWidth(name: String) -> Int => {
   clean := (
@@ -9038,7 +9402,7 @@ matchBitArrayPatternParts(
   (
     index >= parts.length() ? bindBitRest(subject, data, parts, rest, env)
       : (
-        rest >= 0 && index >= rest ? matchBitArrayPatternPart(subject, data, parts, index, (data.length() * 8) - bitPatternTailWidth(parts, index, 0), env)
+        (rest >= 0) && (index >= rest) ? matchBitArrayPatternPart(subject, data, parts, index, (data.length() * 8) - bitPatternTailWidth(parts, index, 0), env)
           : matchBitArrayPatternPart(subject, data, parts, index, bitOffset, env)
       )
   )
@@ -9123,7 +9487,7 @@ readBits(
   width: Int,
   littleEndian: Bool
 ) -> Int => (
-  littleEndian && ((offset % 8) == 0) && ((width % 8) == 0) ? readLittleEndianBits(data, offset / 8, width / 8, 0, 0)
+  (littleEndian && ((offset % 8) == 0)) && ((width % 8) == 0) ? readLittleEndianBits(data, offset / 8, width / 8, 0, 0)
     : readBigEndianBits(data, offset, width, 0, 0)
 )
 
@@ -9154,9 +9518,7 @@ bitAt(
   bitIndex: Int
 ) -> Int => (runtimeInt(data[bitIndex / 8]) / pow2(7 - (bitIndex % 8))) % 2
 
-pow2(
-  exp: Int
-) -> Int => (
+pow2(exp: Int) -> Int => (
   exp <= 0 ? 1
     : 2 * pow2(exp - 1)
 )
@@ -9177,12 +9539,14 @@ signExtendBits(
 ) -> Int => {
   sign := pow2(width - 1)
   (
-    (raw / sign) % 2 != 0 ? raw - pow2(width)
+    ((raw / sign) % 2) != 0 ? raw - pow2(width)
       : raw
   )
 }
 
-bitPatternUnsignedType(name: String) -> String => (
+bitPatternUnsignedType(
+  name: String
+) -> String => (
   bitPatternWidth(name) <= 8 ? "UInt8"
     : (
       bitPatternWidth(name) <= 16 ? "UInt16"
@@ -9222,8 +9586,8 @@ matchArrayPartsWithRest(
   rest: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  suffix := parts.length() - rest - 1
-  restLen := values.length() - rest - suffix
+  suffix := (parts.length() - rest) - 1
+  restLen := (values.length() - rest) - suffix
   (
     restLen < 0 ? patternNotMatched(env)
       : matchArrayPrefix(values, parts, 0, rest, restLen, env)
@@ -9292,7 +9656,7 @@ matchArraySuffixPart(
   restLen: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  valueIndex := rest + restLen + (partIndex - rest - 1)
+  valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
   matched := matchPatternTextEnv(values[valueIndex], parts[partIndex].trim(), env)
   (
     matched.matched ? matchArraySuffix(values, parts, partIndex + 1, rest, restLen, matched.env)
@@ -9308,8 +9672,10 @@ matchStringArrayParts(
   rest := restPatternIndex(parts, 0)
   (
     isStringContainsPattern(parts) ? boolPatternResult(value.includes(decodeQuoted(sequenceSpreadValue(parts[0]))), env)
-      : rest < 0 ? matchStringPartsExact(value, parts, 0, env)
-      : matchStringPartsWithRest(value, parts, rest, env)
+      : (
+        rest < 0 ? matchStringPartsExact(value, parts, 0, env)
+          : matchStringPartsWithRest(value, parts, rest, env)
+      )
   )
 }
 
@@ -9324,7 +9690,7 @@ isSequenceSpreadPattern(
   text: String
 ) -> Bool => {
   part := text.trim()
-  part.startsWith(".. ") || ((part.length() > 2) && (part.slice(0, 2) == "..") && part.slice(2, part.length()).trim().startsWith("\""))
+  part.startsWith(".. ") || (((part.length() > 2) && (part.slice(0, 2) == "..")) && part.slice(2, part.length()).trim().startsWith("\""))
 }
 
 sequenceSpreadValue(
@@ -9363,8 +9729,8 @@ matchStringPartsWithRest(
   rest: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  suffix := parts.length() - rest - 1
-  restLen := value.length() - rest - suffix
+  suffix := (parts.length() - rest) - 1
+  restLen := (value.length() - rest) - suffix
   (
     restLen < 0 ? patternNotMatched(env)
       : matchStringPrefix(value, parts, 0, rest, restLen, env)
@@ -9433,7 +9799,7 @@ matchStringSuffixPart(
   restLen: Int,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
-  valueIndex := rest + restLen + (partIndex - rest - 1)
+  valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
   matched := matchPatternTextEnv(charValue(value.at(valueIndex)), parts[partIndex].trim(), env)
   (
     matched.matched ? matchStringSuffix(value, parts, partIndex + 1, rest, restLen, matched.env)
@@ -9489,7 +9855,9 @@ matchConstructorPatternText(
   )
 }
 
-isJsonConstructorPatternName(name: String) -> Bool => ((((name == "Array") || (name == "Object")) || (name == "String")) || ((name == "Bool") || (name == "Number"))) || (name == "Null")
+isJsonConstructorPatternName(
+  name: String
+) -> Bool => ((((name == "Array") || (name == "Object")) || (name == "String")) || ((name == "Bool") || (name == "Number"))) || (name == "Null")
 
 matchJsonConstructorPatternText(
   subject: RuntimeValue,
@@ -9635,18 +10003,18 @@ runtimeValueConstructorName(
   Void => "Void"
   Null => "Null"
   Bool(raw) => "Bool"
-  Int(raw, typeName) => "Int"
-  Double(raw, text, typeName) => "Double"
-  String(raw, typeName) => "String"
+  Int(raw) => "Int"
+  Double(raw) => "Double"
+  String(raw) => "String"
   Char(raw) => "Char"
   Array(values) => "Array"
   Tuple(values) => "Tuple"
   Map(entries) => "Map"
   Set(entries) => "Set"
-  Struct(typeName, fields) => "Struct"
+  Struct(typeName) => "Struct"
   Module(name) => "Module"
   Closure(index) => "Closure"
-  Enum(typeName, name, raw, payload) => "Enum"
+  Enum(typeName) => "Enum"
 }
 
 runtimeValuePayloadLength(
@@ -9655,37 +10023,85 @@ runtimeValuePayloadLength(
   Void => 0
   Null => 0
   Bool(raw) => 1
-  Int(raw, typeName) => 2
-  Double(raw, text, typeName) => 3
-  String(raw, typeName) => 2
+  Int(raw) => 2
+  Double(raw) => 3
+  String(raw) => 2
   Char(raw) => 1
   Array(values) => 1
   Tuple(values) => 1
   Map(entries) => 1
   Set(entries) => 1
-  Struct(typeName, fields) => 2
+  Struct(typeName) => 2
   Module(name) => 1
   Closure(index) => 1
-  Enum(typeName, name, raw, payload) => 3 + payload.length()
+  Enum(typeName) => 3 + payload.length()
 }
 
 runtimeValuePayloadAt(
   value: RuntimeValue,
   index: Int
 ) -> RuntimeValue => value {
-  Bool(raw) => index == 0 ? boolValue(raw) : voidValue()
-  Int(raw, typeName) => index == 0 ? intValue(raw) : stringValue(typeName)
-  Double(raw, text, typeName) => index == 0 ? doubleRuntimeValue(raw) : (index == 1 ? stringValue(text) : stringValue(typeName))
-  String(raw, typeName) => index == 0 ? stringValue(raw) : stringValue(typeName)
-  Char(raw) => index == 0 ? charValue(raw) : voidValue()
-  Array(values) => index == 0 ? arrayValue(values) : voidValue()
-  Tuple(values) => index == 0 ? arrayValue(values) : voidValue()
-  Map(entries) => index == 0 ? mapValue(entries) : voidValue()
-  Set(entries) => index == 0 ? setValue(entries) : voidValue()
-  Struct(typeName, fields) => index == 0 ? stringValue(typeName) : arrayValue(runtimeFieldsAsValues(fields, 0, []))
-  Module(name) => index == 0 ? stringValue(name) : voidValue()
-  Closure(raw) => index == 0 ? intValue(raw) : voidValue()
-  Enum(typeName, name, raw, payload) => index == 0 ? stringValue(typeName) : (index == 1 ? stringValue(name) : (index == 2 ? intValue(raw) : payload[index - 3]))
+  Bool(raw) => (
+    index == 0 ? boolValue(raw)
+      : voidValue()
+  )
+  Int(raw) => (
+    index == 0 ? intValue(raw)
+      : stringValue(typeName)
+  )
+  Double(raw) => (
+    index == 0 ? doubleRuntimeValue(raw)
+      : (
+        index == 1 ? stringValue(text)
+          : stringValue(typeName)
+      )
+  )
+  String(raw) => (
+    index == 0 ? stringValue(raw)
+      : stringValue(typeName)
+  )
+  Char(raw) => (
+    index == 0 ? charValue(raw)
+      : voidValue()
+  )
+  Array(values) => (
+    index == 0 ? arrayValue(values)
+      : voidValue()
+  )
+  Tuple(values) => (
+    index == 0 ? arrayValue(values)
+      : voidValue()
+  )
+  Map(entries) => (
+    index == 0 ? mapValue(entries)
+      : voidValue()
+  )
+  Set(entries) => (
+    index == 0 ? setValue(entries)
+      : voidValue()
+  )
+  Struct(typeName) => (
+    index == 0 ? stringValue(typeName)
+      : arrayValue(runtimeFieldsAsValues(fields, 0, []))
+  )
+  Module(name) => (
+    index == 0 ? stringValue(name)
+      : voidValue()
+  )
+  Closure(raw) => (
+    index == 0 ? intValue(raw)
+      : voidValue()
+  )
+  Enum(typeName) => (
+    index == 0 ? stringValue(typeName)
+      : (
+        index == 1 ? stringValue(name)
+          : (
+            index == 2 ? intValue(raw)
+              : payload[index - 3]
+          )
+      )
+  )
   _ => voidValue()
 }
 
@@ -9695,10 +10111,13 @@ runtimeFieldsAsValues(
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= fields.length() ? out
-    : runtimeFieldsAsValues(fields, index + 1, pushRuntime(out, structValue("RuntimeField", [
-      RuntimeField { name: "name", value: stringValue(fields[index].name) },
-      RuntimeField { ..fields[index],name: "value", }
-    ])))
+    : runtimeFieldsAsValues(fields, index + 1, pushRuntime(out, structValue("RuntimeField", [RuntimeField {
+      name: "name",
+      value: stringValue(fields[index].name)
+    }, RuntimeField {
+      ..fields[index],
+      name: "value"
+    }])))
 )
 
 splitPatternArgs(
@@ -9770,13 +10189,9 @@ pushPatternArg(
   out
 }
 
-isPatternOpenChar(
-  ch: Char
-) -> Bool => ((ch == '(') || (ch == '[')) || (ch == '{')
+isPatternOpenChar(ch: Char) -> Bool => ((ch == '(') || (ch == '[')) || (ch == '{')
 
-isPatternCloseChar(
-  ch: Char
-) -> Bool => ((ch == ')') || (ch == ']')) || (ch == '}')
+isPatternCloseChar(ch: Char) -> Bool => ((ch == ')') || (ch == ']')) || (ch == '}')
 
 isBindingPatternText(
   text: String
@@ -9785,9 +10200,7 @@ isBindingPatternText(
     : isLowerIdentStart(text.at(0))
 )
 
-isLowerIdentStart(
-  ch: Char
-) -> Bool => ((ch >= 'a') && (ch <= 'z')) || (ch == '_')
+isLowerIdentStart(ch: Char) -> Bool => ((ch >= 'a') && (ch <= 'z')) || (ch == '_')
 
 matchEnumPatternText(
   subject: RuntimeValue,
@@ -9805,13 +10218,9 @@ matchQualifiedEnumPattern(
   text: String
 ) -> Bool => text == ((runtimeTypeName(subject) + ".") + runtimeText(subject))
 
-isRangePatternText(
-  text: String
-) -> Bool => text.includes("..=") || text.includes("..<")
+isRangePatternText(text: String) -> Bool => text.includes("..=") || text.includes("..<")
 
-isIntText(
-  text: String
-) -> Bool => (
+isIntText(text: String) -> Bool => (
   text.length() == 0 ? false
     : (
       text.startsWith("-") ? (text.length() > 1) && isUnsignedIntText(text, 1)

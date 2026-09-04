@@ -8,8 +8,8 @@
 ? "selfhost formatter indents blocks" {
   formatted := formatSource("main()=>{value:=1\n@io.println(value)}")
   @assert.eq(formatted, `main() => {
-  value := 1
-  @io.println(value)
+  value := 1 // value
+  @io.println(value) // print
 }
 `)
 }

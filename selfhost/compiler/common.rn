@@ -24,28 +24,24 @@
 
 + returnsValue(typeName: String) -> Bool => (typeName != "") && (typeName != "Void")
 
-+ bigintLiteralDigits(value: String) -> String => (
++ bigintLiteralDigits(
+  value: String
+) -> String => (
   value.endsWith("n") ? value.slice(0, value.length() - 1)
     : value
 )
 
 + fileUsesPathBasenameFamily(
   file: IRFile
-) -> Bool => (
-  fileUsesModuleCall(file, "path.basename") || fileUsesModuleCall(file, "path.extname") || fileUsesModuleCall(file, "path.dirname")
-)
+) -> Bool => (fileUsesModuleCall(file, "path.basename") || fileUsesModuleCall(file, "path.extname")) || fileUsesModuleCall(file, "path.dirname")
 
 + fileUsesPathFamily(
   file: IRFile
-) -> Bool => (
-  fileUsesPathBasenameFamily(file) || fileUsesModuleCall(file, "path.join") || fileUsesModuleCall(file, "path.normalize") || fileUsesModuleCall(file, "path.resolve") || fileUsesModuleCall(file, "path.relative") || fileUsesPathHelperFamily(file)
-)
+) -> Bool => ((((fileUsesPathBasenameFamily(file) || fileUsesModuleCall(file, "path.join")) || fileUsesModuleCall(file, "path.normalize")) || fileUsesModuleCall(file, "path.resolve")) || fileUsesModuleCall(file, "path.relative")) || fileUsesPathHelperFamily(file)
 
 + fileUsesPathHelperFamily(
   file: IRFile
-) -> Bool => (
-  fileUsesModuleCall(file, "path.joinParts") || fileUsesModuleCall(file, "path.appendPathPart") || fileUsesModuleCall(file, "path.normalizeParts") || fileUsesModuleCall(file, "path.normalizePart") || fileUsesModuleCall(file, "path.normalizeParent") || fileUsesModuleCall(file, "path.normalizePop") || fileUsesModuleCall(file, "path.normalizePush") || fileUsesModuleCall(file, "path.pathParts") || fileUsesModuleCall(file, "path.collectPathParts") || fileUsesModuleCall(file, "path.collectPathPart") || fileUsesModuleCall(file, "path.relativeFromParts") || fileUsesModuleCall(file, "path.relativeTail")
-)
+) -> Bool => ((((((((((fileUsesModuleCall(file, "path.joinParts") || fileUsesModuleCall(file, "path.appendPathPart")) || fileUsesModuleCall(file, "path.normalizeParts")) || fileUsesModuleCall(file, "path.normalizePart")) || fileUsesModuleCall(file, "path.normalizeParent")) || fileUsesModuleCall(file, "path.normalizePop")) || fileUsesModuleCall(file, "path.normalizePush")) || fileUsesModuleCall(file, "path.pathParts")) || fileUsesModuleCall(file, "path.collectPathParts")) || fileUsesModuleCall(file, "path.collectPathPart")) || fileUsesModuleCall(file, "path.relativeFromParts")) || fileUsesModuleCall(file, "path.relativeTail")
 
 + moduleCallKey(expr: IRExpr) -> String => (
   (expr.kind == ExprKind.Call) && (expr.children.length() > 0) ? moduleSelectorKey(expr.children[0])
@@ -120,11 +116,7 @@
   text: String
 ) -> String => (indent(level) + text) + "\n"
 
-+ fileUsesUnwrap(
-  file: IRFile
-) -> Bool => (
-  functionsUseUnwrap(file.functions, 0) || structsUseUnwrap(file.structs, 0) || enumsUseUnwrap(file.enums, 0) || testsUseUnwrap(file.tests, 0)
-)
++ fileUsesUnwrap(file: IRFile) -> Bool => ((functionsUseUnwrap(file.functions, 0) || structsUseUnwrap(file.structs, 0)) || enumsUseUnwrap(file.enums, 0)) || testsUseUnwrap(file.tests, 0)
 
 functionsUseUnwrap(
   functions: Array[IRFunction],
@@ -161,9 +153,7 @@ enumsUseUnwrap(
     : functionsUseUnwrap(enums[index].methods, 0) || enumsUseUnwrap(enums, index + 1)
 )
 
-+ exprUsesUnwrap(
-  expr: IRExpr
-) -> Bool => (
++ exprUsesUnwrap(expr: IRExpr) -> Bool => (
   expr.kind == ExprKind.Unwrap ? true
     : exprChildrenUseUnwrap(expr.children, 0)
 )
@@ -171,7 +161,7 @@ enumsUseUnwrap(
 + fileUsesModuleCall(
   file: IRFile,
   key: String
-) -> Bool => functionsUseModuleCall(file.functions, key, 0) || structsUseModuleCall(file.structs, key, 0) || enumsUseModuleCall(file.enums, key, 0) || testsUseModuleCall(file.tests, key, 0)
+) -> Bool => ((functionsUseModuleCall(file.functions, key, 0) || structsUseModuleCall(file.structs, key, 0)) || enumsUseModuleCall(file.enums, key, 0)) || testsUseModuleCall(file.tests, key, 0)
 
 functionsUseModuleCall(
   functions: Array[IRFunction],

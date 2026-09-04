@@ -78,24 +78,21 @@ main() => {
 }
 
 ? "selfhost compiler merges source file imports" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 main() -> Int => importedAnswer()
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `ImportedUser: {
+  }, SourceFile {
+    path: "helper.rn",
+    source: `ImportedUser: {
   name: String
 }
 
 + importedAnswer() -> Int => 42
 `
-    }
-  ]
+  }]
   go := compileGoFiles(files)
   ts := compileTypeScriptFiles(files)
   mbt := compileMoonBitFiles(files)
@@ -109,20 +106,17 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler emits imported Rune constants" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 + main() -> Int => answer + 1
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ const answer: Int = 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ const answer: Int = 42
 `
-    }
-  ]
+  }]
   go := compileGoFiles(files)
   ts := compileTypeScriptFiles(files)
   mbt := compileMoonBitFiles(files)
@@ -149,25 +143,21 @@ main() -> Int => 0
 }
 
 ? "selfhost compiler resolves imports relative to source file" {
-  files := [
-    SourceFile {
-      path: "app/main.rn",
-      source: `@"./helper.rn"
+  files := [SourceFile {
+    path: "app/main.rn",
+    source: `@"./helper.rn"
 
 main() -> Int => importedAnswer()
 `
-    },
-    SourceFile {
-      path: "other/helper.rn",
-      source: `+ importedAnswer() -> Int => 1
+  }, SourceFile {
+    path: "other/helper.rn",
+    source: `+ importedAnswer() -> Int => 1
 `
-    },
-    SourceFile {
-      path: "app/helper.rn",
-      source: `+ importedAnswer() -> Int => 42
+  }, SourceFile {
+    path: "app/helper.rn",
+    source: `+ importedAnswer() -> Int => 42
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
@@ -176,18 +166,15 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler emits direct import expression calls" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() -> Int => @"helper.rn".importedAnswer(1)
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() -> Int => @"helper.rn".importedAnswer(1)
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
-    }
-  ]
+  }]
   go := compileGoFiles(files)
   ts := compileTypeScriptFiles(files)
   mbt := compileMoonBitFiles(files)
@@ -200,18 +187,15 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler checks direct import expression call types" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() -> Int => @"helper.rn".importedAnswer("bad")
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() -> Int => @"helper.rn".importedAnswer("bad")
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -219,18 +203,15 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler emits direct TypeScript import values" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() => @io.println(@"./values.ts".version)
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() => @io.println(@"./values.ts".version)
 `
-    },
-    SourceFile {
-      path: "values.ts",
-      source: `export const version: string = "1"
+  }, SourceFile {
+    path: "values.ts",
+    source: `export const version: string = "1"
 `
-    }
-  ]
+  }]
   result := compileTypeScriptFiles(files)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
@@ -239,18 +220,15 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler keeps unimported files private" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() -> Int => hiddenAnswer()
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() -> Int => hiddenAnswer()
 `
-    },
-    SourceFile {
-      path: "hidden.rn",
-      source: `hiddenAnswer() -> Int => 42
+  }, SourceFile {
+    path: "hidden.rn",
+    source: `hiddenAnswer() -> Int => 42
 `
-    }
-  ]
+  }]
   go := compileGoFiles(files)
   @assert.eq(go.ok, false)
   @assert.eq(go.errors.length(), 1)
@@ -258,21 +236,18 @@ main() -> Int => importedAnswer()
 }
 
 ? "selfhost compiler rejects imported private functions" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 main() -> Int => hiddenAnswer()
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `hiddenAnswer() -> Int => 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `hiddenAnswer() -> Int => 42
 + publicAnswer() -> Int => hiddenAnswer()
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -280,24 +255,21 @@ main() -> Int => hiddenAnswer()
 }
 
 ? "selfhost compiler rejects imported private types" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 main() => {
   hidden := Hidden { value: 1 }
 }
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `Hidden: {
+  }, SourceFile {
+    path: "helper.rn",
+    source: `Hidden: {
   value: Int
 }
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -305,10 +277,9 @@ main() => {
 }
 
 ? "selfhost compiler rejects imported private members" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"user.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"user.rn"
 
 main() => {
   user := User { name: "Rune", token: "secret" }
@@ -316,18 +287,16 @@ main() => {
   @io.println(user.secret())
 }
 `
-    },
-    SourceFile {
-      path: "user.rn",
-      source: `+ User: {
+  }, SourceFile {
+    path: "user.rn",
+    source: `+ User: {
   name: String
   - token: String
 
   - secret() -> String => .token
 }
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 3)
@@ -337,36 +306,31 @@ main() => {
 }
 
 ? "selfhost compiler allows same-file private functions" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `hiddenAnswer() -> Int => 42
+  files := [SourceFile {
+    path: "main.rn",
+    source: `hiddenAnswer() -> Int => 42
 
 main() -> Int => hiddenAnswer()
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
 }
 
 ? "selfhost compiler reads TypeScript import exports" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"./greet.ts"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"./greet.ts"
 
 main() => @io.println(greet("Rune"))
 `
-    },
-    SourceFile {
-      path: "greet.ts",
-      source: `export function greet(name: string): string { return name }
+  }, SourceFile {
+    path: "greet.ts",
+    source: `export function greet(name: string): string { return name }
 export const version: string = "1"
 `
-    }
-  ]
+  }]
   ts := compileTypeScriptFiles(files)
   go := compileGoFiles(files)
   mbt := compileMoonBitFiles(files)
@@ -383,21 +347,18 @@ export const version: string = "1"
 }
 
 ? "selfhost compiler checks imported TypeScript value types" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"./values.ts"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"./values.ts"
 
 takesInt(value: Int) -> Int => value
 main() -> Int => takesInt(version)
 `
-    },
-    SourceFile {
-      path: "values.ts",
-      source: `export const version: string = "1"
+  }, SourceFile {
+    path: "values.ts",
+    source: `export const version: string = "1"
 `
-    }
-  ]
+  }]
   result := compileTypeScriptFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -405,20 +366,17 @@ main() -> Int => takesInt(version)
 }
 
 ? "selfhost compiler checks imported TypeScript return types" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"./values.ts"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"./values.ts"
 
 main() -> Int => version
 `
-    },
-    SourceFile {
-      path: "values.ts",
-      source: `export const version: string = "1"
+  }, SourceFile {
+    path: "values.ts",
+    source: `export const version: string = "1"
 `
-    }
-  ]
+  }]
   result := compileTypeScriptFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -426,25 +384,21 @@ main() -> Int => version
 }
 
 ? "selfhost compiler resolves TypeScript imports relative to source file" {
-  files := [
-    SourceFile {
-      path: "app/main.rn",
-      source: `@"./helper.ts"
+  files := [SourceFile {
+    path: "app/main.rn",
+    source: `@"./helper.ts"
 
 main() => @io.println(greet("Rune"))
 `
-    },
-    SourceFile {
-      path: "other/helper.ts",
-      source: `export function hidden(): string { return "wrong" }
+  }, SourceFile {
+    path: "other/helper.ts",
+    source: `export function hidden(): string { return "wrong" }
 `
-    },
-    SourceFile {
-      path: "app/helper.ts",
-      source: `export function greet(name: string): string { return name }
+  }, SourceFile {
+    path: "app/helper.ts",
+    source: `export function greet(name: string): string { return name }
 `
-    }
-  ]
+  }]
   ts := compileTypeScriptFiles(files)
   @assert.eq(ts.ok, true)
   @assert.eq(ts.errors.length(), 0)
@@ -454,22 +408,19 @@ main() => @io.println(greet("Rune"))
 }
 
 ? "selfhost compiler resolves Rune namespace aliases" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() => {
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() => {
   io := @io
   helper := @"./helper.rn"
   io.println(helper.greeting("Alice"))
 }
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ greeting(name: String) -> String => "hello, " + name
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ greeting(name: String) -> String => "hello, " + name
 `
-    }
-  ]
+  }]
   go := compileGoFiles(files)
   ts := compileTypeScriptFiles(files)
   @assert.eq(go.ok, true)
@@ -485,24 +436,21 @@ main() => @io.println(greet("Rune"))
 }
 
 ? "selfhost compiler resolves TypeScript namespace aliases" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `main() => {
+  files := [SourceFile {
+    path: "main.rn",
+    source: `main() => {
   io := @io
   helper := @"./greet.ts"
   io.println(helper.greet("Rune"))
   io.println(helper.version)
 }
 `
-    },
-    SourceFile {
-      path: "greet.ts",
-      source: `export function greet(name: string): string { return name }
+  }, SourceFile {
+    path: "greet.ts",
+    source: `export function greet(name: string): string { return name }
 export const version: string = "1"
 `
-    }
-  ]
+  }]
   ts := compileTypeScriptFiles(files)
   go := compileGoFiles(files)
   @assert.eq(ts.ok, true)
@@ -728,17 +676,15 @@ Args: {
 }
 
 ? "selfhost compiler accepts core module imports in file graph" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@syntax
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@syntax
 
 #tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 
 main() -> Int => 1
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
@@ -1230,20 +1176,17 @@ main() -> Int => add(1)
 }
 
 ? "selfhost compiler reports imported call arity errors" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 main() -> Int => importedAnswer()
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1828,20 +1771,17 @@ main(user: User) -> Int => user.age
 }
 
 ? "selfhost compiler reports imported argument type errors" {
-  files := [
-    SourceFile {
-      path: "main.rn",
-      source: `@"helper.rn"
+  files := [SourceFile {
+    path: "main.rn",
+    source: `@"helper.rn"
 
 main() -> Int => importedAnswer(1)
 `
-    },
-    SourceFile {
-      path: "helper.rn",
-      source: `+ importedAnswer(label: String) -> Int => 42
+  }, SourceFile {
+    path: "helper.rn",
+    source: `+ importedAnswer(label: String) -> Int => 42
 `
-    }
-  ]
+  }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)

@@ -25,11 +25,6 @@ LexState: {
   xmlAfterDepth: Int
 }
 
-xmlModeCode() -> Int => 0
-xmlModeTag() -> Int => 1
-xmlModeText() -> Int => 2
-xmlModeExpr() -> Int => 3
-
 Advanced: {
   state: LexState
   ch: Char
@@ -108,6 +103,14 @@ ScannedString: {
   Underscore
 }
 
+xmlModeCode() -> Int => 0
+
+xmlModeTag() -> Int => 1
+
+xmlModeText() -> Int => 2
+
+xmlModeExpr() -> Int => 3
+
 + lex(source: String) -> Array[Token] => scan(LexState {
   source: source,
   start: 0,
@@ -148,9 +151,7 @@ prepareLexState(
   _ => skipXMLSpaces(state)
 }
 
-scanModeToken(
-  state: LexState
-) -> Lexed => state.mode {
+scanModeToken(state: LexState) -> Lexed => state.mode {
   1 => scanXMLTagToken(advance(state))
   2 => scanXMLTextToken(state)
   3 => scanXMLExprToken(advance(state))
@@ -189,7 +190,7 @@ finishToken(
   kind: TokenKind
 ) -> LexState => {
   ..state,
-  canStartRegex: !canEndExpression(state, kind),
+  canStartRegex: !canEndExpression(state, kind)
 }
 
 lexStateXML(
@@ -312,7 +313,7 @@ markStart(state: LexState) -> LexState => {
   ..state,
   start: state.current,
   startLine: state.line,
-  startColumn: state.column,
+  startColumn: state.column
 }
 
 atEnd(state: LexState) -> Bool => state.current >= state.source.length()
@@ -414,7 +415,9 @@ isSpace(ch: Char) -> Bool => ((ch == ' ') || (ch == '\t')) || (ch == '\r')
 
 isXMLSpace(ch: Char) -> Bool => (((ch == ' ') || (ch == '\t')) || (ch == '\r')) || (ch == '\n')
 
-skipXMLSpaces(state: LexState) -> LexState => (
+skipXMLSpaces(
+  state: LexState
+) -> LexState => (
   atEnd(state) ? state
     : (
       isXMLSpace(peek(state)) ? skipXMLSpaces(advanceState(state))
@@ -491,7 +494,9 @@ scanXMLTagToken(step: Advanced) -> Lexed => {
   }
 }
 
-xmlStateAfterTagEnd(state: LexState) -> LexState => {
+xmlStateAfterTagEnd(
+  state: LexState
+) -> LexState => {
   nextDepth := (
     state.xmlClosing ? state.xmlDepth - 1
       : (
@@ -510,20 +515,28 @@ xmlStateAfterTagEnd(state: LexState) -> LexState => {
   lexStateXML(state, nextMode, restoredDepth, false, false, state.xmlExprMode, state.xmlExprDepth)
 }
 
-scanXMLTextToken(state: LexState) -> Lexed => peek(state) {
+scanXMLTextToken(
+  state: LexState
+) -> Lexed => peek(state) {
   '<' => scanXMLTextLess(advanceState(state))
   '{' => lexed(lexStateXML(advanceState(state), xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, xmlModeText(), 1), TokenKind.LBrace)
   _ => lexed(scanXMLTextContent(state), TokenKind.XMLText)
 }
 
-scanXMLTextLess(state: LexState) -> Lexed => lexed(lexStateXML(state, xmlModeTag(), state.xmlDepth, peek(state) == '/', false, state.xmlExprMode, state.xmlExprDepth), TokenKind.Less)
+scanXMLTextLess(
+  state: LexState
+) -> Lexed => lexed(lexStateXML(state, xmlModeTag(), state.xmlDepth, peek(state) == '/', false, state.xmlExprMode, state.xmlExprDepth), TokenKind.Less)
 
-scanXMLTextContent(state: LexState) -> LexState => (
-  atEnd(state) || (peek(state) == '<') || (peek(state) == '{') ? state
+scanXMLTextContent(
+  state: LexState
+) -> LexState => (
+  (atEnd(state) || (peek(state) == '<')) || (peek(state) == '{') ? state
     : scanXMLTextContent(advanceState(state))
 )
 
-scanXMLExprToken(step: Advanced) -> Lexed => {
+scanXMLExprToken(
+  step: Advanced
+) -> Lexed => {
   { state, ch } := step
   ch {
     '{' => lexed(lexStateXML(state, xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, state.xmlExprDepth + 1), TokenKind.LBrace)
@@ -532,7 +545,9 @@ scanXMLExprToken(step: Advanced) -> Lexed => {
   }
 }
 
-xmlStateAfterExprBrace(state: LexState) -> LexState => {
+xmlStateAfterExprBrace(
+  state: LexState
+) -> LexState => {
   nextDepth := state.xmlExprDepth - 1
   nextMode := (
     nextDepth <= 0 ? state.xmlExprMode

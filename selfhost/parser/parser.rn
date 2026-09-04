@@ -113,6 +113,17 @@ EnumMemberStep: {
   member: ParsedEnumMember
 }
 
+EnumMemberPayloadStep: {
+  state: ParserState
+  value: String
+  params: Array[ParsedParam]
+}
+
+AnnotationStep: {
+  state: ParserState
+  annotation: ParsedAnnotation
+}
+
 + parse(source: String) -> ParsedFile => parseTokens(lex(source))
 
 + parseTokens(
@@ -159,7 +170,8 @@ emptyExpr() -> ParsedExpr => {
   column: 0
 }
 
-emptyAnnotations() -> Array[ParsedAnnotation] => []
+emptyAnnotations(
+) -> Array[ParsedAnnotation] => []
 
 makeExpr(
   kind: ExprKind,
@@ -1105,12 +1117,6 @@ parseEnumMemberPayload(
   )
 }
 
-EnumMemberPayloadStep: {
-  state: ParserState
-  value: String
-  params: Array[ParsedParam]
-}
-
 parseEnumMemberValue(
   state: ParserState
 ) -> EnumMemberPayloadStep => {
@@ -1588,7 +1594,7 @@ looksLikeObjectLiteralBody(
   state: ParserState
 ) -> Bool => {
   first := skipNewlinesAt(state, state.current + 1)
-  (parserKindAt(state, first) == TokenKind.DotDot) || (parserKindAt(state, first) == TokenKind.Ident && parserKindAt(state, skipNewlinesAt(state, first + 1)) == TokenKind.Colon)
+  (parserKindAt(state, first) == TokenKind.DotDot) || ((parserKindAt(state, first) == TokenKind.Ident) && (parserKindAt(state, skipNewlinesAt(state, first + 1)) == TokenKind.Colon))
 }
 
 parseBlock(
@@ -2314,7 +2320,7 @@ parseXMLClose(
   name := parserConsume(slash.state, TokenKind.Ident, "expected XML closing tag name")
   checked := (
     name.token.lexeme == tag ? name.state
-      : parserErrorAt(name.state, name.token, (("mismatched XML closing tag </" + name.token.lexeme) + ">, expected </") + tag + ">")
+      : parserErrorAt(name.state, name.token, ((("mismatched XML closing tag </" + name.token.lexeme) + ">, expected </") + tag) + ">")
   )
   parserConsume(checked, TokenKind.Greater, "expected '>' after XML closing tag").state
 }
@@ -2341,7 +2347,10 @@ normalizeXMLTextChar(
   isSpace := (((ch == ' ') || (ch == '\t')) || (ch == '\r')) || (ch == '\n')
   isSpace {
     true => normalizeXMLTextLoop(text, index + 1, true, out)
-    _ => normalizeXMLTextLoop(text, index + 1, false, out + ((spacing && (out != "")) ? " " : "") + ch.toString())
+    _ => normalizeXMLTextLoop(text, index + 1, false, (out + (
+      spacing && (out != "") ? " "
+        : ""
+    )) + ch.toString())
   }
 }
 
@@ -2384,7 +2393,7 @@ parseTemplatePartAt(
 ) -> TemplateParse => {
   ch := inner.at(index)
   (
-    (ch == '\\') && ((index + 1) < inner.length()) && (inner.at(index + 1) == '(') ? parseTemplateExprPart(inner, index, textStart, out, children)
+    ((ch == '\\') && ((index + 1) < inner.length())) && (inner.at(index + 1) == '(') ? parseTemplateExprPart(inner, index, textStart, out, children)
       : parseTemplateParts(inner, index + 1, textStart, out, children)
   )
 }
@@ -2543,11 +2552,13 @@ parseThisSelector(
   state: ParserState
 ) -> ExprStep => {
   dot := parserConsume(state, TokenKind.Dot, "expected '.'")
-  parserCheck(dot.state, TokenKind.Ident) ? parseThisFieldSelector(dot.state, dot.token)
-    : ExprStep {
-      state: dot.state,
-      expr: node(ExprKind.This, dot.token)
-    }
+  (
+    parserCheck(dot.state, TokenKind.Ident) ? parseThisFieldSelector(dot.state, dot.token)
+      : ExprStep {
+        state: dot.state,
+        expr: node(ExprKind.This, dot.token)
+      }
+  )
 }
 
 parseThisFieldSelector(
@@ -3603,11 +3614,6 @@ parseAnnotationsNext(
   parseAnnotationsLoop(step.state, [..annotations, step.annotation])
 }
 
-AnnotationStep: {
-  state: ParserState
-  annotation: ParsedAnnotation
-}
-
 looksLikeAnnotation(
   state: ParserState
 ) -> Bool => parserCheck(state, TokenKind.Hash) || (parserCheck(state, TokenKind.At) && parserCheckNext(state, TokenKind.Ident))
@@ -3818,7 +3824,7 @@ looksLikeEnumMember(
   }
   token := parserTokenAt(state, start)
   next := parserKindAt(state, skipNewlinesAt(state, start + 1))
-  (token.kind == TokenKind.Ident) && ((next == TokenKind.Assign) || ((next == TokenKind.LParen) && startsWithUpper(token.lexeme)) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
+  (token.kind == TokenKind.Ident) && (((next == TokenKind.Assign) || ((next == TokenKind.LParen) && startsWithUpper(token.lexeme))) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
 }
 
 startsWithUpper(name: String) -> Bool => (
@@ -3918,7 +3924,7 @@ skipAliasPatternLookahead(
   state: ParserState,
   index: Int
 ) -> Int => (
-  (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.At) && (parserKindAt(state, skipNewlinesAt(state, index) + 1) == TokenKind.Ident) ? skipNewlinesAt(state, index) + 2
+  ((index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.At)) && (parserKindAt(state, skipNewlinesAt(state, index) + 1) == TokenKind.Ident) ? skipNewlinesAt(state, index) + 2
     : index
 )
 
@@ -3957,7 +3963,7 @@ skipRangePatternLookahead(
     : (
       (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotLess) ? skipRangePatternEnd(state, index + 1)
         : (
-          (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDot) && (parserKindAt(state, index + 1) == TokenKind.Less) ? skipRangePatternEnd(state, index + 2)
+          ((index >= 0) && (parserKindAt(state, index) == TokenKind.DotDot)) && (parserKindAt(state, index + 1) == TokenKind.Less) ? skipRangePatternEnd(state, index + 2)
             : index
         )
     )
@@ -3981,7 +3987,7 @@ skipIdentifierRangeEnd(
   state: ParserState,
   index: Int
 ) -> Int => (
-  (parserKindAt(state, index) == TokenKind.Ident) && (parserKindAt(state, index + 1) == TokenKind.Dot) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
+  ((parserKindAt(state, index) == TokenKind.Ident) && (parserKindAt(state, index + 1) == TokenKind.Dot)) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
     : index + 1
 )
 
@@ -4102,9 +4108,7 @@ isPatternSpreadIdentifier(
   }
 }
 
-isUpperAsciiLetter(
-  ch: Char
-) -> Bool => (ch >= 'A') && (ch <= 'Z')
+isUpperAsciiLetter(ch: Char) -> Bool => (ch >= 'A') && (ch <= 'Z')
 
 skipNewlinesAt(
   state: ParserState,

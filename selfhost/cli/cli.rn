@@ -179,23 +179,10 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
   @cli.withAliases(command, runeAliases())
 }
 
-+ runeCommands() -> Array[CliCommand] => [
-  runCommand(),
-  buildCommand(),
-  emitCommand("go"),
-  emitCommand("ts"),
-  emitCommand("dts"),
-  emitCommand("mbt"),
-  singlePathCommand("check"),
-  fmtCommand(),
-  testCommand(),
-  @cli.command("repl", ""),
-  lspCommand()
-]
++ runeCommands() -> Array[CliCommand] => [runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), singlePathCommand("check"), fmtCommand(), testCommand(), @cli.command("repl", ""), lspCommand()]
 
-+ runeAliases() -> Array[CliCommandAlias] => [
-  @cli.alias("format", "fmt")
-]
++ runeAliases(
+) -> Array[CliCommandAlias] => [@cli.alias("format", "fmt")]
 
 + runeTrailingRest() -> Array[String] => ["run"]
 

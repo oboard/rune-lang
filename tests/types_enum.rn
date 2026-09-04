@@ -23,7 +23,9 @@ statusText(status: Status) -> String => status {
   _ => "unknown"
 }
 
-statusMethodText(status: Status) -> String => status.toString()
+statusMethodText(
+  status: Status
+) -> String => status.toString()
 
 ? "enum members and comparison" {
   @assert.eq(Status.Completed == Status.Completed, true)

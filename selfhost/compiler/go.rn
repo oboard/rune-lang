@@ -38,16 +38,14 @@ emitGoConst(
   constant: IRConst
 ) -> String => (((("var " + mangleIdent(constant.name)) + " ") + goType(constant.typeName)) + " = ") + emitGoExprExpectedForFile(file, constant.value, constant.typeName)
 
-emitGoImports(
-  file: IRFile
-) -> String => {
+emitGoImports(file: IRFile) -> String => {
   imports :=: appendGoImportDecls([], file.imports, 0)
   imports = appendGoImportIf(imports, usesPrintFile(file) || fileUsesTemplate(file), "fmt")
   imports = appendGoImportIf(imports, fileUsesGoStrings(file), "strings")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.platform"), "runtime")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit"), "os")
   imports = appendGoImportIf(imports, fileUsesDoubleMath(file), "math")
-  imports = appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString") || fileUsesToString(file), "strconv")
+  imports = appendGoImportIf(imports, (fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString")) || fileUsesToString(file), "strconv")
   imports = appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "json.parse") || fileUsesModuleCall(file, "json.stringify"), "encoding/json")
   empty := imports.length() == 0
@@ -144,7 +142,7 @@ emitGoUnwrapHelper() -> String => `func __runeUnwrap(value any) any {
 
 `
 
-emitGoTaskUnwrap(expr: IRExpr) -> String => "__runeUnwrap(" + emitGoExpr(expr.children[0]) + ")"
+emitGoTaskUnwrap(expr: IRExpr) -> String => ("__runeUnwrap(" + emitGoExpr(expr.children[0])) + ")"
 
 emitGoPathHelpers() -> String => `func __runePathBasename(path string) string {
 	index := strings.LastIndex(path, "/")
@@ -335,8 +333,10 @@ func __runePathRelativeTail(fromParts []string, toParts []string, fromIndex int,
 emitGoEnum(
   enumDecl: IREnumType
 ) -> String => {
-  enumHasPayload(enumDecl.members) ? emitGoPayloadEnum(enumDecl)
-    : emitGoSimpleEnum(enumDecl)
+  (
+    enumHasPayload(enumDecl.members) ? emitGoPayloadEnum(enumDecl)
+      : emitGoSimpleEnum(enumDecl)
+  )
 }
 
 emitGoSimpleEnum(
@@ -368,7 +368,7 @@ emitGoPayloadEnumTags(
   out: String
 ) -> String => (
   index >= members.length() ? out
-    : emitGoPayloadEnumTags(enumName, members, index + 1, (((out + "\t") + mangleIdent(((enumName + "_") + members[index].name) + "_tag")) + " = ") + enumValue(members[index], index) + "\n")
+    : emitGoPayloadEnumTags(enumName, members, index + 1, ((((out + "\t") + mangleIdent(((enumName + "_") + members[index].name) + "_tag")) + " = ") + enumValue(members[index], index)) + "\n")
 )
 
 emitGoPayloadEnumConstructors(
@@ -390,8 +390,8 @@ emitGoPayloadEnumConstructor(
   tagName := mangleIdent(((enumName + "_") + member.name) + "_tag")
   typeName := mangleIdent(enumName) + emitGoGenericsUse(generics)
   (
-    member.params.length() == 0 ? (((("var " + mangleIdent((enumName + "_") + member.name)) + " = ") + typeName) + "{__tag: ") + tagName + ", __payload: nil}\n"
-      : ((((((("func " + mangleIdent(member.name)) + emitGoGenericsDecl(generics)) + "(") + emitGoParams(member.params, 0, "")) + ") ") + typeName) + " {\n\treturn ") + typeName + "{__tag: " + tagName + ", __payload: []any{" + emitGoParamNames(member.params, 0, "") + "}}\n}\n"
+    member.params.length() == 0 ? ((((("var " + mangleIdent((enumName + "_") + member.name)) + " = ") + typeName) + "{__tag: ") + tagName) + ", __payload: nil}\n"
+      : (((((((((((("func " + mangleIdent(member.name)) + emitGoGenericsDecl(generics)) + "(") + emitGoParams(member.params, 0, "")) + ") ") + typeName) + " {\n\treturn ") + typeName) + "{__tag: ") + tagName) + ", __payload: []any{") + emitGoParamNames(member.params, 0, "")) + "}}\n}\n"
   )
 }
 
@@ -508,8 +508,10 @@ inferGoExprReturnType(
 
 inferGoBlockReturnType(
   statements: Array[IRExpr]
-) -> String => statements.length() == 0 ? ""
-  : inferGoStatementReturnType(statements[statements.length() - 1])
+) -> String => (
+  statements.length() == 0 ? ""
+    : inferGoStatementReturnType(statements[statements.length() - 1])
+)
 
 inferGoStatementReturnType(
   expr: IRExpr
@@ -567,8 +569,10 @@ emitGoPatternBlock(
   out :=: line(level, "switch __n {")
   out = out + emitGoPatternBranches(file, expr.children, 0, returns, returnType, level + 1, "")
   out = out + line(level, "}")
-  returns ? out + line(level, "return " + goZero(returnType))
-    : out
+  (
+    returns ? out + line(level, "return " + goZero(returnType))
+      : out
+  )
 }
 
 emitGoPatternBranches(
@@ -595,7 +599,7 @@ emitGoPatternBranch(
   value := branch.children[1]
   head := (
     pattern.text == "_" ? "default:"
-      : "case " + pattern.text + ":"
+      : ("case " + pattern.text) + ":"
   )
   line(level, head) + emitGoPatternBranchBody(file, value, returns, returnType, level + 1)
 }
@@ -663,7 +667,7 @@ emitGoLet(
   value := emitGoLetValue(file, expr)
   payload := unwrapPayloadType(file, expr.children[0])
   (
-    payload != "" ? value = (value + ".(") + goType(payload) + ")"
+    payload != "" ? value = ((value + ".(") + goType(payload)) + ")"
   )
   line(level, (mangleIdent(expr.name) + " := ") + value) + line(level, "_ = " + mangleIdent(expr.name))
 }
@@ -672,8 +676,15 @@ emitGoLet(
 // `x.push(...)` calls), declare a typed empty array (`[]Elem{}`) instead of the
 // generic `[]any{}`, matching the host Go emitter. Only applies to empty array
 // literals; non-empty/homeosmocic literals are left as `[]any{...}`.
-goLetArrayElem(file: IRFile, expr: IRExpr) -> String => (
-  (((expr.text.startsWith("Array[") || expr.value.startsWith("Array[")) && (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0))) ? genericInner(expr.text.startsWith("Array[") ? expr.text : expr.value, "Array") : ""
+goLetArrayElem(
+  file: IRFile,
+  expr: IRExpr
+) -> String => (
+  ((expr.text.startsWith("Array[") || expr.value.startsWith("Array[")) && (expr.children[0].kind == ExprKind.Array)) && (expr.children[0].children.length() == 0) ? genericInner((
+    expr.text.startsWith("Array[") ? expr.text
+      : expr.value
+  ), "Array")
+    : ""
 )
 
 emitGoLetValue(
@@ -681,8 +692,13 @@ emitGoLetValue(
   expr: IRExpr
 ) -> String => {
   elem := goLetArrayElem(file, expr)
-  elem != "" ? (("[]" + goType(elem)) + "{}")
-    : (expr.value == "" ? emitGoExpr(expr.children[0]) : emitGoExprExpectedForFile(file, expr.children[0], expr.value))
+  (
+    elem != "" ? ("[]" + goType(elem)) + "{}"
+      : (
+        expr.value == "" ? emitGoExpr(expr.children[0])
+          : emitGoExprExpectedForFile(file, expr.children[0], expr.value)
+      )
+  )
 }
 
 emitGoObjectDestructure(
@@ -713,7 +729,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.This => mangleIdent("this")
   ExprKind.Int => expr.value
   ExprKind.Double => expr.value
-  ExprKind.BigInt => "int64(" + bigintLiteralDigits(expr.value) + ")"
+  ExprKind.BigInt => ("int64(" + bigintLiteralDigits(expr.value)) + ")"
   ExprKind.String => expr.value
   ExprKind.Template => emitGoTemplate(expr)
   ExprKind.Char => expr.value
@@ -723,7 +739,7 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Unary => expr.op + emitGoExpr(expr.children[0])
   ExprKind.Postfix => emitGoExpr(expr.children[0]) + expr.op
   ExprKind.CompileTime => emitGoExpr(expr.children[0])
-  ExprKind.Unwrap => "__runeUnwrap(" + emitGoExpr(expr.children[0]) + ")"
+  ExprKind.Unwrap => ("__runeUnwrap(" + emitGoExpr(expr.children[0])) + ")"
   ExprKind.Binary => emitGoBinary(expr)
   ExprKind.Ternary => emitGoTernary(expr)
   ExprKind.Assign => emitGoAssign(expr)
@@ -743,19 +759,27 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   _ => "nil"
 }
 
-emitGoInferredObject(expr: IRExpr) -> String => {
+emitGoInferredObject(
+  expr: IRExpr
+) -> String => {
   typeName := expr.text
-  typeName.startsWith("{") && typeName.endsWith("}") ? ((goStructuralObjectType(typeName) + "{") + emitGoFields(expr.children, 0, "")) + "}"
-    : "struct{}{}"
+  (
+    typeName.startsWith("{") && typeName.endsWith("}") ? ((goStructuralObjectType(typeName) + "{") + emitGoFields(expr.children, 0, "")) + "}"
+      : "struct{}{}"
+  )
 }
 
-goStructuralObjectType(typeName: String) -> String => (
-  "struct {" + goStructuralObjectFields(typeName.slice(1, typeName.length() - 1).split(";"), 0, "") + "}"
-)
+goStructuralObjectType(
+  typeName: String
+) -> String => ("struct {" + goStructuralObjectFields(typeName.slice(1, typeName.length() - 1).split(";"), 0, "")) + "}"
 
-goStructuralObjectFields(parts: Array[String], index: Int, out: String) -> String => (
+goStructuralObjectFields(
+  parts: Array[String],
+  index: Int,
+  out: String
+) -> String => (
   index >= parts.length() ? out
-    : goStructuralObjectFields(parts, index + 1, out + " " + mangleIdent(parts[index].split(":")[0]) + " " + goType(parts[index].split(":")[1]) + ";")
+    : goStructuralObjectFields(parts, index + 1, ((((out + " ") + mangleIdent(parts[index].split(":")[0])) + " ") + goType(parts[index].split(":")[1])) + ";")
 )
 
 emitGoExprExpected(
@@ -789,7 +813,10 @@ emitGoTemplate(expr: IRExpr) -> String => {
       : raw
   )
   parts := goTemplateAccumulate(inner.split("<<<RUNE_TEMPLATE_PART>>>"), expr.children, 0, [])
-  parts.length() == 0 ? "\"\"" : joinGoTemplateParts(parts, 0, "")
+  (
+    parts.length() == 0 ? "\"\""
+      : joinGoTemplateParts(parts, 0, "")
+  )
 }
 
 goTemplateAccumulate(
@@ -839,8 +866,10 @@ goStringLiteralChars(
   raw: String,
   index: Int,
   out: String
-) -> String => (index >= raw.length() ? out
-  : goStringLiteralChar(raw, index, out))
+) -> String => (
+  index >= raw.length() ? out
+    : goStringLiteralChar(raw, index, out)
+)
 
 goStringLiteralChar(
   raw: String,
@@ -851,7 +880,9 @@ goStringLiteralChar(
   _ => goStringLiteralNext(raw, index + 1, out + goStringLiteralPlain(raw.at(index)))
 }
 
-goStringLiteralEscaped(ch: Char) -> String => (
+goStringLiteralEscaped(
+  ch: Char
+) -> String => (
   ch == 'n' ? "\\n"
     : (
       ch == 't' ? "\\t"
@@ -919,7 +950,7 @@ emitGoCallExpected(
 ) -> String => {
   args := genericInner(expected, "Result")
   (
-    (args != "") && isResultConstructorCall(expr) ? ((emitGoExpr(expr.children[0]) + "[") + emitGoTypeArgs(args)) + "](" + emitGoExprListFrom(expr.children, 1, "") + ")"
+    (args != "") && isResultConstructorCall(expr) ? ((((emitGoExpr(expr.children[0]) + "[") + emitGoTypeArgs(args)) + "](") + emitGoExprListFrom(expr.children, 1, "")) + ")"
       : emitGoCall(expr)
   )
 }
@@ -935,13 +966,9 @@ emitGoCallExpectedForFile(
 
 isResultConstructorCall(
   expr: IRExpr
-) -> Bool => (
-  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
-)
+) -> Bool => (((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
 
-emitGoTypeArgs(
-  args: String
-) -> String => emitGoTypeArgList(args.split(","), 0, "")
+emitGoTypeArgs(args: String) -> String => emitGoTypeArgList(args.split(","), 0, "")
 
 emitGoTypeArgList(
   args: Array[String],
@@ -1014,7 +1041,7 @@ emitGoNullCoalesce(
   (
     (expr.children.length() < 2) || (expr.children[0].kind == ExprKind.Null) ? emitGoExpr(expr.children[1])
       : (
-        resultType == "" ? (((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()")
+        resultType == "" ? ((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()"
           : ((((((("func() " + goType(resultType)) + " { __coalesce := ") + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[1], resultType)) + " }()"
       )
   )
@@ -1029,7 +1056,7 @@ emitGoNullCoalesceForFile(
   (
     (expr.children.length() < 2) || (expr.children[0].kind == ExprKind.Null) ? emitGoExpr(expr.children[1])
       : (
-        resultType == "" ? (((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()")
+        resultType == "" ? ((("func() any { __coalesce := " + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce }; return ") + emitGoExpr(expr.children[1])) + " }()"
           : ((((((("func() " + goType(resultType)) + " { __coalesce := ") + emitGoExpr(expr.children[0])) + "; if __coalesce != nil { return __coalesce.(") + goType(resultType)) + ") }; return ") + emitGoExprExpectedForFile(file, expr.children[1], resultType)) + " }()"
       )
   )
@@ -1054,22 +1081,34 @@ goCoalesceResultType(
 
 emitGoTernary(expr: IRExpr) -> String => {
   resultType := expr.text
-  resultType.startsWith("Func[") ? ((((("func() " + goFunctionType(resultType)) + " { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return " + emitGoExpr(expr.children[2])) + " }()"
-    : (((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
-      expr.children.length() > 2 ? emitGoExpr(expr.children[2])
-        : "nil"
-    ) + " }()"
+  (
+    resultType.startsWith("Func[") ? ((((((("func() " + goFunctionType(resultType)) + " { if ") + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + emitGoExpr(expr.children[2])) + " }()"
+      : ((((("func() any { if " + emitGoExpr(expr.children[0])) + " { return ") + emitGoExpr(expr.children[1])) + " }; return ") + (
+        expr.children.length() > 2 ? emitGoExpr(expr.children[2])
+          : "nil"
+      )) + " }()"
+  )
 }
 
-goFunctionType(typeName: String) -> String => {
+goFunctionType(
+  typeName: String
+) -> String => {
   parts := typeName.slice(5, typeName.length() - 1).split("|")
   last := parts.length() - 1
-  "func(" + goFunctionParamTypes(parts, 0, last, "") + ") " + goType(parts[last])
+  (("func(" + goFunctionParamTypes(parts, 0, last, "")) + ") ") + goType(parts[last])
 }
 
-goFunctionParamTypes(parts: Array[String], index: Int, last: Int, out: String) -> String => (
+goFunctionParamTypes(
+  parts: Array[String],
+  index: Int,
+  last: Int,
+  out: String
+) -> String => (
   index >= last ? out
-    : goFunctionParamTypes(parts, index + 1, last, out + (index == 0 ? "" : ", ") + goType(parts[index]))
+    : goFunctionParamTypes(parts, index + 1, last, (out + (
+      index == 0 ? ""
+        : ", "
+    )) + goType(parts[index]))
 )
 
 emitGoAssign(expr: IRExpr) -> String => (
@@ -1083,64 +1122,58 @@ emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "json.parse" => emitGoJSONParseDynamic(expr)
   "map.new" => "map[any]any{}"
   "set.new" => "map[any]struct{}{}"
-  "path.isAbsolute" => "strings.HasPrefix(" + emitGoExpr(expr.children[1]) + ", \"/\")"
-  "path.basename" => "__runePathBasename(" + emitGoExpr(expr.children[1]) + ")"
-  "path.extname" => "__runePathExtname(" + emitGoExpr(expr.children[1]) + ")"
-  "path.dirname" => "__runePathDirname(" + emitGoExpr(expr.children[1]) + ")"
-  "path.join" => "__runePathJoin(" + emitGoExpr(expr.children[1]) + ")"
-  "path.normalize" => "__runePathNormalize(" + emitGoExpr(expr.children[1]) + ")"
-  "path.resolve" => "__runePathResolve(" + emitGoExpr(expr.children[1]) + ")"
-  "path.relative" => ("__runePathRelative(" + emitGoExpr(expr.children[1]) + ", ") + emitGoExpr(expr.children[2]) + ")"
-  "path.joinParts" => (((("__runePathJoinParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3]) + ")"
-  "path.appendPathPart" => ("__runePathAppendPart(" + emitGoExpr(expr.children[1]) + ", ") + emitGoExpr(expr.children[2]) + ")"
-  "path.normalizeParts" => (((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
-  "path.normalizePart" => (((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
-  "path.normalizeParent" => (((((("__runePathNormalizeParent(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
-  "path.normalizePop" => (((((("__runePathNormalizePop(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4]) + "))"
+  "path.isAbsolute" => ("strings.HasPrefix(" + emitGoExpr(expr.children[1])) + ", \"/\")"
+  "path.basename" => ("__runePathBasename(" + emitGoExpr(expr.children[1])) + ")"
+  "path.extname" => ("__runePathExtname(" + emitGoExpr(expr.children[1])) + ")"
+  "path.dirname" => ("__runePathDirname(" + emitGoExpr(expr.children[1])) + ")"
+  "path.join" => ("__runePathJoin(" + emitGoExpr(expr.children[1])) + ")"
+  "path.normalize" => ("__runePathNormalize(" + emitGoExpr(expr.children[1])) + ")"
+  "path.resolve" => ("__runePathResolve(" + emitGoExpr(expr.children[1])) + ")"
+  "path.relative" => ((("__runePathRelative(" + emitGoExpr(expr.children[1])) + ", ") + emitGoExpr(expr.children[2])) + ")"
+  "path.joinParts" => ((((("__runePathJoinParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ")"
+  "path.appendPathPart" => ((("__runePathAppendPart(" + emitGoExpr(expr.children[1])) + ", ") + emitGoExpr(expr.children[2])) + ")"
+  "path.normalizeParts" => ((((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "))"
+  "path.normalizePart" => ((((((("__runePathNormalizeParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "))"
+  "path.normalizeParent" => ((((((("__runePathNormalizeParent(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "))"
+  "path.normalizePop" => ((((((("__runePathNormalizePop(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "))"
   "path.normalizePush" => ((((((((("__runePathNormalizePush(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", ") + emitGoExpr(expr.children[3])) + ", __runePathStringParts(") + emitGoExpr(expr.children[4])) + "), ") + emitGoExpr(expr.children[5])) + ")"
-  "path.pathParts" => "__runePathParts(" + emitGoExpr(expr.children[1]) + ")"
-  "path.collectPathParts" => (((("__runePathCollectParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3]) + "))"
-  "path.collectPathPart" => (((("__runePathCollectPart(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3]) + "))"
-  "path.relativeFromParts" => (((("__runePathRelativeFromParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3]) + ")"
-  "path.relativeTail" => (((((("__runePathRelativeTail(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3])) + ", ") + emitGoExpr(expr.children[4]) + ", " + emitGoExpr(expr.children[5]) + ")"
+  "path.pathParts" => ("__runePathParts(" + emitGoExpr(expr.children[1])) + ")"
+  "path.collectPathParts" => ((((("__runePathCollectParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3])) + "))"
+  "path.collectPathPart" => ((((("__runePathCollectPart(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), ") + emitGoExpr(expr.children[2])) + ", __runePathStringParts(") + emitGoExpr(expr.children[3])) + "))"
+  "path.relativeFromParts" => ((((("__runePathRelativeFromParts(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3])) + ")"
+  "path.relativeTail" => ((((((((("__runePathRelativeTail(__runePathStringParts(" + emitGoExpr(expr.children[1])) + "), __runePathStringParts(") + emitGoExpr(expr.children[2])) + "), ") + emitGoExpr(expr.children[3])) + ", ") + emitGoExpr(expr.children[4])) + ", ") + emitGoExpr(expr.children[5])) + ")"
   "process.platform" => "runtime.GOOS"
   "process.cwd" => "\".\""
   "process.env" => "(*string)(nil)"
   "process.argv" => "append([]string(nil), os.Args[1:]...)"
   "process.exit" => ("func() struct{} { os.Exit(" + emitGoExpr(expr.children[1])) + "); return struct{}{} }()"
-  "int.toString" => "strconv.Itoa(" + emitGoExpr(expr.children[1]) + ")"
-  "int.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
-  "int.toBigInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
-  "int4.fromInt" => "func() int8 { n := (" + emitGoExpr(expr.children[1]) + ") & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()"
-  "int8.fromInt" => "func() int8 { n := int(" + emitGoExpr(expr.children[1]) + "); return int8(n) }()"
-  "int16.fromInt" => "func() int16 { n := int(" + emitGoExpr(expr.children[1]) + "); return int16(n) }()"
-  "int64.fromInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
-  "uint.fromInt" => "uint(" + emitGoExpr(expr.children[1]) + ")"
-  "uint8.fromInt" => "func() uint8 { n := int(" + emitGoExpr(expr.children[1]) + "); return uint8(n) }()"
-  "uint16.fromInt" => "func() uint16 { n := int(" + emitGoExpr(expr.children[1]) + "); return uint16(n) }()"
-  "uint64.fromInt" => "uint64(" + emitGoExpr(expr.children[1]) + ")"
-  "float.fromDouble" => "float32(" + emitGoExpr(expr.children[1]) + ")"
-  "int4.toInt" | "int8.toInt" | "int16.toInt" | "int64.toInt" | "uint.toInt" | "uint8.toInt" | "uint16.toInt" | "uint64.toInt" => "int(" + emitGoExpr(expr.children[1]) + ")"
-  "float.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
-  "bigint.fromInt" => "int64(" + emitGoExpr(expr.children[1]) + ")"
-  "bigint.toString" => "strconv.FormatInt(" + emitGoExpr(expr.children[1]) + ", 10)"
-  "bigint.toDouble" => "float64(" + emitGoExpr(expr.children[1]) + ")"
-  "double.trunc" => "int(math.Trunc(" + emitGoExpr(expr.children[1]) + "))"
-  "double.floor" => "int(math.Floor(" + emitGoExpr(expr.children[1]) + "))"
-  "double.ceil" => "int(math.Ceil(" + emitGoExpr(expr.children[1]) + "))"
-  "double.round" => "int(math.Round(" + emitGoExpr(expr.children[1]) + "))"
+  "int.toString" => ("strconv.Itoa(" + emitGoExpr(expr.children[1])) + ")"
+  "int.toDouble" => ("float64(" + emitGoExpr(expr.children[1])) + ")"
+  "int.toBigInt" => ("int64(" + emitGoExpr(expr.children[1])) + ")"
+  "int4.fromInt" => ("func() int8 { n := (" + emitGoExpr(expr.children[1])) + ") & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()"
+  "int8.fromInt" => ("func() int8 { n := int(" + emitGoExpr(expr.children[1])) + "); return int8(n) }()"
+  "int16.fromInt" => ("func() int16 { n := int(" + emitGoExpr(expr.children[1])) + "); return int16(n) }()"
+  "int64.fromInt" => ("int64(" + emitGoExpr(expr.children[1])) + ")"
+  "uint.fromInt" => ("uint(" + emitGoExpr(expr.children[1])) + ")"
+  "uint8.fromInt" => ("func() uint8 { n := int(" + emitGoExpr(expr.children[1])) + "); return uint8(n) }()"
+  "uint16.fromInt" => ("func() uint16 { n := int(" + emitGoExpr(expr.children[1])) + "); return uint16(n) }()"
+  "uint64.fromInt" => ("uint64(" + emitGoExpr(expr.children[1])) + ")"
+  "float.fromDouble" => ("float32(" + emitGoExpr(expr.children[1])) + ")"
+  "int4.toInt" | "int8.toInt" | "int16.toInt" | "int64.toInt" | "uint.toInt" | "uint8.toInt" | "uint16.toInt" | "uint64.toInt" => ("int(" + emitGoExpr(expr.children[1])) + ")"
+  "float.toDouble" => ("float64(" + emitGoExpr(expr.children[1])) + ")"
+  "bigint.fromInt" => ("int64(" + emitGoExpr(expr.children[1])) + ")"
+  "bigint.toString" => ("strconv.FormatInt(" + emitGoExpr(expr.children[1])) + ", 10)"
+  "bigint.toDouble" => ("float64(" + emitGoExpr(expr.children[1])) + ")"
+  "double.trunc" => ("int(math.Trunc(" + emitGoExpr(expr.children[1])) + "))"
+  "double.floor" => ("int(math.Floor(" + emitGoExpr(expr.children[1])) + "))"
+  "double.ceil" => ("int(math.Ceil(" + emitGoExpr(expr.children[1])) + "))"
+  "double.round" => ("int(math.Round(" + emitGoExpr(expr.children[1])) + "))"
   _ => emitGoMaybeCoreMethodCall(expr)
 }
 
-fileUsesDoubleMath(
-  file: IRFile
-) -> Bool => (
-  fileUsesModuleCall(file, "double.trunc") || fileUsesModuleCall(file, "double.floor") || fileUsesModuleCall(file, "double.ceil") || fileUsesModuleCall(file, "double.round")
-)
+fileUsesDoubleMath(file: IRFile) -> Bool => ((fileUsesModuleCall(file, "double.trunc") || fileUsesModuleCall(file, "double.floor")) || fileUsesModuleCall(file, "double.ceil")) || fileUsesModuleCall(file, "double.round")
 
-fileUsesGoStrings(
-  file: IRFile
-) -> Bool => fileUsesModuleCall(file, "path.isAbsolute") || fileUsesPathFamily(file)
+fileUsesGoStrings(file: IRFile) -> Bool => fileUsesModuleCall(file, "path.isAbsolute") || fileUsesPathFamily(file)
 
 emitGoMaybeCoreMethodCall(
   expr: IRExpr
@@ -1171,15 +1204,15 @@ emitGoCoreMethodCall(
 emitGoCoreLength(
   receiver: IRExpr
 ) -> String => (
-  receiver.text == "String" ? "len([]rune(" + emitGoExpr(receiver) + "))"
-    : "len(" + emitGoExpr(receiver) + ")"
+  receiver.text == "String" ? ("len([]rune(" + emitGoExpr(receiver)) + "))"
+    : ("len(" + emitGoExpr(receiver)) + ")"
 )
 
 emitGoCoreAt(
   expr: IRExpr,
   receiver: IRExpr
 ) -> String => (
-  receiver.text == "String" ? ("[]rune(" + emitGoExpr(receiver) + ")[") + emitGoExpr(expr.children[1]) + "]"
+  receiver.text == "String" ? ((("[]rune(" + emitGoExpr(receiver)) + ")[") + emitGoExpr(expr.children[1])) + "]"
     : ((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + "]"
 )
 
@@ -1188,18 +1221,18 @@ emitGoCoreSlice(
   receiver: IRExpr
 ) -> String => (
   receiver.text == "String" ? ((((("func() string { runes := []rune(" + emitGoExpr(receiver)) + "); return string(runes[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2])) + "]) }()"
-    : (((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2]) + "]"
+    : ((((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + ":") + emitGoExpr(expr.children[2])) + "]"
 )
 
 emitGoCorePush(
   expr: IRExpr,
   receiver: IRExpr
-) -> String => (((("func() int { " + emitGoExpr(receiver)) + " = append(") + emitGoExpr(receiver)) + ", ") + emitGoExpr(expr.children[1]) + "); return len(" + emitGoExpr(receiver) + ") }()"
+) -> String => ((((((("func() int { " + emitGoExpr(receiver)) + " = append(") + emitGoExpr(receiver)) + ", ") + emitGoExpr(expr.children[1])) + "); return len(") + emitGoExpr(receiver)) + ") }()"
 
 emitGoCoreSet(
   expr: IRExpr,
   receiver: IRExpr
-) -> String => (((((("func() any { " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "] = ") + emitGoExpr(expr.children[2])) + "; return ") + emitGoExpr(expr.children[2]) + " }()"
+) -> String => ((((((("func() any { " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "] = ") + emitGoExpr(expr.children[2])) + "; return ") + emitGoExpr(expr.children[2])) + " }()"
 
 emitGoCoreGetOr(
   expr: IRExpr,
@@ -1207,8 +1240,8 @@ emitGoCoreGetOr(
 ) -> String => {
   resultType := goCoalesceResultType(expr, expr.text)
   (
-    resultType == "" ? (((((("func() any { if __value, ok := " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value }; return ") + emitGoExpr(expr.children[2])) + " }()")
-      : (((((((("func() " + goType(resultType)) + " { if __value, ok := ") + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[2], resultType) + " }()"
+    resultType == "" ? ((((("func() any { if __value, ok := " + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value }; return ") + emitGoExpr(expr.children[2])) + " }()"
+      : ((((((((("func() " + goType(resultType)) + " { if __value, ok := ") + emitGoExpr(receiver)) + "[") + emitGoExpr(expr.children[1])) + "]; ok { return __value.(") + goType(resultType)) + ") }; return ") + emitGoExprExpected(expr.children[2], resultType)) + " }()"
   )
 }
 
@@ -1220,27 +1253,36 @@ emitGoCoreNumericConversion(
   receiver: IRExpr,
   method: String
 ) -> String => (
-  method == "toDouble" ? "float64(" + emitGoExpr(receiver) + ")"
-    : method == "toInt" ? "int(" + emitGoExpr(receiver) + ")"
-    : emitGoExpr(receiver)
+  method == "toDouble" ? ("float64(" + emitGoExpr(receiver)) + ")"
+    : (
+      method == "toInt" ? ("int(" + emitGoExpr(receiver)) + ")"
+        : emitGoExpr(receiver)
+    )
 )
 
-emitGoCoreToString(receiver: IRExpr) -> String => receiver.text {
-  "Bool" => "strconv.FormatBool(" + emitGoExpr(receiver) + ")"
-  "Int" | "int4" | "int8" | "int16" | "int64" | "uint" | "uint8" | "uint16" | "uint64" => "strconv.Itoa(int(" + emitGoExpr(receiver) + "))"
-  "Double" => "strconv.FormatFloat(" + emitGoExpr(receiver) + ", 'f', -1, 64)"
-  "Float" => "strconv.FormatFloat(float64(" + emitGoExpr(receiver) + "), 'f', -1, 32)"
-  "Char" => "string(" + emitGoExpr(receiver) + ")"
-  "BigInt" => "strconv.FormatInt(int64(" + emitGoExpr(receiver) + "), 10)"
+emitGoCoreToString(
+  receiver: IRExpr
+) -> String => receiver.text {
+  "Bool" => ("strconv.FormatBool(" + emitGoExpr(receiver)) + ")"
+  "Int" | "int4" | "int8" | "int16" | "int64" | "uint" | "uint8" | "uint16" | "uint64" => ("strconv.Itoa(int(" + emitGoExpr(receiver)) + "))"
+  "Double" => ("strconv.FormatFloat(" + emitGoExpr(receiver)) + ", 'f', -1, 64)"
+  "Float" => ("strconv.FormatFloat(float64(" + emitGoExpr(receiver)) + "), 'f', -1, 32)"
+  "Char" => ("string(" + emitGoExpr(receiver)) + ")"
+  "BigInt" => ("strconv.FormatInt(int64(" + emitGoExpr(receiver)) + "), 10)"
   _ => emitGoExpr(receiver)
 }
 
 emitGoLambda(expr: IRExpr) -> String => {
-  returnType := expr.text.startsWith("Func[") ? goFunctionReturnType(expr.text) : "any"
-  ((("func(" + emitGoParams(expr.params, 0, "")) + ") ") + goType(returnType)) + " { return " + emitGoExpr(expr.children[0]) + " }"
+  returnType := (
+    expr.text.startsWith("Func[") ? goFunctionReturnType(expr.text)
+      : "any"
+  )
+  ((((("func(" + emitGoParams(expr.params, 0, "")) + ") ") + goType(returnType)) + " { return ") + emitGoExpr(expr.children[0])) + " }"
 }
 
-goFunctionReturnType(typeName: String) -> String => {
+goFunctionReturnType(
+  typeName: String
+) -> String => {
   parts := typeName.slice(5, typeName.length() - 1).split("|")
   parts[parts.length() - 1]
 }
@@ -1254,9 +1296,7 @@ emitGoSelector(expr: IRExpr) -> String => expr.children[0].kind {
   _ => (emitGoExpr(expr.children[0]) + ".") + mangleIdent(expr.name)
 }
 
-emitGoAtSelector(
-  expr: IRExpr
-) -> String => {
+emitGoAtSelector(expr: IRExpr) -> String => {
   importPath := compilerIRAtImportPath(expr.children[0])
   goPath := compilerGoPackageImportPath(importPath)
   goPath {
@@ -1336,9 +1376,9 @@ hasFunction(
     )
 )
 
-usesPrintFile(file: IRFile) -> Bool => functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0) || enumsUsePrint(file.enums, 0)
+usesPrintFile(file: IRFile) -> Bool => (functionsUsePrint(file.functions, 0) || structsUsePrint(file.structs, 0)) || enumsUsePrint(file.enums, 0)
 
-fileUsesTemplate(file: IRFile) -> Bool => functionsUseTemplate(file.functions, 0) || structsUseTemplate(file.structs, 0) || enumsUseTemplate(file.enums, 0)
+fileUsesTemplate(file: IRFile) -> Bool => (functionsUseTemplate(file.functions, 0) || structsUseTemplate(file.structs, 0)) || enumsUseTemplate(file.enums, 0)
 
 functionsUseTemplate(
   functions: Array[IRFunction],
@@ -1347,8 +1387,10 @@ functionsUseTemplate(
   index >= functions.length() ? false
     : (
       functions[index].macro ? functionsUseTemplate(functions, index + 1)
-        : exprUsesTemplate(functions[index].body) ? true
-        : functionsUseTemplate(functions, index + 1)
+        : (
+          exprUsesTemplate(functions[index].body) ? true
+            : functionsUseTemplate(functions, index + 1)
+        )
     )
 )
 
@@ -1387,7 +1429,7 @@ exprChildrenUseTemplate(
     )
 )
 
-fileUsesToString(file: IRFile) -> Bool => functionsUseToString(file.functions, 0) || structsUseToString(file.structs, 0) || enumsUseToString(file.enums, 0)
+fileUsesToString(file: IRFile) -> Bool => (functionsUseToString(file.functions, 0) || structsUseToString(file.structs, 0)) || enumsUseToString(file.enums, 0)
 
 functionsUseToString(
   functions: Array[IRFunction],
@@ -1396,8 +1438,10 @@ functionsUseToString(
   index >= functions.length() ? false
     : (
       functions[index].macro ? functionsUseToString(functions, index + 1)
-        : exprUsesToString(functions[index].body) ? true
-        : functionsUseToString(functions, index + 1)
+        : (
+          exprUsesToString(functions[index].body) ? true
+            : functionsUseToString(functions, index + 1)
+        )
     )
 )
 
@@ -1425,14 +1469,16 @@ enumsUseToString(
 
 exprUsesToString(expr: IRExpr) -> Bool => exprIsScalarToStringCall(expr) || exprChildrenUseToString(expr.children, 0)
 
-exprIsScalarToStringCall(expr: IRExpr) -> Bool => (
-  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) && (expr.children[0].name == "toString") && (expr.children[0].children.length() > 0) ? goScalarToStringReceiver(expr.children[0].children[0].text)
+exprIsScalarToStringCall(
+  expr: IRExpr
+) -> Bool => (
+  ((((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Selector)) && (expr.children[0].name == "toString")) && (expr.children[0].children.length() > 0) ? goScalarToStringReceiver(expr.children[0].children[0].text)
     : false
 )
 
-goScalarToStringReceiver(typeName: String) -> Bool => (
-  (typeName == "Bool") || (typeName == "Int") || (typeName == "int4") || (typeName == "int8") || (typeName == "int16") || (typeName == "int64") || (typeName == "uint") || (typeName == "uint8") || (typeName == "uint16") || (typeName == "uint64") || (typeName == "Double") || (typeName == "Float") || (typeName == "Char") || (typeName == "BigInt")
-)
+goScalarToStringReceiver(
+  typeName: String
+) -> Bool => (((((((((((((typeName == "Bool") || (typeName == "Int")) || (typeName == "int4")) || (typeName == "int8")) || (typeName == "int16")) || (typeName == "int64")) || (typeName == "uint")) || (typeName == "uint8")) || (typeName == "uint16")) || (typeName == "uint64")) || (typeName == "Double")) || (typeName == "Float")) || (typeName == "Char")) || (typeName == "BigInt")
 
 exprChildrenUseToString(
   children: Array[IRExpr],
@@ -1452,8 +1498,10 @@ functionsUsePrint(
   index >= functions.length() ? false
     : (
       functions[index].macro ? functionsUsePrint(functions, index + 1)
-        : exprUsesPrint(functions[index].body) ? true
-        : functionsUsePrint(functions, index + 1)
+        : (
+          exprUsesPrint(functions[index].body) ? true
+            : functionsUsePrint(functions, index + 1)
+        )
     )
 )
 
@@ -1528,7 +1576,7 @@ emitGoJSONParseTyped(
   decls := goJSONDeclsForType(file, target, [])
   wireType := goJSONDecodeType(file, target)
   value := goJSONDecodedValue(file, "__raw", target)
-  (((((((("func() " + goType(target)) + " { ") + decls.text) + "var __raw ") + wireType) + "; if err := json.Unmarshal([]byte(") + emitGoExpr(expr.children[1])) + "), &__raw); err != nil { panic(err) }; return ") + value + " }()"
+  ((((((((("func() " + goType(target)) + " { ") + decls.text) + "var __raw ") + wireType) + "; if err := json.Unmarshal([]byte(") + emitGoExpr(expr.children[1])) + "), &__raw); err != nil { panic(err) }; return ") + value) + " }()"
 }
 
 emptyGoJSONDeclResult(
@@ -1686,9 +1734,7 @@ goJSONStructWireField(
   }
 }
 
-goJSONTag(
-  name: String
-) -> String => ("`json:\"" + name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")) + "\"`"
+goJSONTag(name: String) -> String => ("`json:\"" + name.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")) + "\"`"
 
 goJSONIncludeField(
   field: IRField
@@ -1700,12 +1746,7 @@ goJSONIncludeField(
   }
 }
 
-goJSONOmitType(
-  typeName: String
-) -> Bool => typeName {
-  "" | "Void" | "Symbol" => true
-  _ => false
-}
+goJSONOmitType(typeName: String) -> Bool => typeName ~ ("" | "Void" | "Symbol")
 
 goJSONDeclSeen(
   names: Array[String],
@@ -1771,7 +1812,7 @@ goJSONDecodedScalar(
   source: String,
   typeName: String
 ) -> String => typeName {
-  "Char" => "[]rune(" + source + ")[0]"
+  "Char" => ("[]rune(" + source) + ")[0]"
   _ => source
 }
 
@@ -1780,13 +1821,13 @@ goJSONDecodedArray(
   source: String,
   typeName: String,
   inner: String
-) -> String => (((((((("func() " + goType(typeName)) + " { __out := make(") + goType(typeName)) + ", len(") + source) + "); for __idx, __item := range ") + source) + " { __out[__idx] = " + goJSONDecodedValue(file, "__item", inner)) + " }; return __out }()"
+) -> String => ((((((((("func() " + goType(typeName)) + " { __out := make(") + goType(typeName)) + ", len(") + source) + "); for __idx, __item := range ") + source) + " { __out[__idx] = ") + goJSONDecodedValue(file, "__item", inner)) + " }; return __out }()"
 
 goJSONDecodedStruct(
   file: IRFile,
   source: String,
   typeDecl: IRStructType
-) -> String => (((("func() " + goType(typeDecl.name)) + " { __out := ") + goType(typeDecl.name)) + "{}; ") + goJSONDecodedFieldAssignments(file, source, typeDecl.fields, 0, "") + "return __out }()"
+) -> String => ((((("func() " + goType(typeDecl.name)) + " { __out := ") + goType(typeDecl.name)) + "{}; ") + goJSONDecodedFieldAssignments(file, source, typeDecl.fields, 0, "")) + "return __out }()"
 
 goJSONDecodedFieldAssignments(
   file: IRFile,
@@ -1815,7 +1856,7 @@ goJSONDecodedFieldAssignment(
     true => {
       sourceField := (source + ".F") + compilerIntToString(index)
       value := goJSONDecodedValue(file, sourceField, field.typeName)
-      assignment := (((("__out." + mangleIdent(field.name)) + " = ") + value) + "; ")
+      assignment := ((("__out." + mangleIdent(field.name)) + " = ") + value) + "; "
       goJSONDecodedFieldAssignments(file, source, fields, index + 1, out + assignment)
     }
     _ => goJSONDecodedFieldAssignments(file, source, fields, index + 1, out)
@@ -1849,30 +1890,28 @@ goTypeFallback(
 ) -> String => (
   typeName.startsWith("{") && typeName.endsWith("}") ? goStructuralObjectType(typeName)
     : (
-  typeName.endsWith("?") ? "any"
-    : (
-      genericInner(typeName, "Array") != "" ? "[]" + goType(genericInner(typeName, "Array"))
+      typeName.endsWith("?") ? "any"
         : (
-          genericInner(typeName, "ReadonlyArray") != "" ? "[]" + goType(genericInner(typeName, "ReadonlyArray"))
+          genericInner(typeName, "Array") != "" ? "[]" + goType(genericInner(typeName, "Array"))
             : (
-              genericInner(typeName, "Map") != "" ? (("map[" + goType(typeArg(genericInner(typeName, "Map"), 0))) + "]") + goType(typeArg(genericInner(typeName, "Map"), 1))
+              genericInner(typeName, "ReadonlyArray") != "" ? "[]" + goType(genericInner(typeName, "ReadonlyArray"))
                 : (
-                  genericInner(typeName, "Set") != "" ? ("map[" + goType(genericInner(typeName, "Set"))) + "]struct{}"
-                    : goNamedType(typeName)
+                  genericInner(typeName, "Map") != "" ? (("map[" + goType(typeArg(genericInner(typeName, "Map"), 0))) + "]") + goType(typeArg(genericInner(typeName, "Map"), 1))
+                    : (
+                      genericInner(typeName, "Set") != "" ? ("map[" + goType(genericInner(typeName, "Set"))) + "]struct{}"
+                        : goNamedType(typeName)
+                    )
                 )
             )
         )
     )
 )
-)
 
-goNamedType(
-  typeName: String
-) -> String => {
+goNamedType(typeName: String) -> String => {
   open := typeName.indexOf("[")
   (
     open < 0 ? mangleIdent(typeName)
-      : (mangleIdent(typeName.slice(0, open)) + "[") + emitGoTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + "]"
+      : ((mangleIdent(typeName.slice(0, open)) + "[") + emitGoTypeArgs(typeName.slice(open + 1, typeName.length() - 1))) + "]"
   )
 }
 
@@ -1880,7 +1919,7 @@ emitGoGenericsDecl(
   generics: Array[String]
 ) -> String => (
   generics.length() == 0 ? ""
-    : "[" + emitGoGenericDeclItems(generics, 0, "") + "]"
+    : ("[" + emitGoGenericDeclItems(generics, 0, "")) + "]"
 )
 
 emitGoGenericDeclItems(
@@ -1889,17 +1928,17 @@ emitGoGenericDeclItems(
   out: String
 ) -> String => (
   index >= generics.length() ? out
-    : emitGoGenericDeclItems(generics, index + 1, (((out + (
+    : emitGoGenericDeclItems(generics, index + 1, ((out + (
       index == 0 ? ""
         : ", "
-    )) + mangleIdent(generics[index])) + " any"))
+    )) + mangleIdent(generics[index])) + " any")
 )
 
 emitGoGenericsUse(
   generics: Array[String]
 ) -> String => (
   generics.length() == 0 ? ""
-    : "[" + emitGoGenericUseItems(generics, 0, "") + "]"
+    : ("[" + emitGoGenericUseItems(generics, 0, "")) + "]"
 )
 
 emitGoGenericUseItems(

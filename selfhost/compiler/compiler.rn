@@ -51,8 +51,9 @@ CompilerNamespaceAlias: {
   source: String
 ) -> CompileResult => compile(source, "dts")
 
-/// Check Rune source without choosing a code-generation backend.
-+ checkSource(source: String) -> CompileResult => checkSourceWithPath(source, "")
++ checkSource(
+  source: String
+) -> CompileResult => checkSourceWithPath(source, "")
 
 + checkSourceWithPath(
   source: String,
@@ -99,7 +100,10 @@ CompilerNamespaceAlias: {
   root: String
 ) -> Result[Array[SourceFile], Error] => {
   source := @fs.readFileText(root)?
-  discoverSourceGraph([SourceFile { path: root, source: source }])
+  discoverSourceGraph([SourceFile {
+    path: root,
+    source: source
+  }])
 }
 
 /// Extend a source set with imports discovered by the host bridge. Keeping this
@@ -119,7 +123,9 @@ discoverSourceGraph(
   root: String
 ) -> Result[SelfhostSources, Error] => {
   files := discoverSources(root)?
-  SelfhostSources { files: files }
+  SelfhostSources {
+    files: files
+  }
 }
 
 /// Stable generated-Go entrypoint for the host source-discovery bridge.
@@ -167,11 +173,10 @@ discoverMergeSourceFiles(
   index: Int
 ) -> Array[SourceFile] => (
   index >= right.length() ? left
-    : discoverMergeSourceFiles(
-      compilerContainsSourceFile(left, right[index].path, 0) ? left : [..left, right[index]],
-      right,
-      index + 1
-    )
+    : discoverMergeSourceFiles((
+      compilerContainsSourceFile(left, right[index].path, 0) ? left
+        : [..left, right[index]]
+    ), right, index + 1)
 )
 
 compilerContainsSourceFile(
@@ -196,11 +201,15 @@ checkFile(file: IRFile) -> CompileResult => (
     : checkCheckedFile(file)
 )
 
-checkCheckedFile(file: IRFile) -> CompileResult => {
+checkCheckedFile(
+  file: IRFile
+) -> CompileResult => {
   inferred := inferFile(file)
   errors := checkFileErrors(inferred)
-  errors.length() > 0 ? compileResult(false, "", errors)
-    : compileResult(true, "", [])
+  (
+    errors.length() > 0 ? compileResult(false, "", errors)
+      : compileResult(true, "", [])
+  )
 }
 
 compileCheckedFile(
@@ -269,9 +278,7 @@ checkMoonBitTargetFileErrors(
   errors
 }
 
-fileUsesGoFFI(
-  file: IRFile
-) -> Bool => fileUsesModuleCall(file, "go.stmt") || fileUsesModuleCall(file, "go.expr")
+fileUsesGoFFI(file: IRFile) -> Bool => fileUsesModuleCall(file, "go.stmt") || fileUsesModuleCall(file, "go.expr")
 
 compilerAppendErrorIf(
   errors: Array[String],
@@ -911,8 +918,10 @@ compilerIdentifierDefined(
   bindings: Array[CompilerTypeBinding]
 ) -> Bool => {
   binding := compilerIdentifierBinding(expr, bindings)
-  binding.name == "" ? findCompilerCallable(callables, expr.name, 0).name != ""
-    : true
+  (
+    binding.name == "" ? findCompilerCallable(callables, expr.name, 0).name != ""
+      : true
+  )
 }
 
 compilerIdentifierBinding(
@@ -920,9 +929,13 @@ compilerIdentifierBinding(
   bindings: Array[CompilerTypeBinding]
 ) -> CompilerTypeBinding => {
   binding := findCompilerTypeBinding(bindings, expr.name, 0)
-  binding.name != "" ? binding
-    : expr.text.startsWith("$") ? findCompilerTypeBinding(bindings, expr.text, 0)
-      : emptyCompilerTypeBinding()
+  (
+    binding.name != "" ? binding
+      : (
+        expr.text.startsWith("$") ? findCompilerTypeBinding(bindings, expr.text, 0)
+          : emptyCompilerTypeBinding()
+      )
+  )
 }
 
 checkThisExpr(
@@ -1012,9 +1025,7 @@ compilerLooksLikeTypeName(
   }
 }
 
-compilerUppercaseChar(
-  ch: Char
-) -> Bool => (ch >= 'A') && (ch <= 'Z')
+compilerUppercaseChar(ch: Char) -> Bool => (ch >= 'A') && (ch <= 'Z')
 
 checkLambdaExpr(
   expr: IRExpr,
@@ -1047,8 +1058,10 @@ compilerObjectType(
   out: String
 ) -> String => {
   spreadType := compilerObjectSpreadType(members, index, structs, callables, bindings)
-  spreadType == "" ? compilerObjectTypeFields(members, index, structs, callables, bindings, out)
-    : spreadType
+  (
+    spreadType == "" ? compilerObjectTypeFields(members, index, structs, callables, bindings, out)
+      : spreadType
+  )
 }
 
 compilerObjectSpreadType(
@@ -1058,9 +1071,13 @@ compilerObjectSpreadType(
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
-  index >= members.length() ? ""
-    : members[index].kind == ExprKind.Spread ? inferCompilerExprTypeWithStructs(members[index].children[0], structs, callables, bindings)
-      : compilerObjectSpreadType(members, index + 1, structs, callables, bindings)
+  (
+    index >= members.length() ? ""
+      : (
+        members[index].kind == ExprKind.Spread ? inferCompilerExprTypeWithStructs(members[index].children[0], structs, callables, bindings)
+          : compilerObjectSpreadType(members, index + 1, structs, callables, bindings)
+      )
+  )
 }
 
 compilerObjectTypeFields(
@@ -1087,8 +1104,10 @@ compilerObjectTypeMember(
   out: String
 ) -> String => {
   member := members[index]
-  member.kind == ExprKind.Spread ? compilerObjectTypeFields(members, index + 1, structs, callables, bindings, out)
-    : compilerObjectTypeNamedMember(members, index, structs, callables, bindings, out)
+  (
+    member.kind == ExprKind.Spread ? compilerObjectTypeFields(members, index + 1, structs, callables, bindings, out)
+      : compilerObjectTypeNamedMember(members, index, structs, callables, bindings, out)
+  )
 }
 
 compilerObjectTypeNamedMember(
@@ -1100,13 +1119,19 @@ compilerObjectTypeNamedMember(
   out: String
 ) -> String => {
   member := members[index]
-  separator := out == "{" ? "" : ";"
+  separator := (
+    out == "{" ? ""
+      : ";"
+  )
   typeName := member.kind {
     ExprKind.Method => member.text
     ExprKind.PrivateMethod => member.text
-    _ => (member.children.length() > 0) ? inferCompilerExprTypeWithStructs(member.children[0], structs, callables, bindings) : ""
+    _ => (
+      member.children.length() > 0 ? inferCompilerExprTypeWithStructs(member.children[0], structs, callables, bindings)
+        : ""
+    )
   }
-  compilerObjectTypeFields(members, index + 1, structs, callables, bindings, ((out + separator) + member.name) + ":" + typeName)
+  compilerObjectTypeFields(members, index + 1, structs, callables, bindings, (((out + separator) + member.name) + ":") + typeName)
 }
 
 checkObjectMembers(
@@ -1163,9 +1188,12 @@ checkObjectSpreadExpr(
 ) -> Array[String] => {
   value := member.children[0]
   actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
-  valid := (actual != "") && (actual != "Dynamic") && (actual == objectType)
+  valid := ((actual != "") && (actual != "Dynamic")) && (actual == objectType)
   checked := checkExpr(value, structs, callables, errors, bindings)
-  valid ? checked : [..checked, "object spread expects " + objectType + ", got " + actual]
+  (
+    valid ? checked
+      : [..checked, (("object spread expects " + objectType) + ", got ") + actual]
+  )
 }
 
 checkObjectMethodExpr(
@@ -1497,7 +1525,7 @@ checkUnwrapSourceType(
 ) -> Array[String] => sourceType {
   "" => errors
   _ => compilerResultOkType(sourceType) {
-    "" => [..errors, ("operator '?' expects Result, got " + sourceType)]
+    "" => [..errors, "operator '?' expects Result, got " + sourceType]
     _ => errors
   }
 }
@@ -1977,7 +2005,7 @@ checkTupleIndexRange(
 ) -> Array[String] => {
   outOfRange := (index < 0) || (index >= tuple.length())
   outOfRange {
-    true => [..errors, (("tuple index " + compilerIntToString(index)) + " out of range")]
+    true => [..errors, ("tuple index " + compilerIntToString(index)) + " out of range"]
     _ => errors
   }
 }
@@ -2122,7 +2150,7 @@ checkPostfixNumericOperandType(
 ) -> Array[String] => {
   mismatch := (actual != "") && (compilerNumericType(actual) == false)
   mismatch {
-    true => [..errors, ((("operator '" + op) + "' expects a numeric type, got ") + actual)]
+    true => [..errors, (("operator '" + op) + "' expects a numeric type, got ") + actual]
     _ => errors
   }
 }
@@ -2387,9 +2415,7 @@ compilerParseUnsignedIntText(
   }
 }
 
-compilerDigitValue(
-  ch: Char
-) -> Int => ch {
+compilerDigitValue(ch: Char) -> Int => ch {
   '0' => 0
   '1' => 1
   '2' => 2
@@ -2518,15 +2544,15 @@ checkStructSelectorExpr(
   "" => errors
   _ => compilerStructuralObjectFieldType(receiverType, expr.name) {
     "" => {
-    typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
-    found := typeDecl.name != ""
-    found {
-      true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
-        true => checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
-        _ => [..errors, ("type \"" + typeDecl.name) + "\" is private"]
+      typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
+      found := typeDecl.name != ""
+      found {
+        true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
+          true => checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
+          _ => [..errors, ("type \"" + typeDecl.name) + "\" is private"]
+        }
+        _ => [..errors, ("type " + receiverType) + " has no fields"]
       }
-      _ => [..errors, ("type " + receiverType) + " has no fields"]
-    }
     }
     _ => errors
   }
@@ -2560,7 +2586,10 @@ compilerStructuralObjectFieldTypePart(
   fieldName: String
 ) -> String => {
   pieces := part.split(":")
-  (pieces.length() == 2) && (pieces[0] == fieldName) ? pieces[1] : ""
+  (
+    (pieces.length() == 2) && (pieces[0] == fieldName) ? pieces[1]
+      : ""
+  )
 }
 
 checkStructSelectorField(
@@ -2588,9 +2617,7 @@ checkLetDeclaredType(
   errors: Array[String]
 ) -> Array[String] => {
   actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
-  // The parser uses `?` on a let node to mark an unwrap; it is not an
-  // annotation to validate against the payload's inferred type.
-  mismatch := (expected != "?") && compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch := ((expected != "?") && compilerShouldCheckArgType(expected, actual)) && (compilerTypesCompatible(expected, actual) == false)
   mismatch {
     true => [..errors, (((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected]
     _ => errors
@@ -3190,7 +3217,7 @@ checkUndefinedIdentifierCall(
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => findCompilerTypeBinding(bindings, name, 0).typeName {
-  "MacroFunction" => [..errors, (name + " is a macro and can only be used with '#'")]
+  "MacroFunction" => [..errors, name + " is a macro and can only be used with '#'"]
   _ => [..errors, "undefined function " + name]
 }
 
@@ -3208,7 +3235,7 @@ checkCompilerPrivateAccess(
   errors: Array[String]
 ) -> Array[String] => compilerCanAccessPrivate(private, sourcePath, bindings) {
   true => errors
-  _ => [..errors, (((kind + " \"") + name) + "\" is private")]
+  _ => [..errors, ((kind + " \"") + name) + "\" is private"]
 }
 
 compilerCanAccessPrivate(
@@ -3321,7 +3348,7 @@ checkFunctionReturn(
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
   shouldCheck {
     true => (
-      (expected == "WebComponent") && (actual == "HTMLElement") && compilerExprCanBuildWebComponent(fn.body) ? checked
+      ((expected == "WebComponent") && (actual == "HTMLElement")) && compilerExprCanBuildWebComponent(fn.body) ? checked
         : checkFunctionReturnType(fn.name, expected, actual, checked)
     )
     _ => checked
@@ -3333,7 +3360,7 @@ compilerExprCanBuildWebComponent(
 ) -> Bool => expr.kind {
   ExprKind.XMLElement => true
   ExprKind.Block => compilerLastExprCanBuildWebComponent(expr.children)
-  ExprKind.Ternary => (expr.children.length() >= 3) && compilerExprCanBuildWebComponent(expr.children[1]) && compilerExprCanBuildWebComponent(expr.children[2])
+  ExprKind.Ternary => ((expr.children.length() >= 3) && compilerExprCanBuildWebComponent(expr.children[1])) && compilerExprCanBuildWebComponent(expr.children[2])
   _ => false
 }
 
@@ -6503,3 +6530,6 @@ parseErrorMessages(
   errors.each((error) => out.push((((("line " + compilerIntToString(error.line)) + ":") + compilerIntToString(error.column)) + ": ") + error.message))
   out
 }
+  // The parser uses `?` on a let node to mark an unwrap; it is not an
+  // annotation to validate against the payload's inferred type.
+/// Check Rune source without choosing a code-generation backend.

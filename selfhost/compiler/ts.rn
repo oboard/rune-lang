@@ -26,7 +26,9 @@
 
 emitTSImports(file: IRFile) -> String => emitTSImportList(file.tsImports, 0, "")
 
-rewriteTSMethodCalls(file: IRFile) -> IRFile => {
+rewriteTSMethodCalls(
+  file: IRFile
+) -> IRFile => {
   structs := rewriteTSStructs(file.structs, file.structs, file.enums)
   enums := rewriteTSEnums(file.enums, file.structs, file.enums)
   IRFile {
@@ -160,7 +162,10 @@ rewriteTSFunctionBody(
 ) -> IRFunction => {
   bindings := []
   fn.params.each((param) => bindings = tsAddBinding(bindings, param.name, param.typeName))
-  bindings = (thisType == "") ? bindings : tsAddBinding(bindings, "this", thisType)
+  bindings = (
+    thisType == "" ? bindings
+      : tsAddBinding(bindings, "this", thisType)
+  )
   body := rewriteTSExpr(fn.body, structs, enums, bindings)
   IRFunction {
     name: fn.name,
@@ -179,7 +184,8 @@ rewriteTSFunctionBody(
   }
 }
 
-emptyCompilerTypeBinding() -> CompilerTypeBinding => {
+emptyCompilerTypeBinding(
+) -> CompilerTypeBinding => {
   name: "",
   typeName: ""
 }
@@ -205,8 +211,10 @@ dropTSBinding(
   out: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => (
   index >= bindings.length() ? out
-    : bindings[index].name == name ? dropTSBinding(bindings, name, index + 1, out)
-      : dropTSBinding(bindings, name, index + 1, [..out, bindings[index]])
+    : (
+      bindings[index].name == name ? dropTSBinding(bindings, name, index + 1, out)
+        : dropTSBinding(bindings, name, index + 1, [..out, bindings[index]])
+    )
 )
 
 tsLookupBinding(
@@ -215,8 +223,10 @@ tsLookupBinding(
   index: Int
 ) -> CompilerTypeBinding => (
   index >= bindings.length() ? emptyCompilerTypeBinding()
-    : bindings[index].name == name ? bindings[index]
-      : tsLookupBinding(bindings, name, index + 1)
+    : (
+      bindings[index].name == name ? bindings[index]
+        : tsLookupBinding(bindings, name, index + 1)
+    )
 )
 
 tsTypeBase(typeName: String) -> String => {
@@ -299,7 +309,7 @@ rewriteTSLet(
   structs: Array[IRStructType],
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
-) -> IRExpr => IRExpr {
+) -> IRExpr => {
   kind: expr.kind,
   text: expr.text,
   name: expr.name,
@@ -334,8 +344,10 @@ tsStatementBindings(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => {
   kind := expr.kind
-  kind == ExprKind.Let ? tsAddBinding(bindings, expr.name, tsLetBindingType(expr, structs, enums, bindings))
-    : bindings
+  (
+    kind == ExprKind.Let ? tsAddBinding(bindings, expr.name, tsLetBindingType(expr, structs, enums, bindings))
+      : bindings
+  )
 }
 
 rewriteTSCall(
@@ -368,7 +380,10 @@ rewriteTSSelectorCall(
   shouldRewrite := tsFindMethodCall(structs, enums, receiverType, callee.name)
   shouldRewrite {
     true => tsBuildMethodCall(expr, receiverType, callee.name, receiver, rewrittenArgs)
-    _ => tsRebuildExpr(expr, tsPrependExpr(tsRebuildExpr(callee, hasReceiver ? [receiver] : []), rewrittenArgs))
+    _ => tsRebuildExpr(expr, tsPrependExpr(tsRebuildExpr(callee, (
+      hasReceiver ? [receiver]
+        : []
+    )), rewrittenArgs))
   }
 }
 
@@ -393,7 +408,7 @@ tsBuildMethodCall(
   }
 }
 
-tsMethodCallee(name: String) -> IRExpr => IRExpr {
+tsMethodCallee(name: String) -> IRExpr => {
   kind: ExprKind.Identifier,
   text: name,
   name: name,
@@ -433,7 +448,7 @@ tsPrependExpr(
 tsRebuildExpr(
   expr: IRExpr,
   children: Array[IRExpr]
-) -> IRExpr => IRExpr {
+) -> IRExpr => {
   kind: expr.kind,
   text: expr.text,
   name: expr.name,
@@ -511,8 +526,10 @@ tsResolveSelectorFieldType(
   empty := receiver.children.length() == 0
   empty {
     true => ""
-    _ => receiver.children[0].text != "" ? receiver.children[0].text
-      : tsStructFieldType(structs, tsTypeBase(tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
+    _ => (
+      receiver.children[0].text != "" ? receiver.children[0].text
+        : tsStructFieldType(structs, tsTypeBase(tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
+    )
   }
 }
 
@@ -523,8 +540,10 @@ tsStructFieldType(
   index: Int
 ) -> String => (
   index >= structs.length() ? ""
-    : structs[index].name == typeName ? tsStructFieldTypeIn(structs[index].fields, fieldName, 0)
-      : tsStructFieldType(structs, typeName, fieldName, index + 1)
+    : (
+      structs[index].name == typeName ? tsStructFieldTypeIn(structs[index].fields, fieldName, 0)
+        : tsStructFieldType(structs, typeName, fieldName, index + 1)
+    )
 )
 
 tsStructFieldTypeIn(
@@ -533,8 +552,10 @@ tsStructFieldTypeIn(
   index: Int
 ) -> String => (
   index >= fields.length() ? ""
-    : fields[index].name == fieldName ? fields[index].typeName
-      : tsStructFieldTypeIn(fields, fieldName, index + 1)
+    : (
+      fields[index].name == fieldName ? fields[index].typeName
+        : tsStructFieldTypeIn(fields, fieldName, index + 1)
+    )
 )
 
 tsFindMethodCall(
@@ -558,8 +579,10 @@ tsEnumHasInstanceMethod(
   index: Int
 ) -> Bool => (
   index >= enums.length() ? false
-    : enums[index].name == typeName ? tsStructMethodMatches(enums[index].methods, methodName, 0)
-      : tsEnumHasInstanceMethod(enums, typeName, methodName, index + 1)
+    : (
+      enums[index].name == typeName ? tsStructMethodMatches(enums[index].methods, methodName, 0)
+        : tsEnumHasInstanceMethod(enums, typeName, methodName, index + 1)
+    )
 )
 
 tsStructHasInstanceMethod(
@@ -569,8 +592,10 @@ tsStructHasInstanceMethod(
   index: Int
 ) -> Bool => (
   index >= structs.length() ? false
-    : structs[index].name == typeName ? tsStructMethodMatches(structs[index].methods, methodName, 0)
-      : tsStructHasInstanceMethod(structs, typeName, methodName, index + 1)
+    : (
+      structs[index].name == typeName ? tsStructMethodMatches(structs[index].methods, methodName, 0)
+        : tsStructHasInstanceMethod(structs, typeName, methodName, index + 1)
+    )
 )
 
 tsStructMethodMatches(
@@ -585,9 +610,7 @@ tsStructMethodMatches(
     )
 )
 
-emitTSConst(
-  constant: IRConst
-) -> String => (((("const " + mangleIdent(constant.name)) + ": ") + tsType(constant.typeName)) + " = ") + emitTSExprExpected(constant.value, constant.typeName) + ";"
+emitTSConst(constant: IRConst) -> String => ((((("const " + mangleIdent(constant.name)) + ": ") + tsType(constant.typeName)) + " = ") + emitTSExprExpected(constant.value, constant.typeName)) + ";"
 
 emitTSImportList(
   imports: Array[IRTSImport],
@@ -604,7 +627,7 @@ emitTSImport(
   names := emitTSImportNames(importDecl.functions, importDecl.values, 0, 0, "")
   (
     names == "" ? ""
-      : ("import { " + names) + " } from " + tsQuoteString(tsRuntimeSpecifier(importDecl.specifier)) + ";\n"
+      : ((("import { " + names) + " } from ") + tsQuoteString(tsRuntimeSpecifier(importDecl.specifier))) + ";\n"
   )
 }
 
@@ -625,19 +648,17 @@ emitTSImportNames(
 appendTSImportName(
   out: String,
   name: String
-) -> String => (out + (
+) -> String => (((out + (
   out == "" ? ""
     : ", "
-)) + name + " as " + mangleIdent(name)
+)) + name) + " as ") + mangleIdent(name)
 
-tsQuoteString(
-  value: String
-) -> String => ("\"" + value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")) + "\""
+tsQuoteString(value: String) -> String => ("\"" + value.replaceAll("\\", "\\\\").replaceAll("\"", "\\\"")) + "\""
 
 tsRuntimeSpecifier(
   specifier: String
 ) -> String => (
-  (specifier == "") || specifier.startsWith("./") || specifier.startsWith("../") || specifier.startsWith("/") || specifier.includes("://") ? specifier
+  ((((specifier == "") || specifier.startsWith("./")) || specifier.startsWith("../")) || specifier.startsWith("/")) || specifier.includes("://") ? specifier
     : "./" + specifier
 )
 
@@ -768,8 +789,10 @@ function __runePathRelativeTail(fromParts: string[], toParts: string[], fromInde
 emitTSEnum(
   enumDecl: IREnumType
 ) -> String => {
-  tsEnumHasPayload(enumDecl.members, 0) ? emitTSPayloadEnum(enumDecl)
-    : emitTSSimpleEnum(enumDecl)
+  (
+    tsEnumHasPayload(enumDecl.members, 0) ? emitTSPayloadEnum(enumDecl)
+      : emitTSSimpleEnum(enumDecl)
+  )
 }
 
 emitTSSimpleEnum(
@@ -808,7 +831,7 @@ emitTSPayloadEnumMember(
     first ? "  "
       : "| "
   )
-  (prefix + "{ __tag: ") + compilerIntToString(index) + "; __payload: " + emitTSPayloadTuple(member.params, 0, "") + " }\n"
+  ((((prefix + "{ __tag: ") + compilerIntToString(index)) + "; __payload: ") + emitTSPayloadTuple(member.params, 0, "")) + " }\n"
 }
 
 emitTSPayloadTuple(
@@ -816,7 +839,7 @@ emitTSPayloadTuple(
   index: Int,
   out: String
 ) -> String => (
-  index >= params.length() ? "[" + out + "]"
+  index >= params.length() ? ("[" + out) + "]"
     : emitTSPayloadTuple(params, index + 1, (out + (
       index == 0 ? ""
         : ", "
@@ -842,8 +865,8 @@ emitTSPayloadEnumConstructor(
 ) -> String => {
   typeName := mangleIdent(enumName) + emitTSGenericsUse(generics)
   (
-    member.params.length() == 0 ? (((("const " + mangleIdent((enumName + "_") + member.name)) + ": ") + typeName) + " = { __tag: ") + compilerIntToString(index) + ", __payload: [] };\n"
-      : ((((((("function " + mangleIdent(member.name)) + emitTSGenerics(generics)) + "(") + emitTSParams(member.params, 0, "")) + "): ") + typeName) + " {\n") + line(1, ("return { __tag: " + compilerIntToString(index)) + ", __payload: [" + emitTSParamNames(member.params, 0, "") + "] };") + "}\n"
+    member.params.length() == 0 ? ((((("const " + mangleIdent((enumName + "_") + member.name)) + ": ") + typeName) + " = { __tag: ") + compilerIntToString(index)) + ", __payload: [] };\n"
+      : (((((((("function " + mangleIdent(member.name)) + emitTSGenerics(generics)) + "(") + emitTSParams(member.params, 0, "")) + "): ") + typeName) + " {\n") + line(1, ((("return { __tag: " + compilerIntToString(index)) + ", __payload: [") + emitTSParamNames(member.params, 0, "")) + "] };")) + "}\n"
   )
 }
 
@@ -874,7 +897,7 @@ emitTSGenericsUse(
   generics: Array[String]
 ) -> String => (
   generics.length() == 0 ? ""
-    : "<" + emitTSGenericNames(generics, 0, "") + ">"
+    : ("<" + emitTSGenericNames(generics, 0, "")) + ">"
 )
 
 emitTSEnumMembers(
@@ -952,20 +975,24 @@ emitTSFunction(fn: IRFunction) -> String => (
     : emitTSPlainFunction(fn)
 )
 
-emitTSPlainFunction(fn: IRFunction) -> String => {
+emitTSPlainFunction(
+  fn: IRFunction
+) -> String => {
   ret := tsType(fn.returnType)
   out :=: (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + ret) + " {\n"
   out = out + emitTSBody(fn.body, returnsValue(fn.returnType), fn.returnType, 1)
   out + "}\n"
 }
 
-emitTSWebComponentFunction(fn: IRFunction) -> String => {
+emitTSWebComponentFunction(
+  fn: IRFunction
+) -> String => {
   out :=: (((((("function " + mangleIdent(fn.name)) + emitTSGenerics(fn.generics)) + "(") + emitTSParams(fn.params, 0, "")) + "): ") + tsType(fn.returnType)) + " {\n"
   out = out + line(1, "return class extends HTMLElement {")
   out = out + line(2, "connectedCallback(): void {")
   out = out + line(3, "if ((this as any).__runeMounted) return;")
   out = out + line(3, "(this as any).__runeMounted = true;")
-  out = out + line(3, "const __root = " + emitTSExprExpected(fn.body, "HTMLElement") + ";")
+  out = out + line(3, ("const __root = " + emitTSExprExpected(fn.body, "HTMLElement")) + ";")
   out = out + line(3, "this.appendChild(__root);")
   out = out + line(2, "}")
   out = out + line(1, "};")
@@ -1131,7 +1158,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
   ExprKind.Postfix => emitTSExpr(expr.children[0]) + expr.op
   ExprKind.CompileTime => emitTSExpr(expr.children[0])
-  ExprKind.Unwrap => "__runeUnwrap(" + emitTSExpr(expr.children[0]) + ")"
+  ExprKind.Unwrap => ("__runeUnwrap(" + emitTSExpr(expr.children[0])) + ")"
   ExprKind.Binary => emitTSBinary(expr)
   ExprKind.Ternary => emitTSTernary(expr)
   ExprKind.Assign => emitTSAssign(expr)
@@ -1152,14 +1179,16 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
 
 emitTSXMLExpr(expr: IRExpr) -> String => (("(() => {\n" + emitTSXMLExprBody(expr, "__el0", 1)) + line(1, "return __el0;")) + "})()"
 
-emitTSXMLCreateElement(expr: IRExpr) -> String => "document.createElement(" + tsQuoteString(expr.name) + ")"
+emitTSXMLCreateElement(
+  expr: IRExpr
+) -> String => ("document.createElement(" + tsQuoteString(expr.name)) + ")"
 
 emitTSXMLExprBody(
   expr: IRExpr,
   name: String,
   level: Int
 ) -> String => {
-  out := line(level, (("const " + name) + " = ") + emitTSXMLCreateElement(expr) + ";")
+  out := line(level, ((("const " + name) + " = ") + emitTSXMLCreateElement(expr)) + ";")
   out = out + emitTSXMLParts(name, expr.children, 0, level, 1)
   out
 }
@@ -1209,7 +1238,7 @@ emitTSXMLNestedChild(
   childIndex: Int
 ) -> String => {
   name := (parent + "_") + childIndex.toString()
-  emitTSXMLExprBody(child, name, level) + line(level, (parent + ".appendChild(") + name + ");")
+  emitTSXMLExprBody(child, name, level) + line(level, ((parent + ".appendChild(") + name) + ");")
 }
 
 emitTSXMLExprChild(
@@ -1220,11 +1249,13 @@ emitTSXMLExprChild(
 ) -> String => {
   childType := child.text
   childName := (parent + "_child") + childIndex.toString()
-  childType.startsWith("Array[") ? line(level, ("for (const " + childName) + " of " + emitTSExpr(child) + ") {") + line(level + 1, (parent + ".appendChild(") + childName + ");") + line(level, "}")
-    : (
-      childType == "HTMLElement" ? line(level, (parent + ".appendChild(") + emitTSExpr(child) + ");")
-        : line(level, ((parent + ".appendChild(document.createTextNode(String(") + emitTSExpr(child)) + ")));" )
-    )
+  (
+    childType.startsWith("Array[") ? (line(level, ((("for (const " + childName) + " of ") + emitTSExpr(child)) + ") {") + line(level + 1, ((parent + ".appendChild(") + childName) + ");")) + line(level, "}")
+      : (
+        childType == "HTMLElement" ? line(level, ((parent + ".appendChild(") + emitTSExpr(child)) + ");")
+          : line(level, ((parent + ".appendChild(document.createTextNode(String(") + emitTSExpr(child)) + ")));")
+      )
+  )
 }
 
 emitTSXMLAttr(
@@ -1232,8 +1263,10 @@ emitTSXMLAttr(
   attr: IRExpr,
   level: Int
 ) -> String => {
-  attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, attr, level)
-    : emitTSXMLPlainAttr(parent, attr, level)
+  (
+    attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, attr, level)
+      : emitTSXMLPlainAttr(parent, attr, level)
+  )
 }
 
 emitTSXMLEventAttr(
@@ -1251,8 +1284,10 @@ emitTSXMLPlainAttr(
   level: Int
 ) -> String => {
   prefix := (parent + ".setAttribute(") + tsQuoteString(attr.name)
-  attr.children.length() == 0 ? line(level, prefix + ", \"\");")
-    : line(level, (prefix + ", String(") + emitTSExpr(attr.children[0]) + "));")
+  (
+    attr.children.length() == 0 ? line(level, prefix + ", \"\");")
+      : line(level, ((prefix + ", String(") + emitTSExpr(attr.children[0])) + "));")
+  )
 }
 
 emitTSTemplate(expr: IRExpr) -> String => {
@@ -1282,7 +1317,7 @@ emitTSTemplateAtom(
 ) -> String => {
   textOut := out + tsEscapeTemplateText(segments[index])
   next := (
-    index < children.length() ? textOut + ("${" + emitTSExpr(children[index]) + "}")
+    index < children.length() ? textOut + (("${" + emitTSExpr(children[index])) + "}")
       : textOut
   )
   emitTSTemplateParts(segments, children, index + 1, next)
@@ -1292,20 +1327,24 @@ emitTSTemplateAtom(
 /// Rune backslash escapes for n/t/r/\\ and the backtick itself are already
 /// interpreted consistently by JS template literals, so the only character that
 /// needs shielding is the `$` that begins a JS `${...}` interpolation.
-tsEscapeTemplateText(text: String) -> String => tsEscapeTemplateChars(text, 0, "")
+tsEscapeTemplateText(
+  text: String
+) -> String => tsEscapeTemplateChars(text, 0, "")
 
 tsEscapeTemplateChars(
   text: String,
   index: Int,
   out: String
-) -> String => (index >= text.length() ? out
-  : tsEscapeTemplateChar(text, index, out))
+) -> String => (
+  index >= text.length() ? out
+    : tsEscapeTemplateChar(text, index, out)
+)
 
 tsEscapeTemplateChar(
   text: String,
   index: Int,
   out: String
-) -> String => ((text.at(index) == '$') && ((index + 1) < text.length()) && (text.at(index + 1) == '{')) {
+) -> String => (((text.at(index) == '$') && ((index + 1) < text.length())) && (text.at(index + 1) == '{')) {
   true => tsEscapeTemplateChars(text, index + 2, out + "\\${")
   _ => tsEscapeTemplateChars(text, index + 1, out + text.at(index).toString())
 }
@@ -1324,16 +1363,14 @@ emitTSCallExpected(
 ) -> String => {
   args := genericInner(expected, "Result")
   (
-    (args != "") && isTSResultConstructorCall(expr) ? ((emitTSExpr(expr.children[0]) + "<") + emitTSTypeArgs(args)) + ">(" + emitTSExprListFrom(expr.children, 1, "") + ")"
+    (args != "") && isTSResultConstructorCall(expr) ? ((((emitTSExpr(expr.children[0]) + "<") + emitTSTypeArgs(args)) + ">(") + emitTSExprListFrom(expr.children, 1, "")) + ")"
       : emitTSCall(expr)
   )
 }
 
 isTSResultConstructorCall(
   expr: IRExpr
-) -> Bool => (
-  (expr.kind == ExprKind.Call) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Identifier) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
-)
+) -> Bool => (((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)) && ((expr.children[0].name == "Ok") || (expr.children[0].name == "Err"))
 
 emitTSBinary(expr: IRExpr) -> String => (((emitTSExpr(expr.children[0]) + " ") + tsBinaryOp(expr.op)) + " ") + emitTSExpr(expr.children[1])
 
@@ -1349,55 +1386,55 @@ emitTSAssign(expr: IRExpr) -> String => (
 
 emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("console.log(" + emitTSExprListFrom(expr.children, 1, "")) + ")"
-  "json.stringify" => "JSON.stringify(" + emitTSExpr(expr.children[1]) + ")"
-  "json.parse" => "JSON.parse(" + emitTSExpr(expr.children[1]) + ")"
+  "json.stringify" => ("JSON.stringify(" + emitTSExpr(expr.children[1])) + ")"
+  "json.parse" => ("JSON.parse(" + emitTSExpr(expr.children[1])) + ")"
   "map.new" => "new Map()"
   "set.new" => "new Set()"
   "path.isAbsolute" => emitTSExpr(expr.children[1]) + ".startsWith(\"/\")"
-  "path.basename" => "__runePathBasename(" + emitTSExpr(expr.children[1]) + ")"
-  "path.extname" => "__runePathExtname(" + emitTSExpr(expr.children[1]) + ")"
-  "path.dirname" => "__runePathDirname(" + emitTSExpr(expr.children[1]) + ")"
-  "path.join" => "__runePathJoin(" + emitTSExpr(expr.children[1]) + ")"
-  "path.normalize" => "__runePathNormalize(" + emitTSExpr(expr.children[1]) + ")"
-  "path.resolve" => "__runePathResolve(" + emitTSExpr(expr.children[1]) + ")"
-  "path.relative" => ("__runePathRelative(" + emitTSExpr(expr.children[1]) + ", ") + emitTSExpr(expr.children[2]) + ")"
-  "path.joinParts" => (((("__runePathJoinParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
-  "path.appendPathPart" => ("__runePathAppendPart(" + emitTSExpr(expr.children[1]) + ", ") + emitTSExpr(expr.children[2]) + ")"
-  "path.normalizeParts" => (((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
-  "path.normalizePart" => (((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
-  "path.normalizeParent" => (((((("__runePathNormalizeParent(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
-  "path.normalizePop" => (((((("__runePathNormalizePop(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ")"
+  "path.basename" => ("__runePathBasename(" + emitTSExpr(expr.children[1])) + ")"
+  "path.extname" => ("__runePathExtname(" + emitTSExpr(expr.children[1])) + ")"
+  "path.dirname" => ("__runePathDirname(" + emitTSExpr(expr.children[1])) + ")"
+  "path.join" => ("__runePathJoin(" + emitTSExpr(expr.children[1])) + ")"
+  "path.normalize" => ("__runePathNormalize(" + emitTSExpr(expr.children[1])) + ")"
+  "path.resolve" => ("__runePathResolve(" + emitTSExpr(expr.children[1])) + ")"
+  "path.relative" => ((("__runePathRelative(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ")"
+  "path.joinParts" => ((((("__runePathJoinParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ")"
+  "path.appendPathPart" => ((("__runePathAppendPart(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ")"
+  "path.normalizeParts" => ((((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ")"
+  "path.normalizePart" => ((((((("__runePathNormalizeParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ")"
+  "path.normalizeParent" => ((((((("__runePathNormalizeParent(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ")"
+  "path.normalizePop" => ((((((("__runePathNormalizePop(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ")"
   "path.normalizePush" => ((((((((("__runePathNormalizePush(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ", ") + emitTSExpr(expr.children[5])) + ")"
-  "path.pathParts" => "__runePathParts(" + emitTSExpr(expr.children[1]) + ")"
-  "path.collectPathParts" => (((("__runePathCollectParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
-  "path.collectPathPart" => (((("__runePathCollectPart(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
-  "path.relativeFromParts" => (((("__runePathRelativeFromParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3]) + ")"
-  "path.relativeTail" => (((((("__runePathRelativeTail(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4]) + ", " + emitTSExpr(expr.children[5]) + ")"
+  "path.pathParts" => ("__runePathParts(" + emitTSExpr(expr.children[1])) + ")"
+  "path.collectPathParts" => ((((("__runePathCollectParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ")"
+  "path.collectPathPart" => ((((("__runePathCollectPart(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ")"
+  "path.relativeFromParts" => ((((("__runePathRelativeFromParts(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ")"
+  "path.relativeTail" => ((((((((("__runePathRelativeTail(" + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ", ") + emitTSExpr(expr.children[3])) + ", ") + emitTSExpr(expr.children[4])) + ", ") + emitTSExpr(expr.children[5])) + ")"
   "process.platform" => "\"js\""
   "process.cwd" => "\".\""
   "process.env" => "null"
   "process.argv" => "[]"
-  "int.toString" => "String(" + emitTSExpr(expr.children[1]) + ")"
+  "int.toString" => ("String(" + emitTSExpr(expr.children[1])) + ")"
   "int.toDouble" => emitTSExpr(expr.children[1])
-  "int.toBigInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
-  "int4.fromInt" => "((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(" + emitTSExpr(expr.children[1]) + ")"
-  "int8.fromInt" => "((__value: number): number => (__value << 24) >> 24)(" + emitTSExpr(expr.children[1]) + ")"
-  "int16.fromInt" => "((__value: number): number => (__value << 16) >> 16)(" + emitTSExpr(expr.children[1]) + ")"
-  "int64.fromInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
-  "uint.fromInt" => "(" + emitTSExpr(expr.children[1]) + " >>> 0)"
-  "uint8.fromInt" => "(" + emitTSExpr(expr.children[1]) + " & 0xff)"
-  "uint16.fromInt" => "(" + emitTSExpr(expr.children[1]) + " & 0xffff)"
-  "uint64.fromInt" => "BigInt.asUintN(64, BigInt(" + emitTSExpr(expr.children[1]) + "))"
-  "float.fromDouble" => "Math.fround(" + emitTSExpr(expr.children[1]) + ")"
+  "int.toBigInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
+  "int4.fromInt" => ("((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(" + emitTSExpr(expr.children[1])) + ")"
+  "int8.fromInt" => ("((__value: number): number => (__value << 24) >> 24)(" + emitTSExpr(expr.children[1])) + ")"
+  "int16.fromInt" => ("((__value: number): number => (__value << 16) >> 16)(" + emitTSExpr(expr.children[1])) + ")"
+  "int64.fromInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
+  "uint.fromInt" => ("(" + emitTSExpr(expr.children[1])) + " >>> 0)"
+  "uint8.fromInt" => ("(" + emitTSExpr(expr.children[1])) + " & 0xff)"
+  "uint16.fromInt" => ("(" + emitTSExpr(expr.children[1])) + " & 0xffff)"
+  "uint64.fromInt" => ("BigInt.asUintN(64, BigInt(" + emitTSExpr(expr.children[1])) + "))"
+  "float.fromDouble" => ("Math.fround(" + emitTSExpr(expr.children[1])) + ")"
   "int4.toInt" | "int8.toInt" | "int16.toInt" | "uint.toInt" | "uint8.toInt" | "uint16.toInt" | "float.toDouble" => emitTSExpr(expr.children[1])
-  "int64.toInt" | "uint64.toInt" => "Number(" + emitTSExpr(expr.children[1]) + ")"
-  "bigint.fromInt" => "BigInt(" + emitTSExpr(expr.children[1]) + ")"
-  "bigint.toString" => "String(" + emitTSExpr(expr.children[1]) + ")"
-  "bigint.toDouble" => "Number(" + emitTSExpr(expr.children[1]) + ")"
-  "double.trunc" => "Math.trunc(" + emitTSExpr(expr.children[1]) + ")"
-  "double.floor" => "Math.floor(" + emitTSExpr(expr.children[1]) + ")"
-  "double.ceil" => "Math.ceil(" + emitTSExpr(expr.children[1]) + ")"
-  "double.round" => "Math.round(" + emitTSExpr(expr.children[1]) + ")"
+  "int64.toInt" | "uint64.toInt" => ("Number(" + emitTSExpr(expr.children[1])) + ")"
+  "bigint.fromInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
+  "bigint.toString" => ("String(" + emitTSExpr(expr.children[1])) + ")"
+  "bigint.toDouble" => ("Number(" + emitTSExpr(expr.children[1])) + ")"
+  "double.trunc" => ("Math.trunc(" + emitTSExpr(expr.children[1])) + ")"
+  "double.floor" => ("Math.floor(" + emitTSExpr(expr.children[1])) + ")"
+  "double.ceil" => ("Math.ceil(" + emitTSExpr(expr.children[1])) + ")"
+  "double.round" => ("Math.round(" + emitTSExpr(expr.children[1])) + ")"
   _ => emitTSMaybeCoreMethodCall(expr)
 }
 
@@ -1425,7 +1462,7 @@ emitTSCoreMethodCall(
 emitTSCoreLength(
   receiver: IRExpr
 ) -> String => (
-  receiver.text == "String" ? "Array.from(" + emitTSExpr(receiver) + ").length"
+  receiver.text == "String" ? ("Array.from(" + emitTSExpr(receiver)) + ").length"
     : emitTSExpr(receiver) + ".length"
 )
 
@@ -1433,7 +1470,7 @@ emitTSCoreAt(
   expr: IRExpr,
   receiver: IRExpr
 ) -> String => (
-  receiver.text == "String" ? ("(Array.from(" + emitTSExpr(receiver) + ")[") + emitTSExpr(expr.children[1]) + "] ?? \"\")"
+  receiver.text == "String" ? ((("(Array.from(" + emitTSExpr(receiver)) + ")[") + emitTSExpr(expr.children[1])) + "] ?? \"\")"
     : ((emitTSExpr(receiver) + "[") + emitTSExpr(expr.children[1])) + "]"
 )
 
@@ -1441,8 +1478,8 @@ emitTSCoreSlice(
   expr: IRExpr,
   receiver: IRExpr
 ) -> String => (
-  receiver.text == "String" ? (((("Array.from(" + emitTSExpr(receiver)) + ").slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2]) + ").join(\"\")"
-    : (((emitTSExpr(receiver) + ".slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2]) + ")"
+  receiver.text == "String" ? ((((("Array.from(" + emitTSExpr(receiver)) + ").slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ").join(\"\")"
+    : ((((emitTSExpr(receiver) + ".slice(") + emitTSExpr(expr.children[1])) + ", ") + emitTSExpr(expr.children[2])) + ")"
 )
 
 emitTSDefaultCall(
@@ -1460,9 +1497,7 @@ emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
   _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
 }
 
-emitTSAtSelector(
-  expr: IRExpr
-) -> String => {
+emitTSAtSelector(expr: IRExpr) -> String => {
   imported := expr.children[0].value != ""
   imported {
     true => mangleIdent(expr.name)
@@ -1550,19 +1585,15 @@ tsTypeFallback(
     )
 )
 
-tsNamedType(
-  typeName: String
-) -> String => {
+tsNamedType(typeName: String) -> String => {
   open := typeName.indexOf("[")
   (
     open < 0 ? mangleIdent(typeName)
-      : (mangleIdent(typeName.slice(0, open)) + "<") + emitTSTypeArgs(typeName.slice(open + 1, typeName.length() - 1)) + ">"
+      : ((mangleIdent(typeName.slice(0, open)) + "<") + emitTSTypeArgs(typeName.slice(open + 1, typeName.length() - 1))) + ">"
   )
 }
 
-emitTSTypeArgs(
-  args: String
-) -> String => emitTSTypeArgList(args.split(","), 0, "")
+emitTSTypeArgs(args: String) -> String => emitTSTypeArgList(args.split(","), 0, "")
 
 emitTSTypeArgList(
   args: Array[String],
