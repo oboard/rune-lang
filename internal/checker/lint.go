@@ -506,7 +506,16 @@ func (l *linter) lintPatternBranches(branches []ast.PatternBranch, subject Type)
 
 func (l *linter) patternEnumCoverage(pattern ast.Pattern, enumName string) ([]string, bool) {
 	switch p := pattern.(type) {
-	case *ast.WildcardPattern, *ast.BindingPattern:
+	case *ast.WildcardPattern:
+		return nil, true
+	case *ast.BindingPattern:
+		if p.Constant {
+			if enum := l.info.Enums[enumName]; enum != nil {
+				if member, ok := enum.ByName[p.Name]; ok && len(member.Params) == 0 {
+					return []string{member.Name}, false
+				}
+			}
+		}
 		return nil, true
 	case *ast.LiteralPattern:
 		if member, ok := l.enumMemberPattern(p.Value, enumName); ok {

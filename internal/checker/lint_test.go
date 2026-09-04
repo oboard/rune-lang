@@ -65,6 +65,34 @@ main() => {
 	t.Fatalf("warnings = %#v, want unreachable pattern warning", warnings)
 }
 
+func TestLintDoesNotTreatEnumMemberBindingAsCatchAll(t *testing.T) {
+	src := `RuntimeValue: {
+  Void
+  Null
+  Bool(value: Bool)
+}
+
+runtimeKind(value: RuntimeValue) -> Int => value {
+  Void => 0
+  Null => 1
+  Bool(_) => 2
+}
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	for _, warning := range Lint(file, info) {
+		if warning.Kind == "unreachable_code" {
+			t.Fatalf("warnings = %#v, do not want unreachable warning", Lint(file, info))
+		}
+	}
+}
+
 func TestLintSkipsPublicDeclarations(t *testing.T) {
 	src := `+ Token: {
   offset: Int
