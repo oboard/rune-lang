@@ -333,7 +333,7 @@ func zeroValue(typ checker.Type) string {
 }
 
 func (g *generator) zeroValue(typ checker.Type) string {
-	if g.hasEnumType(typ) {
+	if enum := g.enumForType(typ); enum != nil && !enumHasPayload(enum) {
 		return fmt.Sprintf("%s(0)", goType(typ))
 	}
 	return zeroValue(typ)

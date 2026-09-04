@@ -1081,6 +1081,20 @@ func (g *generator) patternBinding(subject string, pattern ir.Pattern) string {
 	return strings.Join(parts, " ")
 }
 
+// bindingCollidesWithSubject reports whether any argument bound by a
+// constructor pattern would reuse the subject's identifier, shadowing it before
+// later payload fields are read.
+func bindingCollidesWithSubject(subject string, pattern *ir.ConstructorPattern) bool {
+	for _, arg := range pattern.Args {
+		if bp, ok := arg.(*ir.BindingPattern); ok && !bp.Constant {
+			if mangleIdent(bp.Name) == subject {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (g *generator) appendPatternBindings(parts *[]string, subject string, pattern ir.Pattern) {
 	switch p := pattern.(type) {
 	case *ir.BindingPattern:
@@ -1124,8 +1138,18 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 			g.appendPatternBindings(parts, subject, p.Alternatives[0])
 		}
 	case *ir.ConstructorPattern:
+		// A bound argument may shadow the subject (e.g. the subject is `value`
+		// and a payload field is also named `value`), breaking access to later
+		// payload fields. Alias the subject through a fresh temp whenever any
+		// bound name collides with it.
+		src := subject
+		if bindingCollidesWithSubject(subject, p) {
+			tmp := g.nextTemp("subject")
+			*parts = append(*parts, fmt.Sprintf("%s := %s;", tmp, subject))
+			src = tmp
+		}
 		for idx, arg := range p.Args {
-			payload := g.constructorPayload(subject, p, idx)
+			payload := g.constructorPayload(src, p, idx)
 			if payload == "" {
 				continue
 			}

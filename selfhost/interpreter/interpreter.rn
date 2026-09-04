@@ -393,22 +393,22 @@ enumPayloadValue(
 
 runtimeKind(
   value: RuntimeValue
-) -> RuntimeValueKind => value {
+) -> RuntimeValueKind => {
   Void => RuntimeValueKind.Void
   Null => RuntimeValueKind.Null
   Bool(value) => RuntimeValueKind.Bool
-  Int(value) => RuntimeValueKind.Int
-  Double(value) => RuntimeValueKind.Double
-  String(text) => RuntimeValueKind.String
+  Int(value, typeName) => RuntimeValueKind.Int
+  Double(value, text, typeName) => RuntimeValueKind.Double
+  String(text, typeName) => RuntimeValueKind.String
   Char(value) => RuntimeValueKind.Char
   Array(values) => RuntimeValueKind.Array
   Tuple(values) => RuntimeValueKind.Tuple
   Map(entries) => RuntimeValueKind.Map
   Set(entries) => RuntimeValueKind.Set
-  Struct(typeName) => RuntimeValueKind.Struct
+  Struct(typeName, fields) => RuntimeValueKind.Struct
   Module(name) => RuntimeValueKind.Module
   Closure(index) => RuntimeValueKind.Closure
-  Enum(typeName) => RuntimeValueKind.Enum
+  Enum(typeName, name, value, payload) => RuntimeValueKind.Enum
 }
 
 runtimeText(
@@ -420,18 +420,18 @@ runtimeText(
     v ? "true"
       : "false"
   )
-  Int(v) => intToString(v)
-  Double(v) => text
-  String(text) => text
+  Int(v, typeName) => intToString(v)
+  Double(v, text, typeName) => text
+  String(text, typeName) => text
   Char(ch) => ch.toString()
   Module(name) => name
-  Enum(typeName) => name
+  Enum(typeName, name, value, payload) => name
   _ => ""
 }
 
 runtimeInt(value: RuntimeValue) -> Int => value {
-  Int(v) => v
-  Enum(typeName) => v
+  Int(v, typeName) => v
+  Enum(typeName, name, v, payload) => v
   Closure(index) => index
   _ => 0
 }
@@ -439,7 +439,7 @@ runtimeInt(value: RuntimeValue) -> Int => value {
 runtimeDouble(
   value: RuntimeValue
 ) -> Double => value {
-  Double(v) => v
+  Double(v, text, typeName) => v
   _ => 0.0
 }
 
@@ -458,7 +458,7 @@ runtimeArray(
 ) -> Array[RuntimeValue] => value {
   Array(values) => values
   Tuple(values) => values
-  Enum(typeName) => payload
+  Enum(typeName, name, value, payload) => payload
   _ => []
 }
 
@@ -473,18 +473,18 @@ runtimeEntries(
 runtimeFields(
   value: RuntimeValue
 ) -> Array[RuntimeField] => value {
-  Struct(typeName) => fields
+  Struct(typeName, fields) => fields
   _ => []
 }
 
 runtimeTypeName(
   value: RuntimeValue
 ) -> String => value {
-  Int(value) => typeName
-  Double(value) => typeName
-  String(text) => typeName
-  Struct(typeName) => typeName
-  Enum(typeName) => typeName
+  Int(value, typeName) => typeName
+  Double(value, text, typeName) => typeName
+  String(text, typeName) => typeName
+  Struct(typeName, fields) => typeName
+  Enum(typeName, name, value, payload) => typeName
   _ => ""
 }
 
@@ -517,7 +517,7 @@ runtimeWithFields(
   value: RuntimeValue,
   fields: Array[RuntimeField]
 ) -> RuntimeValue => value {
-  Struct(typeName) => structValue(typeName, fields)
+  Struct(typeName, old) => structValue(typeName, fields)
   _ => value
 }
 
@@ -596,7 +596,7 @@ evalResultUnwrap(
 unwrapRuntimeResult(
   value: RuntimeValue
 ) -> EvalResult => value {
-  Enum(typeName) => unwrapRuntimeResultEnum(typeName, name, payload)
+  Enum(typeName, name, raw, payload) => unwrapRuntimeResultEnum(typeName, name, payload)
   _ => errorResult("operator '?' expects Result")
 }
 
@@ -627,11 +627,11 @@ unwrapResultPayload(
 runtimeErrorMessage(
   value: RuntimeValue
 ) -> String => value {
-  Struct(typeName) => typeName {
+  Struct(typeName, fields) => typeName {
     "Error" => runtimeText(runtimeStructField(value, "message"))
     _ => formatRuntimeValue(value)
   }
-  String(text) => text
+  String(text, typeName) => text
   _ => formatRuntimeValue(value)
 }
 
@@ -2752,7 +2752,7 @@ decompressTextValue(
   codec: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Struct(typeName) => (
+  Struct(typeName, fields) => (
     typeName == "CompressedData" ? decompressCompressedText(codec, value)
       : okResult(resultErr("compressed data expected"))
   )
@@ -2937,15 +2937,15 @@ callIntModuleFunction(
   args := evalArgs(interpreter, env, children, 1)
   name {
     "toString" => args[0] {
-      Int(raw) => okResult(stringValue(intToString(raw)))
+      Int(raw, typeName) => okResult(stringValue(intToString(raw)))
       _ => errorResult("int.toString expects Int")
     }
     "toDouble" => args[0] {
-      Int(raw) => okResult(doubleRuntimeValue(raw.toDouble()))
+      Int(raw, typeName) => okResult(doubleRuntimeValue(raw.toDouble()))
       _ => errorResult("int.toDouble expects Int")
     }
     "toBigInt" => args[0] {
-      Int(raw) => okResult(bigIntRuntimeValue(raw))
+      Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
       _ => errorResult("int.toBigInt expects Int")
     }
     _ => callImportedModuleFunction(interpreter, env, "int", name, children)
@@ -2961,7 +2961,7 @@ callBigIntModuleFunction(
   args := evalArgs(interpreter, env, children, 1)
   name {
     "fromInt" => args[0] {
-      Int(raw) => okResult(bigIntRuntimeValue(raw))
+      Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
       _ => errorResult("bigint.fromInt expects Int")
     }
     "toDouble" => (
@@ -3010,7 +3010,7 @@ callDoubleModuleFunction(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Double(raw) => name {
+    Double(raw, text, typeName) => name {
       "trunc" => okResult(intValue(doubleTruncToInt(raw)))
       "floor" => okResult(intValue(doubleFloorToInt(raw)))
       "ceil" => okResult(intValue(doubleCeilToInt(raw)))
@@ -3025,14 +3025,14 @@ numericFromInt(
   module: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Int(raw) => okResult(typedIntValue(wrapNumericInt(module, raw), numericTypeName(module)))
+  Int(raw, typeName) => okResult(typedIntValue(wrapNumericInt(module, raw), numericTypeName(module)))
   _ => errorResult("numeric conversion expects Int")
 }
 
 numericToInt(
   value: RuntimeValue
 ) -> EvalResult => value {
-  Int(raw) => okResult(intValue(raw))
+  Int(raw, typeName) => okResult(intValue(raw))
   _ => errorResult("numeric conversion expects integer value")
 }
 
@@ -3040,7 +3040,7 @@ numericFromDouble(
   module: String,
   value: RuntimeValue
 ) -> EvalResult => value {
-  Double(raw) => module {
+  Double(raw, text, typeName) => module {
     "float" => okResult(typedDoubleValue(raw, "Float"))
     _ => errorResult("float.fromDouble expects Double")
   }
@@ -3050,7 +3050,7 @@ numericFromDouble(
 numericToDouble(
   value: RuntimeValue
 ) -> EvalResult => value {
-  Double(raw) => okResult(doubleRuntimeValue(raw))
+  Double(raw, text, typeName) => okResult(doubleRuntimeValue(raw))
   _ => errorResult("float.toDouble expects Float")
 }
 
@@ -4328,16 +4328,16 @@ jsonStringify(
     raw ? "true"
       : "false"
   )
-  Int(raw) => intToString(raw)
-  Double(raw) => text
-  String(raw) => jsonQuote(raw)
+  Int(raw, typeName) => intToString(raw)
+  Double(raw, text, typeName) => text
+  String(raw, typeName) => jsonQuote(raw)
   Char(raw) => jsonQuote(raw.toString())
   Array(values) => ("[" + jsonStringifyValues(interpreter, values, 0, "")) + "]"
   Tuple(values) => ("[" + jsonStringifyValues(interpreter, values, 0, "")) + "]"
   Map(entries) => ("{" + jsonStringifyEntries(interpreter, entries, 0, "")) + "}"
   Set(entries) => ("[" + jsonStringifySetEntries(interpreter, entries, 0, "")) + "]"
-  Struct(typeName) => ("{" + jsonStringifyFields(interpreter, typeName, fields, 0, "")) + "}"
-  Enum(typeName) => jsonQuote(name)
+  Struct(typeName, fields) => ("{" + jsonStringifyFields(interpreter, typeName, fields, 0, "")) + "}"
+  Enum(typeName, name, value, payload) => jsonQuote(name)
   Module(name) => "null"
   Closure(index) => "null"
 }
@@ -5424,14 +5424,17 @@ isMutableStructMethod(
   receiver: RuntimeValue,
   name: String
 ) -> Bool => receiver {
-  Struct(_) => isMutableBytesMethod(name)
-  Struct(_) => isMutableBufferMethod(name)
-  Struct(_) => isMutableReaderMethod(name)
-  Struct(_) => isMutableWriterMethod(name)
-  Struct(_) => name == "next"
-  Struct(_) => ((name == "append") || (name == "appendLine")) || (name == "clear")
-  Struct(_) => ((name == "read") || (name == "write")) || (name == "close")
-  Struct(_) => (name == "accept") || (name == "close")
+  Struct(typeName, fields) => typeName {
+    "Bytes" => isMutableBytesMethod(name)
+    "Buffer" => isMutableBufferMethod(name)
+    "Reader" => isMutableReaderMethod(name)
+    "Writer" => isMutableWriterMethod(name)
+    "Iterator" => name == "next"
+    "StringBuffer" => ((name == "append") || (name == "appendLine")) || (name == "clear")
+    "TCPConnection" => ((name == "read") || (name == "write")) || (name == "close")
+    "TCPListener" => (name == "accept") || (name == "close")
+    _ => false
+  }
   _ => false
 }
 
@@ -5592,14 +5595,17 @@ callMutableStructMethod(
   name: String,
   children: Array[IRExpr]
 ) -> EvalResult => receiver {
-  Struct(_) => callMutableBytesMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableReaderMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableWriterMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableIteratorMethod(env, receiverExpr, receiver, name)
-  Struct(_) => callMutableStringBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableNetConnectionMethod(interpreter, env, receiverExpr, receiver, name, children)
-  Struct(_) => callMutableNetListenerMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(typeName, fields) => typeName {
+    "Bytes" => callMutableBytesMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "Buffer" => callMutableBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "Reader" => callMutableReaderMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "Writer" => callMutableWriterMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "Iterator" => callMutableIteratorMethod(env, receiverExpr, receiver, name)
+    "StringBuffer" => callMutableStringBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "TCPConnection" => callMutableNetConnectionMethod(interpreter, env, receiverExpr, receiver, name, children)
+    "TCPListener" => callMutableNetListenerMethod(interpreter, env, receiverExpr, receiver, name, children)
+    _ => callMethodValue(interpreter, env, receiver, name, children)
+  }
   _ => callMethodValue(interpreter, env, receiver, name, children)
 }
 
@@ -5865,13 +5871,13 @@ callMethodValue(
 ) -> EvalResult => receiver {
   Array(values) => callArrayMethod(interpreter, env, receiver, name, children)
   Tuple(values) => callArrayMethod(interpreter, env, receiver, name, children)
-  String(value) => (
+  String(value, typeName) => (
     isBigIntRuntime(receiver) ? callBigIntReceiverMethod(interpreter, env, receiver, name, children)
       : callStringMethod(interpreter, env, receiver, name, children)
   )
   Map(entries) => callMapMethod(interpreter, env, receiver, name, children)
   Set(entries) => callSetMethod(interpreter, env, receiver, name, children)
-  Int(value) => (
+  Int(value, typeName) => (
     name == "toString" ? okResult(stringValue(intToString(value)))
       : (
         name == "toDouble" ? okResult(doubleRuntimeValue(value.toDouble()))
@@ -5881,14 +5887,14 @@ callMethodValue(
           )
       )
   )
-  Double(value) => callDoubleReceiverMethod(interpreter, env, receiver, name)
+  Double(value, text, typeName) => callDoubleReceiverMethod(interpreter, env, receiver, name)
   Bool(value) => callBoolMethod(interpreter, env, receiver, name, children)
   Char(value) => (
     name == "toString" ? okResult(stringValue(value.toString()))
       : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
   )
-  Struct(typeName) => callStructMethod(interpreter, env, receiver, name, children)
-  Enum(typeName) => callDeclaredStructMethod(interpreter, env, receiver, name, children)
+  Struct(typeName, fields) => callStructMethod(interpreter, env, receiver, name, children)
+  Enum(typeName, memberName, value, payload) => callDeclaredStructMethod(interpreter, env, receiver, name, children)
   Module(moduleName) => callModuleFunction(interpreter, env, moduleName, name, children)
   _ => errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
 }
@@ -5983,7 +5989,7 @@ arraySetMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Int(index) => okResult(runtimeArray(receiver).set(index, args[1]))
+    Int(index, _) => okResult(runtimeArray(receiver).set(index, args[1]))
     _ => errorResult("Array.set index expects Int")
   }
 }
@@ -6036,7 +6042,7 @@ arrayAtMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
-    Int(index) => indexArrayValue(runtimeArray(receiver), index)
+    Int(index, _) => indexArrayValue(runtimeArray(receiver), index)
     _ => errorResult("Array.at index expects Int")
   }
 }
@@ -6589,16 +6595,18 @@ callStructMethod(
   name: String,
   children: Array[IRExpr]
 ) -> EvalResult => receiver {
-  Struct(_) => callBytesMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callBufferMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callReaderMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callWriterMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callIteratorMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callStringBufferMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callRegexMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callNetConnectionMethod(interpreter, env, receiver, name, children)
-  Struct(_) => callNetListenerMethod(interpreter, env, receiver, name, children)
-  Struct(typeName) => callStructFieldOrDeclaredMethod(interpreter, env, receiver, name, children, fields)
+  Struct(typeName, fields) => typeName {
+    "Bytes" => callBytesMethod(interpreter, env, receiver, name, children)
+    "Buffer" => callBufferMethod(interpreter, env, receiver, name, children)
+    "Reader" => callReaderMethod(interpreter, env, receiver, name, children)
+    "Writer" => callWriterMethod(interpreter, env, receiver, name, children)
+    "Iterator" => callIteratorMethod(interpreter, env, receiver, name, children)
+    "StringBuffer" => callStringBufferMethod(interpreter, env, receiver, name, children)
+    "Regex" => callRegexMethod(interpreter, env, receiver, name, children)
+    "TCPConnection" => callNetConnectionMethod(interpreter, env, receiver, name, children)
+    "TCPListener" => callNetListenerMethod(interpreter, env, receiver, name, children)
+    _ => callStructFieldOrDeclaredMethod(interpreter, env, receiver, name, children, fields)
+  }
   _ => callDeclaredStructMethod(interpreter, env, receiver, name, children)
 }
 
@@ -9871,18 +9879,18 @@ runtimeValueConstructorName(
   Void => "Void"
   Null => "Null"
   Bool(raw) => "Bool"
-  Int(raw) => "Int"
-  Double(raw) => "Double"
-  String(raw) => "String"
+  Int(raw, typeName) => "Int"
+  Double(raw, text, typeName) => "Double"
+  String(raw, typeName) => "String"
   Char(raw) => "Char"
   Array(values) => "Array"
   Tuple(values) => "Tuple"
   Map(entries) => "Map"
   Set(entries) => "Set"
-  Struct(typeName) => "Struct"
+  Struct(typeName, fields) => "Struct"
   Module(name) => "Module"
   Closure(index) => "Closure"
-  Enum(typeName) => "Enum"
+  Enum(typeName, name, raw, payload) => "Enum"
 }
 
 runtimeValuePayloadLength(
@@ -9891,18 +9899,18 @@ runtimeValuePayloadLength(
   Void => 0
   Null => 0
   Bool(raw) => 1
-  Int(raw) => 2
-  Double(raw) => 3
-  String(raw) => 2
+  Int(raw, typeName) => 2
+  Double(raw, text, typeName) => 3
+  String(raw, typeName) => 2
   Char(raw) => 1
   Array(values) => 1
   Tuple(values) => 1
   Map(entries) => 1
   Set(entries) => 1
-  Struct(typeName) => 2
+  Struct(typeName, fields) => 2
   Module(name) => 1
   Closure(index) => 1
-  Enum(typeName) => 3 + payload.length()
+  Enum(typeName, name, raw, payload) => 3 + payload.length()
 }
 
 runtimeValuePayloadAt(
@@ -9913,18 +9921,18 @@ runtimeValuePayloadAt(
     index == 0 ? boolValue(raw)
       : voidValue()
   )
-  Int(raw) => (
+  Int(raw, typeName) => (
     index == 0 ? intValue(raw)
       : stringValue(typeName)
   )
-  Double(raw) => (
+  Double(raw, text, typeName) => (
     index == 0 ? doubleRuntimeValue(raw)
       : (
         index == 1 ? stringValue(text)
           : stringValue(typeName)
       )
   )
-  String(raw) => (
+  String(raw, typeName) => (
     index == 0 ? stringValue(raw)
       : stringValue(typeName)
   )
@@ -9948,7 +9956,7 @@ runtimeValuePayloadAt(
     index == 0 ? setValue(entries)
       : voidValue()
   )
-  Struct(typeName) => (
+  Struct(typeName, fields) => (
     index == 0 ? stringValue(typeName)
       : arrayValue(runtimeFieldsAsValues(fields, 0, []))
   )
@@ -9960,7 +9968,7 @@ runtimeValuePayloadAt(
     index == 0 ? intValue(raw)
       : voidValue()
   )
-  Enum(typeName) => (
+  Enum(typeName, name, raw, payload) => (
     index == 0 ? stringValue(typeName)
       : (
         index == 1 ? stringValue(name)
