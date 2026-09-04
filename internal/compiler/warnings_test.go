@@ -20,6 +20,29 @@ func TestAnalyzeFileWithWarningsSkipsPublicCliAPI(t *testing.T) {
 	}
 }
 
+func TestAnalyzeFileWithWarningsPreservesImportedUnusedFunctionPath(t *testing.T) {
+	dir := t.TempDir()
+	dependencyPath := filepath.Join(dir, "dependency.rn")
+	entryPath := filepath.Join(dir, "entry.rn")
+	writeRuneFile(t, dependencyPath, "unused() => 1\n")
+	writeRuneFile(t, entryPath, "@\"dependency.rn\"\n\nmain() => 1\n")
+
+	_, diags := AnalyzeFileWithWarnings(entryPath)
+	for _, diag := range diags {
+		if diag.Kind != "unused_value" {
+			continue
+		}
+		if diag.Path != dependencyPath {
+			t.Fatalf("unused function warning path = %q, want %q", diag.Path, dependencyPath)
+		}
+		if diag.Pos.Line != 1 || diag.Pos.Column != 1 {
+			t.Fatalf("unused function warning position = %d:%d, want 1:1", diag.Pos.Line, diag.Pos.Column)
+		}
+		return
+	}
+	t.Fatalf("AnalyzeFileWithWarnings() diagnostics = %#v, want unused function warning", diags)
+}
+
 func TestAnalyzeFileWithWarningsPreservesImportedDiagnosticPath(t *testing.T) {
 	dir := t.TempDir()
 	dependencyPath := filepath.Join(dir, "dependency.rn")

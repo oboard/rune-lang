@@ -453,7 +453,7 @@ func (l *linter) warnUnusedFunctions() {
 		if l.usedFunctions[fn] {
 			continue
 		}
-		l.warn(fn.NamePos, "0001", "unused_value", "Function %q is never used", fn.Name)
+		l.warnAt(fn.NamePos, fn.Node.SourcePath, "0001", "unused_value", "Function %q is never used", fn.Name)
 	}
 }
 
@@ -567,11 +567,15 @@ func (l *linter) enumMemberSelector(sel *ast.SelectorExpr) (string, string, bool
 }
 
 func (l *linter) warn(pos lexer.Position, code string, kind string, format string, args ...any) {
+	l.warnAt(pos, l.currentSourcePath, code, kind, format, args...)
+}
+
+func (l *linter) warnAt(pos lexer.Position, path string, code string, kind string, format string, args ...any) {
 	message := fmt.Sprintf("Warning [%s] (%s): %s", code, kind, fmt.Sprintf(format, args...))
 	l.diags = append(l.diags, Diagnostic{
 		Message:  message,
 		Pos:      pos,
-		Path:     l.currentSourcePath,
+		Path:     normalizeSourcePath(path),
 		Severity: SeverityWarning,
 		Code:     code,
 		Kind:     kind,

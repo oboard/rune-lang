@@ -162,6 +162,28 @@ func repoRootForLSPTest(t *testing.T) string {
 	}
 }
 
+func TestDiagnosticsExcludeUnusedFunctionWarningFromImportedSource(t *testing.T) {
+	dir := t.TempDir()
+	dependencyPath := filepath.Join(dir, "dependency.rn")
+	entryPath := filepath.Join(dir, "entry.rn")
+	if err := os.WriteFile(dependencyPath, []byte("unused() => 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	entry := "@\"dependency.rn\"\n\nmain() => 1\n"
+	if err := os.WriteFile(entryPath, []byte(entry), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	uri := fileURI(entryPath)
+	s := NewSession()
+	s.SetDocument(uri, entry)
+	for _, diag := range s.Diagnostics(uri) {
+		if strings.Contains(diag["message"].(string), "unused_value") {
+			t.Fatalf("Diagnostics(%s) = %#v, do not want imported warning", uri, s.Diagnostics(uri))
+		}
+	}
+}
+
 func TestDiagnosticsExcludeWarningsFromImportedSource(t *testing.T) {
 	dir := t.TempDir()
 	dependencyPath := filepath.Join(dir, "dependency.rn")
