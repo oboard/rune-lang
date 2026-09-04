@@ -418,7 +418,7 @@ func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
 		if len(call.Args) != 1 {
 			return g.zeroValue(call.ResultType()), true
 		}
-		callback, arity := g.iterCallback(call.Args[0], receiver)
+		callback, arity := g.iterCallback(call.Args[0])
 		return fmt.Sprintf("func() any { iter := %s; index := 0; for { item := iter.__next(); if !item.F1 { return any(nil) }; %s; index++ } }()", receiver, g.iterCallbackCall(callback, arity, "item.F0", "index", "iter")), true
 	case "map":
 		if len(call.Args) != 1 {
@@ -428,14 +428,14 @@ func (g *generator) iterMethodCall(call *ir.CallExpr) (string, bool) {
 		if arrayElem, ok := checker.ArrayElement(call.ResultType()); ok {
 			outElem = arrayElem
 		}
-		callback, arity := g.iterCallback(call.Args[0], receiver)
+		callback, arity := g.iterCallback(call.Args[0])
 		return fmt.Sprintf("func() []%s { iter := %s; out := []%s{}; index := 0; for { item := iter.__next(); if !item.F1 { return out }; out = append(out, %s); index++ } }()", goType(outElem), receiver, goType(outElem), g.iterCallbackCall(callback, arity, "item.F0", "index", "iter")), true
 	default:
 		return "", false
 	}
 }
 
-func (g *generator) iterCallback(expr ir.Expr, receiver string) (string, int) {
+func (g *generator) iterCallback(expr ir.Expr) (string, int) {
 	if lambda, ok := expr.(*ir.LambdaExpr); ok {
 		return g.expr(lambda), len(lambda.Params)
 	}
@@ -524,15 +524,6 @@ func (g *generator) enumMemberForConstructor(typ checker.Type, name string) (*ir
 		}
 	}
 	return nil, nil, false
-}
-
-func (g *generator) hasEnumType(typ checker.Type) bool {
-	for _, enum := range g.file.Enums {
-		if checker.Type(enum.Name) == typ {
-			return true
-		}
-	}
-	return false
 }
 
 func goArrayLiteral(elemType checker.Type, elements []ir.Expr, emit func(ir.Expr) string) string {
@@ -765,13 +756,6 @@ func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
 	}
 	name := mangleIdent(target.Name)
 	return fmt.Sprintf("func() int { old := %s; %s++; return old }()", name, name)
-}
-
-func (g *generator) exprRaw(expr ir.Expr) string {
-	prev := g.signals
-	g.signals = nil
-	defer func() { g.signals = prev }()
-	return g.expr(expr)
 }
 
 func (g *generator) watchExpr(watch *ir.WatchExpr) string {
@@ -1159,7 +1143,10 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 		for _, entry := range p.Entries {
 			value := fmt.Sprintf("%s[%s]", subject, g.expr(entry.Key))
 			if p.Access == "get" {
-				value = g.goMapLikeGet(subject, p.SubjectType, g.expr(entry.Key))
+				value = func() string {
+					var key string = g.expr(entry.Key)
+					return g.goMapLikeGet(subject, key)
+				}()
 				if !entry.Optional && p.ValueType != checker.Unknown {
 					value = fmt.Sprintf("%s.(%s)", value, goType(p.ValueType))
 				}
@@ -1189,14 +1176,6 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, patte
 			g.appendPatternBindings(parts, value, field.Pattern)
 		}
 	}
-}
-
-func goPatternIndex(idx int, pattern *ir.ArrayPattern) string {
-	if pattern.RestIndex < 0 || idx < pattern.RestIndex {
-		return fmt.Sprintf("%d", idx)
-	}
-	tail := len(pattern.Elements) - idx
-	return fmt.Sprintf("%s - %d", goSequenceLength("_", pattern.SubjectType), tail)
 }
 
 func (g *generator) arrayPatternElementIndex(subject string, pattern *ir.ArrayPattern, idx int) string {

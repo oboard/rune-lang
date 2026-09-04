@@ -136,7 +136,10 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	case strings.HasPrefix(fn.Intrinsic, "netConnection."):
 		return g.netConnectionReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "netListener."):
-		return g.netListenerReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
+		return func() string {
+			var receiver string = g.expr(sel.Receiver)
+			return g.netListenerReceiverCall(fn, receiver, call.ResultType())
+		}(), true
 	default:
 		return g.unsupportedIntrinsic(fn, call.ResultType()), true
 	}
@@ -659,7 +662,7 @@ func (g *generator) netConnectionReceiverCall(fn *stdlib.Function, receiver stri
 	}
 }
 
-func (g *generator) netListenerReceiverCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
+func (g *generator) netListenerReceiverCall(fn *stdlib.Function, receiver string, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "netListener.address":
 		return fmt.Sprintf("%s.Address()", receiver)

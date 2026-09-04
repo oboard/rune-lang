@@ -856,10 +856,10 @@ func (g *generator) mapLikePatternCondition(subject string, pattern *ir.MapPatte
 				parts = append(parts, "true")
 				continue
 			}
-			parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s }()", value, g.goMapLikeGet(subject, pattern.SubjectType, key), condition))
+			parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s }()", value, g.goMapLikeGet(subject, key), condition))
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s != nil && (%s) }()", value, g.goMapLikeGet(subject, pattern.SubjectType, key), value, condition))
+		parts = append(parts, fmt.Sprintf("func() bool { %s := %s; return %s != nil && (%s) }()", value, g.goMapLikeGet(subject, key), value, condition))
 	}
 	if len(parts) == 0 {
 		return "true"
@@ -867,7 +867,7 @@ func (g *generator) mapLikePatternCondition(subject string, pattern *ir.MapPatte
 	return strings.Join(parts, " && ")
 }
 
-func (g *generator) goMapLikeGet(subject string, typ checker.Type, key string) string {
+func (g *generator) goMapLikeGet(subject, key string) string {
 	if g.mapGetters != nil {
 		if getter := g.mapGetters[subject]; getter != "" {
 			return fmt.Sprintf("%s(%s)", getter, key)

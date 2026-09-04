@@ -287,15 +287,6 @@ func GenerateIR(file *ir.File) (string, error) {
 	return string(formatted), nil
 }
 
-func fileWithHelpers(file *ir.File, helpers []*ir.Function) *ir.File {
-	if len(helpers) == 0 {
-		return file
-	}
-	copy := *file
-	copy.Functions = append(append([]*ir.Function{}, helpers...), file.Functions...)
-	return &copy
-}
-
 func fileUsesType(usage codeusage.Usage, typ checker.Type) bool {
 	return usage.HasType(typ)
 }
