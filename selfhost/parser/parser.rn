@@ -242,14 +242,6 @@ appendChild(
   expr
 }
 
-appendParam(
-  params: Array[ParsedParam],
-  param: ParsedParam
-) -> Array[ParsedParam] => {
-  params.push(param)
-  params
-}
-
 appendString(
   values: Array[String],
   value: String
@@ -297,9 +289,8 @@ stateAt(
   state: ParserState,
   current: Int
 ) -> ParserState => {
-  tokens: state.tokens,
-  current: current,
-  errors: state.errors
+  ..state,
+  current: current
 }
 
 parserAdvance(
@@ -353,8 +344,7 @@ parserErrorAt(
   token: Token,
   message: String
 ) -> ParserState => {
-  tokens: state.tokens,
-  current: state.current,
+  ..state,
   errors: appendParseError(state.errors, ParseError {
     message: message,
     line: token.line,
@@ -421,11 +411,7 @@ withFileErrors(
   file: ParsedFile,
   errors: Array[ParseError]
 ) -> ParsedFile => {
-  imports: file.imports,
-  constants: file.constants,
-  types: file.types,
-  functions: file.functions,
-  tests: file.tests,
+  ..file,
   errors: errors
 }
 
@@ -447,14 +433,11 @@ parseTopLevelAfterMacro(
   state: ParserState,
   file: ParsedFile
 ) -> FileStep => {
-  goImport := looksLikeGoImportDecl(state)
-  goImport {
-    true => parseTopLevelAfterResult(parseTopLevelImport(state, file))
-    _ => (
+  looksLikeGoImportDecl(state) ? parseTopLevelAfterResult(parseTopLevelImport(state, file))
+    : (
       looksLikeRuneImportDecl(state) ? parseTopLevelAfterResult(parseTopLevelImport(state, file))
         : parseTopLevelAfterAnnotations(state, file)
     )
-  }
 }
 
 looksLikeRuneImportDecl(
@@ -496,30 +479,21 @@ looksLikeGoImportDecl(
   state: ParserState
 ) -> Bool => {
   marker := parserCheck(state, TokenKind.At)
-  marker {
-    true => looksLikeGoImportAfterMarker(state)
-    _ => false
-  }
+  marker ? looksLikeGoImportAfterMarker(state) : false
 }
 
 looksLikeGoImportAfterMarker(
   state: ParserState
 ) -> Bool => {
   module := (parserKindAt(state, state.current + 1) == TokenKind.Ident) && (parserTokenAt(state, state.current + 1).lexeme == "go")
-  module {
-    true => looksLikeGoImportAfterModule(state)
-    _ => false
-  }
+  module ? looksLikeGoImportAfterModule(state) : false
 }
 
 looksLikeGoImportAfterModule(
   state: ParserState
 ) -> Bool => {
   dot := parserKindAt(state, state.current + 2) == TokenKind.Dot
-  dot {
-    true => (parserKindAt(state, state.current + 3) == TokenKind.Ident) && (parserTokenAt(state, state.current + 3).lexeme == "import")
-    _ => false
-  }
+  dot ? (parserKindAt(state, state.current + 3) == TokenKind.Ident) && (parserTokenAt(state, state.current + 3).lexeme == "import") : false
 }
 
 parseMacroFunction(
@@ -658,11 +632,11 @@ parsePublicModifier(
 ) -> BoolStep => {
   step := parserMatch(state, TokenKind.Plus)
   BoolStep {
+    ..step,
     state: (
       step.ok ? parserSkipNewlines(step.state)
         : state
-    ),
-    ok: step.ok
+    )
   }
 }
 
@@ -671,11 +645,11 @@ parseObjectPrivateModifier(
 ) -> BoolStep => {
   step := parserMatch(state, TokenKind.Minus)
   BoolStep {
+    ..step,
     state: (
       step.ok ? parserSkipNewlines(step.state)
         : state
-    ),
-    ok: step.ok
+    )
   }
 }
 
@@ -696,11 +670,11 @@ parseStaticMethodMarker(
       )
   )
   BoolStep {
+    ..marker,
     state: (
       marker.ok ? parserSkipNewlines(marker.state)
         : state
-    ),
-    ok: marker.ok
+    )
   }
 }
 
@@ -863,10 +837,7 @@ parseStructTypeMember(
 ) -> TypeStep => {
   current := parserSkipNewlines(state)
   macroMethod := looksLikeMacroFunctionDecl(current)
-  macroMethod {
-    true => parseStructMacroMethod(current, typeDecl)
-    _ => parseStructTypeMemberValue(current, typeDecl)
-  }
+  macroMethod ? parseStructMacroMethod(current, typeDecl) : parseStructTypeMemberValue(current, typeDecl)
 }
 
 parseStructMacroMethod(
@@ -1002,10 +973,7 @@ parseEnumTypeMember(
 ) -> TypeStep => {
   current := parserSkipNewlines(state)
   macroMethod := looksLikeMacroFunctionDecl(current)
-  macroMethod {
-    true => parseEnumMacroMethod(current, typeDecl)
-    _ => parseEnumTypeMemberValueOrMethod(current, typeDecl)
-  }
+  macroMethod ? parseEnumMacroMethod(current, typeDecl) : parseEnumTypeMemberValueOrMethod(current, typeDecl)
 }
 
 parseEnumMacroMethod(
@@ -1389,7 +1357,7 @@ finishFunctionTypeRef(
 ) -> TypeRefStep => {
   ret := parseTypeRef(state)
   TypeRefStep {
-    state: ret.state,
+    ..ret,
     typeRef: functionTypeRef(params, ret.typeRef, token)
   }
 }
@@ -1415,8 +1383,7 @@ parseTypeRefPostfix(
       : (
         parserCheck(current, TokenKind.Question) ? parseTypeRefPostfix(parseNullableTypeRef(current, step.typeRef))
           : TypeRefStep {
-            state: step.state,
-            typeRef: step.typeRef
+            ..step
           }
       )
   )
@@ -1467,13 +1434,11 @@ parseOneTypeRefListValue(
   typeRef := parseTypeRef(state)
   refs.push(typeRef.typeRef)
   comma := parserMatch(parserSkipNewlines(typeRef.state), TokenKind.Comma)
-  comma.ok {
-    true => parseTypeRefList(comma.state, refs)
-    _ => TypeRefListStep {
+  comma.ok ? parseTypeRefList(comma.state, refs)
+    : TypeRefListStep {
       state: typeRef.state,
       refs: refs
     }
-  }
 }
 
 parseTypeParamList(
@@ -1497,13 +1462,11 @@ parseOneTypeParam(
   param := parseTypeParam(state)
   params.push(param.param)
   comma := parserMatch(parserSkipNewlines(param.state), TokenKind.Comma)
-  comma.ok {
-    true => parseTypeParamList(comma.state, params)
-    _ => TypeParamListStep {
+  comma.ok ? parseTypeParamList(comma.state, params)
+    : TypeParamListStep {
       state: param.state,
       params: params
     }
-  }
 }
 
 parseTypeParam(
@@ -1684,13 +1647,11 @@ parseLetTypeAnnotation(
   state: ParserState
 ) -> StringStep => {
   colon := parserMatch(parserSkipNewlines(state), TokenKind.Colon)
-  colon.ok {
-    true => parseLetTypeAnnotationRef(colon.state)
-    _ => StringStep {
+  colon.ok ? parseLetTypeAnnotationRef(colon.state)
+    : StringStep {
       state: state,
       value: ""
     }
-  }
 }
 
 parseLetTypeAnnotationRef(
@@ -1712,7 +1673,7 @@ parseObjectDestructureStatement(
   op := parserAdvance(parserSkipNewlines(close.state))
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state,
+    ..value,
     expr: makeExpr(ExprKind.ObjectDestructure, "", "", "", op.token.lexeme, fields.params, [value.expr], open.token.line, open.token.column)
   }
 }
@@ -1768,7 +1729,7 @@ parseAssignStatement(
   op := parserAdvance(name.state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   ExprStep {
-    state: value.state,
+    ..value,
     expr: makeExpr(ExprKind.Assign, name.token.lexeme, name.token.lexeme, "", op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
@@ -1958,7 +1919,7 @@ parseWatchExpression(
   arrow := parserAdvance(state)
   handler := parseWatchHandler(parserSkipNewlines(arrow.state))
   parseExpressionLoop(ExprStep {
-    state: handler.state,
+    ..handler,
     expr: opNode(ExprKind.Watch, arrow.token.lexeme, arrow.token, [expr, handler.expr])
   }, minPrec)
 }
@@ -1981,7 +1942,7 @@ parseAssignmentExpression(
   op := parserAdvance(state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
   parseExpressionLoop(ExprStep {
-    state: value.state,
+    ..value,
     expr: opNode(ExprKind.Assign, op.token.lexeme, op.token, [target, value.expr])
   }, minPrec)
 }
@@ -2000,7 +1961,7 @@ parsePatternPredicateExpression(
   wildcardBranch := makeExpr(ExprKind.Branch, "_", "", "", "=>", [], [wildcardPattern, falseExpr], pattern.expr.line, pattern.expr.column)
   matchExpr := appendChild(appendChild(appendChild(node(ExprKind.Match, op.token), subject), patternBranch), wildcardBranch)
   parseExpressionLoop(ExprStep {
-    state: pattern.state,
+    ..pattern,
     expr: matchExpr
   }, minPrec)
 }
@@ -2072,7 +2033,7 @@ parseTernaryAlternative(
 ) -> ExprStep => {
   alternative := parseExpression(parserSkipNewlines(state), 1)
   parseExpressionLoop(ExprStep {
-    state: alternative.state,
+    ..alternative,
     expr: opNode(ExprKind.Ternary, "?:", token, [condition, consequence, alternative.expr])
   }, minPrec)
 }
@@ -2101,7 +2062,7 @@ parseBinaryExpressionAtPrec(
   op := parserAdvance(state)
   right := parseExpression(op.state, prec + 1)
   parseExpressionLoop(ExprStep {
-    state: right.state,
+    ..right,
     expr: opNode(ExprKind.Binary, op.token.lexeme, op.token, [expr, right.expr])
   }, minPrec)
 }
@@ -2119,7 +2080,7 @@ parseUnaryOperator(
   op := parserAdvance(state)
   right := parseExpression(op.state, 11)
   ExprStep {
-    state: right.state,
+    ..right,
     expr: opNode(ExprKind.Unary, op.token.lexeme, op.token, [right.expr])
   }
 }
@@ -2330,13 +2291,11 @@ normalizeXMLTextChar(
 ) -> String => {
   ch := text.at(index)
   isSpace := (((ch == ' ') || (ch == '\t')) || (ch == '\r')) || (ch == '\n')
-  isSpace {
-    true => normalizeXMLTextLoop(text, index + 1, true, out)
-    _ => normalizeXMLTextLoop(text, index + 1, false, (out + (
+  isSpace ? normalizeXMLTextLoop(text, index + 1, true, out)
+    : normalizeXMLTextLoop(text, index + 1, false, (out + (
       spacing && (out != "") ? " "
         : ""
     )) + ch.toString())
-  }
 }
 
 parseTemplateLiteral(
@@ -2569,13 +2528,6 @@ parseArrayLiteral(
   }
 }
 
-parseReactiveLiteral(
-  state: ParserState
-) -> ExprStep => {
-  start := parserConsume(state, TokenKind.Dollar, "expected '$'")
-  parseReactiveLiteralAfterDollar(start)
-}
-
 parseDollarExpression(
   state: ParserState
 ) -> ExprStep => {
@@ -2613,7 +2565,7 @@ parseReactiveLiteralAfterDollar(
       )
   )
   ExprStep {
-    state: value.state,
+    ..value,
     expr: opNode(ExprKind.Reactive, "$", start.token, [value.expr])
   }
 }
@@ -2737,7 +2689,7 @@ parseObjectField(
   colon := parserConsume(name.state, TokenKind.Colon, "expected ':' after field name")
   value := parseExpression(parserSkipNewlines(colon.state), 1)
   ExprStep {
-    state: value.state,
+    ..value,
     expr: makeExpr((
       private ? ExprKind.PrivateField
         : ExprKind.Field
@@ -2858,8 +2810,8 @@ parseTupleAfterFirst(
   values := parseArgumentListLoop(parserSkipNewlines(comma.state), holder, TokenKind.RParen)
   close := parserConsume(values.state, TokenKind.RParen, "expected ')' after tuple literal")
   ExprStep {
-    state: close.state,
-    expr: values.expr
+    ..values,
+    state: close.state
   }
 }
 
@@ -2892,7 +2844,7 @@ parseLambda(
   arrow := parserConsume(parserSkipNewlines(returnType.state), TokenKind.FatArrow, "expected '=>' after lambda parameter")
   body := parseBody(parserSkipNewlines(arrow.state))
   ExprStep {
-    state: body.state,
+    ..body,
     expr: withChildren(withParams(withText(node(ExprKind.Lambda, open.token), typeRefToString(returnType.typeRef)), params.params), [body.expr])
   }
 }
@@ -2957,13 +2909,11 @@ parseOrPatternRest(
 ) -> ExprStep => {
   current := parserSkipNewlines(left.state)
   op := parserMatch(current, TokenKind.BitOr)
-  op.ok {
-    true => parseOrPatternRest(parseOrPatternRight(left, op.state))
-    _ => ExprStep {
-      state: current,
-      expr: left.expr
+  op.ok ? parseOrPatternRest(parseOrPatternRight(left, op.state))
+    : ExprStep {
+      ..left,
+      state: current
     }
-  }
 }
 
 parseOrPatternRight(
@@ -2972,7 +2922,7 @@ parseOrPatternRight(
 ) -> ExprStep => {
   right := parseAliasPattern(parserSkipNewlines(state))
   ExprStep {
-    state: right.state,
+    ..right,
     expr: withText(left.expr, (left.expr.text + "|") + right.expr.text)
   }
 }
@@ -2983,13 +2933,11 @@ parseAliasPattern(
   pattern := parseRangePattern(state)
   current := parserSkipNewlines(pattern.state)
   alias := parserCheck(current, TokenKind.At)
-  alias {
-    true => parseAliasPatternName(pattern, parserAdvance(current).state)
-    _ => ExprStep {
-      state: current,
-      expr: pattern.expr
+  alias ? parseAliasPatternName(pattern, parserAdvance(current).state)
+    : ExprStep {
+      ..pattern,
+      state: current
     }
-  }
 }
 
 parseAliasPatternName(
@@ -3013,8 +2961,8 @@ parseRangePattern(
     TokenKind.DotDotLess => parseRangePatternEnd(pattern, parserAdvance(current), "..<")
     TokenKind.DotDot => parseDotDotRangePattern(pattern, parserAdvance(current))
     _ => ExprStep {
-      state: current,
-      expr: pattern.expr
+      ..pattern,
+      state: current
     }
   }
 }
@@ -3034,7 +2982,7 @@ parseRangePatternEnd(
 ) -> ExprStep => {
   bound := parseRangeBoundPattern(parserSkipNewlines(op.state))
   ExprStep {
-    state: bound.state,
+    ..bound,
     expr: withText(pattern.expr, (pattern.expr.text + text) + bound.expr.text)
   }
 }
@@ -3060,13 +3008,11 @@ parseIdentifierRangeBoundPattern(
 ) -> ExprStep => {
   name := parserAdvance(state)
   dotted := parserMatch(name.state, TokenKind.Dot)
-  dotted.ok {
-    true => parseDottedPatternName(name.token, dotted.state)
-    _ => ExprStep {
+  dotted.ok ? parseDottedPatternName(name.token, dotted.state)
+    : ExprStep {
       state: name.state,
       expr: withText(node(ExprKind.Pattern, name.token), name.token.lexeme)
     }
-  }
 }
 
 parsePatternAtom(
@@ -3106,20 +3052,14 @@ parseIdentifierPattern(
   state: ParserState
 ) -> ExprStep => {
   constructor := parserCheckNext(state, TokenKind.LParen)
-  constructor {
-    true => parseConstructorPattern(state)
-    _ => parseIdentifierPatternNonConstructor(state)
-  }
+  constructor ? parseConstructorPattern(state) : parseIdentifierPatternNonConstructor(state)
 }
 
 parseIdentifierPatternNonConstructor(
   state: ParserState
 ) -> ExprStep => {
   qualified := parserCheckNext(state, TokenKind.Dot)
-  qualified {
-    true => parseQualifiedIdentifierPattern(state)
-    _ => parsePatternToken(state)
-  }
+  qualified ? parseQualifiedIdentifierPattern(state) : parsePatternToken(state)
 }
 
 parseQualifiedIdentifierPattern(
@@ -3147,7 +3087,7 @@ parseComparePattern(
   op := parserAdvance(state)
   value := parseRangeBoundPattern(parserSkipNewlines(op.state))
   ExprStep {
-    state: value.state,
+    ..value,
     expr: withText(node(ExprKind.Pattern, op.token), op.token.lexeme + value.expr.text)
   }
 }
@@ -3171,13 +3111,11 @@ parseConstructorPatternArgs(
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
   done := parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF)
-  done {
-    true => ExprStep {
+  done ? ExprStep {
       state: current,
       expr: withText(node(ExprKind.Pattern, parserPeek(current)), out)
     }
-    _ => parseConstructorPatternArg(current, out)
-  }
+    : parseConstructorPatternArg(current, out)
 }
 
 parseConstructorPatternArg(
@@ -3185,10 +3123,8 @@ parseConstructorPatternArg(
   out: String
 ) -> ExprStep => {
   rest := parserMatch(state, TokenKind.DotDot)
-  rest.ok {
-    true => parseConstructorPatternAfterArg(rest.state, appendPatternPart(out, ".."), true)
-    _ => parseConstructorPatternValue(state, out)
-  }
+  rest.ok ? parseConstructorPatternAfterArg(rest.state, appendPatternPart(out, ".."), true)
+    : parseConstructorPatternValue(state, out)
 }
 
 parseConstructorPatternValue(
@@ -3207,13 +3143,11 @@ parseConstructorPatternAfterArg(
   current := parserSkipNewlines(state)
   comma := parserMatch(current, TokenKind.Comma)
   done := rest || (comma.ok == false)
-  done {
-    true => ExprStep {
+  done ? ExprStep {
       state: comma.state,
       expr: withText(node(ExprKind.Pattern, parserPeek(comma.state)), out)
     }
-    _ => parseConstructorPatternArgs(comma.state, out)
-  }
+    : parseConstructorPatternArgs(comma.state, out)
 }
 
 parseArrayPattern(
@@ -3234,13 +3168,11 @@ parseArrayPatternParts(
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
   done := parserCheck(current, TokenKind.RBracket) || parserCheck(current, TokenKind.EOF)
-  done {
-    true => ExprStep {
+  done ? ExprStep {
       state: current,
       expr: withText(node(ExprKind.Pattern, parserPeek(current)), out)
     }
-    _ => parseArrayPatternPart(current, out)
-  }
+    : parseArrayPatternPart(current, out)
 }
 
 parseArrayPatternPart(
@@ -3248,10 +3180,8 @@ parseArrayPatternPart(
   out: String
 ) -> ExprStep => {
   spread := parserMatch(state, TokenKind.DotDot)
-  spread.ok {
-    true => parseArraySpreadPattern(spread.state, out)
-    _ => parseArrayValuePattern(state, out)
-  }
+  spread.ok ? parseArraySpreadPattern(spread.state, out)
+    : parseArrayValuePattern(state, out)
 }
 
 parseArraySpreadPattern(
@@ -3272,10 +3202,7 @@ parseArraySpreadIdentifier(
 ) -> ExprStep => {
   identifier := parserAdvance(state)
   constantSpread := isPatternSpreadIdentifier(identifier.token.lexeme)
-  text := constantSpread {
-    true => ".. " + identifier.token.lexeme
-    _ => ".." + identifier.token.lexeme
-  }
+  text := constantSpread ? ".. " + identifier.token.lexeme : ".." + identifier.token.lexeme
   parseArrayPatternAfterPart(identifier.state, appendPatternPart(out, text))
 }
 
@@ -3300,13 +3227,11 @@ parseArrayPatternAfterPart(
   out: String
 ) -> ExprStep => {
   comma := parserMatch(parserSkipNewlines(state), TokenKind.Comma)
-  comma.ok {
-    true => parseArrayPatternParts(comma.state, out)
-    _ => ExprStep {
+  comma.ok ? parseArrayPatternParts(comma.state, out)
+    : ExprStep {
       state: comma.state,
       expr: withText(node(ExprKind.Pattern, parserPeek(comma.state)), out)
     }
-  }
 }
 
 parseMapOrObjectPattern(
@@ -3327,13 +3252,11 @@ parseMapOrObjectPatternParts(
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
   done := parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF)
-  done {
-    true => ExprStep {
+  done ? ExprStep {
       state: current,
       expr: withText(node(ExprKind.Pattern, parserPeek(current)), out)
     }
-    _ => parseMapOrObjectPatternPart(current, out)
-  }
+    : parseMapOrObjectPatternPart(current, out)
 }
 
 parseMapOrObjectPatternPart(
@@ -3341,10 +3264,8 @@ parseMapOrObjectPatternPart(
   out: String
 ) -> ExprStep => {
   rest := parserMatch(state, TokenKind.DotDot)
-  rest.ok {
-    true => parseMapOrObjectPatternAfterPart(rest.state, appendPatternPart(out, ".."))
-    _ => parseMapOrObjectEntryPattern(state, out)
-  }
+  rest.ok ? parseMapOrObjectPatternAfterPart(rest.state, appendPatternPart(out, ".."))
+    : parseMapOrObjectEntryPattern(state, out)
 }
 
 parseMapOrObjectEntryPattern(
@@ -3352,10 +3273,7 @@ parseMapOrObjectEntryPattern(
   out: String
 ) -> ExprStep => {
   objectField := parserPatternLooksLikeObjectField(state)
-  objectField {
-    true => parseObjectFieldPattern(state, out)
-    _ => parseMapEntryPattern(state, out)
-  }
+  objectField ? parseObjectFieldPattern(state, out) : parseMapEntryPattern(state, out)
 }
 
 parseObjectFieldPattern(
@@ -3365,10 +3283,8 @@ parseObjectFieldPattern(
   field := parserConsume(state, TokenKind.Ident, "expected object pattern field")
   optional := parserMatch(field.state, TokenKind.Question)
   colon := parserMatch(optional.state, TokenKind.Colon)
-  colon.ok {
-    true => parseObjectFieldValuePattern(field.token, optional.ok, colon.state, out)
-    _ => parseMapOrObjectPatternAfterPart(optional.state, appendPatternPart(out, objectFieldPatternText(field.token.lexeme, optional.ok, field.token.lexeme)))
-  }
+  colon.ok ? parseObjectFieldValuePattern(field.token, optional.ok, colon.state, out)
+    : parseMapOrObjectPatternAfterPart(optional.state, appendPatternPart(out, objectFieldPatternText(field.token.lexeme, optional.ok, field.token.lexeme)))
 }
 
 parseObjectFieldValuePattern(
@@ -3385,10 +3301,7 @@ objectFieldPatternText(
   name: String,
   optional: Bool,
   value: String
-) -> String => optional {
-  true => (name + "?:") + value
-  _ => (name + ":") + value
-}
+) -> String => optional ? (name + "?:") + value : (name + ":") + value
 
 parseMapEntryPattern(
   state: ParserState,
@@ -3398,10 +3311,7 @@ parseMapEntryPattern(
   optional := parserMatch(key.state, TokenKind.Question)
   colon := parserConsume(optional.state, TokenKind.Colon, "expected ':' after map pattern key")
   value := parsePattern(parserSkipNewlines(colon.state))
-  entry := optional.ok {
-    true => (key.expr.text + "?:") + value.expr.text
-    _ => (key.expr.text + ":") + value.expr.text
-  }
+  entry := optional.ok ? (key.expr.text + "?:") + value.expr.text : (key.expr.text + ":") + value.expr.text
   parseMapOrObjectPatternAfterPart(value.state, appendPatternPart(out, entry))
 }
 
@@ -3414,13 +3324,11 @@ parseMapOrObjectPatternAfterPart(
   out: String
 ) -> ExprStep => {
   comma := parserMatch(parserSkipNewlines(state), TokenKind.Comma)
-  comma.ok {
-    true => parseMapOrObjectPatternParts(comma.state, out)
-    _ => ExprStep {
+  comma.ok ? parseMapOrObjectPatternParts(comma.state, out)
+    : ExprStep {
       state: comma.state,
       expr: withText(node(ExprKind.Pattern, parserPeek(comma.state)), out)
     }
-  }
 }
 
 parseTupleOrGroupedPattern(
@@ -3429,10 +3337,7 @@ parseTupleOrGroupedPattern(
   open := parserConsume(state, TokenKind.LParen, "expected '(' before pattern")
   current := parserSkipNewlines(open.state)
   empty := parserCheck(current, TokenKind.RParen)
-  empty {
-    true => finishEmptyTuplePattern(open.token, current)
-    _ => parseTupleOrGroupedPatternFirst(open.token, current)
-  }
+  empty ? finishEmptyTuplePattern(open.token, current) : parseTupleOrGroupedPatternFirst(open.token, current)
 }
 
 finishEmptyTuplePattern(
@@ -3452,10 +3357,8 @@ parseTupleOrGroupedPatternFirst(
 ) -> ExprStep => {
   first := parsePattern(state)
   comma := parserMatch(parserSkipNewlines(first.state), TokenKind.Comma)
-  comma.ok {
-    true => parseTuplePatternRest(open, comma.state, first.expr.text)
-    _ => finishGroupedPattern(first)
-  }
+  comma.ok ? parseTuplePatternRest(open, comma.state, first.expr.text)
+    : finishGroupedPattern(first)
 }
 
 finishGroupedPattern(
@@ -3475,10 +3378,7 @@ parseTuplePatternRest(
 ) -> ExprStep => {
   current := parserSkipNewlines(state)
   done := parserCheck(current, TokenKind.RParen) || parserCheck(current, TokenKind.EOF)
-  done {
-    true => finishTuplePattern(open, current, out)
-    _ => parseTuplePatternPart(open, current, out)
-  }
+  done ? finishTuplePattern(open, current, out) : parseTuplePatternPart(open, current, out)
 }
 
 parseTuplePatternPart(
@@ -3489,10 +3389,8 @@ parseTuplePatternPart(
   value := parsePattern(state)
   next := appendPatternPart(out, value.expr.text)
   comma := parserMatch(parserSkipNewlines(value.state), TokenKind.Comma)
-  comma.ok {
-    true => parseTuplePatternRest(open, comma.state, next)
-    _ => finishTuplePattern(open, comma.state, next)
-  }
+  comma.ok ? parseTuplePatternRest(open, comma.state, next)
+    : finishTuplePattern(open, comma.state, next)
 }
 
 finishTuplePattern(
@@ -3756,10 +3654,7 @@ skipAnnotationsAt(
 ) -> Int => {
   current := skipNewlinesAt(state, index)
   annotation := looksLikeAnnotationAt(state, current)
-  annotation {
-    true => skipAnnotationsAt(state, skipAnnotationAt(state, current))
-    _ => current
-  }
+  annotation ? skipAnnotationsAt(state, skipAnnotationAt(state, current)) : current
 }
 
 looksLikeAnnotationAt(
@@ -3781,10 +3676,7 @@ skipAnnotationAt(
   afterName := skipAnnotationNameAt(state, index + 2)
   afterNewlines := skipNewlinesAt(state, afterName)
   hasArgs := parserKindAt(state, afterNewlines) == TokenKind.LParen
-  hasArgs {
-    true => skipNewlinesAt(state, skipBalancedAt(state, afterNewlines, TokenKind.LParen, TokenKind.RParen))
-    _ => afterNewlines
-  }
+  hasArgs ? skipNewlinesAt(state, skipBalancedAt(state, afterNewlines, TokenKind.LParen, TokenKind.RParen)) : afterNewlines
 }
 
 skipAnnotationNameAt(
@@ -3792,10 +3684,7 @@ skipAnnotationNameAt(
   index: Int
 ) -> Int => {
   qualified := (parserKindAt(state, index) == TokenKind.Dot) && (parserKindAt(state, index + 1) == TokenKind.Ident)
-  qualified {
-    true => index + 2
-    _ => index
-  }
+  qualified ? index + 2 : index
 }
 
 looksLikeEnumMember(
@@ -3803,10 +3692,7 @@ looksLikeEnumMember(
 ) -> Bool => {
   afterAnnotations := skipAnnotationsAt(state, state.current)
   plus := parserKindAt(state, afterAnnotations) == TokenKind.Plus
-  start := plus {
-    true => skipNewlinesAt(state, afterAnnotations + 1)
-    _ => afterAnnotations
-  }
+  start := plus ? skipNewlinesAt(state, afterAnnotations + 1) : afterAnnotations
   token := parserTokenAt(state, start)
   next := parserKindAt(state, skipNewlinesAt(state, start + 1))
   (token.kind == TokenKind.Ident) && (((next == TokenKind.Assign) || ((next == TokenKind.LParen) && startsWithUpper(token.lexeme))) || ((next != TokenKind.Colon) && (next != TokenKind.LParen)))
@@ -4064,10 +3950,7 @@ parserPatternIdentLooksLikeObjectField(
   name: String
 ) -> Bool => {
   spread := isPatternSpreadIdentifier(name)
-  spread {
-    true => false
-    _ => parserPatternObjectFieldTail(state)
-  }
+  spread ? false : parserPatternObjectFieldTail(state)
 }
 
 parserPatternObjectFieldTail(
@@ -4087,10 +3970,7 @@ isPatternSpreadIdentifier(
   name: String
 ) -> Bool => {
   empty := name.length() == 0
-  empty {
-    true => false
-    _ => isUpperAsciiLetter(name.at(0))
-  }
+  empty ? false : isUpperAsciiLetter(name.at(0))
 }
 
 isUpperAsciiLetter(ch: Char) -> Bool => (ch >= 'A') && (ch <= 'Z')

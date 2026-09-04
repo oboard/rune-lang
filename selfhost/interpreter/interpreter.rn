@@ -2173,14 +2173,6 @@ netConnectionValue(
   value: boolValue(closed)
 }])
 
-isNetListenerValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPListener")
-
-isNetConnectionValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "TCPConnection")
-
 netListenerAddress(
   value: RuntimeValue
 ) -> String => runtimeText(runtimeStructField(value, "address"))
@@ -2475,10 +2467,6 @@ stringBufferValue(
   name: "text",
   value: stringValue(text)
 }])
-
-isStringBufferValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "StringBuffer")
 
 runtimeStringArray(
   value: RuntimeValue
@@ -2856,10 +2844,6 @@ bufferValue(
   value: arrayValue(values)
 }])
 
-isBufferValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Buffer")
-
 runtimeBuffer(
   value: RuntimeValue
 ) -> Array[RuntimeValue] => runtimeArray(runtimeStructField(value, "data"))
@@ -2878,10 +2862,6 @@ readerValue(
   name: "nibble",
   value: intValue(nibble)
 }])
-
-isReaderValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Reader")
 
 runtimeReaderData(
   value: RuntimeValue
@@ -2905,10 +2885,6 @@ writerValue(
   name: "nibble",
   value: intValue(nibble)
 }])
-
-isWriterValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Writer")
 
 runtimeWriterData(
   value: RuntimeValue
@@ -3006,38 +2982,25 @@ callBigIntReceiverMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  name == "toString" ? okResult(stringValue(runtimeText(receiver)))
-    : (
-      name == "toDouble" ? okResult(doubleRuntimeValue(parseBigIntRuntime(receiver).toDouble()))
-        : (
-          name == "toInt" ? okResult(intValue(parseBigIntRuntime(receiver)))
-            : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
-        )
-    )
-)
+) -> EvalResult => name {
+  "toString" => okResult(stringValue(runtimeText(receiver)))
+  "toDouble" => okResult(doubleRuntimeValue(parseBigIntRuntime(receiver).toDouble()))
+  "toInt" => okResult(intValue(parseBigIntRuntime(receiver)))
+  _ => errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+}
 
 callDoubleReceiverMethod(
   interpreter: Interpreter,
   env: RuntimeEnv,
   receiver: RuntimeValue,
   name: String
-) -> EvalResult => (
-  name == "toInt" ? okResult(intValue(doubleTruncToInt(runtimeDouble(receiver))))
-    : (
-      name == "trunc" ? okResult(intValue(doubleTruncToInt(runtimeDouble(receiver))))
-        : (
-          name == "floor" ? okResult(intValue(doubleFloorToInt(runtimeDouble(receiver))))
-            : (
-              name == "ceil" ? okResult(intValue(doubleCeilToInt(runtimeDouble(receiver))))
-                : (
-                  name == "round" ? okResult(intValue(doubleRoundToInt(runtimeDouble(receiver))))
-                    : errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
-                )
-            )
-        )
-    )
-)
+) -> EvalResult => name {
+  "toInt" | "trunc" => okResult(intValue(doubleTruncToInt(runtimeDouble(receiver))))
+  "floor" => okResult(intValue(doubleFloorToInt(runtimeDouble(receiver))))
+  "ceil" => okResult(intValue(doubleCeilToInt(runtimeDouble(receiver))))
+  "round" => okResult(intValue(doubleRoundToInt(runtimeDouble(receiver))))
+  _ => errorResult((("type " + runtimeValueKindName(runtimeKind(receiver))) + " has no method ") + name)
+}
 
 callDoubleModuleFunction(
   interpreter: Interpreter,
@@ -4693,10 +4656,6 @@ lastRegexSlash(
     )
 )
 
-isRegexValue(
-  value: RuntimeValue
-) -> Bool => (runtimeKind(value) == RuntimeValueKind.Struct) && (runtimeTypeName(value) == "Regex")
-
 regexSource(
   value: RuntimeValue
 ) -> String => runtimeText(runtimeStructField(value, "source"))
@@ -5454,45 +5413,27 @@ callReceiverMethod(
 isMutableContainerMethod(
   receiver: RuntimeValue,
   name: String
-) -> Bool => (
-  runtimeKind(receiver) == RuntimeValueKind.Array ? ((name == "push") || (name == "set")) || (name == "pop")
-    : (
-      runtimeKind(receiver) == RuntimeValueKind.Map ? name == "set"
-        : (
-          runtimeKind(receiver) == RuntimeValueKind.Set ? name == "add"
-            : isMutableStructMethod(receiver, name)
-        )
-    )
-)
+) -> Bool => receiver {
+  Array(values) | Tuple(values) => ((name == "push") || (name == "set")) || (name == "pop")
+  Map(entries) => name == "set"
+  Set(entries) => name == "add"
+  _ => isMutableStructMethod(receiver, name)
+}
 
 isMutableStructMethod(
   receiver: RuntimeValue,
   name: String
-) -> Bool => (
-  isBytesValue(receiver) ? isMutableBytesMethod(name)
-    : (
-      isBufferValue(receiver) ? isMutableBufferMethod(name)
-        : (
-          isReaderValue(receiver) ? isMutableReaderMethod(name)
-            : (
-              isWriterValue(receiver) ? isMutableWriterMethod(name)
-                : (
-                  isIteratorValue(receiver) ? name == "next"
-                    : (
-                      isStringBufferValue(receiver) ? ((name == "append") || (name == "appendLine")) || (name == "clear")
-                        : (
-                          isNetConnectionValue(receiver) ? ((name == "read") || (name == "write")) || (name == "close")
-                            : (
-                              isNetListenerValue(receiver) ? (name == "accept") || (name == "close")
-                                : false
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+) -> Bool => receiver {
+  Struct(_) => isMutableBytesMethod(name)
+  Struct(_) => isMutableBufferMethod(name)
+  Struct(_) => isMutableReaderMethod(name)
+  Struct(_) => isMutableWriterMethod(name)
+  Struct(_) => name == "next"
+  Struct(_) => ((name == "append") || (name == "appendLine")) || (name == "clear")
+  Struct(_) => ((name == "read") || (name == "write")) || (name == "close")
+  Struct(_) => (name == "accept") || (name == "close")
+  _ => false
+}
 
 isMutableBytesMethod(
   name: String
@@ -5517,16 +5458,12 @@ callMutableReceiverMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  runtimeKind(receiver) == RuntimeValueKind.Array ? callMutableArrayMethod(interpreter, env, receiverExpr, receiver, name, children)
-    : (
-      runtimeKind(receiver) == RuntimeValueKind.Map ? callMutableMapMethod(interpreter, env, receiverExpr, receiver, name, children)
-        : (
-          runtimeKind(receiver) == RuntimeValueKind.Set ? callMutableSetMethod(interpreter, env, receiverExpr, receiver, name, children)
-            : callMutableStructMethod(interpreter, env, receiverExpr, receiver, name, children)
-        )
-    )
-)
+) -> EvalResult => receiver {
+  Array(values) | Tuple(values) => callMutableArrayMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Map(entries) => callMutableMapMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Set(entries) => callMutableSetMethod(interpreter, env, receiverExpr, receiver, name, children)
+  _ => callMutableStructMethod(interpreter, env, receiverExpr, receiver, name, children)
+}
 
 callMutableArrayMethod(
   interpreter: Interpreter,
@@ -5654,31 +5591,17 @@ callMutableStructMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  isBytesValue(receiver) ? callMutableBytesMethod(interpreter, env, receiverExpr, receiver, name, children)
-    : (
-      isBufferValue(receiver) ? callMutableBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
-        : (
-          isReaderValue(receiver) ? callMutableReaderMethod(interpreter, env, receiverExpr, receiver, name, children)
-            : (
-              isWriterValue(receiver) ? callMutableWriterMethod(interpreter, env, receiverExpr, receiver, name, children)
-                : (
-                  isIteratorValue(receiver) ? callMutableIteratorMethod(env, receiverExpr, receiver, name)
-                    : (
-                      isStringBufferValue(receiver) ? callMutableStringBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
-                        : (
-                          isNetConnectionValue(receiver) ? callMutableNetConnectionMethod(interpreter, env, receiverExpr, receiver, name, children)
-                            : (
-                              isNetListenerValue(receiver) ? callMutableNetListenerMethod(interpreter, env, receiverExpr, receiver, name, children)
-                                : callMethodValue(interpreter, env, receiver, name, children)
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+) -> EvalResult => receiver {
+  Struct(_) => callMutableBytesMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableReaderMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableWriterMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableIteratorMethod(env, receiverExpr, receiver, name)
+  Struct(_) => callMutableStringBufferMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableNetConnectionMethod(interpreter, env, receiverExpr, receiver, name, children)
+  Struct(_) => callMutableNetListenerMethod(interpreter, env, receiverExpr, receiver, name, children)
+  _ => callMethodValue(interpreter, env, receiver, name, children)
+}
 
 callMutableIteratorMethod(
   env: RuntimeEnv,
@@ -5976,19 +5899,15 @@ callBoolMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  name == "toString" ? okResult(stringValue((
+) -> EvalResult => name {
+  "toString" => okResult(stringValue((
     runtimeBool(receiver) ? "true"
       : "false"
   )))
-    : (
-      name == "not" ? okResult(boolValue(!runtimeBool(receiver)))
-        : (
-          name == "xor" ? boolXorMethod(interpreter, env, receiver, children)
-            : errorResult("type bool has no method " + name)
-        )
-    )
-)
+  "not" => okResult(boolValue(!runtimeBool(receiver)))
+  "xor" => boolXorMethod(interpreter, env, receiver, children)
+  _ => errorResult("type bool has no method " + name)
+}
 
 boolXorMethod(
   interpreter: Interpreter,
@@ -6370,34 +6289,18 @@ callMapMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  name == "size" ? okResult(intValue(mapEntryCount(runtimeEntries(receiver), 0, 0)))
-    : (
-      name == "has" ? mapHasMethod(interpreter, env, receiver, children)
-        : (
-          name == "getOr" ? mapGetOrMethod(interpreter, env, receiver, children)
-            : (
-              name == "set" ? mapSetMethod(interpreter, env, receiver, children)
-                : (
-                  name == "keys" ? okResult(arrayValue(mapKeys(runtimeEntries(receiver), 0, [])))
-                    : (
-                      name == "values" ? okResult(arrayValue(mapValues(runtimeEntries(receiver), 0, [])))
-                        : (
-                          name == "each" ? mapEachMethod(interpreter, env, receiver, children)
-                            : (
-                              name == "delete" ? mapDeleteMethod(interpreter, env, receiver, children)
-                                : (
-                                  name == "clear" ? mapClearMethod(receiver)
-                                    : errorResult("Map has no method " + name)
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+) -> EvalResult => name {
+  "size" => okResult(intValue(mapEntryCount(runtimeEntries(receiver), 0, 0)))
+  "has" => mapHasMethod(interpreter, env, receiver, children)
+  "getOr" => mapGetOrMethod(interpreter, env, receiver, children)
+  "set" => mapSetMethod(interpreter, env, receiver, children)
+  "keys" => okResult(arrayValue(mapKeys(runtimeEntries(receiver), 0, [])))
+  "values" => okResult(arrayValue(mapValues(runtimeEntries(receiver), 0, [])))
+  "each" => mapEachMethod(interpreter, env, receiver, children)
+  "delete" => mapDeleteMethod(interpreter, env, receiver, children)
+  "clear" => mapClearMethod(receiver)
+  _ => errorResult("Map has no method " + name)
+}
 
 mapHasMethod(
   interpreter: Interpreter,
@@ -6500,28 +6403,16 @@ callSetMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
-) -> EvalResult => (
-  name == "size" ? okResult(intValue(mapEntryCount(runtimeEntries(receiver), 0, 0)))
-    : (
-      name == "has" ? setHasMethod(interpreter, env, receiver, children)
-        : (
-          name == "add" ? setAddMethod(interpreter, env, receiver, children)
-            : (
-              name == "values" ? okResult(arrayValue(mapKeys(runtimeEntries(receiver), 0, [])))
-                : (
-                  name == "each" ? mapEachMethod(interpreter, env, receiver, children)
-                    : (
-                      name == "delete" ? mapDeleteMethod(interpreter, env, receiver, children)
-                        : (
-                          name == "clear" ? mapClearMethod(receiver)
-                            : errorResult("Set has no method " + name)
-                        )
-                    )
-                )
-            )
-        )
-    )
-)
+) -> EvalResult => name {
+  "size" => okResult(intValue(mapEntryCount(runtimeEntries(receiver), 0, 0)))
+  "has" => setHasMethod(interpreter, env, receiver, children)
+  "add" => setAddMethod(interpreter, env, receiver, children)
+  "values" => okResult(arrayValue(mapKeys(runtimeEntries(receiver), 0, [])))
+  "each" => mapEachMethod(interpreter, env, receiver, children)
+  "delete" => mapDeleteMethod(interpreter, env, receiver, children)
+  "clear" => mapClearMethod(receiver)
+  _ => errorResult("Set has no method " + name)
+}
 
 setHasMethod(
   interpreter: Interpreter,
@@ -6697,38 +6588,32 @@ callStructMethod(
   receiver: RuntimeValue,
   name: String,
   children: Array[IRExpr]
+) -> EvalResult => receiver {
+  Struct(_) => callBytesMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callBufferMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callReaderMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callWriterMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callIteratorMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callStringBufferMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callRegexMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callNetConnectionMethod(interpreter, env, receiver, name, children)
+  Struct(_) => callNetListenerMethod(interpreter, env, receiver, name, children)
+  Struct(typeName) => callStructFieldOrDeclaredMethod(interpreter, env, receiver, name, children, fields)
+  _ => callDeclaredStructMethod(interpreter, env, receiver, name, children)
+}
+
+callStructFieldOrDeclaredMethod(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  receiver: RuntimeValue,
+  name: String,
+  children: Array[IRExpr],
+  fields: Array[RuntimeField]
 ) -> EvalResult => {
-  field := fieldLookup(runtimeFields(receiver), name, 0)
+  field := fieldLookup(fields, name, 0)
   (
-    isBytesValue(receiver) ? callBytesMethod(interpreter, env, receiver, name, children)
-      : (
-        isBufferValue(receiver) ? callBufferMethod(interpreter, env, receiver, name, children)
-          : (
-            isReaderValue(receiver) ? callReaderMethod(interpreter, env, receiver, name, children)
-              : (
-                isWriterValue(receiver) ? callWriterMethod(interpreter, env, receiver, name, children)
-                  : (
-                    isIteratorValue(receiver) ? callIteratorMethod(interpreter, env, receiver, name, children)
-                      : (
-                        isStringBufferValue(receiver) ? callStringBufferMethod(interpreter, env, receiver, name, children)
-                          : (
-                            isRegexValue(receiver) ? callRegexMethod(interpreter, env, receiver, name, children)
-                              : (
-                                isNetConnectionValue(receiver) ? callNetConnectionMethod(interpreter, env, receiver, name, children)
-                                  : (
-                                    isNetListenerValue(receiver) ? callNetListenerMethod(interpreter, env, receiver, name, children)
-                                      : (
-                                        field.found ? callClosureWithArgs(interpreter, field.value, evalArgsChecked(interpreter, env, children, 1))
-                                          : callDeclaredStructMethod(interpreter, env, receiver, name, children)
-                                      )
-                                  )
-                              )
-                          )
-                      )
-                  )
-              )
-          )
-      )
+    field.found ? callClosureWithArgs(interpreter, field.value, evalArgsChecked(interpreter, env, children, 1))
+      : callDeclaredStructMethod(interpreter, env, receiver, name, children)
   )
 }
 
@@ -8736,11 +8621,6 @@ matchPatternValue(
     : runtimeEqual(subject, pattern)
 )
 
-matchPatternText(
-  subject: RuntimeValue,
-  text: String
-) -> Bool => matchPatternTextEnv(subject, text, emptyEnv()).matched
-
 matchPatternTextEnv(
   subject: RuntimeValue,
   text: String,
@@ -8963,18 +8843,6 @@ matchBindingPatternText(
 ) -> PatternMatchResult => (
   isBindingPatternText(text) ? patternMatched(envDefine(env, text, subject))
     : patternNotMatched(env)
-)
-
-matchOrPatternText(
-  subject: RuntimeValue,
-  parts: Array[String],
-  index: Int
-) -> Bool => (
-  index >= parts.length() ? false
-    : (
-      matchPatternText(subject, parts[index].trim()) ? true
-        : matchOrPatternText(subject, parts, index + 1)
-    )
 )
 
 matchOrPatternTextEnv(

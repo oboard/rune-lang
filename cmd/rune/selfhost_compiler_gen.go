@@ -2148,11 +2148,6 @@ func __selfhost_parser_parser_appendChild(__expr __ParsedExpr, __child __ParsedE
 	return __expr
 }
 
-func __selfhost_parser_parser_appendParam(__params []__ParsedParam, __param __ParsedParam) []__ParsedParam {
-	__params = append(__params, __param)
-	return __params
-}
-
 func __selfhost_parser_parser_appendString(__values []string, __value string) []string {
 	__values = append(__values, __value)
 	return __values
@@ -2198,7 +2193,7 @@ func __selfhost_parser_parser_parserCheckNext(__state __ParserState, __kind __To
 }
 
 func __selfhost_parser_parser_stateAt(__state __ParserState, __current int) __ParserState {
-	return __ParserState{__tokens: __state.__tokens, __current: __current, __errors: __state.__errors}
+	return __ParserState{__tokens: __state.__tokens, __errors: __state.__errors, __current: __current}
 }
 
 func __selfhost_parser_parser_parserAdvance(__state __ParserState) __TokenStep {
@@ -2317,19 +2312,16 @@ func __selfhost_parser_parser_parseTopLevelAfterResult(__result __FileStep) __Fi
 }
 
 func __selfhost_parser_parser_parseTopLevelAfterMacro(__state __ParserState, __file __ParsedFile) __FileStep {
-	__goImport := __selfhost_parser_parser_looksLikeGoImportDecl(__state)
 	return func() __FileStep {
-		switch {
-		case __goImport == true:
+		if __selfhost_parser_parser_looksLikeGoImportDecl(__state) {
 			return __selfhost_parser_parser_parseTopLevelAfterResult(__selfhost_parser_parser_parseTopLevelImport(__state, __file))
-		default:
-			return func() __FileStep {
-				if __selfhost_parser_parser_looksLikeRuneImportDecl(__state) {
-					return __selfhost_parser_parser_parseTopLevelAfterResult(__selfhost_parser_parser_parseTopLevelImport(__state, __file))
-				}
-				return __selfhost_parser_parser_parseTopLevelAfterAnnotations(__state, __file)
-			}()
 		}
+		return func() __FileStep {
+			if __selfhost_parser_parser_looksLikeRuneImportDecl(__state) {
+				return __selfhost_parser_parser_parseTopLevelAfterResult(__selfhost_parser_parser_parseTopLevelImport(__state, __file))
+			}
+			return __selfhost_parser_parser_parseTopLevelAfterAnnotations(__state, __file)
+		}()
 	}()
 }
 
@@ -2380,36 +2372,30 @@ func __selfhost_parser_parser_parseTopLevelAfterAnnotations(__state __ParserStat
 func __selfhost_parser_parser_looksLikeGoImportDecl(__state __ParserState) bool {
 	__marker := __selfhost_parser_parser_parserCheck(__state, __TokenKind_At)
 	return func() bool {
-		switch {
-		case __marker == true:
+		if __marker {
 			return __selfhost_parser_parser_looksLikeGoImportAfterMarker(__state)
-		default:
-			return false
 		}
+		return false
 	}()
 }
 
 func __selfhost_parser_parser_looksLikeGoImportAfterMarker(__state __ParserState) bool {
 	__module := __selfhost_parser_parser_parserKindAt(__state, __state.__current+1) == __TokenKind_Ident && __selfhost_parser_parser_parserTokenAt(__state, __state.__current+1).__lexeme == "go"
 	return func() bool {
-		switch {
-		case __module == true:
+		if __module {
 			return __selfhost_parser_parser_looksLikeGoImportAfterModule(__state)
-		default:
-			return false
 		}
+		return false
 	}()
 }
 
 func __selfhost_parser_parser_looksLikeGoImportAfterModule(__state __ParserState) bool {
 	__dot := __selfhost_parser_parser_parserKindAt(__state, __state.__current+2) == __TokenKind_Dot
 	return func() bool {
-		switch {
-		case __dot == true:
+		if __dot {
 			return __selfhost_parser_parser_parserKindAt(__state, __state.__current+3) == __TokenKind_Ident && __selfhost_parser_parser_parserTokenAt(__state, __state.__current+3).__lexeme == "import"
-		default:
-			return false
 		}
+		return false
 	}()
 }
 
@@ -2494,22 +2480,22 @@ func __selfhost_parser_parser_parseTopLevelError(__state __ParserState, __file _
 
 func __selfhost_parser_parser_parsePublicModifier(__state __ParserState) __BoolStep {
 	__step := __selfhost_parser_parser_parserMatch(__state, __TokenKind_Plus)
-	return __BoolStep{__state: func() __ParserState {
+	return __BoolStep{__ok: __step.__ok, __state: func() __ParserState {
 		if __step.__ok {
 			return __selfhost_parser_parser_parserSkipNewlines(__step.__state)
 		}
 		return __state
-	}(), __ok: __step.__ok}
+	}()}
 }
 
 func __selfhost_parser_parser_parseObjectPrivateModifier(__state __ParserState) __BoolStep {
 	__step := __selfhost_parser_parser_parserMatch(__state, __TokenKind_Minus)
-	return __BoolStep{__state: func() __ParserState {
+	return __BoolStep{__ok: __step.__ok, __state: func() __ParserState {
 		if __step.__ok {
 			return __selfhost_parser_parser_parserSkipNewlines(__step.__state)
 		}
 		return __state
-	}(), __ok: __step.__ok}
+	}()}
 }
 
 func __selfhost_parser_parser_parseStaticMethodMarker(__state __ParserState) __BoolStep {
@@ -2524,12 +2510,12 @@ func __selfhost_parser_parser_parseStaticMethodMarker(__state __ParserState) __B
 			return __BoolStep{__state: __state, __ok: false}
 		}()
 	}()
-	return __BoolStep{__state: func() __ParserState {
+	return __BoolStep{__ok: __marker.__ok, __state: func() __ParserState {
 		if __marker.__ok {
 			return __selfhost_parser_parser_parserSkipNewlines(__marker.__state)
 		}
 		return __state
-	}(), __ok: __marker.__ok}
+	}()}
 }
 
 func __selfhost_parser_parser_parseImportDecl(__state __ParserState) __ImportStep {
@@ -2637,12 +2623,10 @@ func __selfhost_parser_parser_parseStructTypeMember(__state __ParserState, __typ
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__macroMethod := __selfhost_parser_parser_looksLikeMacroFunctionDecl(__current)
 	return func() __TypeStep {
-		switch {
-		case __macroMethod == true:
+		if __macroMethod {
 			return __selfhost_parser_parser_parseStructMacroMethod(__current, __typeDecl)
-		default:
-			return __selfhost_parser_parser_parseStructTypeMemberValue(__current, __typeDecl)
 		}
+		return __selfhost_parser_parser_parseStructTypeMemberValue(__current, __typeDecl)
 	}()
 }
 
@@ -2718,12 +2702,10 @@ func __selfhost_parser_parser_parseEnumTypeMember(__state __ParserState, __typeD
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__macroMethod := __selfhost_parser_parser_looksLikeMacroFunctionDecl(__current)
 	return func() __TypeStep {
-		switch {
-		case __macroMethod == true:
+		if __macroMethod {
 			return __selfhost_parser_parser_parseEnumMacroMethod(__current, __typeDecl)
-		default:
-			return __selfhost_parser_parser_parseEnumTypeMemberValueOrMethod(__current, __typeDecl)
 		}
+		return __selfhost_parser_parser_parseEnumTypeMemberValueOrMethod(__current, __typeDecl)
 	}()
 }
 
@@ -3042,12 +3024,10 @@ func __selfhost_parser_parser_parseOneTypeRefListValue(__state __ParserState, __
 	__refs = append(__refs, __typeRef.__typeRef)
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__typeRef.__state), __TokenKind_Comma)
 	return func() __TypeRefListStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseTypeRefList(__comma.__state, __refs)
-		default:
-			return __TypeRefListStep{__state: __typeRef.__state, __refs: __refs}
 		}
+		return __TypeRefListStep{__state: __typeRef.__state, __refs: __refs}
 	}()
 }
 
@@ -3066,12 +3046,10 @@ func __selfhost_parser_parser_parseOneTypeParam(__state __ParserState, __params 
 	__params = append(__params, __param.__param)
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__param.__state), __TokenKind_Comma)
 	return func() __TypeParamListStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseTypeParamList(__comma.__state, __params)
-		default:
-			return __TypeParamListStep{__state: __param.__state, __params: __params}
 		}
+		return __TypeParamListStep{__state: __param.__state, __params: __params}
 	}()
 }
 
@@ -3229,12 +3207,10 @@ func __selfhost_parser_parser_parseLetStatement(__state __ParserState) __ExprSte
 func __selfhost_parser_parser_parseLetTypeAnnotation(__state __ParserState) __StringStep {
 	__colon := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__state), __TokenKind_Colon)
 	return func() __StringStep {
-		switch {
-		case __colon.__ok == true:
+		if __colon.__ok {
 			return __selfhost_parser_parser_parseLetTypeAnnotationRef(__colon.__state)
-		default:
-			return __StringStep{__state: __state, __value: ""}
 		}
+		return __StringStep{__state: __state, __value: ""}
 	}()
 }
 
@@ -3759,17 +3735,15 @@ func __selfhost_parser_parser_normalizeXMLTextChar(__text string, __index int, _
 	__ch := []rune(__text)[__index]
 	__isSpace := __ch == ' ' || __ch == '\t' || __ch == '\r' || __ch == '\n'
 	return func() string {
-		switch {
-		case __isSpace == true:
+		if __isSpace {
 			return __selfhost_parser_parser_normalizeXMLTextLoop(__text, __index+1, true, __out)
-		default:
-			return __selfhost_parser_parser_normalizeXMLTextLoop(__text, __index+1, false, __out+func() string {
-				if __spacing && __out != "" {
-					return " "
-				}
-				return ""
-			}()+string(__ch))
 		}
+		return __selfhost_parser_parser_normalizeXMLTextLoop(__text, __index+1, false, __out+func() string {
+			if __spacing && __out != "" {
+				return " "
+			}
+			return ""
+		}()+string(__ch))
 	}()
 }
 
@@ -3961,11 +3935,6 @@ func __selfhost_parser_parser_parseArrayLiteral(__state __ParserState) __ExprSte
 	__args := __selfhost_parser_parser_parseArgumentList(__selfhost_parser_parser_parserSkipNewlines(__open.__state), []__ParsedExpr{}, __TokenKind_RBracket)
 	__close := __selfhost_parser_parser_parserConsume(__args.__state, __TokenKind_RBracket, "expected ']' after array literal")
 	return __ExprStep{__state: __close.__state, __expr: __selfhost_parser_parser_makeExpr(__ExprKind_Array, "[]", "", "", "", []__ParsedParam{}, __args.__expr.__children, __open.__token.__line, __open.__token.__column)}
-}
-
-func __selfhost_parser_parser_parseReactiveLiteral(__state __ParserState) __ExprStep {
-	__start := __selfhost_parser_parser_parserConsume(__state, __TokenKind_Dollar, "expected '$'")
-	return __selfhost_parser_parser_parseReactiveLiteralAfterDollar(__start)
 }
 
 func __selfhost_parser_parser_parseDollarExpression(__state __ParserState) __ExprStep {
@@ -4177,7 +4146,7 @@ func __selfhost_parser_parser_parseTupleAfterFirst(__state __ParserState, __open
 	__holder := __selfhost_parser_parser_appendChild(__selfhost_parser_parser_node(__ExprKind_Tuple, __open), __first)
 	__values := __selfhost_parser_parser_parseArgumentListLoop(__selfhost_parser_parser_parserSkipNewlines(__comma.__state), __holder, __TokenKind_RParen)
 	__close := __selfhost_parser_parser_parserConsume(__values.__state, __TokenKind_RParen, "expected ')' after tuple literal")
-	return __ExprStep{__state: __close.__state, __expr: __values.__expr}
+	return __ExprStep{__expr: __values.__expr, __state: __close.__state}
 }
 
 func __selfhost_parser_parser_parsePrimaryError(__state __ParserState) __ExprStep {
@@ -4249,12 +4218,10 @@ func __selfhost_parser_parser_parseOrPatternRest(__left __ExprStep) __ExprStep {
 	__current := __selfhost_parser_parser_parserSkipNewlines(__left.__state)
 	__op := __selfhost_parser_parser_parserMatch(__current, __TokenKind_BitOr)
 	return func() __ExprStep {
-		switch {
-		case __op.__ok == true:
+		if __op.__ok {
 			return __selfhost_parser_parser_parseOrPatternRest(__selfhost_parser_parser_parseOrPatternRight(__left, __op.__state))
-		default:
-			return __ExprStep{__state: __current, __expr: __left.__expr}
 		}
+		return __ExprStep{__expr: __left.__expr, __state: __current}
 	}()
 }
 
@@ -4268,12 +4235,10 @@ func __selfhost_parser_parser_parseAliasPattern(__state __ParserState) __ExprSte
 	__current := __selfhost_parser_parser_parserSkipNewlines(__pattern.__state)
 	__alias := __selfhost_parser_parser_parserCheck(__current, __TokenKind_At)
 	return func() __ExprStep {
-		switch {
-		case __alias == true:
+		if __alias {
 			return __selfhost_parser_parser_parseAliasPatternName(__pattern, __selfhost_parser_parser_parserAdvance(__current).__state)
-		default:
-			return __ExprStep{__state: __current, __expr: __pattern.__expr}
 		}
+		return __ExprStep{__expr: __pattern.__expr, __state: __current}
 	}()
 }
 
@@ -4294,7 +4259,7 @@ func __selfhost_parser_parser_parseRangePattern(__state __ParserState) __ExprSte
 		case __selfhost_parser_parser_parserPeek(__current).__kind == __TokenKind_DotDot:
 			return __selfhost_parser_parser_parseDotDotRangePattern(__pattern, __selfhost_parser_parser_parserAdvance(__current))
 		default:
-			return __ExprStep{__state: __current, __expr: __pattern.__expr}
+			return __ExprStep{__expr: __pattern.__expr, __state: __current}
 		}
 	}()
 }
@@ -4337,12 +4302,10 @@ func __selfhost_parser_parser_parseIdentifierRangeBoundPattern(__state __ParserS
 	__name := __selfhost_parser_parser_parserAdvance(__state)
 	__dotted := __selfhost_parser_parser_parserMatch(__name.__state, __TokenKind_Dot)
 	return func() __ExprStep {
-		switch {
-		case __dotted.__ok == true:
+		if __dotted.__ok {
 			return __selfhost_parser_parser_parseDottedPatternName(__name.__token, __dotted.__state)
-		default:
-			return __ExprStep{__state: __name.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __name.__token), __name.__token.__lexeme)}
 		}
+		return __ExprStep{__state: __name.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __name.__token), __name.__token.__lexeme)}
 	}()
 }
 
@@ -4392,24 +4355,20 @@ func __selfhost_parser_parser_parsePatternToken(__state __ParserState) __ExprSte
 func __selfhost_parser_parser_parseIdentifierPattern(__state __ParserState) __ExprStep {
 	__constructor := __selfhost_parser_parser_parserCheckNext(__state, __TokenKind_LParen)
 	return func() __ExprStep {
-		switch {
-		case __constructor == true:
+		if __constructor {
 			return __selfhost_parser_parser_parseConstructorPattern(__state)
-		default:
-			return __selfhost_parser_parser_parseIdentifierPatternNonConstructor(__state)
 		}
+		return __selfhost_parser_parser_parseIdentifierPatternNonConstructor(__state)
 	}()
 }
 
 func __selfhost_parser_parser_parseIdentifierPatternNonConstructor(__state __ParserState) __ExprStep {
 	__qualified := __selfhost_parser_parser_parserCheckNext(__state, __TokenKind_Dot)
 	return func() __ExprStep {
-		switch {
-		case __qualified == true:
+		if __qualified {
 			return __selfhost_parser_parser_parseQualifiedIdentifierPattern(__state)
-		default:
-			return __selfhost_parser_parser_parsePatternToken(__state)
 		}
+		return __selfhost_parser_parser_parsePatternToken(__state)
 	}()
 }
 
@@ -4442,24 +4401,20 @@ func __selfhost_parser_parser_parseConstructorPatternArgs(__state __ParserState,
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__done := __selfhost_parser_parser_parserCheck(__current, __TokenKind_RParen) || __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF)
 	return func() __ExprStep {
-		switch {
-		case __done == true:
+		if __done {
 			return __ExprStep{__state: __current, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__current)), __out)}
-		default:
-			return __selfhost_parser_parser_parseConstructorPatternArg(__current, __out)
 		}
+		return __selfhost_parser_parser_parseConstructorPatternArg(__current, __out)
 	}()
 }
 
 func __selfhost_parser_parser_parseConstructorPatternArg(__state __ParserState, __out string) __ExprStep {
 	__rest := __selfhost_parser_parser_parserMatch(__state, __TokenKind_DotDot)
 	return func() __ExprStep {
-		switch {
-		case __rest.__ok == true:
+		if __rest.__ok {
 			return __selfhost_parser_parser_parseConstructorPatternAfterArg(__rest.__state, __selfhost_parser_parser_appendPatternPart(__out, ".."), true)
-		default:
-			return __selfhost_parser_parser_parseConstructorPatternValue(__state, __out)
 		}
+		return __selfhost_parser_parser_parseConstructorPatternValue(__state, __out)
 	}()
 }
 
@@ -4473,12 +4428,10 @@ func __selfhost_parser_parser_parseConstructorPatternAfterArg(__state __ParserSt
 	__comma := __selfhost_parser_parser_parserMatch(__current, __TokenKind_Comma)
 	__done := __rest || __comma.__ok == false
 	return func() __ExprStep {
-		switch {
-		case __done == true:
+		if __done {
 			return __ExprStep{__state: __comma.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__comma.__state)), __out)}
-		default:
-			return __selfhost_parser_parser_parseConstructorPatternArgs(__comma.__state, __out)
 		}
+		return __selfhost_parser_parser_parseConstructorPatternArgs(__comma.__state, __out)
 	}()
 }
 
@@ -4493,24 +4446,20 @@ func __selfhost_parser_parser_parseArrayPatternParts(__state __ParserState, __ou
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__done := __selfhost_parser_parser_parserCheck(__current, __TokenKind_RBracket) || __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF)
 	return func() __ExprStep {
-		switch {
-		case __done == true:
+		if __done {
 			return __ExprStep{__state: __current, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__current)), __out)}
-		default:
-			return __selfhost_parser_parser_parseArrayPatternPart(__current, __out)
 		}
+		return __selfhost_parser_parser_parseArrayPatternPart(__current, __out)
 	}()
 }
 
 func __selfhost_parser_parser_parseArrayPatternPart(__state __ParserState, __out string) __ExprStep {
 	__spread := __selfhost_parser_parser_parserMatch(__state, __TokenKind_DotDot)
 	return func() __ExprStep {
-		switch {
-		case __spread.__ok == true:
+		if __spread.__ok {
 			return __selfhost_parser_parser_parseArraySpreadPattern(__spread.__state, __out)
-		default:
-			return __selfhost_parser_parser_parseArrayValuePattern(__state, __out)
 		}
+		return __selfhost_parser_parser_parseArrayValuePattern(__state, __out)
 	}()
 }
 
@@ -4532,12 +4481,10 @@ func __selfhost_parser_parser_parseArraySpreadIdentifier(__state __ParserState, 
 	__identifier := __selfhost_parser_parser_parserAdvance(__state)
 	__constantSpread := __selfhost_parser_parser_isPatternSpreadIdentifier(__identifier.__token.__lexeme)
 	__text := func() string {
-		switch {
-		case __constantSpread == true:
+		if __constantSpread {
 			return ".. " + __identifier.__token.__lexeme
-		default:
-			return ".." + __identifier.__token.__lexeme
 		}
+		return ".." + __identifier.__token.__lexeme
 	}()
 	return __selfhost_parser_parser_parseArrayPatternAfterPart(__identifier.__state, __selfhost_parser_parser_appendPatternPart(__out, __text))
 }
@@ -4555,12 +4502,10 @@ func __selfhost_parser_parser_parseArrayValuePattern(__state __ParserState, __ou
 func __selfhost_parser_parser_parseArrayPatternAfterPart(__state __ParserState, __out string) __ExprStep {
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__state), __TokenKind_Comma)
 	return func() __ExprStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseArrayPatternParts(__comma.__state, __out)
-		default:
-			return __ExprStep{__state: __comma.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__comma.__state)), __out)}
 		}
+		return __ExprStep{__state: __comma.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__comma.__state)), __out)}
 	}()
 }
 
@@ -4575,36 +4520,30 @@ func __selfhost_parser_parser_parseMapOrObjectPatternParts(__state __ParserState
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__done := __selfhost_parser_parser_parserCheck(__current, __TokenKind_RBrace) || __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF)
 	return func() __ExprStep {
-		switch {
-		case __done == true:
+		if __done {
 			return __ExprStep{__state: __current, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__current)), __out)}
-		default:
-			return __selfhost_parser_parser_parseMapOrObjectPatternPart(__current, __out)
 		}
+		return __selfhost_parser_parser_parseMapOrObjectPatternPart(__current, __out)
 	}()
 }
 
 func __selfhost_parser_parser_parseMapOrObjectPatternPart(__state __ParserState, __out string) __ExprStep {
 	__rest := __selfhost_parser_parser_parserMatch(__state, __TokenKind_DotDot)
 	return func() __ExprStep {
-		switch {
-		case __rest.__ok == true:
+		if __rest.__ok {
 			return __selfhost_parser_parser_parseMapOrObjectPatternAfterPart(__rest.__state, __selfhost_parser_parser_appendPatternPart(__out, ".."))
-		default:
-			return __selfhost_parser_parser_parseMapOrObjectEntryPattern(__state, __out)
 		}
+		return __selfhost_parser_parser_parseMapOrObjectEntryPattern(__state, __out)
 	}()
 }
 
 func __selfhost_parser_parser_parseMapOrObjectEntryPattern(__state __ParserState, __out string) __ExprStep {
 	__objectField := __selfhost_parser_parser_parserPatternLooksLikeObjectField(__state)
 	return func() __ExprStep {
-		switch {
-		case __objectField == true:
+		if __objectField {
 			return __selfhost_parser_parser_parseObjectFieldPattern(__state, __out)
-		default:
-			return __selfhost_parser_parser_parseMapEntryPattern(__state, __out)
 		}
+		return __selfhost_parser_parser_parseMapEntryPattern(__state, __out)
 	}()
 }
 
@@ -4613,12 +4552,10 @@ func __selfhost_parser_parser_parseObjectFieldPattern(__state __ParserState, __o
 	__optional := __selfhost_parser_parser_parserMatch(__field.__state, __TokenKind_Question)
 	__colon := __selfhost_parser_parser_parserMatch(__optional.__state, __TokenKind_Colon)
 	return func() __ExprStep {
-		switch {
-		case __colon.__ok == true:
+		if __colon.__ok {
 			return __selfhost_parser_parser_parseObjectFieldValuePattern(__field.__token, __optional.__ok, __colon.__state, __out)
-		default:
-			return __selfhost_parser_parser_parseMapOrObjectPatternAfterPart(__optional.__state, __selfhost_parser_parser_appendPatternPart(__out, __selfhost_parser_parser_objectFieldPatternText(__field.__token.__lexeme, __optional.__ok, __field.__token.__lexeme)))
 		}
+		return __selfhost_parser_parser_parseMapOrObjectPatternAfterPart(__optional.__state, __selfhost_parser_parser_appendPatternPart(__out, __selfhost_parser_parser_objectFieldPatternText(__field.__token.__lexeme, __optional.__ok, __field.__token.__lexeme)))
 	}()
 }
 
@@ -4629,12 +4566,10 @@ func __selfhost_parser_parser_parseObjectFieldValuePattern(__field __Token, __op
 
 func __selfhost_parser_parser_objectFieldPatternText(__name string, __optional bool, __value string) string {
 	return func() string {
-		switch {
-		case __optional == true:
+		if __optional {
 			return __name + "?:" + __value
-		default:
-			return __name + ":" + __value
 		}
+		return __name + ":" + __value
 	}()
 }
 
@@ -4644,12 +4579,10 @@ func __selfhost_parser_parser_parseMapEntryPattern(__state __ParserState, __out 
 	__colon := __selfhost_parser_parser_parserConsume(__optional.__state, __TokenKind_Colon, "expected ':' after map pattern key")
 	__value := __selfhost_parser_parser_parsePattern(__selfhost_parser_parser_parserSkipNewlines(__colon.__state))
 	__entry := func() string {
-		switch {
-		case __optional.__ok == true:
+		if __optional.__ok {
 			return __key.__expr.__text + "?:" + __value.__expr.__text
-		default:
-			return __key.__expr.__text + ":" + __value.__expr.__text
 		}
+		return __key.__expr.__text + ":" + __value.__expr.__text
 	}()
 	return __selfhost_parser_parser_parseMapOrObjectPatternAfterPart(__value.__state, __selfhost_parser_parser_appendPatternPart(__out, __entry))
 }
@@ -4661,12 +4594,10 @@ func __selfhost_parser_parser_parseMapPatternKey(__state __ParserState) __ExprSt
 func __selfhost_parser_parser_parseMapOrObjectPatternAfterPart(__state __ParserState, __out string) __ExprStep {
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__state), __TokenKind_Comma)
 	return func() __ExprStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseMapOrObjectPatternParts(__comma.__state, __out)
-		default:
-			return __ExprStep{__state: __comma.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__comma.__state)), __out)}
 		}
+		return __ExprStep{__state: __comma.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __selfhost_parser_parser_parserPeek(__comma.__state)), __out)}
 	}()
 }
 
@@ -4675,12 +4606,10 @@ func __selfhost_parser_parser_parseTupleOrGroupedPattern(__state __ParserState) 
 	__current := __selfhost_parser_parser_parserSkipNewlines(__open.__state)
 	__empty := __selfhost_parser_parser_parserCheck(__current, __TokenKind_RParen)
 	return func() __ExprStep {
-		switch {
-		case __empty == true:
+		if __empty {
 			return __selfhost_parser_parser_finishEmptyTuplePattern(__open.__token, __current)
-		default:
-			return __selfhost_parser_parser_parseTupleOrGroupedPatternFirst(__open.__token, __current)
 		}
+		return __selfhost_parser_parser_parseTupleOrGroupedPatternFirst(__open.__token, __current)
 	}()
 }
 
@@ -4693,12 +4622,10 @@ func __selfhost_parser_parser_parseTupleOrGroupedPatternFirst(__open __Token, __
 	__first := __selfhost_parser_parser_parsePattern(__state)
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__first.__state), __TokenKind_Comma)
 	return func() __ExprStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseTuplePatternRest(__open, __comma.__state, __first.__expr.__text)
-		default:
-			return __selfhost_parser_parser_finishGroupedPattern(__first)
 		}
+		return __selfhost_parser_parser_finishGroupedPattern(__first)
 	}()
 }
 
@@ -4711,12 +4638,10 @@ func __selfhost_parser_parser_parseTuplePatternRest(__open __Token, __state __Pa
 	__current := __selfhost_parser_parser_parserSkipNewlines(__state)
 	__done := __selfhost_parser_parser_parserCheck(__current, __TokenKind_RParen) || __selfhost_parser_parser_parserCheck(__current, __TokenKind_EOF)
 	return func() __ExprStep {
-		switch {
-		case __done == true:
+		if __done {
 			return __selfhost_parser_parser_finishTuplePattern(__open, __current, __out)
-		default:
-			return __selfhost_parser_parser_parseTuplePatternPart(__open, __current, __out)
 		}
+		return __selfhost_parser_parser_parseTuplePatternPart(__open, __current, __out)
 	}()
 }
 
@@ -4725,12 +4650,10 @@ func __selfhost_parser_parser_parseTuplePatternPart(__open __Token, __state __Pa
 	__next := __selfhost_parser_parser_appendPatternPart(__out, __value.__expr.__text)
 	__comma := __selfhost_parser_parser_parserMatch(__selfhost_parser_parser_parserSkipNewlines(__value.__state), __TokenKind_Comma)
 	return func() __ExprStep {
-		switch {
-		case __comma.__ok == true:
+		if __comma.__ok {
 			return __selfhost_parser_parser_parseTuplePatternRest(__open, __comma.__state, __next)
-		default:
-			return __selfhost_parser_parser_finishTuplePattern(__open, __comma.__state, __next)
 		}
+		return __selfhost_parser_parser_finishTuplePattern(__open, __comma.__state, __next)
 	}()
 }
 
@@ -4993,12 +4916,10 @@ func __selfhost_parser_parser_skipAnnotationsAt(__state __ParserState, __index i
 	__current := __selfhost_parser_parser_skipNewlinesAt(__state, __index)
 	__annotation := __selfhost_parser_parser_looksLikeAnnotationAt(__state, __current)
 	return func() int {
-		switch {
-		case __annotation == true:
+		if __annotation {
 			return __selfhost_parser_parser_skipAnnotationsAt(__state, __selfhost_parser_parser_skipAnnotationAt(__state, __current))
-		default:
-			return __current
 		}
+		return __current
 	}()
 }
 
@@ -5021,24 +4942,20 @@ func __selfhost_parser_parser_skipAnnotationAt(__state __ParserState, __index in
 	__afterNewlines := __selfhost_parser_parser_skipNewlinesAt(__state, __afterName)
 	__hasArgs := __selfhost_parser_parser_parserKindAt(__state, __afterNewlines) == __TokenKind_LParen
 	return func() int {
-		switch {
-		case __hasArgs == true:
+		if __hasArgs {
 			return __selfhost_parser_parser_skipNewlinesAt(__state, __selfhost_parser_parser_skipBalancedAt(__state, __afterNewlines, __TokenKind_LParen, __TokenKind_RParen))
-		default:
-			return __afterNewlines
 		}
+		return __afterNewlines
 	}()
 }
 
 func __selfhost_parser_parser_skipAnnotationNameAt(__state __ParserState, __index int) int {
 	__qualified := __selfhost_parser_parser_parserKindAt(__state, __index) == __TokenKind_Dot && __selfhost_parser_parser_parserKindAt(__state, __index+1) == __TokenKind_Ident
 	return func() int {
-		switch {
-		case __qualified == true:
+		if __qualified {
 			return __index + 2
-		default:
-			return __index
 		}
+		return __index
 	}()
 }
 
@@ -5046,12 +4963,10 @@ func __selfhost_parser_parser_looksLikeEnumMember(__state __ParserState) bool {
 	__afterAnnotations := __selfhost_parser_parser_skipAnnotationsAt(__state, __state.__current)
 	__plus := __selfhost_parser_parser_parserKindAt(__state, __afterAnnotations) == __TokenKind_Plus
 	__start := func() int {
-		switch {
-		case __plus == true:
+		if __plus {
 			return __selfhost_parser_parser_skipNewlinesAt(__state, __afterAnnotations+1)
-		default:
-			return __afterAnnotations
 		}
+		return __afterAnnotations
 	}()
 	__token := __selfhost_parser_parser_parserTokenAt(__state, __start)
 	__next := __selfhost_parser_parser_parserKindAt(__state, __selfhost_parser_parser_skipNewlinesAt(__state, __start+1))
@@ -5346,12 +5261,10 @@ func __selfhost_parser_parser_parserPatternLooksLikeObjectField(__state __Parser
 func __selfhost_parser_parser_parserPatternIdentLooksLikeObjectField(__state __ParserState, __name string) bool {
 	__spread := __selfhost_parser_parser_isPatternSpreadIdentifier(__name)
 	return func() bool {
-		switch {
-		case __spread == true:
+		if __spread {
 			return false
-		default:
-			return __selfhost_parser_parser_parserPatternObjectFieldTail(__state)
 		}
+		return __selfhost_parser_parser_parserPatternObjectFieldTail(__state)
 	}()
 }
 
@@ -5376,12 +5289,10 @@ func __selfhost_parser_parser_parserPatternObjectFieldTail(__state __ParserState
 func __selfhost_parser_parser_isPatternSpreadIdentifier(__name string) bool {
 	__empty := len([]rune(__name)) == 0
 	return func() bool {
-		switch {
-		case __empty == true:
+		if __empty {
 			return false
-		default:
-			return __selfhost_parser_parser_isUpperAsciiLetter([]rune(__name)[0])
 		}
+		return __selfhost_parser_parser_isUpperAsciiLetter([]rune(__name)[0])
 	}()
 }
 
