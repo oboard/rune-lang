@@ -110,11 +110,11 @@ main() -> Int => importedAnswer()
     path: "main.rn",
     source: `@"helper.rn"
 
-+ main() -> Int => answer + 1
++ main() -> Int => Answer + 1
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `+ const answer: Int = 42
+    source: `+ Answer := 42
 `
   }]
   go := compileGoFiles(files)
@@ -123,23 +123,13 @@ main() -> Int => importedAnswer()
   @assert.eq(go.ok, true)
   @assert.eq(ts.ok, true)
   @assert.eq(mbt.ok, true)
-  @assert.eq(go.output.includes("var __answer int = 42"), true)
-  @assert.eq(go.output.includes("return __answer + 1"), true)
-  @assert.eq(ts.output.includes("const __answer: number = 42;"), true)
-  @assert.eq(ts.output.includes("return __answer + 1;"), true)
-  @assert.eq(ts.output.includes("export { __main as main, __answer as answer };"), true)
-  @assert.eq(mbt.output.includes("let __answer : Int = 42"), true)
-  @assert.eq(mbt.output.includes("__answer + 1"), true)
-}
-
-? "selfhost compiler checks constant value types" {
-  result := compileGo(`const answer: Int = "bad"
-
-main() -> Int => 0
-`)
-  @assert.eq(result.ok, false)
-  @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "constant answer has type String, expected Int")
+  @assert.eq(go.output.includes("var __Answer int = 42"), true)
+  @assert.eq(go.output.includes("return __Answer + 1"), true)
+  @assert.eq(ts.output.includes("const __Answer: number = 42;"), true)
+  @assert.eq(ts.output.includes("return __Answer + 1;"), true)
+  @assert.eq(ts.output.includes("export { __main as main, __Answer as Answer };"), true)
+  @assert.eq(mbt.output.includes("let __Answer : Int = 42"), true)
+  @assert.eq(mbt.output.includes("__Answer + 1"), true)
 }
 
 ? "selfhost compiler resolves imports relative to source file" {
@@ -1036,8 +1026,8 @@ run() -> Int => 2
 }
 
 ? "selfhost compiler reports duplicate constant declarations" {
-  source := `const answer: Int = 1
-const answer: Int = 2
+  source := `answer := 1
+answer := 2
 
 main() => @io.println(answer)
 `

@@ -112,19 +112,13 @@ func (p *Parser) parseTest() *ast.Test {
 }
 
 func (p *Parser) looksLikeConstDecl() bool {
-	return p.check(lexer.Ident) && p.peek().Lexeme == "const"
+	return p.check(lexer.Ident) && p.checkNext(lexer.Declare)
 }
 
 func (p *Parser) parseConstDecl(private bool) *ast.ConstDecl {
-	start := p.consume(lexer.Ident, "expected 'const'")
 	name := p.consume(lexer.Ident, "expected constant name")
-	decl := &ast.ConstDecl{Name: name.Lexeme, Private: private, Pos: start.Pos, NamePos: name.Pos}
-	if p.match(lexer.Colon) {
-		p.skipNewlines()
-		decl.Type = p.parseTypeName()
-	}
-	p.skipNewlines()
-	p.consume(lexer.Assign, "expected '=' after constant name")
+	decl := &ast.ConstDecl{Name: name.Lexeme, Private: private, Pos: name.Pos, NamePos: name.Pos}
+	p.consume(lexer.Declare, "expected ':=' after constant name")
 	p.skipNewlines()
 	decl.Value = p.parseExpression(1)
 	return decl

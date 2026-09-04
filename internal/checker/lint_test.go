@@ -65,6 +65,25 @@ main() => {
 	t.Fatalf("warnings = %#v, want unreachable pattern warning", warnings)
 }
 
+func TestLintWarnsForSelfRecursiveOnlyFunction(t *testing.T) {
+	src := `loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)
+`
+	file, parseErrs := parser.Parse(src)
+	if len(parseErrs) > 0 {
+		t.Fatalf("parse errors: %v", parseErrs)
+	}
+	info, diags := Check(file)
+	if len(diags) > 0 {
+		t.Fatalf("check diagnostics: %v", diags)
+	}
+	for _, warning := range Lint(file, info) {
+		if warning.Kind == "unused_value" && strings.Contains(warning.Message, `Function "loop"`) {
+			return
+		}
+	}
+	t.Fatalf("warnings = %#v, want unused self-recursive function warning", Lint(file, info))
+}
+
 func TestLintDoesNotTreatEnumMemberBindingAsCatchAll(t *testing.T) {
 	src := `RuntimeValue: {
   Void

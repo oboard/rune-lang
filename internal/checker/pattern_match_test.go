@@ -143,7 +143,7 @@ bad(expr: Expr) -> Int => expr {
 }
 
 func TestMapPatternAllowsConstKeys(t *testing.T) {
-	src := `const KeyA = "a"
+	src := `KeyA := "a"
 
 score(values: Map[String, Int]) -> Int => values {
   { KeyA: value, .. } => value

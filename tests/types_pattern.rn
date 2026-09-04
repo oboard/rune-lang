@@ -12,9 +12,9 @@ PatternExpr: {
 
 const PatternZero = 0
 
-const PatternOne: Int = 1
+const PatternOne = 1
 
-const PatternNo: Bytes = @bytes.fromInts([110, 111])
+const PatternNo = @bytes.fromInts([110, 111])
 
 const PatternKeyA = "a"
 

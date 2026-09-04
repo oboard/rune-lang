@@ -70,7 +70,7 @@ func TestGenerateExportsPublicTypesEnumsAndConstants(t *testing.T) {
   Done = 2
 }
 
-+ const answer: Int = 42
++ answer := 42
 
 + add(a: Int, b: Int) -> Int => a + b
 `

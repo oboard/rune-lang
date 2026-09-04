@@ -718,8 +718,26 @@ mapScore(values) => values {
 	}
 }
 
+func TestParseKeywordFreeConstants(t *testing.T) {
+	file, errs := Parse(`+ Answer := 42
+label := "Rune"
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Constants) != 2 {
+		t.Fatalf("constants = %#v, want two constants", file.Constants)
+	}
+	if constant := file.Constants[0]; constant.Name != "Answer" || constant.Private || constant.Type.Name != "" || constant.NamePos.Line != 1 || constant.NamePos.Column != 3 {
+		t.Fatalf("public constant = %#v, want public Answer at 1:3", constant)
+	}
+	if constant := file.Constants[1]; constant.Name != "label" || !constant.Private || constant.Type.Name != "" {
+		t.Fatalf("private constant = %#v, want private inferred label", constant)
+	}
+}
+
 func TestMapPatternConstIdentifierKey(t *testing.T) {
-	file, errs := Parse(`const KeyA = "a"
+	file, errs := Parse(`KeyA := "a"
 
 mapScore(values) => values {
   { KeyA: value, .. } => value

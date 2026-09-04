@@ -16,6 +16,24 @@ import (
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
+func TestRuneCLIDeclarationEmitsKeywordFreePublicConstant(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mod.rn")
+	writeTestFile(t, path, "+ Answer := 42\n")
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"dts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(dts) error = %v, stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "declare const __Answer: number;") {
+		t.Fatalf("selfhost declaration missing inferred constant: %q", out.String())
+	}
+	if !strings.Contains(out.String(), "export declare const Answer: typeof __Answer;") {
+		t.Fatalf("selfhost declaration missing public constant alias: %q", out.String())
+	}
+}
+
 func TestRuneCLIDeclarationUsesSelfhostEmitter(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mod.rn")

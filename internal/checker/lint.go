@@ -219,7 +219,7 @@ func (l *linter) visitBlock(block *ast.BlockExpr) {
 func (l *linter) visitExprNode(expr ast.Expr) {
 	switch e := expr.(type) {
 	case *ast.Identifier:
-		if fn := l.info.ResolvedFunctions[e]; fn != nil {
+		if fn := l.info.ResolvedFunctions[e]; fn != nil && (l.currentFunction == nil || fn.Node != l.currentFunction) {
 			l.usedFunctions[fn] = true
 		}
 	case *ast.BinaryExpr:

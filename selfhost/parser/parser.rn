@@ -595,39 +595,24 @@ parserRejectConstAnnotations(
 
 looksLikeConstDecl(
   state: ParserState
-) -> Bool => parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "const")
+) -> Bool => parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Declare)
 
 parseConstDecl(
   state: ParserState,
   private: Bool
 ) -> ConstStep => {
-  start := parserConsume(state, TokenKind.Ident, "expected 'const'")
-  name := parserConsume(start.state, TokenKind.Ident, "expected constant name")
-  typeStep := parseConstType(parserSkipNewlines(name.state))
-  assign := parserConsume(parserSkipNewlines(typeStep.state), TokenKind.Assign, "expected '=' after constant name")
-  value := parseExpression(parserSkipNewlines(assign.state), 1)
+  name := parserConsume(state, TokenKind.Ident, "expected constant name")
+  declare := parserConsume(parserSkipNewlines(name.state), TokenKind.Declare, "expected ':=' after constant name")
+  value := parseExpression(parserSkipNewlines(declare.state), 1)
   ConstStep {
     state: value.state,
     constDecl: ParsedConst {
       name: name.token.lexeme,
       private: private,
-      typeRef: typeStep.typeRef,
+      typeRef: emptyParsedTypeRef(),
       value: value.expr,
-      line: start.token.line,
-      column: start.token.column
-    }
-  }
-}
-
-parseConstType(
-  state: ParserState
-) -> TypeRefStep => {
-  colon := parserMatch(state, TokenKind.Colon)
-  colon.ok {
-    true => parseTypeRef(parserSkipNewlines(colon.state))
-    _ => TypeRefStep {
-      state: state,
-      typeRef: emptyParsedTypeRef()
+      line: name.token.line,
+      column: name.token.column
     }
   }
 }

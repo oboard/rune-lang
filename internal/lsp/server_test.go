@@ -216,6 +216,24 @@ choose(value: Choice) -> Int => value {
 	}
 }
 
+func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := "loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)\n"
+	s := NewSession()
+	s.SetDocument(uri, src)
+	for _, diag := range s.Diagnostics(uri) {
+		if strings.Contains(diag["message"].(string), `Function "loop" is never used`) {
+			rangeValue := diag["range"].(map[string]any)
+			start := rangeValue["start"].(position)
+			if start.Line != 0 || start.Character != 0 {
+				t.Fatalf("unused self-recursive function range = %d:%d, want 0:0", start.Line, start.Character)
+			}
+			return
+		}
+	}
+	t.Fatalf("Diagnostics(%s) = %#v, want unused self-recursive function warning", uri, s.Diagnostics(uri))
+}
+
 func TestDiagnosticsIncludesWarnings(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `choose(aaa: Bool, bbb: Int, ccc: Int) -> Int => (aaa) {
