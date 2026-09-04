@@ -5662,7 +5662,7 @@ func __selfhost_ir_ir_withIRFunctionSourcePath(__fn __IRFunction, __sourcePath s
 }
 
 func __selfhost_ir_ir_withIRFunctionSourcePaths(__functions []__IRFunction, __sourcePath string) []__IRFunction {
-	__out := []__IRStructType{}
+	__out := []__IRFunction{}
 	for _, __fn := range __functions {
 		_ = __fn
 		func() int {
@@ -5678,7 +5678,7 @@ func __selfhost_ir_ir_withIRStructSourcePath(__typeDecl __IRStructType, __source
 }
 
 func __selfhost_ir_ir_withIRStructSourcePaths(__structs []__IRStructType, __sourcePath string) []__IRStructType {
-	__out := []any{}
+	__out := []__IRStructType{}
 	for _, __typeDecl := range __structs {
 		_ = __typeDecl
 		func() int {
@@ -6193,7 +6193,7 @@ func __inferFile(__file __IRFile) __IRFile {
 }
 
 func __selfhost_infer_infer_inferConstants(__constants []__IRConst, __structs []__IRStructType, __enums []__IREnumType) []__IRConst {
-	__out := []any{}
+	__out := []__IRConst{}
 	for _, __constant := range __constants {
 		_ = __constant
 		func() int {
@@ -6210,7 +6210,7 @@ func __selfhost_infer_infer_inferConstants(__constants []__IRConst, __structs []
 }
 
 func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
-	__out := []any{}
+	__out := []__IRFunction{}
 	for _, __fn := range __functions {
 		_ = __fn
 		func() int {
@@ -6223,13 +6223,68 @@ func __selfhost_infer_infer_inferFunctions(__functions []__IRFunction, __structs
 
 func __selfhost_infer_infer_inferFunction(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType) __IRFunction {
 	__seed := __selfhost_infer_infer_inferSeedBindings(__fn.__params, __fn.__receiverType, []__CompilerTypeBinding{})
-	__body := __selfhost_infer_infer_inferBody(__fn.__body, __structs, __enums, __seed)
-	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __params: __selfhost_infer_infer_inferParams(__fn.__params, __fn.__body), __returnType: func() string {
+	__rawBody := __selfhost_infer_infer_inferBody(__fn.__body, __structs, __enums, __seed)
+	__body := __selfhost_infer_infer_inferExpectedFunctionBody(__rawBody, __fn.__returnType)
+	return __IRFunction{__name: __fn.__name, __private: __fn.__private, __static: __fn.__static, __routine: __fn.__routine, __macro: __fn.__macro, __receiverType: __fn.__receiverType, __generics: __fn.__generics, __sourcePath: __fn.__sourcePath, __line: __fn.__line, __column: __fn.__column, __params: __selfhost_infer_infer_inferParams(__fn.__params, __fn.__body), __returnType: func() string {
 		if __fn.__returnType == "" {
 			return __selfhost_infer_infer_inferExprType(__body)
 		}
 		return __fn.__returnType
-	}(), __body: __body, __sourcePath: __fn.__sourcePath, __line: __fn.__line, __column: __fn.__column}
+	}(), __body: __body}
+}
+
+func __selfhost_infer_infer_inferExpectedFunctionBody(__body __IRExpr, __expected string) __IRExpr {
+	return func() __IRExpr {
+		if __expected != "" && __body.__kind == __ExprKind_Block {
+			return __selfhost_infer_infer_inferExpectedBlockBinding(__body, __selfhost_infer_infer_inferExpectedReturnBindingName(__body), __expected, 0, []__IRExpr{})
+		}
+		return __body
+	}()
+}
+
+func __selfhost_infer_infer_inferExpectedReturnBindingName(__expr __IRExpr) string {
+	return func() string {
+		if __expr.__kind == __ExprKind_Identifier {
+			return __expr.__name
+		}
+		return func() string {
+			if __expr.__kind == __ExprKind_Block && len(__expr.__children) > 0 {
+				return __selfhost_infer_infer_inferExpectedReturnBindingName(__expr.__children[len(__expr.__children)-1])
+			}
+			return ""
+		}()
+	}()
+}
+
+func __selfhost_infer_infer_inferExpectedBlockBinding(__body __IRExpr, __name string, __expected string, __index int, __out []__IRExpr) __IRExpr {
+	return func() __IRExpr {
+		if __index >= len(__body.__children) {
+			return __selfhost_infer_infer_inferRebuildBlock(__body, __out)
+		}
+		return __selfhost_infer_infer_inferExpectedBlockBinding(__body, __name, __expected, __index+1, func() []__IRExpr {
+			out := []__IRExpr{}
+			out = append(out, __out...)
+			out = append(out, __selfhost_infer_infer_inferExpectedLetBinding(__body.__children[__index], __name, __expected))
+			return out
+		}())
+	}()
+}
+
+func __selfhost_infer_infer_inferExpectedLetBinding(__expr __IRExpr, __name string, __expected string) __IRExpr {
+	return func() __IRExpr {
+		if __expr.__kind == __ExprKind_Let && __expr.__name == __name && len(__expr.__children) > 0 && __expr.__children[0].__kind == __ExprKind_Array && len(__expr.__children[0].__children) == 0 {
+			return __selfhost_infer_infer_inferSetLetType(__expr, __expected)
+		}
+		return __expr
+	}()
+}
+
+func __selfhost_infer_infer_inferSetLetType(__expr __IRExpr, __typeName string) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Let, __text: __typeName, __name: __expr.__name, __value: __typeName, __op: __expr.__op, __params: __expr.__params, __children: __expr.__children, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferRebuildBlock(__expr __IRExpr, __children []__IRExpr) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Block, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: __children, __line: __expr.__line, __column: __expr.__column}
 }
 
 func __selfhost_infer_infer_inferSeedBindings(__params []__IRParam, __receiverType string, __bindings []__CompilerTypeBinding) []__CompilerTypeBinding {
@@ -6251,7 +6306,7 @@ func __selfhost_infer_infer_inferSeedBindingsStep(__params []__IRParam, __receiv
 }
 
 func __selfhost_infer_infer_inferParams(__params []__IRParam, __body __IRExpr) []__IRParam {
-	__out := []__IRFunction{}
+	__out := []__IRParam{}
 	for _, __param := range __params {
 		_ = __param
 		func() int {
@@ -6339,12 +6394,19 @@ func __selfhost_infer_infer_inferBlockStep(__children []__IRExpr, __structs []__
 }
 
 func __selfhost_infer_infer_inferLetStep(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) __InferBlockOut {
-	__value := __selfhost_infer_infer_inferAnnotate(__children[__index].__children[0], __structs, __enums, __bindings)
-	__newBindings := __selfhost_infer_infer_inferAddBinding(__bindings, __children[__index].__name, __selfhost_infer_infer_inferExprType(__value))
+	__letExpr := __children[__index]
+	__value := __selfhost_infer_infer_inferAnnotate(__letExpr.__children[0], __structs, __enums, __bindings)
+	__bindingType := func() string {
+		if __letExpr.__value == "" {
+			return __selfhost_infer_infer_inferExprType(__value)
+		}
+		return __letExpr.__value
+	}()
+	__newBindings := __selfhost_infer_infer_inferAddBinding(__bindings, __letExpr.__name, __bindingType)
 	__next := __selfhost_infer_infer_inferBlockStatements(__children, __structs, __enums, __newBindings, __index+1, func() []__IRExpr {
 		out := []__IRExpr{}
 		out = append(out, __out...)
-		out = append(out, __selfhost_infer_infer_inferLetRebuild(__children[__index], __value))
+		out = append(out, __selfhost_infer_infer_inferLetRebuildTyped(__letExpr, __value, __bindingType))
 		return out
 	}())
 	return __next
@@ -6361,7 +6423,11 @@ func __selfhost_infer_infer_inferPlainStep(__expr __IRExpr, __children []__IRExp
 }
 
 func __selfhost_infer_infer_inferLetRebuild(__expr __IRExpr, __value __IRExpr) __IRExpr {
-	return __IRExpr{__kind: __ExprKind_Let, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __expr.__params, __children: []__IRExpr{__value}, __line: __expr.__line, __column: __expr.__column}
+	return __selfhost_infer_infer_inferLetRebuildTyped(__expr, __value, __expr.__value)
+}
+
+func __selfhost_infer_infer_inferLetRebuildTyped(__expr __IRExpr, __value __IRExpr, __typeName string) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Let, __text: __expr.__text, __name: __expr.__name, __value: __typeName, __op: __expr.__op, __params: __expr.__params, __children: []__IRExpr{__value}, __line: __expr.__line, __column: __expr.__column}
 }
 
 func __selfhost_infer_infer_inferSyncStatements(__statements []__IRExpr, __bindings []__CompilerTypeBinding, __index int, __out []__IRExpr) []__IRExpr {
@@ -6389,7 +6455,15 @@ func __selfhost_infer_infer_inferSyncStatements(__statements []__IRExpr, __bindi
 }
 
 func __selfhost_infer_infer_inferSyncLet(__expr __IRExpr, __bindings []__CompilerTypeBinding) __IRExpr {
-	__bindingType := __selfhost_infer_infer_inferBindingTypeOf(__bindings, __expr.__name, 0)
+	return func() __IRExpr {
+		if strings.HasPrefix(__expr.__text, "Array[") {
+			return __expr
+		}
+		return __selfhost_infer_infer_inferSyncLetBinding(__expr, __selfhost_infer_infer_inferBindingTypeOf(__bindings, __expr.__name, 0))
+	}()
+}
+
+func __selfhost_infer_infer_inferSyncLetBinding(__expr __IRExpr, __bindingType string) __IRExpr {
 	return func() __IRExpr {
 		if strings.HasPrefix(__bindingType, "Array[") {
 			return __selfhost_infer_infer_inferSetLetText(__expr, __bindingType)
@@ -6417,11 +6491,21 @@ func __selfhost_infer_infer_inferSetLetText(__expr __IRExpr, __text string) __IR
 }
 
 func __selfhost_infer_infer_inferMaybeRefine(__bindings []__CompilerTypeBinding, __expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType) []__CompilerTypeBinding {
-	return func() []__CompilerTypeBinding {
+	return __selfhost_infer_infer_inferRefineExpr(__bindings, __expr, __structs, __enums, 0)
+}
+
+func __selfhost_infer_infer_inferRefineExpr(__bindings []__CompilerTypeBinding, __expr __IRExpr, __structs []__IRStructType, __enums []__IREnumType, __childIndex int) []__CompilerTypeBinding {
+	__refined := func() []__CompilerTypeBinding {
 		if __expr.__kind == __ExprKind_Call {
 			return __selfhost_infer_infer_inferMaybeRefineCall(__bindings, __expr, __structs, __enums)
 		}
 		return __bindings
+	}()
+	return func() []__CompilerTypeBinding {
+		if __childIndex >= len(__expr.__children) {
+			return __refined
+		}
+		return __selfhost_infer_infer_inferRefineExpr(__selfhost_infer_infer_inferRefineExpr(__refined, __expr.__children[__childIndex], __structs, __enums, 0), __expr, __structs, __enums, __childIndex+1)
 	}()
 }
 
@@ -6569,7 +6653,50 @@ func __selfhost_infer_infer_inferAnnotate(__expr __IRExpr, __structs []__IRStruc
 			return __expr.__params
 		}
 	}()
-	return __IRExpr{__kind: __expr.__kind, __text: __selfhost_infer_infer_inferAnnotateText(__expr, __children, __params, __structs, __enums, __bindings), __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __params, __children: __children, __line: __expr.__line, __column: __expr.__column}
+	__typedChildren := __selfhost_infer_infer_inferCallLambdaParams(__expr, __children, __params)
+	__text := __selfhost_infer_infer_inferAnnotateText(__expr, __typedChildren, __params, __structs, __enums, __bindings)
+	return __IRExpr{__kind: __expr.__kind, __text: __text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __params, __children: __typedChildren, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferCallLambdaParams(__expr __IRExpr, __children []__IRExpr, __params []__IRParam) []__IRExpr {
+	return func() []__IRExpr {
+		if __expr.__kind == __ExprKind_Call && len(__children) > 1 && __children[0].__kind == __ExprKind_Selector && __children[0].__name == "each" && len(__children[0].__children) > 0 && __children[1].__kind == __ExprKind_Lambda {
+			return __selfhost_infer_infer_inferSetEachLambdaParam(__children, __genericInner(__selfhost_infer_infer_inferExprType(__children[0].__children[0]), "Array"))
+		}
+		return __children
+	}()
+}
+
+func __selfhost_infer_infer_inferSetEachLambdaParam(__children []__IRExpr, __elemType string) []__IRExpr {
+	return func() []__IRExpr {
+		if __elemType == "" {
+			return __children
+		}
+		return []__IRExpr{__children[0], __selfhost_infer_infer_inferRebuildLambdaWithElement(__children[1], __elemType)}
+	}()
+}
+
+func __selfhost_infer_infer_inferRebuildLambdaWithElement(__expr __IRExpr, __elemType string) __IRExpr {
+	return __IRExpr{__kind: __ExprKind_Lambda, __text: __expr.__text, __name: __expr.__name, __value: __expr.__value, __op: __expr.__op, __params: __selfhost_infer_infer_inferSetFirstParamType(__expr.__params, __elemType, 0, []__IRParam{}), __children: __expr.__children, __line: __expr.__line, __column: __expr.__column}
+}
+
+func __selfhost_infer_infer_inferSetFirstParamType(__params []__IRParam, __elemType string, __index int, __out []__IRParam) []__IRParam {
+	return func() []__IRParam {
+		if __index >= len(__params) {
+			return __out
+		}
+		return __selfhost_infer_infer_inferSetFirstParamType(__params, __elemType, __index+1, func() []__IRParam {
+			out := []__IRParam{}
+			out = append(out, __out...)
+			out = append(out, __IRParam{__name: __params[__index].__name, __typeName: func() string {
+				if __index == 0 {
+					return __elemType
+				}
+				return __params[__index].__typeName
+			}(), __line: __params[__index].__line, __column: __params[__index].__column})
+			return out
+		}())
+	}()
 }
 
 func __selfhost_infer_infer_inferChildren(__exprs []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
@@ -6893,7 +7020,7 @@ func __selfhost_infer_infer_inferBlockType(__children []__IRExpr, __index int, _
 }
 
 func __selfhost_infer_infer_inferLambdaParams(__params []__IRParam, __children []__IRExpr) []__IRParam {
-	__out := []__IRConst{}
+	__out := []__IRParam{}
 	for _, __param := range __params {
 		_ = __param
 		func() int {
@@ -7469,8 +7596,13 @@ func __selfhost_compiler_go_emitGoLet(__file __IRFile, __expr __IRExpr, __level 
 
 func __selfhost_compiler_go_goLetArrayElem(__file __IRFile, __expr __IRExpr) string {
 	return func() string {
-		if strings.HasPrefix(__expr.__text, "Array[") && __expr.__children[0].__kind == __ExprKind_Array && len(__expr.__children[0].__children) == 0 {
-			return __genericInner(__expr.__text, "Array")
+		if (strings.HasPrefix(__expr.__text, "Array[") || strings.HasPrefix(__expr.__value, "Array[")) && __expr.__children[0].__kind == __ExprKind_Array && len(__expr.__children[0].__children) == 0 {
+			return __genericInner(func() string {
+				if strings.HasPrefix(__expr.__text, "Array[") {
+					return __expr.__text
+				}
+				return __expr.__value
+			}(), "Array")
 		}
 		return ""
 	}()
@@ -10307,7 +10439,7 @@ func __selfhost_compiler_ts_rewriteTSMethodCalls(__file __IRFile) __IRFile {
 }
 
 func __selfhost_compiler_ts_rewriteTSStructs(__structs []__IRStructType, __allStructs []__IRStructType, __enums []__IREnumType) []__IRStructType {
-	__out := []any{}
+	__out := []__IRStructType{}
 	for _, __typeDecl := range __structs {
 		_ = __typeDecl
 		func() int {
@@ -10350,7 +10482,7 @@ func __selfhost_compiler_ts_rewriteTSTests(__tests []__IRTest, __structs []__IRS
 	for _, __test := range __tests {
 		_ = __test
 		func() int {
-			__bindings := []any{}
+			__bindings := []__CompilerTypeBinding{}
 			__body := __selfhost_compiler_ts_rewriteTSExpr(__test.__body, __structs, __enums, __bindings)
 			return func() int {
 				__out = append(__out, __IRTest{__name: __test.__name, __body: __body, __line: __test.__line, __column: __test.__column})
@@ -10378,7 +10510,7 @@ func __selfhost_compiler_ts_rewriteTSFunction(__fn __IRFunction, __structs []__I
 }
 
 func __selfhost_compiler_ts_rewriteTSTypeMethods(__methods []__IRFunction, __typeName string, __structs []__IRStructType, __enums []__IREnumType) []__IRFunction {
-	__out := []any{}
+	__out := []__IRFunction{}
 	for _, __method := range __methods {
 		_ = __method
 		func() int {
@@ -10394,7 +10526,7 @@ func __selfhost_compiler_ts_rewriteTSFunctionWithThis(__fn __IRFunction, __struc
 }
 
 func __selfhost_compiler_ts_rewriteTSFunctionBody(__fn __IRFunction, __structs []__IRStructType, __enums []__IREnumType, __thisType string) __IRFunction {
-	__bindings := []any{}
+	__bindings := []__CompilerTypeBinding{}
 	for _, __param := range __fn.__params {
 		_ = __param
 		__bindings = __selfhost_compiler_ts_tsAddBinding(__bindings, __param.__name, __param.__typeName)
@@ -10638,7 +10770,7 @@ func __selfhost_compiler_ts_tsRewriteChildren(__children []__IRExpr, __structs [
 }
 
 func __selfhost_compiler_ts_rewriteTSChildren(__children []__IRExpr, __structs []__IRStructType, __enums []__IREnumType, __bindings []__CompilerTypeBinding) []__IRExpr {
-	__out := []__IRStructType{}
+	__out := []__IRExpr{}
 	for _, __child := range __children {
 		_ = __child
 		func() int {
@@ -12982,7 +13114,7 @@ func __selfhost_compiler_compiler_checkGoTargetFileErrors(__file __IRFile) []str
 }
 
 func __selfhost_compiler_compiler_checkMoonBitTargetFileErrors(__file __IRFile) []string {
-	__errors := []any{}
+	__errors := []string{}
 	__hasTypeScriptImports := len(__file.__tsImports) > 0
 	__errors = __selfhost_compiler_compiler_compilerAppendErrorIf(__errors, __hasTypeScriptImports, "MoonBit backend does not support TypeScript imports")
 	__hasGoImports := __selfhost_compiler_compiler_fileHasGoImports(__file)
@@ -17471,7 +17603,7 @@ func __selfhost_compiler_compiler_compilerParamBindings(__params []__IRParam) []
 }
 
 func __selfhost_compiler_compiler_compilerInitialBindings(__file __IRFile, __callables []__CompilerCallable) []__CompilerTypeBinding {
-	__bindings := []any{}
+	__bindings := []__CompilerTypeBinding{}
 	__bindings = __selfhost_compiler_compiler_compilerMacroFunctionBindings(__file.__functions, __bindings)
 	for _, __constant := range __file.__constants {
 		_ = __constant
@@ -18651,7 +18783,7 @@ func __selfhost_compiler_compiler_expandCompilerTestMacros(__testDecl __ParsedTe
 }
 
 func __selfhost_compiler_compiler_compilerImportExpressions(__file __ParsedFile) []__ParsedImport {
-	__imports := []any{}
+	__imports := []__ParsedImport{}
 	for _, __typeDecl := range __file.__types {
 		_ = __typeDecl
 		__imports = __selfhost_compiler_compiler_compilerCollectTypeImportExprs(__typeDecl, __imports)

@@ -1315,7 +1315,23 @@ func (c *checker) refineCallArgsFromParams(params []ParamInfo, args []ast.Expr, 
 			refined, _ := c.refineArgumentType(expected, argTypes[i])
 			argTypes[i] = refined
 			c.applyExpectedType(args[i], refined)
+			c.refineExpectedIdentifierBinding(args[i], refined, env)
 		}
+	}
+}
+
+// refineExpectedIdentifierBinding persists an argument's expected type in the
+// lexical environment. It is essential for `bindings := []` passed to a
+// `bindings: Array[CompilerTypeBinding]` parameter: subsequent codegen must see
+// the concrete array element type, not the original Array[Unknown].
+func (c *checker) refineExpectedIdentifierBinding(expr ast.Expr, typ Type, env map[string]Type) {
+	ident, ok := expr.(*ast.Identifier)
+	if !ok || typ == Unknown || !shouldApplyExpectedType(env[ident.Name], typ) {
+		return
+	}
+	env[ident.Name] = typ
+	if binding := c.bindings[ident.Name]; binding != nil {
+		c.applyExpectedType(binding, typ)
 	}
 }
 

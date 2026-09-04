@@ -175,6 +175,8 @@ type Info struct {
 	Constructors              map[string][]EnumConstructorInfo
 	Stdlib                    *stdlib.Registry
 	ExprTypes                 map[ast.Expr]Type
+	BindingTypes              map[*ast.LetStmt]Type
+	BindingDecls              map[ast.Expr]*ast.LetStmt
 	AsyncCalls                map[*ast.CallExpr]bool
 	AwaitCalls                map[*ast.CallExpr]bool
 

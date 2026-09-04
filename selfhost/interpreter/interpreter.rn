@@ -6470,7 +6470,7 @@ stringSplitMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   parts := runtimeText(receiver).split(runtimeText(args[0]))
-  out := [stringValue("")].slice(0, 0)
+  out := emptyRuntimeArray()
   parts.each((part) => out = pushRuntime(out, stringValue(part)))
   okResult(arrayValue(out))
 }

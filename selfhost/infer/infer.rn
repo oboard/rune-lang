@@ -38,22 +38,64 @@ inferFunctions(functions: Array[IRFunction], structs: Array[IRStructType], enums
 
 inferFunction(fn: IRFunction, structs: Array[IRStructType], enums: Array[IREnumType]) -> IRFunction => {
   seed := inferSeedBindings(fn.params, fn.receiverType, [])
-  body := inferBody(fn.body, structs, enums, seed)
+  // Use the function declaration's return type to constrain the final value
+  // of a block. `returnType` is carried separately from the IR body.
+  rawBody := inferBody(fn.body, structs, enums, seed)
+  body := inferExpectedFunctionBody(rawBody, fn.returnType)
   IRFunction {
-    name: fn.name,
-    private: fn.private,
-    static: fn.static,
-    routine: fn.routine,
-    macro: fn.macro,
-    receiverType: fn.receiverType,
-    generics: fn.generics,
+    ..fn,
     params: inferParams(fn.params, fn.body),
     returnType: fn.returnType == "" ? inferExprType(body) : fn.returnType,
-    body: body,
-    sourcePath: fn.sourcePath,
-    line: fn.line,
-    column: fn.column
+    body: body
   }
+}
+
+inferExpectedFunctionBody(body: IRExpr, expected: String) -> IRExpr => (
+  (expected != "") && (body.kind == ExprKind.Block) ? inferExpectedBlockBinding(body, inferExpectedReturnBindingName(body), expected, 0, [])
+    : body
+)
+
+// The parser wraps the tail expression in nested blocks while preserving its
+// expression kind, so find the final identifier by walking the last child of
+// each block rather than assuming the outer block's last node is an Identifier.
+inferExpectedReturnBindingName(expr: IRExpr) -> String => (
+  expr.kind == ExprKind.Identifier ? expr.name
+    : (expr.kind == ExprKind.Block) && (expr.children.length() > 0) ? inferExpectedReturnBindingName(expr.children[expr.children.length() - 1])
+      : ""
+)
+
+inferExpectedBlockBinding(body: IRExpr, name: String, expected: String, index: Int, out: Array[IRExpr]) -> IRExpr => {
+  index >= body.children.length() ? inferRebuildBlock(body, out)
+    : inferExpectedBlockBinding(body, name, expected, index + 1, [..out, inferExpectedLetBinding(body.children[index], name, expected)])
+}
+
+inferExpectedLetBinding(expr: IRExpr, name: String, expected: String) -> IRExpr => (
+  (expr.kind == ExprKind.Let) && (expr.name == name) && (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0) ? inferSetLetType(expr, expected)
+    : expr
+)
+
+inferSetLetType(expr: IRExpr, typeName: String) -> IRExpr => IRExpr {
+  kind: ExprKind.Let,
+  text: typeName,
+  name: expr.name,
+  value: typeName,
+  op: expr.op,
+  params: expr.params,
+  children: expr.children,
+  line: expr.line,
+  column: expr.column
+}
+
+inferRebuildBlock(expr: IRExpr, children: Array[IRExpr]) -> IRExpr => IRExpr {
+  kind: ExprKind.Block,
+  text: expr.text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: expr.params,
+  children: children,
+  line: expr.line,
+  column: expr.column
 }
 
 inferSeedBindings(params: Array[IRParam], receiverType: String, bindings: Array[CompilerTypeBinding]) -> Array[CompilerTypeBinding] => inferSeedBindingsStep(params, receiverType, bindings, 0)
@@ -122,9 +164,11 @@ inferBlockStep(children: Array[IRExpr], structs: Array[IRStructType], enums: Arr
 )
 
 inferLetStep(children: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding], index: Int, out: Array[IRExpr]) -> InferBlockOut => {
-  value := inferAnnotate(children[index].children[0], structs, enums, bindings)
-  newBindings := inferAddBinding(bindings, children[index].name, inferExprType(value))
-  next := inferBlockStatements(children, structs, enums, newBindings, index + 1, [..out, inferLetRebuild(children[index], value)])
+  letExpr := children[index]
+  value := inferAnnotate(letExpr.children[0], structs, enums, bindings)
+  bindingType := letExpr.value == "" ? inferExprType(value) : letExpr.value
+  newBindings := inferAddBinding(bindings, letExpr.name, bindingType)
+  next := inferBlockStatements(children, structs, enums, newBindings, index + 1, [..out, inferLetRebuildTyped(letExpr, value, bindingType)])
   next
 }
 
@@ -133,11 +177,13 @@ inferPlainStep(expr: IRExpr, children: Array[IRExpr], structs: Array[IRStructTyp
   inferBlockStatements(children, structs, enums, bindings, index + 1, [..out, statement])
 }
 
-inferLetRebuild(expr: IRExpr, value: IRExpr) -> IRExpr => IRExpr {
+inferLetRebuild(expr: IRExpr, value: IRExpr) -> IRExpr => inferLetRebuildTyped(expr, value, expr.value)
+
+inferLetRebuildTyped(expr: IRExpr, value: IRExpr, typeName: String) -> IRExpr => IRExpr {
   kind: ExprKind.Let,
   text: expr.text,
   name: expr.name,
-  value: expr.value,
+  value: typeName,
   op: expr.op,
   params: expr.params,
   children: [value],
@@ -160,10 +206,16 @@ inferSyncStatements(
       : inferSyncStatements(statements, bindings, index + 1, [..out, statements[index]])
 )
 
-inferSyncLet(expr: IRExpr, bindings: Array[CompilerTypeBinding]) -> IRExpr => {
-  bindingType := inferBindingTypeOf(bindings, expr.name, 0)
+inferSyncLet(expr: IRExpr, bindings: Array[CompilerTypeBinding]) -> IRExpr => (
+  // A declared function return type is stronger than a callback's provisional
+  // push-based refinement (whose parameter may still be Dynamic).
+  expr.text.startsWith("Array[") ? expr
+    : inferSyncLetBinding(expr, inferBindingTypeOf(bindings, expr.name, 0))
+)
+
+inferSyncLetBinding(expr: IRExpr, bindingType: String) -> IRExpr => (
   bindingType.startsWith("Array[") ? inferSetLetText(expr, bindingType) : expr
-}
+)
 
 inferBindingTypeOf(bindings: Array[CompilerTypeBinding], name: String, index: Int) -> String => (
   index >= bindings.length() ? ""
@@ -184,9 +236,17 @@ inferSetLetText(expr: IRExpr, text: String) -> IRExpr => IRExpr {
 }
 
 // `let x := []`, then a later `x.push(y)` refines x's binding to `Array[Y]`.
-inferMaybeRefine(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => (
-  expr.kind == ExprKind.Call ? inferMaybeRefineCall(bindings, expr, structs, enums) : bindings
-)
+// Accumulators are frequently populated inside callback lambdas (`items.each(
+// (item) => out.push(item))`), so walk nested expressions rather than only
+// looking at a top-level call. The lambda closes over the block binding and its
+// refinement must be returned to the containing block.
+inferMaybeRefine(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => inferRefineExpr(bindings, expr, structs, enums, 0)
+
+inferRefineExpr(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType], childIndex: Int) -> Array[CompilerTypeBinding] => {
+  refined := expr.kind == ExprKind.Call ? inferMaybeRefineCall(bindings, expr, structs, enums) : bindings
+  childIndex >= expr.children.length() ? refined
+    : inferRefineExpr(inferRefineExpr(refined, expr.children[childIndex], structs, enums, 0), expr, structs, enums, childIndex + 1)
+}
 
 inferMaybeRefineCall(bindings: Array[CompilerTypeBinding], expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumType]) -> Array[CompilerTypeBinding] => (
   (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector) ? inferRefineFromSelector(bindings, expr, expr.children[0], structs, enums)
@@ -245,18 +305,50 @@ inferAnnotate(expr: IRExpr, structs: Array[IRStructType], enums: Array[IREnumTyp
     ExprKind.Lambda => inferLambdaParams(expr.params, children)
     _ => expr.params
   }
+  typedChildren := inferCallLambdaParams(expr, children, params)
+  text := inferAnnotateText(expr, typedChildren, params, structs, enums, bindings)
   IRExpr {
     kind: expr.kind,
-    text: inferAnnotateText(expr, children, params, structs, enums, bindings),
+    text: text,
     name: expr.name,
     value: expr.value,
     op: expr.op,
     params: params,
-    children: children,
+    children: typedChildren,
     line: expr.line,
     column: expr.column
   }
 }
+
+// Receiver methods such as Array.each carry the receiver element type into the
+// callback parameter. Preserve the callback body but rewrite its parameter list
+// so Go emission no longer falls back to `any` for `functions.each((fn) => ...)`.
+inferCallLambdaParams(expr: IRExpr, children: Array[IRExpr], params: Array[IRParam]) -> Array[IRExpr] => (
+  (expr.kind == ExprKind.Call) && (children.length() > 1) && (children[0].kind == ExprKind.Selector) && (children[0].name == "each") && (children[0].children.length() > 0) && (children[1].kind == ExprKind.Lambda) ? inferSetEachLambdaParam(children, genericInner(inferExprType(children[0].children[0]), "Array"))
+    : children
+)
+
+inferSetEachLambdaParam(children: Array[IRExpr], elemType: String) -> Array[IRExpr] => (
+  elemType == "" ? children
+    : [children[0], inferRebuildLambdaWithElement(children[1], elemType)]
+)
+
+inferRebuildLambdaWithElement(expr: IRExpr, elemType: String) -> IRExpr => IRExpr {
+  kind: ExprKind.Lambda,
+  text: expr.text,
+  name: expr.name,
+  value: expr.value,
+  op: expr.op,
+  params: inferSetFirstParamType(expr.params, elemType, 0, []),
+  children: expr.children,
+  line: expr.line,
+  column: expr.column
+}
+
+inferSetFirstParamType(params: Array[IRParam], elemType: String, index: Int, out: Array[IRParam]) -> Array[IRParam] => (
+  index >= params.length() ? out
+    : inferSetFirstParamType(params, elemType, index + 1, [..out, IRParam { name: params[index].name, typeName: index == 0 ? elemType : params[index].typeName, line: params[index].line, column: params[index].column }])
+)
 
 inferChildren(exprs: Array[IRExpr], structs: Array[IRStructType], enums: Array[IREnumType], bindings: Array[CompilerTypeBinding]) -> Array[IRExpr] => inferChildrenStep(exprs, structs, enums, bindings, 0, [])
 

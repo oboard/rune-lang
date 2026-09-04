@@ -673,7 +673,7 @@ emitGoLet(
 // generic `[]any{}`, matching the host Go emitter. Only applies to empty array
 // literals; non-empty/homeosmocic literals are left as `[]any{...}`.
 goLetArrayElem(file: IRFile, expr: IRExpr) -> String => (
-  (expr.text.startsWith("Array[") && (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0)) ? genericInner(expr.text, "Array") : ""
+  (((expr.text.startsWith("Array[") || expr.value.startsWith("Array[")) && (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0))) ? genericInner(expr.text.startsWith("Array[") ? expr.text : expr.value, "Array") : ""
 )
 
 emitGoLetValue(

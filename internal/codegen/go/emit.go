@@ -181,7 +181,19 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error 
 	return nil
 }
 
+func (g *generator) letExpr(value ir.Expr, declared checker.Type) string {
+	if array, ok := value.(*ir.ArrayLiteral); ok && len(array.Elements) == 0 {
+		if elem, ok := checker.ArrayElement(declared); ok && elem != checker.Unknown {
+			return goArrayLiteral(elem, array.Elements, func(expr ir.Expr) string {
+				return g.exprAs(expr, elem)
+			})
+		}
+	}
+	return g.expr(value)
+}
+
 func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
+	resultName := returnedIdentifier(block)
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
@@ -213,7 +225,14 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.linef("%s = %s", mangleIdent(s.Name), value)
 				continue
 			}
-			g.linef("%s := %s", mangleIdent(s.Name), g.expr(s.Value))
+			declared := s.Type
+			if declared == checker.Unknown {
+				declared = s.Value.ResultType()
+			}
+			if s.Name == resultName {
+				declared = ret
+			}
+			g.linef("%s := %s", mangleIdent(s.Name), g.letExpr(s.Value, declared))
 		case *ir.ObjectDestructureStmt:
 			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapObjectDestructure(s, unwrap, ret)
@@ -421,7 +440,10 @@ func (g *generator) returnRawExpr(expr ir.Expr, ret checker.Type, raw string) st
 	if expr != nil && expr.ResultType() == okType {
 		return fmt.Sprintf("runeOk[%s, %s](%s)", goType(okType), goType(errType), raw)
 	}
-	return raw
+	// A routine's final expression can be an already-unwrapped `T` even when
+	// lowering kept the original expression type as Result[T,E]. Its declared
+	// return type remains the authoritative wrapping contract.
+	return fmt.Sprintf("runeOk[%s, %s](%s)", goType(okType), goType(errType), raw)
 }
 
 func (g *generator) patternBlock(fn *ir.Function, block *ir.PatternBlock, ret checker.Type) error {

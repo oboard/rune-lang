@@ -627,8 +627,10 @@ func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 		typ := checker.Unknown
 		if !s.Type.IsZero() {
 			typ = checker.Type(s.Type.Canonical())
+		} else if l.info != nil {
+			typ = l.info.BindingTypes[s]
 		}
-		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.expr(s.Value), Type: typ, Pos: s.Pos}
+		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.exprExpected(s.Value, typ), Type: typ, Pos: s.Pos}
 	case *ast.ObjectDestructureStmt:
 		value := l.expr(s.Value)
 		out := &ObjectDestructureStmt{Mutable: s.Mutable, Signal: s.Signal, Value: value, Pos: s.Pos}

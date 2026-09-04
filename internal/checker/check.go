@@ -40,6 +40,8 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 			Constructors:              map[string][]EnumConstructorInfo{},
 			Stdlib:                    reg,
 			ExprTypes:                 map[ast.Expr]Type{},
+			BindingTypes:              map[*ast.LetStmt]Type{},
+			BindingDecls:              map[ast.Expr]*ast.LetStmt{},
 			AsyncCalls:                map[*ast.CallExpr]bool{},
 			AwaitCalls:                map[*ast.CallExpr]bool{},
 			functionsByName:           map[string][]*FuncInfo{},

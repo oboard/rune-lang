@@ -416,6 +416,7 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 				c.errorf(s.Pos, "name %q is already defined", s.Name)
 			}
 			c.bindings[s.Name] = s.Value
+			c.info.BindingDecls[s.Value] = s
 			declared := Unknown
 			if !s.Type.IsZero() {
 				declared = c.resolveTypeWithGenerics(s.Type.Canonical(), c.genericTypes)
@@ -437,26 +438,62 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 				} else {
 					local[s.Name] = valueType
 				}
+				c.info.BindingTypes[s] = local[s.Name]
 			}
 			result = Void
 		case *ast.ObjectDestructureStmt:
 			c.inferObjectDestructureStmt(s, local)
 			result = Void
 		case *ast.AssignStmt:
-			if _, exists := local[s.Name]; !exists {
+			current, exists := local[s.Name]
+			if !exists {
 				c.errorf(s.Pos, "cannot assign undefined name %q", s.Name)
 			}
-			c.inferExpr(s.Value, local)
+			valueType := c.inferExpr(s.Value, local)
+			// An empty array binding gains its concrete element type when a later
+			// assignment produces Array[T] (for example `bindings = addBinding(...)`).
+			// Record that refinement on the original literal so lowering/emission use
+			// the same concrete slice type.
+			if exists && shouldApplyExpectedType(current, valueType) {
+				local[s.Name] = valueType
+				if binding := c.bindings[s.Name]; binding != nil {
+					c.applyExpectedType(binding, valueType)
+				}
+			}
 			result = Void
 		case *ast.ExprStmt:
 			expected := Unknown
 			if isLast {
 				expected = blockExpected
+				c.refineExpectedBlockResultIdentifier(s.Expr, expected, local)
 			}
 			result = c.inferExprExpected(s.Expr, local, expected)
 		}
 	}
 	return result
+}
+
+func (c *checker) refineExpectedBlockResultIdentifier(expr ast.Expr, expected Type, local map[string]Type) {
+	if expected == Unknown {
+		return
+	}
+	ident, ok := expr.(*ast.Identifier)
+	if !ok {
+		return
+	}
+	current, ok := local[ident.Name]
+	_, currentIsArray := ArrayElement(current)
+	if !ok || (!shouldApplyExpectedType(current, expected) && !currentIsArray) {
+		return
+	}
+	local[ident.Name] = expected
+	c.info.ExprTypes[ident] = expected
+	if binding := c.bindings[ident.Name]; binding != nil {
+		c.applyExpectedType(binding, expected)
+	}
+	if stmt := c.info.BindingDecls[c.bindings[ident.Name]]; stmt != nil {
+		c.info.BindingTypes[stmt] = expected
+	}
 }
 
 func (c *checker) inferObjectDestructureStmt(stmt *ast.ObjectDestructureStmt, local map[string]Type) {
