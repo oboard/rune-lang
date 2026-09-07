@@ -138,7 +138,7 @@ func TestGenerateGoFileImportsRuneNamespaceReferences(t *testing.T) {
 	if len(diags) > 0 {
 		t.Fatalf("GenerateGoFile() diagnostics = %#v", diags)
 	}
-	if !strings.Contains(got, `fmt.Println(__greeting("Alice"))`) {
+	if !strings.Contains(got, `fmt.Println(greeting("Alice"))`) {
 		t.Fatalf("generated Go does not call imported namespace function:\n%s", got)
 	}
 	if strings.Contains(got, `__io := struct{}{}`) || strings.Contains(got, `__helper := struct{}{}`) {
@@ -256,14 +256,14 @@ main() => {
 	if len(diags) > 0 {
 		t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v", diags)
 	}
-	wantImport := `import { greet as __greet, version as __version } from "greet.ts";`
+	wantImport := `import { greet as greet, version as version } from "greet.ts";`
 	if !strings.Contains(got, wantImport) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", wantImport, got)
 	}
-	if !strings.Contains(got, `console.log(__greet("Rune"));`) {
+	if !strings.Contains(got, `console.log(greet("Rune"));`) {
 		t.Fatalf("generated TypeScript does not call imported alias:\n%s", got)
 	}
-	if !strings.Contains(got, `console.log(__version);`) {
+	if !strings.Contains(got, `console.log(version);`) {
 		t.Fatalf("generated TypeScript does not read imported value alias:\n%s", got)
 	}
 	if strings.Contains(got, "function __greet") {
@@ -286,14 +286,14 @@ func TestGenerateTypeScriptFileImportsNamespaceReferences(t *testing.T) {
 	if len(diags) > 0 {
 		t.Fatalf("GenerateTypeScriptFile() diagnostics = %#v", diags)
 	}
-	wantImport := `import { greet as __greet, version as __version } from "greet.ts";`
+	wantImport := `import { greet as greet, version as version } from "greet.ts";`
 	if !strings.Contains(got, wantImport) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", wantImport, got)
 	}
-	if !strings.Contains(got, `console.log(__greet("Rune"));`) {
+	if !strings.Contains(got, `console.log(greet("Rune"));`) {
 		t.Fatalf("generated TypeScript does not call imported namespace alias:\n%s", got)
 	}
-	if !strings.Contains(got, `console.log(__version);`) {
+	if !strings.Contains(got, `console.log(version);`) {
 		t.Fatalf("generated TypeScript does not read imported namespace alias:\n%s", got)
 	}
 }
@@ -322,20 +322,20 @@ hidden() -> Int => 0
 		t.Fatalf("GenerateTypeScriptDeclarationFile() diagnostics = %#v", diags)
 	}
 	wantParts := []string{
-		"type __User = {",
+		"type User = {",
 		"name: string;",
 		"age: number;",
-		"type __Status = number;",
-		"declare const __Status: {",
+		"type Status = number;",
+		"declare const Status: {",
 		"readonly Ready: 1;",
 		"readonly Done: 2;",
-		"declare const __answer: number;",
-		"declare function __add(__a: number, __b: number): number;",
-		"export type User = __User;",
-		"export type Status = __Status;",
-		"export declare const Status: typeof __Status;",
-		"export declare const answer: typeof __answer;",
-		"export declare const add: typeof __add;",
+		"declare const answer: number;",
+		"declare function add(a: number, b: number): number;",
+		"export type User = User;",
+		"export type Status = Status;",
+		"export declare const Status: typeof Status;",
+		"export declare const answer: typeof answer;",
+		"export declare const add: typeof add;",
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

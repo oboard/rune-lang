@@ -36,13 +36,13 @@ main() => {
 
 	wantParts := []string{
 		`"fmt"`,
-		`func __fib(__n int) int`,
-		`case __n == 0:`,
-		`return __fib(__n-1) + __fib(__n-2)`,
-		`func __main()`,
-		`fmt.Println(__fib(10))`,
+		`func fib(n int) int`,
+		`case n == 0:`,
+		`return fib(n-1) + fib(n-2)`,
+		`func main_()`,
+		`fmt.Println(fib(10))`,
 		`func main()`,
-		`__main()`,
+		`main_()`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -73,9 +73,9 @@ main() => @io.println(add(1, 2))
 	}
 	wantParts := []string{
 		`type runeNumber interface`,
-		`func __add[__T runeNumber](__a __T, __b __T) __T`,
-		`return __a + __b`,
-		`fmt.Println(__add(1, 2))`,
+		`func add[T runeNumber](a T, b T) T`,
+		`return a + b`,
+		`fmt.Println(add(1, 2))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -102,7 +102,7 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	want := `case (__ch >= '0' && __ch <= '9'):`
+	want := `case (ch >= '0' && ch <= '9'):`
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated Go missing %q:\n%s", want, got)
 	}
@@ -134,15 +134,15 @@ sign(value: Int) -> Int => value {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	wantParts := []string{
-		`__match1 := __values`,
-		`case len(__match1) >= 2 && true && true:`,
-		`__head := __match1[0]`,
-		`__tail := __match1[len(__match1)-1]`,
-		`__rest := append([]int{}, __match1[1:len(__match1)-1]...)`,
-		`__whole := __match1`,
-		`case len(__match1) == 0:`,
-		`case (__value < 0):`,
-		`case (__value >= 1):`,
+		`match1 := values`,
+		`case len(match1) >= 2 && true && true:`,
+		`head := match1[0]`,
+		`tail := match1[len(match1)-1]`,
+		`rest := append([]int{}, match1[1:len(match1)-1]...)`,
+		`whole := match1`,
+		`case len(match1) == 0:`,
+		`case (value < 0):`,
+		`case (value >= 1):`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -174,9 +174,9 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	wantParts := []string{
-		`case (__typeName == "") || (__typeName == "Void"):`,
+		`case (typeName == "") || (typeName == "Void"):`,
 		`return "void"`,
-		`case (__typeName == "Int") || (__typeName == "Double"):`,
+		`case (typeName == "Int") || (typeName == "Double"):`,
 		`return "number"`,
 	}
 	for _, want := range wantParts {
@@ -237,7 +237,7 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 	wantParts := []string{
 		`"fmt"`,
 		`func runeTemplateString(value any) string`,
-		`return "count " + runeTemplateString(__count) + " char " + runeTemplateString(__ch)`,
+		`return "count " + runeTemplateString(count) + " char " + runeTemplateString(ch)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -260,7 +260,7 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if want := `return "hello\n" + __name`; !strings.Contains(got, want) {
+	if want := `return "hello\n" + name`; !strings.Contains(got, want) {
 		t.Fatalf("generated Go missing multiline template %q:\n%s", want, got)
 	}
 }
@@ -294,12 +294,12 @@ mapScore(values: Map[String, Int]) -> Int => values {
 		t.Fatalf("Generate() error = %v", err)
 	}
 	wantParts := []string{
-		`__x := __match`,
-		`__yy := __match`,
-		`return __x + __yy`,
-		`func() bool { _, __ok`,
-		`__value := __match`,
-		`return __value`,
+		`x := match`,
+		`yy := match`,
+		`return x + yy`,
+		`func() bool { _, ok`,
+		`value := match`,
+		`return value`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -341,15 +341,15 @@ main() => {
 	}
 
 	wantParts := []string{
-		`type __User struct`,
-		`__id   int`,
-		`__name string`,
-		`__age  int`,
-		`func (__this __User) __isAdult() bool`,
-		`return __this.__age >= 18`,
-		`__user := __User{__id: 1, __name: "oboard", __age: 22}`,
-		`fmt.Println(__user.__name)`,
-		`fmt.Println(__user.__isAdult())`,
+		`type User struct`,
+		`id   int`,
+		`name string`,
+		`age  int`,
+		`func (this User) isAdult() bool`,
+		`return this.age >= 18`,
+		`user := User{id: 1, name: "oboard", age: 22}`,
+		`fmt.Println(user.name)`,
+		`fmt.Println(user.isAdult())`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -387,10 +387,10 @@ main() => {
 	}
 
 	wantParts := []string{
-		`__destructure1 := __point`,
-		`__x := __destructure1.__x`,
-		`__y := __destructure1.__y`,
-		`fmt.Println(__x + __y)`,
+		`destructure1 := point`,
+		`x := destructure1.x`,
+		`y := destructure1.y`,
+		`fmt.Println(x + y)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -441,20 +441,20 @@ main() => {
 	}
 
 	wantParts := []string{
-		`type __Status int`,
-		`__Status_Completed __Status = 0`,
-		`__Status_Fail`,
+		`type Status int`,
+		`Status_Completed Status = 0`,
+		`Status_Fail`,
 		`= 1`,
-		`func __statusText(__status __Status) string`,
-		`case __status == __Status_Completed:`,
-		`case __status == __Status_Fail:`,
-		`func __fallback(__flag bool) __Status`,
-		`return __Status(0)`,
-		`__status := __Status_Completed`,
-		`fmt.Println(__statusText(__status))`,
-		`fmt.Println(__fallback(false))`,
-		`__Status := __Container{__Completed: 42}`,
-		`fmt.Println(__Status.__Completed)`,
+		`func statusText(status Status) string`,
+		`case status == Status_Completed:`,
+		`case status == Status_Fail:`,
+		`func fallback(flag bool) Status`,
+		`return Status(0)`,
+		`status := Status_Completed`,
+		`fmt.Println(statusText(status))`,
+		`fmt.Println(fallback(false))`,
+		`Status := Container{Completed: 42}`,
+		`fmt.Println(Status.Completed)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -493,14 +493,14 @@ main() => {
 
 	wantParts := []string{
 		`"fmt"`,
-		`func __isAdult(__age int) bool`,
-		`return __age >= 18`,
-		`__name := "oboard"`,
-		`fmt.Println(__name)`,
-		`fmt.Println(__age)`,
+		`func isAdult(age int) bool`,
+		`return age >= 18`,
+		`name := "oboard"`,
+		`fmt.Println(name)`,
+		`fmt.Println(age)`,
 		mangleIdent("分数💯") + ` := 42`,
 		`fmt.Println(` + mangleIdent("分数💯") + `)`,
-		`fmt.Println(__isAdult(__age))`,
+		`fmt.Println(isAdult(age))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -534,10 +534,10 @@ main() => {
 	wantParts := []string{
 		`"fmt"`,
 		`"math"`,
-		`func __isNaN(__value float64) bool`,
-		`return math.IsNaN(__value)`,
+		`func isNaN(value float64) bool`,
+		`return math.IsNaN(value)`,
 		`fmt.Println("hello")`,
-		`fmt.Println(__isNaN(0.0))`,
+		`fmt.Println(isNaN(0.0))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -573,10 +573,10 @@ func TestGenerateArraySpread(t *testing.T) {
 	}
 
 	wantParts := []string{
-		`__next := func() []string`,
-		`out = append(out, __items...)`,
-		`out = append(out, "New Item")`,
-		`fmt.Println(len(__next))`,
+		`next := func() []string`,
+		`__rune_spread_out = append(__rune_spread_out, items...)`,
+		`__rune_spread_out = append(__rune_spread_out, "New Item")`,
+		`fmt.Println(len(next))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -602,9 +602,9 @@ func TestGenerateArrayReduce(t *testing.T) {
 	}
 
 	wantParts := []string{
-		`range __array`,
-		`return __accumulator + __value`,
-		`return __result`,
+		`range array1`,
+		`return accumulator + value`,
+		`return result2`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -646,19 +646,19 @@ func TestGenerateSignalProgram(t *testing.T) {
 
 	wantParts := []string{
 		`type runeSignal[T comparable] struct`,
-		`__count := newRuneSignal(0)`,
-		`__double := newRuneSignal(__count.Get() * 2)`,
-		`__count.Watch(func(_, _ int) { __double.Set(__count.Get() * 2) })`,
-		`__effect1 := func() {`,
-		`fmt.Println(__count.Get())`,
-		`fmt.Println(__double.Get())`,
-		`__effectPending2 := false`,
-		`__scheduleEffect3 := func() {`,
+		`count := newRuneSignal(0)`,
+		`double := newRuneSignal(count.Get() * 2)`,
+		`count.Watch(func(_, _ int) { double.Set(count.Get() * 2) })`,
+		`effect1 := func() {`,
+		`fmt.Println(count.Get())`,
+		`fmt.Println(double.Get())`,
+		`effectPending2 := false`,
+		`scheduleEffect3 := func() {`,
 		`runeScheduleEffect(func() {`,
-		`__effect1()`,
-		`__double.Watch(func(_, _ int) { __scheduleEffect3() })`,
-		`__count.Watch(func(__old int, __new int) { fmt.Println(__old); fmt.Println(__new) })`,
-		`__count.Set(__count.Get() + 1)`,
+		`effect1()`,
+		`double.Watch(func(_, _ int) { scheduleEffect3() })`,
+		`count.Watch(func(old int, new int) { fmt.Println(old); fmt.Println(new) })`,
+		`count.Set(count.Get() + 1)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -694,17 +694,17 @@ func TestGenerateArrayProgram(t *testing.T) {
 	}
 
 	wantParts := []string{
-		`__arr := []int{1, 2, 3}`,
-		`fmt.Println(__arr[0])`,
-		`__arr = append(__arr, 4)`,
-		`fmt.Println(__arr[3])`,
-		`fmt.Println(len(__arr))`,
-		`fmt.Println(len(__arr) == 0)`,
-		`for _, __value := range __arr`,
-		`fmt.Println(__value)`,
-		`__mapped := func() []int`,
-		`__result = append(__result, __value+1)`,
-		`fmt.Println(__mapped[0])`,
+		`arr := []int{1, 2, 3}`,
+		`fmt.Println(arr[0])`,
+		`arr = append(arr, 4)`,
+		`fmt.Println(arr[3])`,
+		`fmt.Println(len(arr))`,
+		`fmt.Println(len(arr) == 0)`,
+		`for _, value := range arr`,
+		`fmt.Println(value)`,
+		`mapped := func() []int`,
+		`result = append(result, value+1)`,
+		`fmt.Println(mapped[0])`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -739,15 +739,15 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
 	wantParts := []string{
-		`__scores := map[string]int{}`,
-		`__scores["rune"] = 10`,
+		`scores := map[string]int{}`,
+		`scores["rune"] = 10`,
 		`fmt.Println(func() int {`,
-		`value, ok := __scores["rune"]`,
+		`value, ok := scores["rune"]`,
 		`return 0`,
-		`for _, value := range __scores`,
-		`__seen := map[string]struct{}{}`,
-		`__seen["rune"] = struct{}{}`,
-		`fmt.Println(func() bool { _, ok := __seen["rune"]; return ok }())`,
+		`for _, value := range scores`,
+		`seen := map[string]struct{}{}`,
+		`seen["rune"] = struct{}{}`,
+		`fmt.Println(func() bool { _, ok := seen["rune"]; return ok }())`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -781,11 +781,11 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
 	wantParts := []string{
-		`__scores := map[string]int{"a": 1, "b": 2}`,
-		`if !__ok`,
-		`return __coalesce`,
+		`scores := map[string]int{"a": 1, "b": 2}`,
+		`if !ok`,
+		`return coalesce`,
 		`.(int)`,
-		`__scores["b"] = 3`,
+		`scores["b"] = 3`,
 		`return 7`,
 	}
 	for _, want := range wantParts {
@@ -819,9 +819,9 @@ main() => {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
 	wantParts := []string{
-		"__row struct {\n\t\t__bonus  int\n\t\t__points int\n\t}",
-		"__row = struct {\n\t\t__bonus  int\n\t\t__points int\n\t}{__bonus: 12, __points: 30}",
-		"fmt.Println(__readScore(__row))",
+		"row struct {\n\t\tbonus  int\n\t\tpoints int\n\t}",
+		"row = struct {\n\t\tbonus  int\n\t\tpoints int\n\t}{bonus: 12, points: 30}",
+		"fmt.Println(readScore(row))",
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -861,15 +861,15 @@ func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 		`"encoding/binary"`,
 		`"math"`,
 		`type runeBytes struct`,
-		`__bytes := newRuneBytes(16)`,
-		`__bytes.SetUInt8(0, func() uint8 { n := int(255); return uint8(n) }())`,
-		`__bytes.SetInt16(1, func() int16 { n := int(0 - 1234); return int16(n) }(), true)`,
-		`__bytes.SetUInt64(4, uint64(123456), false)`,
-		`__bytes.SetFloat(12, float32(1.5), true)`,
-		`fmt.Println(__bytes.GetUInt8(0))`,
-		`fmt.Println(__bytes.GetInt16(1, true))`,
-		`fmt.Println(__bytes.GetUInt64(4, false))`,
-		`fmt.Println(__bytes.GetFloat(12, true))`,
+		`bytes := newRuneBytes(16)`,
+		`bytes.SetUInt8(0, func() uint8 { n := int(255); return uint8(n) }())`,
+		`bytes.SetInt16(1, func() int16 { n := int(0 - 1234); return int16(n) }(), true)`,
+		`bytes.SetUInt64(4, uint64(123456), false)`,
+		`bytes.SetFloat(12, float32(1.5), true)`,
+		`fmt.Println(bytes.GetUInt8(0))`,
+		`fmt.Println(bytes.GetInt16(1, true))`,
+		`fmt.Println(bytes.GetUInt64(4, false))`,
+		`fmt.Println(bytes.GetFloat(12, true))`,
 		`fmt.Println(int(uint(16) >> uint(2)))`,
 	}
 	for _, want := range wantParts {
@@ -908,10 +908,10 @@ func TestGenerateCompressIntrinsicProgram(t *testing.T) {
 		`func runeCompressZstd(data []byte)`,
 		`func runeCompressUnzstd(data []byte)`,
 		`runeCompressBrotliText("hello")`,
-		`runeCompressUnbrotliText(__brotli)`,
-		`runeCompressZstdText(__brotliText)`,
-		`runeCompressUnzstdText(__zstd)`,
-		`fmt.Println(__text)`,
+		`runeCompressUnbrotliText(brotli)`,
+		`runeCompressZstdText(brotliText)`,
+		`runeCompressUnzstdText(zstd)`,
+		`fmt.Println(text)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -956,21 +956,21 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 	}
 
 	wantParts := []string{
-		`var __obj struct`,
-		`__name    string`,
-		`__age     int`,
-		`__greet   func()`,
-		`__nextAge func() int`,
-		`fmt.Println("Hello, my name is " + __obj.__name)`,
-		`return __obj.__age + 1`,
-		`var __obj2 struct`,
-		`__parent struct`,
-		`__name   string`,
-		`fmt.Println(__obj.__name)`,
-		`fmt.Println(__obj2.__parent.__name)`,
-		`fmt.Println(__obj.__age)`,
-		`fmt.Println(__obj.__nextAge())`,
-		`__obj.__greet()`,
+		`var obj struct`,
+		`name    string`,
+		`age     int`,
+		`greet   func()`,
+		`nextAge func() int`,
+		`fmt.Println("Hello, my name is " + obj.name)`,
+		`return obj.age + 1`,
+		`var obj2 struct`,
+		`parent struct`,
+		`name   string`,
+		`fmt.Println(obj.name)`,
+		`fmt.Println(obj2.parent.name)`,
+		`fmt.Println(obj.age)`,
+		`fmt.Println(obj.nextAge())`,
+		`obj.greet()`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -998,11 +998,11 @@ func TestGeneratePathBodyHelper(t *testing.T) {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
 	wantParts := []string{
-		`func __path_basename(__path string) string`,
-		`func __path_normalize(__path string) string`,
-		`fmt.Println(__path_basename("/tmp/example.txt"))`,
+		`func path_basename(path string) string`,
+		`func path_normalize(path string) string`,
+		`fmt.Println(path_basename("/tmp/example.txt"))`,
 		`fmt.Println(runeProcessPlatform())`,
-		`append(out, __out...)`,
+		`append(__rune_spread_out, out...)`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -1070,10 +1070,10 @@ main() => {
 		"`json:\"tags\"`",
 		"json.Marshal(func() json0",
 		"return json0{",
-		`F0: v.__name`,
-		`v := v.__user`,
-		`return json1{F0: v.__name, F1: v.__age}`,
-		`F2: v.__tags`,
+		`F0: v.name`,
+		`v := v.user`,
+		`return json1{F0: v.name, F1: v.age}`,
+		`F2: v.tags`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -1130,15 +1130,15 @@ main() => {
 		`F0 string ` + "`json:\"display_name\"`",
 		`F1 []int`,
 		"`json:\"scores\"`",
-		`out.__name = raw.F0`,
-		`out.__scores =`,
+		`out.name = raw.F0`,
+		`out.scores =`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated Go missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, `json:"password"`) || strings.Contains(got, `out.__password =`) {
+	if strings.Contains(got, `json:"password"`) || strings.Contains(got, `out.password =`) {
 		t.Fatalf("generated Go should leave ignored fields at their zero value:\n%s", got)
 	}
 }
@@ -1235,9 +1235,9 @@ main() => {
 		`"sync"`,
 		`"strconv"`,
 		`var runeTasks sync.WaitGroup`,
-		`func __test(__count int) runeTask[runeUnit]`,
-		`strconv.Itoa(__count)`,
-		`__test(1)`,
+		`func test(count int) runeTask[runeUnit]`,
+		`strconv.Itoa(count)`,
+		`test(1)`,
 		`runeWaitAll()`,
 	}
 	for _, want := range wantParts {
@@ -1282,9 +1282,9 @@ main() => {
 
 	wantParts := []string{
 		`func() func(struct {`,
-		`__z bool`,
-		`}) struct{ __k int }`,
-		`{__a: 1, __b: 2, __z: false}).__k`,
+		`z bool`,
+		`}) struct{ k int }`,
+		`{a: 1, b: 2, z: false}).k`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -1327,7 +1327,7 @@ fun(flag) => {
 	if err != nil {
 		t.Fatalf("Generate() error = %v\n%s", err, got)
 	}
-	if !strings.Contains(got, `__Return{__a: 1, __b: 2, __z: false}`) {
+	if !strings.Contains(got, `Return{a: 1, b: 2, z: false}`) {
 		t.Fatalf("generated Go missing __Return literal conversion:\n%s", got)
 	}
 }
@@ -1389,10 +1389,10 @@ func TestGenerateRegexProgram(t *testing.T) {
 	wantParts := []string{
 		`"regexp"`,
 		`type runeRegex struct`,
-		`__re := newRuneRegex("rune\\s+(\\d+)", "ig")`,
-		`__built := newRuneRegex("\\d+", "g")`,
-		`fmt.Println(__re.match("Rune 123 rune 456"))`,
-		`fmt.Println(__built.replaceAll("a1 b22", "[$1]"))`,
+		`re := newRuneRegex("rune\\s+(\\d+)", "ig")`,
+		`built := newRuneRegex("\\d+", "g")`,
+		`fmt.Println(re.match("Rune 123 rune 456"))`,
+		`fmt.Println(built.replaceAll("a1 b22", "[$1]"))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -1428,14 +1428,14 @@ main() => @io.println(eval(Add(Lit(2), Lit(0))))
 		t.Fatalf("Generate() error = %v", err)
 	}
 	wantParts := []string{
-		`type __Expr struct`,
+		`type Expr struct`,
 		`__tag`,
 		`int`,
 		`__payload []any`,
-		`__Expr{__tag: __Expr_Add, __payload: []any{`,
-		`__match`,
-		`.__tag == __Expr_Add`,
-		`.__payload[0].(__Expr)`,
+		`Expr{__tag: Expr_Add, __payload: []any{`,
+		`match1`,
+		`.__tag == Expr_Add`,
+		`.__payload[0].(Expr)`,
 		`.__payload[0].(int)`,
 	}
 	for _, want := range wantParts {
@@ -1474,10 +1474,10 @@ score(values: Lookup) -> Int => values {
 	}
 	wantParts := []string{
 		`map[string]any{}`,
-		`func(__key`,
-		`.__get(__key`,
-		`__x := __mapGet`,
-		`__b := __mapGet`,
+		`func(key`,
+		`.get(key`,
+		`x := mapGet`,
+		`b := mapGet`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

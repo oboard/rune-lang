@@ -358,6 +358,12 @@ var goReservedIdentifiers = map[string]bool{
 	"chan": true, "else": true, "goto": true, "package": true, "switch": true,
 	"const": true, "fallthrough": true, "if": true, "range": true, "type": true,
 	"continue": true, "for": true, "import": true, "main": true, "return": true, "var": true,
+	// Go predeclared identifiers are callable/type names in generated code and
+	// therefore must be escaped just like keywords when used by Rune source.
+	"any": true, "bool": true, "byte": true, "comparable": true, "complex64": true, "complex128": true,
+	"error": true, "float32": true, "float64": true, "int": true, "int8": true, "int16": true, "int32": true,
+	"int64": true, "rune": true, "string": true, "uint": true, "uint8": true, "uint16": true, "uint32": true,
+	"uint64": true, "uintptr": true,
 }
 
 func mangleIdent(name string) string {

@@ -334,7 +334,7 @@ func main() {
 		println("__RUNE_SELFHOST_ERROR__" + err.Error())
 		return
 	}
-	var result __InterpretResult
+	var result InterpretResult
 	if mode == "ir-test" || mode == "ir-main" {
 		var fileJSON __runeSelfhostIRFile
 		if err := json.Unmarshal(input, &fileJSON); err != nil {
@@ -342,20 +342,20 @@ func main() {
 			return
 		}
 		if mode == "ir-test" {
-			result = __runTestIR(__runeSelfhostFile(fileJSON), name)
+			result = runTestIR(__runeSelfhostFile(fileJSON), name)
 		} else {
-			result = __runMainIR(__runeSelfhostFile(fileJSON))
+			result = runMainIR(__runeSelfhostFile(fileJSON))
 		}
 	} else if mode == "test" {
-		result = __interpretTest(string(input), name)
+		result = interpretTest(string(input), name)
 	} else {
-		result = __interpret(string(input))
+		result = interpret(string(input))
 	}
-	for _, line := range result.__output {
+	for _, line := range result.output {
 		println(line)
 	}
-	if !result.__ok {
-		println("__RUNE_SELFHOST_ERROR__" + result.__error)
+	if !result.ok {
+		println("__RUNE_SELFHOST_ERROR__" + result.error_)
 	}
 }
 
@@ -469,131 +469,131 @@ type __runeSelfhostParseErr struct {
 	Column int ` + "`json:\"column\"`" + `
 }
 
-func __runeSelfhostFile(in __runeSelfhostIRFile) __IRFile {
-	return __IRFile{
-		__imports: __runeSelfhostImports(in.Imports),
-		__structs: __runeSelfhostStructs(in.Structs),
-		__enums: __runeSelfhostEnums(in.Enums),
-		__constants: __runeSelfhostConsts(in.Constants),
-		__functions: __runeSelfhostFuncs(in.Functions),
-		__tests: __runeSelfhostTests(in.Tests),
-		__errors: __runeSelfhostErrors(in.Errors),
+func __runeSelfhostFile(in __runeSelfhostIRFile) IRFile {
+	return IRFile{
+		imports: __runeSelfhostImports(in.Imports),
+		structs: __runeSelfhostStructs(in.Structs),
+		enums: __runeSelfhostEnums(in.Enums),
+		constants: __runeSelfhostConsts(in.Constants),
+		functions: __runeSelfhostFuncs(in.Functions),
+		tests: __runeSelfhostTests(in.Tests),
+		errors: __runeSelfhostErrors(in.Errors),
 	}
 }
 
-func __runeSelfhostConsts(in []__runeSelfhostIRConst) []__IRConst {
-	out := make([]__IRConst, 0, len(in))
+func __runeSelfhostConsts(in []__runeSelfhostIRConst) []IRConst {
+	out := make([]IRConst, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRConst{__name: item.Name, __private: item.Private, __typeName: item.TypeName, __value: __runeSelfhostExpr(item.Value), __line: item.Line, __column: item.Column})
+		out = append(out, IRConst{name: item.Name, private: item.Private, typeName: item.TypeName, value: __runeSelfhostExpr(item.Value), line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostImports(in []__runeSelfhostIRImport) []__IRImport {
-	out := make([]__IRImport, 0, len(in))
+func __runeSelfhostImports(in []__runeSelfhostIRImport) []IRImport {
+	out := make([]IRImport, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRImport{__path: item.Path, __go: item.Go, __line: item.Line, __column: item.Column})
+		out = append(out, IRImport{path: item.Path, go_: item.Go, line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostParams(in []__runeSelfhostIRParam) []__IRParam {
-	out := make([]__IRParam, 0, len(in))
+func __runeSelfhostParams(in []__runeSelfhostIRParam) []IRParam {
+	out := make([]IRParam, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRParam{__name: item.Name, __typeName: item.TypeName, __line: item.Line, __column: item.Column})
+		out = append(out, IRParam{name: item.Name, typeName: item.TypeName, line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostExprs(in []__runeSelfhostIRExpr) []__IRExpr {
-	out := make([]__IRExpr, 0, len(in))
+func __runeSelfhostExprs(in []__runeSelfhostIRExpr) []IRExpr {
+	out := make([]IRExpr, 0, len(in))
 	for _, item := range in {
 		out = append(out, __runeSelfhostExpr(item))
 	}
 	return out
 }
 
-func __runeSelfhostExpr(in __runeSelfhostIRExpr) __IRExpr {
-	return __IRExpr{
-		__kind: __ExprKind(in.Kind),
-		__text: in.Text,
-		__name: in.Name,
-		__value: in.Value,
-		__op: in.Op,
-		__params: __runeSelfhostParams(in.Params),
-		__children: __runeSelfhostExprs(in.Children),
-		__line: in.Line,
-		__column: in.Column,
+func __runeSelfhostExpr(in __runeSelfhostIRExpr) IRExpr {
+	return IRExpr{
+		kind: ExprKind(in.Kind),
+		text: in.Text,
+		name: in.Name,
+		value: in.Value,
+		op: in.Op,
+		params: __runeSelfhostParams(in.Params),
+		children: __runeSelfhostExprs(in.Children),
+		line: in.Line,
+		column: in.Column,
 	}
 }
 
-func __runeSelfhostFields(in []__runeSelfhostIRField) []__IRField {
-	out := make([]__IRField, 0, len(in))
+func __runeSelfhostFields(in []__runeSelfhostIRField) []IRField {
+	out := make([]IRField, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRField{__name: item.Name, __private: item.Private, __typeName: item.TypeName, __jsonName: item.JSONName, __jsonIgnore: item.JSONIgnore, __line: item.Line, __column: item.Column})
+		out = append(out, IRField{name: item.Name, private: item.Private, typeName: item.TypeName, jsonName: item.JSONName, jsonIgnore: item.JSONIgnore, line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostEnumMembers(in []__runeSelfhostIREnumMember) []__IREnumMember {
-	out := make([]__IREnumMember, 0, len(in))
+func __runeSelfhostEnumMembers(in []__runeSelfhostIREnumMember) []IREnumMember {
+	out := make([]IREnumMember, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IREnumMember{__name: item.Name, __private: item.Private, __value: item.Value, __params: __runeSelfhostParams(item.Params), __line: item.Line, __column: item.Column})
+		out = append(out, IREnumMember{name: item.Name, private: item.Private, value: item.Value, params: __runeSelfhostParams(item.Params), line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostFunc(in __runeSelfhostIRFunc) __IRFunction {
-	return __IRFunction{
-		__name: in.Name,
-		__private: in.Private,
-		__routine: in.Routine,
-		__receiverType: in.ReceiverType,
-		__generics: in.Generics,
-		__params: __runeSelfhostParams(in.Params),
-		__returnType: in.ReturnType,
-		__body: __runeSelfhostExpr(in.Body),
-		__line: in.Line,
-		__column: in.Column,
+func __runeSelfhostFunc(in __runeSelfhostIRFunc) IRFunction {
+	return IRFunction{
+		name: in.Name,
+		private: in.Private,
+		routine: in.Routine,
+		receiverType: in.ReceiverType,
+		generics: in.Generics,
+		params: __runeSelfhostParams(in.Params),
+		returnType: in.ReturnType,
+		body: __runeSelfhostExpr(in.Body),
+		line: in.Line,
+		column: in.Column,
 	}
 }
 
-func __runeSelfhostFuncs(in []__runeSelfhostIRFunc) []__IRFunction {
-	out := make([]__IRFunction, 0, len(in))
+func __runeSelfhostFuncs(in []__runeSelfhostIRFunc) []IRFunction {
+	out := make([]IRFunction, 0, len(in))
 	for _, item := range in {
 		out = append(out, __runeSelfhostFunc(item))
 	}
 	return out
 }
 
-func __runeSelfhostStructs(in []__runeSelfhostIRStruct) []__IRStructType {
-	out := make([]__IRStructType, 0, len(in))
+func __runeSelfhostStructs(in []__runeSelfhostIRStruct) []IRStructType {
+	out := make([]IRStructType, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRStructType{__name: item.Name, __private: item.Private, __generics: item.Generics, __fields: __runeSelfhostFields(item.Fields), __methods: __runeSelfhostFuncs(item.Methods), __line: item.Line, __column: item.Column})
+		out = append(out, IRStructType{name: item.Name, private: item.Private, generics: item.Generics, fields: __runeSelfhostFields(item.Fields), methods: __runeSelfhostFuncs(item.Methods), line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostEnums(in []__runeSelfhostIREnum) []__IREnumType {
-	out := make([]__IREnumType, 0, len(in))
+func __runeSelfhostEnums(in []__runeSelfhostIREnum) []IREnumType {
+	out := make([]IREnumType, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IREnumType{__name: item.Name, __private: item.Private, __generics: item.Generics, __members: __runeSelfhostEnumMembers(item.Members), __methods: __runeSelfhostFuncs(item.Methods), __line: item.Line, __column: item.Column})
+		out = append(out, IREnumType{name: item.Name, private: item.Private, generics: item.Generics, members: __runeSelfhostEnumMembers(item.Members), methods: __runeSelfhostFuncs(item.Methods), line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostTests(in []__runeSelfhostIRTest) []__IRTest {
-	out := make([]__IRTest, 0, len(in))
+func __runeSelfhostTests(in []__runeSelfhostIRTest) []IRTest {
+	out := make([]IRTest, 0, len(in))
 	for _, item := range in {
-		out = append(out, __IRTest{__name: item.Name, __body: __runeSelfhostExpr(item.Body), __line: item.Line, __column: item.Column})
+		out = append(out, IRTest{name: item.Name, body: __runeSelfhostExpr(item.Body), line: item.Line, column: item.Column})
 	}
 	return out
 }
 
-func __runeSelfhostErrors(in []__runeSelfhostParseErr) []__ParseError {
-	out := make([]__ParseError, 0, len(in))
+func __runeSelfhostErrors(in []__runeSelfhostParseErr) []ParseError {
+	out := make([]ParseError, 0, len(in))
 	for _, item := range in {
-		out = append(out, __ParseError{__message: item.Message, __line: item.Line, __column: item.Column})
+		out = append(out, ParseError{message: item.Message, line: item.Line, column: item.Column})
 	}
 	return out
 }

@@ -17,12 +17,12 @@ main() => {
 `
 	got := generateGoForTest(t, src)
 	wantParts := []string{
-		`func __choose(__flag bool) int`,
+		`func choose(flag bool) int`,
 		`return func() int {`,
-		`if __flag {`,
+		`if flag {`,
 		`return 1`,
 		`return 2`,
-		`fmt.Println(__choose(true))`,
+		`fmt.Println(choose(true))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -60,14 +60,14 @@ func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
 	got := generateGoForTest(t, src)
 	wantParts := []string{
 		`if true {`,
-		`__handled = true`,
+		`handled = true`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated Go missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, `__handled = __handled`) {
+	if strings.Contains(got, `handled = handled`) {
 		t.Fatalf("generated Go contains redundant else assignment:\n%s", got)
 	}
 	if strings.Contains(got, `func()`) {

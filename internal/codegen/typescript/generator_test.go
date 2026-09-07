@@ -21,16 +21,16 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`function __render(): HTMLElement`,
-		`const __count = runeSignal(0);`,
+		`function render(): HTMLElement`,
+		`const count = runeSignal(0);`,
 		`document.createElement("div")`,
 		`document.createElement("h1")`,
 		`document.createTextNode("Counter Example")`,
 		`document.createTextNode("Count: ")`,
-		`document.createTextNode(String(__count.get()))`,
-		`runeWatch(__count, () => { __text`,
-		`.addEventListener("click", () => { __count.set(__count.get() + 1); });`,
-		`export { __render as render };`,
+		`document.createTextNode(String(count.get()))`,
+		`runeWatch(count, () => { __text`,
+		`.addEventListener("click", () => { count.set(count.get() + 1); });`,
+		`export { render as render };`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -49,9 +49,9 @@ main() => @io.println(add(1, 2))
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`function __add<__T extends number>(__a: __T, __b: __T): __T`,
-		`return (__a + __b) as __T`,
-		`console.log(__add(1, 2));`,
+		`function add<T extends number>(a: T, b: T): T`,
+		`return (a + b) as T`,
+		`console.log(add(1, 2));`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -76,12 +76,12 @@ func TestGenerateExportsPublicTypesEnumsAndConstants(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`type __User = {`,
-		`const __Status = {`,
-		`const __answer: number = 42;`,
-		`function __add(__a: number, __b: number): number`,
-		`export type { __User as User, __Status as Status };`,
-		`export { __Status as Status, __answer as answer, __add as add };`,
+		`type User = {`,
+		`const Status = {`,
+		`const answer: number = 42;`,
+		`function add(a: number, b: number): number`,
+		`export type { User as User, Status as Status };`,
+		`export { Status as Status, answer as answer, add as add };`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -104,15 +104,15 @@ func TestGenerateWebComponentFromXMLLiteral(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`function runeDefineWebComponent(name: string, factory: () => CustomElementConstructor): string`,
-		`function __HelloWorld(): CustomElementConstructor`,
+		`function HelloWorld(): CustomElementConstructor`,
 		`return class extends HTMLElement`,
 		`connectedCallback(): void`,
 		`const __root`,
 		`document.createElement("div")`,
 		`document.createTextNode("hello world")`,
-		`function __render(): HTMLElement`,
-		`document.createElement(runeDefineWebComponent("HelloWorld", __HelloWorld))`,
-		`export { __HelloWorld as HelloWorld, __render as render };`,
+		`function render(): HTMLElement`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", HelloWorld))`,
+		`export { HelloWorld as HelloWorld, render as render };`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -137,8 +137,8 @@ func TestGenerateWebComponentTagPassesAttributeParams(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`function __HelloWorld(__text: string): CustomElementConstructor`,
-		`document.createElement(runeDefineWebComponent("HelloWorld", () => __HelloWorld("hello")))`,
+		`function HelloWorld(text: string): CustomElementConstructor`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", () => HelloWorld("hello")))`,
 		`.setAttribute("text", String("hello"));`,
 	}
 	for _, want := range wantParts {
@@ -164,9 +164,9 @@ render() -> HTMLElement => {
 `
 	got := generateForTestWithSourcePath(t, "playground.rn", src)
 	wantParts := []string{
-		`function __HelloWorld`,
+		`function HelloWorld`,
 		`(): CustomElementConstructor`,
-		`document.createElement(runeDefineWebComponent("HelloWorld", __HelloWorld))`,
+		`document.createElement(runeDefineWebComponent("HelloWorld", HelloWorld))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -185,10 +185,10 @@ privateGreeting(name: String) -> String => "hello, " + name
 `
 	got := generateForTestWithSourcePath(t, "helper.rn", src)
 	wantParts := []string{
-		`function __greeting(__name: string): string`,
-		`return __privateGreeting(__name);`,
-		`function __privateGreeting(__name: string): string`,
-		`export { __greeting as greeting };`,
+		`function greeting(name: string): string`,
+		`return privateGreeting(name);`,
+		`function privateGreeting(name: string): string`,
+		`export { greeting as greeting };`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -204,7 +204,7 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 	src := `isDigit(ch: Char) -> Bool => ('0'..='9')
 `
 	got := generateForTest(t, src)
-	want := `if ((__ch >= "0" && __ch <= "9")) {`
+	want := `if ((ch >= "0" && ch <= "9")) {`
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
@@ -225,15 +225,15 @@ sign(value: Int) -> Int => value {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __match1 = __values;`,
+		`const __match1 = values;`,
 		`if (__match1.length >= 2 && true && true)`,
-		`const __head = __match1[0];`,
-		`const __tail = __match1[__match1.length - 1];`,
-		`const __rest = __match1.slice(1, __match1.length - 1);`,
-		`const __whole = __match1;`,
+		`const head = __match1[0];`,
+		`const tail = __match1[__match1.length - 1];`,
+		`const rest = __match1.slice(1, __match1.length - 1);`,
+		`const whole = __match1;`,
 		`else if (__match1.length === 0)`,
-		`if ((__value < 0))`,
-		`else if ((__value >= 1))`,
+		`if ((value < 0))`,
+		`else if ((value >= 1))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -251,9 +251,9 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`if ((__typeName === "") || (__typeName === "Void")) {`,
+		`if ((typeName === "") || (typeName === "Void")) {`,
 		`return "void";`,
-		`else if ((__typeName === "Int") || (__typeName === "Double")) {`,
+		`else if ((typeName === "Int") || (typeName === "Double")) {`,
 		`return "number";`,
 	}
 	for _, want := range wantParts {
@@ -286,13 +286,13 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 func TestGenerateTemplateLiteral(t *testing.T) {
 	src := "label(count: Int, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
 	got := generateForTest(t, src)
-	want := "return `count ${__count} char ${__ch}`;"
+	want := "return `count ${count} char ${ch}`;"
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
 
 	got = generateForTest(t, "message(name: String) -> String => `hello\n\\(name)`\n")
-	want = "return `hello\\n${__name}`;"
+	want = "return `hello\\n${name}`;"
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing multiline template %q:\n%s", want, got)
 	}
@@ -316,12 +316,12 @@ mapScore(values: Map[String, Int]) -> Int => values {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __x = __match`,
-		`const __yy = __match`,
-		`return __x + __yy;`,
+		`const x = __match`,
+		`const yy = __match`,
+		`return x + yy;`,
 		`.has(__key`,
-		`const __value = __match`,
-		`return __value;`,
+		`const value = __match`,
+		`return value;`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -344,7 +344,7 @@ func TestGenerateElementArrayChild(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`const __children`,
-		`__list.map((__item: string): HTMLElement =>`,
+		`list.map((item: string): HTMLElement =>`,
 		`for (const __child`,
 		`.appendChild(__child`,
 	}
@@ -353,7 +353,7 @@ func TestGenerateElementArrayChild(t *testing.T) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, "String(__list.map") {
+	if strings.Contains(got, "String(list.map") {
 		t.Fatalf("generated TypeScript stringifies element array:\n%s", got)
 	}
 }
@@ -373,12 +373,12 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`function runeReactiveArray<T>(initial: T[]): RuneSignal<T[]>`,
-		`const __list = runeReactiveArray(["Item 1", "Item 2", "Item 3"]);`,
+		`const list = runeReactiveArray(["Item 1", "Item 2", "Item 3"]);`,
 		`const __start`,
 		`const __render`,
-		`runeWatch(__list, __render`,
+		`runeWatch(list, __render`,
 		`.insertBefore(__child`,
-		`.addEventListener("click", () => { __list.mutate((__value) => __value.push("New Item")); });`,
+		`.addEventListener("click", () => { list.mutate((__value) => __value.push("New Item")); });`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -388,7 +388,7 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	if strings.Contains(got, "Proxy") {
 		t.Fatalf("generated TypeScript should not use Proxy for reactive arrays:\n%s", got)
 	}
-	if strings.Contains(got, "String(__list.map") {
+	if strings.Contains(got, "String(list.map") {
 		t.Fatalf("generated TypeScript stringifies reactive element array:\n%s", got)
 	}
 }
@@ -402,8 +402,8 @@ func TestGenerateArraySpread(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __next = [...__items, "New Item"];`,
-		`console.log(__next.length);`,
+		`let next = [...items, "New Item"];`,
+		`console.log(next.length);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -417,8 +417,8 @@ func TestGenerateArrayFoldr(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`__values.reduceRight`,
-		`(__accumulator: number, __value: number): number => __accumulator + __value`,
+		`values.reduceRight`,
+		`(accumulator: number, value: number): number => accumulator + value`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -457,20 +457,20 @@ main() => {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`type __Status = number;`,
-		`const __Status = {`,
+		`type Status = number;`,
+		`const Status = {`,
 		`Completed: 0,`,
 		`Fail: 1,`,
-		`function __statusText(__status: __Status): string`,
-		`__status === __Status.Completed`,
-		`__status === __Status.Fail`,
-		`function __fallback(__flag: boolean): __Status`,
-		`return 0 as __Status;`,
-		`let __status = __Status.Completed;`,
-		`console.log(__statusText(__status));`,
-		`console.log(__fallback(false));`,
-		`let __Status = {Completed: 42};`,
-		`console.log(__Status.Completed);`,
+		`function statusText(status: Status): string`,
+		`status === Status.Completed`,
+		`status === Status.Fail`,
+		`function fallback(flag: boolean): Status`,
+		`return 0 as Status;`,
+		`let status = Status.Completed;`,
+		`console.log(statusText(status));`,
+		`console.log(fallback(false));`,
+		`let Status = {Completed: 42};`,
+		`console.log(Status.Completed);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -490,10 +490,10 @@ func TestGenerateRegexProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __re = /rune\s+(\d+)/ig;`,
-		`let __built = new RegExp("\\d+", "g");`,
-		`"Rune 123 rune 456".match(__re)`,
-		`"a1 b22".replaceAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + "g"), "[$1]"))(__built)`,
+		`let re = /rune\s+(\d+)/ig;`,
+		`let built = new RegExp("\\d+", "g");`,
+		`"Rune 123 rune 456".match(re)`,
+		`"a1 b22".replaceAll(__regex.global ? __regex : new RegExp(__regex.source, __regex.flags + "g"), "[$1]"))(built)`,
 		`__value.replace(/[\\^$.*+?()[\]{}|]/g, "\\$&")`,
 	}
 	for _, want := range wantParts {
@@ -516,12 +516,12 @@ func TestGenerateMapIntrinsicProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __scores = new Map<string, number>();`,
-		`__scores.set("rune", 10);`,
-		`((__map, __key) => __map.has(__key) ? __map.get(__key)! : 0)(__scores, "rune")`,
-		`let __seen = new Set<string>();`,
-		`__seen.add("rune");`,
-		`console.log(__seen.has("rune"));`,
+		`let scores = new Map<string, number>();`,
+		`scores.set("rune", 10);`,
+		`((__map, __key) => __map.has(__key) ? __map.get(__key)! : 0)(scores, "rune")`,
+		`let seen = new Set<string>();`,
+		`seen.add("rune");`,
+		`console.log(seen.has("rune"));`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -547,10 +547,10 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
+		`let scores = new Map<string, number>([["a", 1], ["b", 2]]);`,
 		`.has(`,
 		` ?? 0`,
-		`__scores.set("b", 3);`,
+		`scores.set("b", 3);`,
 		` ?? 7`,
 	}
 	for _, want := range wantParts {
@@ -587,10 +587,10 @@ func TestGenerateArrayEachAvoidsUserIndexShadow(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __index = 0;`,
+		`let index = 0;`,
 		`for (const [__arrayIndex`,
-		`__index = __position + __value + __array.length`,
-		`console.log(__index);`,
+		`index = position + value + array.length`,
+		`console.log(index);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -619,15 +619,15 @@ func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`let __bytes = new DataView(new ArrayBuffer(16));`,
-		`__bytes.setUint8(0, __value); return __value; })((255 & 0xff))`,
-		`__bytes.setInt16(1, __value, true); return __value; })`,
-		`__bytes.setBigUint64(4, __value, false); return __value; })`,
-		`__bytes.setFloat32(12, __value, true); return __value; })(Math.fround(1.5))`,
-		`console.log(__bytes.getUint8(0));`,
-		`console.log(__bytes.getInt16(1, true));`,
-		`console.log(__bytes.getBigUint64(4, false));`,
-		`console.log(__bytes.getFloat32(12, true));`,
+		`let bytes = new DataView(new ArrayBuffer(16));`,
+		`bytes.setUint8(0, __value); return __value; })((255 & 0xff))`,
+		`bytes.setInt16(1, __value, true); return __value; })`,
+		`bytes.setBigUint64(4, __value, false); return __value; })`,
+		`bytes.setFloat32(12, __value, true); return __value; })(Math.fround(1.5))`,
+		`console.log(bytes.getUint8(0));`,
+		`console.log(bytes.getInt16(1, true));`,
+		`console.log(bytes.getBigUint64(4, false));`,
+		`console.log(bytes.getFloat32(12, true));`,
 		`console.log((16 >>> 0) >>> (2 >>> 0));`,
 	}
 	for _, want := range wantParts {
@@ -653,10 +653,10 @@ func TestGenerateCompressIntrinsicProgram(t *testing.T) {
 		`return runeCompressCall("zstdCompress", data);`,
 		`return runeCompressCall("zstdDecompress", data);`,
 		`runeCompressBrotliText("hello")`,
-		`runeCompressUnbrotliText(__brotli)`,
-		`runeCompressZstdText(__brotliText)`,
-		`runeCompressUnzstdText(__zstd)`,
-		`console.log(__text);`,
+		`runeCompressUnbrotliText(brotli)`,
+		`runeCompressZstdText(brotliText)`,
+		`runeCompressUnzstdText(zstd)`,
+		`console.log(text);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -693,9 +693,9 @@ main() => {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`JSON.stringify(((__rune_json_value) => ({ name: __rune_json_value.name`,
-		`user: ((__rune_json_value) => ({ display_name: __rune_json_value.name, age: __rune_json_value.age }))(__rune_json_value.user)`,
-		`tags: __rune_json_value.tags`,
+		`JSON.stringify(((rune_json_value) => ({ name: rune_json_value.name`,
+		`user: ((rune_json_value) => ({ display_name: rune_json_value.name, age: rune_json_value.age }))(rune_json_value.user)`,
+		`tags: rune_json_value.tags`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -705,7 +705,7 @@ main() => {
 	if strings.Contains(got, `"greet"`) {
 		t.Fatalf("generated TypeScript should omit function fields:\n%s", got)
 	}
-	if strings.Contains(got, "password: __rune_json_value.password") {
+	if strings.Contains(got, "password: rune_json_value.password") {
 		t.Fatalf("generated TypeScript should omit ignored JSON field:\n%s", got)
 	}
 }
@@ -729,15 +729,15 @@ main() => {
 	wantParts := []string{
 		`JSON.parse("{\"display_name\":\"Ada\",\"password\":\"drop\",\"scores\":[3,5]}")`,
 		`...({ name: "", password: "", scores: [] })`,
-		`name: __rune_json_raw["display_name"]`,
-		`scores: __rune_json_raw["scores"].map`,
+		`name: rune_json_raw["display_name"]`,
+		`scores: rune_json_raw["scores"].map`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
 			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 		}
 	}
-	if strings.Contains(got, `password: __rune_json_raw`) {
+	if strings.Contains(got, `password: rune_json_raw`) {
 		t.Fatalf("generated TypeScript should leave ignored fields at their zero value:\n%s", got)
 	}
 }
@@ -801,10 +801,10 @@ main() => {
 		`const runeTasks: Promise<unknown>[] = [];`,
 		`function runeGo<T>(work: () => T | Promise<T>): Promise<T>`,
 		`async function runeWaitAll(): Promise<void>`,
-		`function __test(__count: number): Promise<void>`,
+		`function test(count: number): Promise<void>`,
 		`return runeGo(async (): Promise<void> => {`,
-		`__count.toString()`,
-		`__test(1);`,
+		`count.toString()`,
+		`test(1);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -832,10 +832,10 @@ main() => {
 		`"return": number;`,
 		`func: number;`,
 		`def: number;`,
-		`let __freedom = {"return": 0, func: 1, def: 2};`,
-		`console.log(__freedom["return"]);`,
-		`console.log(__freedom.func);`,
-		`console.log(__freedom.def);`,
+		`let freedom = {"return": 0, func: 1, def: 2};`,
+		`console.log(freedom["return"]);`,
+		`console.log(freedom.func);`,
+		`console.log(freedom.def);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -852,8 +852,8 @@ func TestGenerateSignalAssignmentExpression(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __list = runeReactiveArray(["Item 1"]);`,
-		`.addEventListener("click", () => { __list.set([...__list.get(), "New Item"]); });`,
+		`const list = runeReactiveArray(["Item 1"]);`,
+		`.addEventListener("click", () => { list.set([...list.get(), "New Item"]); });`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -870,8 +870,8 @@ func TestGenerateSignalObjectInitializer(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const __state = runeReactiveObject({count: 0});`,
-		`.addEventListener("click", () => { __state.mutate((__value) => (__value.count = __state.get().count + 1)); });`,
+		`const state = runeReactiveObject({count: 0});`,
+		`.addEventListener("click", () => { state.mutate((__value) => (__value.count = state.get().count + 1)); });`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -893,12 +893,12 @@ func TestGenerateSignalEffectScope(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`const __effect1 = () => {`,
-		`__count.get() + __double.get();`,
+		`count.get() + double.get();`,
 		`let __effectPending2 = false;`,
 		`const __scheduleEffect3 = () => {`,
 		`runeScheduleEffect(() => { __effectPending2 = false; __effect1(); });`,
 		`__effect1();`,
-		`runeWatch(__double, __scheduleEffect3);`,
+		`runeWatch(double, __scheduleEffect3);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -924,8 +924,8 @@ main() => {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const { x: __x, y: __y } = __point;`,
-		`console.log(__x + __y);`,
+		`const { x: x, y: y } = point;`,
+		`console.log(x + y);`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -950,11 +950,11 @@ main() => @io.println(eval(Add(Lit(2), Lit(0))))
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`type __Expr = { tag: number; payload: any[] };`,
-		`{ tag: __Expr.Add, payload: [`,
-		`.tag === __Expr.Add`,
+		`type Expr = { tag: number; payload: any[] };`,
+		`{ tag: Expr.Add, payload: [`,
+		`.tag === Expr.Add`,
 		`(__match`,
-		`.payload[0] as __Expr)`,
+		`.payload[0] as Expr)`,
 		`.payload[0] as number`,
 	}
 	for _, want := range wantParts {
@@ -980,9 +980,9 @@ score(values: Lookup) -> Int => values {
 	wantParts := []string{
 		`new Map<string, any>()`,
 		`const __mapGet`,
-		`__Lookup_get(__match`,
-		`const __x = __mapGet`,
-		`const __b = __mapGet`,
+		`Lookup_get(__match`,
+		`const x = __mapGet`,
+		`const b = __mapGet`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {

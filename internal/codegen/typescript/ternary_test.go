@@ -9,8 +9,8 @@ func TestGenerateTernaryExpression(t *testing.T) {
 	src := `choose(flag: Bool) -> String => flag ? "yes" : "no"`
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`function __choose(__flag: boolean): string`,
-		`return __flag ? "yes" : "no";`,
+		`function choose(flag: boolean): string`,
+		`return flag ? "yes" : "no";`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -37,12 +37,12 @@ func TestGenerateConditionalExpressionWithoutElse(t *testing.T) {
 }`
 	got := generateForTest(t, src)
 	want := `if (true) {
-    __handled = true;
+    handled = true;
   }`
 	if !strings.Contains(got, want) {
 		t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
 	}
-	if strings.Contains(got, `__handled = __handled`) {
+	if strings.Contains(got, `handled = handled`) {
 		t.Fatalf("generated TypeScript contains redundant else assignment:\n%s", got)
 	}
 	if strings.Contains(got, `: undefined`) {
@@ -64,11 +64,11 @@ func TestGenerateTernaryLambdaCallee(t *testing.T) {
 }`
 	got := generateForTest(t, src)
 	for _, want := range []string{
-		`(__flag ?`,
-		`__x: { b: number; z: boolean; a: number }`,
-		`__y: { b: number; z: boolean; a: number }`,
-		`=> ({k: __x.a + 1})`,
-		`=> ({k: __y.b + 1})`,
+		`(flag ?`,
+		`x: { b: number; z: boolean; a: number }`,
+		`y: { b: number; z: boolean; a: number }`,
+		`=> ({k: x.a + 1})`,
+		`=> ({k: y.b + 1})`,
 		`({b: 2, z: false, a: 1})).k`,
 	} {
 		if !strings.Contains(got, want) {

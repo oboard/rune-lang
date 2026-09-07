@@ -2233,9 +2233,9 @@ func selfhost_parser_parser_parserErrorAt(state ParserState, token Token, messag
 	return ParserState{tokens: state.tokens, current: state.current, errors: selfhost_parser_parser_appendParseError(state.errors, ParseError{message: message, line: token.line, column: token.column})}
 }
 
-func selfhost_parser_parser_appendParseError(errors []ParseError, error ParseError) []ParseError {
+func selfhost_parser_parser_appendParseError(errors []ParseError, error_ ParseError) []ParseError {
 	out := errors
-	out = append(out, error)
+	out = append(out, error_)
 	return out
 }
 
@@ -5876,7 +5876,7 @@ func mangleIdent(name string) string {
 func targetKeyword(name string) bool {
 	return func() bool {
 		switch {
-		case (name == "abstract") || (name == "alias") || (name == "and") || (name == "anyframe") || (name == "anytype") || (name == "as") || (name == "asm") || (name == "assert") || (name == "assume") || (name == "async") || (name == "atomic") || (name == "await") || (name == "break") || (name == "case") || (name == "catch") || (name == "chan") || (name == "class") || (name == "comptime") || (name == "const") || (name == "constructor") || (name == "continue") || (name == "declare") || (name == "default") || (name == "defer") || (name == "define") || (name == "delete") || (name == "derive") || (name == "do") || (name == "downcast") || (name == "dyn") || (name == "dynclass") || (name == "dynobj") || (name == "dynrec") || (name == "else") || (name == "enum") || (name == "enumview") || (name == "errdefer") || (name == "export") || (name == "extends") || (name == "extern") || (name == "extenum") || (name == "false") || (name == "fallthrough") || (name == "final") || (name == "finally") || (name == "fn") || (name == "fnalias") || (name == "for") || (name == "func") || (name == "function") || (name == "go") || (name == "goto") || (name == "guard") || (name == "if") || (name == "implements") || (name == "import") || (name == "in") || (name == "include") || (name == "inherit") || (name == "instanceof") || (name == "interface") || (name == "is") || (name == "isnot") || (name == "lazy") || (name == "let") || (name == "letrec") || (name == "lexmatch") || (name == "local") || (name == "loop") || (name == "macro") || (name == "main") || (name == "map") || (name == "match") || (name == "member") || (name == "method") || (name == "mixin") || (name == "module") || (name == "move") || (name == "mut") || (name == "namespace") || (name == "new") || (name == "noasync") || (name == "nobreak") || (name == "noraise") || (name == "null") || (name == "opaque") || (name == "orelse") || (name == "override") || (name == "package") || (name == "priv") || (name == "private") || (name == "proof_assert") || (name == "proof_let") || (name == "protected") || (name == "pub") || (name == "public") || (name == "raise") || (name == "range") || (name == "readonly") || (name == "recur") || (name == "ref") || (name == "resume") || (name == "return") || (name == "sealed") || (name == "select") || (name == "static") || (name == "struct") || (name == "suberror") || (name == "super") || (name == "switch") || (name == "test") || (name == "this") || (name == "threadlocal") || (name == "throw") || (name == "trait") || (name == "traitalias") || (name == "true") || (name == "try") || (name == "type") || (name == "typealias") || (name == "typeof") || (name == "unsafe") || (name == "unreachable") || (name == "upcast") || (name == "use") || (name == "using") || (name == "var") || (name == "virtual") || (name == "void") || (name == "volatile") || (name == "where") || (name == "while") || (name == "with") || (name == "yield"):
+		case (name == "abstract") || (name == "alias") || (name == "and") || (name == "anyframe") || (name == "anytype") || (name == "as") || (name == "asm") || (name == "assert") || (name == "assume") || (name == "async") || (name == "atomic") || (name == "await") || (name == "break") || (name == "case") || (name == "catch") || (name == "chan") || (name == "class") || (name == "comptime") || (name == "const") || (name == "constructor") || (name == "continue") || (name == "declare") || (name == "default") || (name == "defer") || (name == "define") || (name == "delete") || (name == "derive") || (name == "do") || (name == "downcast") || (name == "dyn") || (name == "dynclass") || (name == "dynobj") || (name == "dynrec") || (name == "else") || (name == "enum") || (name == "enumview") || (name == "errdefer") || (name == "export") || (name == "extends") || (name == "extern") || (name == "extenum") || (name == "false") || (name == "fallthrough") || (name == "final") || (name == "finally") || (name == "fn") || (name == "fnalias") || (name == "for") || (name == "func") || (name == "function") || (name == "go") || (name == "goto") || (name == "guard") || (name == "if") || (name == "implements") || (name == "import") || (name == "in") || (name == "any") || (name == "bool") || (name == "byte") || (name == "comparable") || (name == "complex64") || (name == "complex128") || (name == "error") || (name == "float32") || (name == "float64") || (name == "int") || (name == "int8") || (name == "int16") || (name == "int32") || (name == "int64") || (name == "rune") || (name == "string") || (name == "uint") || (name == "uint8") || (name == "uint16") || (name == "uint32") || (name == "uint64") || (name == "uintptr") || (name == "include") || (name == "inherit") || (name == "instanceof") || (name == "interface") || (name == "is") || (name == "isnot") || (name == "lazy") || (name == "let") || (name == "letrec") || (name == "lexmatch") || (name == "local") || (name == "loop") || (name == "macro") || (name == "main") || (name == "map") || (name == "match") || (name == "member") || (name == "method") || (name == "mixin") || (name == "module") || (name == "move") || (name == "mut") || (name == "namespace") || (name == "new") || (name == "noasync") || (name == "nobreak") || (name == "noraise") || (name == "null") || (name == "opaque") || (name == "orelse") || (name == "override") || (name == "package") || (name == "priv") || (name == "private") || (name == "proof_assert") || (name == "proof_let") || (name == "protected") || (name == "pub") || (name == "public") || (name == "raise") || (name == "range") || (name == "readonly") || (name == "recur") || (name == "ref") || (name == "resume") || (name == "return") || (name == "sealed") || (name == "select") || (name == "static") || (name == "struct") || (name == "suberror") || (name == "super") || (name == "switch") || (name == "test") || (name == "this") || (name == "threadlocal") || (name == "throw") || (name == "trait") || (name == "traitalias") || (name == "true") || (name == "try") || (name == "type") || (name == "typealias") || (name == "typeof") || (name == "unsafe") || (name == "unreachable") || (name == "upcast") || (name == "use") || (name == "using") || (name == "var") || (name == "virtual") || (name == "void") || (name == "volatile") || (name == "where") || (name == "while") || (name == "with") || (name == "yield"):
 			return true
 		default:
 			return false
@@ -19726,9 +19726,9 @@ func selfhost_compiler_compiler_mergeCompilerIRFile(out IRFile, file IRFile) IRF
 		_ = testDecl
 		func() int { out.tests = append(out.tests, testDecl); return len(out.tests) }()
 	}
-	for _, error := range file.errors {
-		_ = error
-		func() int { out.errors = append(out.errors, error); return len(out.errors) }()
+	for _, error_ := range file.errors {
+		_ = error_
+		func() int { out.errors = append(out.errors, error_); return len(out.errors) }()
 	}
 	return out
 }
@@ -19745,10 +19745,10 @@ func selfhost_compiler_compiler_unsupportedTargetErrors(target string) []string 
 
 func selfhost_compiler_compiler_parseErrorMessages(errors []ParseError) []string {
 	out := []string{}
-	for _, error := range errors {
-		_ = error
+	for _, error_ := range errors {
+		_ = error_
 		func() int {
-			out = append(out, "line "+compilerIntToString(error.line)+":"+compilerIntToString(error.column)+": "+error.message)
+			out = append(out, "line "+compilerIntToString(error_.line)+":"+compilerIntToString(error_.column)+": "+error_.message)
 			return len(out)
 		}()
 	}

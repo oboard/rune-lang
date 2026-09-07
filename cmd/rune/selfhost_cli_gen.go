@@ -41,7 +41,7 @@ type CliParseResult struct {
 	args            []string
 	rest            []string
 	help            bool
-	error           any
+	error_          any
 }
 
 type CliCommandAlias struct {
@@ -54,7 +54,7 @@ type CliCommandParseResult struct {
 	command     CliParseResult
 	commandName string
 	commandArgs []string
-	error       any
+	error_      any
 }
 
 type CliCommandArgs struct {
@@ -964,7 +964,7 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 		}
 		parseError = parseError
 	}()
-	return CliParseResult{command: command, values: values, flags: flags, positionals: positionals, explicitOptions: explicitOptions, args: args, rest: rest, help: helpValue, error: func() any {
+	return CliParseResult{command: command, values: values, flags: flags, positionals: positionals, explicitOptions: explicitOptions, args: args, rest: rest, help: helpValue, error_: func() any {
 		if len(parseError) == 0 {
 			return any(nil)
 		}
@@ -977,7 +977,7 @@ func cli_parseCommandArgs(root CliCommand, commands []CliCommand, aliases []CliC
 	rootResult := cli_parseArgs(root, split.rootArgs)
 	return func() CliCommandParseResult {
 		if len(split.commandName) == 0 {
-			return CliCommandParseResult{root: rootResult, command: rootResult, commandName: "", commandArgs: []string{}, error: any(nil)}
+			return CliCommandParseResult{root: rootResult, command: rootResult, commandName: "", commandArgs: []string{}, error_: any(nil)}
 		}
 		return cli_parseNamedCommandArgs(rootResult, commands, trailingRest, split)
 	}()
@@ -991,7 +991,7 @@ func cli_parseKnownCommandArgs(rootResult CliParseResult, command CliCommand, tr
 		return split.commandArgs
 	}()
 	parsed := cli_withReportedArgs(cli_parseArgs(command, args), split.commandArgs)
-	return CliCommandParseResult{root: rootResult, command: parsed, commandName: split.commandName, commandArgs: split.commandArgs, error: any(nil)}
+	return CliCommandParseResult{root: rootResult, command: parsed, commandName: split.commandName, commandArgs: split.commandArgs, error_: any(nil)}
 }
 
 func cli_parseNamedCommandArgs(rootResult CliParseResult, commands []CliCommand, trailingRest []string, split CliCommandArgs) CliCommandParseResult {
@@ -1000,7 +1000,7 @@ func cli_parseNamedCommandArgs(rootResult CliParseResult, commands []CliCommand,
 		if lookup.found {
 			return cli_parseKnownCommandArgs(rootResult, lookup.command, trailingRest, split)
 		}
-		return CliCommandParseResult{root: rootResult, command: rootResult, commandName: split.commandName, commandArgs: split.commandArgs, error: "unknown command " + split.commandName}
+		return CliCommandParseResult{root: rootResult, command: rootResult, commandName: split.commandName, commandArgs: split.commandArgs, error_: "unknown command " + split.commandName}
 	}()
 }
 
@@ -1132,7 +1132,7 @@ func cli_withOption(command CliCommand, option CliOption) CliCommand {
 }
 
 func cli_withReportedArgs(result CliParseResult, args []string) CliParseResult {
-	return CliParseResult{command: result.command, values: result.values, flags: result.flags, positionals: result.positionals, explicitOptions: result.explicitOptions, rest: result.rest, help: result.help, error: result.error, args: args}
+	return CliParseResult{command: result.command, values: result.values, flags: result.flags, positionals: result.positionals, explicitOptions: result.explicitOptions, rest: result.rest, help: result.help, error_: result.error_, args: args}
 }
 
 func parseCli(args []string) RuneCliInvocation {
@@ -1151,7 +1151,7 @@ func selfhost_cli_cli_invocationFromParsed(parsed CliCommandParseResult, rootCom
 	}()
 	errors := selfhost_cli_cli_cliErrors(root)
 	commandError := func() string {
-		coalesce4 := parsed.error
+		coalesce4 := parsed.error_
 		if coalesce4 != nil {
 			return coalesce4.(string)
 		}
@@ -1289,8 +1289,8 @@ func selfhost_cli_cli_invocationHelpCommand(rootCommand CliCommand, commands []C
 }
 
 func selfhost_cli_cli_cliErrors(result CliParseResult) []string {
-	error := func() string {
-		coalesce9 := result.error
+	error_ := func() string {
+		coalesce9 := result.error_
 		if coalesce9 != nil {
 			return coalesce9.(string)
 		}
@@ -1298,10 +1298,10 @@ func selfhost_cli_cli_cliErrors(result CliParseResult) []string {
 	}()
 	errors := []string{}
 	func() int {
-		if len(error) == 0 {
+		if len(error_) == 0 {
 			return 0
 		}
-		return func() int { errors = append(errors, error); return len(errors) }()
+		return func() int { errors = append(errors, error_); return len(errors) }()
 	}()
 	return errors
 }
