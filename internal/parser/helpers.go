@@ -267,6 +267,23 @@ func (p *Parser) skipSinglePatternLookahead(i int) int {
 			}
 			i++
 		}
+	case lexer.DotDotEqual:
+		i++
+		if i >= len(p.tokens) {
+			return -1
+		}
+		switch p.tokens[i].Kind {
+		case lexer.Underscore, lexer.Int, lexer.Double, lexer.BigInt, lexer.String, lexer.Char:
+			i++
+		case lexer.Ident:
+			if i+2 < len(p.tokens) && p.tokens[i+1].Kind == lexer.Dot && p.tokens[i+2].Kind == lexer.Ident {
+				i += 3
+			} else {
+				i++
+			}
+		default:
+			return -1
+		}
 	case lexer.Ident:
 		if i+1 < len(p.tokens) && p.tokens[i+1].Kind == lexer.LParen {
 			i += 2

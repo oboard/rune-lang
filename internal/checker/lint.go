@@ -453,7 +453,7 @@ func (l *linter) warnUnusedFunctions() {
 		if l.usedFunctions[fn] {
 			continue
 		}
-		l.warnAt(fn.NamePos, fn.Node.SourcePath, "0001", "unused_value", "Function %q is never used", fn.Name)
+		l.warnAtLength(fn.NamePos, len(fn.Name), fn.Node.SourcePath, "0001", "unused_value", "Function %q is never used", fn.Name)
 	}
 }
 
@@ -580,10 +580,15 @@ func (l *linter) warn(pos lexer.Position, code string, kind string, format strin
 }
 
 func (l *linter) warnAt(pos lexer.Position, path string, code string, kind string, format string, args ...any) {
+	l.warnAtLength(pos, 0, path, code, kind, format, args...)
+}
+
+func (l *linter) warnAtLength(pos lexer.Position, length int, path string, code string, kind string, format string, args ...any) {
 	message := fmt.Sprintf("Warning [%s] (%s): %s", code, kind, fmt.Sprintf(format, args...))
 	l.diags = append(l.diags, Diagnostic{
 		Message:  message,
 		Pos:      pos,
+		Length:   length,
 		Path:     normalizeSourcePath(path),
 		Severity: SeverityWarning,
 		Code:     code,

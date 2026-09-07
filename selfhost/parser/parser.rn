@@ -2551,25 +2551,6 @@ parseSignalPrefixIdentifier(
   }
 }
 
-parseReactiveLiteralAfterDollar(
-  start: TokenStep
-) -> ExprStep => {
-  value := (
-    parserCheck(start.state, TokenKind.LBracket) ? parseArrayLiteral(start.state)
-      : (
-        parserCheck(start.state, TokenKind.LBrace) ? parseBraceLiteral(start.state)
-          : ExprStep {
-            state: parserErrorAt(start.state, parserPeek(start.state), "expected '[' or '{' after '$'"),
-            expr: emptyExpr()
-          }
-      )
-  )
-  ExprStep {
-    ..value,
-    expr: opNode(ExprKind.Reactive, "$", start.token, [value.expr])
-  }
-}
-
 parseBraceLiteral(
   state: ParserState
 ) -> ExprStep => (
@@ -2953,6 +2934,34 @@ parseAliasPatternName(
 
 parseRangePattern(
   state: ParserState
+) -> ExprStep => (
+  parserCheck(state, TokenKind.DotDotEqual) ? parseOpenRangePattern(state)
+    : parseRangePatternAfterAtom(state)
+)
+
+parseOpenRangePattern(
+  state: ParserState
+) -> ExprStep => {
+  start := parserAdvance(state)
+  parserCheck(start.state, TokenKind.FatArrow) ? ExprStep {
+    state: start.state,
+    expr: withText(node(ExprKind.Pattern, start.token), start.token.lexeme)
+  }
+    : parseOpenRangePatternBound(start)
+}
+
+parseOpenRangePatternBound(
+  start: TokenStep
+) -> ExprStep => {
+  bound := parseRangeBoundPattern(parserSkipNewlines(start.state))
+  ExprStep {
+    ..bound,
+    expr: withText(bound.expr, "..=" + bound.expr.text)
+  }
+}
+
+parseRangePatternAfterAtom(
+  state: ParserState
 ) -> ExprStep => {
   pattern := parsePatternAtom(state)
   current := parserSkipNewlines(pattern.state)
@@ -2976,6 +2985,18 @@ parseDotDotRangePattern(
 }
 
 parseRangePatternEnd(
+  pattern: ExprStep,
+  op: TokenStep,
+  text: String
+) -> ExprStep => (
+  parserCheck(op.state, TokenKind.FatArrow) ? ExprStep {
+    state: op.state,
+    expr: withText(pattern.expr, pattern.expr.text + text)
+  }
+    : parseRangePatternEndBound(pattern, op, text)
+)
+
+parseRangePatternEndBound(
   pattern: ExprStep,
   op: TokenStep,
   text: String
@@ -3034,6 +3055,7 @@ parsePatternAtom(
     TokenKind.LBrace => parseMapOrObjectPattern(state)
     TokenKind.LBracket => parseArrayPattern(state)
     TokenKind.LParen => parseTupleOrGroupedPattern(state)
+    TokenKind.DotDotEqual => parsePatternToken(state)
     _ => parsePatternError(state)
   }
 }

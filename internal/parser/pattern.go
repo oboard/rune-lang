@@ -37,6 +37,11 @@ func (p *Parser) parseAliasPattern() ast.Pattern {
 }
 
 func (p *Parser) parseRangePattern() ast.Pattern {
+	if p.match(lexer.DotDotEqual) {
+		start := p.previous().Pos
+		end := p.parseRangeBound()
+		return &ast.RangePattern{End: end, Inclusive: true, Pos: start}
+	}
 	pattern := p.parsePatternAtom()
 	if p.match(lexer.DotDotEqual) {
 		start, ok := p.rangeBoundFromPattern(pattern)
@@ -44,7 +49,10 @@ func (p *Parser) parseRangePattern() ast.Pattern {
 			p.errorAt(p.previous(), "range pattern start must be a literal or '_'")
 			return pattern
 		}
-		end := p.parseRangeBound()
+		var end ast.Expr
+		if !p.check(lexer.FatArrow) {
+			end = p.parseRangeBound()
+		}
 		return &ast.RangePattern{Start: start, End: end, Inclusive: true, Pos: pattern.Position()}
 	}
 	if p.match(lexer.DotDotLess) || p.match(lexer.DotDot) {

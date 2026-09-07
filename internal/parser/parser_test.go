@@ -736,6 +736,21 @@ label := "Rune"
 	}
 }
 
+func TestKeywordFreeConstantDoesNotConsumeFollowingPatternFunction(t *testing.T) {
+	file, errs := Parse(`Zero := 0
+classify(value: Int) -> Int => value {
+  Zero => 0
+  _ => 1
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	if len(file.Constants) != 1 || len(file.Functions) != 1 {
+		t.Fatalf("file = %#v, want one constant and one function", file)
+	}
+}
+
 func TestMapPatternConstIdentifierKey(t *testing.T) {
 	file, errs := Parse(`KeyA := "a"
 

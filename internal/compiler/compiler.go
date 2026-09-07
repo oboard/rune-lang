@@ -22,6 +22,7 @@ import (
 type Diagnostic struct {
 	Message  string
 	Pos      lexer.Position
+	Length   int
 	Path     string
 	Severity checker.DiagnosticSeverity
 	Code     string
@@ -114,7 +115,7 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 		diags = append(diags, Diagnostic{Message: err.Message, Pos: err.Pos, Path: path})
 	}
 	for _, diag := range checkDiags {
-		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: path, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
+		diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Length: diag.Length, Path: path, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
 	}
 	if includeWarnings && len(parseErrs) == 0 && !hasErrorDiagnostics(checkDiags) {
 		for _, diag := range checker.Lint(file, info) {
@@ -122,7 +123,7 @@ func analyzedProgram(path string, src string, file *ast.File, info *checker.Info
 			if diag.Path != "" {
 				diagnosticPath = diag.Path
 			}
-			diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Path: diagnosticPath, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
+			diags = append(diags, Diagnostic{Message: diag.Message, Pos: diag.Pos, Length: diag.Length, Path: diagnosticPath, Severity: diag.Severity, Code: diag.Code, Kind: diag.Kind})
 		}
 	}
 	lowered := ir.LowerFile(file, info)

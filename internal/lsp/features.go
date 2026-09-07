@@ -9,7 +9,7 @@ func (s *server) publishDiagnostics(uri string) error {
 			severity = 2 // Warning
 		}
 		items = append(items, map[string]any{
-			"range":    lspRange(diag.Pos),
+			"range":    lspRange(diag.Pos, diag.Length),
 			"severity": severity,
 			"source":   "rune",
 			"message":  diag.Message,

@@ -8,8 +8,8 @@ import (
 	"github.com/oboard/rune-lang/internal/lexer"
 )
 
-func lspRange(pos lexer.Position) map[string]any {
-	return symbolRange(pos, 1)
+func lspRange(pos lexer.Position, length int) map[string]any {
+	return symbolRange(pos, length)
 }
 
 func symbolRange(pos lexer.Position, length int) map[string]any {
@@ -143,4 +143,3 @@ func max(a, b int) int {
 	}
 	return b
 }
-

@@ -225,8 +225,9 @@ func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
 		if strings.Contains(diag["message"].(string), `Function "loop" is never used`) {
 			rangeValue := diag["range"].(map[string]any)
 			start := rangeValue["start"].(position)
-			if start.Line != 0 || start.Character != 0 {
-				t.Fatalf("unused self-recursive function range = %d:%d, want 0:0", start.Line, start.Character)
+			end := rangeValue["end"].(position)
+			if start.Line != 0 || start.Character != 0 || end.Line != 0 || end.Character != len("loop") {
+				t.Fatalf("unused self-recursive function range = %d:%d-%d:%d, want 0:0-0:%d", start.Line, start.Character, end.Line, end.Character, len("loop"))
 			}
 			return
 		}

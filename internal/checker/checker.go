@@ -52,6 +52,7 @@ const (
 type Diagnostic struct {
 	Message  string
 	Pos      lexer.Position
+	Length   int
 	Path     string
 	Severity DiagnosticSeverity
 	Code     string

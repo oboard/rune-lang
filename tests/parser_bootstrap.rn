@@ -101,7 +101,7 @@ greeting := "hi"
   @assert.eq(file.constants[0].value.kind, ExprKind.Int)
   @assert.eq(file.constants[1].name, "greeting")
   @assert.eq(file.constants[1].private, true)
-  @assert.eq(file.constants[1].typeRef.name, "String")
+  @assert.eq(file.constants[1].typeRef.name, "")
 }
 
 ? "selfhost parser rejects const annotations" {

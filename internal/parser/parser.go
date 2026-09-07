@@ -94,6 +94,8 @@ func (p *Parser) ParseFile() (*ast.File, []Error) {
 			if constant != nil {
 				file.Constants = append(file.Constants, constant)
 			}
+			p.skipNewlines()
+			continue
 		} else if p.looksLikeTypeDecl() {
 			typ, enum := p.parseTypeDecl(private)
 			if typ != nil {

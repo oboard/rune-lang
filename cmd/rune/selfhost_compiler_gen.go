@@ -4248,6 +4248,30 @@ func __selfhost_parser_parser_parseAliasPatternName(__pattern __ExprStep, __stat
 }
 
 func __selfhost_parser_parser_parseRangePattern(__state __ParserState) __ExprStep {
+	return func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__state, __TokenKind_DotDotEqual) {
+			return __selfhost_parser_parser_parseOpenRangePattern(__state)
+		}
+		return __selfhost_parser_parser_parseRangePatternAfterAtom(__state)
+	}()
+}
+
+func __selfhost_parser_parser_parseOpenRangePattern(__state __ParserState) __ExprStep {
+	__start := __selfhost_parser_parser_parserAdvance(__state)
+	return func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__start.__state, __TokenKind_FatArrow) {
+			return __ExprStep{__state: __start.__state, __expr: __selfhost_parser_parser_withText(__selfhost_parser_parser_node(__ExprKind_Pattern, __start.__token), __start.__token.__lexeme)}
+		}
+		return __selfhost_parser_parser_parseOpenRangePatternBound(__start)
+	}()
+}
+
+func __selfhost_parser_parser_parseOpenRangePatternBound(__start __TokenStep) __ExprStep {
+	__bound := __selfhost_parser_parser_parseRangeBoundPattern(__selfhost_parser_parser_parserSkipNewlines(__start.__state))
+	return __ExprStep{__state: __bound.__state, __expr: __selfhost_parser_parser_withText(__bound.__expr, "..="+__bound.__expr.__text)}
+}
+
+func __selfhost_parser_parser_parseRangePatternAfterAtom(__state __ParserState) __ExprStep {
 	__pattern := __selfhost_parser_parser_parsePatternAtom(__state)
 	__current := __selfhost_parser_parser_parserSkipNewlines(__pattern.__state)
 	return func() __ExprStep {
@@ -4270,6 +4294,15 @@ func __selfhost_parser_parser_parseDotDotRangePattern(__pattern __ExprStep, __op
 }
 
 func __selfhost_parser_parser_parseRangePatternEnd(__pattern __ExprStep, __op __TokenStep, __text string) __ExprStep {
+	return func() __ExprStep {
+		if __selfhost_parser_parser_parserCheck(__op.__state, __TokenKind_FatArrow) {
+			return __ExprStep{__state: __op.__state, __expr: __selfhost_parser_parser_withText(__pattern.__expr, __pattern.__expr.__text+__text)}
+		}
+		return __selfhost_parser_parser_parseRangePatternEndBound(__pattern, __op, __text)
+	}()
+}
+
+func __selfhost_parser_parser_parseRangePatternEndBound(__pattern __ExprStep, __op __TokenStep, __text string) __ExprStep {
 	__bound := __selfhost_parser_parser_parseRangeBoundPattern(__selfhost_parser_parser_parserSkipNewlines(__op.__state))
 	return __ExprStep{__state: __bound.__state, __expr: __selfhost_parser_parser_withText(__pattern.__expr, __pattern.__expr.__text+__text+__bound.__expr.__text)}
 }
@@ -4341,6 +4374,8 @@ func __selfhost_parser_parser_parsePatternAtom(__state __ParserState) __ExprStep
 			return __selfhost_parser_parser_parseArrayPattern(__state)
 		case __token.__kind == __TokenKind_LParen:
 			return __selfhost_parser_parser_parseTupleOrGroupedPattern(__state)
+		case __token.__kind == __TokenKind_DotDotEqual:
+			return __selfhost_parser_parser_parsePatternToken(__state)
 		default:
 			return __selfhost_parser_parser_parsePatternError(__state)
 		}

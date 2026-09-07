@@ -38,7 +38,7 @@ label := "Rune"
   @assert.eq(file.constants[0].value.kind, ExprKind.Int)
   @assert.eq(file.constants[1].name, "label")
   @assert.eq(file.constants[1].private, true)
-  @assert.eq(file.constants[1].typeName, "String")
+  @assert.eq(file.constants[1].typeName, "")
   @assert.eq(file.constants[1].value.kind, ExprKind.String)
 }
 
