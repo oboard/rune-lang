@@ -26,10 +26,10 @@ func TestRuneCLIDeclarationEmitsKeywordFreePublicConstant(t *testing.T) {
 	if err := runRuneCLI([]string{"dts", path}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runRuneCLI(dts) error = %v, stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "declare const __Answer: number;") {
+	if !strings.Contains(out.String(), "declare const Answer: number;") {
 		t.Fatalf("selfhost declaration missing inferred constant: %q", out.String())
 	}
-	if !strings.Contains(out.String(), "export declare const Answer: typeof __Answer;") {
+	if !strings.Contains(out.String(), "export declare const Answer: typeof Answer;") {
 		t.Fatalf("selfhost declaration missing public constant alias: %q", out.String())
 	}
 }
@@ -47,16 +47,16 @@ func TestRuneCLIDeclarationUsesSelfhostEmitter(t *testing.T) {
 		t.Fatalf("runRuneCLI(dts) error = %v, stderr = %s", err, errOut.String())
 	}
 	got := out.String()
-	if !strings.Contains(got, "type __User = {") {
-		t.Fatalf("selfhost declaration missing __User struct: %q", got)
+	if !strings.Contains(got, "type User = {") {
+		t.Fatalf("selfhost declaration missing User struct: %q", got)
 	}
-	if !strings.Contains(got, "declare function __makeUser(__name: string): __User;") {
-		t.Fatalf("selfhost declaration missing __makeUser signature: %q", got)
+	if !strings.Contains(got, "declare function makeUser(name: string): User;") {
+		t.Fatalf("selfhost declaration missing makeUser signature: %q", got)
 	}
-	if !strings.Contains(got, "export type User = __User;") {
+	if !strings.Contains(got, "export type User = User;") {
 		t.Fatalf("selfhost declaration missing User type alias export: %q", got)
 	}
-	if !strings.Contains(got, "export declare const makeUser: typeof __makeUser;") {
+	if !strings.Contains(got, "export declare const makeUser: typeof makeUser;") {
 		t.Fatalf("selfhost declaration missing makeUser value alias export: %q", got)
 	}
 }
@@ -102,12 +102,12 @@ func TestRuneCLIDeclarationSelfhostMatchesHost(t *testing.T) {
 			if len(diags) > 0 {
 				t.Skipf("host declaration also reports errors: %v", diags)
 			}
-			out := __compileDeclarations(tc.src)
-			if !out.__ok {
-				t.Fatalf("selfhost compileDeclarations failed: %v", out.__errors)
+			out := compileDeclarations(tc.src)
+			if !out.ok {
+				t.Fatalf("selfhost compileDeclarations failed: %v", out.errors)
 			}
-			if out.__output != host {
-				t.Fatalf("selfhost declaration mismatch\nselfhost:\n%s\nhost:\n%s", out.__output, host)
+			if out.output != host {
+				t.Fatalf("selfhost declaration mismatch\nselfhost:\n%s\nhost:\n%s", out.output, host)
 			}
 		})
 	}
@@ -124,7 +124,7 @@ func TestRuneCLITypeScriptUsesSelfhostCompilerImportGraph(t *testing.T) {
 	if err := runRuneCLI([]string{"ts", entry}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runRuneCLI(ts import graph) error = %v, stderr = %s", err, errOut.String())
 	}
-	if got := out.String(); !strings.Contains(got, "function __answer(): number") {
+	if got := out.String(); !strings.Contains(got, "function answer(): number") {
 		t.Fatalf("self-host generated TypeScript = %q, want imported answer", got)
 	}
 }
@@ -166,17 +166,17 @@ main() => {
 		t.Fatalf("runRuneCLI(ts) error = %v, stderr = %s", err, errOut.String())
 	}
 	got := out.String()
-	if !strings.Contains(got, "function __User_isAdult(__this: __User): boolean") {
+	if !strings.Contains(got, "function User_isAdult(this_: User): boolean") {
 		t.Fatalf("self-hosted TypeScript missing mangled method: %q", got)
 	}
-	if !strings.Contains(got, "console.log(__user.name)") {
+	if !strings.Contains(got, "console.log(user.name)") {
 		t.Fatalf("self-hosted TypeScript should keep field access, got %q", got)
 	}
-	if !strings.Contains(got, "console.log(__User_isAdult(__user))") {
+	if !strings.Contains(got, "console.log(User_isAdult(user))") {
 		t.Fatalf("self-hosted TypeScript should rewrite instance method call, got %q", got)
 	}
-	if strings.Contains(got, "__user.isAdult()") {
-		t.Fatalf("self-hosted TypeScript must not emit uncallable __user.isAdult(): %q", got)
+	if strings.Contains(got, "user.isAdult()") {
+		t.Fatalf("self-hosted TypeScript must not emit uncallable user.isAdult(): %q", got)
 	}
 }
 
@@ -191,7 +191,7 @@ func TestRuneCLIGoUsesSelfhostCompilerImportGraph(t *testing.T) {
 	if err := runRuneCLI([]string{"go", entry}, strings.NewReader(""), &out, &errOut); err != nil {
 		t.Fatalf("runRuneCLI(go import graph) error = %v, stderr = %s", err, errOut.String())
 	}
-	if got := out.String(); !strings.Contains(got, "func __answer() int") {
+	if got := out.String(); !strings.Contains(got, "func answer() int") {
 		t.Fatalf("self-host generated Go = %q, want imported answer", got)
 	}
 }
@@ -202,19 +202,19 @@ func TestGeneratedSelfhostCompilerInfersComplexStructuralTypes(t *testing.T) {
 }
 main() => @io.println(fun(true) + fun(false))
 `
-	result := __compileGo(source)
-	if !result.__ok {
-		t.Fatalf("__compileGo() errors = %v", result.__errors)
+	result := compileGo(source)
+	if !result.ok {
+		t.Fatalf("compileGo() errors = %v", result.errors)
 	}
-	if !strings.Contains(result.__output, "func __fun(__flag bool) int") {
-		t.Fatalf("selfhost generated Go = %q, want inferred bool-to-int signature", result.__output)
+	if !strings.Contains(result.output, "func fun(flag bool) int") {
+		t.Fatalf("selfhost generated Go = %q, want inferred bool-to-int signature", result.output)
 	}
-	if !strings.Contains(result.__output, "struct { __k int;") {
-		t.Fatalf("selfhost generated Go = %q, want inferred object result", result.__output)
+	if !strings.Contains(result.output, "struct { k int;") {
+		t.Fatalf("selfhost generated Go = %q, want inferred object result", result.output)
 	}
-	formatted, err := format.Source([]byte(result.__output))
+	formatted, err := format.Source([]byte(result.output))
 	if err != nil {
-		t.Fatalf("format selfhost generated Go: %v\n%s", err, result.__output)
+		t.Fatalf("format selfhost generated Go: %v\n%s", err, result.output)
 	}
 	goFile := filepath.Join(t.TempDir(), "main.go")
 	if err := os.WriteFile(goFile, formatted, 0o644); err != nil {
@@ -288,9 +288,9 @@ func TestGeneratedSelfhostCompilerMatchesGoHostCompiled(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			selfhostOut := __compileGo(tc.source)
-			if !selfhostOut.__ok {
-				t.Fatalf("__compileGo() errors = %v", selfhostOut.__errors)
+			selfhostOut := compileGo(tc.source)
+			if !selfhostOut.ok {
+				t.Fatalf("compileGo() errors = %v", selfhostOut.errors)
 			}
 			path := filepath.Join(t.TempDir(), "main.rn")
 			if err := os.WriteFile(path, []byte(tc.source), 0o644); err != nil {
@@ -321,7 +321,7 @@ func TestGeneratedSelfhostCompilerMatchesGoHostCompiled(t *testing.T) {
 				}
 				return string(out)
 			}
-			if got, want := runBuilt(selfhostOut.__output), runBuilt(hostOut); got != want {
+			if got, want := runBuilt(selfhostOut.output), runBuilt(hostOut); got != want {
 				t.Fatalf("self-host runtime output != host runtime output: got %q want %q", got, want)
 			}
 		})
@@ -339,15 +339,15 @@ main() => {
   @io.println(fib(10))
 }
 `
-	out := __compileGo(source)
-	if !out.__ok {
-		t.Fatalf("__compileGo() errors = %v", out.__errors)
+	out := compileGo(source)
+	if !out.ok {
+		t.Fatalf("compileGo() errors = %v", out.errors)
 	}
-	if !strings.Contains(out.__output, "func __fib(__n int) int") {
-		t.Fatalf("generated Go =\n%s\nwant func __fib(__n int) int", out.__output)
+	if !strings.Contains(out.output, "func fib(n int) int") {
+		t.Fatalf("generated Go =\n%s\nwant func fib(n int) int", out.output)
 	}
-	if !strings.Contains(out.__output, "switch __n {") {
-		t.Fatalf("generated Go =\n%s\nwant switch __n", out.__output)
+	if !strings.Contains(out.output, "switch n {") {
+		t.Fatalf("generated Go =\n%s\nwant switch n", out.output)
 	}
 }
 
@@ -553,7 +553,7 @@ func TestSelfhostTypeScriptRuntimeSourceUsesSelfhostCompilerImportGraph(t *testi
 	if len(diags) > 0 {
 		t.Fatalf("selfhostTypeScriptRuntimeSource() diagnostics = %v", diags)
 	}
-	if !strings.Contains(src, "function __answer(): number") {
+	if !strings.Contains(src, "function answer(): number") {
 		t.Fatalf("runtime TypeScript = %q, want imported answer", src)
 	}
 }
@@ -655,7 +655,7 @@ func TestSelfhostMoonBitRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.
 	if len(diags) > 0 {
 		t.Fatalf("selfhostMoonBitRuntimeSource() diagnostics = %v", diags)
 	}
-	if !strings.Contains(src, "fn __answer() -> Int") {
+	if !strings.Contains(src, "fn answer() -> Int") {
 		t.Fatalf("runtime MoonBit = %q, want imported answer", src)
 	}
 }

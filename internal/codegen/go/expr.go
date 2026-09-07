@@ -529,17 +529,18 @@ func (g *generator) enumMemberForConstructor(typ checker.Type, name string) (*ir
 func goArrayLiteral(elemType checker.Type, elements []ir.Expr, emit func(ir.Expr) string) string {
 	if arrayElementsHaveSpread(elements) {
 		resultType := goType(elemType)
+		const out = "__rune_spread_out"
 		var b strings.Builder
 		b.WriteString(fmt.Sprintf("func() []%s { ", resultType))
-		b.WriteString(fmt.Sprintf("out := []%s{}; ", resultType))
+		b.WriteString(fmt.Sprintf("%s := []%s{}; ", out, resultType))
 		for _, elem := range elements {
 			if spread, ok := elem.(*ir.SpreadExpr); ok {
-				b.WriteString(fmt.Sprintf("out = append(out, %s...); ", emit(spread.Expr)))
+				b.WriteString(fmt.Sprintf("%s = append(%s, %s...); ", out, out, emit(spread.Expr)))
 				continue
 			}
-			b.WriteString(fmt.Sprintf("out = append(out, %s); ", emit(elem)))
+			b.WriteString(fmt.Sprintf("%s = append(%s, %s); ", out, out, emit(elem)))
 		}
-		b.WriteString("return out }()")
+		b.WriteString("return " + out + " }()")
 		return b.String()
 	}
 	elems := make([]string, 0, len(elements))

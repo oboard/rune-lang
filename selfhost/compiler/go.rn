@@ -566,7 +566,7 @@ emitGoPatternBlock(
   returnType: String,
   level: Int
 ) -> String => {
-  out :=: line(level, "switch __n {")
+  out :=: line(level, "switch n {")
   out = out + emitGoPatternBranches(file, expr.children, 0, returns, returnType, level + 1, "")
   out = out + line(level, "}")
   (
@@ -617,7 +617,7 @@ emitGoPatternBranchBody(
 
 emitGoPatternCondition(
   pattern: IRExpr
-) -> String => "__n == " + pattern.text
+) -> String => "n == " + pattern.text
 
 emitGoBlock(
   file: IRFile,

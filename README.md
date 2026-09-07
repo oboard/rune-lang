@@ -364,9 +364,10 @@ them after identifier mangling.
 
 ## Go Codegen
 
-Rune-defined identifiers are prefixed with `__` in generated Go to avoid
-collisions with Go keywords and runtime names. Rune `main` becomes `__main`,
-with a small Go `main` wrapper as the process entrypoint.
+Rune-defined identifiers preserve their source spelling in generated Go. Target
+keywords receive a trailing underscore (for example, `type` becomes `type_`),
+and Rune `main` becomes `main_` so a small Go `main` wrapper remains the
+process entrypoint.
 
 Anonymous records are emitted as Go struct literals. Named structs remain named
 Go structs. Function values are emitted as Go function values.

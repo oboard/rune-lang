@@ -31,33 +31,33 @@ import (
 func init() {
 	tester.RegisterSelfhostCompilers(
 		func(files []tester.SourceFile) tester.CompileResult {
-			selfhostFiles := make([]__SourceFile, 0, len(files))
+			selfhostFiles := make([]SourceFile, 0, len(files))
 			for _, file := range files {
-				selfhostFiles = append(selfhostFiles, __SourceFile{__path: file.Path, __source: file.Source})
+				selfhostFiles = append(selfhostFiles, SourceFile{path: file.Path, source: file.Source})
 			}
-			result := __compileTypeScriptFiles(selfhostFiles)
-			return tester.CompileResult{Ok: result.__ok, Output: result.__output, Errors: result.__errors}
+			result := compileTypeScriptFiles(selfhostFiles)
+			return tester.CompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 		func(files []tester.SourceFile) tester.CompileResult {
-			selfhostFiles := make([]__SourceFile, 0, len(files))
+			selfhostFiles := make([]SourceFile, 0, len(files))
 			for _, file := range files {
-				selfhostFiles = append(selfhostFiles, __SourceFile{__path: file.Path, __source: file.Source})
+				selfhostFiles = append(selfhostFiles, SourceFile{path: file.Path, source: file.Source})
 			}
-			result := __compileMoonBitFiles(selfhostFiles)
-			return tester.CompileResult{Ok: result.__ok, Output: result.__output, Errors: result.__errors}
+			result := compileMoonBitFiles(selfhostFiles)
+			return tester.CompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 	)
 	repl.RegisterSelfhostAnalyzer(
 		func(source string, path string) repl.SelfhostCompileResult {
-			result := __checkSourceWithPath(source, path)
-			return repl.SelfhostCompileResult{Ok: result.__ok, Output: result.__output, Errors: result.__errors}
+			result := checkSourceWithPath(source, path)
+			return repl.SelfhostCompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 		nil,
 	)
 	lsp.RegisterSelfhostAnalyzer(
 		func(source string, path string) lsp.SelfhostCompileResult {
-			result := __checkSourceWithPath(source, path)
-			return lsp.SelfhostCompileResult{Ok: result.__ok, Output: result.__output, Errors: result.__errors}
+			result := checkSourceWithPath(source, path)
+			return lsp.SelfhostCompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 		nil,
 	)
@@ -82,13 +82,13 @@ func exitCode(err error) (int, bool) {
 }
 
 func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	invocation := __parseCli(args)
-	if invocation.__help {
-		fmt.Fprint(stdout, invocation.__helpText)
+	invocation := parseCli(args)
+	if invocation.help {
+		fmt.Fprint(stdout, invocation.helpText)
 		return nil
 	}
-	if !invocation.__ok {
-		for _, message := range invocation.__errors {
+	if !invocation.ok {
+		for _, message := range invocation.errors {
 			fmt.Fprintln(stderr, message)
 		}
 		return fmt.Errorf("rune command failed")
@@ -96,64 +96,64 @@ func runRuneCLI(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writ
 	return executeRuneCLIInvocation(invocation, stdin, stdout, stderr)
 }
 
-func executeRuneCLIInvocation(invocation __RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	switch invocation.__command {
+func executeRuneCLIInvocation(invocation RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	switch invocation.command {
 	case "run":
 		return executeRuneCLIRun(invocation, stdin, stdout, stderr)
 	case "build":
 		return executeRuneCLIBuild(invocation, stdin, stdout, stderr)
 	case "go":
-		return emitGo(invocation.__path, invocation.__output, stdout)
+		return emitGo(invocation.path, invocation.output, stdout)
 	case "ts":
-		return emitTypeScript(invocation.__path, invocation.__output, stdout)
+		return emitTypeScript(invocation.path, invocation.output, stdout)
 	case "dts":
-		return emitTypeScriptDeclaration(invocation.__path, invocation.__output, stdout)
+		return emitTypeScriptDeclaration(invocation.path, invocation.output, stdout)
 	case "mbt":
-		return emitMoonBit(invocation.__path, invocation.__output, stdout)
+		return emitMoonBit(invocation.path, invocation.output, stdout)
 	case "check":
-		return executeSelfhostCheck(invocation.__path, stdout, stderr)
+		return executeSelfhostCheck(invocation.path, stdout, stderr)
 	case "test":
 		return executeRuneCLITest(invocation, stdout)
 	case "fmt":
-		return formatTarget(invocation.__path, invocation.__checkOnly, invocation.__stdout, stdout)
+		return formatTarget(invocation.path, invocation.checkOnly, invocation.stdout, stdout)
 	case "repl":
 		return repl.Serve(stdin, stdout)
 	case "lsp":
 		return lsp.Serve(stdin, stdout)
 	default:
-		return fmt.Errorf("unknown command %s", invocation.__command)
+		return fmt.Errorf("unknown command %s", invocation.command)
 	}
 }
 
-func executeRuneCLIRun(invocation __RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	entry, diags, err := resolveRunEntry(invocation.__path)
+func executeRuneCLIRun(invocation RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	entry, diags, err := resolveRunEntry(invocation.path)
 	if len(diags) > 0 {
-		printDiagnostics(invocation.__path, diags)
+		printDiagnostics(invocation.path, diags)
 		return fmt.Errorf("run failed")
 	}
 	if err != nil {
 		return err
 	}
-	backend := selectRunBackend(entry, invocation.__backend, invocation.__backendExplicit)
+	backend := selectRunBackend(entry, invocation.backend, invocation.backendExplicit)
 	if err := validateBackend(backend); err != nil {
 		return err
 	}
-	return runEntry(entry, backend, invocation.__target, invocation.__runArgs, stdin, stdout, stderr)
+	return runEntry(entry, backend, invocation.target, invocation.runArgs, stdin, stdout, stderr)
 }
 
-func executeRuneCLIBuild(invocation __RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
-	if invocation.__backend == "mbt" {
-		return buildMoonBit(invocation.__path, invocation.__target, invocation.__output)
+func executeRuneCLIBuild(invocation RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
+	if invocation.backend == "mbt" {
+		return buildMoonBit(invocation.path, invocation.target, invocation.output)
 	}
-	return buildGo(invocation.__path, invocation.__target, invocation.__output, stdin, stdout, stderr)
+	return buildGo(invocation.path, invocation.target, invocation.output, stdin, stdout, stderr)
 }
 
-func executeRuneCLITest(invocation __RuneCliInvocation, stdout io.Writer) error {
+func executeRuneCLITest(invocation RuneCliInvocation, stdout io.Writer) error {
 	var err error
-	if invocation.__backendExplicit {
-		_, err = tester.RunWithBackend(invocation.__path, invocation.__pattern, invocation.__backend, stdout)
+	if invocation.backendExplicit {
+		_, err = tester.RunWithBackend(invocation.path, invocation.pattern, invocation.backend, stdout)
 	} else {
-		_, err = tester.Run(invocation.__path, invocation.__pattern, stdout)
+		_, err = tester.Run(invocation.path, invocation.pattern, stdout)
 	}
 	return err
 }
@@ -282,11 +282,11 @@ func emitGo(path string, output string, stdout io.Writer) error {
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileGoFiles(files)
-			if result.__ok {
-				return writeGeneratedSource(result.__output, output, stdout)
+			result := compileGoFiles(files)
+			if result.ok {
+				return writeGeneratedSource(result.output, output, stdout)
 			}
-			for _, message := range result.__errors {
+			for _, message := range result.errors {
 				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
 			}
 			return fmt.Errorf("compile failed")
@@ -361,9 +361,9 @@ func annotationUsesMacro(annotations []ast.Annotation) bool {
 	return false
 }
 
-func collectSelfhostSourceFiles(entryPath string) ([]__SourceFile, error) {
+func collectSelfhostSourceFiles(entryPath string) ([]SourceFile, error) {
 	seen := map[string]bool{}
-	var files []__SourceFile
+	var files []SourceFile
 	var load func(string) error
 	load = func(path string) error {
 		path = filepath.Clean(path)
@@ -376,14 +376,14 @@ func collectSelfhostSourceFiles(entryPath string) ([]__SourceFile, error) {
 			return err
 		}
 		if strings.HasSuffix(path, ".ts") {
-			files = append(files, __SourceFile{__path: path, __source: string(source)})
+			files = append(files, SourceFile{path: path, source: string(source)})
 			return nil
 		}
 		file, errs := parser.Parse(string(source))
 		if len(errs) > 0 {
 			return fmt.Errorf("cannot collect imports from %s", path)
 		}
-		files = append(files, __SourceFile{__path: path, __source: string(source)})
+		files = append(files, SourceFile{path: path, source: string(source)})
 		for _, imp := range file.Imports {
 			if imp.Module {
 				continue
@@ -425,11 +425,11 @@ func emitTypeScript(path string, output string, stdout io.Writer) error {
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileTypeScriptFiles(files)
-			if result.__ok {
-				return writeGeneratedSource(result.__output, output, stdout)
+			result := compileTypeScriptFiles(files)
+			if result.ok {
+				return writeGeneratedSource(result.output, output, stdout)
 			}
-			for _, message := range result.__errors {
+			for _, message := range result.errors {
 				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
 			}
 			return fmt.Errorf("compile failed")
@@ -457,11 +457,11 @@ func emitTypeScriptDeclaration(path string, output string, stdout io.Writer) err
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileDeclarationsFiles(files)
-			if result.__ok {
-				return writeGeneratedSource(result.__output, output, stdout)
+			result := compileDeclarationsFiles(files)
+			if result.ok {
+				return writeGeneratedSource(result.output, output, stdout)
 			}
-			for _, message := range result.__errors {
+			for _, message := range result.errors {
 				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
 			}
 			return fmt.Errorf("compile failed")
@@ -487,11 +487,11 @@ func emitMoonBit(path string, output string, stdout io.Writer) error {
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileMoonBitFiles(files)
-			if result.__ok {
-				return writeGeneratedSource(result.__output, output, stdout)
+			result := compileMoonBitFiles(files)
+			if result.ok {
+				return writeGeneratedSource(result.output, output, stdout)
 			}
-			for _, message := range result.__errors {
+			for _, message := range result.errors {
 				fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
 			}
 			return fmt.Errorf("compile failed")
@@ -529,9 +529,9 @@ func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer)
 	if err != nil {
 		return err
 	}
-	result := __checkSource(string(source))
-	if !result.__ok {
-		for _, message := range result.__errors {
+	result := checkSource(string(source))
+	if !result.ok {
+		for _, message := range result.errors {
 			fmt.Fprintf(errOut, "%s: %s\n", path, message)
 		}
 		return fmt.Errorf("check failed")
@@ -810,12 +810,12 @@ func compileGoToTemp(path string) (string, func(), error) {
 	if !usesProcessArgs && !usesBootstrapSource && !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileGoFiles(files)
+			result := compileGoFiles(files)
 			if os.Getenv("RUNE_DEBUG_SELFHOST_COMPILE") != "" {
-				fmt.Fprintf(os.Stderr, "SELFHOST compile ok=%v errors=%v\n", result.__ok, result.__errors)
+				fmt.Fprintf(os.Stderr, "SELFHOST compile ok=%v errors=%v\n", result.ok, result.errors)
 			}
-			if result.__ok {
-				src = result.__output
+			if result.ok {
+				src = result.output
 			} else {
 				// The self-hosted checker currently returns message-only diagnostics.
 				// Re-run the host checker to provide location-aware diagnostics and
@@ -823,7 +823,7 @@ func compileGoToTemp(path string) (string, func(), error) {
 				if _, diags := compiler.AnalyzeFile(path); len(diags) > 0 {
 					printDiagnostics(path, diags)
 				} else {
-					for _, message := range result.__errors {
+					for _, message := range result.errors {
 						fmt.Fprintf(os.Stderr, "%s: %s\n", path, message)
 					}
 				}
@@ -895,7 +895,7 @@ func compileTypeScriptToTemp(path string) (string, string, func(), error) {
 	cleanup := func() {
 		_ = os.Remove(tsFile)
 	}
-	src += "\nif (typeof __main === \"function\") {\n  const __runeMainResult = __main();\n  if (__runeMainResult && typeof __runeMainResult.then === \"function\") {\n    await __runeMainResult;\n  }\n}\nif (typeof runeWaitAll === \"function\") {\n  await runeWaitAll();\n}\n"
+	src += "\nif (typeof main === \"function\") {\n  const runeMainResult = main();\n  if (runeMainResult && typeof runeMainResult.then === \"function\") {\n    await runeMainResult;\n  }\n}\nif (typeof runeWaitAll === \"function\") {\n  await runeWaitAll();\n}\n"
 	if _, err := file.WriteString(src); err != nil {
 		_ = file.Close()
 		cleanup()
@@ -916,9 +916,9 @@ func selfhostTypeScriptRuntimeSource(path string) (string, []compiler.Diagnostic
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileTypeScriptFiles(files)
-			if result.__ok {
-				return typeScriptRuntimeSelfhostSource(path, result.__output), nil
+			result := compileTypeScriptFiles(files)
+			if result.ok {
+				return typeScriptRuntimeSelfhostSource(path, result.output), nil
 			}
 			return "", compileResultDiagnostics(path, result)
 		}
@@ -978,9 +978,9 @@ func typeScriptRuntimeSpecifierFromEntry(entryDir string, specifier string) stri
 	return typeScriptRuntimeSpecifier(specifier)
 }
 
-func compileResultDiagnostics(path string, result __CompileResult) []compiler.Diagnostic {
-	diags := make([]compiler.Diagnostic, 0, len(result.__errors))
-	for _, message := range result.__errors {
+func compileResultDiagnostics(path string, result CompileResult) []compiler.Diagnostic {
+	diags := make([]compiler.Diagnostic, 0, len(result.errors))
+	for _, message := range result.errors {
 		diags = append(diags, compiler.Diagnostic{Message: message, Path: path})
 	}
 	return diags
@@ -1021,12 +1021,12 @@ func selfhostMoonBitRuntimeSource(path string) (string, []compiler.Diagnostic) {
 	if !requiresHostCompilerBridge(path, string(source)) {
 		files, err := collectSelfhostSourceFiles(path)
 		if err == nil {
-			result := __compileMoonBitFiles(files)
-			if result.__ok {
+			result := compileMoonBitFiles(files)
+			if result.ok {
 				if sourceHasCLIMacros(string(source)) {
 					return hostMoonBitRuntimeSource(path)
 				}
-				return result.__output, nil
+				return result.output, nil
 			}
 			return "", compileResultDiagnostics(path, result)
 		}

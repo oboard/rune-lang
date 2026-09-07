@@ -7,82 +7,82 @@ import (
 	"strings"
 )
 
-type __CliCommand struct {
-	__name      string
-	__version   any
-	__about     string
-	__options   []__CliOption
-	__arguments []__CliArgument
-	__commands  []__CliCommand
-	__aliases   []__CliCommandAlias
+type CliCommand struct {
+	name      string
+	version   any
+	about     string
+	options   []CliOption
+	arguments []CliArgument
+	commands  []CliCommand
+	aliases   []CliCommandAlias
 }
 
-type __CliOption struct {
-	__name         string
-	__short        string
-	__valueName    string
-	__help         string
-	__required     bool
-	__defaultValue any
+type CliOption struct {
+	name         string
+	short        string
+	valueName    string
+	help         string
+	required     bool
+	defaultValue any
 }
 
-type __CliArgument struct {
-	__name     string
-	__help     string
-	__required bool
+type CliArgument struct {
+	name     string
+	help     string
+	required bool
 }
 
-type __CliParseResult struct {
-	__command         __CliCommand
-	__values          map[string]string
-	__flags           map[string]bool
-	__positionals     map[string]string
-	__explicitOptions []string
-	__args            []string
-	__rest            []string
-	__help            bool
-	__error           any
+type CliParseResult struct {
+	command         CliCommand
+	values          map[string]string
+	flags           map[string]bool
+	positionals     map[string]string
+	explicitOptions []string
+	args            []string
+	rest            []string
+	help            bool
+	error           any
 }
 
-type __CliCommandAlias struct {
-	__from string
-	__to   string
+type CliCommandAlias struct {
+	from string
+	to   string
 }
 
-type __CliCommandParseResult struct {
-	__root        __CliParseResult
-	__command     __CliParseResult
-	__commandName string
-	__commandArgs []string
-	__error       any
+type CliCommandParseResult struct {
+	root        CliParseResult
+	command     CliParseResult
+	commandName string
+	commandArgs []string
+	error       any
 }
 
-type __CliCommandArgs struct {
-	__rootArgs    []string
-	__commandName string
-	__commandArgs []string
+type CliCommandArgs struct {
+	rootArgs    []string
+	commandName string
+	commandArgs []string
 }
 
-type __CliCommandLookup struct {
-	__command __CliCommand
-	__found   bool
+type CliCommandLookup struct {
+	command CliCommand
+	found   bool
 }
 
-type __RuneCliInvocation struct {
-	__ok              bool
-	__command         string
-	__backend         string
-	__path            string
-	__output          string
-	__target          string
-	__pattern         string
-	__checkOnly       bool
-	__stdout          bool
-	__backendExplicit bool
-	__runArgs         []string
-	__errors          []string
-	__help            bool
-	__helpText        string
+type RuneCliInvocation struct {
+	ok              bool
+	command         string
+	backend         string
+	path            string
+	output          string
+	target          string
+	pattern         string
+	checkOnly       bool
+	stdout          bool
+	backendExplicit bool
+	runArgs         []string
+	errors          []string
+	help            bool
+	helpText        string
 }
 
 func runeProcessArgv() []string { return append([]string(nil), os.Args...) }
@@ -103,792 +103,794 @@ func runeProcessEnv(name string) any {
 func runeProcessExit(code int) struct{} { os.Exit(code); return struct{}{} }
 func runeProcessPlatform() string       { return runtime.GOOS }
 
-func __cli_alias(__from string, __to string) __CliCommandAlias {
-	return __CliCommandAlias{__from: __from, __to: __to}
+func cli_alias(from string, to string) CliCommandAlias {
+	return CliCommandAlias{from: from, to: to}
 }
 
-func __cli_aliasesForCommand(__aliases []__CliCommandAlias, __commandName string, __index int) []string {
+func cli_aliasesForCommand(aliases []CliCommandAlias, commandName string, index int) []string {
 	return func() []string {
-		if __index >= len(__aliases) {
+		if index >= len(aliases) {
 			return []string{}
 		}
 		return func() []string {
-			if __aliases[__index].__to == __commandName {
+			if aliases[index].to == commandName {
 				return func() []string {
-					out := []string{}
-					out = append(out, __aliases[__index].__from)
-					out = append(out, __cli_aliasesForCommand(__aliases, __commandName, __index+1)...)
-					return out
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, aliases[index].from)
+					__rune_spread_out = append(__rune_spread_out, cli_aliasesForCommand(aliases, commandName, index+1)...)
+					return __rune_spread_out
 				}()
 			}
-			return __cli_aliasesForCommand(__aliases, __commandName, __index+1)
+			return cli_aliasesForCommand(aliases, commandName, index+1)
 		}()
 	}()
 }
 
-func __cli_appendRestSeparator(__args []string, __index int, __out []string) []string {
+func cli_appendRestSeparator(args []string, index int, out []string) []string {
 	return func() []string {
-		if __args[__index] == "--" {
-			return __cli_appendRuntimeRest(__args, __index, __out)
+		if args[index] == "--" {
+			return cli_appendRuntimeRest(args, index, out)
 		}
-		return __cli_appendRuntimeRest(__args, __index, func() []string { out := []string{}; out = append(out, __out...); out = append(out, "--"); return out }())
-	}()
-}
-
-func __cli_appendRootOptionArgs(__rootArgs []string, __args []string, __index int, __consumesNext bool) []string {
-	return func() []string {
-		if __consumesNext && __index+1 < len(__args) {
-			return func() []string {
-				out := []string{}
-				out = append(out, __rootArgs...)
-				out = append(out, __args[__index])
-				out = append(out, __args[__index+1])
-				return out
-			}()
-		}
-		return func() []string {
-			out := []string{}
-			out = append(out, __rootArgs...)
-			out = append(out, __args[__index])
-			return out
-		}()
-	}()
-}
-
-func __cli_appendRuntimeRest(__args []string, __index int, __out []string) []string {
-	return func() []string {
-		if __index >= len(__args) {
-			return __out
-		}
-		return __cli_appendRuntimeRest(__args, __index+1, func() []string {
-			out := []string{}
-			out = append(out, __out...)
-			out = append(out, __args[__index])
-			return out
+		return cli_appendRuntimeRest(args, index, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, "--")
+			return __rune_spread_out
 		}())
 	}()
 }
 
-func __cli_argument(__name string, __help string, __required bool) __CliArgument {
-	return __CliArgument{__name: __name, __help: __help, __required: __required}
+func cli_appendRootOptionArgs(rootArgs []string, args []string, index int, consumesNext bool) []string {
+	return func() []string {
+		if consumesNext && index+1 < len(args) {
+			return func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, rootArgs...)
+				__rune_spread_out = append(__rune_spread_out, args[index])
+				__rune_spread_out = append(__rune_spread_out, args[index+1])
+				return __rune_spread_out
+			}()
+		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, rootArgs...)
+			__rune_spread_out = append(__rune_spread_out, args[index])
+			return __rune_spread_out
+		}()
+	}()
 }
 
-func __cli_command(__name string, __about string) __CliCommand {
-	return __CliCommand{__name: __name, __version: any(nil), __about: __about, __options: []__CliOption{}, __arguments: []__CliArgument{}, __commands: []__CliCommand{}, __aliases: []__CliCommandAlias{}}
+func cli_appendRuntimeRest(args []string, index int, out []string) []string {
+	return func() []string {
+		if index >= len(args) {
+			return out
+		}
+		return cli_appendRuntimeRest(args, index+1, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, args[index])
+			return __rune_spread_out
+		}())
+	}()
 }
 
-func __cli_commandOptionConsumesNext(__command __CliCommand, __arg string) bool {
-	return __cli_rootOptionConsumesNext(__command, __arg)
+func cli_argument(name string, help string, required bool) CliArgument {
+	return CliArgument{name: name, help: help, required: required}
 }
 
-func __cli_contains(__values []string, __value string) bool {
-	return __cli_containsAt(__values, __value, 0)
+func cli_command(name string, about string) CliCommand {
+	return CliCommand{name: name, version: any(nil), about: about, options: []CliOption{}, arguments: []CliArgument{}, commands: []CliCommand{}, aliases: []CliCommandAlias{}}
 }
 
-func __cli_containsAt(__values []string, __value string, __index int) bool {
+func cli_commandOptionConsumesNext(command CliCommand, arg string) bool {
+	return cli_rootOptionConsumesNext(command, arg)
+}
+
+func cli_contains(values []string, value string) bool {
+	return cli_containsAt(values, value, 0)
+}
+
+func cli_containsAt(values []string, value string, index int) bool {
 	return func() bool {
-		if __index >= len(__values) {
+		if index >= len(values) {
 			return false
 		}
 		return func() bool {
-			if __values[__index] == __value {
+			if values[index] == value {
 				return true
 			}
-			return __cli_containsAt(__values, __value, __index+1)
+			return cli_containsAt(values, value, index+1)
 		}()
 	}()
 }
 
-func __cli_emptyCommand() __CliCommand {
-	return __CliCommand{__name: "", __version: any(nil), __about: "", __options: []__CliOption{}, __arguments: []__CliArgument{}, __commands: []__CliCommand{}, __aliases: []__CliCommandAlias{}}
+func cli_emptyCommand() CliCommand {
+	return CliCommand{name: "", version: any(nil), about: "", options: []CliOption{}, arguments: []CliArgument{}, commands: []CliCommand{}, aliases: []CliCommandAlias{}}
 }
 
-func __cli_emptyOption() __CliOption {
-	return __CliOption{__name: "", __short: "", __valueName: "", __help: "", __required: false, __defaultValue: any(nil)}
+func cli_emptyOption() CliOption {
+	return CliOption{name: "", short: "", valueName: "", help: "", required: false, defaultValue: any(nil)}
 }
 
-func __cli_findCommand(__commands []__CliCommand, __name string, __index int) __CliCommandLookup {
-	return func() __CliCommandLookup {
-		if len(__name) == 0 || __index >= len(__commands) {
-			return __CliCommandLookup{__command: __cli_emptyCommand(), __found: false}
+func cli_findCommand(commands []CliCommand, name string, index int) CliCommandLookup {
+	return func() CliCommandLookup {
+		if len(name) == 0 || index >= len(commands) {
+			return CliCommandLookup{command: cli_emptyCommand(), found: false}
 		}
-		return func() __CliCommandLookup {
-			if __commands[__index].__name == __name {
-				return __CliCommandLookup{__command: __commands[__index], __found: true}
+		return func() CliCommandLookup {
+			if commands[index].name == name {
+				return CliCommandLookup{command: commands[index], found: true}
 			}
-			return __cli_findCommand(__commands, __name, __index+1)
+			return cli_findCommand(commands, name, index+1)
 		}()
 	}()
 }
 
-func __cli_findOptionByName(__options []__CliOption, __name string, __index int) __CliOption {
-	return func() __CliOption {
-		if __index >= len(__options) {
-			return __cli_emptyOption()
+func cli_findOptionByName(options []CliOption, name string, index int) CliOption {
+	return func() CliOption {
+		if index >= len(options) {
+			return cli_emptyOption()
 		}
-		return func() __CliOption {
-			if __options[__index].__name == __name {
-				return __options[__index]
+		return func() CliOption {
+			if options[index].name == name {
+				return options[index]
 			}
-			return __cli_findOptionByName(__options, __name, __index+1)
+			return cli_findOptionByName(options, name, index+1)
 		}()
 	}()
 }
 
-func __cli_findOptionByShort(__options []__CliOption, __short string, __index int) __CliOption {
-	return func() __CliOption {
-		if __index >= len(__options) {
-			return __cli_emptyOption()
+func cli_findOptionByShort(options []CliOption, short string, index int) CliOption {
+	return func() CliOption {
+		if index >= len(options) {
+			return cli_emptyOption()
 		}
-		return func() __CliOption {
-			if __options[__index].__short == __short {
-				return __options[__index]
+		return func() CliOption {
+			if options[index].short == short {
+				return options[index]
 			}
-			return __cli_findOptionByShort(__options, __short, __index+1)
+			return cli_findOptionByShort(options, short, index+1)
 		}()
 	}()
 }
 
-func __cli_flag(__name string, __short string, __help string) __CliOption {
-	return __CliOption{__name: __name, __short: __short, __valueName: "", __help: __help, __required: false, __defaultValue: any(nil)}
+func cli_flag(name string, short string, help string) CliOption {
+	return CliOption{name: name, short: short, valueName: "", help: help, required: false, defaultValue: any(nil)}
 }
 
-func __cli_help(__command __CliCommand) string {
-	__text := "Usage: " + __command.__name
+func cli_help(command CliCommand) string {
+	text := "Usage: " + command.name
 	func() {
-		if len(__command.__options) == 0 {
-			__text = __text
+		if len(command.options) == 0 {
+			text = text
 			return
 		}
-		__text = __text + " [options]"
+		text = text + " [options]"
 	}()
-	for _, __argument := range __command.__arguments {
-		_ = __argument
+	for _, argument := range command.arguments {
+		_ = argument
 		func() {
-			__text = __text + " "
-			__text = __text + func() string {
-				if __argument.__required {
-					return "<" + __argument.__name + ">"
+			text = text + " "
+			text = text + func() string {
+				if argument.required {
+					return "<" + argument.name + ">"
 				}
-				return "[" + __argument.__name + "]"
+				return "[" + argument.name + "]"
 			}()
 		}()
 	}
-	__text = __text + "\n"
+	text = text + "\n"
 	func() {
-		if len(__command.__commands) == 0 {
-			__text = __text
+		if len(command.commands) == 0 {
+			text = text
 			return
 		}
-		__text = __text + "\nCommands:\n"
+		text = text + "\nCommands:\n"
 	}()
-	for _, __child := range __command.__commands {
-		_ = __child
+	for _, child := range command.commands {
+		_ = child
 		func() {
-			__text = __text + "  " + __child.__name
-			__text = func() string {
-				if len(__child.__about) == 0 {
-					return __text
+			text = text + "  " + child.name
+			text = func() string {
+				if len(child.about) == 0 {
+					return text
 				}
-				return __text + "\t" + __child.__about
+				return text + "\t" + child.about
 			}()
 			func() {
-				for _, __aliasName := range __cli_aliasesForCommand(__command.__aliases, __child.__name, 0) {
-					_ = __aliasName
-					func() { __text = __text + " (alias: " + __aliasName + ")" }()
+				for _, aliasName := range cli_aliasesForCommand(command.aliases, child.name, 0) {
+					_ = aliasName
+					func() { text = text + " (alias: " + aliasName + ")" }()
 				}
 			}()
-			__text = __text + "\n"
+			text = text + "\n"
 		}()
 	}
-	__versionText := func() string {
-		__coalesce1 := __command.__version
-		if __coalesce1 != nil {
-			return __coalesce1.(string)
+	versionText := func() string {
+		coalesce1 := command.version
+		if coalesce1 != nil {
+			return coalesce1.(string)
 		}
 		return ""
 	}()
 	func() {
-		if len(__versionText) == 0 {
-			__text = __text
+		if len(versionText) == 0 {
+			text = text
 			return
 		}
-		__text = __text + "Version: " + __versionText + "\n"
+		text = text + "Version: " + versionText + "\n"
 	}()
 	func() {
-		if len(__command.__about) == 0 {
-			__text = __text
+		if len(command.about) == 0 {
+			text = text
 			return
 		}
-		__text = __text + "\n" + __command.__about + "\n"
+		text = text + "\n" + command.about + "\n"
 	}()
 	func() {
-		if len(__command.__arguments) == 0 {
-			__text = __text
+		if len(command.arguments) == 0 {
+			text = text
 			return
 		}
-		__text = __text + "\nArguments:\n"
+		text = text + "\nArguments:\n"
 	}()
-	for _, __argument := range __command.__arguments {
-		_ = __argument
+	for _, argument := range command.arguments {
+		_ = argument
 		func() {
-			__text = __text + "  " + __argument.__name
-			__text = func() string {
-				if len(__argument.__help) == 0 {
-					return __text
+			text = text + "  " + argument.name
+			text = func() string {
+				if len(argument.help) == 0 {
+					return text
 				}
-				return __text + "\t" + __argument.__help
+				return text + "\t" + argument.help
 			}()
-			__text = __text + "\n"
+			text = text + "\n"
 		}()
 	}
-	__text = __text + "\nOptions:\n"
-	for _, __option := range __command.__options {
-		_ = __option
+	text = text + "\nOptions:\n"
+	for _, option := range command.options {
+		_ = option
 		func() {
-			__text = __text + "  "
-			__text = func() string {
-				if len(__option.__short) == 0 {
-					return __text
+			text = text + "  "
+			text = func() string {
+				if len(option.short) == 0 {
+					return text
 				}
-				return __text + "-" + __option.__short + ", "
+				return text + "-" + option.short + ", "
 			}()
-			__text = __text + "--" + __option.__name
-			__text = func() string {
-				if len(__option.__valueName) == 0 {
-					return __text
+			text = text + "--" + option.name
+			text = func() string {
+				if len(option.valueName) == 0 {
+					return text
 				}
-				return __text + " <" + __option.__valueName + ">"
+				return text + " <" + option.valueName + ">"
 			}()
-			__text = func() string {
-				if len(__option.__help) == 0 {
-					return __text
+			text = func() string {
+				if len(option.help) == 0 {
+					return text
 				}
-				return __text + "\t" + __option.__help
+				return text + "\t" + option.help
 			}()
-			__text = func() string {
-				if __option.__required {
-					return __text + " (required)"
+			text = func() string {
+				if option.required {
+					return text + " (required)"
 				}
-				return __text
+				return text
 			}()
-			__defaultValue := func() string {
-				__coalesce2 := __option.__defaultValue
-				if __coalesce2 != nil {
-					return __coalesce2.(string)
+			defaultValue := func() string {
+				coalesce2 := option.defaultValue
+				if coalesce2 != nil {
+					return coalesce2.(string)
 				}
 				return ""
 			}()
-			__text = func() string {
-				if len(__defaultValue) == 0 {
-					return __text
+			text = func() string {
+				if len(defaultValue) == 0 {
+					return text
 				}
-				return __text + " (default: " + __defaultValue + ")"
+				return text + " (default: " + defaultValue + ")"
 			}()
-			__text = __text + "\n"
+			text = text + "\n"
 		}()
 	}
-	return __text + "  -h, --help\tShow help\n"
+	return text + "  -h, --help\tShow help\n"
 }
 
-func __cli_longOptionName(__arg string) string {
-	__raw := func() string { runes := []rune(__arg); return string(runes[2:len([]rune(__arg))]) }()
-	__equal := strings.Index(__raw, "=")
+func cli_longOptionName(arg string) string {
+	raw := func() string { runes := []rune(arg); return string(runes[2:len([]rune(arg))]) }()
+	equal := strings.Index(raw, "=")
 	return func() string {
-		if __equal >= 0 {
-			return func() string { runes := []rune(__raw); return string(runes[0:__equal]) }()
+		if equal >= 0 {
+			return func() string { runes := []rune(raw); return string(runes[0:equal]) }()
 		}
-		return __raw
+		return raw
 	}()
 }
 
-func __cli_normalizeTrailingRestArg(__command __CliCommand, __args []string, __index int, __out []string, __positionalCount int, __skipNext bool) []string {
-	__arg := __args[__index]
+func cli_normalizeTrailingRestArg(command CliCommand, args []string, index int, out []string, positionalCount int, skipNext bool) []string {
+	arg := args[index]
 	return func() []string {
-		if __positionalCount >= len(__command.__arguments) {
-			return __cli_appendRestSeparator(__args, __index, __out)
+		if positionalCount >= len(command.arguments) {
+			return cli_appendRestSeparator(args, index, out)
 		}
 		return func() []string {
-			if __skipNext {
-				return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, false)
+			if skipNext {
+				return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, out...)
+					__rune_spread_out = append(__rune_spread_out, arg)
+					return __rune_spread_out
+				}(), positionalCount, false)
 			}
 			return func() []string {
-				if __cli_commandOptionConsumesNext(__command, __arg) {
-					return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount, true)
+				if cli_commandOptionConsumesNext(command, arg) {
+					return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+						__rune_spread_out := []string{}
+						__rune_spread_out = append(__rune_spread_out, out...)
+						__rune_spread_out = append(__rune_spread_out, arg)
+						return __rune_spread_out
+					}(), positionalCount, true)
 				}
-				return __cli_normalizeTrailingRestArgsAt(__command, __args, __index+1, func() []string { out := []string{}; out = append(out, __out...); out = append(out, __arg); return out }(), __positionalCount+__cli_positionalIncrement(__arg), false)
+				return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, out...)
+					__rune_spread_out = append(__rune_spread_out, arg)
+					return __rune_spread_out
+				}(), positionalCount+cli_positionalIncrement(arg), false)
 			}()
 		}()
 	}()
 }
 
-func __cli_normalizeTrailingRestArgs(__command __CliCommand, __args []string) []string {
-	return __cli_normalizeTrailingRestArgsAt(__command, __args, 0, []string{}, 0, false)
+func cli_normalizeTrailingRestArgs(command CliCommand, args []string) []string {
+	return cli_normalizeTrailingRestArgsAt(command, args, 0, []string{}, 0, false)
 }
 
-func __cli_normalizeTrailingRestArgsAt(__command __CliCommand, __args []string, __index int, __out []string, __positionalCount int, __skipNext bool) []string {
+func cli_normalizeTrailingRestArgsAt(command CliCommand, args []string, index int, out []string, positionalCount int, skipNext bool) []string {
 	return func() []string {
-		if __index >= len(__args) {
-			return __out
+		if index >= len(args) {
+			return out
 		}
-		return __cli_normalizeTrailingRestArg(__command, __args, __index, __out, __positionalCount, __skipNext)
+		return cli_normalizeTrailingRestArg(command, args, index, out, positionalCount, skipNext)
 	}()
 }
 
-func __cli_option(__name string, __short string, __valueName string, __help string, __required bool, __defaultValue any) __CliOption {
-	return __CliOption{__name: __name, __short: __short, __valueName: __valueName, __help: __help, __required: __required, __defaultValue: __defaultValue}
+func cli_option(name string, short string, valueName string, help string, required bool, defaultValue any) CliOption {
+	return CliOption{name: name, short: short, valueName: valueName, help: help, required: required, defaultValue: defaultValue}
 }
 
-func __cli_optionFound(__option __CliOption) bool {
-	return __option.__name != ""
+func cli_optionFound(option CliOption) bool {
+	return option.name != ""
 }
 
-func __cli_parseArgs(__command __CliCommand, __args []string) __CliParseResult {
-	__values := map[string]string{}
-	__flags := map[string]bool{}
-	__positionals := map[string]string{}
-	__rest := []string{}
-	__explicitOptions := []string{}
-	__positionalValues := []string{}
-	__helpValue := false
-	__parseError := ""
-	__afterDoubleDash := false
-	__skipNext := false
-	for _, __option := range __command.__options {
-		_ = __option
+func cli_parseArgs(command CliCommand, args []string) CliParseResult {
+	values := map[string]string{}
+	flags := map[string]bool{}
+	positionals := map[string]string{}
+	rest := []string{}
+	explicitOptions := []string{}
+	positionalValues := []string{}
+	helpValue := false
+	parseError := ""
+	afterDoubleDash := false
+	skipNext := false
+	for _, option := range command.options {
+		_ = option
 		func() map[string]string {
-			__useDefault := !(len(__option.__valueName) == 0) && __option.__defaultValue != any(nil)
+			useDefault := !(len(option.valueName) == 0) && option.defaultValue != any(nil)
 			return func() map[string]string {
-				if __useDefault {
+				if useDefault {
 					return func() map[string]string {
-						__values[__option.__name] = func() string {
-							__coalesce3 := __option.__defaultValue
-							if __coalesce3 != nil {
-								return __coalesce3.(string)
+						values[option.name] = func() string {
+							coalesce3 := option.defaultValue
+							if coalesce3 != nil {
+								return coalesce3.(string)
 							}
 							return ""
 						}()
-						return __values
+						return values
 					}()
 				}
-				return __values
+				return values
 			}()
 		}()
 	}
-	for __index, __arg := range __args {
-		_ = __arg
-		_ = __index
+	for index, arg := range args {
+		_ = arg
+		_ = index
 		func() int {
-			__handled := false
+			handled := false
 			func() {
-				if __skipNext {
-					__handled = true
+				if skipNext {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
 			func() {
-				if __skipNext {
-					__skipNext = false
+				if skipNext {
+					skipNext = false
 					return
 				}
-				__skipNext = __skipNext
+				skipNext = skipNext
 			}()
-			__appendRest := !(__handled) && __afterDoubleDash
+			appendRest := !(handled) && afterDoubleDash
 			func() int {
-				if __appendRest {
-					return func() int { __rest = append(__rest, __arg); return len(__rest) }()
+				if appendRest {
+					return func() int { rest = append(rest, arg); return len(rest) }()
 				}
 				return 0
 			}()
 			func() {
-				if __appendRest {
-					__handled = true
+				if appendRest {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__isSeparator := !(__handled) && len(__parseError) == 0 && __arg == "--"
+			isSeparator := !(handled) && len(parseError) == 0 && arg == "--"
 			func() {
-				if __isSeparator {
-					__afterDoubleDash = true
+				if isSeparator {
+					afterDoubleDash = true
 					return
 				}
-				__afterDoubleDash = __afterDoubleDash
-			}()
-			func() {
-				if __isSeparator {
-					__handled = true
-					return
-				}
-				__handled = __handled
-			}()
-			__isHelp := !(__handled) && len(__parseError) == 0 && (__arg == "--help" || __arg == "-h")
-			func() {
-				if __isHelp {
-					__helpValue = true
-					return
-				}
-				__helpValue = __helpValue
+				afterDoubleDash = afterDoubleDash
 			}()
 			func() {
-				if __isHelp {
-					__handled = true
+				if isSeparator {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__isLong := !(__handled) && len(__parseError) == 0 && strings.HasPrefix(__arg, "--") && len([]rune(__arg)) > 2
-			__longName := func() string {
-				if __isLong {
-					return func() string { runes := []rune(__arg); return string(runes[2:len([]rune(__arg))]) }()
+			isHelp := !(handled) && len(parseError) == 0 && (arg == "--help" || arg == "-h")
+			func() {
+				if isHelp {
+					helpValue = true
+					return
+				}
+				helpValue = helpValue
+			}()
+			func() {
+				if isHelp {
+					handled = true
+					return
+				}
+				handled = handled
+			}()
+			isLong := !(handled) && len(parseError) == 0 && strings.HasPrefix(arg, "--") && len([]rune(arg)) > 2
+			longName := func() string {
+				if isLong {
+					return func() string { runes := []rune(arg); return string(runes[2:len([]rune(arg))]) }()
 				}
 				return ""
 			}()
-			__longValue := ""
-			__longHasValue := false
-			__eqIndex := strings.Index(__longName, "=")
-			__hasEquals := __isLong && __eqIndex >= 0
+			longValue := ""
+			longHasValue := false
+			eqIndex := strings.Index(longName, "=")
+			hasEquals := isLong && eqIndex >= 0
 			func() {
-				if __hasEquals {
-					__longValue = func() string {
-						runes := []rune(__longName)
-						return string(runes[__eqIndex+1 : len([]rune(__longName))])
-					}()
+				if hasEquals {
+					longValue = func() string { runes := []rune(longName); return string(runes[eqIndex+1 : len([]rune(longName))]) }()
 					return
 				}
-				__longValue = __longValue
+				longValue = longValue
 			}()
 			func() {
-				if __hasEquals {
-					__longName = func() string { runes := []rune(__longName); return string(runes[0:__eqIndex]) }()
+				if hasEquals {
+					longName = func() string { runes := []rune(longName); return string(runes[0:eqIndex]) }()
 					return
 				}
-				__longName = __longName
+				longName = longName
 			}()
 			func() {
-				if __hasEquals {
-					__longHasValue = true
+				if hasEquals {
+					longHasValue = true
 					return
 				}
-				__longHasValue = __longHasValue
+				longHasValue = longHasValue
 			}()
-			__noName := func() string {
-				if strings.HasPrefix(__longName, "no-") {
-					return func() string { runes := []rune(__longName); return string(runes[3:len([]rune(__longName))]) }()
+			noName := func() string {
+				if strings.HasPrefix(longName, "no-") {
+					return func() string { runes := []rune(longName); return string(runes[3:len([]rune(longName))]) }()
 				}
 				return ""
 			}()
-			__noFound := false
-			__noTakesValue := false
+			noFound := false
+			noTakesValue := false
 			func() {
-				for _, __option := range __command.__options {
-					_ = __option
+				for _, option := range command.options {
+					_ = option
 					func() {
-						__match := __isLong && !(__handled) && !(len(__noName) == 0) && __option.__name == __noName
+						match := isLong && !(handled) && !(len(noName) == 0) && option.name == noName
 						func() {
-							if __match {
-								__noFound = true
+							if match {
+								noFound = true
 								return
 							}
-							__noFound = __noFound
+							noFound = noFound
 						}()
 						func() {
-							if __match {
-								__noTakesValue = !(len(__option.__valueName) == 0)
+							if match {
+								noTakesValue = !(len(option.valueName) == 0)
 								return
 							}
-							__noTakesValue = __noTakesValue
+							noTakesValue = noTakesValue
 						}()
 					}()
 				}
 			}()
-			__useNoFlag := __isLong && !(__handled) && !(len(__noName) == 0) && __noFound && !(__noTakesValue)
+			useNoFlag := isLong && !(handled) && !(len(noName) == 0) && noFound && !(noTakesValue)
 			func() map[string]bool {
-				if __useNoFlag {
-					return func() map[string]bool { __flags[__noName] = false; return __flags }()
+				if useNoFlag {
+					return func() map[string]bool { flags[noName] = false; return flags }()
 				}
-				return __flags
+				return flags
 			}()
 			func() int {
-				if __useNoFlag {
-					return func() int { __explicitOptions = append(__explicitOptions, __noName); return len(__explicitOptions) }()
+				if useNoFlag {
+					return func() int { explicitOptions = append(explicitOptions, noName); return len(explicitOptions) }()
 				}
 				return 0
 			}()
 			func() {
-				if __useNoFlag {
-					__handled = true
+				if useNoFlag {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__longFound := false
-			__longTakesValue := false
-			__longOptionName := ""
+			longFound := false
+			longTakesValue := false
+			longOptionName := ""
 			func() {
-				for _, __option := range __command.__options {
-					_ = __option
+				for _, option := range command.options {
+					_ = option
 					func() {
-						__match := __isLong && !(__handled) && __option.__name == __longName
+						match := isLong && !(handled) && option.name == longName
 						func() {
-							if __match {
-								__longFound = true
+							if match {
+								longFound = true
 								return
 							}
-							__longFound = __longFound
+							longFound = longFound
 						}()
 						func() {
-							if __match {
-								__longTakesValue = !(len(__option.__valueName) == 0)
+							if match {
+								longTakesValue = !(len(option.valueName) == 0)
 								return
 							}
-							__longTakesValue = __longTakesValue
+							longTakesValue = longTakesValue
 						}()
 						func() {
-							if __match {
-								__longOptionName = __option.__name
+							if match {
+								longOptionName = option.name
 								return
 							}
-							__longOptionName = __longOptionName
+							longOptionName = longOptionName
 						}()
 					}()
 				}
 			}()
-			__unknownLong := __isLong && !(__handled) && !(__longFound)
+			unknownLong := isLong && !(handled) && !(longFound)
 			func() {
-				if __unknownLong {
-					__parseError = "unknown option --" + __longName
+				if unknownLong {
+					parseError = "unknown option --" + longName
 					return
 				}
-				__parseError = __parseError
+				parseError = parseError
 			}()
 			func() {
-				if __unknownLong {
-					__handled = true
+				if unknownLong {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__missingLongValue := __isLong && !(__handled) && __longFound && __longTakesValue && !(__longHasValue) && __index+1 >= len(__args)
+			missingLongValue := isLong && !(handled) && longFound && longTakesValue && !(longHasValue) && index+1 >= len(args)
 			func() {
-				if __missingLongValue {
-					__parseError = "missing value for --" + __longName
+				if missingLongValue {
+					parseError = "missing value for --" + longName
 					return
 				}
-				__parseError = __parseError
-			}()
-			func() {
-				if __missingLongValue {
-					__handled = true
-					return
-				}
-				__handled = __handled
-			}()
-			__useLongNext := __isLong && !(__handled) && __longFound && __longTakesValue && !(__longHasValue)
-			func() {
-				if __useLongNext {
-					__longValue = __args[__index+1]
-					return
-				}
-				__longValue = __longValue
+				parseError = parseError
 			}()
 			func() {
-				if __useLongNext {
-					__skipNext = true
+				if missingLongValue {
+					handled = true
 					return
 				}
-				__skipNext = __skipNext
+				handled = handled
+			}()
+			useLongNext := isLong && !(handled) && longFound && longTakesValue && !(longHasValue)
+			func() {
+				if useLongNext {
+					longValue = args[index+1]
+					return
+				}
+				longValue = longValue
 			}()
 			func() {
-				if __useLongNext {
-					__longHasValue = true
+				if useLongNext {
+					skipNext = true
 					return
 				}
-				__longHasValue = __longHasValue
+				skipNext = skipNext
 			}()
-			__storeLongValue := __isLong && !(__handled) && __longFound && __longTakesValue
+			func() {
+				if useLongNext {
+					longHasValue = true
+					return
+				}
+				longHasValue = longHasValue
+			}()
+			storeLongValue := isLong && !(handled) && longFound && longTakesValue
 			func() map[string]string {
-				if __storeLongValue {
-					return func() map[string]string { __values[__longOptionName] = __longValue; return __values }()
+				if storeLongValue {
+					return func() map[string]string { values[longOptionName] = longValue; return values }()
 				}
-				return __values
+				return values
 			}()
 			func() int {
-				if __storeLongValue {
-					return func() int {
-						__explicitOptions = append(__explicitOptions, __longOptionName)
-						return len(__explicitOptions)
-					}()
+				if storeLongValue {
+					return func() int { explicitOptions = append(explicitOptions, longOptionName); return len(explicitOptions) }()
 				}
 				return 0
 			}()
 			func() {
-				if __storeLongValue {
-					__handled = true
+				if storeLongValue {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__storeLongFlag := __isLong && !(__handled) && __longFound && !(__longTakesValue)
+			storeLongFlag := isLong && !(handled) && longFound && !(longTakesValue)
 			func() map[string]bool {
-				if __storeLongFlag {
-					return func() map[string]bool {
-						__flags[__longOptionName] = !(__longHasValue) || __longValue != "false"
-						return __flags
-					}()
+				if storeLongFlag {
+					return func() map[string]bool { flags[longOptionName] = !(longHasValue) || longValue != "false"; return flags }()
 				}
-				return __flags
+				return flags
 			}()
 			func() int {
-				if __storeLongFlag {
-					return func() int {
-						__explicitOptions = append(__explicitOptions, __longOptionName)
-						return len(__explicitOptions)
-					}()
+				if storeLongFlag {
+					return func() int { explicitOptions = append(explicitOptions, longOptionName); return len(explicitOptions) }()
 				}
 				return 0
 			}()
 			func() {
-				if __storeLongFlag {
-					__handled = true
+				if storeLongFlag {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__isShort := !(__handled) && len(__parseError) == 0 && strings.HasPrefix(__arg, "-") && __arg != "-"
-			__clusterDone := false
+			isShort := !(handled) && len(parseError) == 0 && strings.HasPrefix(arg, "-") && arg != "-"
+			clusterDone := false
 			func() {
-				for __shortIndex, __short := range func() []string {
-					parts := strings.Split((func() string { runes := []rune(__arg); return string(runes[1:len([]rune(__arg))]) }()), "")
+				for shortIndex, short := range func() []string {
+					parts := strings.Split((func() string { runes := []rune(arg); return string(runes[1:len([]rune(arg))]) }()), "")
 					return parts
 				}() {
-					_ = __short
-					_ = __shortIndex
+					_ = short
+					_ = shortIndex
 					func() int {
-						__active := __isShort && !(__clusterDone) && len(__parseError) == 0
-						__shortHelp := __active && __short == "h"
+						active := isShort && !(clusterDone) && len(parseError) == 0
+						shortHelp := active && short == "h"
 						func() {
-							if __shortHelp {
-								__helpValue = true
+							if shortHelp {
+								helpValue = true
 								return
 							}
-							__helpValue = __helpValue
+							helpValue = helpValue
 						}()
-						__shortFound := false
-						__shortTakesValue := false
-						__shortOptionName := ""
+						shortFound := false
+						shortTakesValue := false
+						shortOptionName := ""
 						func() {
-							for _, __option := range __command.__options {
-								_ = __option
+							for _, option := range command.options {
+								_ = option
 								func() {
-									__match := __active && !(__shortHelp) && __option.__short == __short
+									match := active && !(shortHelp) && option.short == short
 									func() {
-										if __match {
-											__shortFound = true
+										if match {
+											shortFound = true
 											return
 										}
-										__shortFound = __shortFound
+										shortFound = shortFound
 									}()
 									func() {
-										if __match {
-											__shortTakesValue = !(len(__option.__valueName) == 0)
+										if match {
+											shortTakesValue = !(len(option.valueName) == 0)
 											return
 										}
-										__shortTakesValue = __shortTakesValue
+										shortTakesValue = shortTakesValue
 									}()
 									func() {
-										if __match {
-											__shortOptionName = __option.__name
+										if match {
+											shortOptionName = option.name
 											return
 										}
-										__shortOptionName = __shortOptionName
+										shortOptionName = shortOptionName
 									}()
 								}()
 							}
 						}()
-						__unknownShort := __active && !(__shortHelp) && !(__shortFound)
+						unknownShort := active && !(shortHelp) && !(shortFound)
 						func() {
-							if __unknownShort {
-								__parseError = "unknown option -" + __short
+							if unknownShort {
+								parseError = "unknown option -" + short
 								return
 							}
-							__parseError = __parseError
+							parseError = parseError
 						}()
 						func() {
-							if __unknownShort {
-								__clusterDone = true
+							if unknownShort {
+								clusterDone = true
 								return
 							}
-							__clusterDone = __clusterDone
+							clusterDone = clusterDone
 						}()
-						__shortValue := func() string { runes := []rune(__arg); return string(runes[__shortIndex+2 : len([]rune(__arg))]) }()
-						__missingShortValue := __active && !(__shortHelp) && __shortFound && __shortTakesValue && len(__shortValue) == 0 && __index+1 >= len(__args)
+						shortValue := func() string { runes := []rune(arg); return string(runes[shortIndex+2 : len([]rune(arg))]) }()
+						missingShortValue := active && !(shortHelp) && shortFound && shortTakesValue && len(shortValue) == 0 && index+1 >= len(args)
 						func() {
-							if __missingShortValue {
-								__parseError = "missing value for -" + __short
+							if missingShortValue {
+								parseError = "missing value for -" + short
 								return
 							}
-							__parseError = __parseError
-						}()
-						func() {
-							if __missingShortValue {
-								__clusterDone = true
-								return
-							}
-							__clusterDone = __clusterDone
-						}()
-						__useShortNext := __active && !(__shortHelp) && __shortFound && __shortTakesValue && len(__shortValue) == 0 && len(__parseError) == 0
-						func() {
-							if __useShortNext {
-								__shortValue = __args[__index+1]
-								return
-							}
-							__shortValue = __shortValue
+							parseError = parseError
 						}()
 						func() {
-							if __useShortNext {
-								__skipNext = true
+							if missingShortValue {
+								clusterDone = true
 								return
 							}
-							__skipNext = __skipNext
+							clusterDone = clusterDone
 						}()
-						__storeShortValue := __active && !(__shortHelp) && __shortFound && __shortTakesValue && len(__parseError) == 0
+						useShortNext := active && !(shortHelp) && shortFound && shortTakesValue && len(shortValue) == 0 && len(parseError) == 0
+						func() {
+							if useShortNext {
+								shortValue = args[index+1]
+								return
+							}
+							shortValue = shortValue
+						}()
+						func() {
+							if useShortNext {
+								skipNext = true
+								return
+							}
+							skipNext = skipNext
+						}()
+						storeShortValue := active && !(shortHelp) && shortFound && shortTakesValue && len(parseError) == 0
 						func() map[string]string {
-							if __storeShortValue {
-								return func() map[string]string { __values[__shortOptionName] = __shortValue; return __values }()
+							if storeShortValue {
+								return func() map[string]string { values[shortOptionName] = shortValue; return values }()
 							}
-							return __values
+							return values
 						}()
 						func() int {
-							if __storeShortValue {
-								return func() int {
-									__explicitOptions = append(__explicitOptions, __shortOptionName)
-									return len(__explicitOptions)
-								}()
+							if storeShortValue {
+								return func() int { explicitOptions = append(explicitOptions, shortOptionName); return len(explicitOptions) }()
 							}
 							return 0
 						}()
 						func() {
-							if __storeShortValue {
-								__clusterDone = true
+							if storeShortValue {
+								clusterDone = true
 								return
 							}
-							__clusterDone = __clusterDone
+							clusterDone = clusterDone
 						}()
-						__storeShortFlag := __active && !(__shortHelp) && __shortFound && !(__shortTakesValue) && len(__parseError) == 0
+						storeShortFlag := active && !(shortHelp) && shortFound && !(shortTakesValue) && len(parseError) == 0
 						func() map[string]bool {
-							if __storeShortFlag {
-								return func() map[string]bool { __flags[__shortOptionName] = true; return __flags }()
+							if storeShortFlag {
+								return func() map[string]bool { flags[shortOptionName] = true; return flags }()
 							}
-							return __flags
+							return flags
 						}()
 						return func() int {
-							if __storeShortFlag {
-								return func() int {
-									__explicitOptions = append(__explicitOptions, __shortOptionName)
-									return len(__explicitOptions)
-								}()
+							if storeShortFlag {
+								return func() int { explicitOptions = append(explicitOptions, shortOptionName); return len(explicitOptions) }()
 							}
 							return 0
 						}()
@@ -896,495 +898,495 @@ func __cli_parseArgs(__command __CliCommand, __args []string) __CliParseResult {
 				}
 			}()
 			func() {
-				if __isShort {
-					__handled = true
+				if isShort {
+					handled = true
 					return
 				}
-				__handled = __handled
+				handled = handled
 			}()
-			__positional := !(__handled) && len(__parseError) == 0
+			positional := !(handled) && len(parseError) == 0
 			return func() int {
-				if __positional {
-					return func() int { __positionalValues = append(__positionalValues, __arg); return len(__positionalValues) }()
+				if positional {
+					return func() int { positionalValues = append(positionalValues, arg); return len(positionalValues) }()
 				}
 				return 0
 			}()
 		}()
 	}
-	for _, __option := range __command.__options {
-		_ = __option
+	for _, option := range command.options {
+		_ = option
 		func() {
-			__missing := len(__parseError) == 0 && !(__helpValue) && __option.__required && !(len(__option.__valueName) == 0) && !(func() bool { _, ok := __values[__option.__name]; return ok }())
+			missing := len(parseError) == 0 && !(helpValue) && option.required && !(len(option.valueName) == 0) && !(func() bool { _, ok := values[option.name]; return ok }())
 			func() {
-				if __missing {
-					__parseError = "missing required option --" + __option.__name
+				if missing {
+					parseError = "missing required option --" + option.name
 					return
 				}
-				__parseError = __parseError
+				parseError = parseError
 			}()
 		}()
 	}
-	__positionIndex := 0
-	for _, __argument := range __command.__arguments {
-		_ = __argument
+	positionIndex := 0
+	for _, argument := range command.arguments {
+		_ = argument
 		func() {
-			__hasValue := __positionIndex < len(__positionalValues)
+			hasValue := positionIndex < len(positionalValues)
 			func() map[string]string {
-				if __hasValue {
+				if hasValue {
 					return func() map[string]string {
-						__positionals[__argument.__name] = __positionalValues[__positionIndex]
-						return __positionals
+						positionals[argument.name] = positionalValues[positionIndex]
+						return positionals
 					}()
 				}
-				return __positionals
+				return positionals
 			}()
-			__positionIndex = __positionIndex + 1
+			positionIndex = positionIndex + 1
 		}()
 	}
-	for _, __argument := range __command.__arguments {
-		_ = __argument
+	for _, argument := range command.arguments {
+		_ = argument
 		func() {
-			__missing := len(__parseError) == 0 && !(__helpValue) && __argument.__required && !(func() bool { _, ok := __positionals[__argument.__name]; return ok }())
+			missing := len(parseError) == 0 && !(helpValue) && argument.required && !(func() bool { _, ok := positionals[argument.name]; return ok }())
 			func() {
-				if __missing {
-					__parseError = "missing required argument " + __argument.__name
+				if missing {
+					parseError = "missing required argument " + argument.name
 					return
 				}
-				__parseError = __parseError
+				parseError = parseError
 			}()
 		}()
 	}
-	__unexpected := len(__parseError) == 0 && !(__helpValue) && len(__positionalValues) > len(__command.__arguments)
+	unexpected := len(parseError) == 0 && !(helpValue) && len(positionalValues) > len(command.arguments)
 	func() {
-		if __unexpected {
-			__parseError = "unexpected argument " + __positionalValues[len(__command.__arguments)]
+		if unexpected {
+			parseError = "unexpected argument " + positionalValues[len(command.arguments)]
 			return
 		}
-		__parseError = __parseError
+		parseError = parseError
 	}()
-	return __CliParseResult{__command: __command, __values: __values, __flags: __flags, __positionals: __positionals, __explicitOptions: __explicitOptions, __args: __args, __rest: __rest, __help: __helpValue, __error: func() any {
-		if len(__parseError) == 0 {
+	return CliParseResult{command: command, values: values, flags: flags, positionals: positionals, explicitOptions: explicitOptions, args: args, rest: rest, help: helpValue, error: func() any {
+		if len(parseError) == 0 {
 			return any(nil)
 		}
-		return __parseError
+		return parseError
 	}()}
 }
 
-func __cli_parseCommandArgs(__root __CliCommand, __commands []__CliCommand, __aliases []__CliCommandAlias, __trailingRest []string, __args []string) __CliCommandParseResult {
-	__split := __cli_splitCommandArgs(__root, __aliases, __args, 0, []string{}, "", []string{}, false)
-	__rootResult := __cli_parseArgs(__root, __split.__rootArgs)
-	return func() __CliCommandParseResult {
-		if len(__split.__commandName) == 0 {
-			return __CliCommandParseResult{__root: __rootResult, __command: __rootResult, __commandName: "", __commandArgs: []string{}, __error: any(nil)}
+func cli_parseCommandArgs(root CliCommand, commands []CliCommand, aliases []CliCommandAlias, trailingRest []string, args []string) CliCommandParseResult {
+	split := cli_splitCommandArgs(root, aliases, args, 0, []string{}, "", []string{}, false)
+	rootResult := cli_parseArgs(root, split.rootArgs)
+	return func() CliCommandParseResult {
+		if len(split.commandName) == 0 {
+			return CliCommandParseResult{root: rootResult, command: rootResult, commandName: "", commandArgs: []string{}, error: any(nil)}
 		}
-		return __cli_parseNamedCommandArgs(__rootResult, __commands, __trailingRest, __split)
+		return cli_parseNamedCommandArgs(rootResult, commands, trailingRest, split)
 	}()
 }
 
-func __cli_parseKnownCommandArgs(__rootResult __CliParseResult, __command __CliCommand, __trailingRest []string, __split __CliCommandArgs) __CliCommandParseResult {
-	__args := func() []string {
-		if __cli_contains(__trailingRest, __split.__commandName) {
-			return __cli_normalizeTrailingRestArgs(__command, __split.__commandArgs)
+func cli_parseKnownCommandArgs(rootResult CliParseResult, command CliCommand, trailingRest []string, split CliCommandArgs) CliCommandParseResult {
+	args := func() []string {
+		if cli_contains(trailingRest, split.commandName) {
+			return cli_normalizeTrailingRestArgs(command, split.commandArgs)
 		}
-		return __split.__commandArgs
+		return split.commandArgs
 	}()
-	__parsed := __cli_withReportedArgs(__cli_parseArgs(__command, __args), __split.__commandArgs)
-	return __CliCommandParseResult{__root: __rootResult, __command: __parsed, __commandName: __split.__commandName, __commandArgs: __split.__commandArgs, __error: any(nil)}
+	parsed := cli_withReportedArgs(cli_parseArgs(command, args), split.commandArgs)
+	return CliCommandParseResult{root: rootResult, command: parsed, commandName: split.commandName, commandArgs: split.commandArgs, error: any(nil)}
 }
 
-func __cli_parseNamedCommandArgs(__rootResult __CliParseResult, __commands []__CliCommand, __trailingRest []string, __split __CliCommandArgs) __CliCommandParseResult {
-	__lookup := __cli_findCommand(__commands, __split.__commandName, 0)
-	return func() __CliCommandParseResult {
-		if __lookup.__found {
-			return __cli_parseKnownCommandArgs(__rootResult, __lookup.__command, __trailingRest, __split)
+func cli_parseNamedCommandArgs(rootResult CliParseResult, commands []CliCommand, trailingRest []string, split CliCommandArgs) CliCommandParseResult {
+	lookup := cli_findCommand(commands, split.commandName, 0)
+	return func() CliCommandParseResult {
+		if lookup.found {
+			return cli_parseKnownCommandArgs(rootResult, lookup.command, trailingRest, split)
 		}
-		return __CliCommandParseResult{__root: __rootResult, __command: __rootResult, __commandName: __split.__commandName, __commandArgs: __split.__commandArgs, __error: "unknown command " + __split.__commandName}
+		return CliCommandParseResult{root: rootResult, command: rootResult, commandName: split.commandName, commandArgs: split.commandArgs, error: "unknown command " + split.commandName}
 	}()
 }
 
-func __cli_positionalIncrement(__arg string) int {
+func cli_positionalIncrement(arg string) int {
 	return func() int {
-		if strings.HasPrefix(__arg, "-") {
+		if strings.HasPrefix(arg, "-") {
 			return 0
 		}
 		return 1
 	}()
 }
 
-func __cli_resolveAlias(__aliases []__CliCommandAlias, __name string, __index int) string {
+func cli_resolveAlias(aliases []CliCommandAlias, name string, index int) string {
 	return func() string {
-		if __index >= len(__aliases) {
-			return __name
+		if index >= len(aliases) {
+			return name
 		}
 		return func() string {
-			if __aliases[__index].__from == __name {
-				return __aliases[__index].__to
+			if aliases[index].from == name {
+				return aliases[index].to
 			}
-			return __cli_resolveAlias(__aliases, __name, __index+1)
+			return cli_resolveAlias(aliases, name, index+1)
 		}()
 	}()
 }
 
-func __cli_rootOption(__root __CliCommand, __arg string) __CliOption {
-	return func() __CliOption {
-		if strings.HasPrefix(__arg, "--") && len([]rune(__arg)) > 2 {
-			return __cli_findOptionByName(__root.__options, __cli_longOptionName(__arg), 0)
+func cli_rootOption(root CliCommand, arg string) CliOption {
+	return func() CliOption {
+		if strings.HasPrefix(arg, "--") && len([]rune(arg)) > 2 {
+			return cli_findOptionByName(root.options, cli_longOptionName(arg), 0)
 		}
-		return func() __CliOption {
-			if strings.HasPrefix(__arg, "-") && __arg != "-" {
-				return __cli_findOptionByShort(__root.__options, func() string { runes := []rune(__arg); return string(runes[1:2]) }(), 0)
+		return func() CliOption {
+			if strings.HasPrefix(arg, "-") && arg != "-" {
+				return cli_findOptionByShort(root.options, func() string { runes := []rune(arg); return string(runes[1:2]) }(), 0)
 			}
-			return __cli_emptyOption()
+			return cli_emptyOption()
 		}()
 	}()
 }
 
-func __cli_rootOptionArg(__root __CliCommand, __arg string) bool {
-	return __cli_optionFound(__cli_rootOption(__root, __arg))
+func cli_rootOptionArg(root CliCommand, arg string) bool {
+	return cli_optionFound(cli_rootOption(root, arg))
 }
 
-func __cli_rootOptionConsumesNext(__root __CliCommand, __arg string) bool {
-	__option := __cli_rootOption(__root, __arg)
-	__hasInline := strings.Contains(__arg, "=") || strings.HasPrefix(__arg, "-") && !(strings.HasPrefix(__arg, "--")) && len([]rune(__arg)) > 2
-	return __cli_optionFound(__option) && (__option.__valueName != "" && !(__hasInline))
+func cli_rootOptionConsumesNext(root CliCommand, arg string) bool {
+	option := cli_rootOption(root, arg)
+	hasInline := strings.Contains(arg, "=") || strings.HasPrefix(arg, "-") && !(strings.HasPrefix(arg, "--")) && len([]rune(arg)) > 2
+	return cli_optionFound(option) && (option.valueName != "" && !(hasInline))
 }
 
-func __cli_splitCommandArg(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string, __skipNext bool) __CliCommandArgs {
-	return func() __CliCommandArgs {
-		if __skipNext {
-			return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __commandName, __commandArgs, false)
+func cli_splitCommandArg(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string, skipNext bool) CliCommandArgs {
+	return func() CliCommandArgs {
+		if skipNext {
+			return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, commandName, commandArgs, false)
 		}
-		return __cli_splitCommandArgValue(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs)
+		return cli_splitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
 	}()
 }
 
-func __cli_splitCommandArgValue(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string) __CliCommandArgs {
-	__arg := __args[__index]
-	__isRootHelp := __commandName == "" && (__arg == "--help" || __arg == "-h")
-	__isRootOption := __cli_rootOptionArg(__root, __arg)
-	return func() __CliCommandArgs {
-		if __isRootHelp {
-			return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, func() []string {
-				out := []string{}
-				out = append(out, __rootArgs...)
-				out = append(out, __arg)
-				return out
-			}(), __commandName, __commandArgs, false)
+func cli_splitCommandArgValue(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string) CliCommandArgs {
+	arg := args[index]
+	isRootHelp := commandName == "" && (arg == "--help" || arg == "-h")
+	isRootOption := cli_rootOptionArg(root, arg)
+	return func() CliCommandArgs {
+		if isRootHelp {
+			return cli_splitCommandArgs(root, aliases, args, index+1, func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, rootArgs...)
+				__rune_spread_out = append(__rune_spread_out, arg)
+				return __rune_spread_out
+			}(), commandName, commandArgs, false)
 		}
-		return func() __CliCommandArgs {
-			if __isRootOption {
-				return __cli_splitRootOptionArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __cli_rootOptionConsumesNext(__root, __arg))
+		return func() CliCommandArgs {
+			if isRootOption {
+				return cli_splitRootOptionArg(root, aliases, args, index, rootArgs, commandName, commandArgs, cli_rootOptionConsumesNext(root, arg))
 			}
-			return func() __CliCommandArgs {
-				if len(__commandName) == 0 {
-					return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __cli_resolveAlias(__aliases, __arg, 0), __commandArgs, false)
+			return func() CliCommandArgs {
+				if len(commandName) == 0 {
+					return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, cli_resolveAlias(aliases, arg, 0), commandArgs, false)
 				}
-				return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __rootArgs, __commandName, func() []string {
-					out := []string{}
-					out = append(out, __commandArgs...)
-					out = append(out, __arg)
-					return out
+				return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, commandName, func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, commandArgs...)
+					__rune_spread_out = append(__rune_spread_out, arg)
+					return __rune_spread_out
 				}(), false)
 			}()
 		}()
 	}()
 }
 
-func __cli_splitCommandArgs(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string, __skipNext bool) __CliCommandArgs {
-	return func() __CliCommandArgs {
-		if __index >= len(__args) {
-			return __CliCommandArgs{__rootArgs: __rootArgs, __commandName: __commandName, __commandArgs: __commandArgs}
+func cli_splitCommandArgs(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string, skipNext bool) CliCommandArgs {
+	return func() CliCommandArgs {
+		if index >= len(args) {
+			return CliCommandArgs{rootArgs: rootArgs, commandName: commandName, commandArgs: commandArgs}
 		}
-		return __cli_splitCommandArg(__root, __aliases, __args, __index, __rootArgs, __commandName, __commandArgs, __skipNext)
+		return cli_splitCommandArg(root, aliases, args, index, rootArgs, commandName, commandArgs, skipNext)
 	}()
 }
 
-func __cli_splitRootOptionArg(__root __CliCommand, __aliases []__CliCommandAlias, __args []string, __index int, __rootArgs []string, __commandName string, __commandArgs []string, __consumesNext bool) __CliCommandArgs {
-	return __cli_splitCommandArgs(__root, __aliases, __args, __index+1, __cli_appendRootOptionArgs(__rootArgs, __args, __index, __consumesNext), __commandName, __commandArgs, __consumesNext)
+func cli_splitRootOptionArg(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string, consumesNext bool) CliCommandArgs {
+	return cli_splitCommandArgs(root, aliases, args, index+1, cli_appendRootOptionArgs(rootArgs, args, index, consumesNext), commandName, commandArgs, consumesNext)
 }
 
-func __cli_withAliases(__command __CliCommand, __aliases []__CliCommandAlias) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __arguments: __command.__arguments, __commands: __command.__commands, __aliases: __aliases}
+func cli_withAliases(command CliCommand, aliases []CliCommandAlias) CliCommand {
+	return CliCommand{name: command.name, version: command.version, about: command.about, options: command.options, arguments: command.arguments, commands: command.commands, aliases: aliases}
 }
 
-func __cli_withArgument(__command __CliCommand, __argument __CliArgument) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __commands: __command.__commands, __aliases: __command.__aliases, __arguments: func() []__CliArgument {
-		out := []__CliArgument{}
-		out = append(out, __command.__arguments...)
-		out = append(out, __argument)
-		return out
+func cli_withArgument(command CliCommand, argument CliArgument) CliCommand {
+	return CliCommand{name: command.name, version: command.version, about: command.about, options: command.options, commands: command.commands, aliases: command.aliases, arguments: func() []CliArgument {
+		__rune_spread_out := []CliArgument{}
+		__rune_spread_out = append(__rune_spread_out, command.arguments...)
+		__rune_spread_out = append(__rune_spread_out, argument)
+		return __rune_spread_out
 	}()}
 }
 
-func __cli_withCommands(__command __CliCommand, __commands []__CliCommand) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __options: __command.__options, __arguments: __command.__arguments, __aliases: __command.__aliases, __commands: __commands}
+func cli_withCommands(command CliCommand, commands []CliCommand) CliCommand {
+	return CliCommand{name: command.name, version: command.version, about: command.about, options: command.options, arguments: command.arguments, aliases: command.aliases, commands: commands}
 }
 
-func __cli_withOption(__command __CliCommand, __option __CliOption) __CliCommand {
-	return __CliCommand{__name: __command.__name, __version: __command.__version, __about: __command.__about, __arguments: __command.__arguments, __commands: __command.__commands, __aliases: __command.__aliases, __options: func() []__CliOption {
-		out := []__CliOption{}
-		out = append(out, __command.__options...)
-		out = append(out, __option)
-		return out
+func cli_withOption(command CliCommand, option CliOption) CliCommand {
+	return CliCommand{name: command.name, version: command.version, about: command.about, arguments: command.arguments, commands: command.commands, aliases: command.aliases, options: func() []CliOption {
+		__rune_spread_out := []CliOption{}
+		__rune_spread_out = append(__rune_spread_out, command.options...)
+		__rune_spread_out = append(__rune_spread_out, option)
+		return __rune_spread_out
 	}()}
 }
 
-func __cli_withReportedArgs(__result __CliParseResult, __args []string) __CliParseResult {
-	return __CliParseResult{__command: __result.__command, __values: __result.__values, __flags: __result.__flags, __positionals: __result.__positionals, __explicitOptions: __result.__explicitOptions, __rest: __result.__rest, __help: __result.__help, __error: __result.__error, __args: __args}
+func cli_withReportedArgs(result CliParseResult, args []string) CliParseResult {
+	return CliParseResult{command: result.command, values: result.values, flags: result.flags, positionals: result.positionals, explicitOptions: result.explicitOptions, rest: result.rest, help: result.help, error: result.error, args: args}
 }
 
-func __parseCli(__args []string) __RuneCliInvocation {
-	__parsed := __cli_parseCommandArgs(__runeCommand(), __runeCommands(), __runeAliases(), __runeTrailingRest(), __args)
-	return __selfhost_cli_cli_invocationFromParsed(__parsed, __runeCommand(), __runeCommands())
+func parseCli(args []string) RuneCliInvocation {
+	parsed := cli_parseCommandArgs(runeCommand(), runeCommands(), runeAliases(), runeTrailingRest(), args)
+	return selfhost_cli_cli_invocationFromParsed(parsed, runeCommand(), runeCommands())
 }
 
-func __selfhost_cli_cli_invocationFromParsed(__parsed __CliCommandParseResult, __rootCommand __CliCommand, __commands []__CliCommand) __RuneCliInvocation {
-	__root := __parsed.__root
-	__backend := func() string {
-		value, ok := __root.__values["backend"]
+func selfhost_cli_cli_invocationFromParsed(parsed CliCommandParseResult, rootCommand CliCommand, commands []CliCommand) RuneCliInvocation {
+	root := parsed.root
+	backend := func() string {
+		value, ok := root.values["backend"]
 		if ok {
 			return value
 		}
 		return "go"
 	}()
-	__errors := __selfhost_cli_cli_cliErrors(__root)
-	__commandError := func() string {
-		__coalesce4 := __parsed.__error
-		if __coalesce4 != nil {
-			return __coalesce4.(string)
+	errors := selfhost_cli_cli_cliErrors(root)
+	commandError := func() string {
+		coalesce4 := parsed.error
+		if coalesce4 != nil {
+			return coalesce4.(string)
 		}
 		return ""
 	}()
 	func() int {
-		if len(__commandError) == 0 {
+		if len(commandError) == 0 {
 			return 0
 		}
-		return func() int { __errors = append(__errors, __commandError); return len(__errors) }()
+		return func() int { errors = append(errors, commandError); return len(errors) }()
 	}()
-	__invalidBackend := __cli_contains([]string{"go", "ts", "mbt"}, __backend) == false
+	invalidBackend := cli_contains([]string{"go", "ts", "mbt"}, backend) == false
 	func() int {
-		if __invalidBackend {
-			return func() int { __errors = append(__errors, "unsupported backend "+__backend); return len(__errors) }()
+		if invalidBackend {
+			return func() int { errors = append(errors, "unsupported backend "+backend); return len(errors) }()
 		}
 		return 0
 	}()
-	__backendExplicit := __cli_contains(__root.__explicitOptions, "backend")
-	return func() __RuneCliInvocation {
-		if len(__errors) > 0 {
-			return __selfhost_cli_cli_errorInvocation(__backend, __errors)
+	backendExplicit := cli_contains(root.explicitOptions, "backend")
+	return func() RuneCliInvocation {
+		if len(errors) > 0 {
+			return selfhost_cli_cli_errorInvocation(backend, errors)
 		}
-		return func() __RuneCliInvocation {
-			if len(__parsed.__commandName) == 0 {
-				return __selfhost_cli_cli_helpInvocation(__rootCommand, __backend, __backendExplicit)
+		return func() RuneCliInvocation {
+			if len(parsed.commandName) == 0 {
+				return selfhost_cli_cli_helpInvocation(rootCommand, backend, backendExplicit)
 			}
-			return __selfhost_cli_cli_invocationFromResult(__parsed.__commandName, __rootCommand, __commands, __backend, __backendExplicit, __parsed.__command)
+			return selfhost_cli_cli_invocationFromResult(parsed.commandName, rootCommand, commands, backend, backendExplicit, parsed.command)
 		}()
 	}()
 }
 
-func __selfhost_cli_cli_invocationFromResult(__name string, __rootCommand __CliCommand, __commands []__CliCommand, __backend string, __backendExplicit bool, __result __CliParseResult) __RuneCliInvocation {
-	__errors := __selfhost_cli_cli_cliErrors(__result)
-	__target := func() string {
-		value, ok := __result.__values["target"]
+func selfhost_cli_cli_invocationFromResult(name string, rootCommand CliCommand, commands []CliCommand, backend string, backendExplicit bool, result CliParseResult) RuneCliInvocation {
+	errors := selfhost_cli_cli_cliErrors(result)
+	target := func() string {
+		value, ok := result.values["target"]
 		if ok {
 			return value
 		}
 		return ""
 	}()
-	__target = __selfhost_cli_cli_defaultTargetForCommand(__name, __backend, __target)
-	__errors = __selfhost_cli_cli_invocationErrors(__name, __backend, __target, __errors)
-	return __RuneCliInvocation{__ok: len(__errors) == 0, __command: __name, __backend: __backend, __path: __selfhost_cli_cli_defaultPathForCommand(__name, func() string {
-		value, ok := __result.__positionals["path"]
+	target = selfhost_cli_cli_defaultTargetForCommand(name, backend, target)
+	errors = selfhost_cli_cli_invocationErrors(name, backend, target, errors)
+	return RuneCliInvocation{ok: len(errors) == 0, command: name, backend: backend, path: selfhost_cli_cli_defaultPathForCommand(name, func() string {
+		value, ok := result.positionals["path"]
 		if ok {
 			return value
 		}
 		return ""
-	}()), __output: func() string {
-		value, ok := __result.__values["output"]
+	}()), output: func() string {
+		value, ok := result.values["output"]
 		if ok {
 			return value
 		}
 		return ""
-	}(), __target: __target, __pattern: func() string {
-		value, ok := __result.__positionals["pattern"]
+	}(), target: target, pattern: func() string {
+		value, ok := result.positionals["pattern"]
 		if ok {
 			return value
 		}
 		return ""
-	}(), __checkOnly: func() bool {
-		value, ok := __result.__flags["check"]
+	}(), checkOnly: func() bool {
+		value, ok := result.flags["check"]
 		if ok {
 			return value
 		}
 		return false
-	}(), __stdout: func() bool {
-		value, ok := __result.__flags["stdout"]
+	}(), stdout: func() bool {
+		value, ok := result.flags["stdout"]
 		if ok {
 			return value
 		}
 		return false
-	}(), __backendExplicit: __backendExplicit, __runArgs: __result.__rest, __errors: __errors, __help: __result.__help, __helpText: __cli_help(__selfhost_cli_cli_invocationHelpCommand(__rootCommand, __commands, __name))}
+	}(), backendExplicit: backendExplicit, runArgs: result.rest, errors: errors, help: result.help, helpText: cli_help(selfhost_cli_cli_invocationHelpCommand(rootCommand, commands, name))}
 }
 
-func __selfhost_cli_cli_invocationErrors(__name string, __backend string, __target string, __errors []string) []string {
+func selfhost_cli_cli_invocationErrors(name string, backend string, target string, errors []string) []string {
 	return func() []string {
-		if __name == "build" && __cli_contains([]string{"go", "mbt"}, __backend) == false {
+		if name == "build" && cli_contains([]string{"go", "mbt"}, backend) == false {
 			return func() []string {
-				out := []string{}
-				out = append(out, __errors...)
-				out = append(out, "rune build only supports --backend go or --backend mbt")
-				return out
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, errors...)
+				__rune_spread_out = append(__rune_spread_out, "rune build only supports --backend go or --backend mbt")
+				return __rune_spread_out
 			}()
 		}
 		return func() []string {
-			if __name == "run" && len(__target) == 0 == false && __backend != "mbt" {
+			if name == "run" && len(target) == 0 == false && backend != "mbt" {
 				return func() []string {
-					out := []string{}
-					out = append(out, __errors...)
-					out = append(out, "rune run --target is only supported with --backend mbt")
-					return out
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "rune run --target is only supported with --backend mbt")
+					return __rune_spread_out
 				}()
 			}
-			return __errors
+			return errors
 		}()
 	}()
 }
 
-func __selfhost_cli_cli_defaultTargetForCommand(__name string, __backend string, __target string) string {
+func selfhost_cli_cli_defaultTargetForCommand(name string, backend string, target string) string {
 	return func() string {
-		if __name == "run" && __backend == "mbt" && len(__target) == 0 {
+		if name == "run" && backend == "mbt" && len(target) == 0 {
 			return "native"
 		}
-		return __target
+		return target
 	}()
 }
 
-func __selfhost_cli_cli_defaultPathForCommand(__name string, __path string) string {
+func selfhost_cli_cli_defaultPathForCommand(name string, path string) string {
 	return func() string {
-		if __name == "test" && len(__path) == 0 {
+		if name == "test" && len(path) == 0 {
 			return "tests"
 		}
-		return __path
+		return path
 	}()
 }
 
-func __selfhost_cli_cli_invocationHelpCommand(__rootCommand __CliCommand, __commands []__CliCommand, __name string) __CliCommand {
-	return func() __CliCommand {
-		__array5 := __commands
-		__result6 := __rootCommand
-		for _, __value8 := range __array5 {
-			__result6 = func(__found __CliCommand, __command __CliCommand) __CliCommand {
-				return func() __CliCommand {
-					if __command.__name == __name {
-						return __command
+func selfhost_cli_cli_invocationHelpCommand(rootCommand CliCommand, commands []CliCommand, name string) CliCommand {
+	return func() CliCommand {
+		array5 := commands
+		result6 := rootCommand
+		for _, value8 := range array5 {
+			result6 = func(found CliCommand, command CliCommand) CliCommand {
+				return func() CliCommand {
+					if command.name == name {
+						return command
 					}
-					return __found
+					return found
 				}()
-			}(__result6, __value8)
+			}(result6, value8)
 		}
-		return __result6
+		return result6
 	}()
 }
 
-func __selfhost_cli_cli_cliErrors(__result __CliParseResult) []string {
-	__error := func() string {
-		__coalesce9 := __result.__error
-		if __coalesce9 != nil {
-			return __coalesce9.(string)
+func selfhost_cli_cli_cliErrors(result CliParseResult) []string {
+	error := func() string {
+		coalesce9 := result.error
+		if coalesce9 != nil {
+			return coalesce9.(string)
 		}
 		return ""
 	}()
-	__errors := []string{}
+	errors := []string{}
 	func() int {
-		if len(__error) == 0 {
+		if len(error) == 0 {
 			return 0
 		}
-		return func() int { __errors = append(__errors, __error); return len(__errors) }()
+		return func() int { errors = append(errors, error); return len(errors) }()
 	}()
-	return __errors
+	return errors
 }
 
-func __selfhost_cli_cli_helpInvocation(__rootCommand __CliCommand, __backend string, __backendExplicit bool) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: true, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: __backendExplicit, __runArgs: []string{}, __errors: []string{}, __help: true, __helpText: __cli_help(__rootCommand)}
+func selfhost_cli_cli_helpInvocation(rootCommand CliCommand, backend string, backendExplicit bool) RuneCliInvocation {
+	return RuneCliInvocation{ok: true, command: "", backend: backend, path: "", output: "", target: "", pattern: "", checkOnly: false, stdout: false, backendExplicit: backendExplicit, runArgs: []string{}, errors: []string{}, help: true, helpText: cli_help(rootCommand)}
 }
 
-func __selfhost_cli_cli_errorInvocation(__backend string, __errors []string) __RuneCliInvocation {
-	return __RuneCliInvocation{__ok: false, __command: "", __backend: __backend, __path: "", __output: "", __target: "", __pattern: "", __checkOnly: false, __stdout: false, __backendExplicit: false, __runArgs: []string{}, __errors: __errors, __help: false, __helpText: ""}
+func selfhost_cli_cli_errorInvocation(backend string, errors []string) RuneCliInvocation {
+	return RuneCliInvocation{ok: false, command: "", backend: backend, path: "", output: "", target: "", pattern: "", checkOnly: false, stdout: false, backendExplicit: false, runArgs: []string{}, errors: errors, help: false, helpText: ""}
 }
 
-func __selfhost_cli_cli_emptyInvocation() __RuneCliInvocation {
-	return __selfhost_cli_cli_errorInvocation("", []string{})
+func selfhost_cli_cli_emptyInvocation() RuneCliInvocation {
+	return selfhost_cli_cli_errorInvocation("", []string{})
 }
 
-func __runeCommand() __CliCommand {
-	__command := __cli_command("rune", "Rune language toolchain")
-	__command = __cli_withOption(__command, __cli_option("backend", "b", "BACKEND", "target backend", false, "go"))
-	__command = __cli_withCommands(__command, __runeCommands())
-	return __cli_withAliases(__command, __runeAliases())
+func runeCommand() CliCommand {
+	command := cli_command("rune", "Rune language toolchain")
+	command = cli_withOption(command, cli_option("backend", "b", "BACKEND", "target backend", false, "go"))
+	command = cli_withCommands(command, runeCommands())
+	return cli_withAliases(command, runeAliases())
 }
 
-func __runeCommands() []__CliCommand {
-	return []__CliCommand{__runCommand(), __buildCommand(), __emitCommand("go"), __emitCommand("ts"), __emitCommand("dts"), __emitCommand("mbt"), __singlePathCommand("check"), __fmtCommand(), __testCommand(), __cli_command("repl", ""), __lspCommand()}
+func runeCommands() []CliCommand {
+	return []CliCommand{runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), singlePathCommand("check"), fmtCommand(), testCommand(), cli_command("repl", ""), lspCommand()}
 }
 
-func __runeAliases() []__CliCommandAlias {
-	return []__CliCommandAlias{__cli_alias("format", "fmt")}
+func runeAliases() []CliCommandAlias {
+	return []CliCommandAlias{cli_alias("format", "fmt")}
 }
 
-func __runeTrailingRest() []string {
+func runeTrailingRest() []string {
 	return []string{"run"}
 }
 
-func __runCommand() __CliCommand {
-	__command := __cli_command("run", "Compile and run a Rune program")
-	__command = __cli_withOption(__command, __cli_option("target", "", "TARGET", "MoonBit run target", false, any(nil)))
-	return __cli_withArgument(__command, __cli_argument("path", "Rune source path", true))
+func runCommand() CliCommand {
+	command := cli_command("run", "Compile and run a Rune program")
+	command = cli_withOption(command, cli_option("target", "", "TARGET", "MoonBit run target", false, any(nil)))
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
-func __buildCommand() __CliCommand {
-	__command := __cli_command("build", "Compile a Rune program to an executable")
-	__command = __cli_withOption(__command, __cli_option("output", "o", "FILE", "output executable path", false, ""))
-	__command = __cli_withOption(__command, __cli_option("target", "", "TARGET", "build target", false, ""))
-	return __cli_withArgument(__command, __cli_argument("path", "Rune source path", true))
+func buildCommand() CliCommand {
+	command := cli_command("build", "Compile a Rune program to an executable")
+	command = cli_withOption(command, cli_option("output", "o", "FILE", "output executable path", false, ""))
+	command = cli_withOption(command, cli_option("target", "", "TARGET", "build target", false, ""))
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
-func __emitCommand(__name string) __CliCommand {
-	__command := __cli_command(__name, "Compile a Rune program")
-	__command = __cli_withOption(__command, __cli_option("output", "o", "FILE", "output file", false, ""))
-	return __cli_withArgument(__command, __cli_argument("path", "Rune source path", true))
+func emitCommand(name string) CliCommand {
+	command := cli_command(name, "Compile a Rune program")
+	command = cli_withOption(command, cli_option("output", "o", "FILE", "output file", false, ""))
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
-func __singlePathCommand(__name string) __CliCommand {
-	__command := __cli_command(__name, "Parse and type-check Rune source")
-	return __cli_withArgument(__command, __cli_argument("path", "Rune source path", true))
+func singlePathCommand(name string) CliCommand {
+	command := cli_command(name, "Parse and type-check Rune source")
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
-func __fmtCommand() __CliCommand {
-	__command := __cli_command("fmt", "Format Rune source")
-	__command = __cli_withOption(__command, __cli_flag("check", "", "fail if not formatted"))
-	__command = __cli_withOption(__command, __cli_flag("stdout", "", "write formatted source to stdout"))
-	return __cli_withArgument(__command, __cli_argument("path", "Rune source path", true))
+func fmtCommand() CliCommand {
+	command := cli_command("fmt", "Format Rune source")
+	command = cli_withOption(command, cli_flag("check", "", "fail if not formatted"))
+	command = cli_withOption(command, cli_flag("stdout", "", "write formatted source to stdout"))
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
-func __testCommand() __CliCommand {
-	__command := __cli_command("test", "Run Rune tests")
-	__command = __cli_withArgument(__command, __cli_argument("path", "Rune test path", false))
-	return __cli_withArgument(__command, __cli_argument("pattern", "test name pattern", false))
+func testCommand() CliCommand {
+	command := cli_command("test", "Run Rune tests")
+	command = cli_withArgument(command, cli_argument("path", "Rune test path", false))
+	return cli_withArgument(command, cli_argument("pattern", "test name pattern", false))
 }
 
-func __lspCommand() __CliCommand {
-	__command := __cli_command("lsp", "Start the Rune language server")
-	return __cli_withOption(__command, __cli_flag("stdio", "", "serve LSP over stdin/stdout"))
+func lspCommand() CliCommand {
+	command := cli_command("lsp", "Start the Rune language server")
+	return cli_withOption(command, cli_flag("stdio", "", "serve LSP over stdin/stdout"))
 }
 
-func __main() {
-	__argv := runeProcessArgv()
-	__invocation := __parseCli(append([]string{}, __argv[1:len(__argv)]...))
+func main_() {
+	argv := runeProcessArgv()
+	invocation := parseCli(append([]string{}, argv[1:len(argv)]...))
 	func() {
-		if __invocation.__help {
-			fmt.Print(__cli_help(__runeCommand()))
+		if invocation.help {
+			fmt.Print(cli_help(runeCommand()))
 			return
 		}
-		fmt.Println(__invocation.__command)
+		fmt.Println(invocation.command)
 	}()
 }
