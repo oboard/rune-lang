@@ -415,7 +415,6 @@ func hasMain(file *ir.File) bool {
 
 func mangleIdent(name string) string {
 	var b strings.Builder
-	b.WriteString("__")
 	for _, ch := range name {
 		if isSafeMangledIdentRune(ch) {
 			b.WriteRune(ch)
@@ -423,7 +422,14 @@ func mangleIdent(name string) string {
 		}
 		fmt.Fprintf(&b, "_u%X_", ch)
 	}
-	return b.String()
+	mangled := b.String()
+	if mangled == "" || ('0' <= mangled[0] && mangled[0] <= '9') {
+		mangled = "rune_" + mangled
+	}
+	if tsReservedPropertyNames[mangled] {
+		mangled += "_"
+	}
+	return mangled
 }
 
 func FunctionSymbolName(fn *ir.Function) string {

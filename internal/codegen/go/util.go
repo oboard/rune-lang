@@ -52,11 +52,11 @@ func goType(typ checker.Type) string {
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return "[]" + goType(elem)
 	}
-		if fields, ok := parseGoObjectType(string(typ)); ok {
-			fields = sortedGoObjectFields(fields)
-			parts := make([]string, 0, len(fields))
-			for _, field := range fields {
-				parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
+	if fields, ok := parseGoObjectType(string(typ)); ok {
+		fields = sortedGoObjectFields(fields)
+		parts := make([]string, 0, len(fields))
+		for _, field := range fields {
+			parts = append(parts, fmt.Sprintf("%s %s", mangleIdent(field.name), goType(checker.Type(field.typ))))
 		}
 		return "struct{" + strings.Join(parts, "; ") + "}"
 	}
@@ -352,9 +352,16 @@ func mainFunction(file *ir.File) *ir.Function {
 	return nil
 }
 
+var goReservedIdentifiers = map[string]bool{
+	"break": true, "default": true, "func": true, "interface": true, "select": true,
+	"case": true, "defer": true, "go": true, "map": true, "struct": true,
+	"chan": true, "else": true, "goto": true, "package": true, "switch": true,
+	"const": true, "fallthrough": true, "if": true, "range": true, "type": true,
+	"continue": true, "for": true, "import": true, "main": true, "return": true, "var": true,
+}
+
 func mangleIdent(name string) string {
 	var b strings.Builder
-	b.WriteString("__")
 	for _, ch := range name {
 		if isSafeMangledIdentRune(ch) {
 			b.WriteRune(ch)
@@ -362,7 +369,14 @@ func mangleIdent(name string) string {
 		}
 		fmt.Fprintf(&b, "_u%X_", ch)
 	}
-	return b.String()
+	mangled := b.String()
+	if mangled == "" || ('0' <= mangled[0] && mangled[0] <= '9') {
+		mangled = "rune_" + mangled
+	}
+	if goReservedIdentifiers[mangled] {
+		mangled += "_"
+	}
+	return mangled
 }
 
 func mangleEnumMember(enumName string, memberName string) string {

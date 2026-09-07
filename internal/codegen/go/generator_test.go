@@ -1485,3 +1485,11 @@ score(values: Lookup) -> Int => values {
 		}
 	}
 }
+
+func TestMangleIdentRemovesPrefixAndEscapesGoKeywords(t *testing.T) {
+	for input, want := range map[string]string{"answer": "answer", "type": "type_", "1st": "rune_1st"} {
+		if got := mangleIdent(input); got != want {
+			t.Errorf("mangleIdent(%q) = %q, want %q", input, got, want)
+		}
+	}
+}

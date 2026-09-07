@@ -1027,3 +1027,11 @@ func generateForTestWithSourcePath(t *testing.T, path string, src string) string
 	}
 	return got
 }
+
+func TestMangleIdentRemovesPrefixAndEscapesTypeScriptKeywords(t *testing.T) {
+	for input, want := range map[string]string{"answer": "answer", "class": "class_", "1st": "rune_1st"} {
+		if got := mangleIdent(input); got != want {
+			t.Errorf("mangleIdent(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
