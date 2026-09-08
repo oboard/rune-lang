@@ -69,7 +69,8 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 	for i, name := range paramNames[hiddenParams:] {
 		bindings[name] = args[i]
 	}
-	result, err := runtime.EvalWithBindings(ir.LowerExprExpected(body, info, returnType), bindings)
+	lowerInfo := macroLowerInfo(info)
+	result, err := runtime.EvalWithBindings(ir.LowerExprExpected(body, lowerInfo, returnType), bindings)
 	if err != nil {
 		return false, err
 	}
@@ -101,6 +102,42 @@ func invocationBody(invocation Invocation) (ast.Expr, []string, checker.Type, er
 	default:
 		return nil, nil, checker.Unknown, fmt.Errorf("resolved macro has no Rune body")
 	}
+}
+
+// macroLowerInfo builds a checker view that includes syntax types even when
+// the user source did not import @syntax. Stdlib Rune macros always run with
+// SyntaxFile/MacroContext available; the user-source gate remains intact for
+// the checker pass that validates user code.
+func macroLowerInfo(info *checker.Info) *checker.Info {
+	if info == nil || info.Stdlib == nil {
+		return info
+	}
+	out := *info
+	out.Types = make(map[string]*checker.StructInfo, len(info.Types)+1)
+	for name, typ := range info.Types {
+		out.Types[name] = typ
+	}
+	for name, typ := range info.Stdlib.Types {
+		if out.Types[name] != nil {
+			continue
+		}
+		structInfo := &checker.StructInfo{
+			Name:               typ.Name,
+			SourcePath:         typ.SourcePath,
+			Generics:           append([]string(nil), typ.Generics...),
+			GenericConstraints: typ.GenericConstraints,
+			Methods:            map[string]*checker.FuncInfo{},
+			StaticMethods:      map[string]*checker.FuncInfo{},
+			ByName:             map[string]checker.FieldInfo{},
+		}
+		for _, field := range typ.Fields {
+			fi := checker.FieldInfo{Name: field.Name, Type: checker.Type(field.Type)}
+			structInfo.Fields = append(structInfo.Fields, fi)
+			structInfo.ByName[fi.Name] = fi
+		}
+		out.Types[name] = structInfo
+	}
+	return &out
 }
 
 func invocationName(invocation Invocation) string {
