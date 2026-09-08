@@ -387,6 +387,34 @@ func TestSelfhostCheckerIndexesInferredMapLiterals(t *testing.T) {
 	}
 }
 
+func TestSelfhostCheckerInfersConditionalLocalFunctions(t *testing.T) {
+	result := checkSelfhostSourceWithCore(`h(x) => h(x) + 1
+
+f(x) => ({
+  k: x.a + h(1)
+})
+
+g(y) => ({
+  k: y.b + 1
+})
+
+r(flag) => {
+  j := (
+    flag ? (x) => f(x)
+      : (y) => g(y)
+  )
+  j({
+    b: 2,
+    z: false,
+    a: 1
+  }).k
+}
+`, "examples/complex_type2.rn")
+	if !result.ok {
+		t.Fatalf("checkSelfhostSourceWithCore() errors = %v", result.errors)
+	}
+}
+
 func TestSelfhostCheckerRejectsUnknownCoreModuleMacro(t *testing.T) {
 	result := checkSelfhostSourceWithCore("#web.missing\nThing: {}\n", "examples/list.rn")
 	if result.ok || len(result.errors) != 1 || !strings.Contains(result.errors[0], "unknown macro #web.missing") {

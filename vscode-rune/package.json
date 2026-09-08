@@ -12,7 +12,9 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onDebug:rune"
+    "onDebug:rune",
+    "onLanguage:rune",
+    "onCommand:rune.previewRender"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -70,6 +72,10 @@
       {
         "command": "rune.showLanguageServerOutput",
         "title": "Rune: Show Language Server Output"
+      },
+      {
+        "command": "rune.previewRender",
+        "title": "Rune: Preview Render"
       }
     ],
     "debuggers": [

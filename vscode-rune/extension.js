@@ -13,6 +13,8 @@ let runTerminal;
 let testController;
 let macroExpansionProvider;
 let compileTimeDecoration;
+const previewPanels = new Map();
+const previewCompileVersions = new Map();
 const testItemData = new Map();
 const revealOutputChannelOnError = 3;
 const maxProcessOutputBytes = 4 * 1024 * 1024;
@@ -72,6 +74,7 @@ function activate(context) {
     vscode.commands.registerCommand("rune.runTest", runTest),
     vscode.commands.registerCommand("rune.debugFile", debugFile),
     vscode.commands.registerCommand("rune.showMacroExpansion", showMacroExpansion),
+    vscode.commands.registerCommand("rune.previewRender", previewRender),
     vscode.commands.registerCommand("rune.restartLanguageServer", async () => {
       await stopClient();
       await startClient().catch(reportClientStartError);
@@ -86,6 +89,7 @@ function activate(context) {
     vscode.workspace.onDidChangeTextDocument((event) => {
       updateDocumentTests(event.document);
       void updateCompileTimeDecorations(event.document);
+      void updatePreviewForDocument(event.document);
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       void updateCompileTimeDecorations(editor?.document);
@@ -188,6 +192,16 @@ class RuneCodeLensProvider {
     const lenses = [];
     for (let line = 0; line < document.lineCount; line++) {
       const text = document.lineAt(line).text;
+      if (/^\s*#web\.preview\b/.test(text)) {
+        const range = new vscode.Range(line, 0, line, text.length);
+        lenses.push(
+          new vscode.CodeLens(range, {
+            title: "$(preview) Preview",
+            command: "rune.previewRender",
+            arguments: [document.uri]
+          })
+        );
+      }
       // Any function whose name is `main` gets a Run/Debug button. `main` may be
       // written bare (`main()`), exported (`+ main()`), or with the `~` marker
       // (`~ main()`), with optional indentation inside a struct/type. `main` must
@@ -275,6 +289,118 @@ function macroExpansionUri(sourceUri) {
     path: `/${name}`,
     query: sourceUri.toString()
   });
+}
+
+async function previewRender(input) {
+  const sourceUri = resolveDocumentUri(input);
+  if (!sourceUri || sourceUri.scheme !== "file") {
+    vscode.window.showWarningMessage("Open a local Rune file first.");
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(sourceUri);
+  if (document.languageId !== "rune" || !hasWebPreview(document)) {
+    vscode.window.showWarningMessage("Add #web.preview to this Rune file first.");
+    return;
+  }
+
+  const key = sourceUri.toString();
+  let panel = previewPanels.get(key);
+  if (!panel) {
+    panel = vscode.window.createWebviewPanel(
+      "rune.preview",
+      `Rune Preview: ${path.basename(sourceUri.fsPath)}`,
+      vscode.ViewColumn.Beside,
+      { enableScripts: true, retainContextWhenHidden: true }
+    );
+    panel.webview.html = previewHtml(panel.webview);
+    previewPanels.set(key, panel);
+    panel.onDidDispose(() => {
+      previewPanels.delete(key);
+      previewCompileVersions.delete(key);
+    });
+  } else {
+    panel.reveal(vscode.ViewColumn.Beside);
+  }
+  await compilePreview(document, panel);
+}
+
+function hasWebPreview(document) {
+  return document.getText().split(/\r\n|\r|\n/).some((line) => /^\s*#web\.preview\b/.test(line));
+}
+
+async function updatePreviewForDocument(document) {
+  const panel = previewPanels.get(document?.uri.toString());
+  if (!panel || document.languageId !== "rune") {
+    return;
+  }
+  if (!hasWebPreview(document)) {
+    panel.webview.postMessage({ type: "error", message: "#web.preview was removed from this document." });
+    return;
+  }
+  await compilePreview(document, panel, true);
+}
+
+async function compilePreview(document, panel, debounce = false) {
+  const key = document.uri.toString();
+  const version = (previewCompileVersions.get(key) || 0) + 1;
+  previewCompileVersions.set(key, version);
+  if (debounce) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    if (previewCompileVersions.get(key) !== version) {
+      return;
+    }
+  }
+  panel.webview.postMessage({ type: "loading" });
+  try {
+    // `rune ts` invokes the compiler's compileTypeScript pipeline.  Materialize
+    // the in-memory document beside the source so its relative imports resolve.
+    const generated = await compilePreviewTypeScript(document);
+    if (previewCompileVersions.get(key) !== version) {
+      return;
+    }
+    panel.webview.postMessage({ type: "render", source: typeScriptForPreview(generated) });
+  } catch (error) {
+    if (previewCompileVersions.get(key) === version) {
+      panel.webview.postMessage({ type: "error", message: error?.message || String(error) });
+    }
+  }
+}
+
+async function compilePreviewTypeScript(document) {
+  const directory = path.dirname(document.uri.fsPath);
+  const temporaryPath = path.join(
+    directory,
+    `.rune-preview-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.rn`
+  );
+  await fs.promises.writeFile(temporaryPath, document.getText(), "utf8");
+  try {
+    const runeRoot = resolveRuneRootForPath(document.uri.fsPath);
+    const result = await runProcess(resolveRuneCommand(runeRoot), ["ts", temporaryPath], {
+      cwd: runeRoot || workspaceRoot() || directory,
+      env: { ...process.env, ...(runeRoot ? { RUNE_ROOT: runeRoot } : {}) }
+    });
+    if (result.code !== 0) {
+      throw new Error((result.stderr || result.stdout || "Rune preview compilation failed.").trim());
+    }
+    return result.stdout;
+  } finally {
+    await fs.promises.unlink(temporaryPath).catch(() => {});
+  }
+}
+
+function typeScriptForPreview(source) {
+  // Rune's TypeScript emitter only adds annotations to otherwise browser-ready
+  // code. Remove the annotation forms emitted for previewable web programs
+  // before evaluating them in the Webview's JavaScript runtime.
+  return source
+    .replace(/\)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*(?:=>|\{))/g, ")")
+    .replace(/([A-Za-z_$][\w$]*)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*[,)=;])/g, "$1")
+    .replace(/\b(let|const|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;\n]+(?=\s*=)/g, "$1 $2");
+}
+
+function previewHtml(webview) {
+  const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval';"><style>body{font-family:var(--vscode-font-family);padding:16px;color:var(--vscode-editor-foreground)}#status{color:var(--vscode-descriptionForeground)}#error{white-space:pre-wrap;color:var(--vscode-errorForeground)}</style></head><body><div id="status">Waiting for Rune preview…</div><pre id="error" hidden></pre><main id="preview"></main><script nonce="${nonce}">const status=document.querySelector('#status'),error=document.querySelector('#error'),mount=document.querySelector('#preview');window.addEventListener('message',({data})=>{if(data.type==='loading'){status.textContent='Compiling…';error.hidden=true;return}if(data.type==='error'){status.textContent='Preview failed';error.textContent=data.message;error.hidden=false;return}if(data.type==='render'){try{mount.replaceChildren();new Function('mount',data.source+'\\nconst __runePreviewResult = typeof render === "function" ? render() : undefined;\\nif (__runePreviewResult instanceof Node) mount.appendChild(__runePreviewResult);')(mount);status.textContent='Preview updated';error.hidden=true}catch(exception){status.textContent='Preview failed';error.textContent=exception.stack||String(exception);error.hidden=false}}});</script></body></html>`;
 }
 
 async function runFile(uri) {

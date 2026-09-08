@@ -709,7 +709,7 @@ compilerNormalizeTypeName(
 
 compilerShouldSkipTypeName(
   typeName: String
-) -> Bool => (typeName == "") || ((typeName.startsWith("@") || typeName.startsWith("(")) || typeName.startsWith("Syntax"))
+) -> Bool => (typeName == "") || typeName.startsWith("@") || typeName.startsWith("(") || typeName.startsWith("{") || typeName.startsWith("Syntax")
 
 checkCompilerNamedType(
   typeName: String,
@@ -2962,9 +2962,12 @@ checkUndefinedIdentifierCall(
   name: String,
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
-) -> Array[String] => findCompilerTypeBinding(bindings, name, 0).typeName {
-  "MacroFunction" => [..errors, name + " is a macro and can only be used with '#'"]
-  _ => [..errors, "undefined function " + name]
+) -> Array[String] => {
+  binding := findCompilerTypeBinding(bindings, name, 0).typeName
+  binding == "" ? [..errors, "undefined function " + name]
+    : binding == "MacroFunction" ? [..errors, name + " is a macro and can only be used with '#'"]
+      : binding.startsWith("Func[") ? errors
+        : [..errors, "type " + binding + " is not callable"]
 }
 
 checkCallableVisibility(

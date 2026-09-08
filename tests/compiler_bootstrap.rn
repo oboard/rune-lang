@@ -1115,6 +1115,33 @@ Status: {
   @assert.eq(result.errors[0], "undefined function missing")
 }
 
+? "selfhost compiler checks conditional local functions" {
+  result := compileGo(`h(x) => h(x) + 1
+
+f(x) => ({
+  k: x.a + h(1)
+})
+
+g(y) => ({
+  k: y.b + 1
+})
+
+r(flag) => {
+  j := (
+    flag ? (x) => f(x)
+      : (y) => g(y)
+  )
+  j({
+    b: 2,
+    z: false,
+    a: 1
+  }).k
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler reports undefined identifiers" {
   result := compileGo("main() -> Int => missing\n")
   @assert.eq(result.ok, false)

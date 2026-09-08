@@ -738,10 +738,78 @@ inferTernaryType(
   children: Array[IRExpr]
 ) -> String => (
   children.length() < 3 ? ""
-    : (
-      inferExprType(children[1]) == inferExprType(children[2]) ? inferExprType(children[1])
-        : ""
-    )
+    : inferCommonType(inferExprType(children[1]), inferExprType(children[2]))
+)
+
+inferCommonType(
+  left: String,
+  right: String
+) -> String => (
+  left == right ? left
+    : inferCommonFuncType(left, right)
+)
+
+inferCommonFuncType(
+  left: String,
+  right: String
+) -> String => (
+  left.startsWith("Func[") && right.startsWith("Func[") ? inferCommonFuncReturnType(left, right)
+    : ""
+)
+
+inferCommonFuncReturnType(
+  left: String,
+  right: String
+) -> String => {
+  leftParts := left.split("|")
+  rightParts := right.split("|")
+  sameArity := leftParts.length() == rightParts.length()
+  sameArity ? inferCommonFuncReturnTypeWithParts(leftParts, rightParts)
+    : ""
+}
+
+inferCommonFuncReturnTypeWithParts(
+  left: Array[String],
+  right: Array[String]
+) -> String => {
+  returnIndex := left.length() - 1
+  returnType := inferCommonTypePart(left[returnIndex], right[returnIndex])
+  returnType == "" ? ""
+    : inferFuncTypeWithReturn(left, returnIndex, returnType)
+}
+
+inferCommonTypePart(
+  left: String,
+  right: String
+) -> String => {
+  leftReturn := left.slice(0, left.length() - 1)
+  rightReturn := right.slice(0, right.length() - 1)
+  common := inferCommonType(leftReturn, rightReturn)
+  common == "" ? ""
+    : common + "]"
+}
+
+inferFuncTypeWithReturn(
+  parts: Array[String],
+  returnIndex: Int,
+  returnType: String
+) -> String => inferFuncTypeParts(parts, returnIndex, returnType, 0, "")
+
+inferFuncTypeParts(
+  parts: Array[String],
+  returnIndex: Int,
+  returnType: String,
+  index: Int,
+  out: String
+) -> String => (
+  index >= parts.length() ? out
+    : inferFuncTypeParts(parts, returnIndex, returnType, index + 1, (out + (
+      index == 0 ? ""
+        : "|"
+    )) + (
+      index == returnIndex ? returnType
+        : parts[index]
+    ))
 )
 
 inferCallType(

@@ -6852,12 +6852,83 @@ func selfhost_infer_infer_inferTernaryType(children []IRExpr) string {
 		if len(children) < 3 {
 			return ""
 		}
-		return func() string {
-			if selfhost_infer_infer_inferExprType(children[1]) == selfhost_infer_infer_inferExprType(children[2]) {
-				return selfhost_infer_infer_inferExprType(children[1])
-			}
+		return selfhost_infer_infer_inferCommonType(selfhost_infer_infer_inferExprType(children[1]), selfhost_infer_infer_inferExprType(children[2]))
+	}()
+}
+
+func selfhost_infer_infer_inferCommonType(left string, right string) string {
+	return func() string {
+		if left == right {
+			return left
+		}
+		return selfhost_infer_infer_inferCommonFuncType(left, right)
+	}()
+}
+
+func selfhost_infer_infer_inferCommonFuncType(left string, right string) string {
+	return func() string {
+		if strings.HasPrefix(left, "Func[") && strings.HasPrefix(right, "Func[") {
+			return selfhost_infer_infer_inferCommonFuncReturnType(left, right)
+		}
+		return ""
+	}()
+}
+
+func selfhost_infer_infer_inferCommonFuncReturnType(left string, right string) string {
+	leftParts := func() []string { parts := strings.Split(left, "|"); return parts }()
+	rightParts := func() []string { parts := strings.Split(right, "|"); return parts }()
+	sameArity := len(leftParts) == len(rightParts)
+	return func() string {
+		if sameArity {
+			return selfhost_infer_infer_inferCommonFuncReturnTypeWithParts(leftParts, rightParts)
+		}
+		return ""
+	}()
+}
+
+func selfhost_infer_infer_inferCommonFuncReturnTypeWithParts(left []string, right []string) string {
+	returnIndex := len(left) - 1
+	returnType := selfhost_infer_infer_inferCommonTypePart(left[returnIndex], right[returnIndex])
+	return func() string {
+		if returnType == "" {
 			return ""
-		}()
+		}
+		return selfhost_infer_infer_inferFuncTypeWithReturn(left, returnIndex, returnType)
+	}()
+}
+
+func selfhost_infer_infer_inferCommonTypePart(left string, right string) string {
+	leftReturn := func() string { runes := []rune(left); return string(runes[0 : len([]rune(left))-1]) }()
+	rightReturn := func() string { runes := []rune(right); return string(runes[0 : len([]rune(right))-1]) }()
+	common := selfhost_infer_infer_inferCommonType(leftReturn, rightReturn)
+	return func() string {
+		if common == "" {
+			return ""
+		}
+		return common + "]"
+	}()
+}
+
+func selfhost_infer_infer_inferFuncTypeWithReturn(parts []string, returnIndex int, returnType string) string {
+	return selfhost_infer_infer_inferFuncTypeParts(parts, returnIndex, returnType, 0, "")
+}
+
+func selfhost_infer_infer_inferFuncTypeParts(parts []string, returnIndex int, returnType string, index int, out string) string {
+	return func() string {
+		if index >= len(parts) {
+			return out
+		}
+		return selfhost_infer_infer_inferFuncTypeParts(parts, returnIndex, returnType, index+1, out+func() string {
+			if index == 0 {
+				return ""
+			}
+			return "|"
+		}()+func() string {
+			if index == returnIndex {
+				return returnType
+			}
+			return parts[index]
+		}())
 	}()
 }
 
@@ -13801,7 +13872,7 @@ func selfhost_compiler_compiler_compilerNormalizeTypeName(typeName string) strin
 }
 
 func selfhost_compiler_compiler_compilerShouldSkipTypeName(typeName string) bool {
-	return typeName == "" || (strings.HasPrefix(typeName, "@") || strings.HasPrefix(typeName, "(") || strings.HasPrefix(typeName, "Syntax"))
+	return typeName == "" || strings.HasPrefix(typeName, "@") || strings.HasPrefix(typeName, "(") || strings.HasPrefix(typeName, "{") || strings.HasPrefix(typeName, "Syntax")
 }
 
 func selfhost_compiler_compiler_checkCompilerNamedType(typeName string, knownTypes []string, generics []string, errors []string) []string {
@@ -16250,16 +16321,9 @@ func selfhost_compiler_compiler_checkIdentifierCall(expr IRExpr, name string, ar
 }
 
 func selfhost_compiler_compiler_checkUndefinedIdentifierCall(name string, bindings []CompilerTypeBinding, errors []string) []string {
+	binding := selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, 0).typeName
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, 0).typeName == "MacroFunction":
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, name+" is a macro and can only be used with '#'")
-				return __rune_spread_out
-			}()
-		default:
+		if binding == "" {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
@@ -16267,6 +16331,27 @@ func selfhost_compiler_compiler_checkUndefinedIdentifierCall(name string, bindin
 				return __rune_spread_out
 			}()
 		}
+		return func() []string {
+			if binding == "MacroFunction" {
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, name+" is a macro and can only be used with '#'")
+					return __rune_spread_out
+				}()
+			}
+			return func() []string {
+				if strings.HasPrefix(binding, "Func[") {
+					return errors
+				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "type "+binding+" is not callable")
+					return __rune_spread_out
+				}()
+			}()
+		}()
 	}()
 }
 
