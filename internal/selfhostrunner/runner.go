@@ -22,6 +22,37 @@ type Result struct {
 	Err    error
 }
 
+// Value is the transport-safe representation of a value returned by the
+// self-hosted interpreter. It deliberately mirrors RuntimeValue rather than
+// exposing the generated interpreter's private Go representation.
+type Value struct {
+	Kind     string       `json:"kind"`
+	Text     string       `json:"text,omitempty"`
+	Int      int          `json:"int,omitempty"`
+	Double   float64      `json:"double,omitempty"`
+	Bool     bool         `json:"bool,omitempty"`
+	Char     string       `json:"char,omitempty"`
+	TypeName string       `json:"typeName,omitempty"`
+	Values   []Value      `json:"values,omitempty"`
+	Entries  []ValueEntry `json:"entries,omitempty"`
+	Fields   []ValueField `json:"fields,omitempty"`
+}
+
+type ValueEntry struct {
+	Key   Value `json:"key"`
+	Value Value `json:"value"`
+}
+
+type ValueField struct {
+	Name  string `json:"name"`
+	Value Value  `json:"value"`
+}
+
+type FunctionResult struct {
+	Result
+	Value Value
+}
+
 var (
 	driverOnce sync.Once
 	driverPath string
@@ -52,6 +83,16 @@ func RunMainSource(source string) Result {
 	return runSelfhost("main", source, "")
 }
 
+// RunFunctionIR invokes a named function in an already-lowered file. Arguments
+// and the returned value use the stable Value wire representation.
+func RunFunctionIR(file *ir.File, name string, args []Value) FunctionResult {
+	payload, err := marshalSelfhostFunctionRequest(file, args)
+	if err != nil {
+		return FunctionResult{Result: Result{Err: err}}
+	}
+	return runSelfhostFunctionPayload(payload, name)
+}
+
 func selfhostInterpreterPath() (string, error) {
 	root, err := repoRoot()
 	if err != nil {
@@ -70,6 +111,36 @@ func repoRoot() (string, error) {
 
 func runSelfhost(mode string, source string, name string) Result {
 	return runSelfhostPayload(mode, []byte(source), name)
+}
+
+func runSelfhostFunctionPayload(payload []byte, name string) FunctionResult {
+	dir, err := os.MkdirTemp("", "rune-selfhost-*")
+	if err != nil {
+		return FunctionResult{Result: Result{Err: err}}
+	}
+	defer os.RemoveAll(dir)
+	inputPath := filepath.Join(dir, "input")
+	if err := os.WriteFile(inputPath, payload, 0o644); err != nil {
+		return FunctionResult{Result: Result{Err: err}}
+	}
+	driver, err := selfhostDriverPath()
+	if err != nil {
+		return FunctionResult{Result: Result{Err: err}}
+	}
+	cmd, err := typeScriptRuntimeCommand(driver, "ir-function", inputPath, name)
+	if err != nil {
+		return FunctionResult{Result: Result{Err: err}}
+	}
+	out, err := cmd.CombinedOutput()
+	output, value, runtimeErr := splitSelfhostFunctionResult(string(out))
+	return FunctionResult{Result: Result{Output: output, Err: firstError(runtimeErr, err)}, Value: value}
+}
+
+func firstError(primary error, fallback error) error {
+	if primary != nil {
+		return primary
+	}
+	return fallback
 }
 
 func runSelfhostPayload(mode string, payload []byte, name string) Result {
@@ -346,6 +417,14 @@ func main() {
 		} else {
 			result = runMainIR(__runeSelfhostFile(fileJSON))
 		}
+	} else if mode == "ir-function" {
+		var request __runeSelfhostFunctionRequest
+		if err := json.Unmarshal(input, &request); err != nil {
+			println("__RUNE_SELFHOST_ERROR__" + err.Error())
+			return
+		}
+		functionResult := runFunction(__runeSelfhostFile(request.File), name, __runeSelfhostWireValues(request.Args))
+		result = InterpretResult{ok: functionResult.ok, error_: functionResult.error_, value: functionResult.value}
 	} else if mode == "test" {
 		result = interpretTest(string(input), name)
 	} else {
@@ -354,9 +433,88 @@ func main() {
 	for _, line := range result.output {
 		println(line)
 	}
+	if mode == "ir-function" && result.ok {
+		encoded, err := json.Marshal(__runeSelfhostEncodeValue(result.value))
+		if err != nil {
+			println("__RUNE_SELFHOST_ERROR__" + err.Error())
+			return
+		}
+		println("__RUNE_SELFHOST_VALUE__" + string(encoded))
+	}
 	if !result.ok {
 		println("__RUNE_SELFHOST_ERROR__" + result.error_)
 	}
+}
+
+type __runeSelfhostFunctionRequest struct {
+	File __runeSelfhostIRFile ` + "`json:\"file\"`" + `
+	Args []__runeSelfhostWireValue ` + "`json:\"args\"`" + `
+}
+
+type __runeSelfhostWireValue struct {
+	Kind string ` + "`json:\"kind\"`" + `
+	Text string ` + "`json:\"text,omitempty\"`" + `
+	Int int ` + "`json:\"int,omitempty\"`" + `
+	Double float64 ` + "`json:\"double,omitempty\"`" + `
+	Bool bool ` + "`json:\"bool,omitempty\"`" + `
+	Char string ` + "`json:\"char,omitempty\"`" + `
+	TypeName string ` + "`json:\"typeName,omitempty\"`" + `
+	Values []__runeSelfhostWireValue ` + "`json:\"values,omitempty\"`" + `
+	Entries []__runeSelfhostWireValueEntry ` + "`json:\"entries,omitempty\"`" + `
+	Fields []__runeSelfhostWireValueField ` + "`json:\"fields,omitempty\"`" + `
+}
+
+type __runeSelfhostWireValueEntry struct { Key __runeSelfhostWireValue ` + "`json:\"key\"`" + `; Value __runeSelfhostWireValue ` + "`json:\"value\"`" + ` }
+type __runeSelfhostWireValueField struct { Name string ` + "`json:\"name\"`" + `; Value __runeSelfhostWireValue ` + "`json:\"value\"`" + ` }
+
+func __runeSelfhostWireValues(values []__runeSelfhostWireValue) []RuntimeValue {
+	out := make([]RuntimeValue, 0, len(values))
+	for _, value := range values { out = append(out, __runeSelfhostRuntimeValue(value)) }
+	return out
+}
+
+func __runeSelfhostRuntimeValue(value __runeSelfhostWireValue) RuntimeValue {
+	switch value.Kind {
+	case "Void": return selfhost_interpreter_interpreter_voidValue()
+	case "Null": return selfhost_interpreter_interpreter_nullValue()
+	case "Bool": return selfhost_interpreter_interpreter_boolValue(value.Bool)
+	case "Int": return selfhost_interpreter_interpreter_typedIntValue(value.Int, value.TypeName)
+	case "Double": return selfhost_interpreter_interpreter_typedDoubleValue(value.Double, value.TypeName)
+	case "String": return selfhost_interpreter_interpreter_stringValue(value.Text)
+	case "Char": if len([]rune(value.Char)) == 1 { return selfhost_interpreter_interpreter_charValue([]rune(value.Char)[0]) }; return selfhost_interpreter_interpreter_charValue(0)
+	case "Array": return selfhost_interpreter_interpreter_arrayValue(__runeSelfhostWireValues(value.Values))
+	case "Tuple": return selfhost_interpreter_interpreter_tupleValue(__runeSelfhostWireValues(value.Values))
+	case "Map", "Set":
+		entries := make([]RuntimeEntry, 0, len(value.Entries))
+		for _, entry := range value.Entries { entries = append(entries, RuntimeEntry{key: __runeSelfhostRuntimeValue(entry.Key), value: __runeSelfhostRuntimeValue(entry.Value)}) }
+		if value.Kind == "Map" { return selfhost_interpreter_interpreter_mapValue(entries) }; return selfhost_interpreter_interpreter_setValue(entries)
+	case "Struct":
+		fields := make([]RuntimeField, 0, len(value.Fields))
+		for _, field := range value.Fields { fields = append(fields, RuntimeField{name: field.Name, value: __runeSelfhostRuntimeValue(field.Value)}) }
+		return selfhost_interpreter_interpreter_structValue(value.TypeName, fields)
+	}
+	return selfhost_interpreter_interpreter_nullValue()
+}
+
+func __runeSelfhostEncodeValue(value RuntimeValue) __runeSelfhostWireValue {
+	switch value.__tag {
+	case RuntimeValue_Void: return __runeSelfhostWireValue{Kind: "Void"}
+	case RuntimeValue_Null: return __runeSelfhostWireValue{Kind: "Null"}
+	case RuntimeValue_Bool: return __runeSelfhostWireValue{Kind: "Bool", Bool: value.__payload[0].(bool)}
+	case RuntimeValue_Int: return __runeSelfhostWireValue{Kind: "Int", Int: value.__payload[0].(int), TypeName: value.__payload[1].(string)}
+	case RuntimeValue_Double: return __runeSelfhostWireValue{Kind: "Double", Double: value.__payload[0].(float64), Text: value.__payload[1].(string), TypeName: value.__payload[2].(string)}
+	case RuntimeValue_String: return __runeSelfhostWireValue{Kind: "String", Text: value.__payload[0].(string), TypeName: value.__payload[1].(string)}
+	case RuntimeValue_Char: return __runeSelfhostWireValue{Kind: "Char", Char: string(value.__payload[0].(rune))}
+	case RuntimeValue_Array, RuntimeValue_Tuple:
+		values := value.__payload[0].([]RuntimeValue); out := make([]__runeSelfhostWireValue, 0, len(values)); for _, item := range values { out = append(out, __runeSelfhostEncodeValue(item)) }; kind := "Array"; if value.__tag == RuntimeValue_Tuple { kind = "Tuple" }; return __runeSelfhostWireValue{Kind: kind, Values: out}
+	case RuntimeValue_Map, RuntimeValue_Set:
+		entries := value.__payload[0].([]RuntimeEntry); out := make([]__runeSelfhostWireValueEntry, 0, len(entries)); for _, entry := range entries { out = append(out, __runeSelfhostWireValueEntry{Key: __runeSelfhostEncodeValue(entry.key), Value: __runeSelfhostEncodeValue(entry.value)}) }; kind := "Map"; if value.__tag == RuntimeValue_Set { kind = "Set" }; return __runeSelfhostWireValue{Kind: kind, Entries: out}
+	case RuntimeValue_Struct:
+		fields := value.__payload[1].([]RuntimeField); out := make([]__runeSelfhostWireValueField, 0, len(fields)); for _, field := range fields { out = append(out, __runeSelfhostWireValueField{Name: field.name, Value: __runeSelfhostEncodeValue(field.value)}) }; return __runeSelfhostWireValue{Kind: "Struct", TypeName: value.__payload[0].(string), Fields: out}
+	case RuntimeValue_Enum:
+		values := value.__payload[3].([]RuntimeValue); out := make([]__runeSelfhostWireValue, 0, len(values)); for _, item := range values { out = append(out, __runeSelfhostEncodeValue(item)) }; return __runeSelfhostWireValue{Kind: "Enum", TypeName: value.__payload[0].(string), Text: value.__payload[1].(string), Int: value.__payload[2].(int), Values: out}
+	}
+	return __runeSelfhostWireValue{Kind: "Null"}
 }
 
 type __runeSelfhostIRFile struct {
@@ -611,6 +769,34 @@ func addGoDriverImports(source string) string {
 
 func marshalSelfhostIR(file *ir.File) ([]byte, error) {
 	return json.Marshal(selfhostFile(file))
+}
+
+type selfhostFunctionRequest struct {
+	File selfhostIRFile `json:"file"`
+	Args []Value        `json:"args"`
+}
+
+func marshalSelfhostFunctionRequest(file *ir.File, args []Value) ([]byte, error) {
+	return json.Marshal(selfhostFunctionRequest{File: selfhostFile(file), Args: args})
+}
+
+const selfhostValueMarker = "__RUNE_SELFHOST_VALUE__"
+
+func splitSelfhostFunctionResult(output string) (string, Value, error) {
+	output, err := splitSelfhostError(output)
+	if err != nil {
+		return output, Value{}, err
+	}
+	idx := strings.LastIndex(output, selfhostValueMarker)
+	if idx < 0 {
+		return output, Value{}, fmt.Errorf("selfhost interpreter returned no value")
+	}
+	valueText := strings.TrimSpace(output[idx+len(selfhostValueMarker):])
+	var value Value
+	if err := json.Unmarshal([]byte(valueText), &value); err != nil {
+		return output[:idx], Value{}, fmt.Errorf("decode selfhost interpreter value: %w", err)
+	}
+	return output[:idx], value, nil
 }
 
 func splitSelfhostError(output string) (string, error) {

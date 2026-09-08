@@ -4820,6 +4820,7 @@ regexMatchAt(
   input: String,
   index: Int
 ) -> RegexMatch => source {
+  "rune\\s+(\\d+)" => regexMatchRuneDigitsWithGroup(flags, input, index)
   "rune\\s+\\d+" => regexMatchRuneDigits(flags, input, index)
   "(\\w+)-(\\d+)" => regexMatchWordDashDigits(input, index)
   "([a-z]+)(\\d+)" => regexMatchLettersDigits(input, index)
@@ -4847,6 +4848,27 @@ regexMatchRuneDigitsTail(
   afterDigits := consumeDigits(input, afterSpaces)
   (
     afterDigits > afterSpaces ? regexFound(index, afterDigits, [input.slice(index, afterDigits)])
+      : regexNoMatch()
+  )
+}
+
+regexMatchRuneDigitsWithGroup(
+  flags: String,
+  input: String,
+  index: Int
+) -> RegexMatch => (
+  regexRegionEquals(input, index, "rune", regexHasFlag(flags, 'i')) && regexSpaceAt(input, index + 4) ? regexMatchRuneDigitsWithGroupTail(input, index)
+    : regexNoMatch()
+)
+
+regexMatchRuneDigitsWithGroupTail(
+  input: String,
+  index: Int
+) -> RegexMatch => {
+  afterSpaces := consumeSpaces(input, index + 4)
+  afterDigits := consumeDigits(input, afterSpaces)
+  (
+    afterDigits > afterSpaces ? regexFound(index, afterDigits, [input.slice(index, afterDigits), input.slice(afterSpaces, afterDigits)])
       : regexNoMatch()
   )
 }

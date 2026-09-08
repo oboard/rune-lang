@@ -90,6 +90,20 @@ main() -> Int => {
   @assert.eq(formatRuntimeValue(result.value), "42")
 }
 
+? "selfhost interpreter handles regex capture groups" {
+  source := `main() -> String => {
+  word := /rune\\s+(\\d+)/ig
+  text := "Rune 123 rune 456"
+  @assert.eq(word.match(text).length(), 2)
+  @assert.eq(word.matchAll(text)[0][1], "123")
+  word.replaceAll(text, "[$1]")
+}
+`
+  result := interpret(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(formatRuntimeValue(result.value), "[123] [456]")
+}
+
 ? "selfhost interpreter uses json field metadata" {
   source := `Account: {
   #json.name("display_name")

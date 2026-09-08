@@ -11,6 +11,27 @@ import (
 	"github.com/oboard/rune-lang/internal/compiler"
 )
 
+func TestRunFunctionIRReturnsStructuredValue(t *testing.T) {
+	prog, diags := compiler.AnalyzeSource("function_ir.rn", `+ pair() -> Tuple[String, Int] => ("Rune", 42)
+main() => @io.println("unused")`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource diagnostics = %v", diags)
+	}
+	result := RunFunctionIR(prog.IR, "pair", nil)
+	if result.Err != nil {
+		t.Fatalf("RunFunctionIR error = %v, output = %q", result.Err, result.Output)
+	}
+	if result.Value.Kind != "Tuple" || len(result.Value.Values) != 2 {
+		t.Fatalf("RunFunctionIR value = %#v, want two-element array", result.Value)
+	}
+	if got := result.Value.Values[0]; got.Kind != "String" || got.Text != "Rune" {
+		t.Fatalf("first value = %#v, want Rune string", got)
+	}
+	if got := result.Value.Values[1]; got.Kind != "Int" || got.Int != 42 {
+		t.Fatalf("second value = %#v, want Int(42)", got)
+	}
+}
+
 func TestRunMainIR(t *testing.T) {
 	prog, diags := compiler.AnalyzeSource("main_ir.rn", `main() => {
   @io.println("hello", 42)
@@ -29,7 +50,9 @@ func TestRunMainIR(t *testing.T) {
 
 func TestRunCoreModuleTestsIR(t *testing.T) {
 	for _, spec := range selfhostCoreAPITestSpecs() {
-		runSelfhostIRTests(t, spec.file, spec.names)
+		t.Run(spec.file, func(t *testing.T) {
+			runSelfhostIRTests(t, spec.file, spec.names)
+		})
 	}
 }
 

@@ -241,7 +241,8 @@ methodWithMoonBitReceiver(
   method: IRFunction
 ) -> IRFunction => {
   ..method,
-  receiverType: typeName,
+  name: typeName + "_" + method.name,
+  receiverType: "",
   params: method.static {
     true => method.params
     false => prependMoonBitSelfParam(typeName, method.params)
@@ -272,14 +273,10 @@ emitMoonBitFunction(
       : ""
   )
   name := mangleIdent(fn.name)
-  receiver := (
-    (fn.receiverType != "") && (fn.static == false) ? moonBitTypeIdent(fn.receiverType) + "::"
-      : ""
-  )
   bodyReturns := returnsValue(fn.returnType) && (fn.name != "main")
   head := (
     (fn.name == "main") && (params == "") ? "fn main"
-      : (((((("fn " + receiver) + name) + emitMoonBitGenerics(fn.generics)) + "(") + params) + ")") + ret
+      : ((((("fn " + name) + emitMoonBitGenerics(fn.generics)) + "(") + params) + ")") + ret
   )
   out :=: head + " {\n"
   out = out + emitMoonBitBody(fn.body, bodyReturns, fn.returnType, 1)
