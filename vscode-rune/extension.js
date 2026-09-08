@@ -393,6 +393,10 @@ function typeScriptForPreview(source) {
   // code. Remove the annotation forms emitted for previewable web programs
   // before evaluating them in the Webview's JavaScript runtime.
   return source
+    // The compiler emits ES module exports. A Webview executes this as a classic
+    // script through Function, so declarations are already in scope and exports
+    // must be removed.
+    .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "")
     .replace(/\)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*(?:=>|\{))/g, ")")
     .replace(/([A-Za-z_$][\w$]*)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*[,)=;])/g, "$1")
     .replace(/\b(let|const|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;\n]+(?=\s*=)/g, "$1 $2");
