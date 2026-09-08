@@ -51,7 +51,7 @@ rewriteTSStructs(
   out := []
   structs.each((typeDecl) => out.push(IRStructType {
     ..typeDecl,
-    methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums),
+    methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums)
   }))
   out
 }
@@ -82,7 +82,7 @@ rewriteTSConstants(
     value := rewriteTSExpr(constant.value, structs, enums, [])
     out.push(IRConst {
       ..constant,
-      value: value,
+      value: value
     })
   })
   out
@@ -154,7 +154,7 @@ rewriteTSFunctionBody(
   body := rewriteTSExpr(fn.body, structs, enums, bindings)
   IRFunction {
     ..fn,
-    body: body,
+    body: body
   }
 }
 
@@ -177,19 +177,6 @@ tsBinding(
   name: name,
   typeName: typeName
 }
-
-dropTSBinding(
-  bindings: Array[CompilerTypeBinding],
-  name: String,
-  index: Int,
-  out: Array[CompilerTypeBinding]
-) -> Array[CompilerTypeBinding] => (
-  index >= bindings.length() ? out
-    : (
-      bindings[index].name == name ? dropTSBinding(bindings, name, index + 1, out)
-        : dropTSBinding(bindings, name, index + 1, [..out, bindings[index]])
-    )
-)
 
 tsLookupBinding(
   bindings: Array[CompilerTypeBinding],
@@ -231,15 +218,8 @@ rewriteTSBlockExpr(
 ) -> IRExpr => {
   result := rewriteTSBlockStatements(expr.children, 0, structs, enums, bindings, [])
   IRExpr {
-    kind: expr.kind,
-    text: expr.text,
-    name: expr.name,
-    value: expr.value,
-    op: expr.op,
-    params: expr.params,
-    children: result,
-    line: expr.line,
-    column: expr.column
+    ..expr,
+    children: result
   }
 }
 
@@ -284,15 +264,8 @@ rewriteTSLet(
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding]
 ) -> IRExpr => {
-  kind: expr.kind,
-  text: expr.text,
-  name: expr.name,
-  value: expr.value,
-  op: expr.op,
-  params: expr.params,
-  children: tsRewriteChildren(expr.children, structs, enums, bindings),
-  line: expr.line,
-  column: expr.column
+  ..expr,
+  children: tsRewriteChildren(expr.children, structs, enums, bindings)
 }
 
 tsLetBindingType(
@@ -331,10 +304,10 @@ rewriteTSCall(
   bindings: Array[CompilerTypeBinding]
 ) -> IRExpr => {
   hasSelectorCallee := (expr.children.length() > 0) && (expr.children[0].kind == ExprKind.Selector)
-  hasSelectorCallee {
-    true => rewriteTSSelectorCall(expr, structs, enums, bindings)
-    _ => tsRebuildExpr(expr, tsRewriteChildren(expr.children, structs, enums, bindings))
-  }
+  (
+    hasSelectorCallee ? rewriteTSSelectorCall(expr, structs, enums, bindings)
+      : tsRebuildExpr(expr, tsRewriteChildren(expr.children, structs, enums, bindings))
+  )
 }
 
 rewriteTSSelectorCall(
@@ -352,13 +325,13 @@ rewriteTSSelectorCall(
   receiverType := tsResolveReceiverType(receiver, structs, enums, bindings)
   rewrittenArgs := tsRewriteArgs(expr.children, structs, enums, bindings)
   shouldRewrite := tsFindMethodCall(structs, enums, receiverType, callee.name)
-  shouldRewrite {
-    true => tsBuildMethodCall(expr, receiverType, callee.name, receiver, rewrittenArgs)
-    _ => tsRebuildExpr(expr, tsPrependExpr(tsRebuildExpr(callee, (
-      hasReceiver ? [receiver]
-        : []
-    )), rewrittenArgs))
-  }
+  (
+    shouldRewrite ? tsBuildMethodCall(expr, receiverType, callee.name, receiver, rewrittenArgs)
+      : tsRebuildExpr(expr, tsPrependExpr(tsRebuildExpr(callee, (
+        hasReceiver ? [receiver]
+          : []
+      )), rewrittenArgs))
+  )
 }
 
 tsBuildMethodCall(
@@ -371,7 +344,7 @@ tsBuildMethodCall(
   calleeIdent := tsMethodCallee((tsTypeBase(receiverType) + "_") + methodName)
   IRExpr {
     ..expr,
-    children: tsCallChildren(calleeIdent, receiver, args),
+    children: tsCallChildren(calleeIdent, receiver, args)
   }
 }
 
@@ -416,15 +389,8 @@ tsRebuildExpr(
   expr: IRExpr,
   children: Array[IRExpr]
 ) -> IRExpr => {
-  kind: expr.kind,
-  text: expr.text,
-  name: expr.name,
-  value: expr.value,
-  op: expr.op,
-  params: expr.params,
-  children: children,
-  line: expr.line,
-  column: expr.column
+  ..expr,
+  children: children
 }
 
 tsRewriteChildren(
@@ -491,13 +457,13 @@ tsResolveSelectorFieldType(
   bindings: Array[CompilerTypeBinding]
 ) -> String => {
   empty := receiver.children.length() == 0
-  empty {
-    true => ""
-    _ => (
-      receiver.children[0].text != "" ? receiver.children[0].text
-        : tsStructFieldType(structs, tsTypeBase(tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
-    )
-  }
+  (
+    empty ? ""
+      : (
+        receiver.children[0].text != "" ? receiver.children[0].text
+          : tsStructFieldType(structs, tsTypeBase(tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
+      )
+  )
 }
 
 tsStructFieldType(
@@ -533,10 +499,10 @@ tsFindMethodCall(
 ) -> Bool => {
   base := tsTypeBase(receiverType)
   found := tsStructHasInstanceMethod(structs, base, methodName, 0)
-  found {
-    true => true
-    _ => tsEnumHasInstanceMethod(enums, base, methodName, 0)
-  }
+  (
+    found ? true
+      : tsEnumHasInstanceMethod(enums, base, methodName, 0)
+  )
 }
 
 tsEnumHasInstanceMethod(
@@ -905,22 +871,12 @@ methodWithTSReceiver(
   typeName: String,
   method: IRFunction
 ) -> IRFunction => {
+  ..method,
   name: (typeName + "_") + method.name,
-  private: method.private,
-  static: method.static,
-  routine: method.routine,
-  macro: method.macro,
-  receiverType: method.receiverType,
-  generics: method.generics,
-  params: method.static {
-    true => method.params
-    false => prependThisParam(typeName, method.params)
-  },
-  returnType: method.returnType,
-  body: method.body,
-  sourcePath: method.sourcePath,
-  line: method.line,
-  column: method.column
+  params: (
+    method.static ? method.params
+      : prependThisParam(typeName, method.params)
+  )
 }
 
 prependThisParam(
@@ -1311,10 +1267,10 @@ tsEscapeTemplateChar(
   text: String,
   index: Int,
   out: String
-) -> String => (((text.at(index) == '$') && ((index + 1) < text.length())) && (text.at(index + 1) == '{')) {
-  true => tsEscapeTemplateChars(text, index + 2, out + "\\${")
-  _ => tsEscapeTemplateChars(text, index + 1, out + text.at(index).toString())
-}
+) -> String => (
+  ((text.at(index) == '$') && ((index + 1) < text.length())) && (text.at(index + 1) == '{') ? tsEscapeTemplateChars(text, index + 2, out + "\\${")
+    : tsEscapeTemplateChars(text, index + 1, out + text.at(index).toString())
+)
 
 emitTSExprExpected(
   expr: IRExpr,
@@ -1466,10 +1422,10 @@ emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
 
 emitTSAtSelector(expr: IRExpr) -> String => {
   imported := expr.children[0].value != ""
-  imported {
-    true => mangleIdent(expr.name)
-    _ => (("@" + expr.children[0].name) + ".") + expr.name
-  }
+  (
+    imported ? mangleIdent(expr.name)
+      : (("@" + expr.children[0].name) + ".") + expr.name
+  )
 }
 
 emitTSExprList(
@@ -1575,15 +1531,3 @@ emitTSTypeArgList(
 )
 
 tsPropertyName(name: String) -> String => name
-
-joinStrings(
-  values: Array[String],
-  index: Int,
-  out: String
-) -> String => (
-  index >= values.length() ? out
-    : joinStrings(values, index + 1, (out + (
-      index == 0 ? ""
-        : ", "
-    )) + values[index])
-)
