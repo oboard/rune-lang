@@ -9699,7 +9699,7 @@ func selfhost_compiler_mbt_emitMoonBitEnumMethods(enumDecl IREnumType) string {
 }
 
 func selfhost_compiler_mbt_methodWithMoonBitReceiver(typeName string, method IRFunction) IRFunction {
-	return IRFunction{name: typeName + "_" + method.name, private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: method.receiverType, generics: method.generics, params: func() []IRParam {
+	return IRFunction{name: method.name, private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: typeName, generics: method.generics, params: func() []IRParam {
 		switch {
 		case method.static == true:
 			return method.params
@@ -9728,12 +9728,18 @@ func selfhost_compiler_mbt_emitMoonBitFunction(fn IRFunction, receiverType strin
 		return ""
 	}()
 	name := mangleIdent(fn.name)
+	receiver := func() string {
+		if fn.receiverType != "" && fn.static == false {
+			return selfhost_compiler_mbt_moonBitTypeIdent(fn.receiverType) + "::"
+		}
+		return ""
+	}()
 	bodyReturns := returnsValue(fn.returnType) && fn.name != "main"
 	head := func() string {
 		if fn.name == "main" && params == "" {
 			return "fn main"
 		}
-		return "fn " + name + selfhost_compiler_mbt_emitMoonBitGenerics(fn.generics) + "(" + params + ")" + ret
+		return "fn " + receiver + name + selfhost_compiler_mbt_emitMoonBitGenerics(fn.generics) + "(" + params + ")" + ret
 	}()
 	out := head + " {\n"
 	out = out + selfhost_compiler_mbt_emitMoonBitBody(fn.body, bodyReturns, fn.returnType, 1)
