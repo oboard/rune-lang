@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -286,29 +287,31 @@ func (l *importLoader) load(path string) (*ast.File, []parser.Error, []Diagnosti
 			}
 			continue
 		}
-		importPath, err := resolveRuneImportRef(normalized, imp)
+		importPaths, err := resolveRuneImportPaths(normalized, imp)
 		if err != nil {
 			diags = append(diags, Diagnostic{Message: err.Error(), Pos: imp.pos, Path: normalized})
 			continue
 		}
-		if imp.expr != nil {
-			imp.expr.SourcePath = importPath
+		if imp.expr != nil && len(importPaths) > 0 {
+			imp.expr.SourcePath = importPaths[0]
 		}
-		if sameImportPath(importPath, normalized) {
-			continue
-		}
-		if filepath.Ext(importPath) == ".ts" {
-			tsImport, importedDiags := l.loadTypeScript(importPath, imp.path, imp.pos)
-			diags = append(diags, importedDiags...)
-			if tsImport != nil {
-				merged.TSImports = append(merged.TSImports, *tsImport)
+		for _, importPath := range importPaths {
+			if sameImportPath(importPath, normalized) {
+				continue
 			}
-			continue
+			if filepath.Ext(importPath) == ".ts" {
+				tsImport, importedDiags := l.loadTypeScript(importPath, imp.path, imp.pos)
+				diags = append(diags, importedDiags...)
+				if tsImport != nil {
+					merged.TSImports = append(merged.TSImports, *tsImport)
+				}
+				continue
+			}
+			imported, importedParseErrs, importedDiags := l.load(importPath)
+			parseErrs = append(parseErrs, importedParseErrs...)
+			diags = append(diags, importedDiags...)
+			mergeFile(merged, imported, false)
 		}
-		imported, importedParseErrs, importedDiags := l.load(importPath)
-		parseErrs = append(parseErrs, importedParseErrs...)
-		diags = append(diags, importedDiags...)
-		mergeFile(merged, imported, false)
 	}
 	mergeFile(merged, file, true)
 	l.files[normalized] = true
@@ -345,11 +348,15 @@ func fileImportRefs(file *ast.File) []importRef {
 	return refs
 }
 
-func resolveRuneImportRef(fromPath string, imp importRef) (string, error) {
+func resolveRuneImportPaths(fromPath string, imp importRef) ([]string, error) {
 	if imp.module {
-		return ResolveRuneModuleImport(fromPath, imp.path)
+		return ResolveRuneModuleImports(fromPath, imp.path)
 	}
-	return ResolveRuneImport(fromPath, imp.path)
+	path, err := ResolveRuneImport(fromPath, imp.path)
+	if err != nil {
+		return nil, err
+	}
+	return []string{path}, nil
 }
 
 func importExpressionRefs(file *ast.File) []*ast.AtExpr {
@@ -462,10 +469,48 @@ func ResolveRuneImport(fromPath string, spec string) (string, error) {
 }
 
 func ResolveRuneModuleImport(fromPath string, module string) (string, error) {
+	paths, err := ResolveRuneModuleImports(fromPath, module)
+	if err != nil {
+		return "", err
+	}
+	return paths[0], nil
+}
+
+// ResolveRuneModuleImports returns every top-level Rune source file in a
+// module directory. The conventional <module>.rn entry file is always first;
+// sibling .rn files follow in lexical order so module imports merge
+// deterministically. Nested subdirectories are module-private and not scanned.
+func ResolveRuneModuleImports(fromPath string, module string) ([]string, error) {
 	if module == "" {
-		return "", fmt.Errorf("empty import path")
+		return nil, fmt.Errorf("empty import path")
 	}
 	spec := filepath.Join(module, module+".rn")
+	entry, err := resolveRuneModuleEntry(fromPath, spec)
+	if err != nil {
+		return nil, err
+	}
+	moduleRoot := filepath.Dir(entry)
+	entries, err := os.ReadDir(moduleRoot)
+	if err != nil {
+		return nil, fmt.Errorf("scan module %q: %w", module, err)
+	}
+	var siblings []string
+	for _, moduleEntry := range entries {
+		sourcePath := filepath.Join(moduleRoot, moduleEntry.Name())
+		if moduleEntry.IsDir() || filepath.Ext(moduleEntry.Name()) != ".rn" || sameImportPath(sourcePath, entry) {
+			continue
+		}
+		absolute, err := filepath.Abs(sourcePath)
+		if err != nil {
+			return nil, err
+		}
+		siblings = append(siblings, absolute)
+	}
+	sort.Strings(siblings)
+	return append([]string{entry}, siblings...), nil
+}
+
+func resolveRuneModuleEntry(fromPath string, spec string) (string, error) {
 	if path, err := ResolveRuneImport(fromPath, spec); err == nil {
 		return path, nil
 	}

@@ -55,23 +55,53 @@ func Load(root string) (*Registry, error) {
 	}
 
 	sources := map[string]string{}
-	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}, Traits: map[string]*Trait{}}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		name := entry.Name()
-		path := filepath.Join(root, name, name+".rn")
-		data, err := os.ReadFile(path)
+		// Only the top-level files of a module directory belong to that
+		// module. Nested directories are implementation-private and are not
+		// scanned.
+		moduleEntries, err := os.ReadDir(filepath.Join(root, entry.Name()))
 		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
 			return nil, err
 		}
-		sources[path] = string(data)
+		for _, moduleEntry := range moduleEntries {
+			if moduleEntry.IsDir() || filepath.Ext(moduleEntry.Name()) != ".rn" {
+				continue
+			}
+			sourcePath := filepath.Join(root, entry.Name(), moduleEntry.Name())
+			data, err := os.ReadFile(sourcePath)
+			if err != nil {
+				return nil, err
+			}
+			sources[sourcePath] = string(data)
+		}
 	}
-	return loadSources(reg, sources)
+	return loadCoreSources(root, sources)
+}
+
+func loadCoreSources(root string, sources map[string]string) (*Registry, error) {
+	reg := &Registry{Modules: map[string]*Module{}, Types: map[string]*Type{}, Traits: map[string]*Trait{}}
+	paths := make([]string, 0, len(sources))
+	for sourcePath := range sources {
+		paths = append(paths, sourcePath)
+	}
+	sort.Strings(paths)
+	for _, sourcePath := range paths {
+		relativePath, err := filepath.Rel(root, sourcePath)
+		if err != nil {
+			return nil, err
+		}
+		parts := strings.Split(filepath.ToSlash(relativePath), "/")
+		if len(parts) < 2 || filepath.Ext(sourcePath) != ".rn" {
+			continue
+		}
+		if err := addModuleSource(reg, parts[0], sourcePath, sources[sourcePath]); err != nil {
+			return nil, err
+		}
+	}
+	return reg, nil
 }
 
 func LoadSources(sources map[string]string) (*Registry, error) {
@@ -89,21 +119,86 @@ func loadSources(reg *Registry, sources map[string]string) (*Registry, error) {
 		if !ok {
 			continue
 		}
-		mod, err := parseModule(moduleName, sourcePath, sources[sourcePath])
-		if err != nil {
+		if err := addModuleSource(reg, moduleName, sourcePath, sources[sourcePath]); err != nil {
 			return nil, err
-		}
-		reg.Modules[mod.Name] = mod
-		for i := range mod.Types {
-			typ := &mod.Types[i]
-			reg.Types[typ.Name] = typ
-		}
-		for i := range mod.Traits {
-			trait := &mod.Traits[i]
-			reg.Traits[trait.Name] = trait
 		}
 	}
 	return reg, nil
+}
+
+func addModuleSource(reg *Registry, moduleName string, sourcePath string, source string) error {
+	parsed, err := parseModule(moduleName, sourcePath, source)
+	if err != nil {
+		return err
+	}
+	mod := reg.Modules[moduleName]
+	if mod == nil {
+		mod = &Module{
+			Name:       moduleName,
+			byName:     map[string]*Function{},
+			byMacro:    map[string]*Function{},
+			byReceiver: map[string]map[string]*Function{},
+			byAlias:    map[string]*Function{},
+		}
+		reg.Modules[moduleName] = mod
+	}
+	for _, fn := range parsed.Functions {
+		if err := addFunction(mod, moduleFunctionKeys(mod), fn); err != nil {
+			return err
+		}
+	}
+	for _, typ := range parsed.Types {
+		mod.Types = append(mod.Types, typ)
+		added := &mod.Types[len(mod.Types)-1]
+		reg.Types[added.Name] = added
+	}
+	for _, trait := range parsed.Traits {
+		mod.Traits = append(mod.Traits, trait)
+		added := &mod.Traits[len(mod.Traits)-1]
+		reg.Traits[added.Name] = added
+	}
+	indexModuleFunctions(mod)
+	return nil
+}
+
+func moduleFunctionKeys(mod *Module) map[string]bool {
+	seen := map[string]bool{}
+	for _, fn := range mod.Functions {
+		key := fn.Receiver + "." + fn.Name
+		if fn.Macro {
+			key = "macro:" + key
+		}
+		seen[key] = true
+	}
+	return seen
+}
+
+func indexModuleFunctions(mod *Module) {
+	clear(mod.byName)
+	clear(mod.byMacro)
+	clear(mod.byReceiver)
+	clear(mod.byAlias)
+	for i := range mod.Functions {
+		fn := &mod.Functions[i]
+		if fn.Macro {
+			mod.byMacro[fn.Name] = fn
+		} else if fn.Receiver == "" {
+			mod.byName[fn.Name] = fn
+		} else {
+			if _, exists := mod.byName[fn.Name]; !exists {
+				mod.byName[fn.Name] = fn
+			}
+			methods := mod.byReceiver[fn.Receiver]
+			if methods == nil {
+				methods = map[string]*Function{}
+				mod.byReceiver[fn.Receiver] = methods
+			}
+			methods[fn.Name] = fn
+		}
+		if fn.Alias != "" {
+			mod.byAlias[fn.Alias] = fn
+		}
+	}
 }
 
 func moduleNameFromSourcePath(sourcePath string) (string, bool) {

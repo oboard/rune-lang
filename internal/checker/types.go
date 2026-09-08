@@ -959,7 +959,11 @@ func cloneEnv(env map[string]Type) map[string]Type {
 }
 
 func (c *checker) errorf(pos lexer.Position, format string, args ...any) {
-	c.diags = append(c.diags, Diagnostic{Message: fmt.Sprintf(format, displayArgs(args)...), Pos: pos})
+	c.errorAt(pos, 0, format, args...)
+}
+
+func (c *checker) errorAt(pos lexer.Position, length int, format string, args ...any) {
+	c.diags = append(c.diags, Diagnostic{Message: fmt.Sprintf(format, displayArgs(args)...), Pos: pos, Length: length})
 }
 
 func displayArgs(args []any) []any {

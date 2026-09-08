@@ -51,11 +51,11 @@ func (c *checker) checkAnnotation(annotation *ast.Annotation) {
 	if annotation.Module == "" {
 		fn, ok := c.resolveFunction(annotation.Name, annotation.NamePos)
 		if !ok || fn == nil {
-			c.errorf(annotation.NamePos, "unknown macro #%s", annotation.Name)
+			c.errorAt(annotation.NamePos, len(annotation.Name), "unknown macro #%s", annotation.Name)
 			return
 		}
 		if !fn.Macro {
-			c.errorf(annotation.NamePos, "#%s refers to a function that is not a macro", annotation.Name)
+			c.errorAt(annotation.NamePos, len(annotation.Name), "#%s refers to a function that is not a macro", annotation.Name)
 			return
 		}
 		c.info.ResolvedMacroFunctions[annotation] = fn
@@ -63,16 +63,16 @@ func (c *checker) checkAnnotation(annotation *ast.Annotation) {
 		return
 	}
 	if c.info.Stdlib == nil {
-		c.errorf(annotation.NamePos, "unknown macro #%s.%s", annotation.Module, annotation.Name)
+		c.errorAt(annotation.NamePos, len(annotation.Module)+1+len(annotation.Name), "unknown macro #%s.%s", annotation.Module, annotation.Name)
 		return
 	}
 	fn, ok := c.info.Stdlib.MacroFunction(annotation.Module, annotation.Name)
 	if !ok {
 		if ordinary, exists := c.info.Stdlib.Function(annotation.Module, annotation.Name); exists && !ordinary.Macro {
-			c.errorf(annotation.NamePos, "#%s.%s refers to a function that is not a macro", annotation.Module, annotation.Name)
+			c.errorAt(annotation.NamePos, len(annotation.Module)+1+len(annotation.Name), "#%s.%s refers to a function that is not a macro", annotation.Module, annotation.Name)
 			return
 		}
-		c.errorf(annotation.NamePos, "unknown macro #%s.%s", annotation.Module, annotation.Name)
+		c.errorAt(annotation.NamePos, len(annotation.Module)+1+len(annotation.Name), "unknown macro #%s.%s", annotation.Module, annotation.Name)
 		return
 	}
 	c.info.ResolvedMacros[annotation] = fn

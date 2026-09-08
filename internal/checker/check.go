@@ -307,14 +307,15 @@ func (c *checker) skipCoreSource(sourcePath string) bool {
 }
 
 func coreModuleName(sourcePath string) string {
-	normalized := normalizeSourcePath(sourcePath)
+	normalized := filepath.ToSlash(normalizeSourcePath(sourcePath))
 	if normalized == "" {
 		return ""
 	}
-	dir := filepath.Base(filepath.Dir(normalized))
-	file := strings.TrimSuffix(filepath.Base(normalized), filepath.Ext(normalized))
-	if dir == file {
-		return file
+	parts := strings.Split(normalized, "/")
+	for index, part := range parts {
+		if part == "core" && index+1 < len(parts) {
+			return parts[index+1]
+		}
 	}
 	return ""
 }

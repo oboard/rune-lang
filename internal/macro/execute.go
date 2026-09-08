@@ -35,7 +35,10 @@ func executeInvocation(invocation Invocation, file *ast.File, info *checker.Info
 	if invocation.Macro != nil && info.Stdlib != nil {
 		if mod := info.Stdlib.Modules[invocation.Annotation.Module]; mod != nil {
 			for _, fn := range mod.Functions {
-				if fn.Body != nil && fn.SourcePath == invocation.Macro.SourcePath {
+				// A module directory is merged into one Registry module. Helper
+				// declarations may live in a different file than the invoked
+				// macro, so enable the whole compile-time sibling scope.
+				if fn.Body != nil {
 					runtime.EnableCompileTimeLocalName(fn.Name)
 				}
 			}

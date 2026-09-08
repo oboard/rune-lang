@@ -67,6 +67,31 @@ func TestAnalyzeCoreSources(t *testing.T) {
 	}
 }
 
+func TestAnalyzeFileLoadsAllRuneSourcesInModuleDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "feature", "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeRuneFile(t, filepath.Join(dir, "feature", "feature.rn"), "+ primary() -> Int => 1\n")
+	writeRuneFile(t, filepath.Join(dir, "feature", "helpers.rn"), "+ helper() -> Int => 41\n")
+	writeRuneFile(t, filepath.Join(dir, "feature", "nested", "hidden.rn"), "+ hidden() -> Int => 99\n")
+	writeRuneFile(t, filepath.Join(dir, "main.rn"), "@feature\n\nmain() => @io.println(helper() + primary())\n")
+
+	prog, diags := AnalyzeFile(filepath.Join(dir, "main.rn"))
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeFile() diagnostics = %#v", diags)
+	}
+	if prog.Info.Functions["helper"] == nil {
+		t.Fatal("top-level sibling source function helper was not collected")
+	}
+	if prog.Info.Functions["hidden"] != nil {
+		t.Fatal("nested subdirectory source function hidden must not be collected")
+	}
+	if got := runMainIROutput(t, prog); strings.TrimSpace(got) != "42" {
+		t.Fatalf("output = %q, want 42", got)
+	}
+}
+
 func TestAnalyzeSourceRequiresSyntaxImport(t *testing.T) {
 	_, diags := AnalyzeSource("syntax_import.rn", `makeExpr(name: String) -> SyntaxExpr => IdentifierExpr(name)
 `)

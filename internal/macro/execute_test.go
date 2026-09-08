@@ -1,6 +1,8 @@
 package macro
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -94,6 +96,45 @@ run() => null
 	}
 	if fn.Fields["name"] != "run" {
 		t.Fatalf("SyntaxFile.functions[0].name = %#v, want run", fn.Fields["name"])
+	}
+}
+
+func TestExpandResolvesRuneHelpersFromEntireCoreModule(t *testing.T) {
+	dir := t.TempDir()
+	writeModuleSource(t, filepath.Join(dir, "json", "json.rn"), `#invoke(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => helper(tree)`)
+	writeModuleSource(t, filepath.Join(dir, "json", "helpers.rn"), `helper(tree: SyntaxFile) -> SyntaxFile => tree`)
+	reg, err := stdlib.Load(dir)
+	if err != nil {
+		t.Fatalf("LoadSources() error = %v", err)
+	}
+	file, parseErrs := parser.Parse(`#json.invoke
+Args: {
+  verbose: Bool
+}
+`)
+	if len(parseErrs) > 0 {
+		t.Fatalf("Parse() errors = %v", parseErrs)
+	}
+	info, diags := checker.CheckWithStdlib(file, reg)
+	if len(diags) > 0 {
+		t.Fatalf("CheckWithStdlib() diagnostics = %v", diags)
+	}
+	changed, macroDiags := Expand(file, info)
+	if len(macroDiags) > 0 {
+		t.Fatalf("Expand() diagnostics = %v", macroDiags)
+	}
+	if !changed {
+		t.Fatal("Expand() changed = false, want true")
+	}
+}
+
+func writeModuleSource(t *testing.T, path string, src string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(src+"\n"), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 

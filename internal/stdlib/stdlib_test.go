@@ -1,6 +1,7 @@
 package stdlib
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -153,6 +154,36 @@ func TestLoadCoreStubs(t *testing.T) {
 	}
 	if setAdd.Intrinsic != "set.add" || setAdd.Return != "Set[T]" {
 		t.Fatalf("unexpected set.add declaration: %#v", setAdd)
+	}
+}
+
+func TestLoadDiscoversTopLevelRuneFilesInCoreModule(t *testing.T) {
+	root := t.TempDir()
+	moduleDir := filepath.Join(root, "syntax")
+	if err := os.MkdirAll(filepath.Join(moduleDir, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(path string, src string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(moduleDir, "syntax.rn"), "primary() -> Int => 1\n")
+	write(filepath.Join(moduleDir, "helpers.rn"), "helper() -> Int => 1\n")
+	write(filepath.Join(moduleDir, "nested", "hidden.rn"), "hidden() -> Int => 1\n")
+
+	reg, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	for _, name := range []string{"primary", "helper"} {
+		if _, ok := reg.Function("syntax", name); !ok {
+			t.Fatalf("missing dynamically discovered syntax.%s declaration", name)
+		}
+	}
+	if _, ok := reg.Function("syntax", "hidden"); ok {
+		t.Fatal("nested subdirectory sources must not be loaded into the module")
 	}
 }
 

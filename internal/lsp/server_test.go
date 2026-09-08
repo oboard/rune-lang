@@ -216,6 +216,30 @@ choose(value: Choice) -> Int => value {
 	}
 }
 
+func TestDiagnosticsHighlightEntireUnknownMacroName(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	prevCheck := selfhostCheckSource
+	selfhostCheckSource = nil
+	t.Cleanup(func() { selfhostCheckSource = prevCheck })
+
+	s := NewSession()
+	s.SetDocument(uri, "#missing\nmain() => 1\n")
+	for _, diag := range s.Diagnostics(uri) {
+		if !strings.Contains(diag["message"].(string), "unknown macro #missing") {
+			continue
+		}
+		rangeValue := diag["range"].(map[string]any)
+		if got, want := rangeValue["start"].(position), (position{Line: 0, Character: 1}); got != want {
+			t.Fatalf("unknown macro start = %+v, want %+v", got, want)
+		}
+		if got, want := rangeValue["end"].(position), (position{Line: 0, Character: 1 + len("missing")}); got != want {
+			t.Fatalf("unknown macro end = %+v, want %+v", got, want)
+		}
+		return
+	}
+	t.Fatalf("Diagnostics(%s) = %#v, want unknown macro", uri, s.Diagnostics(uri))
+}
+
 func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := "loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)\n"
@@ -359,6 +383,30 @@ func TestAnalyzeUsesSelfhostCheckOverride(t *testing.T) {
 	}
 	if len(diags) != 1 || diags[0].Message != "selfhost parse failed" {
 		t.Fatalf("analyze() diagnostics = %#v, want selfhost error", diags)
+	}
+}
+
+func TestSelfhostDiagnosticsPreserveReportedMacroRange(t *testing.T) {
+	diags := selfhostDiagnostics("file:///tmp/main.rn", []string{"line 2:3: unknown macro #web.preview"})
+	if len(diags) != 1 {
+		t.Fatalf("selfhostDiagnostics() len = %d, want 1", len(diags))
+	}
+	if got := diags[0].Message; got != "unknown macro #web.preview" {
+		t.Fatalf("selfhostDiagnostics()[0].Message = %q, want stripped message", got)
+	}
+	if got := diags[0].Pos; got.Line != 2 || got.Column != 3 {
+		t.Fatalf("selfhostDiagnostics()[0].Pos = %+v, want 2:3", got)
+	}
+	if got, want := diags[0].Length, len("#web.preview"); got != want {
+		t.Fatalf("selfhostDiagnostics()[0].Length = %d, want %d", got, want)
+	}
+
+	rangeValue := diagnosticsToLSP(diags)[0]["range"].(map[string]any)
+	if got, want := rangeValue["start"].(position), (position{Line: 1, Character: 2}); got != want {
+		t.Fatalf("selfhost diagnostic start = %+v, want %+v", got, want)
+	}
+	if got, want := rangeValue["end"].(position), (position{Line: 1, Character: 2 + len("#web.preview")}); got != want {
+		t.Fatalf("selfhost diagnostic end = %+v, want %+v", got, want)
 	}
 }
 

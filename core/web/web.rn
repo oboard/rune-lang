@@ -1,0 +1,6 @@
+@syntax
+
+#preview(
+    tree: SyntaxFile,
+    context: MacroContext
+) -> SyntaxFile => tree

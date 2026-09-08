@@ -7,9 +7,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/lexer"
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
@@ -24,6 +28,9 @@ type SelfhostCompileResult struct {
 	Output string
 	Errors []string
 }
+
+var selfhostErrorLocation = regexp.MustCompile(`^line ([0-9]+):([0-9]+): `)
+var selfhostMacroName = regexp.MustCompile(`#[-A-Za-z0-9_.]+`)
 
 func Serve(in io.Reader, out io.Writer) error {
 	s := &server{
@@ -173,9 +180,25 @@ func sourceImportsBootstrap(text string) bool {
 func selfhostDiagnostics(uri string, messages []string) []compiler.Diagnostic {
 	diags := make([]compiler.Diagnostic, 0, len(messages))
 	for _, message := range messages {
-		diags = append(diags, compiler.Diagnostic{Message: message, Path: uri})
+		pos, length, message := selfhostDiagnosticRange(message)
+		diags = append(diags, compiler.Diagnostic{Message: message, Pos: pos, Length: length, Path: uri})
 	}
 	return diags
+}
+
+func selfhostDiagnosticRange(message string) (lexer.Position, int, string) {
+	match := selfhostErrorLocation.FindStringSubmatch(message)
+	if match == nil {
+		return lexer.Position{}, 0, message
+	}
+	line, _ := strconv.Atoi(match[1])
+	column, _ := strconv.Atoi(match[2])
+	message = strings.TrimPrefix(message, match[0])
+	length := 0
+	if macro := selfhostMacroName.FindString(message); macro != "" {
+		length = len(utf16.Encode([]rune(macro)))
+	}
+	return lexer.Position{Line: line, Column: column}, length, message
 }
 
 func traceLSPAnalyze(uri string, text string) {

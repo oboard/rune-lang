@@ -483,7 +483,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 				Pos:      e.Pos,
 			})
 			for _, field := range fields {
-				out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.expr(field.Value), Pos: field.Pos})
+				out.Fields = append(out.Fields, FieldValue{Name: field.Name, Private: field.Private, Value: l.structFieldExpr(typeName, field.Name, field.Value), Pos: field.Pos})
 			}
 			return out
 		}
