@@ -28,6 +28,11 @@ CompilerMacroBinding: {
   paramTypes: Array[String]
 }
 
+CompilerModuleMacroBinding: {
+  module: String
+  binding: CompilerMacroBinding
+}
+
 CompilerNamespaceAlias: {
   name: String
   module: String
@@ -59,6 +64,12 @@ CompilerNamespaceAlias: {
   source: String,
   sourcePath: String
 ) -> CompileResult => checkFile(lowerCompilerSourceWithPath(source, sourcePath))
+
++ checkSourceWithCore(
+  source: String,
+  sourcePath: String,
+  coreFiles: Array[SourceFile]
+) -> CompileResult => checkFile(withIRFileSourcePath(lowerCompilerSourceWithCore(source, coreFiles), sourcePath))
 
 + compile(
   source: String,
@@ -237,11 +248,9 @@ checkTypeScriptTargetFileErrors(
   file: IRFile
 ) -> Array[String] => {
   hasGoImports := fileHasGoImports(file)
-  hasGoImports {
-    true => ["TypeScript backend does not support Go package imports"]
-    _ => fileUsesGoFFI(file) ? ["TypeScript backend does not support @go FFI"]
+  hasGoImports ? ["TypeScript backend does not support Go package imports"]
+    : fileUsesGoFFI(file) ? ["TypeScript backend does not support @go FFI"]
       : []
-  }
 }
 
 checkGoTargetFileErrors(
@@ -1344,13 +1353,11 @@ checkObjectDestructureField(
   fieldName := params[index].typeName
   duplicate := compilerDestructureFieldAppearsBefore(params, fieldName, index - 1)
   field := findCompilerStructField(fields, fieldName, 0)
-  next := duplicate {
-    true => [..errors, ("duplicate destructured field \"" + fieldName) + "\""]
-    _ => field.name {
+  next := duplicate ? [..errors, ("duplicate destructured field \"" + fieldName) + "\""]
+    : field.name {
       "" => [..errors, ((("type " + sourceType) + " has no field \"") + fieldName) + "\""]
       _ => errors
     }
-  }
   checkObjectDestructureFields(params, index + 1, sourceType, fields, next)
 }
 
@@ -1794,13 +1801,11 @@ checkTupleOrUnknownIndexReceiver(
   index: String,
   indexExpr: IRExpr,
   errors: Array[String]
-) -> Array[String] => (tuple.length() > 0) {
-  true => checkTupleIndexType(tuple, index, indexExpr, errors)
-  _ => receiver {
+) -> Array[String] => (tuple.length() > 0) ? checkTupleIndexType(tuple, index, indexExpr, errors)
+  : receiver {
     "" => errors
     _ => [..errors, ("type " + receiver) + " is not indexable"]
   }
-}
 
 checkArrayIndexType(
   index: String,
@@ -2331,11 +2336,9 @@ checkStructSelectorExpr(
     "" => {
       typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
       found := typeDecl.name != ""
-      found {
-        true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
-          : [..errors, ("type \"" + typeDecl.name) + "\" is private"]
-        _ => [..errors, ("type " + receiverType) + " has no fields"]
-      }
+      found ? compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
+        : [..errors, ("type \"" + typeDecl.name) + "\" is private"]
+        : [..errors, ("type " + receiverType) + " has no fields"]
     }
     _ => errors
   }
@@ -2489,11 +2492,9 @@ checkStructExpr(
 ) -> Array[String] => {
   typeDecl := findCompilerStruct(structs, expr.name, 0)
   found := typeDecl.name != ""
-  found {
-    true => compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
-      : [..errors, ("type \"" + expr.name) + "\" is private"]
-    _ => checkStructExprUnknownType(expr, structs, callables, errors, bindings)
-  }
+  found ? compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
+    : [..errors, ("type \"" + expr.name) + "\" is private"]
+    : checkStructExprUnknownType(expr, structs, callables, errors, bindings)
 }
 
 checkStructExprUnknownType(
@@ -2880,11 +2881,9 @@ checkStaticSelectorCall(
   name := compilerStaticMethodName(receiverType, selector.name)
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
-  found {
-    true => checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
-      : [..errors, ("static method \"" + name) + "\" is private"]
-    _ => errors
-  }
+  found ? checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+    : [..errors, ("static method \"" + name) + "\" is private"]
+    : errors
 }
 
 checkInstanceSelectorCall(
@@ -2914,11 +2913,9 @@ checkKnownInstanceSelectorCall(
   name := compilerInstanceMethodName(receiverType, selector.name)
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
-  found {
-    true => checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
-      : [..errors, ("method \"" + name) + "\" is private"]
-    _ => errors
-  }
+  found ? checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, expr.children.length() - 1, structs, callables, bindings, errors)
+    : [..errors, ("method \"" + name) + "\" is private"]
+    : errors
 }
 
 checkIdentifierCall(
@@ -2932,11 +2929,9 @@ checkIdentifierCall(
 ) -> Array[String] => {
   callable := findCompilerCallable(callables, name, 0)
   found := callable.name != ""
-  found {
-    true => checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
-      : [..errors, ("function \"" + name) + "\" is private"]
-    _ => checkUndefinedIdentifierCall(name, bindings, errors)
-  }
+  found ? checkCallableVisibility(callable, bindings) ? checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
+    : [..errors, ("function \"" + name) + "\" is private"]
+    : checkUndefinedIdentifierCall(name, bindings, errors)
 }
 
 checkUndefinedIdentifierCall(
@@ -3063,13 +3058,11 @@ checkFunctionReturn(
   checked := checkExpectedExprType(fn.body, expected, structs, callables, bindings, errors)
   actual := inferCompilerExprTypeWithStructs(fn.body, structs, callables, bindings)
   shouldCheck := ((expected != "") && (expected != "Dynamic")) && (actual != "")
-  shouldCheck {
-    true => (
-      ((expected == "WebComponent") && (actual == "HTMLElement")) && compilerExprCanBuildWebComponent(fn.body) ? checked
-        : checkFunctionReturnType(fn.name, expected, actual, checked)
-    )
-    _ => checked
-  }
+  shouldCheck ? (
+    ((expected == "WebComponent") && (actual == "HTMLElement")) && compilerExprCanBuildWebComponent(fn.body) ? checked
+      : checkFunctionReturnType(fn.name, expected, actual, checked)
+  )
+    : checked
 }
 
 compilerExprCanBuildWebComponent(
@@ -3136,11 +3129,9 @@ compilerGenericTypeArgsCompatible(
   actualArgs := compilerGenericArgs(actual)
   hasExpected := expectedArgs.length() > 0
   hasActual := actualArgs.length() > 0
-  hasExpected {
-    true => hasActual ? compilerGenericArgListsCompatible(expectedArgs, actualArgs, 0)
-      : true
-    _ => true
-  }
+  hasExpected ? hasActual ? compilerGenericArgListsCompatible(expectedArgs, actualArgs, 0)
+    : true
+    : true
 }
 
 compilerGenericArgListsCompatible(
@@ -3766,13 +3757,11 @@ inferCompilerAtSelectorCallType(
   callables: Array[CompilerCallable]
 ) -> String => {
   importPath := compilerIRAtImportPath(receiver)
-  (importPath == "") {
-    true => expr.text
-    _ => (
+  (importPath == "") ? expr.text
+    : (
       compilerGoPackageImportPath(importPath) != "" ? expr.text
         : compilerCallableReturnOrText(findCompilerCallable(callables, selector.name, 0), expr.text)
     )
-  }
 }
 
 inferCompilerSelectorType(
@@ -4172,11 +4161,9 @@ compilerStructNameAppearsAfter(
   index: Int
 ) -> Bool => {
   done := index >= structs.length()
-  done {
-    true => false
-    _ => (structs[index].name == name) ? true
+  done ? false
+    : (structs[index].name == name) ? true
       : compilerStructNameAppearsAfter(structs, name, index + 1)
-  }
 }
 
 compilerEnumNameAppearsAfter(
@@ -4185,11 +4172,9 @@ compilerEnumNameAppearsAfter(
   index: Int
 ) -> Bool => {
   done := index >= enums.length()
-  done {
-    true => false
-    _ => (enums[index].name == name) ? true
+  done ? false
+    : (enums[index].name == name) ? true
       : compilerEnumNameAppearsAfter(enums, name, index + 1)
-  }
 }
 
 compilerFunctionNameAppearsBefore(
@@ -4240,11 +4225,9 @@ compilerFieldNameAppearsBefore(
   index: Int
 ) -> Bool => {
   done := index < 0
-  done {
-    true => false
-    _ => (fields[index].name == name) ? true
+  done ? false
+    : (fields[index].name == name) ? true
       : compilerFieldNameAppearsBefore(fields, name, index - 1)
-  }
 }
 
 compilerMethodNameAppearsBefore(
@@ -4253,11 +4236,9 @@ compilerMethodNameAppearsBefore(
   index: Int
 ) -> Bool => {
   done := index < 0
-  done {
-    true => false
-    _ => (methods[index].name == name) ? true
+  done ? false
+    : (methods[index].name == name) ? true
       : compilerMethodNameAppearsBefore(methods, name, index - 1)
-  }
 }
 
 compilerEnumMemberNameAppearsBefore(
@@ -4266,11 +4247,9 @@ compilerEnumMemberNameAppearsBefore(
   index: Int
 ) -> Bool => {
   done := index < 0
-  done {
-    true => false
-    _ => (members[index].name == name) ? true
+  done ? false
+    : (members[index].name == name) ? true
       : compilerEnumMemberNameAppearsBefore(members, name, index - 1)
-  }
 }
 
 compilerParamNameAppearsBefore(
@@ -4279,11 +4258,9 @@ compilerParamNameAppearsBefore(
   index: Int
 ) -> Bool => {
   done := index < 0
-  done {
-    true => false
-    _ => (params[index].name == name) ? true
+  done ? false
+    : (params[index].name == name) ? true
       : compilerParamNameAppearsBefore(params, name, index - 1)
-  }
 }
 
 lowerFiles(
@@ -4295,18 +4272,66 @@ lowerFiles(
 
 lowerCompilerSource(
   source: String
-) -> IRFile => lowerParsed(expandCompilerMacros(parse(source)))
+) -> IRFile => lowerParsed(expandCompilerMacros(parse(source), []))
+
+lowerCompilerSourceWithCore(
+  source: String,
+  coreFiles: Array[SourceFile]
+) -> IRFile => lowerParsed(expandCompilerMacros(parse(source), compilerCoreMacroBindings(coreFiles, 0, [])))
 
 lowerCompilerSourceWithPath(
   source: String,
   sourcePath: String
 ) -> IRFile => withIRFileSourcePath(lowerCompilerSource(source), sourcePath)
 
+compilerCoreMacroBindings(
+  files: Array[SourceFile],
+  index: Int,
+  bindings: Array[CompilerModuleMacroBinding]
+) -> Array[CompilerModuleMacroBinding] => {
+  done := index >= files.length()
+  done ? bindings
+    : compilerCoreMacroBindings(files, index + 1, compilerCoreFileMacroBindings(files[index], bindings))
+}
+
+compilerCoreFileMacroBindings(
+  file: SourceFile,
+  bindings: Array[CompilerModuleMacroBinding]
+) -> Array[CompilerModuleMacroBinding] => {
+  module := compilerCoreModuleName(file.path)
+  module == "" ? bindings
+    : compilerAddModuleMacroFunctions(module, parse(file.source).functions, 0, bindings)
+}
+
+compilerCoreModuleName(
+  path: String
+) -> String => {
+  slash := path.lastIndexOf("/")
+  base := path.slice(slash + 1, path.length())
+  dot := base.lastIndexOf(".")
+  dot < 0 ? "" : base.slice(0, dot)
+}
+
+compilerAddModuleMacroFunctions(
+  module: String,
+  functions: Array[ParsedFunction],
+  index: Int,
+  bindings: Array[CompilerModuleMacroBinding]
+) -> Array[CompilerModuleMacroBinding] => {
+  done := index >= functions.length()
+  done ? bindings
+    : compilerAddModuleMacroFunctions(module, functions, index + 1, [..bindings, CompilerModuleMacroBinding {
+      module: module,
+      binding: compilerMacroBindingFromFunction(functions[index])
+    }])
+}
+
 expandCompilerMacros(
-  file: ParsedFile
+  file: ParsedFile,
+  moduleBindings: Array[CompilerModuleMacroBinding]
 ) -> ParsedFile => {
   imports := compilerMergeParsedImports(file.imports, compilerImportExpressions(file), 0)
-  errors := compilerMacroErrors(file, file.errors)
+  errors := compilerMacroErrors(file, moduleBindings, file.errors)
   out := ParsedFile {
     imports: imports,
     constants: file.constants,
@@ -4553,11 +4578,12 @@ expandCompilerFunctionMacros(
 
 compilerMacroErrors(
   file: ParsedFile,
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   functionErrors := compilerMacroFunctionErrors(file.functions, 0, errors)
   methodErrors := compilerMacroMethodErrors(file.types, 0, functionErrors)
-  compilerAnnotationErrors(file, methodErrors)
+  compilerAnnotationErrors(file, moduleBindings, methodErrors)
 }
 
 compilerMacroMethodErrors(
@@ -4707,94 +4733,103 @@ compilerSyntaxMacroSignatureOk(
 
 compilerAnnotationErrors(
   file: ParsedFile,
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
-  next := compilerTypeAnnotationErrors(file.types, file.functions, 0, errors)
-  compilerFunctionAnnotationErrors(file.functions, file.functions, 0, next)
+  next := compilerTypeAnnotationErrors(file.types, file.functions, moduleBindings, 0, errors)
+  compilerFunctionAnnotationErrors(file.functions, file.functions, moduleBindings, 0, next)
 }
 
 compilerTypeAnnotationErrors(
   types: Array[ParsedType],
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   index: Int,
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   done := index >= types.length()
   done ? errors
-    : compilerTypeAnnotationErrors(types, functions, index + 1, compilerTypeAnnotationError(types[index], functions, errors))
+    : compilerTypeAnnotationErrors(types, functions, moduleBindings, index + 1, compilerTypeAnnotationError(types[index], functions, moduleBindings, errors))
 }
 
 compilerTypeAnnotationError(
   typeDecl: ParsedType,
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
-  next := compilerAnnotationListErrors(typeDecl.annotations, functions, 0, errors)
-  next = compilerFieldAnnotationErrors(typeDecl.fields, functions, 0, next)
-  next = compilerEnumMemberAnnotationErrors(typeDecl.members, functions, 0, next)
-  compilerFunctionAnnotationErrors(typeDecl.methods, functions, 0, next)
+  next := compilerAnnotationListErrors(typeDecl.annotations, functions, moduleBindings, 0, errors)
+  next = compilerFieldAnnotationErrors(typeDecl.fields, functions, moduleBindings, 0, next)
+  next = compilerEnumMemberAnnotationErrors(typeDecl.members, functions, moduleBindings, 0, next)
+  compilerFunctionAnnotationErrors(typeDecl.methods, functions, moduleBindings, 0, next)
 }
 
 compilerFieldAnnotationErrors(
   fields: Array[ParsedField],
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   index: Int,
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   done := index >= fields.length()
   done ? errors
-    : compilerFieldAnnotationErrors(fields, functions, index + 1, compilerAnnotationListErrors(fields[index].annotations, functions, 0, errors))
+    : compilerFieldAnnotationErrors(fields, functions, moduleBindings, index + 1, compilerAnnotationListErrors(fields[index].annotations, functions, moduleBindings, 0, errors))
 }
 
 compilerEnumMemberAnnotationErrors(
   members: Array[ParsedEnumMember],
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   index: Int,
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   done := index >= members.length()
   done ? errors
-    : compilerEnumMemberAnnotationErrors(members, functions, index + 1, compilerAnnotationListErrors(members[index].annotations, functions, 0, errors))
+    : compilerEnumMemberAnnotationErrors(members, functions, moduleBindings, index + 1, compilerAnnotationListErrors(members[index].annotations, functions, moduleBindings, 0, errors))
 }
 
 compilerFunctionAnnotationErrors(
   functions: Array[ParsedFunction],
   topLevelFunctions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   index: Int,
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   done := index >= functions.length()
   done ? errors
-    : compilerFunctionAnnotationErrors(functions, topLevelFunctions, index + 1, compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, 0, errors))
+    : compilerFunctionAnnotationErrors(functions, topLevelFunctions, moduleBindings, index + 1, compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, moduleBindings, 0, errors))
 }
 
 compilerAnnotationListErrors(
   annotations: Array[ParsedAnnotation],
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   index: Int,
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
   done := index >= annotations.length()
   done ? errors
-    : compilerAnnotationListErrors(annotations, functions, index + 1, compilerAnnotationError(annotations[index], functions, errors))
+    : compilerAnnotationListErrors(annotations, functions, moduleBindings, index + 1, compilerAnnotationError(annotations[index], functions, moduleBindings, errors))
 }
 
 compilerAnnotationError(
   annotation: ParsedAnnotation,
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => annotation.marker {
-  "#" => compilerHashAnnotationError(annotation, functions, errors)
+  "#" => compilerHashAnnotationError(annotation, functions, moduleBindings, errors)
   _ => errors
 }
 
 compilerHashAnnotationError(
   annotation: ParsedAnnotation,
   functions: Array[ParsedFunction],
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => annotation.module {
   "" => compilerLocalAnnotationError(annotation, functions, errors)
-  _ => compilerModuleAnnotationError(annotation, errors)
+  _ => compilerModuleAnnotationError(annotation, moduleBindings, errors)
 }
 
 compilerLocalAnnotationError(
@@ -4819,20 +4854,34 @@ compilerResolvedLocalAnnotationError(
 
 compilerModuleAnnotationError(
   annotation: ParsedAnnotation,
+  moduleBindings: Array[CompilerModuleMacroBinding],
   errors: Array[ParseError]
 ) -> Array[ParseError] => {
-  binding := compilerBuiltinMacroBinding(annotation.module, annotation.name)
+  binding := compilerFindModuleMacroBinding(moduleBindings, annotation.module, annotation.name, 0).binding
   binding.name {
-    "" => compilerUnknownModuleMacroError(annotation, errors)
-    _ => compilerAnnotationArgErrors(annotation, binding, errors)
+    "" => [..errors, compilerParseError((("unknown macro #" + annotation.module) + ".") + annotation.name, annotation.line, annotation.column)]
+    _ => binding.macro ? compilerAnnotationArgErrors(annotation, binding, errors)
+      : [..errors, compilerParseError((("#" + annotation.module) + ".") + annotation.name + " refers to a function that is not a macro", annotation.line, annotation.column)]
   }
 }
 
-compilerUnknownModuleMacroError(
-  annotation: ParsedAnnotation,
-  errors: Array[ParseError]
-) -> Array[ParseError] => compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) ? [..errors, compilerParseError(((("#" + annotation.module) + ".") + annotation.name) + " refers to a function that is not a macro", annotation.line, annotation.column)]
-  : [..errors, compilerParseError((("unknown macro #" + annotation.module) + ".") + annotation.name, annotation.line, annotation.column)]
+compilerFindModuleMacroBinding(
+  bindings: Array[CompilerModuleMacroBinding],
+  module: String,
+  name: String,
+  index: Int
+) -> CompilerModuleMacroBinding => {
+  done := index >= bindings.length()
+  done ? emptyCompilerModuleMacroBinding()
+    : ((bindings[index].module == module) && (bindings[index].binding.name == name)) ? bindings[index]
+      : compilerFindModuleMacroBinding(bindings, module, name, index + 1)
+}
+
+emptyCompilerModuleMacroBinding(
+) -> CompilerModuleMacroBinding => {
+  module: "",
+  binding: emptyCompilerMacroBinding()
+}
 
 compilerAnnotationArgErrors(
   annotation: ParsedAnnotation,
@@ -4932,53 +4981,6 @@ compilerParsedParamTypeNames(
   done := index >= params.length()
   done ? out
     : compilerParsedParamTypeNames(params, index + 1, [..out, typeRefToString(params[index].typeRef)])
-}
-
-compilerBuiltinMacroBinding(
-  module: String,
-  name: String
-) -> CompilerMacroBinding => module {
-  "macro" => compilerMacroModuleBinding(name)
-  "json" => compilerJsonModuleMacroBinding(name)
-  "cli" => compilerCliModuleMacroBinding(name)
-  _ => emptyCompilerMacroBinding()
-}
-
-compilerMacroModuleBinding(
-  name: String
-) -> CompilerMacroBinding => name {
-  "renameDeclaration" => compilerMacroBinding("renameDeclaration", true, ["String"])
-  _ => emptyCompilerMacroBinding()
-}
-
-compilerJsonModuleMacroBinding(
-  name: String
-) -> CompilerMacroBinding => name {
-  "object" => compilerMacroBinding("object", true, [])
-  "name" => compilerMacroBinding("name", true, ["String"])
-  "ignore" => compilerMacroBinding("ignore", true, [])
-  _ => emptyCompilerMacroBinding()
-}
-
-compilerCliModuleMacroBinding(
-  name: String
-) -> CompilerMacroBinding => name {
-  "command" => compilerMacroBinding("command", true, ["String", "String", "String"])
-  "flag" => compilerMacroBinding("flag", true, ["String", "String"])
-  "option" => compilerMacroBinding("option", true, ["String", "String", "String", "String"])
-  "arg" => compilerMacroBinding("arg", true, ["String"])
-  "parser" => compilerMacroBinding("parser", true, ["String", "String", "String", "String", "String"])
-  "main" => compilerMacroBinding("main", true, [])
-  _ => emptyCompilerMacroBinding()
-}
-
-compilerKnownOrdinaryAnnotationFunction(
-  module: String,
-  name: String
-) -> Bool => module {
-  "json" => (name == "parse") || (name == "stringify")
-  "go" => ((name == "import") || (name == "stmt")) || (name == "expr")
-  _ => false
 }
 
 compilerMacroBinding(
@@ -5195,11 +5197,9 @@ expandCompilerNamespaceAliasSelectorFound(
   alias: CompilerNamespaceAlias
 ) -> ParsedExpr => {
   moduleAlias := alias.module != ""
-  alias.go {
-    true => compilerWithChildren(expr, [compilerImportAtExpr("go:" + alias.importPath, receiver.line, receiver.column)])
-    _ => moduleAlias ? compilerWithChildren(expr, [compilerModuleAtExpr(alias.module, receiver.line, receiver.column)])
+  alias.go ? compilerWithChildren(expr, [compilerImportAtExpr("go:" + alias.importPath, receiver.line, receiver.column)])
+    : moduleAlias ? compilerWithChildren(expr, [compilerModuleAtExpr(alias.module, receiver.line, receiver.column)])
       : compilerParsedExpr(ExprKind.Identifier, expr.name, expr.name, "", "", [], [], expr.line, expr.column)
-  }
 }
 
 expandCompilerNamespaceAliasChildren(
@@ -5619,13 +5619,11 @@ compilerPathNormalize(
   parts := path.split("/")
   normalized := compilerPathNormalizeParts(parts, 0, absolute, [])
   joined := compilerPathJoinParts(normalized, 0, "")
-  absolute {
-    true => "/" + joined
-    _ => (
+  absolute ? "/" + joined
+    : (
       joined.isEmpty() ? "."
         : joined
     )
-  }
 }
 
 compilerPathNormalizeParts(
@@ -5661,13 +5659,11 @@ compilerPathNormalizeParent(
   out: Array[String]
 ) -> Array[String] => {
   canPop := (out.length() > 0) && (out[out.length() - 1] != "..")
-  canPop {
-    true => compilerPathNormalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
-    _ => (
+  canPop ? compilerPathNormalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
+    : (
       absolute ? compilerPathNormalizeParts(parts, index + 1, absolute, out)
         : compilerPathNormalizeParts(parts, index + 1, absolute, [..out, ".."])
     )
-  }
 }
 
 compilerPathJoinParts(

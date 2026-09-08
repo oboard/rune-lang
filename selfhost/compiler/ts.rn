@@ -50,14 +50,8 @@ rewriteTSStructs(
 ) -> Array[IRStructType] => {
   out := []
   structs.each((typeDecl) => out.push(IRStructType {
-    name: typeDecl.name,
-    private: typeDecl.private,
-    generics: typeDecl.generics,
-    fields: typeDecl.fields,
+    ..typeDecl,
     methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums),
-    sourcePath: typeDecl.sourcePath,
-    line: typeDecl.line,
-    column: typeDecl.column
   }))
   out
 }
@@ -69,10 +63,7 @@ rewriteTSEnums(
 ) -> Array[IREnumType] => {
   out := []
   enums.each((typeDecl) => out.push(IREnumType {
-    name: typeDecl.name,
-    private: typeDecl.private,
-    generics: typeDecl.generics,
-    members: typeDecl.members,
+    ..typeDecl,
     methods: rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, structs, allEnums),
     sourcePath: typeDecl.sourcePath,
     line: typeDecl.line,
@@ -90,12 +81,8 @@ rewriteTSConstants(
   constants.each((constant) => {
     value := rewriteTSExpr(constant.value, structs, enums, [])
     out.push(IRConst {
-      name: constant.name,
-      private: constant.private,
-      typeName: constant.typeName,
+      ..constant,
       value: value,
-      line: constant.line,
-      column: constant.column
     })
   })
   out
@@ -111,10 +98,8 @@ rewriteTSTests(
     bindings := []
     body := rewriteTSExpr(test.body, structs, enums, bindings)
     out.push(IRTest {
-      name: test.name,
-      body: body,
-      line: test.line,
-      column: test.column
+      ..test,
+      body: body
     })
   })
   out
@@ -168,19 +153,8 @@ rewriteTSFunctionBody(
   )
   body := rewriteTSExpr(fn.body, structs, enums, bindings)
   IRFunction {
-    name: fn.name,
-    private: fn.private,
-    static: fn.static,
-    routine: fn.routine,
-    macro: fn.macro,
-    receiverType: fn.receiverType,
-    generics: fn.generics,
-    params: fn.params,
-    returnType: fn.returnType,
+    ..fn,
     body: body,
-    sourcePath: fn.sourcePath,
-    line: fn.line,
-    column: fn.column
   }
 }
 
@@ -396,15 +370,8 @@ tsBuildMethodCall(
 ) -> IRExpr => {
   calleeIdent := tsMethodCallee((tsTypeBase(receiverType) + "_") + methodName)
   IRExpr {
-    kind: expr.kind,
-    text: expr.text,
-    name: expr.name,
-    value: expr.value,
-    op: expr.op,
-    params: expr.params,
+    ..expr,
     children: tsCallChildren(calleeIdent, receiver, args),
-    line: expr.line,
-    column: expr.column
   }
 }
 

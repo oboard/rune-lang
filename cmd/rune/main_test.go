@@ -351,6 +351,20 @@ main() => {
 	}
 }
 
+func TestSelfhostCheckerResolvesCoreModuleMacro(t *testing.T) {
+	result := checkSelfhostSourceWithCore("#web.preview\nrender() => <div />\n", "examples/list.rn")
+	if !result.ok {
+		t.Fatalf("checkSelfhostSourceWithCore() errors = %v", result.errors)
+	}
+}
+
+func TestSelfhostCheckerRejectsUnknownCoreModuleMacro(t *testing.T) {
+	result := checkSelfhostSourceWithCore("#web.missing\nThing: {}\n", "examples/list.rn")
+	if result.ok || len(result.errors) != 1 || !strings.Contains(result.errors[0], "unknown macro #web.missing") {
+		t.Fatalf("checkSelfhostSourceWithCore() = %#v, want unknown web macro diagnostic", result)
+	}
+}
+
 func TestExecuteSelfhostCheckDirectory(t *testing.T) {
 	dir := t.TempDir()
 	writeTestFile(t, filepath.Join(dir, "foo", "foo.rn"), "Foo: {}\n")

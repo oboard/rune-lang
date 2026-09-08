@@ -599,6 +599,11 @@ type CompilerMacroBinding struct {
 	paramTypes []string
 }
 
+type CompilerModuleMacroBinding struct {
+	module  string
+	binding CompilerMacroBinding
+}
+
 type CompilerNamespaceAlias struct {
 	name       string
 	module     string
@@ -10342,7 +10347,7 @@ func selfhost_compiler_ts_rewriteTSStructs(structs []IRStructType, allStructs []
 	for _, typeDecl := range structs {
 		_ = typeDecl
 		func() int {
-			out = append(out, IRStructType{name: typeDecl.name, private: typeDecl.private, generics: typeDecl.generics, fields: typeDecl.fields, methods: selfhost_compiler_ts_rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums), sourcePath: typeDecl.sourcePath, line: typeDecl.line, column: typeDecl.column})
+			out = append(out, IRStructType{name: typeDecl.name, private: typeDecl.private, generics: typeDecl.generics, fields: typeDecl.fields, sourcePath: typeDecl.sourcePath, line: typeDecl.line, column: typeDecl.column, methods: selfhost_compiler_ts_rewriteTSTypeMethods(typeDecl.methods, typeDecl.name, allStructs, enums)})
 			return len(out)
 		}()
 	}
@@ -10368,7 +10373,7 @@ func selfhost_compiler_ts_rewriteTSConstants(constants []IRConst, structs []IRSt
 		func() int {
 			value := selfhost_compiler_ts_rewriteTSExpr(constant.value, structs, enums, []CompilerTypeBinding{})
 			return func() int {
-				out = append(out, IRConst{name: constant.name, private: constant.private, typeName: constant.typeName, value: value, line: constant.line, column: constant.column})
+				out = append(out, IRConst{name: constant.name, private: constant.private, typeName: constant.typeName, line: constant.line, column: constant.column, value: value})
 				return len(out)
 			}()
 		}()
@@ -10384,7 +10389,7 @@ func selfhost_compiler_ts_rewriteTSTests(tests []IRTest, structs []IRStructType,
 			bindings := []CompilerTypeBinding{}
 			body := selfhost_compiler_ts_rewriteTSExpr(test.body, structs, enums, bindings)
 			return func() int {
-				out = append(out, IRTest{name: test.name, body: body, line: test.line, column: test.column})
+				out = append(out, IRTest{name: test.name, line: test.line, column: test.column, body: body})
 				return len(out)
 			}()
 		}()
@@ -10437,7 +10442,7 @@ func selfhost_compiler_ts_rewriteTSFunctionBody(fn IRFunction, structs []IRStruc
 		return selfhost_compiler_ts_tsAddBinding(bindings, "this", thisType)
 	}()
 	body := selfhost_compiler_ts_rewriteTSExpr(fn.body, structs, enums, bindings)
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: body, sourcePath: fn.sourcePath, line: fn.line, column: fn.column}
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, body: body}
 }
 
 func selfhost_compiler_ts_emptyCompilerTypeBinding() CompilerTypeBinding {
@@ -10623,7 +10628,7 @@ func selfhost_compiler_ts_rewriteTSSelectorCall(expr IRExpr, structs []IRStructT
 
 func selfhost_compiler_ts_tsBuildMethodCall(expr IRExpr, receiverType string, methodName string, receiver IRExpr, args []IRExpr) IRExpr {
 	calleeIdent := selfhost_compiler_ts_tsMethodCallee(selfhost_compiler_ts_tsTypeBase(receiverType) + "_" + methodName)
-	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, children: selfhost_compiler_ts_tsCallChildren(calleeIdent, receiver, args), line: expr.line, column: expr.column}
+	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, line: expr.line, column: expr.column, children: selfhost_compiler_ts_tsCallChildren(calleeIdent, receiver, args)}
 }
 
 func selfhost_compiler_ts_tsMethodCallee(name string) IRExpr {
@@ -12779,6 +12784,10 @@ func checkSourceWithPath(source string, sourcePath string) CompileResult {
 	return selfhost_compiler_compiler_checkFile(selfhost_compiler_compiler_lowerCompilerSourceWithPath(source, sourcePath))
 }
 
+func checkSourceWithCore(source string, sourcePath string, coreFiles []SourceFile) CompileResult {
+	return selfhost_compiler_compiler_checkFile(withIRFileSourcePath(selfhost_compiler_compiler_lowerCompilerSourceWithCore(source, coreFiles), sourcePath))
+}
+
 func compile(source string, target string) CompileResult {
 	file := selfhost_compiler_compiler_lowerCompilerSource(source)
 	return selfhost_compiler_compiler_compileFile(file, target)
@@ -12977,17 +12986,15 @@ func selfhost_compiler_compiler_checkTargetFileErrors(file IRFile, target string
 func selfhost_compiler_compiler_checkTypeScriptTargetFileErrors(file IRFile) []string {
 	hasGoImports := selfhost_compiler_compiler_fileHasGoImports(file)
 	return func() []string {
-		switch {
-		case hasGoImports == true:
+		if hasGoImports {
 			return []string{"TypeScript backend does not support Go package imports"}
-		default:
-			return func() []string {
-				if selfhost_compiler_compiler_fileUsesGoFFI(file) {
-					return []string{"TypeScript backend does not support @go FFI"}
-				}
-				return []string{}
-			}()
 		}
+		return func() []string {
+			if selfhost_compiler_compiler_fileUsesGoFFI(file) {
+				return []string{"TypeScript backend does not support @go FFI"}
+			}
+			return []string{}
+		}()
 	}()
 }
 
@@ -14188,29 +14195,27 @@ func selfhost_compiler_compiler_checkObjectDestructureField(params []IRParam, in
 	duplicate := selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, fieldName, index-1)
 	field := selfhost_compiler_compiler_findCompilerStructField(fields, fieldName, 0)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate destructured field \""+fieldName+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return func() []string {
-				switch {
-				case field.name == "":
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "type "+sourceType+" has no field \""+fieldName+"\"")
-						return __rune_spread_out
-					}()
-				default:
-					return errors
-				}
-			}()
 		}
+		return func() []string {
+			switch {
+			case field.name == "":
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "type "+sourceType+" has no field \""+fieldName+"\"")
+					return __rune_spread_out
+				}()
+			default:
+				return errors
+			}
+		}()
 	}()
 	return selfhost_compiler_compiler_checkObjectDestructureFields(params, index+1, sourceType, fields, next)
 }
@@ -14630,24 +14635,22 @@ func selfhost_compiler_compiler_checkNonArrayIndexReceiver(receiver string, mapK
 
 func selfhost_compiler_compiler_checkTupleOrUnknownIndexReceiver(receiver string, tuple []string, index string, indexExpr IRExpr, errors []string) []string {
 	return func() []string {
-		switch {
-		case len(tuple) > 0 == true:
+		if len(tuple) > 0 {
 			return selfhost_compiler_compiler_checkTupleIndexType(tuple, index, indexExpr, errors)
-		default:
-			return func() []string {
-				switch {
-				case receiver == "":
-					return errors
-				default:
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "type "+receiver+" is not indexable")
-						return __rune_spread_out
-					}()
-				}
-			}()
 		}
+		return func() []string {
+			switch {
+			case receiver == "":
+				return errors
+			default:
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "type "+receiver+" is not indexable")
+					return __rune_spread_out
+				}()
+			}
+		}()
 	}()
 }
 
@@ -15274,8 +15277,7 @@ func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverTyp
 						typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(receiverType), 0)
 						found := typeDecl.name != ""
 						return func() []string {
-							switch {
-							case found == true:
+							if found {
 								return func() []string {
 									if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
 										return selfhost_compiler_compiler_checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
@@ -15287,14 +15289,13 @@ func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverTyp
 										return __rune_spread_out
 									}()
 								}()
-							default:
-								return func() []string {
-									__rune_spread_out := []string{}
-									__rune_spread_out = append(__rune_spread_out, errors...)
-									__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no fields")
-									return __rune_spread_out
-								}()
 							}
+							return func() []string {
+								__rune_spread_out := []string{}
+								__rune_spread_out = append(__rune_spread_out, errors...)
+								__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no fields")
+								return __rune_spread_out
+							}()
 						}()
 					}()
 				default:
@@ -15469,8 +15470,7 @@ func selfhost_compiler_compiler_checkStructExpr(expr IRExpr, structs []IRStructT
 	typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, expr.name, 0)
 	found := typeDecl.name != ""
 	return func() []string {
-		switch {
-		case found == true:
+		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
 					return selfhost_compiler_compiler_checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
@@ -15482,9 +15482,8 @@ func selfhost_compiler_compiler_checkStructExpr(expr IRExpr, structs []IRStructT
 					return __rune_spread_out
 				}()
 			}()
-		default:
-			return selfhost_compiler_compiler_checkStructExprUnknownType(expr, structs, callables, errors, bindings)
 		}
+		return selfhost_compiler_compiler_checkStructExprUnknownType(expr, structs, callables, errors, bindings)
 	}()
 }
 
@@ -15898,8 +15897,7 @@ func selfhost_compiler_compiler_checkStaticSelectorCall(expr IRExpr, selector IR
 	callable := selfhost_compiler_compiler_findCompilerCallable(callables, name, 0)
 	found := callable.name != ""
 	return func() []string {
-		switch {
-		case found == true:
+		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
@@ -15911,9 +15909,8 @@ func selfhost_compiler_compiler_checkStaticSelectorCall(expr IRExpr, selector IR
 					return __rune_spread_out
 				}()
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15933,8 +15930,7 @@ func selfhost_compiler_compiler_checkKnownInstanceSelectorCall(expr IRExpr, sele
 	callable := selfhost_compiler_compiler_findCompilerCallable(callables, name, 0)
 	found := callable.name != ""
 	return func() []string {
-		switch {
-		case found == true:
+		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
@@ -15946,9 +15942,8 @@ func selfhost_compiler_compiler_checkKnownInstanceSelectorCall(expr IRExpr, sele
 					return __rune_spread_out
 				}()
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15956,8 +15951,7 @@ func selfhost_compiler_compiler_checkIdentifierCall(expr IRExpr, name string, ar
 	callable := selfhost_compiler_compiler_findCompilerCallable(callables, name, 0)
 	found := callable.name != ""
 	return func() []string {
-		switch {
-		case found == true:
+		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
@@ -15969,9 +15963,8 @@ func selfhost_compiler_compiler_checkIdentifierCall(expr IRExpr, name string, ar
 					return __rune_spread_out
 				}()
 			}()
-		default:
-			return selfhost_compiler_compiler_checkUndefinedIdentifierCall(name, bindings, errors)
 		}
+		return selfhost_compiler_compiler_checkUndefinedIdentifierCall(name, bindings, errors)
 	}()
 }
 
@@ -16105,17 +16098,15 @@ func selfhost_compiler_compiler_checkFunctionReturn(fn IRFunction, structs []IRS
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(fn.body, structs, callables, bindings)
 	shouldCheck := expected != "" && expected != "Dynamic" && actual != ""
 	return func() []string {
-		switch {
-		case shouldCheck == true:
+		if shouldCheck {
 			return func() []string {
 				if expected == "WebComponent" && actual == "HTMLElement" && selfhost_compiler_compiler_compilerExprCanBuildWebComponent(fn.body) {
 					return checked
 				}
 				return selfhost_compiler_compiler_checkFunctionReturnType(fn.name, expected, actual, checked)
 			}()
-		default:
-			return checked
 		}
+		return checked
 	}()
 }
 
@@ -16196,17 +16187,15 @@ func selfhost_compiler_compiler_compilerGenericTypeArgsCompatible(expected strin
 	hasExpected := len(expectedArgs) > 0
 	hasActual := len(actualArgs) > 0
 	return func() bool {
-		switch {
-		case hasExpected == true:
+		if hasExpected {
 			return func() bool {
 				if hasActual {
 					return selfhost_compiler_compiler_compilerGenericArgListsCompatible(expectedArgs, actualArgs, 0)
 				}
 				return true
 			}()
-		default:
-			return true
 		}
+		return true
 	}()
 }
 
@@ -16877,17 +16866,15 @@ func selfhost_compiler_compiler_inferCompilerSelectorCallTypeFromReceiver(expr I
 func selfhost_compiler_compiler_inferCompilerAtSelectorCallType(expr IRExpr, selector IRExpr, receiver IRExpr, callables []CompilerCallable) string {
 	importPath := compilerIRAtImportPath(receiver)
 	return func() string {
-		switch {
-		case importPath == "" == true:
+		if importPath == "" {
 			return expr.text
-		default:
-			return func() string {
-				if compilerGoPackageImportPath(importPath) != "" {
-					return expr.text
-				}
-				return selfhost_compiler_compiler_compilerCallableReturnOrText(selfhost_compiler_compiler_findCompilerCallable(callables, selector.name, 0), expr.text)
-			}()
 		}
+		return func() string {
+			if compilerGoPackageImportPath(importPath) != "" {
+				return expr.text
+			}
+			return selfhost_compiler_compiler_compilerCallableReturnOrText(selfhost_compiler_compiler_findCompilerCallable(callables, selector.name, 0), expr.text)
+		}()
 	}()
 }
 
@@ -17277,34 +17264,30 @@ func selfhost_compiler_compiler_compilerContainsAt(values []string, value string
 func selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs []IRStructType, name string, index int) bool {
 	done := index >= len(structs)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if structs[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, index+1)
-			}()
 		}
+		return func() bool {
+			if structs[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, index+1)
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums []IREnumType, name string, index int) bool {
 	done := index >= len(enums)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if enums[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, index+1)
-			}()
 		}
+		return func() bool {
+			if enums[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, index+1)
+		}()
 	}()
 }
 
@@ -17351,68 +17334,60 @@ func selfhost_compiler_compiler_compilerConstNameAppearsBeforeAt(constants []IRC
 func selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields []IRField, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if fields[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, index-1)
-			}()
 		}
+		return func() bool {
+			if fields[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, index-1)
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods []IRFunction, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if methods[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, index-1)
-			}()
 		}
+		return func() bool {
+			if methods[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, index-1)
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members []IREnumMember, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if members[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, index-1)
-			}()
 		}
+		return func() bool {
+			if members[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, index-1)
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerParamNameAppearsBefore(params []IRParam, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return func() bool {
-				if params[index].name == name {
-					return true
-				}
-				return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, index-1)
-			}()
 		}
+		return func() bool {
+			if params[index].name == name {
+				return true
+			}
+			return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, index-1)
+		}()
 	}()
 }
 
@@ -17426,16 +17401,67 @@ func selfhost_compiler_compiler_lowerFiles(files []SourceFile) IRFile {
 }
 
 func selfhost_compiler_compiler_lowerCompilerSource(source string) IRFile {
-	return lowerParsed(selfhost_compiler_compiler_expandCompilerMacros(parse(source)))
+	return lowerParsed(selfhost_compiler_compiler_expandCompilerMacros(parse(source), []CompilerModuleMacroBinding{}))
+}
+
+func selfhost_compiler_compiler_lowerCompilerSourceWithCore(source string, coreFiles []SourceFile) IRFile {
+	return lowerParsed(selfhost_compiler_compiler_expandCompilerMacros(parse(source), selfhost_compiler_compiler_compilerCoreMacroBindings(coreFiles, 0, []CompilerModuleMacroBinding{})))
 }
 
 func selfhost_compiler_compiler_lowerCompilerSourceWithPath(source string, sourcePath string) IRFile {
 	return withIRFileSourcePath(selfhost_compiler_compiler_lowerCompilerSource(source), sourcePath)
 }
 
-func selfhost_compiler_compiler_expandCompilerMacros(file ParsedFile) ParsedFile {
+func selfhost_compiler_compiler_compilerCoreMacroBindings(files []SourceFile, index int, bindings []CompilerModuleMacroBinding) []CompilerModuleMacroBinding {
+	done := index >= len(files)
+	return func() []CompilerModuleMacroBinding {
+		if done {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerCoreMacroBindings(files, index+1, selfhost_compiler_compiler_compilerCoreFileMacroBindings(files[index], bindings))
+	}()
+}
+
+func selfhost_compiler_compiler_compilerCoreFileMacroBindings(file SourceFile, bindings []CompilerModuleMacroBinding) []CompilerModuleMacroBinding {
+	module := selfhost_compiler_compiler_compilerCoreModuleName(file.path)
+	return func() []CompilerModuleMacroBinding {
+		if module == "" {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module, parse(file.source).functions, 0, bindings)
+	}()
+}
+
+func selfhost_compiler_compiler_compilerCoreModuleName(path string) string {
+	slash := strings.LastIndex(path, "/")
+	base := func() string { runes := []rune(path); return string(runes[slash+1 : len([]rune(path))]) }()
+	dot := strings.LastIndex(base, ".")
+	return func() string {
+		if dot < 0 {
+			return ""
+		}
+		return func() string { runes := []rune(base); return string(runes[0:dot]) }()
+	}()
+}
+
+func selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module string, functions []ParsedFunction, index int, bindings []CompilerModuleMacroBinding) []CompilerModuleMacroBinding {
+	done := index >= len(functions)
+	return func() []CompilerModuleMacroBinding {
+		if done {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module, functions, index+1, func() []CompilerModuleMacroBinding {
+			__rune_spread_out := []CompilerModuleMacroBinding{}
+			__rune_spread_out = append(__rune_spread_out, bindings...)
+			__rune_spread_out = append(__rune_spread_out, CompilerModuleMacroBinding{module: module, binding: selfhost_compiler_compiler_compilerMacroBindingFromFunction(functions[index])})
+			return __rune_spread_out
+		}())
+	}()
+}
+
+func selfhost_compiler_compiler_expandCompilerMacros(file ParsedFile, moduleBindings []CompilerModuleMacroBinding) ParsedFile {
 	imports := selfhost_compiler_compiler_compilerMergeParsedImports(file.imports, selfhost_compiler_compiler_compilerImportExpressions(file), 0)
-	errors := selfhost_compiler_compiler_compilerMacroErrors(file, file.errors)
+	errors := selfhost_compiler_compiler_compilerMacroErrors(file, moduleBindings, file.errors)
 	out := ParsedFile{imports: imports, constants: file.constants, types: []ParsedType{}, functions: []ParsedFunction{}, tests: []ParsedTest{}, errors: errors}
 	for _, typeDecl := range file.types {
 		_ = typeDecl
@@ -17618,10 +17644,10 @@ func selfhost_compiler_compiler_expandCompilerFunctionMacros(fn ParsedFunction) 
 	return ParsedFunction{private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, annotations: fn.annotations, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, line: fn.line, column: fn.column, name: selfhost_compiler_compiler_compilerRenameDeclarationName(fn.annotations, fn.name), body: selfhost_compiler_compiler_expandCompilerNamespaceAliases(fn.body, []CompilerNamespaceAlias{})}
 }
 
-func selfhost_compiler_compiler_compilerMacroErrors(file ParsedFile, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerMacroErrors(file ParsedFile, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
 	functionErrors := selfhost_compiler_compiler_compilerMacroFunctionErrors(file.functions, 0, errors)
 	methodErrors := selfhost_compiler_compiler_compilerMacroMethodErrors(file.types, 0, functionErrors)
-	return selfhost_compiler_compiler_compilerAnnotationErrors(file, methodErrors)
+	return selfhost_compiler_compiler_compilerAnnotationErrors(file, moduleBindings, methodErrors)
 }
 
 func selfhost_compiler_compiler_compilerMacroMethodErrors(types []ParsedType, index int, errors []ParseError) []ParseError {
@@ -17829,86 +17855,86 @@ func selfhost_compiler_compiler_compilerSyntaxMacroSignatureOk(fn ParsedFunction
 	return returnOk && paramsOk
 }
 
-func selfhost_compiler_compiler_compilerAnnotationErrors(file ParsedFile, errors []ParseError) []ParseError {
-	next := selfhost_compiler_compiler_compilerTypeAnnotationErrors(file.types, file.functions, 0, errors)
-	return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(file.functions, file.functions, 0, next)
+func selfhost_compiler_compiler_compilerAnnotationErrors(file ParsedFile, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
+	next := selfhost_compiler_compiler_compilerTypeAnnotationErrors(file.types, file.functions, moduleBindings, 0, errors)
+	return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(file.functions, file.functions, moduleBindings, 0, next)
 }
 
-func selfhost_compiler_compiler_compilerTypeAnnotationErrors(types []ParsedType, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerTypeAnnotationErrors(types []ParsedType, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(types)
 	return func() []ParseError {
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, index+1, selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, errors))
+		return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, moduleBindings, errors))
 	}()
 }
 
-func selfhost_compiler_compiler_compilerTypeAnnotationError(typeDecl ParsedType, functions []ParsedFunction, errors []ParseError) []ParseError {
-	next := selfhost_compiler_compiler_compilerAnnotationListErrors(typeDecl.annotations, functions, 0, errors)
-	next = selfhost_compiler_compiler_compilerFieldAnnotationErrors(typeDecl.fields, functions, 0, next)
-	next = selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(typeDecl.members, functions, 0, next)
-	return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(typeDecl.methods, functions, 0, next)
+func selfhost_compiler_compiler_compilerTypeAnnotationError(typeDecl ParsedType, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
+	next := selfhost_compiler_compiler_compilerAnnotationListErrors(typeDecl.annotations, functions, moduleBindings, 0, errors)
+	next = selfhost_compiler_compiler_compilerFieldAnnotationErrors(typeDecl.fields, functions, moduleBindings, 0, next)
+	next = selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(typeDecl.members, functions, moduleBindings, 0, next)
+	return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(typeDecl.methods, functions, moduleBindings, 0, next)
 }
 
-func selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields []ParsedField, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields []ParsedField, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(fields)
 	return func() []ParseError {
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, 0, errors))
+		return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, moduleBindings, 0, errors))
 	}()
 }
 
-func selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members []ParsedEnumMember, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members []ParsedEnumMember, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(members)
 	return func() []ParseError {
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, 0, errors))
+		return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, moduleBindings, 0, errors))
 	}()
 }
 
-func selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions []ParsedFunction, topLevelFunctions []ParsedFunction, index int, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions []ParsedFunction, topLevelFunctions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(functions)
 	return func() []ParseError {
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, 0, errors))
+		return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, moduleBindings, 0, errors))
 	}()
 }
 
-func selfhost_compiler_compiler_compilerAnnotationListErrors(annotations []ParsedAnnotation, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerAnnotationListErrors(annotations []ParsedAnnotation, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(annotations)
 	return func() []ParseError {
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, index+1, selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, errors))
+		return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, moduleBindings, errors))
 	}()
 }
 
-func selfhost_compiler_compiler_compilerAnnotationError(annotation ParsedAnnotation, functions []ParsedFunction, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerAnnotationError(annotation ParsedAnnotation, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
 	return func() []ParseError {
 		switch {
 		case annotation.marker == "#":
-			return selfhost_compiler_compiler_compilerHashAnnotationError(annotation, functions, errors)
+			return selfhost_compiler_compiler_compilerHashAnnotationError(annotation, functions, moduleBindings, errors)
 		default:
 			return errors
 		}
 	}()
 }
 
-func selfhost_compiler_compiler_compilerHashAnnotationError(annotation ParsedAnnotation, functions []ParsedFunction, errors []ParseError) []ParseError {
+func selfhost_compiler_compiler_compilerHashAnnotationError(annotation ParsedAnnotation, functions []ParsedFunction, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
 	return func() []ParseError {
 		switch {
 		case annotation.module == "":
 			return selfhost_compiler_compiler_compilerLocalAnnotationError(annotation, functions, errors)
 		default:
-			return selfhost_compiler_compiler_compilerModuleAnnotationError(annotation, errors)
+			return selfhost_compiler_compiler_compilerModuleAnnotationError(annotation, moduleBindings, errors)
 		}
 	}()
 }
@@ -17952,35 +17978,50 @@ func selfhost_compiler_compiler_compilerResolvedLocalAnnotationError(annotation 
 	}()
 }
 
-func selfhost_compiler_compiler_compilerModuleAnnotationError(annotation ParsedAnnotation, errors []ParseError) []ParseError {
-	binding := selfhost_compiler_compiler_compilerBuiltinMacroBinding(annotation.module, annotation.name)
+func selfhost_compiler_compiler_compilerModuleAnnotationError(annotation ParsedAnnotation, moduleBindings []CompilerModuleMacroBinding, errors []ParseError) []ParseError {
+	binding := selfhost_compiler_compiler_compilerFindModuleMacroBinding(moduleBindings, annotation.module, annotation.name, 0).binding
 	return func() []ParseError {
 		switch {
 		case binding.name == "":
-			return selfhost_compiler_compiler_compilerUnknownModuleMacroError(annotation, errors)
+			return func() []ParseError {
+				__rune_spread_out := []ParseError{}
+				__rune_spread_out = append(__rune_spread_out, errors...)
+				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("unknown macro #"+annotation.module+"."+annotation.name, annotation.line, annotation.column))
+				return __rune_spread_out
+			}()
 		default:
-			return selfhost_compiler_compiler_compilerAnnotationArgErrors(annotation, binding, errors)
+			return func() []ParseError {
+				if binding.macro {
+					return selfhost_compiler_compiler_compilerAnnotationArgErrors(annotation, binding, errors)
+				}
+				return func() []ParseError {
+					__rune_spread_out := []ParseError{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("#"+annotation.module+"."+annotation.name+" refers to a function that is not a macro", annotation.line, annotation.column))
+					return __rune_spread_out
+				}()
+			}()
 		}
 	}()
 }
 
-func selfhost_compiler_compiler_compilerUnknownModuleMacroError(annotation ParsedAnnotation, errors []ParseError) []ParseError {
-	return func() []ParseError {
-		if selfhost_compiler_compiler_compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) {
-			return func() []ParseError {
-				__rune_spread_out := []ParseError{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("#"+annotation.module+"."+annotation.name+" refers to a function that is not a macro", annotation.line, annotation.column))
-				return __rune_spread_out
-			}()
+func selfhost_compiler_compiler_compilerFindModuleMacroBinding(bindings []CompilerModuleMacroBinding, module string, name string, index int) CompilerModuleMacroBinding {
+	done := index >= len(bindings)
+	return func() CompilerModuleMacroBinding {
+		if done {
+			return selfhost_compiler_compiler_emptyCompilerModuleMacroBinding()
 		}
-		return func() []ParseError {
-			__rune_spread_out := []ParseError{}
-			__rune_spread_out = append(__rune_spread_out, errors...)
-			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("unknown macro #"+annotation.module+"."+annotation.name, annotation.line, annotation.column))
-			return __rune_spread_out
+		return func() CompilerModuleMacroBinding {
+			if bindings[index].module == module && bindings[index].binding.name == name {
+				return bindings[index]
+			}
+			return selfhost_compiler_compiler_compilerFindModuleMacroBinding(bindings, module, name, index+1)
 		}()
 	}()
+}
+
+func selfhost_compiler_compiler_emptyCompilerModuleMacroBinding() CompilerModuleMacroBinding {
+	return CompilerModuleMacroBinding{module: "", binding: selfhost_compiler_compiler_emptyCompilerMacroBinding()}
 }
 
 func selfhost_compiler_compiler_compilerAnnotationArgErrors(annotation ParsedAnnotation, binding CompilerMacroBinding, errors []ParseError) []ParseError {
@@ -18111,81 +18152,6 @@ func selfhost_compiler_compiler_compilerParsedParamTypeNames(params []ParsedPara
 			__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
 			return __rune_spread_out
 		}())
-	}()
-}
-
-func selfhost_compiler_compiler_compilerBuiltinMacroBinding(module string, name string) CompilerMacroBinding {
-	return func() CompilerMacroBinding {
-		switch {
-		case module == "macro":
-			return selfhost_compiler_compiler_compilerMacroModuleBinding(name)
-		case module == "json":
-			return selfhost_compiler_compiler_compilerJsonModuleMacroBinding(name)
-		case module == "cli":
-			return selfhost_compiler_compiler_compilerCliModuleMacroBinding(name)
-		default:
-			return selfhost_compiler_compiler_emptyCompilerMacroBinding()
-		}
-	}()
-}
-
-func selfhost_compiler_compiler_compilerMacroModuleBinding(name string) CompilerMacroBinding {
-	return func() CompilerMacroBinding {
-		switch {
-		case name == "renameDeclaration":
-			return selfhost_compiler_compiler_compilerMacroBinding("renameDeclaration", true, []string{"String"})
-		default:
-			return selfhost_compiler_compiler_emptyCompilerMacroBinding()
-		}
-	}()
-}
-
-func selfhost_compiler_compiler_compilerJsonModuleMacroBinding(name string) CompilerMacroBinding {
-	return func() CompilerMacroBinding {
-		switch {
-		case name == "object":
-			return selfhost_compiler_compiler_compilerMacroBinding("object", true, []string{})
-		case name == "name":
-			return selfhost_compiler_compiler_compilerMacroBinding("name", true, []string{"String"})
-		case name == "ignore":
-			return selfhost_compiler_compiler_compilerMacroBinding("ignore", true, []string{})
-		default:
-			return selfhost_compiler_compiler_emptyCompilerMacroBinding()
-		}
-	}()
-}
-
-func selfhost_compiler_compiler_compilerCliModuleMacroBinding(name string) CompilerMacroBinding {
-	return func() CompilerMacroBinding {
-		switch {
-		case name == "command":
-			return selfhost_compiler_compiler_compilerMacroBinding("command", true, []string{"String", "String", "String"})
-		case name == "flag":
-			return selfhost_compiler_compiler_compilerMacroBinding("flag", true, []string{"String", "String"})
-		case name == "option":
-			return selfhost_compiler_compiler_compilerMacroBinding("option", true, []string{"String", "String", "String", "String"})
-		case name == "arg":
-			return selfhost_compiler_compiler_compilerMacroBinding("arg", true, []string{"String"})
-		case name == "parser":
-			return selfhost_compiler_compiler_compilerMacroBinding("parser", true, []string{"String", "String", "String", "String", "String"})
-		case name == "main":
-			return selfhost_compiler_compiler_compilerMacroBinding("main", true, []string{})
-		default:
-			return selfhost_compiler_compiler_emptyCompilerMacroBinding()
-		}
-	}()
-}
-
-func selfhost_compiler_compiler_compilerKnownOrdinaryAnnotationFunction(module string, name string) bool {
-	return func() bool {
-		switch {
-		case module == "json":
-			return name == "parse" || name == "stringify"
-		case module == "go":
-			return name == "import" || name == "stmt" || name == "expr"
-		default:
-			return false
-		}
 	}()
 }
 
@@ -18412,17 +18378,15 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorReceiver(exp
 func selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorFound(expr ParsedExpr, receiver ParsedExpr, alias CompilerNamespaceAlias) ParsedExpr {
 	moduleAlias := alias.module != ""
 	return func() ParsedExpr {
-		switch {
-		case alias.go_ == true:
+		if alias.go_ {
 			return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{selfhost_compiler_compiler_compilerImportAtExpr("go:"+alias.importPath, receiver.line, receiver.column)})
-		default:
-			return func() ParsedExpr {
-				if moduleAlias {
-					return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{selfhost_compiler_compiler_compilerModuleAtExpr(alias.module, receiver.line, receiver.column)})
-				}
-				return selfhost_compiler_compiler_compilerParsedExpr(ExprKind_Identifier, expr.name, expr.name, "", "", []ParsedParam{}, []ParsedExpr{}, expr.line, expr.column)
-			}()
 		}
+		return func() ParsedExpr {
+			if moduleAlias {
+				return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{selfhost_compiler_compiler_compilerModuleAtExpr(alias.module, receiver.line, receiver.column)})
+			}
+			return selfhost_compiler_compiler_compilerParsedExpr(ExprKind_Identifier, expr.name, expr.name, "", "", []ParsedParam{}, []ParsedExpr{}, expr.line, expr.column)
+		}()
 	}()
 }
 
@@ -18837,17 +18801,15 @@ func selfhost_compiler_compiler_compilerPathNormalize(path string) string {
 	normalized := selfhost_compiler_compiler_compilerPathNormalizeParts(parts, 0, absolute, []string{})
 	joined := selfhost_compiler_compiler_compilerPathJoinParts(normalized, 0, "")
 	return func() string {
-		switch {
-		case absolute == true:
+		if absolute {
 			return "/" + joined
-		default:
-			return func() string {
-				if len(joined) == 0 {
-					return "."
-				}
-				return joined
-			}()
 		}
+		return func() string {
+			if len(joined) == 0 {
+				return "."
+			}
+			return joined
+		}()
 	}()
 }
 
@@ -18883,22 +18845,20 @@ func selfhost_compiler_compiler_compilerPathNormalizePart(parts []string, index 
 func selfhost_compiler_compiler_compilerPathNormalizeParent(parts []string, index int, absolute bool, out []string) []string {
 	canPop := len(out) > 0 && out[len(out)-1] != ".."
 	return func() []string {
-		switch {
-		case canPop == true:
+		if canPop {
 			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, append([]string{}, out[0:len(out)-1]...))
-		default:
-			return func() []string {
-				if absolute {
-					return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, out)
-				}
-				return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, func() []string {
-					__rune_spread_out := []string{}
-					__rune_spread_out = append(__rune_spread_out, out...)
-					__rune_spread_out = append(__rune_spread_out, "..")
-					return __rune_spread_out
-				}())
-			}()
 		}
+		return func() []string {
+			if absolute {
+				return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, out)
+			}
+			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, out...)
+				__rune_spread_out = append(__rune_spread_out, "..")
+				return __rune_spread_out
+			}())
+		}()
 	}()
 }
 

@@ -665,6 +665,36 @@ Args: {
   @assert.eq(result.errors[0].includes("function \"flag\" expects 2 args, got 1"), true)
 }
 
+? "selfhost compiler accepts supplied core module macro declarations" {
+  core := [SourceFile {
+    path: "core/web/web.rn",
+    source: `@syntax
+
+#preview(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+`
+  }]
+  result := checkSourceWithCore(`#web.preview
+render() => <div />
+`, "main.rn", core)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
+? "selfhost compiler checks supplied core module macro arguments" {
+  core := [SourceFile {
+    path: "core/test/test.rn",
+    source: `@syntax
+
+#tag(tree: SyntaxFile, context: MacroContext, name: String) -> SyntaxFile => tree
+`
+  }]
+  result := checkSourceWithCore(`#test.tag(1)
+Thing: {}
+`, "main.rn", core)
+  @assert.eq(result.ok, false)
+  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int, expected String"), true)
+}
+
 ? "selfhost compiler accepts core module imports in file graph" {
   files := [SourceFile {
     path: "main.rn",

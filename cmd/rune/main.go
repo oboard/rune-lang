@@ -49,14 +49,14 @@ func init() {
 	)
 	repl.RegisterSelfhostAnalyzer(
 		func(source string, path string) repl.SelfhostCompileResult {
-			result := checkSourceWithPath(source, path)
+			result := checkSelfhostSourceWithCore(source, path)
 			return repl.SelfhostCompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 		nil,
 	)
 	lsp.RegisterSelfhostAnalyzer(
 		func(source string, path string) lsp.SelfhostCompileResult {
-			result := checkSourceWithPath(source, path)
+			result := checkSelfhostSourceWithCore(source, path)
 			return lsp.SelfhostCompileResult{Ok: result.ok, Output: result.output, Errors: result.errors}
 		},
 		nil,
@@ -529,7 +529,7 @@ func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer)
 	if err != nil {
 		return err
 	}
-	result := checkSource(string(source))
+	result := checkSelfhostSourceWithCore(string(source), path)
 	if !result.ok {
 		for _, message := range result.errors {
 			fmt.Fprintf(errOut, "%s: %s\n", path, message)
@@ -538,6 +538,76 @@ func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer)
 	}
 	fmt.Fprintf(out, "ok %s\n", path)
 	return nil
+}
+
+func checkSelfhostSourceWithCore(source string, sourcePath string) CompileResult {
+	coreFiles, err := selfhostCoreSourceFiles()
+	if err != nil {
+		return CompileResult{ok: false, errors: []string{err.Error()}}
+	}
+	return checkSourceWithCore(source, sourcePath, coreFiles)
+}
+
+func selfhostCoreSourceFiles() ([]SourceFile, error) {
+	root, err := stdlibRoot()
+	if err != nil {
+		return nil, err
+	}
+	var files []SourceFile
+	for _, module := range coreModuleDirs(root) {
+		entries, err := os.ReadDir(filepath.Join(root, module))
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || filepath.Ext(entry.Name()) != ".rn" {
+				continue
+			}
+			path := filepath.Join(root, module, entry.Name())
+			source, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, SourceFile{path: path, source: string(source)})
+		}
+	}
+	return files, nil
+}
+
+func stdlibRoot() (string, error) {
+	if root := os.Getenv("RUNE_ROOT"); root != "" {
+		return filepath.Join(root, "core"), nil
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for {
+		candidate := filepath.Join(dir, "core")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("core directory not found; run from the Rune repo or set RUNE_ROOT")
+		}
+		dir = parent
+	}
+}
+
+func coreModuleDirs(root string) []string {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	modules := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			modules = append(modules, entry.Name())
+		}
+	}
+	sort.Strings(modules)
+	return modules
 }
 
 func checkFileWithHostCompiler(path string, out io.Writer, errOut io.Writer) error {
