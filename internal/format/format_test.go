@@ -449,6 +449,29 @@ make() -> User => {
 	}
 }
 
+func TestLongSymbolicExpressionFormatting(t *testing.T) {
+	src := `main()=>{message:="hello, "+firstName+" "+lastName+"! Welcome to Rune."}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `main() => {
+  message := (
+    "hello, " + firstName + " "
+    + lastName + "! Welcome to Rune."
+  )
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
 func TestExpressionPrecedenceFormatting(t *testing.T) {
 	src := `main()=>{a:=true b:=false c:=true @assert.eq(!(true&&false),true) @assert.eq((a&&b).not()&&(b||c),true) @assert.eq(((a&&b)||(!b&&c)).toString(),"true")}`
 	file, errs := parser.Parse(src)

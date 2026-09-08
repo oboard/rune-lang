@@ -5,6 +5,7 @@ ParserState: {
   tokens: Array[Token]
   current: Int
   errors: Array[ParseError]
+  expressionNesting: Int
 }
 
 TokenStep: {
@@ -133,7 +134,8 @@ AnnotationStep: {
   parseFileLoop(parserSkipNewlines(ParserState {
     tokens: tokens,
     current: 0,
-    errors: errors
+    errors: errors,
+    expressionNesting: 0
   }), emptyFile(errors)).file
 }
 
@@ -1646,7 +1648,7 @@ parseLetStatement(
 parseLetTypeAnnotation(
   state: ParserState
 ) -> StringStep => {
-  colon := parserMatch(parserSkipNewlines(state), TokenKind.Colon)
+  colon := parserMatch(state, TokenKind.Colon)
   colon.ok ? parseLetTypeAnnotationRef(colon.state)
     : StringStep {
       state: state,
@@ -2043,13 +2045,19 @@ parseBinaryExpression(
   expr: ParsedExpr,
   minPrec: Int
 ) -> ExprStep => {
-  prec := precedence(parserPeek(state).kind)
+  next := parserSkipNewlines(state)
+  advanced := state.expressionNesting > 0
+  candidate := (
+    advanced ? next
+      : state
+  )
+  prec := precedence(parserPeek(candidate).kind)
   (
     prec < minPrec ? ExprStep {
       state: state,
       expr: expr
     }
-      : parseBinaryExpressionAtPrec(state, expr, minPrec, prec)
+      : parseBinaryExpressionAtPrec(candidate, expr, minPrec, prec)
   )
 }
 
@@ -2060,7 +2068,7 @@ parseBinaryExpressionAtPrec(
   prec: Int
 ) -> ExprStep => {
   op := parserAdvance(state)
-  right := parseExpression(op.state, prec + 1)
+  right := parseExpression(parserSkipNewlines(op.state), prec + 1)
   parseExpressionLoop(ExprStep {
     ..right,
     expr: opNode(ExprKind.Binary, op.token.lexeme, op.token, [expr, right.expr])
@@ -2427,7 +2435,8 @@ parseTemplateExpression(
     : parseExpression(ParserState {
       tokens: lex(source),
       current: 0,
-      errors: []
+      errors: [],
+      expressionNesting: 0
     }, 1).expr
 )
 
@@ -2762,8 +2771,8 @@ parseParenOrTupleAfterOpen(
   state: ParserState,
   open: Token
 ) -> ExprStep => {
-  expr := parseExpression(state, 1)
-  afterExpr := parserSkipNewlines(expr.state)
+  expr := parseExpression(ParserState { ..state, expressionNesting: state.expressionNesting + 1 }, 1)
+  afterExpr := parserSkipNewlines(ParserState { ..expr.state, expressionNesting: state.expressionNesting })
   (
     parserCheck(afterExpr, TokenKind.Comma) ? parseTupleAfterFirst(afterExpr, open, expr.expr)
       : finishParenExpression(afterExpr, expr.expr)

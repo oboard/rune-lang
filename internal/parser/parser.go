@@ -17,9 +17,10 @@ func (e Error) Error() string {
 }
 
 type Parser struct {
-	tokens []lexer.Token
-	curr   int
-	errors []Error
+	tokens            []lexer.Token
+	curr              int
+	errors            []Error
+	expressionNesting int
 }
 
 func Parse(src string) (*ast.File, []Error) {

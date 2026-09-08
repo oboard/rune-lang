@@ -358,6 +358,19 @@ func TestSelfhostCheckerResolvesCoreModuleMacro(t *testing.T) {
 	}
 }
 
+func TestSelfhostCheckerInfersStringConcatenation(t *testing.T) {
+	result := checkSelfhostSourceWithCore(`main() => {
+  str := ("hello"
+    + " world"
+    + " world")
+  @io.println(str)
+}
+`, "examples/multiline_add.rn")
+	if !result.ok {
+		t.Fatalf("checkSelfhostSourceWithCore() errors = %v", result.errors)
+	}
+}
+
 func TestSelfhostCheckerRejectsUnknownCoreModuleMacro(t *testing.T) {
 	result := checkSelfhostSourceWithCore("#web.missing\nThing: {}\n", "examples/list.rn")
 	if result.ok || len(result.errors) != 1 || !strings.Contains(result.errors[0], "unknown macro #web.missing") {
@@ -387,8 +400,8 @@ func TestGeneratedSelfhostFormatterMatchesHostForComments(t *testing.T) {
 		if len(errs) > 0 {
 			t.Fatalf("Parse(%q) errors = %v", src, errs)
 		}
-		if got, want := __fmt_formatSource(src), runefmt.Source(file, src); got != want {
-			t.Fatalf("__fmt_formatSource(%q) = %q, want %q", src, got, want)
+		if got, want := formatSource(src), runefmt.Source(file, src); got != want {
+			t.Fatalf("formatSource(%q) = %q, want %q", src, got, want)
 		}
 	}
 }
@@ -443,7 +456,7 @@ main() => 0`, false},
 				t.Fatalf("selfhostFormatterEligible(%q) = %v, want %v", tc.src, got, tc.eligible)
 			}
 			if got, want := formatWithSelfhostBridge(file, tc.src), runefmt.Source(file, tc.src); got != want {
-				t.Fatalf("formatWithSelfhostBridge(%q) = %q (selfhost: %q), want %q", tc.src, got, __fmt_formatSource(tc.src), want)
+				t.Fatalf("formatWithSelfhostBridge(%q) = %q (selfhost: %q), want %q", tc.src, got, formatSource(tc.src), want)
 			}
 		})
 	}
@@ -457,8 +470,8 @@ func min(a, b int) int {
 }
 
 func TestGeneratedSelfhostFormatterFormatsSimpleProgram(t *testing.T) {
-	if got, want := __fmt_formatSource("main()=>1"), "main() => 1\n"; got != want {
-		t.Fatalf("__fmt_formatSource() = %q, want %q", got, want)
+	if got, want := formatSource("main()=>1"), "main() => 1\n"; got != want {
+		t.Fatalf("formatSource() = %q, want %q", got, want)
 	}
 }
 

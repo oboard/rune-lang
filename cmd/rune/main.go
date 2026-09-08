@@ -689,7 +689,7 @@ func formatWithSelfhostBridge(file *ast.File, source string) string {
 	if !selfhostFormatterEligible(source) {
 		return goFormatted
 	}
-	selfhostFormatted := __fmt_formatSource(source)
+	selfhostFormatted := formatSource(source)
 	if selfhostFormatted == goFormatted {
 		return selfhostFormatted
 	}

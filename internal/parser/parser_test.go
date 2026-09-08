@@ -71,6 +71,27 @@ main() => User::fromJson("{}")
 	}
 }
 
+func TestParseMultilineBinaryExpression(t *testing.T) {
+	file, errs := Parse(`main() => {
+  value := ("hello"
+    + " world"
+    + " world")
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	body := file.Functions[0].Body.(*ast.BlockExpr)
+	value := body.Statements[0].(*ast.LetStmt).Value
+	last, ok := value.(*ast.BinaryExpr)
+	if !ok || last.Op != lexer.Plus {
+		t.Fatalf("value = %#v, want binary addition", value)
+	}
+	if _, ok := last.Left.(*ast.BinaryExpr); !ok {
+		t.Fatalf("left = %T, want left-associated BinaryExpr", last.Left)
+	}
+}
+
 func TestParseCompileTimeExpressionMarker(t *testing.T) {
 	file, errs := Parse(`main() => (1 + 2)'
 `)

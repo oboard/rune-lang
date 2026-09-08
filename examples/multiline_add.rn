@@ -1,0 +1,7 @@
+main() => {
+    str := ("hello"
+        + " world"
+        + " world"
+        + " world")
+    @io.println(str)
+}

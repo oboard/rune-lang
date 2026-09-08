@@ -312,9 +312,10 @@ type ParsedFile struct {
 }
 
 type ParserState struct {
-	tokens  []Token
-	current int
-	errors  []ParseError
+	tokens            []Token
+	current           int
+	errors            []ParseError
+	expressionNesting int
 }
 
 type TokenStep struct {
@@ -571,6 +572,13 @@ type CompilerTypeBinding struct {
 type InferBlockOut struct {
 	statements []IRExpr
 	bindings   []CompilerTypeBinding
+}
+
+type FormatState struct {
+	text      string
+	indent    int
+	lineStart bool
+	previous  TokenKind
 }
 
 type GoJSONDeclResult struct {
@@ -2090,7 +2098,7 @@ func parse(source string) ParsedFile {
 
 func parseTokens(tokens []Token) ParsedFile {
 	errors := selfhost_parser_parser_emptyParseErrors()
-	return selfhost_parser_parser_parseFileLoop(selfhost_parser_parser_parserSkipNewlines(ParserState{tokens: tokens, current: 0, errors: errors}), selfhost_parser_parser_emptyFile(errors)).file
+	return selfhost_parser_parser_parseFileLoop(selfhost_parser_parser_parserSkipNewlines(ParserState{tokens: tokens, current: 0, errors: errors, expressionNesting: 0}), selfhost_parser_parser_emptyFile(errors)).file
 }
 
 func selfhost_parser_parser_emptyFile(errors []ParseError) ParsedFile {
@@ -2195,7 +2203,7 @@ func selfhost_parser_parser_parserCheckNext(state ParserState, kind TokenKind) b
 }
 
 func selfhost_parser_parser_stateAt(state ParserState, current int) ParserState {
-	return ParserState{tokens: state.tokens, errors: state.errors, current: current}
+	return ParserState{tokens: state.tokens, errors: state.errors, expressionNesting: state.expressionNesting, current: current}
 }
 
 func selfhost_parser_parser_parserAdvance(state ParserState) TokenStep {
@@ -2235,7 +2243,7 @@ func selfhost_parser_parser_parserConsumeMissing(state ParserState) TokenStep {
 }
 
 func selfhost_parser_parser_parserErrorAt(state ParserState, token Token, message string) ParserState {
-	return ParserState{tokens: state.tokens, current: state.current, errors: selfhost_parser_parser_appendParseError(state.errors, ParseError{message: message, line: token.line, column: token.column})}
+	return ParserState{tokens: state.tokens, current: state.current, expressionNesting: state.expressionNesting, errors: selfhost_parser_parser_appendParseError(state.errors, ParseError{message: message, line: token.line, column: token.column})}
 }
 
 func selfhost_parser_parser_appendParseError(errors []ParseError, error_ ParseError) []ParseError {
@@ -3207,7 +3215,7 @@ func selfhost_parser_parser_parseLetStatement(state ParserState) ExprStep {
 }
 
 func selfhost_parser_parser_parseLetTypeAnnotation(state ParserState) StringStep {
-	colon := selfhost_parser_parser_parserMatch(selfhost_parser_parser_parserSkipNewlines(state), TokenKind_Colon)
+	colon := selfhost_parser_parser_parserMatch(state, TokenKind_Colon)
 	return func() StringStep {
 		if colon.ok {
 			return selfhost_parser_parser_parseLetTypeAnnotationRef(colon.state)
@@ -3509,18 +3517,26 @@ func selfhost_parser_parser_parseTernaryAlternative(state ParserState, token Tok
 }
 
 func selfhost_parser_parser_parseBinaryExpression(state ParserState, expr ParsedExpr, minPrec int) ExprStep {
-	prec := selfhost_parser_parser_precedence(selfhost_parser_parser_parserPeek(state).kind)
+	next := selfhost_parser_parser_parserSkipNewlines(state)
+	advanced := state.expressionNesting > 0
+	candidate := func() ParserState {
+		if advanced {
+			return next
+		}
+		return state
+	}()
+	prec := selfhost_parser_parser_precedence(selfhost_parser_parser_parserPeek(candidate).kind)
 	return func() ExprStep {
 		if prec < minPrec {
 			return ExprStep{state: state, expr: expr}
 		}
-		return selfhost_parser_parser_parseBinaryExpressionAtPrec(state, expr, minPrec, prec)
+		return selfhost_parser_parser_parseBinaryExpressionAtPrec(candidate, expr, minPrec, prec)
 	}()
 }
 
 func selfhost_parser_parser_parseBinaryExpressionAtPrec(state ParserState, expr ParsedExpr, minPrec int, prec int) ExprStep {
 	op := selfhost_parser_parser_parserAdvance(state)
-	right := selfhost_parser_parser_parseExpression(op.state, prec+1)
+	right := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(op.state), prec+1)
 	return selfhost_parser_parser_parseExpressionLoop(ExprStep{state: right.state, expr: selfhost_parser_parser_opNode(ExprKind_Binary, op.token.lexeme, op.token, []ParsedExpr{expr, right.expr})}, minPrec)
 }
 
@@ -3867,7 +3883,7 @@ func selfhost_parser_parser_parseTemplateExpression(source string) ParsedExpr {
 		if source == "" {
 			return selfhost_parser_parser_emptyExpr()
 		}
-		return selfhost_parser_parser_parseExpression(ParserState{tokens: lex(source), current: 0, errors: []ParseError{}}, 1).expr
+		return selfhost_parser_parser_parseExpression(ParserState{tokens: lex(source), current: 0, errors: []ParseError{}, expressionNesting: 0}, 1).expr
 	}()
 }
 
@@ -4113,8 +4129,8 @@ func selfhost_parser_parser_parseParenOrTuple(state ParserState) ExprStep {
 }
 
 func selfhost_parser_parser_parseParenOrTupleAfterOpen(state ParserState, open Token) ExprStep {
-	expr := selfhost_parser_parser_parseExpression(state, 1)
-	afterExpr := selfhost_parser_parser_parserSkipNewlines(expr.state)
+	expr := selfhost_parser_parser_parseExpression(ParserState{tokens: state.tokens, current: state.current, errors: state.errors, expressionNesting: state.expressionNesting + 1}, 1)
+	afterExpr := selfhost_parser_parser_parserSkipNewlines(ParserState{tokens: expr.state.tokens, current: expr.state.current, errors: expr.state.errors, expressionNesting: state.expressionNesting})
 	return func() ExprStep {
 		if selfhost_parser_parser_parserCheck(afterExpr, TokenKind_Comma) {
 			return selfhost_parser_parser_parseTupleAfterFirst(afterExpr, open, expr.expr)
@@ -5647,6 +5663,8 @@ func selfhost_ir_ir_lowerExpr(expr ParsedExpr) IRExpr {
 func selfhost_ir_ir_inferIRExprText(expr ParsedExpr, children []IRExpr) string {
 	return func() string {
 		switch {
+		case expr.kind == ExprKind_Let:
+			return expr.value
 		case expr.kind == ExprKind_Binary:
 			return selfhost_ir_ir_inferIRBinaryText(expr, children)
 		case expr.kind == ExprKind_Call:
@@ -6187,7 +6205,16 @@ func selfhost_infer_infer_inferExpectedBlockBinding(body IRExpr, name string, ex
 
 func selfhost_infer_infer_inferExpectedLetBinding(expr IRExpr, name string, expected string) IRExpr {
 	return func() IRExpr {
-		if expr.kind == ExprKind_Let && expr.name == name && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Array && len(expr.children[0].children) == 0 {
+		if expr.kind == ExprKind_Let && expr.name == name && len(expr.children) > 0 {
+			return selfhost_infer_infer_inferExpectedLetBindingValue(expr, expected)
+		}
+		return expr
+	}()
+}
+
+func selfhost_infer_infer_inferExpectedLetBindingValue(expr IRExpr, expected string) IRExpr {
+	return func() IRExpr {
+		if expr.children[0].kind == ExprKind_Array && len(expr.children[0].children) == 0 {
 			return selfhost_infer_infer_inferSetLetType(expr, expected)
 		}
 		return expr
@@ -6308,12 +6335,7 @@ func selfhost_infer_infer_inferBlockStep(children []IRExpr, structs []IRStructTy
 func selfhost_infer_infer_inferLetStep(children []IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding, index int, out []IRExpr) InferBlockOut {
 	letExpr := children[index]
 	value := selfhost_infer_infer_inferAnnotate(letExpr.children[0], structs, enums, bindings)
-	bindingType := func() string {
-		if letExpr.value == "" {
-			return selfhost_infer_infer_inferExprType(value)
-		}
-		return letExpr.value
-	}()
+	bindingType := selfhost_infer_infer_inferLetBindingType(letExpr, value)
 	newBindings := selfhost_infer_infer_inferAddBinding(bindings, letExpr.name, bindingType)
 	next := selfhost_infer_infer_inferBlockStatements(children, structs, enums, newBindings, index+1, func() []IRExpr {
 		__rune_spread_out := []IRExpr{}
@@ -6334,8 +6356,23 @@ func selfhost_infer_infer_inferPlainStep(expr IRExpr, children []IRExpr, structs
 	}())
 }
 
+func selfhost_infer_infer_inferLetBindingType(letExpr IRExpr, value IRExpr) string {
+	declared := letExpr.value
+	return func() string {
+		if declared == "" {
+			return selfhost_infer_infer_inferExprType(value)
+		}
+		return declared
+	}()
+}
+
 func selfhost_infer_infer_inferLetRebuildTyped(expr IRExpr, value IRExpr, typeName string) IRExpr {
-	return IRExpr{text: expr.text, name: expr.name, op: expr.op, params: expr.params, line: expr.line, column: expr.column, kind: ExprKind_Let, value: typeName, children: []IRExpr{value}}
+	return IRExpr{name: expr.name, op: expr.op, params: expr.params, line: expr.line, column: expr.column, kind: ExprKind_Let, text: func() string {
+		if expr.value == "" {
+			return ""
+		}
+		return expr.text
+	}(), value: typeName, children: []IRExpr{value}}
 }
 
 func selfhost_infer_infer_inferSyncStatements(statements []IRExpr, bindings []CompilerTypeBinding, index int, out []IRExpr) []IRExpr {
@@ -6969,6 +7006,255 @@ func selfhost_infer_infer_inferLambdaParamTypeInExpr(name string, expr IRExpr) s
 		default:
 			return selfhost_infer_infer_inferLambdaParamType(name, expr.children, 0)
 		}
+	}()
+}
+
+func formatSource(source string) string {
+	tokens := lex(source)
+	state := selfhost_format_format_formatTokens(tokens, 0, selfhost_format_format_emptyFormatState())
+	return selfhost_format_format_preserveComments(source, selfhost_format_format_finishFormat(state.text))
+}
+
+func selfhost_format_format_emptyFormatState() FormatState {
+	return FormatState{text: "", indent: 0, lineStart: true, previous: TokenKind_EOF}
+}
+
+func selfhost_format_format_formatTokens(tokens []Token, index int, state FormatState) FormatState {
+	done := index >= len(tokens)
+	return func() FormatState {
+		switch {
+		case done == true:
+			return state
+		default:
+			return selfhost_format_format_formatTokens(tokens, index+1, selfhost_format_format_formatToken(state, tokens[index]))
+		}
+	}()
+}
+
+func selfhost_format_format_formatToken(state FormatState, token Token) FormatState {
+	return func() FormatState {
+		switch {
+		case token.kind == TokenKind_EOF:
+			return state
+		case token.kind == TokenKind_Newline:
+			return selfhost_format_format_formatNewline(state)
+		case token.kind == TokenKind_LBrace:
+			return selfhost_format_format_formatOpenBrace(state)
+		case token.kind == TokenKind_RBrace:
+			return selfhost_format_format_formatCloseBrace(state)
+		case token.kind == TokenKind_Comma:
+			return selfhost_format_format_formatPunctuation(state, ", ", TokenKind_Comma)
+		case token.kind == TokenKind_Colon:
+			return selfhost_format_format_formatPunctuation(state, ": ", TokenKind_Colon)
+		case token.kind == TokenKind_At:
+			return selfhost_format_format_formatPunctuation(state, "@", TokenKind_At)
+		case token.kind == TokenKind_Dot:
+			return selfhost_format_format_formatPunctuation(state, ".", TokenKind_Dot)
+		case token.kind == TokenKind_DoubleColon:
+			return selfhost_format_format_formatPunctuation(state, "::", TokenKind_DoubleColon)
+		case token.kind == TokenKind_Question:
+			return selfhost_format_format_formatPunctuation(state, "?", TokenKind_Question)
+		case token.kind == TokenKind_QuestionQuestion:
+			return selfhost_format_format_formatPunctuation(state, "??", TokenKind_QuestionQuestion)
+		case token.kind == TokenKind_Apostrophe:
+			return selfhost_format_format_formatPunctuation(state, "'", TokenKind_Apostrophe)
+		case token.kind == TokenKind_LParen:
+			return selfhost_format_format_formatPunctuation(state, "(", TokenKind_LParen)
+		case token.kind == TokenKind_RParen:
+			return selfhost_format_format_formatPunctuation(state, ")", TokenKind_RParen)
+		case token.kind == TokenKind_LBracket:
+			return selfhost_format_format_formatPunctuation(state, "[", TokenKind_LBracket)
+		case token.kind == TokenKind_RBracket:
+			return selfhost_format_format_formatPunctuation(state, "]", TokenKind_RBracket)
+		default:
+			return selfhost_format_format_formatWord(state, token)
+		}
+	}()
+}
+
+func selfhost_format_format_formatNewline(state FormatState) FormatState {
+	return func() FormatState {
+		if state.lineStart {
+			return state
+		}
+		return FormatState{text: selfhost_format_format_trimTrailingSpace(state.text) + "\n", indent: state.indent, lineStart: true, previous: state.previous}
+	}()
+}
+
+func selfhost_format_format_formatOpenBrace(state FormatState) FormatState {
+	text := selfhost_format_format_ensureSpace(state.text, state.lineStart)
+	return FormatState{text: text + "{\n", indent: state.indent + 1, lineStart: true, previous: TokenKind_LBrace}
+}
+
+func selfhost_format_format_formatCloseBrace(state FormatState) FormatState {
+	indent := func() int {
+		if state.indent > 0 {
+			return state.indent - 1
+		}
+		return 0
+	}()
+	text := selfhost_format_format_trimTrailingSpace(state.text)
+	text = func() string {
+		if strings.HasSuffix(text, "\n") {
+			return text
+		}
+		return text + "\n"
+	}()
+	return FormatState{text: text + selfhost_format_format_indentText(indent) + "}", indent: indent, lineStart: false, previous: TokenKind_RBrace}
+}
+
+func selfhost_format_format_formatPunctuation(state FormatState, text string, kind TokenKind) FormatState {
+	return FormatState{text: selfhost_format_format_prefixIndent(state.text, state.indent, state.lineStart) + text, indent: state.indent, lineStart: false, previous: kind}
+}
+
+func selfhost_format_format_formatWord(state FormatState, token Token) FormatState {
+	prefix := selfhost_format_format_prefixIndent(state.text, state.indent, state.lineStart)
+	separated := selfhost_format_format_needsSpace(state.previous, token.kind) && !(state.lineStart)
+	return FormatState{text: func() string {
+		if separated {
+			return selfhost_format_format_ensureSpace(prefix, false)
+		}
+		return prefix
+	}() + token.lexeme, indent: state.indent, lineStart: false, previous: token.kind}
+}
+
+func selfhost_format_format_needsSpace(previous TokenKind, current TokenKind) bool {
+	return selfhost_format_format_isBinaryOperator(previous) || selfhost_format_format_isBinaryOperator(current) || previous != TokenKind_At && previous != TokenKind_Dot && previous != TokenKind_DoubleColon && (selfhost_format_format_endsWord(previous) && selfhost_format_format_startsWord(current))
+}
+
+func selfhost_format_format_endsWord(kind TokenKind) bool {
+	return selfhost_format_format_isTokenIn(kind, []TokenKind{TokenKind_Ident, TokenKind_Int, TokenKind_Double, TokenKind_BigInt, TokenKind_String, TokenKind_Char, TokenKind_Regex, TokenKind_TemplateString, TokenKind_RParen, TokenKind_RBracket})
+}
+
+func selfhost_format_format_startsWord(kind TokenKind) bool {
+	return selfhost_format_format_isTokenIn(kind, []TokenKind{TokenKind_Ident, TokenKind_Int, TokenKind_Double, TokenKind_BigInt, TokenKind_String, TokenKind_Char, TokenKind_Regex, TokenKind_TemplateString, TokenKind_At, TokenKind_Dollar})
+}
+
+func selfhost_format_format_isBinaryOperator(kind TokenKind) bool {
+	return selfhost_format_format_isTokenIn(kind, []TokenKind{TokenKind_FatArrow, TokenKind_Arrow, TokenKind_Assign, TokenKind_Declare, TokenKind_MutDeclare, TokenKind_Plus, TokenKind_Minus, TokenKind_Star, TokenKind_Slash, TokenKind_Percent, TokenKind_EqualEqual, TokenKind_BangEqual, TokenKind_Less, TokenKind_LessEqual, TokenKind_Greater, TokenKind_GreaterEqual, TokenKind_AndAnd, TokenKind_OrOr, TokenKind_QuestionQuestion, TokenKind_BitAnd, TokenKind_BitOr, TokenKind_BitXor, TokenKind_ShiftLeft, TokenKind_ShiftRight, TokenKind_UnsignedShiftRight})
+}
+
+func selfhost_format_format_isTokenIn(kind TokenKind, kinds []TokenKind) bool {
+	return selfhost_format_format_isTokenInAt(kind, kinds, 0)
+}
+
+func selfhost_format_format_isTokenInAt(kind TokenKind, kinds []TokenKind, index int) bool {
+	return func() bool {
+		if index >= len(kinds) {
+			return false
+		}
+		return func() bool {
+			if kind == kinds[index] {
+				return true
+			}
+			return selfhost_format_format_isTokenInAt(kind, kinds, index+1)
+		}()
+	}()
+}
+
+func selfhost_format_format_prefixIndent(text string, indent int, lineStart bool) string {
+	return func() string {
+		if lineStart {
+			return text + selfhost_format_format_indentText(indent)
+		}
+		return text
+	}()
+}
+
+func selfhost_format_format_ensureSpace(text string, lineStart bool) string {
+	return func() string {
+		if lineStart || len(text) == 0 || strings.HasSuffix(text, " ") || strings.HasSuffix(text, "\n") {
+			return text
+		}
+		return text + " "
+	}()
+}
+
+func selfhost_format_format_trimTrailingSpace(text string) string {
+	return func() string {
+		if strings.HasSuffix(text, " ") {
+			return selfhost_format_format_trimTrailingSpace(func() string { runes := []rune(text); return string(runes[0 : len([]rune(text))-1]) }())
+		}
+		return text
+	}()
+}
+
+func selfhost_format_format_indentText(indent int) string {
+	return func() string {
+		if indent <= 0 {
+			return ""
+		}
+		return "  " + selfhost_format_format_indentText(indent-1)
+	}()
+}
+
+func selfhost_format_format_preserveComments(source string, formatted string) string {
+	return selfhost_format_format_preserveCommentLines(func() []string { parts := strings.Split(formatted, "\n"); return parts }(), func() []string { parts := strings.Split(source, "\n"); return parts }(), 0, "")
+}
+
+func selfhost_format_format_preserveCommentLines(formatted []string, source []string, index int, out string) string {
+	return func() string {
+		if index >= len(formatted) {
+			return out
+		}
+		return selfhost_format_format_preserveCommentLines(formatted, source, index+1, out+selfhost_format_format_preserveCommentLine(formatted[index], source, 0)+func() string {
+			if index+1 < len(formatted) {
+				return "\n"
+			}
+			return ""
+		}())
+	}()
+}
+
+func selfhost_format_format_preserveCommentLine(formatted string, source []string, index int) string {
+	comment := selfhost_format_format_findInlineComment(source, selfhost_format_format_canonicalLine(formatted), index)
+	return func() string {
+		if comment == "" {
+			return formatted
+		}
+		return formatted + " " + comment
+	}()
+}
+
+func selfhost_format_format_findInlineComment(source []string, formatted string, index int) string {
+	return func() string {
+		if index >= len(source) {
+			return ""
+		}
+		return selfhost_format_format_inlineCommentForLine(source[index], formatted, source, index)
+	}()
+}
+
+func selfhost_format_format_inlineCommentForLine(line string, formatted string, source []string, index int) string {
+	commentStart := selfhost_format_format_firstCommentStart(line)
+	return func() string {
+		if commentStart < 0 {
+			return selfhost_format_format_findInlineComment(source, formatted, index+1)
+		}
+		return func() string {
+			if selfhost_format_format_canonicalLine(func() string { runes := []rune(line); return string(runes[0:commentStart]) }()) == formatted {
+				return strings.TrimSpace((func() string { runes := []rune(line); return string(runes[commentStart:len([]rune(line))]) }()))
+			}
+			return selfhost_format_format_findInlineComment(source, formatted, index+1)
+		}()
+	}()
+}
+
+func selfhost_format_format_firstCommentStart(line string) int {
+	return strings.Index(line, "//")
+}
+
+func selfhost_format_format_canonicalLine(line string) string {
+	return strings.ReplaceAll((strings.ReplaceAll((strings.ReplaceAll((strings.TrimSpace(line)), " ", "")), "\t", "")), "\r", "")
+}
+
+func selfhost_format_format_finishFormat(text string) string {
+	trimmed := selfhost_format_format_trimTrailingSpace(text)
+	return func() string {
+		if strings.HasSuffix(trimmed, "\n") {
+			return trimmed
+		}
+		return trimmed + "\n"
 	}()
 }
 
@@ -10462,25 +10748,6 @@ func selfhost_compiler_ts_tsBinding(name string, typeName string) CompilerTypeBi
 	return CompilerTypeBinding{name: name, typeName: typeName}
 }
 
-func selfhost_compiler_ts_dropTSBinding(bindings []CompilerTypeBinding, name string, index int, out []CompilerTypeBinding) []CompilerTypeBinding {
-	return func() []CompilerTypeBinding {
-		if index >= len(bindings) {
-			return out
-		}
-		return func() []CompilerTypeBinding {
-			if bindings[index].name == name {
-				return selfhost_compiler_ts_dropTSBinding(bindings, name, index+1, out)
-			}
-			return selfhost_compiler_ts_dropTSBinding(bindings, name, index+1, func() []CompilerTypeBinding {
-				__rune_spread_out := []CompilerTypeBinding{}
-				__rune_spread_out = append(__rune_spread_out, out...)
-				__rune_spread_out = append(__rune_spread_out, bindings[index])
-				return __rune_spread_out
-			}())
-		}()
-	}()
-}
-
 func selfhost_compiler_ts_tsLookupBinding(bindings []CompilerTypeBinding, name string, index int) CompilerTypeBinding {
 	return func() CompilerTypeBinding {
 		if index >= len(bindings) {
@@ -10522,7 +10789,7 @@ func selfhost_compiler_ts_rewriteTSExpr(expr IRExpr, structs []IRStructType, enu
 
 func selfhost_compiler_ts_rewriteTSBlockExpr(expr IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) IRExpr {
 	result := selfhost_compiler_ts_rewriteTSBlockStatements(expr.children, 0, structs, enums, bindings, []IRExpr{})
-	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, children: result, line: expr.line, column: expr.column}
+	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, line: expr.line, column: expr.column, children: result}
 }
 
 func selfhost_compiler_ts_rewriteTSBlockStatements(statements []IRExpr, index int, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding, out []IRExpr) []IRExpr {
@@ -10555,7 +10822,7 @@ func selfhost_compiler_ts_rewriteTSStatement(expr IRExpr, structs []IRStructType
 }
 
 func selfhost_compiler_ts_rewriteTSLet(expr IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) IRExpr {
-	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, children: selfhost_compiler_ts_tsRewriteChildren(expr.children, structs, enums, bindings), line: expr.line, column: expr.column}
+	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, line: expr.line, column: expr.column, children: selfhost_compiler_ts_tsRewriteChildren(expr.children, structs, enums, bindings)}
 }
 
 func selfhost_compiler_ts_tsLetBindingType(expr IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) string {
@@ -10590,12 +10857,10 @@ func selfhost_compiler_ts_tsStatementBindings(expr IRExpr, structs []IRStructTyp
 func selfhost_compiler_ts_rewriteTSCall(expr IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) IRExpr {
 	hasSelectorCallee := len(expr.children) > 0 && expr.children[0].kind == ExprKind_Selector
 	return func() IRExpr {
-		switch {
-		case hasSelectorCallee == true:
+		if hasSelectorCallee {
 			return selfhost_compiler_ts_rewriteTSSelectorCall(expr, structs, enums, bindings)
-		default:
-			return selfhost_compiler_ts_tsRebuildExpr(expr, selfhost_compiler_ts_tsRewriteChildren(expr.children, structs, enums, bindings))
 		}
+		return selfhost_compiler_ts_tsRebuildExpr(expr, selfhost_compiler_ts_tsRewriteChildren(expr.children, structs, enums, bindings))
 	}()
 }
 
@@ -10612,17 +10877,15 @@ func selfhost_compiler_ts_rewriteTSSelectorCall(expr IRExpr, structs []IRStructT
 	rewrittenArgs := selfhost_compiler_ts_tsRewriteArgs(expr.children, structs, enums, bindings)
 	shouldRewrite := selfhost_compiler_ts_tsFindMethodCall(structs, enums, receiverType, callee.name)
 	return func() IRExpr {
-		switch {
-		case shouldRewrite == true:
+		if shouldRewrite {
 			return selfhost_compiler_ts_tsBuildMethodCall(expr, receiverType, callee.name, receiver, rewrittenArgs)
-		default:
-			return selfhost_compiler_ts_tsRebuildExpr(expr, selfhost_compiler_ts_tsPrependExpr(selfhost_compiler_ts_tsRebuildExpr(callee, func() []IRExpr {
-				if hasReceiver {
-					return []IRExpr{receiver}
-				}
-				return []IRExpr{}
-			}()), rewrittenArgs))
 		}
+		return selfhost_compiler_ts_tsRebuildExpr(expr, selfhost_compiler_ts_tsPrependExpr(selfhost_compiler_ts_tsRebuildExpr(callee, func() []IRExpr {
+			if hasReceiver {
+				return []IRExpr{receiver}
+			}
+			return []IRExpr{}
+		}()), rewrittenArgs))
 	}()
 }
 
@@ -10658,7 +10921,7 @@ func selfhost_compiler_ts_tsPrependExpr(head IRExpr, rest []IRExpr) []IRExpr {
 }
 
 func selfhost_compiler_ts_tsRebuildExpr(expr IRExpr, children []IRExpr) IRExpr {
-	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, children: children, line: expr.line, column: expr.column}
+	return IRExpr{kind: expr.kind, text: expr.text, name: expr.name, value: expr.value, op: expr.op, params: expr.params, line: expr.line, column: expr.column, children: children}
 }
 
 func selfhost_compiler_ts_tsRewriteChildren(children []IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) []IRExpr {
@@ -10728,17 +10991,15 @@ func selfhost_compiler_ts_tsResolveReceiverType(receiver IRExpr, structs []IRStr
 func selfhost_compiler_ts_tsResolveSelectorFieldType(receiver IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding) string {
 	empty := len(receiver.children) == 0
 	return func() string {
-		switch {
-		case empty == true:
+		if empty {
 			return ""
-		default:
-			return func() string {
-				if receiver.children[0].text != "" {
-					return receiver.children[0].text
-				}
-				return selfhost_compiler_ts_tsStructFieldType(structs, selfhost_compiler_ts_tsTypeBase(selfhost_compiler_ts_tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
-			}()
 		}
+		return func() string {
+			if receiver.children[0].text != "" {
+				return receiver.children[0].text
+			}
+			return selfhost_compiler_ts_tsStructFieldType(structs, selfhost_compiler_ts_tsTypeBase(selfhost_compiler_ts_tsResolveReceiverType(receiver.children[0], structs, enums, bindings)), receiver.name, 0)
+		}()
 	}()
 }
 
@@ -10774,12 +11035,10 @@ func selfhost_compiler_ts_tsFindMethodCall(structs []IRStructType, enums []IREnu
 	base := selfhost_compiler_ts_tsTypeBase(receiverType)
 	found := selfhost_compiler_ts_tsStructHasInstanceMethod(structs, base, methodName, 0)
 	return func() bool {
-		switch {
-		case found == true:
+		if found {
 			return true
-		default:
-			return selfhost_compiler_ts_tsEnumHasInstanceMethod(enums, base, methodName, 0)
 		}
+		return selfhost_compiler_ts_tsEnumHasInstanceMethod(enums, base, methodName, 0)
 	}()
 }
 
@@ -11042,15 +11301,12 @@ func selfhost_compiler_ts_emitTSEnumMethods(enumDecl IREnumType) string {
 }
 
 func selfhost_compiler_ts_methodWithTSReceiver(typeName string, method IRFunction) IRFunction {
-	return IRFunction{name: typeName + "_" + method.name, private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: method.receiverType, generics: method.generics, params: func() []IRParam {
-		switch {
-		case method.static == true:
+	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: method.receiverType, generics: method.generics, returnType: method.returnType, body: method.body, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, params: func() []IRParam {
+		if method.static {
 			return method.params
-		case method.static == false:
-			return selfhost_compiler_ts_prependThisParam(typeName, method.params)
 		}
-		return nil
-	}(), returnType: method.returnType, body: method.body, sourcePath: method.sourcePath, line: method.line, column: method.column}
+		return selfhost_compiler_ts_prependThisParam(typeName, method.params)
+	}()}
 }
 
 func selfhost_compiler_ts_prependThisParam(typeName string, params []IRParam) []IRParam {
@@ -11475,12 +11731,10 @@ func selfhost_compiler_ts_tsEscapeTemplateChars(text string, index int, out stri
 
 func selfhost_compiler_ts_tsEscapeTemplateChar(text string, index int, out string) string {
 	return func() string {
-		switch {
-		case []rune(text)[index] == '$' && index+1 < len([]rune(text)) && []rune(text)[index+1] == '{' == true:
+		if []rune(text)[index] == '$' && index+1 < len([]rune(text)) && []rune(text)[index+1] == '{' {
 			return selfhost_compiler_ts_tsEscapeTemplateChars(text, index+2, out+"\\${")
-		default:
-			return selfhost_compiler_ts_tsEscapeTemplateChars(text, index+1, out+string(([]rune(text)[index])))
 		}
+		return selfhost_compiler_ts_tsEscapeTemplateChars(text, index+1, out+string(([]rune(text)[index])))
 	}()
 }
 
@@ -11729,12 +11983,10 @@ func selfhost_compiler_ts_emitTSSelector(expr IRExpr) string {
 func selfhost_compiler_ts_emitTSAtSelector(expr IRExpr) string {
 	imported := expr.children[0].value != ""
 	return func() string {
-		switch {
-		case imported == true:
+		if imported {
 			return mangleIdent(expr.name)
-		default:
-			return "@" + expr.children[0].name + "." + expr.name
 		}
+		return "@" + expr.children[0].name + "." + expr.name
 	}()
 }
 
@@ -11881,20 +12133,6 @@ func selfhost_compiler_ts_emitTSTypeArgList(args []string, index int, out string
 
 func selfhost_compiler_ts_tsPropertyName(name string) string {
 	return name
-}
-
-func selfhost_compiler_ts_joinStrings(values []string, index int, out string) string {
-	return func() string {
-		if index >= len(values) {
-			return out
-		}
-		return selfhost_compiler_ts_joinStrings(values, index+1, out+func() string {
-			if index == 0 {
-				return ""
-			}
-			return ", "
-		}()+values[index])
-	}()
 }
 
 func generateDeclarations(file IRFile) string {
@@ -12764,12 +13002,24 @@ func compileTypeScript(source string) CompileResult {
 	return compile(source, "ts")
 }
 
+func compileTypeScriptWithCore(source string, coreFiles []SourceFile) CompileResult {
+	return compileWithCore(source, "ts", coreFiles)
+}
+
 func compileGo(source string) CompileResult {
 	return compile(source, "go")
 }
 
+func compileGoWithCore(source string, coreFiles []SourceFile) CompileResult {
+	return compileWithCore(source, "go", coreFiles)
+}
+
 func compileMoonBit(source string) CompileResult {
 	return compile(source, "mbt")
+}
+
+func compileMoonBitWithCore(source string, coreFiles []SourceFile) CompileResult {
+	return compileWithCore(source, "mbt", coreFiles)
 }
 
 func compileDeclarations(source string) CompileResult {
@@ -12785,12 +13035,16 @@ func checkSourceWithPath(source string, sourcePath string) CompileResult {
 }
 
 func checkSourceWithCore(source string, sourcePath string, coreFiles []SourceFile) CompileResult {
-	return selfhost_compiler_compiler_checkFile(withIRFileSourcePath(selfhost_compiler_compiler_lowerCompilerSourceWithCore(source, coreFiles), sourcePath))
+	return selfhost_compiler_compiler_checkFile(selfhost_compiler_compiler_lowerCompilerSourceWithCoreAndPath(source, sourcePath, coreFiles))
 }
 
 func compile(source string, target string) CompileResult {
 	file := selfhost_compiler_compiler_lowerCompilerSource(source)
 	return selfhost_compiler_compiler_compileFile(file, target)
+}
+
+func compileWithCore(source string, target string, coreFiles []SourceFile) CompileResult {
+	return selfhost_compiler_compiler_compileFile(selfhost_compiler_compiler_lowerCompilerSourceWithCore(source, coreFiles), target)
 }
 
 func compileTypeScriptFiles(files []SourceFile) CompileResult {
@@ -15200,7 +15454,12 @@ func selfhost_compiler_compiler_checkLetExpr(expr IRExpr, structs []IRStructType
 func selfhost_compiler_compiler_checkLetValueExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	value := expr.children[0]
 	checked := selfhost_compiler_compiler_checkExprExpected(value, expr.value, structs, callables, errors, bindings)
-	return selfhost_compiler_compiler_checkLetDeclaredType(expr.name, value, expr.value, structs, callables, bindings, checked)
+	return func() []string {
+		if expr.text == "" {
+			return checked
+		}
+		return selfhost_compiler_compiler_checkLetDeclaredType(expr.name, value, expr.value, structs, callables, bindings, checked)
+	}()
 }
 
 func selfhost_compiler_compiler_checkExprExpected(expr IRExpr, expected string, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
@@ -15362,8 +15621,9 @@ func selfhost_compiler_compiler_checkStructSelectorField(expr IRExpr, receiverTy
 }
 
 func selfhost_compiler_compiler_checkLetDeclaredType(name string, value IRExpr, expected string, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
+	shouldCheck := expected != "" && expected != "?"
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
-	mismatch := expected != "?" && selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
+	mismatch := shouldCheck && selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
 		if mismatch {
 			return func() []string {
@@ -17002,10 +17262,26 @@ func selfhost_compiler_compiler_inferCompilerBinaryType(expr IRExpr, callables [
 
 func selfhost_compiler_compiler_inferCompilerBinaryValueType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	return func() string {
-		if selfhost_compiler_compiler_compilerArithmeticOp(expr.op) {
-			return selfhost_compiler_compiler_inferCompilerNumericBinaryType(expr, callables, bindings)
+		if expr.op == "+" {
+			return selfhost_compiler_compiler_inferCompilerPlusType(expr, callables, bindings)
 		}
-		return selfhost_compiler_compiler_inferCompilerBitwiseBinaryType(expr, callables, bindings)
+		return func() string {
+			if selfhost_compiler_compiler_compilerArithmeticOp(expr.op) {
+				return selfhost_compiler_compiler_inferCompilerNumericBinaryType(expr, callables, bindings)
+			}
+			return selfhost_compiler_compiler_inferCompilerBitwiseBinaryType(expr, callables, bindings)
+		}()
+	}()
+}
+
+func selfhost_compiler_compiler_inferCompilerPlusType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
+	left := selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
+	right := selfhost_compiler_compiler_inferCompilerExprType(expr.children[1], callables, bindings)
+	return func() string {
+		if left == "String" || right == "String" {
+			return "String"
+		}
+		return selfhost_compiler_compiler_inferCompilerNumericPairType(left, right)
 	}()
 }
 
@@ -17406,6 +17682,10 @@ func selfhost_compiler_compiler_lowerCompilerSource(source string) IRFile {
 
 func selfhost_compiler_compiler_lowerCompilerSourceWithCore(source string, coreFiles []SourceFile) IRFile {
 	return lowerParsed(selfhost_compiler_compiler_expandCompilerMacros(parse(source), selfhost_compiler_compiler_compilerCoreMacroBindings(coreFiles, 0, []CompilerModuleMacroBinding{})))
+}
+
+func selfhost_compiler_compiler_lowerCompilerSourceWithCoreAndPath(source string, sourcePath string, coreFiles []SourceFile) IRFile {
+	return withIRFileSourcePath(selfhost_compiler_compiler_lowerCompilerSourceWithCore(source, coreFiles), sourcePath)
 }
 
 func selfhost_compiler_compiler_lowerCompilerSourceWithPath(source string, sourcePath string) IRFile {

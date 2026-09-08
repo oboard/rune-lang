@@ -753,14 +753,21 @@ execute() -> Int => 1
 }
 
 ? "selfhost compiler expands json object macro" {
+  core := [SourceFile {
+    path: "core/json/json.rn",
+    source: `@syntax
+
+#object(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
+`
+  }]
   source := `#json.object
 Document: {
   name: String
 }
 `
-  go := compileGo(source)
-  ts := compileTypeScript(source)
-  mbt := compileMoonBit(source)
+  go := compileGoWithCore(source, core)
+  ts := compileTypeScriptWithCore(source, core)
+  mbt := compileMoonBitWithCore(source, core)
   @io.println(go.output)
   @io.println(ts.output)
   @io.println(mbt.output)

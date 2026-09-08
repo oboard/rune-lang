@@ -56,13 +56,7 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.CompileTimeExpr:
 		return f.postfixReceiverExpr(e.Expr) + "'"
 	case *ast.BinaryExpr:
-		if f.isPatternPredicateBitOr(e) {
-			return strings.Join(f.patternPredicateBitOrParts(e), " | ")
-		}
-		if e.Op == lexer.DotDotEqual {
-			return fmt.Sprintf("%s..=%s", f.exprWithParens(e.Left), f.exprWithParens(e.Right))
-		}
-		return fmt.Sprintf("%s %s %s", f.exprWithParens(e.Left), e.Op, f.exprWithParens(e.Right))
+		return f.binaryExpr(e)
 	case *ast.TernaryExpr:
 		return f.ternaryExpr(e)
 	case *ast.AssignExpr:
@@ -125,6 +119,68 @@ func (f *formatter) expr(expr ast.Expr) string {
 		return "."
 	default:
 		return ""
+	}
+}
+
+func (f *formatter) binaryExpr(expr *ast.BinaryExpr) string {
+	if f.isPatternPredicateBitOr(expr) {
+		return strings.Join(f.patternPredicateBitOrParts(expr), " | ")
+	}
+	if expr.Op == lexer.DotDotEqual {
+		return fmt.Sprintf("%s..=%s", f.exprWithParens(expr.Left), f.exprWithParens(expr.Right))
+	}
+	if expr.Op == lexer.Plus {
+		return f.plusExpr(expr)
+	}
+
+	left := f.exprWithParens(expr.Left)
+	right := f.exprWithParens(expr.Right)
+	single := fmt.Sprintf("%s %s %s", left, expr.Op, right)
+	if !f.isBreakableSymbolicBinaryExpr(expr) || len(f.indentString(f.indent))+len(single) <= maxLineLength {
+		return single
+	}
+	return "(" + left + "\n" + f.indentString(f.indent+1) + expr.Op.String() + " " + right + ")"
+}
+
+func (f *formatter) plusExpr(expr *ast.BinaryExpr) string {
+	parts := f.plusExprParts(expr)
+	single := strings.Join(parts, " + ")
+	if len(f.indentString(f.indent))+len(single) <= maxLineLength {
+		return single
+	}
+
+	indent := f.indentString(f.indent + 1)
+	lines := []string{indent + parts[0]}
+	for _, part := range parts[1:] {
+		candidate := lines[len(lines)-1] + " + " + part
+		if len(candidate) <= maxLineLength {
+			lines[len(lines)-1] = candidate
+			continue
+		}
+		lines = append(lines, indent+"+ "+part)
+	}
+	return "(\n" + strings.Join(lines, "\n") + "\n" + f.indentString(f.indent) + ")"
+}
+
+func (f *formatter) plusExprParts(expr ast.Expr) []string {
+	binary, ok := expr.(*ast.BinaryExpr)
+	if !ok || binary.Op != lexer.Plus {
+		return []string{f.exprWithParens(expr)}
+	}
+	parts := f.plusExprParts(binary.Left)
+	return append(parts, f.exprWithParens(binary.Right))
+}
+
+func (f *formatter) isBreakableSymbolicBinaryExpr(expr *ast.BinaryExpr) bool {
+	switch expr.Op {
+	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent,
+		lexer.EqualEqual, lexer.BangEqual, lexer.Less, lexer.LessEqual,
+		lexer.Greater, lexer.GreaterEqual, lexer.AndAnd, lexer.OrOr,
+		lexer.QuestionQuestion, lexer.BitAnd, lexer.BitOr, lexer.BitXor,
+		lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return true
+	default:
+		return false
 	}
 }
 

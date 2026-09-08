@@ -133,11 +133,20 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			continue
 		}
 
+		if p.check(lexer.Newline) && p.expressionNesting > 0 {
+			saved := p.curr
+			p.skipNewlines()
+			if precedence(p.peek().Kind) < minPrec {
+				p.curr = saved
+				break
+			}
+		}
 		prec := precedence(p.peek().Kind)
 		if prec < minPrec {
 			break
 		}
 		op := p.advance()
+		p.skipNewlines()
 		right := p.parseExpression(prec + 1)
 		left = &ast.BinaryExpr{Left: left, Op: op.Kind, Right: right, Pos: left.Position()}
 	}
@@ -390,7 +399,9 @@ func (p *Parser) parsePrimary() ast.Expr {
 	case lexer.LParen:
 		start := p.advance()
 		p.skipNewlines()
+		p.expressionNesting++
 		expr := p.parseExpression(1)
+		p.expressionNesting--
 		p.skipNewlines()
 		if p.match(lexer.Comma) {
 			elems := []ast.Expr{expr}

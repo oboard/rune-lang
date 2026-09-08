@@ -99,7 +99,15 @@ inferExpectedLetBinding(
   name: String,
   expected: String
 ) -> IRExpr => (
-  ((((expr.kind == ExprKind.Let) && (expr.name == name)) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Array)) && (expr.children[0].children.length() == 0) ? inferSetLetType(expr, expected)
+  (((expr.kind == ExprKind.Let) && (expr.name == name)) && (expr.children.length() > 0)) ? inferExpectedLetBindingValue(expr, expected)
+    : expr
+)
+
+inferExpectedLetBindingValue(
+  expr: IRExpr,
+  expected: String
+) -> IRExpr => (
+  (expr.children[0].kind == ExprKind.Array) && (expr.children[0].children.length() == 0) ? inferSetLetType(expr, expected)
     : expr
 )
 
@@ -248,10 +256,7 @@ inferLetStep(
 ) -> InferBlockOut => {
   letExpr := children[index]
   value := inferAnnotate(letExpr.children[0], structs, enums, bindings)
-  bindingType := (
-    letExpr.value == "" ? inferExprType(value)
-      : letExpr.value
-  )
+  bindingType := inferLetBindingType(letExpr, value)
   newBindings := inferAddBinding(bindings, letExpr.name, bindingType)
   next := inferBlockStatements(children, structs, enums, newBindings, index + 1, [..out, inferLetRebuildTyped(letExpr, value, bindingType)])
   next
@@ -270,6 +275,15 @@ inferPlainStep(
   inferBlockStatements(children, structs, enums, bindings, index + 1, [..out, statement])
 }
 
+inferLetBindingType(
+  letExpr: IRExpr,
+  value: IRExpr
+) -> String => {
+  declared := letExpr.value
+  declared == "" ? inferExprType(value)
+    : declared
+}
+
 inferLetRebuildTyped(
   expr: IRExpr,
   value: IRExpr,
@@ -277,6 +291,10 @@ inferLetRebuildTyped(
 ) -> IRExpr => {
   ..expr,
   kind: ExprKind.Let,
+  text: (
+    expr.value == "" ? ""
+      : expr.text
+  ),
   value: typeName,
   children: [value]
 }

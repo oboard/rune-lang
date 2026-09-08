@@ -487,6 +487,7 @@ inferIRExprText(
   expr: ParsedExpr,
   children: Array[IRExpr]
 ) -> String => expr.kind {
+  ExprKind.Let => expr.value
   ExprKind.Binary => inferIRBinaryText(expr, children)
   ExprKind.Call => inferIRCallText(children)
   ExprKind.String => "String"

@@ -4,6 +4,7 @@ set -euo pipefail
 # Regenerates the self-hosted bootstrap artifacts checked into cmd/rune/.
 #
 #   selfhost_compiler_gen.go  <- rune go ./selfhost/compiler/compiler.rn
+#                                 (includes selfhost/format/format.rn)
 #   selfhost_cli_gen.go       <- rune go ./selfhost/cli/cli.rn
 #
 # This is self-bootstrapping: the `rune go` subcommand uses the currently built
@@ -54,5 +55,5 @@ go build -o "$BIN_DIR/rune" ./cmd/rune
 
 echo
 echo "Generated bootstrap artifacts are up to date:"
-echo "  cmd/rune/selfhost_compiler_gen.go"
+echo "  cmd/rune/selfhost_compiler_gen.go (includes formatter)"
 echo "  cmd/rune/selfhost_cli_gen.go"

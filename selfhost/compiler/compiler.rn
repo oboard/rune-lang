@@ -1,5 +1,6 @@
 @"../ir/ir.rn"
 @"../infer/infer.rn"
+@"../format/format.rn"
 @"./common.rn"
 @"./go.rn"
 @"./mbt.rn"
@@ -44,13 +45,28 @@ CompilerNamespaceAlias: {
   source: String
 ) -> CompileResult => compile(source, "ts")
 
++ compileTypeScriptWithCore(
+  source: String,
+  coreFiles: Array[SourceFile]
+) -> CompileResult => compileWithCore(source, "ts", coreFiles)
+
 + compileGo(
   source: String
 ) -> CompileResult => compile(source, "go")
 
++ compileGoWithCore(
+  source: String,
+  coreFiles: Array[SourceFile]
+) -> CompileResult => compileWithCore(source, "go", coreFiles)
+
 + compileMoonBit(
   source: String
 ) -> CompileResult => compile(source, "mbt")
+
++ compileMoonBitWithCore(
+  source: String,
+  coreFiles: Array[SourceFile]
+) -> CompileResult => compileWithCore(source, "mbt", coreFiles)
 
 + compileDeclarations(
   source: String
@@ -69,7 +85,7 @@ CompilerNamespaceAlias: {
   source: String,
   sourcePath: String,
   coreFiles: Array[SourceFile]
-) -> CompileResult => checkFile(withIRFileSourcePath(lowerCompilerSourceWithCore(source, coreFiles), sourcePath))
+) -> CompileResult => checkFile(lowerCompilerSourceWithCoreAndPath(source, sourcePath, coreFiles))
 
 + compile(
   source: String,
@@ -78,6 +94,12 @@ CompilerNamespaceAlias: {
   file := lowerCompilerSource(source)
   compileFile(file, target)
 }
+
++ compileWithCore(
+  source: String,
+  target: String,
+  coreFiles: Array[SourceFile]
+) -> CompileResult => compileFile(lowerCompilerSourceWithCore(source, coreFiles), target)
 
 + compileTypeScriptFiles(
   files: Array[SourceFile]
@@ -2246,7 +2268,8 @@ checkLetValueExpr(
 ) -> Array[String] => {
   value := expr.children[0]
   checked := checkExprExpected(value, expr.value, structs, callables, errors, bindings)
-  checkLetDeclaredType(expr.name, value, expr.value, structs, callables, bindings, checked)
+  expr.text == "" ? checked
+    : checkLetDeclaredType(expr.name, value, expr.value, structs, callables, bindings, checked)
 }
 
 checkExprExpected(
@@ -2398,8 +2421,9 @@ checkLetDeclaredType(
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => {
+  shouldCheck := (expected != "") && (expected != "?")
   actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
-  mismatch := ((expected != "?") && compilerShouldCheckArgType(expected, actual)) && (compilerTypesCompatible(expected, actual) == false)
+  mismatch := shouldCheck && compilerShouldCheckArgType(expected, actual) && (compilerTypesCompatible(expected, actual) == false)
   mismatch ? [..errors, (((("binding \"" + name) + "\" has type ") + actual) + ", expected ") + expected]
     : errors
 }
@@ -3885,8 +3909,24 @@ inferCompilerBinaryValueType(
   expr: IRExpr,
   callables: Array[CompilerCallable],
   bindings: Array[CompilerTypeBinding]
-) -> String => compilerArithmeticOp(expr.op) ? inferCompilerNumericBinaryType(expr, callables, bindings)
-  : inferCompilerBitwiseBinaryType(expr, callables, bindings)
+) -> String => (
+  expr.op == "+" ? inferCompilerPlusType(expr, callables, bindings)
+    : (
+      compilerArithmeticOp(expr.op) ? inferCompilerNumericBinaryType(expr, callables, bindings)
+        : inferCompilerBitwiseBinaryType(expr, callables, bindings)
+    )
+)
+
+inferCompilerPlusType(
+  expr: IRExpr,
+  callables: Array[CompilerCallable],
+  bindings: Array[CompilerTypeBinding]
+) -> String => {
+  left := inferCompilerExprType(expr.children[0], callables, bindings)
+  right := inferCompilerExprType(expr.children[1], callables, bindings)
+  ((left == "String") || (right == "String")) ? "String"
+    : inferCompilerNumericPairType(left, right)
+}
 
 inferCompilerNumericBinaryType(
   expr: IRExpr,
@@ -4278,6 +4318,12 @@ lowerCompilerSourceWithCore(
   source: String,
   coreFiles: Array[SourceFile]
 ) -> IRFile => lowerParsed(expandCompilerMacros(parse(source), compilerCoreMacroBindings(coreFiles, 0, [])))
+
+lowerCompilerSourceWithCoreAndPath(
+  source: String,
+  sourcePath: String,
+  coreFiles: Array[SourceFile]
+) -> IRFile => withIRFileSourcePath(lowerCompilerSourceWithCore(source, coreFiles), sourcePath)
 
 lowerCompilerSourceWithPath(
   source: String,
