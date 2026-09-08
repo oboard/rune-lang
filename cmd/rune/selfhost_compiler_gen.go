@@ -12846,11 +12846,6 @@ func __discoverSourcesPath(root string) runeTask[runeResult[[]SourceFile, *runeE
 	})
 }
 
-func selfhost_compiler_compiler_discoverSourceImportPaths(file SourceFile) []string {
-	parsed := selfhost_compiler_compiler_expandCompilerMacros(parse(file.source))
-	return selfhost_compiler_compiler_appendDiscoverImportPaths([]string{}, file.path, parsed.imports, 0)
-}
-
 func selfhost_compiler_compiler_appendDiscoverImportPaths(pending []string, basePath string, imports []ParsedImport, index int) []string {
 	return func() []string {
 		if index >= len(imports) {
@@ -12864,17 +12859,15 @@ func selfhost_compiler_compiler_appendDiscoverImportPath(pending []string, baseP
 	importDecl := imports[index]
 	skip := importDecl.go_ || importDecl.module
 	return func() []string {
-		switch {
-		case skip == true:
+		if skip {
 			return selfhost_compiler_compiler_appendDiscoverImportPaths(pending, basePath, imports, index+1)
-		default:
-			return selfhost_compiler_compiler_appendDiscoverImportPaths(func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, pending...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, importDecl.path))
-				return __rune_spread_out
-			}(), basePath, imports, index+1)
 		}
+		return selfhost_compiler_compiler_appendDiscoverImportPaths(func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, pending...)
+			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, importDecl.path))
+			return __rune_spread_out
+		}(), basePath, imports, index+1)
 	}()
 }
 
@@ -12989,12 +12982,10 @@ func selfhost_compiler_compiler_checkTypeScriptTargetFileErrors(file IRFile) []s
 			return []string{"TypeScript backend does not support Go package imports"}
 		default:
 			return func() []string {
-				switch {
-				case selfhost_compiler_compiler_fileUsesGoFFI(file) == true:
+				if selfhost_compiler_compiler_fileUsesGoFFI(file) {
 					return []string{"TypeScript backend does not support @go FFI"}
-				default:
-					return []string{}
 				}
+				return []string{}
 			}()
 		}
 	}()
@@ -13003,12 +12994,10 @@ func selfhost_compiler_compiler_checkTypeScriptTargetFileErrors(file IRFile) []s
 func selfhost_compiler_compiler_checkGoTargetFileErrors(file IRFile) []string {
 	hasTypeScriptImports := len(file.tsImports) > 0
 	return func() []string {
-		switch {
-		case hasTypeScriptImports == true:
+		if hasTypeScriptImports {
 			return []string{"Go backend does not support TypeScript imports"}
-		default:
-			return []string{}
 		}
+		return []string{}
 	}()
 }
 
@@ -13029,17 +13018,15 @@ func selfhost_compiler_compiler_fileUsesGoFFI(file IRFile) bool {
 
 func selfhost_compiler_compiler_compilerAppendErrorIf(errors []string, condition bool, message string) []string {
 	return func() []string {
-		switch {
-		case condition == true:
+		if condition {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, message)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -13048,25 +13035,20 @@ func selfhost_compiler_compiler_fileHasGoImports(file IRFile) bool {
 }
 
 func selfhost_compiler_compiler_fileHasGoImportsAt(imports []IRImport, index int) bool {
-	done := index >= len(imports)
 	return func() bool {
-		switch {
-		case done == true:
+		if index >= len(imports) {
 			return false
-		default:
-			return selfhost_compiler_compiler_fileHasGoImportAt(imports, index)
 		}
+		return selfhost_compiler_compiler_fileHasGoImportAt(imports, index)
 	}()
 }
 
 func selfhost_compiler_compiler_fileHasGoImportAt(imports []IRImport, index int) bool {
 	return func() bool {
-		switch {
-		case imports[index].go_ == true:
+		if imports[index].go_ {
 			return true
-		default:
-			return selfhost_compiler_compiler_fileHasGoImportsAt(imports, index+1)
 		}
+		return selfhost_compiler_compiler_fileHasGoImportsAt(imports, index+1)
 	}()
 }
 
@@ -13114,28 +13096,24 @@ func selfhost_compiler_compiler_checkConstantErrors(constant IRConst, structs []
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(constant.value, structs, callables, bindings)
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(constant.typeName, actual) && selfhost_compiler_compiler_compilerTypesCompatible(constant.typeName, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, checked...)
 				__rune_spread_out = append(__rune_spread_out, "constant "+constant.name+" has type "+actual+", expected "+constant.typeName)
 				return __rune_spread_out
 			}()
-		default:
-			return checked
 		}
+		return checked
 	}()
 }
 
 func selfhost_compiler_compiler_checkTopLevelFunctionErrors(fn IRFunction, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	return func() []string {
-		switch {
-		case fn.macro == true:
+		if fn.macro {
 			return selfhost_compiler_compiler_checkMacroFunctionReturn(fn, structs, callables, errors, selfhost_compiler_compiler_compilerSourcePathBindings(fn.sourcePath, bindings))
-		default:
-			return selfhost_compiler_compiler_checkFunctionErrors(fn, structs, callables, errors, selfhost_compiler_compiler_compilerSourcePathBindings(fn.sourcePath, bindings))
 		}
+		return selfhost_compiler_compiler_checkFunctionErrors(fn, structs, callables, errors, selfhost_compiler_compiler_compilerSourcePathBindings(fn.sourcePath, bindings))
 	}()
 }
 
@@ -13155,12 +13133,10 @@ func selfhost_compiler_compiler_checkMacroFunctionReturn(fn IRFunction, structs 
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(fn.body, structs, callables, selfhost_compiler_compiler_compilerFunctionBindings(fn.params, bindings))
 	shouldCheck := expected != "" && expected != "Dynamic" && actual != ""
 	return func() []string {
-		switch {
-		case shouldCheck == true:
+		if shouldCheck {
 			return selfhost_compiler_compiler_checkFunctionReturnType(fn.name, expected, actual, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -13200,29 +13176,25 @@ func selfhost_compiler_compiler_checkDuplicateDeclarations(file IRFile, errors [
 func selfhost_compiler_compiler_checkDuplicateStructTypeNames(structs []IRStructType, index int, errors []string) []string {
 	done := index >= len(structs)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateStructTypeName(structs, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateStructTypeName(structs, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructTypeName(structs []IRStructType, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, structs[index].name, index+1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate type \""+structs[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateStructTypeNames(structs, index+1, next)
 }
@@ -13230,29 +13202,25 @@ func selfhost_compiler_compiler_checkDuplicateStructTypeName(structs []IRStructT
 func selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums []IREnumType, structs []IRStructType, index int, errors []string) []string {
 	done := index >= len(enums)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums, structs, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums, structs, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums []IREnumType, structs []IRStructType, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, enums[index].name, index+1) || selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, enums[index].name, 0)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate type \""+enums[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums, structs, index+1, next)
 }
@@ -13260,29 +13228,25 @@ func selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums []IREnumType, s
 func selfhost_compiler_compiler_checkDuplicateFunctionNames(functions []IRFunction, index int, errors []string) []string {
 	done := index >= len(functions)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateFunctionName(functions, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateFunctionName(functions, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateFunctionName(functions []IRFunction, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, functions[index].name, functions[index].macro, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate function \""+functions[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateFunctionNames(functions, index+1, next)
 }
@@ -13290,29 +13254,25 @@ func selfhost_compiler_compiler_checkDuplicateFunctionName(functions []IRFunctio
 func selfhost_compiler_compiler_checkDuplicateConstantNames(constants []IRConst, index int, errors []string) []string {
 	done := index >= len(constants)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateConstantName(constants, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateConstantName(constants, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateConstantName(constants []IRConst, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, constants[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate declaration \""+constants[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateConstantNames(constants, index+1, next)
 }
@@ -13325,29 +13285,25 @@ func selfhost_compiler_compiler_checkDuplicateStructMembers(typeDecl IRStructTyp
 func selfhost_compiler_compiler_checkDuplicateStructFields(fields []IRField, index int, errors []string) []string {
 	done := index >= len(fields)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateStructField(fields, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateStructField(fields, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructField(fields []IRField, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, fields[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate field \""+fields[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateStructFields(fields, index+1, next)
 }
@@ -13355,29 +13311,25 @@ func selfhost_compiler_compiler_checkDuplicateStructField(fields []IRField, inde
 func selfhost_compiler_compiler_checkDuplicateStructMethods(typeName string, methods []IRFunction, index int, errors []string) []string {
 	done := index >= len(methods)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateStructMethod(typeName, methods, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateStructMethod(typeName, methods, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructMethod(typeName string, methods []IRFunction, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate method "+typeName+"."+methods[index].name)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateStructMethods(typeName, methods, index+1, next)
 }
@@ -13390,29 +13342,25 @@ func selfhost_compiler_compiler_checkDuplicateEnumMembers(typeDecl IREnumType, e
 func selfhost_compiler_compiler_checkDuplicateEnumConstructors(enumName string, members []IREnumMember, index int, errors []string) []string {
 	done := index >= len(members)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName, members, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName, members, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName string, members []IREnumMember, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, members[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate enum member "+enumName+"."+members[index].name)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateEnumConstructors(enumName, members, index+1, next)
 }
@@ -13420,29 +13368,25 @@ func selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName string, m
 func selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName string, methods []IRFunction, index int, errors []string) []string {
 	done := index >= len(methods)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateEnumMethod(enumName, methods, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateEnumMethod(enumName, methods, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumMethod(enumName string, methods []IRFunction, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate method "+enumName+"."+methods[index].name)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName, methods, index+1, next)
 }
@@ -13521,29 +13465,25 @@ func selfhost_compiler_compiler_checkFunctionDeclarationTypesWithGenerics(fn IRF
 func selfhost_compiler_compiler_checkDuplicateParams(params []IRParam, index int, errors []string) []string {
 	done := index >= len(params)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkDuplicateParam(params, index, errors)
 		}
+		return selfhost_compiler_compiler_checkDuplicateParam(params, index, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkDuplicateParam(params []IRParam, index int, errors []string) []string {
 	duplicate := selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, params[index].name, index-1)
 	next := func() []string {
-		switch {
-		case duplicate == true:
+		if duplicate {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "duplicate parameter \""+params[index].name+"\"")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkDuplicateParams(params, index+1, next)
 }
@@ -13561,24 +13501,20 @@ func selfhost_compiler_compiler_checkCompilerTypeName(typeName string, knownType
 	normalized := selfhost_compiler_compiler_compilerNormalizeTypeName(typeName)
 	shouldSkip := selfhost_compiler_compiler_compilerShouldSkipTypeName(normalized)
 	return func() []string {
-		switch {
-		case shouldSkip == true:
+		if shouldSkip {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkCompilerNamedType(normalized, knownTypes, generics, errors)
 		}
+		return selfhost_compiler_compiler_checkCompilerNamedType(normalized, knownTypes, generics, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerNormalizeTypeName(typeName string) string {
 	nullable := strings.HasSuffix(typeName, "?")
 	return func() string {
-		switch {
-		case nullable == true:
+		if nullable {
 			return selfhost_compiler_compiler_compilerNormalizeTypeName(func() string { runes := []rune(typeName); return string(runes[0 : len([]rune(typeName))-1]) }())
-		default:
-			return typeName
 		}
+		return typeName
 	}()
 }
 
@@ -13590,17 +13526,15 @@ func selfhost_compiler_compiler_checkCompilerNamedType(typeName string, knownTyp
 	base := selfhost_compiler_compiler_compilerTypeBase(typeName)
 	known := selfhost_compiler_compiler_compilerContains(knownTypes, base) || selfhost_compiler_compiler_compilerContains(generics, base)
 	return func() []string {
-		switch {
-		case known == true:
+		if known {
 			return selfhost_compiler_compiler_checkCompilerTypeArgs(typeName, knownTypes, generics, errors)
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "unknown type \""+base+"\"")
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "unknown type \""+base+"\"")
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -13608,24 +13542,20 @@ func selfhost_compiler_compiler_checkCompilerTypeArgs(typeName string, knownType
 	inner := selfhost_compiler_compiler_compilerGenericInner(typeName)
 	empty := inner == ""
 	return func() []string {
-		switch {
-		case empty == true:
+		if empty {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkCompilerTypeArgList(func() []string { parts := strings.Split(inner, ","); return parts }(), knownTypes, generics, errors, 0)
 		}
+		return selfhost_compiler_compiler_checkCompilerTypeArgList(func() []string { parts := strings.Split(inner, ","); return parts }(), knownTypes, generics, errors, 0)
 	}()
 }
 
 func selfhost_compiler_compiler_checkCompilerTypeArgList(args []string, knownTypes []string, generics []string, errors []string, index int) []string {
 	done := index >= len(args)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkCompilerTypeArgList(args, knownTypes, generics, selfhost_compiler_compiler_checkCompilerTypeName(strings.TrimSpace(args[index]), knownTypes, generics, errors), index+1)
 		}
+		return selfhost_compiler_compiler_checkCompilerTypeArgList(args, knownTypes, generics, selfhost_compiler_compiler_checkCompilerTypeName(strings.TrimSpace(args[index]), knownTypes, generics, errors), index+1)
 	}()
 }
 
@@ -13633,12 +13563,10 @@ func selfhost_compiler_compiler_compilerGenericInner(typeName string) string {
 	open := strings.Index(typeName, "[")
 	complete := open >= 0 && strings.HasSuffix(typeName, "]")
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return func() string { runes := []rune(typeName); return string(runes[open+1 : len([]rune(typeName))-1]) }()
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -13717,12 +13645,10 @@ func selfhost_compiler_compiler_compilerMethodCallable(typeName string, method I
 
 func selfhost_compiler_compiler_compilerMethodCallableName(typeName string, method IRFunction) string {
 	return func() string {
-		switch {
-		case method.static == true:
+		if method.static {
 			return selfhost_compiler_compiler_compilerStaticMethodName(typeName, method.name)
-		default:
-			return selfhost_compiler_compiler_compilerInstanceMethodName(typeName, method.name)
 		}
+		return selfhost_compiler_compiler_compilerInstanceMethodName(typeName, method.name)
 	}()
 }
 
@@ -13745,12 +13671,10 @@ func selfhost_compiler_compiler_checkMethodErrors(typeName string, method IRFunc
 
 func selfhost_compiler_compiler_compilerMethodBaseBindings(typeName string, method IRFunction, baseBindings []CompilerTypeBinding) []CompilerTypeBinding {
 	return func() []CompilerTypeBinding {
-		switch {
-		case method.static == true:
+		if method.static {
 			return baseBindings
-		default:
-			return selfhost_compiler_compiler_addCompilerTypeBinding(baseBindings, "this", typeName)
 		}
+		return selfhost_compiler_compiler_addCompilerTypeBinding(baseBindings, "this", typeName)
 	}()
 }
 
@@ -13807,17 +13731,15 @@ func selfhost_compiler_compiler_checkExpr(expr IRExpr, structs []IRStructType, c
 
 func selfhost_compiler_compiler_checkIdentifierExpr(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerIdentifierDefined(expr, callables, bindings) == true:
+		if selfhost_compiler_compiler_compilerIdentifierDefined(expr, callables, bindings) {
 			return errors
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "undefined name \""+expr.name+"\"")
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "undefined name \""+expr.name+"\"")
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -13869,12 +13791,10 @@ func selfhost_compiler_compiler_checkCallExpr(expr IRExpr, structs []IRStructTyp
 func selfhost_compiler_compiler_checkCallArgExprs(args []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	done := index >= len(args)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkCallArgExprs(args, index+1, structs, callables, selfhost_compiler_compiler_checkExpr(args[index], structs, callables, errors, bindings), bindings)
 		}
+		return selfhost_compiler_compiler_checkCallArgExprs(args, index+1, structs, callables, selfhost_compiler_compiler_checkExpr(args[index], structs, callables, errors, bindings), bindings)
 	}()
 }
 
@@ -13885,12 +13805,10 @@ func selfhost_compiler_compiler_checkSelectorValueExpr(expr IRExpr, structs []IR
 func selfhost_compiler_compiler_checkSelectorReceiverValueExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	hasReceiver := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_checkSelectorReceiverValue(expr, expr.children[0], structs, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -13898,12 +13816,10 @@ func selfhost_compiler_compiler_checkSelectorReceiverValue(expr IRExpr, receiver
 	staticTypeReceiver := selfhost_compiler_compiler_compilerStaticSelectorReceiver(expr, receiver)
 	skipReceiver := staticTypeReceiver || receiver.kind == ExprKind_At
 	return func() []string {
-		switch {
-		case skipReceiver == true:
+		if skipReceiver {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkExpr(receiver, structs, callables, errors, bindings)
 		}
+		return selfhost_compiler_compiler_checkExpr(receiver, structs, callables, errors, bindings)
 	}()
 }
 
@@ -13921,12 +13837,10 @@ func selfhost_compiler_compiler_compilerStaticSelectorReceiver(expr IRExpr, rece
 func selfhost_compiler_compiler_compilerLooksLikeTypeName(name string) bool {
 	empty := len([]rune(name)) == 0
 	return func() bool {
-		switch {
-		case empty == true:
+		if empty {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerUppercaseChar([]rune(name)[0])
 		}
+		return selfhost_compiler_compiler_compilerUppercaseChar([]rune(name)[0])
 	}()
 }
 
@@ -13937,12 +13851,10 @@ func selfhost_compiler_compiler_compilerUppercaseChar(ch rune) bool {
 func selfhost_compiler_compiler_checkLambdaExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	hasBody := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case hasBody == true:
+		if hasBody {
 			return selfhost_compiler_compiler_checkExpr(expr.children[0], structs, callables, errors, selfhost_compiler_compiler_compilerFunctionBindings(expr.params, bindings))
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -13977,12 +13889,10 @@ func selfhost_compiler_compiler_compilerObjectSpreadType(members []IRExpr, index
 func selfhost_compiler_compiler_compilerObjectTypeFields(members []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, out string) string {
 	done := index >= len(members)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return out + "}"
-		default:
-			return selfhost_compiler_compiler_compilerObjectTypeMember(members, index, structs, callables, bindings, out)
 		}
+		return selfhost_compiler_compiler_compilerObjectTypeMember(members, index, structs, callables, bindings, out)
 	}()
 }
 
@@ -14025,12 +13935,10 @@ func selfhost_compiler_compiler_compilerObjectTypeNamedMember(members []IRExpr, 
 func selfhost_compiler_compiler_checkObjectMembers(members []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, objectType string) []string {
 	done := index >= len(members)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkObjectMember(members, index, structs, callables, errors, bindings, objectType)
 		}
+		return selfhost_compiler_compiler_checkObjectMember(members, index, structs, callables, errors, bindings, objectType)
 	}()
 }
 
@@ -14076,12 +13984,10 @@ func selfhost_compiler_compiler_checkObjectSpreadExpr(member IRExpr, structs []I
 func selfhost_compiler_compiler_checkObjectMethodExpr(method IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, objectType string) []string {
 	hasBody := len(method.children) > 0
 	return func() []string {
-		switch {
-		case hasBody == true:
+		if hasBody {
 			return selfhost_compiler_compiler_checkExpr(method.children[0], structs, callables, errors, selfhost_compiler_compiler_compilerFunctionBindings(method.params, selfhost_compiler_compiler_addCompilerTypeBinding(bindings, "this", objectType)))
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14092,12 +13998,10 @@ func selfhost_compiler_compiler_checkAssignExpr(expr IRExpr, structs []IRStructT
 func selfhost_compiler_compiler_checkAssignExpressionExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkAssignTargetExpr(expr.children[0], expr.children[1], structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14145,17 +14049,15 @@ func selfhost_compiler_compiler_checkTargetAssignExpr(target IRExpr, value IRExp
 func selfhost_compiler_compiler_checkAssignmentType(expected string, actual string, errors []string) []string {
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "assignment has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14166,12 +14068,10 @@ func selfhost_compiler_compiler_checkPatternBlockExpr(expr IRExpr, structs []IRS
 func selfhost_compiler_compiler_checkMatchExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	hasSubject := len(expr.children) > 0
 	checked := func() []string {
-		switch {
-		case hasSubject == true:
+		if hasSubject {
 			return selfhost_compiler_compiler_checkExpr(expr.children[0], structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkPatternBlockBranches(expr.children, 1, structs, callables, checked, bindings, "")
 }
@@ -14179,12 +14079,10 @@ func selfhost_compiler_compiler_checkMatchExpr(expr IRExpr, structs []IRStructTy
 func selfhost_compiler_compiler_checkPatternBlockBranches(branches []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, expected string) []string {
 	done := index >= len(branches)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkPatternBlockBranch(branches, index, structs, callables, errors, bindings, expected)
 		}
+		return selfhost_compiler_compiler_checkPatternBlockBranch(branches, index, structs, callables, errors, bindings, expected)
 	}()
 }
 
@@ -14192,12 +14090,10 @@ func selfhost_compiler_compiler_checkPatternBlockBranch(branches []IRExpr, index
 	branch := branches[index]
 	complete := len(branch.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkPatternBlockBranchValue(branches, index, branch.children[1], structs, callables, errors, bindings, expected)
-		default:
-			return selfhost_compiler_compiler_checkPatternBlockBranches(branches, index+1, structs, callables, errors, bindings, expected)
 		}
+		return selfhost_compiler_compiler_checkPatternBlockBranches(branches, index+1, structs, callables, errors, bindings, expected)
 	}()
 }
 
@@ -14223,29 +14119,25 @@ func selfhost_compiler_compiler_compilerNextPatternBranchType(expected string, a
 func selfhost_compiler_compiler_checkPatternBranchTypeError(expected string, actual string, errors []string) []string {
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "pattern branch returns "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkObjectDestructureExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	hasValue := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case hasValue == true:
+		if hasValue {
 			return selfhost_compiler_compiler_checkObjectDestructureValue(expr, structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14266,17 +14158,15 @@ func selfhost_compiler_compiler_checkObjectDestructureSourceType(params []IRPara
 				typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(sourceType), 0)
 				found := typeDecl.name != ""
 				return func() []string {
-					switch {
-					case found == true:
+					if found {
 						return selfhost_compiler_compiler_checkObjectDestructureFields(params, 0, sourceType, typeDecl.fields, errors)
-					default:
-						return func() []string {
-							__rune_spread_out := []string{}
-							__rune_spread_out = append(__rune_spread_out, errors...)
-							__rune_spread_out = append(__rune_spread_out, "type "+sourceType+" has no fields")
-							return __rune_spread_out
-						}()
 					}
+					return func() []string {
+						__rune_spread_out := []string{}
+						__rune_spread_out = append(__rune_spread_out, errors...)
+						__rune_spread_out = append(__rune_spread_out, "type "+sourceType+" has no fields")
+						return __rune_spread_out
+					}()
 				}()
 			}()
 		}
@@ -14286,12 +14176,10 @@ func selfhost_compiler_compiler_checkObjectDestructureSourceType(params []IRPara
 func selfhost_compiler_compiler_checkObjectDestructureFields(params []IRParam, index int, sourceType string, fields []IRField, errors []string) []string {
 	done := index >= len(params)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkObjectDestructureField(params, index, sourceType, fields, errors)
 		}
+		return selfhost_compiler_compiler_checkObjectDestructureField(params, index, sourceType, fields, errors)
 	}()
 }
 
@@ -14330,36 +14218,30 @@ func selfhost_compiler_compiler_checkObjectDestructureField(params []IRParam, in
 func selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params []IRParam, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerDestructureFieldAppearsBeforeAt(params, name, index)
 		}
+		return selfhost_compiler_compiler_compilerDestructureFieldAppearsBeforeAt(params, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerDestructureFieldAppearsBeforeAt(params []IRParam, name string, index int) bool {
 	matched := params[index].typeName == name
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, name, index-1)
 		}
+		return selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, name, index-1)
 	}()
 }
 
 func selfhost_compiler_compiler_checkUnwrapExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	complete := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkUnwrapSourceExpr(expr.children[0], structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14410,12 +14292,10 @@ func selfhost_compiler_compiler_checkTernaryExpr(expr IRExpr, structs []IRStruct
 func selfhost_compiler_compiler_checkTernaryCondition(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkTernaryConditionType(expr.children[0], callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14423,29 +14303,25 @@ func selfhost_compiler_compiler_checkTernaryConditionType(condition IRExpr, call
 	actual := selfhost_compiler_compiler_inferCompilerExprType(condition, callables, bindings)
 	mismatch := actual != "" && actual != "Bool"
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "ternary condition expects Bool, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkTernaryBranches(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 3
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkTernaryBranchTypes(expr.children[1], expr.children[2], callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14455,17 +14331,15 @@ func selfhost_compiler_compiler_checkTernaryBranchTypes(consequence IRExpr, alte
 	shouldCheck := left != "" && right != ""
 	mismatch := shouldCheck && selfhost_compiler_compiler_inferCompilerCommonType(left, right) == ""
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "ternary branches return "+left+" and "+right)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14508,12 +14382,10 @@ func selfhost_compiler_compiler_checkBinaryExpr(expr IRExpr, structs []IRStructT
 		}
 	}()
 	return func() []string {
-		switch {
-		case boolOp == true:
+		if boolOp {
 			return selfhost_compiler_compiler_checkBinaryBoolOperands(expr, callables, bindings, checked)
-		default:
-			return selfhost_compiler_compiler_checkTypedBinaryExpr(expr, callables, bindings, checked)
 		}
+		return selfhost_compiler_compiler_checkTypedBinaryExpr(expr, callables, bindings, checked)
 	}()
 }
 
@@ -14527,12 +14399,10 @@ func selfhost_compiler_compiler_checkTypedBinaryExpr(expr IRExpr, callables []Co
 func selfhost_compiler_compiler_checkBinaryBoolOperands(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkBoolOperand(expr.op, expr.children[1], callables, bindings, selfhost_compiler_compiler_checkBoolOperand(expr.op, expr.children[0], callables, bindings, errors))
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14540,17 +14410,15 @@ func selfhost_compiler_compiler_checkBoolOperand(op string, operand IRExpr, call
 	actual := selfhost_compiler_compiler_inferCompilerExprType(operand, callables, bindings)
 	mismatch := actual != "" && actual != "Bool"
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '"+op+"' expects Bool, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14562,12 +14430,10 @@ func selfhost_compiler_compiler_checkArrayExpr(expr IRExpr, structs []IRStructTy
 func selfhost_compiler_compiler_checkArrayElementTypes(elements []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string, index int, expected string) []string {
 	done := index >= len(elements)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkArrayElementType(elements, callables, bindings, errors, index, expected)
 		}
+		return selfhost_compiler_compiler_checkArrayElementType(elements, callables, bindings, errors, index, expected)
 	}()
 }
 
@@ -14594,17 +14460,15 @@ func selfhost_compiler_compiler_checkArrayElementTypeError(elem IRExpr, expected
 	spreadErrors := selfhost_compiler_compiler_checkArraySpreadElementType(elem, callables, bindings, errors)
 	mismatch := expected != "" && actual != "" && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, spreadErrors...)
 				__rune_spread_out = append(__rune_spread_out, "array element has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return spreadErrors
 		}
+		return spreadErrors
 	}()
 }
 
@@ -14623,17 +14487,15 @@ func selfhost_compiler_compiler_checkArraySpreadReceiverType(elem IRExpr, callab
 	actual := selfhost_compiler_compiler_inferCompilerExprType(elem.children[0], callables, bindings)
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerArrayElementType(actual) == ""
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "spread expects Array, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14645,12 +14507,10 @@ func selfhost_compiler_compiler_checkMapExpr(expr IRExpr, structs []IRStructType
 func selfhost_compiler_compiler_checkMapEntryTypes(entries []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string, index int, expectedKey string, expectedValue string) []string {
 	done := index >= len(entries)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkMapEntryType(entries, callables, bindings, errors, index, expectedKey, expectedValue)
 		}
+		return selfhost_compiler_compiler_checkMapEntryType(entries, callables, bindings, errors, index, expectedKey, expectedValue)
 	}()
 }
 
@@ -14684,51 +14544,45 @@ func selfhost_compiler_compiler_checkMapEntryKeyTypeError(expected string, actua
 	checked := selfhost_compiler_compiler_checkMapKeySupported(actual, errors)
 	mismatch := expected != "" && actual != "" && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, checked...)
 				__rune_spread_out = append(__rune_spread_out, "map key has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return checked
 		}
+		return checked
 	}()
 }
 
 func selfhost_compiler_compiler_checkMapKeySupported(actual string, errors []string) []string {
 	invalid := actual != "" && selfhost_compiler_compiler_compilerSupportedMapKeyType(actual) == false
 	return func() []string {
-		switch {
-		case invalid == true:
+		if invalid {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "map key type "+actual+" is not supported")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkMapEntryValueTypeError(expected string, actual string, errors []string) []string {
 	mismatch := expected != "" && actual != "" && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "map value has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14736,12 +14590,10 @@ func selfhost_compiler_compiler_checkIndexExpr(expr IRExpr, structs []IRStructTy
 	checked := selfhost_compiler_compiler_checkExprDefault(expr, structs, callables, errors, bindings)
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkIndexExprTypes(expr, callables, bindings, checked)
-		default:
-			return checked
 		}
+		return checked
 	}()
 }
 
@@ -14802,51 +14654,45 @@ func selfhost_compiler_compiler_checkTupleOrUnknownIndexReceiver(receiver string
 func selfhost_compiler_compiler_checkArrayIndexType(index string, errors []string) []string {
 	mismatch := index != "" && index != "Int"
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "array index expects Int, got "+index)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkMapIndexType(expected string, actual string, errors []string) []string {
 	mismatch := expected != "" && actual != "" && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "map index has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkTupleIndexType(tuple []string, index string, indexExpr IRExpr, errors []string) []string {
 	mismatch := index != "" && index != "Int"
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "tuple index expects an integer literal")
 				return __rune_spread_out
 			}()
-		default:
-			return selfhost_compiler_compiler_checkTupleIndexLiteral(tuple, indexExpr, errors)
 		}
+		return selfhost_compiler_compiler_checkTupleIndexLiteral(tuple, indexExpr, errors)
 	}()
 }
 
@@ -14869,40 +14715,34 @@ func selfhost_compiler_compiler_checkTupleIndexLiteral(tuple []string, indexExpr
 func selfhost_compiler_compiler_checkTupleIndexRange(tuple []string, index int, errors []string) []string {
 	outOfRange := index < 0 || index >= len(tuple)
 	return func() []string {
-		switch {
-		case outOfRange == true:
+		if outOfRange {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "tuple index "+compilerIntToString(index)+" out of range")
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkEqualityComparisonExpr(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerEqualityComparisonOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerEqualityComparisonOp(expr.op) {
 			return selfhost_compiler_compiler_checkEqualityComparisonOperands(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkEqualityComparisonOperands(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkEqualityComparisonTypes(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14911,40 +14751,34 @@ func selfhost_compiler_compiler_checkEqualityComparisonTypes(expr IRExpr, callab
 	right := selfhost_compiler_compiler_inferCompilerExprType(expr.children[1], callables, bindings)
 	mismatch := left != "" && right != "" && selfhost_compiler_compiler_compilerTypesComparable(left, right) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "cannot compare "+left+" and "+right)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkOrderedComparisonExpr(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerOrderedComparisonOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerOrderedComparisonOp(expr.op) {
 			return selfhost_compiler_compiler_checkOrderedComparisonOperands(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkOrderedComparisonOperands(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkOrderedComparisonMatch(expr, callables, bindings, selfhost_compiler_compiler_checkOrderedComparisonOperand(expr.children[1], callables, bindings, selfhost_compiler_compiler_checkOrderedComparisonOperand(expr.children[0], callables, bindings, errors)))
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14952,17 +14786,15 @@ func selfhost_compiler_compiler_checkOrderedComparisonOperand(operand IRExpr, ca
 	actual := selfhost_compiler_compiler_inferCompilerExprType(operand, callables, bindings)
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerOrderedComparisonType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "ordered comparison expects a numeric type or String, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -14971,17 +14803,15 @@ func selfhost_compiler_compiler_checkOrderedComparisonMatch(expr IRExpr, callabl
 	right := selfhost_compiler_compiler_inferCompilerExprType(expr.children[1], callables, bindings)
 	mismatch := left != "" && right != "" && left != right
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "ordered comparison requires matching types, got "+left+" and "+right)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15017,46 +14847,40 @@ func selfhost_compiler_compiler_checkNumericUnaryOperand(expr IRExpr, callables 
 	actual := selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerNumericType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '-' expects a numeric type, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkPostfixNumericOperand(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkPostfixNumericOperandType(expr.op, selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings), errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkPostfixNumericOperandType(op string, actual string, errors []string) []string {
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerNumericType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '"+op+"' expects a numeric type, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15064,63 +14888,53 @@ func selfhost_compiler_compiler_checkBitwiseUnaryOperand(expr IRExpr, callables 
 	actual := selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerBitwiseType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '~' expects an integer type, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkNumericBinaryExpr(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerArithmeticOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerArithmeticOp(expr.op) {
 			return selfhost_compiler_compiler_checkArithmeticOperands(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkBitwiseBinaryExpr(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerBitwiseOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerBitwiseOp(expr.op) {
 			return selfhost_compiler_compiler_checkBitwiseOperands(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkArithmeticOperands(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkArithmeticOperandTypes(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkBitwiseOperands(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	complete := len(expr.children) >= 2
 	return func() []string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_checkBitwiseOperandTypes(expr, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15148,12 +14962,10 @@ func selfhost_compiler_compiler_checkBitwiseOperandTypes(expr IRExpr, callables 
 func selfhost_compiler_compiler_checkPlusOperandTypes(left string, right string, errors []string) []string {
 	stringConcat := left == "String" || right == "String"
 	return func() []string {
-		switch {
-		case stringConcat == true:
+		if stringConcat {
 			return selfhost_compiler_compiler_checkStringConcatOperandTypes(left, right, errors)
-		default:
-			return selfhost_compiler_compiler_checkNumericOperandTypes("+", left, right, errors)
 		}
+		return selfhost_compiler_compiler_checkNumericOperandTypes("+", left, right, errors)
 	}()
 }
 
@@ -15165,51 +14977,45 @@ func selfhost_compiler_compiler_checkStringConcatOperandTypes(left string, right
 func selfhost_compiler_compiler_checkStringConcatOperand(actual string, errors []string) []string {
 	mismatch := actual != "" && actual != "String"
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "string concatenation expects String, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkBitwiseOperand(actual string, errors []string) []string {
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerBitwiseType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "bitwise operator expects integer operands, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkUnsignedShiftLeftOperand(op string, left string, errors []string) []string {
 	invalid := op == ">>>" && left != "" && selfhost_compiler_compiler_compilerUnsignedIntegerType(left) == false
 	return func() []string {
-		switch {
-		case invalid == true:
+		if invalid {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '>>>' expects an unsigned integer left operand, got "+left)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15217,17 +15023,15 @@ func selfhost_compiler_compiler_checkBitwiseOperandMatch(left string, right stri
 	shouldCheck := left != "" && right != "" && (selfhost_compiler_compiler_compilerBitwiseType(left) && selfhost_compiler_compiler_compilerBitwiseType(right))
 	mismatch := shouldCheck && left != right
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "bitwise operator requires matching integer types, got "+left+" and "+right)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15239,17 +15043,15 @@ func selfhost_compiler_compiler_checkNumericOperandTypes(op string, left string,
 func selfhost_compiler_compiler_checkNumericOperand(actual string, errors []string) []string {
 	mismatch := actual != "" && selfhost_compiler_compiler_compilerNumericType(actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "arithmetic expects numeric operands, got "+actual)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15257,17 +15059,15 @@ func selfhost_compiler_compiler_checkNumericOperandMatch(op string, left string,
 	shouldCheck := left != "" && right != "" && (selfhost_compiler_compiler_compilerNumericType(left) && selfhost_compiler_compiler_compilerNumericType(right))
 	mismatch := shouldCheck && left != right
 	withMatch := func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "arithmetic requires matching numeric types, got "+left+" and "+right)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 	return selfhost_compiler_compiler_checkModuloOperand(op, left, right, withMatch)
 }
@@ -15275,17 +15075,15 @@ func selfhost_compiler_compiler_checkNumericOperandMatch(op string, left string,
 func selfhost_compiler_compiler_checkModuloOperand(op string, left string, right string, errors []string) []string {
 	invalid := op == "%" && (left == "Double" || left == "Float" || (right == "Double" || right == "Float"))
 	return func() []string {
-		switch {
-		case invalid == true:
+		if invalid {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "operator '%' expects integer operands, got "+left)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15340,24 +15138,20 @@ func selfhost_compiler_compiler_compilerSupportedMapKeyType(typeName string) boo
 
 func selfhost_compiler_compiler_compilerParseIntText(text string) int {
 	return func() int {
-		switch {
-		case strings.HasPrefix(text, "-") == true:
+		if strings.HasPrefix(text, "-") {
 			return 0 - selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 1, 0)
-		default:
-			return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 0, 0)
 		}
+		return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 0, 0)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerParseUnsignedIntText(text string, index int, out int) int {
 	done := index >= len([]rune(text))
 	return func() int {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, index+1, out*10+selfhost_compiler_compiler_compilerDigitValue([]rune(text)[index]))
 		}
+		return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, index+1, out*10+selfhost_compiler_compiler_compilerDigitValue([]rune(text)[index]))
 	}()
 }
 
@@ -15393,12 +15187,10 @@ func selfhost_compiler_compiler_compilerDigitValue(ch rune) int {
 func selfhost_compiler_compiler_checkLetExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	hasValue := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case hasValue == true:
+		if hasValue {
 			return selfhost_compiler_compiler_checkLetValueExpr(expr, structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15441,24 +15233,20 @@ func selfhost_compiler_compiler_checkExpectedSelectorExpr(expr IRExpr, structs [
 func selfhost_compiler_compiler_checkExpectedBlockSelectorExpr(statements []IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	empty := len(statements) == 0
 	return func() []string {
-		switch {
-		case empty == true:
+		if empty {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkExpectedSelectorExpr(statements[len(statements)-1], structs, callables, bindings, errors)
 		}
+		return selfhost_compiler_compiler_checkExpectedSelectorExpr(statements[len(statements)-1], structs, callables, bindings, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkSelectorExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	hasReceiver := len(expr.children) > 0
 	return func() []string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_checkSelectorReceiverExpr(expr, expr.children[0], structs, callables, bindings, errors)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15489,17 +15277,15 @@ func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverTyp
 							switch {
 							case found == true:
 								return func() []string {
-									switch {
-									case selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) == true:
+									if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
 										return selfhost_compiler_compiler_checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
-									default:
-										return func() []string {
-											__rune_spread_out := []string{}
-											__rune_spread_out = append(__rune_spread_out, errors...)
-											__rune_spread_out = append(__rune_spread_out, "type \""+typeDecl.name+"\" is private")
-											return __rune_spread_out
-										}()
 									}
+									return func() []string {
+										__rune_spread_out := []string{}
+										__rune_spread_out = append(__rune_spread_out, errors...)
+										__rune_spread_out = append(__rune_spread_out, "type \""+typeDecl.name+"\" is private")
+										return __rune_spread_out
+									}()
 								}()
 							default:
 								return func() []string {
@@ -15522,15 +15308,13 @@ func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverTyp
 func selfhost_compiler_compiler_compilerStructuralObjectFieldType(typeName string, fieldName string) string {
 	valid := strings.HasPrefix(typeName, "{") && strings.HasSuffix(typeName, "}")
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return selfhost_compiler_compiler_compilerStructuralObjectFieldTypeInParts(func() []string {
 				parts := strings.Split((func() string { runes := []rune(typeName); return string(runes[1 : len([]rune(typeName))-1]) }()), ";")
 				return parts
 			}(), fieldName, 0)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -15564,17 +15348,15 @@ func selfhost_compiler_compiler_checkStructSelectorField(expr IRExpr, receiverTy
 	field := selfhost_compiler_compiler_findCompilerStructField(typeDecl.fields, expr.name, 0)
 	found := field.name != ""
 	return func() []string {
-		switch {
-		case found == true:
+		if found {
 			return selfhost_compiler_compiler_checkCompilerPrivateAccess("field", typeDecl.name+"."+field.name, field.private, typeDecl.sourcePath, bindings, errors)
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no field \""+expr.name+"\"")
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no field \""+expr.name+"\"")
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -15582,17 +15364,15 @@ func selfhost_compiler_compiler_checkLetDeclaredType(name string, value IRExpr, 
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
 	mismatch := expected != "?" && selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "binding \""+name+"\" has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -15625,29 +15405,25 @@ func selfhost_compiler_compiler_checkJsonParseFromJsonTarget(expected string, st
 	typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(expected), 0)
 	ok := typeDecl.name != "" && selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl, expected, 0)
 	return func() []string {
-		switch {
-		case ok == true:
+		if ok {
 			return errors
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "@json.parse target type "+expected+" does not implement &FromJson")
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "@json.parse target type "+expected+" does not implement &FromJson")
+			return __rune_spread_out
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl IRStructType, expected string, index int) bool {
 	done := index >= len(typeDecl.methods)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerStructHasFromJsonAt(typeDecl, expected, index)
 		}
+		return selfhost_compiler_compiler_compilerStructHasFromJsonAt(typeDecl, expected, index)
 	}()
 }
 
@@ -15655,36 +15431,30 @@ func selfhost_compiler_compiler_compilerStructHasFromJsonAt(typeDecl IRStructTyp
 	method := typeDecl.methods[index]
 	matched := method.name == "fromJson" && method.static && selfhost_compiler_compiler_compilerFromJsonSignatureMatches(method, expected)
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl, expected, index+1)
 		}
+		return selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl, expected, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerFromJsonSignatureMatches(method IRFunction, expected string) bool {
 	arityOk := len(method.params) == 1
 	return func() bool {
-		switch {
-		case arityOk == true:
+		if arityOk {
 			return method.params[0].typeName == "String" && selfhost_compiler_compiler_compilerTypesCompatible(expected, method.returnType)
-		default:
-			return false
 		}
+		return false
 	}()
 }
 
 func selfhost_compiler_compiler_checkBlockExpr(statements []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	done := index >= len(statements)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkBlockExprStep(statements, index, structs, callables, errors, bindings)
 		}
+		return selfhost_compiler_compiler_checkBlockExprStep(statements, index, structs, callables, errors, bindings)
 	}()
 }
 
@@ -15702,17 +15472,15 @@ func selfhost_compiler_compiler_checkStructExpr(expr IRExpr, structs []IRStructT
 		switch {
 		case found == true:
 			return func() []string {
-				switch {
-				case selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) == true:
+				if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
 					return selfhost_compiler_compiler_checkStructExprFields(expr, typeDecl, structs, callables, errors, bindings)
-				default:
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "type \""+expr.name+"\" is private")
-						return __rune_spread_out
-					}()
 				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "type \""+expr.name+"\" is private")
+					return __rune_spread_out
+				}()
 			}()
 		default:
 			return selfhost_compiler_compiler_checkStructExprUnknownType(expr, structs, callables, errors, bindings)
@@ -15742,12 +15510,10 @@ func selfhost_compiler_compiler_checkStructExprFields(expr IRExpr, typeDecl IRSt
 func selfhost_compiler_compiler_checkStructExprFieldValues(typeName string, fields []IRExpr, typeDecl IRStructType, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	done := index >= len(fields)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkStructExprFieldValue(typeName, fields, typeDecl, index, structs, callables, errors, bindings)
 		}
+		return selfhost_compiler_compiler_checkStructExprFieldValue(typeName, fields, typeDecl, index, structs, callables, errors, bindings)
 	}()
 }
 
@@ -15780,29 +15546,25 @@ func selfhost_compiler_compiler_checkStructFieldType(typeName string, fieldName 
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, "field "+typeName+"."+fieldName+" has type "+actual+", expected "+expected)
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkStructMissingFields(typeName string, expectedFields []IRField, fields []IRExpr, index int, errors []string) []string {
 	done := index >= len(expectedFields)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkStructMissingField(typeName, expectedFields, fields, index, errors)
 		}
+		return selfhost_compiler_compiler_checkStructMissingField(typeName, expectedFields, fields, index, errors)
 	}()
 }
 
@@ -15810,41 +15572,35 @@ func selfhost_compiler_compiler_checkStructMissingField(typeName string, expecte
 	field := expectedFields[index]
 	present := selfhost_compiler_compiler_compilerExprFieldContains(fields, field.name, 0)
 	return func() []string {
-		switch {
-		case present == true:
+		if present {
 			return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, index+1, errors)
-		default:
-			return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, index+1, func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "missing field "+typeName+"."+field.name)
-				return __rune_spread_out
-			}())
 		}
+		return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, index+1, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "missing field "+typeName+"."+field.name)
+			return __rune_spread_out
+		}())
 	}()
 }
 
 func selfhost_compiler_compiler_compilerExprFieldContains(fields []IRExpr, name string, index int) bool {
 	done := index >= len(fields)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerExprFieldContainsAt(fields, name, index)
 		}
+		return selfhost_compiler_compiler_compilerExprFieldContainsAt(fields, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerExprFieldContainsAt(fields []IRExpr, name string, index int) bool {
 	matched := fields[index].name == name
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerExprFieldContains(fields, name, index+1)
 		}
+		return selfhost_compiler_compiler_compilerExprFieldContains(fields, name, index+1)
 	}()
 }
 
@@ -15864,12 +15620,10 @@ func selfhost_compiler_compiler_blockBindingsAfterStatement(statement IRExpr, st
 func selfhost_compiler_compiler_bindCompilerLet(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding) []CompilerTypeBinding {
 	hasValue := len(expr.children) > 0
 	return func() []CompilerTypeBinding {
-		switch {
-		case hasValue == true:
+		if hasValue {
 			return selfhost_compiler_compiler_addCompilerValueBinding(bindings, expr.name, selfhost_compiler_compiler_compilerLetBindingType(expr, structs, callables, bindings))
-		default:
-			return bindings
 		}
+		return bindings
 	}()
 }
 
@@ -15887,17 +15641,15 @@ func selfhost_compiler_compiler_compilerLetBindingType(expr IRExpr, structs []IR
 func selfhost_compiler_compiler_addCompilerTypeBinding(bindings []CompilerTypeBinding, name string, typeName string) []CompilerTypeBinding {
 	known := typeName != ""
 	return func() []CompilerTypeBinding {
-		switch {
-		case known == true:
+		if known {
 			return func() []CompilerTypeBinding {
 				__rune_spread_out := []CompilerTypeBinding{}
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, 0, []CompilerTypeBinding{})...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerTypeBinding(name, typeName))
 				return __rune_spread_out
 			}()
-		default:
-			return bindings
 		}
+		return bindings
 	}()
 }
 
@@ -15913,24 +15665,20 @@ func selfhost_compiler_compiler_addCompilerValueBinding(bindings []CompilerTypeB
 func selfhost_compiler_compiler_bindCompilerObjectDestructure(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding) []CompilerTypeBinding {
 	hasValue := len(expr.children) > 0
 	return func() []CompilerTypeBinding {
-		switch {
-		case hasValue == true:
+		if hasValue {
 			return selfhost_compiler_compiler_bindCompilerObjectDestructureParams(expr.params, 0, selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings), structs, bindings)
-		default:
-			return bindings
 		}
+		return bindings
 	}()
 }
 
 func selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params []IRParam, index int, sourceType string, structs []IRStructType, bindings []CompilerTypeBinding) []CompilerTypeBinding {
 	done := index >= len(params)
 	return func() []CompilerTypeBinding {
-		switch {
-		case done == true:
+		if done {
 			return bindings
-		default:
-			return selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params, index+1, sourceType, structs, selfhost_compiler_compiler_addCompilerValueBinding(bindings, params[index].name, selfhost_compiler_compiler_compilerObjectDestructureFieldType(params[index], sourceType, structs)))
 		}
+		return selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params, index+1, sourceType, structs, selfhost_compiler_compiler_addCompilerValueBinding(bindings, params[index].name, selfhost_compiler_compiler_compilerObjectDestructureFieldType(params[index], sourceType, structs)))
 	}()
 }
 
@@ -15952,65 +15700,55 @@ func selfhost_compiler_compiler_compilerObjectDestructureFieldType(param IRParam
 func selfhost_compiler_compiler_dropCompilerTypeBinding(bindings []CompilerTypeBinding, name string, index int, out []CompilerTypeBinding) []CompilerTypeBinding {
 	done := index >= len(bindings)
 	return func() []CompilerTypeBinding {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_dropCompilerTypeBindingStep(bindings, name, index, out)
 		}
+		return selfhost_compiler_compiler_dropCompilerTypeBindingStep(bindings, name, index, out)
 	}()
 }
 
 func selfhost_compiler_compiler_dropCompilerTypeBindingStep(bindings []CompilerTypeBinding, name string, index int, out []CompilerTypeBinding) []CompilerTypeBinding {
 	matched := bindings[index].name == name
 	return func() []CompilerTypeBinding {
-		switch {
-		case matched == true:
+		if matched {
 			return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, index+1, out)
-		default:
-			return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, index+1, func() []CompilerTypeBinding {
-				__rune_spread_out := []CompilerTypeBinding{}
-				__rune_spread_out = append(__rune_spread_out, out...)
-				__rune_spread_out = append(__rune_spread_out, bindings[index])
-				return __rune_spread_out
-			}())
 		}
+		return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, index+1, func() []CompilerTypeBinding {
+			__rune_spread_out := []CompilerTypeBinding{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, bindings[index])
+			return __rune_spread_out
+		}())
 	}()
 }
 
 func selfhost_compiler_compiler_checkExprCall(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	identifierCall := expr.kind == ExprKind_Call && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier
 	return func() []string {
-		switch {
-		case identifierCall == true:
+		if identifierCall {
 			return selfhost_compiler_compiler_checkIdentifierCall(expr, expr.children[0].name, len(expr.children)-1, structs, callables, errors, bindings)
-		default:
-			return selfhost_compiler_compiler_checkSelectorCall(expr, structs, callables, errors, bindings)
 		}
+		return selfhost_compiler_compiler_checkSelectorCall(expr, structs, callables, errors, bindings)
 	}()
 }
 
 func selfhost_compiler_compiler_checkSelectorCall(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	selectorCall := expr.kind == ExprKind_Call && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Selector
 	return func() []string {
-		switch {
-		case selectorCall == true:
+		if selectorCall {
 			return selfhost_compiler_compiler_checkSelectorCallExpr(expr, expr.children[0], structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_checkSelectorCallExpr(expr IRExpr, selector IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	hasReceiver := len(selector.children) > 0
 	return func() []string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_checkSelectorCallReceiver(expr, selector, selector.children[0], structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -16163,17 +15901,15 @@ func selfhost_compiler_compiler_checkStaticSelectorCall(expr IRExpr, selector IR
 		switch {
 		case found == true:
 			return func() []string {
-				switch {
-				case selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) == true:
+				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
-				default:
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "static method \""+name+"\" is private")
-						return __rune_spread_out
-					}()
 				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "static method \""+name+"\" is private")
+					return __rune_spread_out
+				}()
 			}()
 		default:
 			return errors
@@ -16185,12 +15921,10 @@ func selfhost_compiler_compiler_checkInstanceSelectorCall(expr IRExpr, selector 
 	receiverType := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(receiver, structs, callables, bindings)
 	known := receiverType != ""
 	return func() []string {
-		switch {
-		case known == true:
+		if known {
 			return selfhost_compiler_compiler_checkKnownInstanceSelectorCall(expr, selector, selfhost_compiler_compiler_compilerTypeBase(receiverType), structs, callables, errors, bindings)
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -16202,17 +15936,15 @@ func selfhost_compiler_compiler_checkKnownInstanceSelectorCall(expr IRExpr, sele
 		switch {
 		case found == true:
 			return func() []string {
-				switch {
-				case selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) == true:
+				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
-				default:
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "method \""+name+"\" is private")
-						return __rune_spread_out
-					}()
 				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "method \""+name+"\" is private")
+					return __rune_spread_out
+				}()
 			}()
 		default:
 			return errors
@@ -16227,17 +15959,15 @@ func selfhost_compiler_compiler_checkIdentifierCall(expr IRExpr, name string, ar
 		switch {
 		case found == true:
 			return func() []string {
-				switch {
-				case selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) == true:
+				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
 					return selfhost_compiler_compiler_checkCallableCall(callable, expr, arity, structs, callables, bindings, errors)
-				default:
-					return func() []string {
-						__rune_spread_out := []string{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, "function \""+name+"\" is private")
-						return __rune_spread_out
-					}()
 				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "function \""+name+"\" is private")
+					return __rune_spread_out
+				}()
 			}()
 		default:
 			return selfhost_compiler_compiler_checkUndefinedIdentifierCall(name, bindings, errors)
@@ -16272,17 +16002,15 @@ func selfhost_compiler_compiler_checkCallableVisibility(callable CompilerCallabl
 
 func selfhost_compiler_compiler_checkCompilerPrivateAccess(kind string, name string, private bool, sourcePath string, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
-		switch {
-		case selfhost_compiler_compiler_compilerCanAccessPrivate(private, sourcePath, bindings) == true:
+		if selfhost_compiler_compiler_compilerCanAccessPrivate(private, sourcePath, bindings) {
 			return errors
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, kind+" \""+name+"\" is private")
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, kind+" \""+name+"\" is private")
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -16307,41 +16035,35 @@ func selfhost_compiler_compiler_compilerCurrentSourcePath(bindings []CompilerTyp
 func selfhost_compiler_compiler_checkCallableCall(callable CompilerCallable, expr IRExpr, arity int, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
 	arityOk := callable.arity == arity
 	return func() []string {
-		switch {
-		case arityOk == true:
+		if arityOk {
 			return selfhost_compiler_compiler_checkCallableArgTypes(callable, expr, structs, callables, bindings, errors, 0)
-		default:
-			return selfhost_compiler_compiler_checkCallableArity(callable, arity, errors)
 		}
+		return selfhost_compiler_compiler_checkCallableArity(callable, arity, errors)
 	}()
 }
 
 func selfhost_compiler_compiler_checkCallableArity(callable CompilerCallable, arity int, errors []string) []string {
 	ok := callable.arity == arity
 	return func() []string {
-		switch {
-		case ok == true:
+		if ok {
 			return errors
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "function \""+callable.name+"\" expects "+compilerIntToString(callable.arity)+" args, got "+compilerIntToString(arity))
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "function \""+callable.name+"\" expects "+compilerIntToString(callable.arity)+" args, got "+compilerIntToString(arity))
+			return __rune_spread_out
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_checkCallableArgTypes(callable CompilerCallable, expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string, index int) []string {
 	done := index >= len(callable.paramTypes)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_checkCallableArgType(callable, expr, structs, callables, bindings, errors, index)
 		}
+		return selfhost_compiler_compiler_checkCallableArgType(callable, expr, structs, callables, bindings, errors, index)
 	}()
 }
 
@@ -16352,17 +16074,15 @@ func selfhost_compiler_compiler_checkCallableArgType(callable CompilerCallable, 
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(arg, structs, callables, bindings)
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	next := func() []string {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, checked...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerArgumentTypeError(callable.name, index+1, actual, expected))
 				return __rune_spread_out
 			}()
-		default:
-			return checked
 		}
+		return checked
 	}()
 	return selfhost_compiler_compiler_checkCallableArgTypes(callable, expr, structs, callables, bindings, next, index+1)
 }
@@ -16426,41 +16146,35 @@ func selfhost_compiler_compiler_compilerLastExprCanBuildWebComponent(exprs []IRE
 func selfhost_compiler_compiler_checkFunctionReturnType(name string, expected string, actual string, errors []string) []string {
 	ok := selfhost_compiler_compiler_compilerTypesCompatible(expected, actual)
 	return func() []string {
-		switch {
-		case ok == true:
+		if ok {
 			return errors
-		default:
-			return func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "function \""+name+"\" returns "+actual+", expected "+expected)
-				return __rune_spread_out
-			}()
 		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "function \""+name+"\" returns "+actual+", expected "+expected)
+			return __rune_spread_out
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerTypesCompatible(expected string, actual string) bool {
 	nullable := strings.HasSuffix(expected, "?")
 	return func() bool {
-		switch {
-		case nullable == true:
+		if nullable {
 			return actual == "Null" || selfhost_compiler_compiler_compilerTypesCompatible(func() string { runes := []rune(expected); return string(runes[0 : len([]rune(expected))-1]) }(), actual)
-		default:
-			return selfhost_compiler_compiler_compilerNonNullableTypesCompatible(expected, actual)
 		}
+		return selfhost_compiler_compiler_compilerNonNullableTypesCompatible(expected, actual)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerNonNullableTypesCompatible(expected string, actual string) bool {
 	same := expected == actual
 	return func() bool {
-		switch {
-		case same == true:
+		if same {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerGenericTypesCompatible(expected, actual)
 		}
+		return selfhost_compiler_compiler_compilerGenericTypesCompatible(expected, actual)
 	}()
 }
 
@@ -16469,12 +16183,10 @@ func selfhost_compiler_compiler_compilerGenericTypesCompatible(expected string, 
 	actualBase := selfhost_compiler_compiler_compilerTypeBase(actual)
 	sameBase := expectedBase == actualBase
 	return func() bool {
-		switch {
-		case sameBase == true:
+		if sameBase {
 			return selfhost_compiler_compiler_compilerGenericTypeArgsCompatible(expected, actual)
-		default:
-			return expectedBase == actual
 		}
+		return expectedBase == actual
 	}()
 }
 
@@ -16487,12 +16199,10 @@ func selfhost_compiler_compiler_compilerGenericTypeArgsCompatible(expected strin
 		switch {
 		case hasExpected == true:
 			return func() bool {
-				switch {
-				case hasActual == true:
+				if hasActual {
 					return selfhost_compiler_compiler_compilerGenericArgListsCompatible(expectedArgs, actualArgs, 0)
-				default:
-					return true
 				}
+				return true
 			}()
 		default:
 			return true
@@ -16503,96 +16213,80 @@ func selfhost_compiler_compiler_compilerGenericTypeArgsCompatible(expected strin
 func selfhost_compiler_compiler_compilerGenericArgListsCompatible(expected []string, actual []string, index int) bool {
 	lengthMismatch := len(expected) != len(actual)
 	return func() bool {
-		switch {
-		case lengthMismatch == true:
+		if lengthMismatch {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, index)
 		}
+		return selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected []string, actual []string, index int) bool {
 	done := index >= len(expected)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerTypesCompatible(strings.TrimSpace(expected[index]), strings.TrimSpace(actual[index])) && selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, index+1)
 		}
+		return selfhost_compiler_compiler_compilerTypesCompatible(strings.TrimSpace(expected[index]), strings.TrimSpace(actual[index])) && selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerTypesComparable(left string, right string) bool {
 	unknown := left == "" || right == ""
 	return func() bool {
-		switch {
-		case unknown == true:
+		if unknown {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerKnownTypesComparable(left, right)
 		}
+		return selfhost_compiler_compiler_compilerKnownTypesComparable(left, right)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerKnownTypesComparable(left string, right string) bool {
 	same := left == right
 	return func() bool {
-		switch {
-		case same == true:
+		if same {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerNullableTypesComparable(left, right)
 		}
+		return selfhost_compiler_compiler_compilerNullableTypesComparable(left, right)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerNullableTypesComparable(left string, right string) bool {
 	leftNullable := strings.HasSuffix(left, "?")
 	return func() bool {
-		switch {
-		case leftNullable == true:
+		if leftNullable {
 			return selfhost_compiler_compiler_compilerLeftNullableComparable(left, right)
-		default:
-			return selfhost_compiler_compiler_compilerRightNullableComparable(left, right)
 		}
+		return selfhost_compiler_compiler_compilerRightNullableComparable(left, right)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerLeftNullableComparable(left string, right string) bool {
 	rightNull := right == "Null"
 	return func() bool {
-		switch {
-		case rightNull == true:
+		if rightNull {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerTypesComparable(func() string { runes := []rune(left); return string(runes[0 : len([]rune(left))-1]) }(), right)
 		}
+		return selfhost_compiler_compiler_compilerTypesComparable(func() string { runes := []rune(left); return string(runes[0 : len([]rune(left))-1]) }(), right)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerRightNullableComparable(left string, right string) bool {
 	rightNullable := strings.HasSuffix(right, "?")
 	return func() bool {
-		switch {
-		case rightNullable == true:
+		if rightNullable {
 			return selfhost_compiler_compiler_compilerRightNullableInnerComparable(left, right)
-		default:
-			return false
 		}
+		return false
 	}()
 }
 
 func selfhost_compiler_compiler_compilerRightNullableInnerComparable(left string, right string) bool {
 	leftNull := left == "Null"
 	return func() bool {
-		switch {
-		case leftNull == true:
+		if leftNull {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerTypesComparable(left, func() string { runes := []rune(right); return string(runes[0 : len([]rune(right))-1]) }())
 		}
+		return selfhost_compiler_compiler_compilerTypesComparable(left, func() string { runes := []rune(right); return string(runes[0 : len([]rune(right))-1]) }())
 	}()
 }
 
@@ -16639,12 +16333,10 @@ func selfhost_compiler_compiler_compilerArrayType(elem string) string {
 func selfhost_compiler_compiler_compilerMapType(key string, value string) string {
 	complete := key != "" && value != ""
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return "Map[" + key + ", " + value + "]"
-		default:
-			return "Map"
 		}
+		return "Map"
 	}()
 }
 
@@ -16655,12 +16347,10 @@ func selfhost_compiler_compiler_compilerTupleLiteralType(elements []IRExpr, call
 func selfhost_compiler_compiler_compilerTupleLiteralTypes(elements []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, index int, out string) string {
 	done := index >= len(elements)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerTupleLiteralTypes(elements, callables, bindings, index+1, out+selfhost_compiler_compiler_compilerTupleTypeSeparator(index)+selfhost_compiler_compiler_inferCompilerExprType(elements[index], callables, bindings))
 		}
+		return selfhost_compiler_compiler_compilerTupleLiteralTypes(elements, callables, bindings, index+1, out+selfhost_compiler_compiler_compilerTupleTypeSeparator(index)+selfhost_compiler_compiler_inferCompilerExprType(elements[index], callables, bindings))
 	}()
 }
 
@@ -16684,12 +16374,10 @@ func selfhost_compiler_compiler_compilerNullableType(inner string) string {
 			return "Null"
 		default:
 			return func() string {
-				switch {
-				case strings.HasSuffix(inner, "?") == true:
+				if strings.HasSuffix(inner, "?") {
 					return inner
-				default:
-					return inner + "?"
 				}
+				return inner + "?"
 			}()
 		}
 	}()
@@ -16700,12 +16388,10 @@ func selfhost_compiler_compiler_compilerArrayElementType(typeName string) string
 	args := selfhost_compiler_compiler_compilerGenericArgs(typeName)
 	valid := base == "Array" && len(args) == 1
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return strings.TrimSpace(args[0])
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -16714,12 +16400,10 @@ func selfhost_compiler_compiler_compilerMapKeyType(typeName string) string {
 	args := selfhost_compiler_compiler_compilerGenericArgs(typeName)
 	valid := base == "Map" && len(args) == 2
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return strings.TrimSpace(args[0])
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -16728,12 +16412,10 @@ func selfhost_compiler_compiler_compilerMapValueType(typeName string) string {
 	args := selfhost_compiler_compiler_compilerGenericArgs(typeName)
 	valid := base == "Map" && len(args) == 2
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return strings.TrimSpace(args[1])
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -16742,29 +16424,25 @@ func selfhost_compiler_compiler_compilerTupleElementTypes(typeName string) []str
 	args := selfhost_compiler_compiler_compilerGenericArgs(typeName)
 	valid := (base == "Tuple" || base == "ReadonlyTuple") && len(args) > 0
 	return func() []string {
-		switch {
-		case valid == true:
+		if valid {
 			return selfhost_compiler_compiler_compilerTrimTypes(args, 0, []string{})
-		default:
-			return []string{}
 		}
+		return []string{}
 	}()
 }
 
 func selfhost_compiler_compiler_compilerTrimTypes(types []string, index int, out []string) []string {
 	done := index >= len(types)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerTrimTypes(types, index+1, func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, out...)
-				__rune_spread_out = append(__rune_spread_out, strings.TrimSpace(types[index]))
-				return __rune_spread_out
-			}())
 		}
+		return selfhost_compiler_compiler_compilerTrimTypes(types, index+1, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, strings.TrimSpace(types[index]))
+			return __rune_spread_out
+		}())
 	}()
 }
 
@@ -16859,12 +16537,10 @@ func selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(expr IRExpr, st
 func selfhost_compiler_compiler_inferCompilerSelectorTypeWithStructs(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	hasReceiver := len(expr.children) > 0
 	return func() string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_inferCompilerSelectorTypeFromReceiverWithStructs(expr, expr.children[0], structs, callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -16901,12 +16577,10 @@ func selfhost_compiler_compiler_inferCompilerArrayType(expr IRExpr, callables []
 func selfhost_compiler_compiler_inferCompilerArrayElementType(elements []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, index int, expected string) string {
 	done := index >= len(elements)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return expected
-		default:
-			return selfhost_compiler_compiler_inferCompilerArrayElementTypeAt(elements, callables, bindings, index, expected)
 		}
+		return selfhost_compiler_compiler_inferCompilerArrayElementTypeAt(elements, callables, bindings, index, expected)
 	}()
 }
 
@@ -16934,12 +16608,10 @@ func selfhost_compiler_compiler_inferCompilerTupleType(expr IRExpr, callables []
 func selfhost_compiler_compiler_inferCompilerPostfixType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(expr.children) > 0
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -16950,72 +16622,60 @@ func selfhost_compiler_compiler_inferCompilerMapType(expr IRExpr, callables []Co
 func selfhost_compiler_compiler_inferCompilerMapKeyType(entries []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, index int, expected string) string {
 	done := index >= len(entries)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return expected
-		default:
-			return selfhost_compiler_compiler_inferCompilerMapKeyType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryKeyType(entries[index], callables, bindings)))
 		}
+		return selfhost_compiler_compiler_inferCompilerMapKeyType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryKeyType(entries[index], callables, bindings)))
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerMapValueType(entries []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, index int, expected string) string {
 	done := index >= len(entries)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return expected
-		default:
-			return selfhost_compiler_compiler_inferCompilerMapValueType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryValueType(entries[index], callables, bindings)))
 		}
+		return selfhost_compiler_compiler_inferCompilerMapValueType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryValueType(entries[index], callables, bindings)))
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerMapEntryKeyType(entry IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(entry.children) > 0
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerExprType(entry.children[0], callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerMapEntryValueType(entry IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(entry.children) > 1
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerExprType(entry.children[1], callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerSpreadType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(expr.children) > 0
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerIndexType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(expr.children) >= 2
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerIndexReceiverType(selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings), expr.children[1])
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17038,12 +16698,10 @@ func selfhost_compiler_compiler_inferCompilerUnwrapType(expr IRExpr, callables [
 func selfhost_compiler_compiler_inferCompilerUnwrapTypeWithStructs(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(expr.children) > 0
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_compilerResultOkType(selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings))
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17052,12 +16710,10 @@ func selfhost_compiler_compiler_compilerResultOkType(sourceType string) string {
 	args := selfhost_compiler_compiler_compilerGenericArgs(sourceType)
 	valid := base == "Result" && len(args) == 2
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return strings.TrimSpace(args[0])
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17068,12 +16724,10 @@ func selfhost_compiler_compiler_inferCompilerPatternBlockTypeWithStructs(expr IR
 func selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, expected string) string {
 	done := index >= len(branches)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return expected
-		default:
-			return selfhost_compiler_compiler_inferCompilerPatternBranchTypeWithStructs(branches, index, structs, callables, bindings, expected)
 		}
+		return selfhost_compiler_compiler_inferCompilerPatternBranchTypeWithStructs(branches, index, structs, callables, bindings, expected)
 	}()
 }
 
@@ -17081,12 +16735,10 @@ func selfhost_compiler_compiler_inferCompilerPatternBranchTypeWithStructs(branch
 	branch := branches[index]
 	complete := len(branch.children) >= 2
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerPatternBranchValueTypeWithStructs(branches, index, branch.children[1], structs, callables, bindings, expected)
-		default:
-			return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, index+1, structs, callables, bindings, expected)
 		}
+		return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, index+1, structs, callables, bindings, expected)
 	}()
 }
 
@@ -17141,12 +16793,10 @@ func selfhost_compiler_compiler_inferCompilerNonArrayIndexReceiverType(mapValue 
 
 func selfhost_compiler_compiler_inferCompilerTupleIndexReceiverType(tuple []string, indexExpr IRExpr) string {
 	return func() string {
-		switch {
-		case len(tuple) > 0 == true:
+		if len(tuple) > 0 {
 			return selfhost_compiler_compiler_inferCompilerTupleIndexLiteralType(tuple, indexExpr)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17164,60 +16814,50 @@ func selfhost_compiler_compiler_inferCompilerTupleIndexLiteralType(tuple []strin
 func selfhost_compiler_compiler_inferCompilerTupleIndexElementType(tuple []string, index int) string {
 	outOfRange := index < 0 || index >= len(tuple)
 	return func() string {
-		switch {
-		case outOfRange == true:
+		if outOfRange {
 			return ""
-		default:
-			return tuple[index]
 		}
+		return tuple[index]
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerCallType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	identifierCall := len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier
 	return func() string {
-		switch {
-		case identifierCall == true:
+		if identifierCall {
 			return selfhost_compiler_compiler_compilerCallableReturnOrText(selfhost_compiler_compiler_findCompilerCallable(callables, expr.children[0].name, 0), expr.text)
-		default:
-			return selfhost_compiler_compiler_inferCompilerSelectorCallType(expr, callables, bindings)
 		}
+		return selfhost_compiler_compiler_inferCompilerSelectorCallType(expr, callables, bindings)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerCallableReturnOrText(callable CompilerCallable, fallback string) string {
 	found := callable.name != ""
 	return func() string {
-		switch {
-		case found == true:
+		if found {
 			return callable.returnType
-		default:
-			return fallback
 		}
+		return fallback
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerSelectorCallType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	selectorCall := len(expr.children) > 0 && expr.children[0].kind == ExprKind_Selector
 	return func() string {
-		switch {
-		case selectorCall == true:
+		if selectorCall {
 			return selfhost_compiler_compiler_inferCompilerSelectorCallTypeFromSelector(expr, expr.children[0], callables, bindings)
-		default:
-			return expr.text
 		}
+		return expr.text
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerSelectorCallTypeFromSelector(expr IRExpr, selector IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	hasReceiver := len(selector.children) > 0
 	return func() string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_inferCompilerSelectorCallTypeFromReceiver(expr, selector, selector.children[0], callables, bindings)
-		default:
-			return expr.text
 		}
+		return expr.text
 	}()
 }
 
@@ -17254,12 +16894,10 @@ func selfhost_compiler_compiler_inferCompilerAtSelectorCallType(expr IRExpr, sel
 func selfhost_compiler_compiler_inferCompilerSelectorType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	hasReceiver := len(expr.children) > 0
 	return func() string {
-		switch {
-		case hasReceiver == true:
+		if hasReceiver {
 			return selfhost_compiler_compiler_inferCompilerSelectorTypeFromReceiver(expr, expr.children[0], callables, bindings)
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17296,12 +16934,10 @@ func selfhost_compiler_compiler_inferCompilerInstanceSelectorCallType(expr IRExp
 	receiverType := selfhost_compiler_compiler_inferCompilerExprType(receiver, callables, bindings)
 	known := receiverType != ""
 	return func() string {
-		switch {
-		case known == true:
+		if known {
 			return selfhost_compiler_compiler_compilerCallableReturnOrText(selfhost_compiler_compiler_findCompilerCallable(callables, selfhost_compiler_compiler_compilerInstanceMethodName(selfhost_compiler_compiler_compilerTypeBase(receiverType), selector.name), 0), expr.text)
-		default:
-			return expr.text
 		}
+		return expr.text
 	}()
 }
 
@@ -17316,12 +16952,10 @@ func selfhost_compiler_compiler_inferCompilerBlockTypeWithStructs(expr IRExpr, s
 func selfhost_compiler_compiler_inferCompilerBlockTypeAtWithStructs(statements []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, lastType string) string {
 	done := index >= len(statements)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return lastType
-		default:
-			return selfhost_compiler_compiler_inferCompilerBlockTypeStepWithStructs(statements, index, structs, callables, bindings)
 		}
+		return selfhost_compiler_compiler_inferCompilerBlockTypeStepWithStructs(statements, index, structs, callables, bindings)
 	}()
 }
 
@@ -17335,12 +16969,10 @@ func selfhost_compiler_compiler_inferCompilerBlockTypeStepWithStructs(statements
 func selfhost_compiler_compiler_inferCompilerTernaryType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	complete := len(expr.children) >= 3
 	return func() string {
-		switch {
-		case complete == true:
+		if complete {
 			return selfhost_compiler_compiler_inferCompilerCommonType(selfhost_compiler_compiler_inferCompilerExprType(expr.children[1], callables, bindings), selfhost_compiler_compiler_inferCompilerExprType(expr.children[2], callables, bindings))
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17374,23 +17006,19 @@ func selfhost_compiler_compiler_inferCompilerBinaryType(expr IRExpr, callables [
 	}()
 	knownBool := comparison || boolOp
 	return func() string {
-		switch {
-		case knownBool == true:
+		if knownBool {
 			return "Bool"
-		default:
-			return selfhost_compiler_compiler_inferCompilerBinaryValueType(expr, callables, bindings)
 		}
+		return selfhost_compiler_compiler_inferCompilerBinaryValueType(expr, callables, bindings)
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerBinaryValueType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	return func() string {
-		switch {
-		case selfhost_compiler_compiler_compilerArithmeticOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerArithmeticOp(expr.op) {
 			return selfhost_compiler_compiler_inferCompilerNumericBinaryType(expr, callables, bindings)
-		default:
-			return selfhost_compiler_compiler_inferCompilerBitwiseBinaryType(expr, callables, bindings)
 		}
+		return selfhost_compiler_compiler_inferCompilerBitwiseBinaryType(expr, callables, bindings)
 	}()
 }
 
@@ -17400,36 +17028,30 @@ func selfhost_compiler_compiler_inferCompilerNumericBinaryType(expr IRExpr, call
 
 func selfhost_compiler_compiler_inferCompilerBitwiseBinaryType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
 	return func() string {
-		switch {
-		case selfhost_compiler_compiler_compilerBitwiseOp(expr.op) == true:
+		if selfhost_compiler_compiler_compilerBitwiseOp(expr.op) {
 			return selfhost_compiler_compiler_inferCompilerBitwisePairType(selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings), selfhost_compiler_compiler_inferCompilerExprType(expr.children[1], callables, bindings))
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerBitwisePairType(left string, right string) string {
 	missing := left == "" || right == ""
 	return func() string {
-		switch {
-		case missing == true:
+		if missing {
 			return ""
-		default:
-			return selfhost_compiler_compiler_inferCompilerMatchingPairType(left, right)
 		}
+		return selfhost_compiler_compiler_inferCompilerMatchingPairType(left, right)
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerMatchingPairType(left string, right string) string {
 	matched := left == right
 	return func() string {
-		switch {
-		case matched == true:
+		if matched {
 			return left
-		default:
-			return ""
 		}
+		return ""
 	}()
 }
 
@@ -17459,24 +17081,20 @@ func selfhost_compiler_compiler_inferCompilerCommonType(left string, right strin
 func selfhost_compiler_compiler_findCompilerCallable(callables []CompilerCallable, name string, index int) CompilerCallable {
 	done := index >= len(callables)
 	return func() CompilerCallable {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptyCompilerCallable()
-		default:
-			return selfhost_compiler_compiler_findCompilerCallableAt(callables, name, index)
 		}
+		return selfhost_compiler_compiler_findCompilerCallableAt(callables, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerCallableAt(callables []CompilerCallable, name string, index int) CompilerCallable {
 	matched := callables[index].name == name
 	return func() CompilerCallable {
-		switch {
-		case matched == true:
+		if matched {
 			return callables[index]
-		default:
-			return selfhost_compiler_compiler_findCompilerCallable(callables, name, index+1)
 		}
+		return selfhost_compiler_compiler_findCompilerCallable(callables, name, index+1)
 	}()
 }
 
@@ -17495,10 +17113,6 @@ func selfhost_compiler_compiler_compilerParamTypeNames(params []IRParam) []strin
 		func() int { names = append(names, param.typeName); return len(names) }()
 	}
 	return names
-}
-
-func selfhost_compiler_compiler_compilerParamBindings(params []IRParam) []CompilerTypeBinding {
-	return selfhost_compiler_compiler_compilerFunctionBindings(params, []CompilerTypeBinding{})
 }
 
 func selfhost_compiler_compiler_compilerInitialBindings(file IRFile, callables []CompilerCallable) []CompilerTypeBinding {
@@ -17526,12 +17140,10 @@ func selfhost_compiler_compiler_compilerMacroFunctionBindings(functions []IRFunc
 
 func selfhost_compiler_compiler_compilerMacroFunctionBinding(fn IRFunction, bindings []CompilerTypeBinding) []CompilerTypeBinding {
 	return func() []CompilerTypeBinding {
-		switch {
-		case fn.macro == true:
+		if fn.macro {
 			return selfhost_compiler_compiler_addCompilerTypeBinding(bindings, fn.name, "MacroFunction")
-		default:
-			return bindings
 		}
+		return bindings
 	}()
 }
 
@@ -17579,48 +17191,40 @@ func selfhost_compiler_compiler_emptyCompilerTypeBinding() CompilerTypeBinding {
 func selfhost_compiler_compiler_findCompilerTypeBinding(bindings []CompilerTypeBinding, name string, index int) CompilerTypeBinding {
 	done := index >= len(bindings)
 	return func() CompilerTypeBinding {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptyCompilerTypeBinding()
-		default:
-			return selfhost_compiler_compiler_findCompilerTypeBindingAt(bindings, name, index)
 		}
+		return selfhost_compiler_compiler_findCompilerTypeBindingAt(bindings, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerTypeBindingAt(bindings []CompilerTypeBinding, name string, index int) CompilerTypeBinding {
 	matched := bindings[index].name == name
 	return func() CompilerTypeBinding {
-		switch {
-		case matched == true:
+		if matched {
 			return bindings[index]
-		default:
-			return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, index+1)
 		}
+		return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerStruct(structs []IRStructType, name string, index int) IRStructType {
 	done := index >= len(structs)
 	return func() IRStructType {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptyCompilerStruct()
-		default:
-			return selfhost_compiler_compiler_findCompilerStructAt(structs, name, index)
 		}
+		return selfhost_compiler_compiler_findCompilerStructAt(structs, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerStructAt(structs []IRStructType, name string, index int) IRStructType {
 	matched := structs[index].name == name
 	return func() IRStructType {
-		switch {
-		case matched == true:
+		if matched {
 			return structs[index]
-		default:
-			return selfhost_compiler_compiler_findCompilerStruct(structs, name, index+1)
 		}
+		return selfhost_compiler_compiler_findCompilerStruct(structs, name, index+1)
 	}()
 }
 
@@ -17631,24 +17235,20 @@ func selfhost_compiler_compiler_emptyCompilerStruct() IRStructType {
 func selfhost_compiler_compiler_findCompilerStructField(fields []IRField, name string, index int) IRField {
 	done := index >= len(fields)
 	return func() IRField {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptyCompilerField()
-		default:
-			return selfhost_compiler_compiler_findCompilerStructFieldAt(fields, name, index)
 		}
+		return selfhost_compiler_compiler_findCompilerStructFieldAt(fields, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerStructFieldAt(fields []IRField, name string, index int) IRField {
 	matched := fields[index].name == name
 	return func() IRField {
-		switch {
-		case matched == true:
+		if matched {
 			return fields[index]
-		default:
-			return selfhost_compiler_compiler_findCompilerStructField(fields, name, index+1)
 		}
+		return selfhost_compiler_compiler_findCompilerStructField(fields, name, index+1)
 	}()
 }
 
@@ -17682,12 +17282,10 @@ func selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs []IRStruc
 			return false
 		default:
 			return func() bool {
-				switch {
-				case structs[index].name == name == true:
+				if structs[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, index+1)
 				}
+				return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, index+1)
 			}()
 		}
 	}()
@@ -17701,12 +17299,10 @@ func selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums []IREnumType,
 			return false
 		default:
 			return func() bool {
-				switch {
-				case enums[index].name == name == true:
+				if enums[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, index+1)
 				}
+				return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, index+1)
 			}()
 		}
 	}()
@@ -17715,48 +17311,40 @@ func selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums []IREnumType,
 func selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions []IRFunction, name string, macro bool, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerFunctionNameAppearsBeforeAt(functions, name, macro, index)
 		}
+		return selfhost_compiler_compiler_compilerFunctionNameAppearsBeforeAt(functions, name, macro, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerFunctionNameAppearsBeforeAt(functions []IRFunction, name string, macro bool, index int) bool {
 	matched := functions[index].name == name && functions[index].macro == macro
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, name, macro, index-1)
 		}
+		return selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, name, macro, index-1)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants []IRConst, name string, index int) bool {
 	done := index < 0
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerConstNameAppearsBeforeAt(constants, name, index)
 		}
+		return selfhost_compiler_compiler_compilerConstNameAppearsBeforeAt(constants, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerConstNameAppearsBeforeAt(constants []IRConst, name string, index int) bool {
 	matched := constants[index].name == name
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, name, index-1)
 		}
+		return selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, name, index-1)
 	}()
 }
 
@@ -17768,12 +17356,10 @@ func selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields []IRField,
 			return false
 		default:
 			return func() bool {
-				switch {
-				case fields[index].name == name == true:
+				if fields[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, index-1)
 				}
+				return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, index-1)
 			}()
 		}
 	}()
@@ -17787,12 +17373,10 @@ func selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods []IRFunc
 			return false
 		default:
 			return func() bool {
-				switch {
-				case methods[index].name == name == true:
+				if methods[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, index-1)
 				}
+				return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, index-1)
 			}()
 		}
 	}()
@@ -17806,12 +17390,10 @@ func selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members []IR
 			return false
 		default:
 			return func() bool {
-				switch {
-				case members[index].name == name == true:
+				if members[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, index-1)
 				}
+				return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, index-1)
 			}()
 		}
 	}()
@@ -17825,12 +17407,10 @@ func selfhost_compiler_compiler_compilerParamNameAppearsBefore(params []IRParam,
 			return false
 		default:
 			return func() bool {
-				switch {
-				case params[index].name == name == true:
+				if params[index].name == name {
 					return true
-				default:
-					return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, index-1)
 				}
+				return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, index-1)
 			}()
 		}
 	}()
@@ -17907,34 +17487,30 @@ func selfhost_compiler_compiler_expandCompilerTypeMacros(typeDecl ParsedType) Pa
 			return len(members)
 		}()
 	}
-	return ParsedType{name: typeName, private: typeDecl.private, enum: typeDecl.enum, annotations: typeDecl.annotations, generics: typeDecl.generics, fields: fields, methods: selfhost_compiler_compiler_expandCompilerTypeMacroMethods(typeDecl, typeName, methods), members: members, line: typeDecl.line, column: typeDecl.column}
+	return ParsedType{private: typeDecl.private, enum: typeDecl.enum, annotations: typeDecl.annotations, generics: typeDecl.generics, line: typeDecl.line, column: typeDecl.column, name: typeName, fields: fields, methods: selfhost_compiler_compiler_expandCompilerTypeMacroMethods(typeDecl, typeName, methods), members: members}
 }
 
 func selfhost_compiler_compiler_expandCompilerTypeMacroMethods(typeDecl ParsedType, typeName string, methods []ParsedFunction) []ParsedFunction {
 	return func() []ParsedFunction {
-		switch {
-		case typeDecl.enum == true:
+		if typeDecl.enum {
 			return methods
-		default:
-			return selfhost_compiler_compiler_expandCompilerStructMacroMethods(typeDecl, typeName, methods)
 		}
+		return selfhost_compiler_compiler_expandCompilerStructMacroMethods(typeDecl, typeName, methods)
 	}()
 }
 
 func selfhost_compiler_compiler_expandCompilerStructMacroMethods(typeDecl ParsedType, typeName string, methods []ParsedFunction) []ParsedFunction {
 	shouldAddFromJson := selfhost_compiler_compiler_compilerHasAnnotation(typeDecl.annotations, "#", "json", "object") && selfhost_compiler_compiler_compilerHasFromJsonMethod(methods, 0) == false
 	return func() []ParsedFunction {
-		switch {
-		case shouldAddFromJson == true:
+		if shouldAddFromJson {
 			return func() []ParsedFunction {
 				__rune_spread_out := []ParsedFunction{}
 				__rune_spread_out = append(__rune_spread_out, methods...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerJsonFromJsonMethod(typeDecl, typeName))
 				return __rune_spread_out
 			}()
-		default:
-			return methods
 		}
+		return methods
 	}()
 }
 
@@ -17965,12 +17541,10 @@ func selfhost_compiler_compiler_compilerGenericTypeRef(name string, generics []s
 func selfhost_compiler_compiler_compilerGenericTypeRefArgs(generics []string, index int, line int, column int, out []ParsedTypeRef) []ParsedTypeRef {
 	done := index >= len(generics)
 	return func() []ParsedTypeRef {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerGenericTypeRefArgsStep(generics, index, line, column, out)
 		}
+		return selfhost_compiler_compiler_compilerGenericTypeRefArgsStep(generics, index, line, column, out)
 	}()
 }
 
@@ -17990,24 +17564,20 @@ func selfhost_compiler_compiler_compilerTypeRefWithArgs(name string, args []Pars
 func selfhost_compiler_compiler_compilerHasFromJsonMethod(methods []ParsedFunction, index int) bool {
 	done := index >= len(methods)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerHasFromJsonMethodAt(methods, index)
 		}
+		return selfhost_compiler_compiler_compilerHasFromJsonMethodAt(methods, index)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerHasFromJsonMethodAt(methods []ParsedFunction, index int) bool {
 	matched := methods[index].name == "fromJson"
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerHasFromJsonMethod(methods, index+1)
 		}
+		return selfhost_compiler_compiler_compilerHasFromJsonMethod(methods, index+1)
 	}()
 }
 
@@ -18018,12 +17588,10 @@ func selfhost_compiler_compiler_compilerHasAnnotation(annotations []ParsedAnnota
 func selfhost_compiler_compiler_compilerHasAnnotationAt(annotations []ParsedAnnotation, marker string, module string, name string, index int) bool {
 	done := index >= len(annotations)
 	return func() bool {
-		switch {
-		case done == true:
+		if done {
 			return false
-		default:
-			return selfhost_compiler_compiler_compilerHasAnnotationStep(annotations, marker, module, name, index)
 		}
+		return selfhost_compiler_compiler_compilerHasAnnotationStep(annotations, marker, module, name, index)
 	}()
 }
 
@@ -18031,25 +17599,23 @@ func selfhost_compiler_compiler_compilerHasAnnotationStep(annotations []ParsedAn
 	annotation := annotations[index]
 	matched := annotation.marker == marker && annotation.module == module && annotation.name == name
 	return func() bool {
-		switch {
-		case matched == true:
+		if matched {
 			return true
-		default:
-			return selfhost_compiler_compiler_compilerHasAnnotationAt(annotations, marker, module, name, index+1)
 		}
+		return selfhost_compiler_compiler_compilerHasAnnotationAt(annotations, marker, module, name, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_expandCompilerFieldMacros(field ParsedField) ParsedField {
-	return ParsedField{name: selfhost_compiler_compiler_compilerRenameDeclarationName(field.annotations, field.name), private: field.private, annotations: field.annotations, typeRef: field.typeRef, line: field.line, column: field.column}
+	return ParsedField{private: field.private, annotations: field.annotations, typeRef: field.typeRef, line: field.line, column: field.column, name: selfhost_compiler_compiler_compilerRenameDeclarationName(field.annotations, field.name)}
 }
 
 func selfhost_compiler_compiler_expandCompilerEnumMemberMacros(member ParsedEnumMember) ParsedEnumMember {
-	return ParsedEnumMember{name: selfhost_compiler_compiler_compilerRenameDeclarationName(member.annotations, member.name), private: member.private, annotations: member.annotations, value: member.value, params: member.params, line: member.line, column: member.column}
+	return ParsedEnumMember{private: member.private, annotations: member.annotations, value: member.value, params: member.params, line: member.line, column: member.column, name: selfhost_compiler_compiler_compilerRenameDeclarationName(member.annotations, member.name)}
 }
 
 func selfhost_compiler_compiler_expandCompilerFunctionMacros(fn ParsedFunction) ParsedFunction {
-	return ParsedFunction{name: selfhost_compiler_compiler_compilerRenameDeclarationName(fn.annotations, fn.name), private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, annotations: fn.annotations, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: selfhost_compiler_compiler_expandCompilerNamespaceAliases(fn.body, []CompilerNamespaceAlias{}), line: fn.line, column: fn.column}
+	return ParsedFunction{private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, annotations: fn.annotations, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, line: fn.line, column: fn.column, name: selfhost_compiler_compiler_compilerRenameDeclarationName(fn.annotations, fn.name), body: selfhost_compiler_compiler_expandCompilerNamespaceAliases(fn.body, []CompilerNamespaceAlias{})}
 }
 
 func selfhost_compiler_compiler_compilerMacroErrors(file ParsedFile, errors []ParseError) []ParseError {
@@ -18061,52 +17627,44 @@ func selfhost_compiler_compiler_compilerMacroErrors(file ParsedFile, errors []Pa
 func selfhost_compiler_compiler_compilerMacroMethodErrors(types []ParsedType, index int, errors []ParseError) []ParseError {
 	done := index >= len(types)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerMacroMethodErrors(types, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodErrors(types[index].methods, 0, errors))
 		}
+		return selfhost_compiler_compiler_compilerMacroMethodErrors(types, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodErrors(types[index].methods, 0, errors))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(methods)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodError(methods[index], errors))
 		}
+		return selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodError(methods[index], errors))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerMacroTypeMethodError(method ParsedFunction, errors []ParseError) []ParseError {
 	return func() []ParseError {
-		switch {
-		case method.macro == true:
+		if method.macro {
 			return func() []ParseError {
 				__rune_spread_out := []ParseError{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("macro declarations must be top-level functions", method.line, method.column))
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
 func selfhost_compiler_compiler_compilerMacroFunctionErrors(functions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(functions)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerMacroFunctionErrors(functions, index+1, selfhost_compiler_compiler_compilerMacroFunctionError(functions[index], errors))
 		}
+		return selfhost_compiler_compiler_compilerMacroFunctionErrors(functions, index+1, selfhost_compiler_compiler_compilerMacroFunctionError(functions[index], errors))
 	}()
 }
 
@@ -18116,17 +17674,15 @@ func selfhost_compiler_compiler_compilerMacroFunctionError(fn ParsedFunction, er
 		case fn.macro == true:
 			return func() []ParseError {
 				next := func() []ParseError {
-					switch {
-					case selfhost_compiler_compiler_compilerSyntaxMacroSignatureOk(fn) == true:
+					if selfhost_compiler_compiler_compilerSyntaxMacroSignatureOk(fn) {
 						return errors
-					default:
-						return func() []ParseError {
-							__rune_spread_out := []ParseError{}
-							__rune_spread_out = append(__rune_spread_out, errors...)
-							__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("macro "+fn.name+" must accept SyntaxFile and MacroContext first and return SyntaxFile", fn.line, fn.column))
-							return __rune_spread_out
-						}()
 					}
+					return func() []ParseError {
+						__rune_spread_out := []ParseError{}
+						__rune_spread_out = append(__rune_spread_out, errors...)
+						__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("macro "+fn.name+" must accept SyntaxFile and MacroContext first and return SyntaxFile", fn.line, fn.column))
+						return __rune_spread_out
+					}()
 				}()
 				return selfhost_compiler_compiler_compilerMacroPurityError(fn, next)
 			}()
@@ -18171,12 +17727,10 @@ func selfhost_compiler_compiler_compilerParsedMacroPurityMessage(expr ParsedExpr
 func selfhost_compiler_compiler_compilerParsedMacroChildPurityMessage(children []ParsedExpr, index int) string {
 	done := index >= len(children)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return ""
-		default:
-			return selfhost_compiler_compiler_compilerParsedMacroChildPurityMessageAt(children, index)
 		}
+		return selfhost_compiler_compiler_compilerParsedMacroChildPurityMessageAt(children, index)
 	}()
 }
 
@@ -18283,12 +17837,10 @@ func selfhost_compiler_compiler_compilerAnnotationErrors(file ParsedFile, errors
 func selfhost_compiler_compiler_compilerTypeAnnotationErrors(types []ParsedType, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(types)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, index+1, selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, errors))
 		}
+		return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, index+1, selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, errors))
 	}()
 }
 
@@ -18302,48 +17854,40 @@ func selfhost_compiler_compiler_compilerTypeAnnotationError(typeDecl ParsedType,
 func selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields []ParsedField, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(fields)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, 0, errors))
 		}
+		return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, 0, errors))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members []ParsedEnumMember, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(members)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, 0, errors))
 		}
+		return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, 0, errors))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions []ParsedFunction, topLevelFunctions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(functions)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, 0, errors))
 		}
+		return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, 0, errors))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerAnnotationListErrors(annotations []ParsedAnnotation, functions []ParsedFunction, index int, errors []ParseError) []ParseError {
 	done := index >= len(annotations)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, index+1, selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, errors))
 		}
+		return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, index+1, selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, errors))
 	}()
 }
 
@@ -18394,17 +17938,15 @@ func selfhost_compiler_compiler_compilerResolvedLocalAnnotationError(annotation 
 			}()
 		default:
 			return func() []ParseError {
-				switch {
-				case binding.macro == true:
+				if binding.macro {
 					return selfhost_compiler_compiler_compilerAnnotationArgErrors(annotation, binding, errors)
-				default:
-					return func() []ParseError {
-						__rune_spread_out := []ParseError{}
-						__rune_spread_out = append(__rune_spread_out, errors...)
-						__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("#"+annotation.name+" refers to a function that is not a macro", annotation.line, annotation.column))
-						return __rune_spread_out
-					}()
 				}
+				return func() []ParseError {
+					__rune_spread_out := []ParseError{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("#"+annotation.name+" refers to a function that is not a macro", annotation.line, annotation.column))
+					return __rune_spread_out
+				}()
 			}()
 		}
 	}()
@@ -18424,51 +17966,45 @@ func selfhost_compiler_compiler_compilerModuleAnnotationError(annotation ParsedA
 
 func selfhost_compiler_compiler_compilerUnknownModuleMacroError(annotation ParsedAnnotation, errors []ParseError) []ParseError {
 	return func() []ParseError {
-		switch {
-		case selfhost_compiler_compiler_compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) == true:
+		if selfhost_compiler_compiler_compilerKnownOrdinaryAnnotationFunction(annotation.module, annotation.name) {
 			return func() []ParseError {
 				__rune_spread_out := []ParseError{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("#"+annotation.module+"."+annotation.name+" refers to a function that is not a macro", annotation.line, annotation.column))
 				return __rune_spread_out
 			}()
-		default:
-			return func() []ParseError {
-				__rune_spread_out := []ParseError{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("unknown macro #"+annotation.module+"."+annotation.name, annotation.line, annotation.column))
-				return __rune_spread_out
-			}()
 		}
+		return func() []ParseError {
+			__rune_spread_out := []ParseError{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("unknown macro #"+annotation.module+"."+annotation.name, annotation.line, annotation.column))
+			return __rune_spread_out
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerAnnotationArgErrors(annotation ParsedAnnotation, binding CompilerMacroBinding, errors []ParseError) []ParseError {
 	arityOk := len(annotation.args) == len(binding.paramTypes)
 	return func() []ParseError {
-		switch {
-		case arityOk == true:
+		if arityOk {
 			return selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation, binding, 0, errors)
-		default:
-			return func() []ParseError {
-				__rune_spread_out := []ParseError{}
-				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("function \""+binding.name+"\" expects "+compilerIntToString(len(binding.paramTypes))+" args, got "+compilerIntToString(len(annotation.args)), annotation.line, annotation.column))
-				return __rune_spread_out
-			}()
 		}
+		return func() []ParseError {
+			__rune_spread_out := []ParseError{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError("function \""+binding.name+"\" expects "+compilerIntToString(len(binding.paramTypes))+" args, got "+compilerIntToString(len(annotation.args)), annotation.line, annotation.column))
+			return __rune_spread_out
+		}()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation ParsedAnnotation, binding CompilerMacroBinding, index int, errors []ParseError) []ParseError {
 	done := index >= len(binding.paramTypes)
 	return func() []ParseError {
-		switch {
-		case done == true:
+		if done {
 			return errors
-		default:
-			return selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation, binding, index+1, selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation, binding, index, errors))
 		}
+		return selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation, binding, index+1, selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation, binding, index, errors))
 	}()
 }
 
@@ -18478,17 +18014,15 @@ func selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation Parsed
 	shouldCheck := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual)
 	mismatch := shouldCheck && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
 	return func() []ParseError {
-		switch {
-		case mismatch == true:
+		if mismatch {
 			return func() []ParseError {
 				__rune_spread_out := []ParseError{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError(selfhost_compiler_compiler_compilerArgumentTypeError(binding.name, index+1, actual, expected), annotation.line, annotation.column))
 				return __rune_spread_out
 			}()
-		default:
-			return errors
 		}
+		return errors
 	}()
 }
 
@@ -18524,69 +18058,59 @@ func selfhost_compiler_compiler_compilerParsedAnnotationArgType(expr ParsedExpr)
 func selfhost_compiler_compiler_findCompilerMacroBinding(functions []ParsedFunction, name string, index int) CompilerMacroBinding {
 	done := index >= len(functions)
 	return func() CompilerMacroBinding {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptyCompilerMacroBinding()
-		default:
-			return selfhost_compiler_compiler_findCompilerMacroBindingAt(functions, name, index)
 		}
+		return selfhost_compiler_compiler_findCompilerMacroBindingAt(functions, name, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findCompilerMacroBindingAt(functions []ParsedFunction, name string, index int) CompilerMacroBinding {
 	matched := functions[index].name == name
 	return func() CompilerMacroBinding {
-		switch {
-		case matched == true:
+		if matched {
 			return selfhost_compiler_compiler_compilerMacroBindingFromFunction(functions[index])
-		default:
-			return selfhost_compiler_compiler_findCompilerMacroBinding(functions, name, index+1)
 		}
+		return selfhost_compiler_compiler_findCompilerMacroBinding(functions, name, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerMacroBindingFromFunction(fn ParsedFunction) CompilerMacroBinding {
 	return CompilerMacroBinding{name: fn.name, macro: fn.macro, paramTypes: func() []string {
-		switch {
-		case fn.macro == true:
+		if fn.macro {
 			return selfhost_compiler_compiler_compilerVisibleMacroParamTypes(fn.params, 2, []string{})
-		default:
-			return selfhost_compiler_compiler_compilerParsedParamTypeNames(fn.params, 0, []string{})
 		}
+		return selfhost_compiler_compiler_compilerParsedParamTypeNames(fn.params, 0, []string{})
 	}()}
 }
 
 func selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params []ParsedParam, index int, out []string) []string {
 	done := index >= len(params)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params, index+1, func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, out...)
-				__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
-				return __rune_spread_out
-			}())
 		}
+		return selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params, index+1, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
+			return __rune_spread_out
+		}())
 	}()
 }
 
 func selfhost_compiler_compiler_compilerParsedParamTypeNames(params []ParsedParam, index int, out []string) []string {
 	done := index >= len(params)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_compilerParsedParamTypeNames(params, index+1, func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, out...)
-				__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
-				return __rune_spread_out
-			}())
 		}
+		return selfhost_compiler_compiler_compilerParsedParamTypeNames(params, index+1, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, out...)
+			__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
+			return __rune_spread_out
+		}())
 	}()
 }
 
@@ -18678,7 +18202,7 @@ func selfhost_compiler_compiler_compilerParseError(message string, line int, col
 }
 
 func selfhost_compiler_compiler_expandCompilerTestMacros(testDecl ParsedTest) ParsedTest {
-	return ParsedTest{name: testDecl.name, body: selfhost_compiler_compiler_expandCompilerNamespaceAliases(testDecl.body, []CompilerNamespaceAlias{}), line: testDecl.line, column: testDecl.column}
+	return ParsedTest{name: testDecl.name, line: testDecl.line, column: testDecl.column, body: selfhost_compiler_compiler_expandCompilerNamespaceAliases(testDecl.body, []CompilerNamespaceAlias{})}
 }
 
 func selfhost_compiler_compiler_compilerImportExpressions(file ParsedFile) []ParsedImport {
@@ -18754,17 +18278,15 @@ func selfhost_compiler_compiler_compilerMergeParsedImports(imports []ParsedImpor
 
 func selfhost_compiler_compiler_compilerAppendParsedImportIfMissing(imports []ParsedImport, importDecl ParsedImport) []ParsedImport {
 	return func() []ParsedImport {
-		switch {
-		case selfhost_compiler_compiler_compilerParsedImportContains(imports, importDecl.path, importDecl.go_, importDecl.module, 0) == true:
+		if selfhost_compiler_compiler_compilerParsedImportContains(imports, importDecl.path, importDecl.go_, importDecl.module, 0) {
 			return imports
-		default:
-			return func() []ParsedImport {
-				__rune_spread_out := []ParsedImport{}
-				__rune_spread_out = append(__rune_spread_out, imports...)
-				__rune_spread_out = append(__rune_spread_out, importDecl)
-				return __rune_spread_out
-			}()
 		}
+		return func() []ParsedImport {
+			__rune_spread_out := []ParsedImport{}
+			__rune_spread_out = append(__rune_spread_out, imports...)
+			__rune_spread_out = append(__rune_spread_out, importDecl)
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -18780,10 +18302,6 @@ func selfhost_compiler_compiler_compilerParsedImportContains(imports []ParsedImp
 			return selfhost_compiler_compiler_compilerParsedImportContains(imports, path, go_, module, index+1)
 		}()
 	}()
-}
-
-func selfhost_compiler_compiler_compilerEmptyParsedImport() ParsedImport {
-	return ParsedImport{path: "", go_: false, module: false, line: 0, column: 0}
 }
 
 func selfhost_compiler_compiler_expandCompilerNamespaceAliases(expr ParsedExpr, aliases []CompilerNamespaceAlias) ParsedExpr {
@@ -18808,12 +18326,10 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasBlock(expr ParsedExp
 func selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(statements []ParsedExpr, index int, aliases []CompilerNamespaceAlias, out []ParsedExpr) []ParsedExpr {
 	done := index >= len(statements)
 	return func() []ParsedExpr {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockStep(statements, index, aliases, out)
 		}
+		return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockStep(statements, index, aliases, out)
 	}()
 }
 
@@ -18869,12 +18385,10 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasLambda(expr ParsedEx
 func selfhost_compiler_compiler_expandCompilerNamespaceAliasSelector(expr ParsedExpr, aliases []CompilerNamespaceAlias) ParsedExpr {
 	noReceiver := len(expr.children) == 0
 	return func() ParsedExpr {
-		switch {
-		case noReceiver == true:
+		if noReceiver {
 			return expr
-		default:
-			return selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorReceiver(expr, selfhost_compiler_compiler_expandCompilerNamespaceAliases(expr.children[0], aliases), aliases)
 		}
+		return selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorReceiver(expr, selfhost_compiler_compiler_expandCompilerNamespaceAliases(expr.children[0], aliases), aliases)
 	}()
 }
 
@@ -18888,12 +18402,10 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorReceiver(exp
 	}()
 	found := alias.name != ""
 	return func() ParsedExpr {
-		switch {
-		case found == true:
+		if found {
 			return selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorFound(expr, receiver, alias)
-		default:
-			return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{receiver})
 		}
+		return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{receiver})
 	}()
 }
 
@@ -18905,12 +18417,10 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasSelectorFound(expr P
 			return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{selfhost_compiler_compiler_compilerImportAtExpr("go:"+alias.importPath, receiver.line, receiver.column)})
 		default:
 			return func() ParsedExpr {
-				switch {
-				case moduleAlias == true:
+				if moduleAlias {
 					return selfhost_compiler_compiler_compilerWithChildren(expr, []ParsedExpr{selfhost_compiler_compiler_compilerModuleAtExpr(alias.module, receiver.line, receiver.column)})
-				default:
-					return selfhost_compiler_compiler_compilerParsedExpr(ExprKind_Identifier, expr.name, expr.name, "", "", []ParsedParam{}, []ParsedExpr{}, expr.line, expr.column)
 				}
+				return selfhost_compiler_compiler_compilerParsedExpr(ExprKind_Identifier, expr.name, expr.name, "", "", []ParsedParam{}, []ParsedExpr{}, expr.line, expr.column)
 			}()
 		}
 	}()
@@ -18937,24 +18447,20 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(childre
 func selfhost_compiler_compiler_compilerNamespaceAliasFromLet(expr ParsedExpr) CompilerNamespaceAlias {
 	valid := expr.kind == ExprKind_Let && len(expr.children) > 0
 	return func() CompilerNamespaceAlias {
-		switch {
-		case valid == true:
+		if valid {
 			return selfhost_compiler_compiler_compilerNamespaceAliasFromLetValue(expr.name, expr.children[0])
-		default:
-			return selfhost_compiler_compiler_emptyCompilerNamespaceAlias()
 		}
+		return selfhost_compiler_compiler_emptyCompilerNamespaceAlias()
 	}()
 }
 
 func selfhost_compiler_compiler_compilerNamespaceAliasFromLetValue(name string, value ParsedExpr) CompilerNamespaceAlias {
 	valid := value.kind == ExprKind_At
 	return func() CompilerNamespaceAlias {
-		switch {
-		case valid == true:
+		if valid {
 			return selfhost_compiler_compiler_compilerNamespaceAliasFromAt(name, value)
-		default:
-			return selfhost_compiler_compiler_emptyCompilerNamespaceAlias()
 		}
+		return selfhost_compiler_compiler_emptyCompilerNamespaceAlias()
 	}()
 }
 
@@ -19061,12 +18567,10 @@ func selfhost_compiler_compiler_compilerRenameDeclarationName(annotations []Pars
 func selfhost_compiler_compiler_compilerRenameDeclarationNameAt(annotations []ParsedAnnotation, fallback string, index int) string {
 	done := index >= len(annotations)
 	return func() string {
-		switch {
-		case done == true:
+		if done {
 			return fallback
-		default:
-			return selfhost_compiler_compiler_compilerRenameDeclarationNameStep(annotations, fallback, index)
 		}
+		return selfhost_compiler_compiler_compilerRenameDeclarationNameStep(annotations, fallback, index)
 	}()
 }
 
@@ -19074,24 +18578,20 @@ func selfhost_compiler_compiler_compilerRenameDeclarationNameStep(annotations []
 	annotation := annotations[index]
 	matched := annotation.marker == "#" && annotation.module == "macro" && annotation.name == "renameDeclaration" && len(annotation.args) > 0
 	return func() string {
-		switch {
-		case matched == true:
+		if matched {
 			return selfhost_compiler_compiler_compilerAnnotationStringArg(annotation, 0, fallback)
-		default:
-			return selfhost_compiler_compiler_compilerRenameDeclarationNameAt(annotations, fallback, index+1)
 		}
+		return selfhost_compiler_compiler_compilerRenameDeclarationNameAt(annotations, fallback, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_compilerAnnotationStringArg(annotation ParsedAnnotation, index int, fallback string) string {
 	valid := index < len(annotation.args) && annotation.args[index].kind == ExprKind_String
 	return func() string {
-		switch {
-		case valid == true:
+		if valid {
 			return selfhost_compiler_compiler_compilerUnquoteString(annotation.args[index].value)
-		default:
-			return fallback
 		}
+		return fallback
 	}()
 }
 
@@ -19107,29 +18607,25 @@ func selfhost_compiler_compiler_compilerUnquoteString(raw string) string {
 func selfhost_compiler_compiler_lowerReachableRuneFiles(files []SourceFile, pending []string, seen []string, out IRFile) IRFile {
 	empty := len(pending) == 0
 	return func() IRFile {
-		switch {
-		case empty == true:
+		if empty {
 			return out
-		default:
-			return selfhost_compiler_compiler_lowerReachableRuneFile(files, pending[0], append([]string{}, pending[1:len(pending)]...), seen, out)
 		}
+		return selfhost_compiler_compiler_lowerReachableRuneFile(files, pending[0], append([]string{}, pending[1:len(pending)]...), seen, out)
 	}()
 }
 
 func selfhost_compiler_compiler_lowerReachableRuneFile(files []SourceFile, path string, rest []string, seen []string, out IRFile) IRFile {
 	alreadySeen := selfhost_compiler_compiler_compilerContains(seen, path)
 	return func() IRFile {
-		switch {
-		case alreadySeen == true:
+		if alreadySeen {
 			return selfhost_compiler_compiler_lowerReachableRuneFiles(files, rest, seen, out)
-		default:
-			return selfhost_compiler_compiler_lowerUnseenRuneFile(files, path, rest, func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, seen...)
-				__rune_spread_out = append(__rune_spread_out, path)
-				return __rune_spread_out
-			}(), out)
 		}
+		return selfhost_compiler_compiler_lowerUnseenRuneFile(files, path, rest, func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, seen...)
+			__rune_spread_out = append(__rune_spread_out, path)
+			return __rune_spread_out
+		}(), out)
 	}()
 }
 
@@ -19137,24 +18633,20 @@ func selfhost_compiler_compiler_lowerUnseenRuneFile(files []SourceFile, path str
 	file := selfhost_compiler_compiler_findSourceFile(files, path, 0)
 	missing := len(file.path) == 0
 	return func() IRFile {
-		switch {
-		case missing == true:
+		if missing {
 			return selfhost_compiler_compiler_lowerReachableRuneFiles(files, rest, seen, selfhost_compiler_compiler_mergeCompilerIRFile(out, selfhost_compiler_compiler_missingImportFile(path)))
-		default:
-			return selfhost_compiler_compiler_lowerFoundSourceFile(files, file, rest, seen, out)
 		}
+		return selfhost_compiler_compiler_lowerFoundSourceFile(files, file, rest, seen, out)
 	}()
 }
 
 func selfhost_compiler_compiler_lowerFoundSourceFile(files []SourceFile, file SourceFile, rest []string, seen []string, out IRFile) IRFile {
 	typeScript := selfhost_compiler_compiler_sourceFileIsTypeScript(file)
 	return func() IRFile {
-		switch {
-		case typeScript == true:
+		if typeScript {
 			return selfhost_compiler_compiler_lowerReachableRuneFiles(files, rest, seen, out)
-		default:
-			return selfhost_compiler_compiler_lowerFoundRuneSourceFile(files, file, rest, seen, out)
 		}
+		return selfhost_compiler_compiler_lowerFoundRuneSourceFile(files, file, rest, seen, out)
 	}()
 }
 
@@ -19168,12 +18660,10 @@ func selfhost_compiler_compiler_lowerFoundRuneSourceFile(files []SourceFile, fil
 func selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files []SourceFile, basePath string, imports []IRImport, index int, out IRFile) IRFile {
 	done := index >= len(imports)
 	return func() IRFile {
-		switch {
-		case done == true:
+		if done {
 			return out
-		default:
-			return selfhost_compiler_compiler_lowerTypeScriptImportForRuneFile(files, basePath, imports, index, out)
 		}
+		return selfhost_compiler_compiler_lowerTypeScriptImportForRuneFile(files, basePath, imports, index, out)
 	}()
 }
 
@@ -19181,12 +18671,10 @@ func selfhost_compiler_compiler_lowerTypeScriptImportForRuneFile(files []SourceF
 	importDecl := imports[index]
 	shouldLoad := importDecl.go_ == false && importDecl.module == false && strings.HasSuffix(importDecl.path, ".ts")
 	return func() IRFile {
-		switch {
-		case shouldLoad == true:
+		if shouldLoad {
 			return selfhost_compiler_compiler_lowerTypeScriptImportPathForRuneFile(files, basePath, imports, index, out)
-		default:
-			return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, index+1, out)
 		}
+		return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, index+1, out)
 	}()
 }
 
@@ -19196,12 +18684,10 @@ func selfhost_compiler_compiler_lowerTypeScriptImportPathForRuneFile(files []Sou
 	file := selfhost_compiler_compiler_findSourceFile(files, resolved, 0)
 	missing := len(file.path) == 0
 	next := func() IRFile {
-		switch {
-		case missing == true:
+		if missing {
 			return selfhost_compiler_compiler_mergeCompilerIRFile(out, selfhost_compiler_compiler_missingImportFile(resolved))
-		default:
-			return selfhost_compiler_compiler_mergeCompilerIRFile(out, selfhost_compiler_compiler_lowerTypeScriptSourceFile(file, importDecl.path))
 		}
+		return selfhost_compiler_compiler_mergeCompilerIRFile(out, selfhost_compiler_compiler_lowerTypeScriptSourceFile(file, importDecl.path))
 	}()
 	return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, index+1, next)
 }
@@ -19209,41 +18695,35 @@ func selfhost_compiler_compiler_lowerTypeScriptImportPathForRuneFile(files []Sou
 func selfhost_compiler_compiler_appendImportPaths(pending []string, basePath string, imports []IRImport, index int) []string {
 	done := index >= len(imports)
 	return func() []string {
-		switch {
-		case done == true:
+		if done {
 			return pending
-		default:
-			return selfhost_compiler_compiler_appendImportPath(pending, basePath, imports, index)
 		}
+		return selfhost_compiler_compiler_appendImportPath(pending, basePath, imports, index)
 	}()
 }
 
 func selfhost_compiler_compiler_appendImportPath(pending []string, basePath string, imports []IRImport, index int) []string {
 	skip := imports[index].go_ || imports[index].module
 	return func() []string {
-		switch {
-		case skip == true:
+		if skip {
 			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, index+1)
-		default:
-			return selfhost_compiler_compiler_appendImportPathIfRune(pending, basePath, imports, index)
 		}
+		return selfhost_compiler_compiler_appendImportPathIfRune(pending, basePath, imports, index)
 	}()
 }
 
 func selfhost_compiler_compiler_appendImportPathIfRune(pending []string, basePath string, imports []IRImport, index int) []string {
 	typeScript := imports[index].module || strings.HasSuffix(imports[index].path, ".ts")
 	return func() []string {
-		switch {
-		case typeScript == true:
+		if typeScript {
 			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, index+1)
-		default:
-			return selfhost_compiler_compiler_appendImportPaths(func() []string {
-				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, pending...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, imports[index].path))
-				return __rune_spread_out
-			}(), basePath, imports, index+1)
 		}
+		return selfhost_compiler_compiler_appendImportPaths(func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, pending...)
+			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, imports[index].path))
+			return __rune_spread_out
+		}(), basePath, imports, index+1)
 	}()
 }
 
@@ -19251,60 +18731,50 @@ func selfhost_compiler_compiler_findSourceFile(files []SourceFile, path string, 
 	exact := selfhost_compiler_compiler_findSourceFileExact(files, selfhost_compiler_compiler_compilerPathNormalize(path), index)
 	found := len(exact.path) == 0 == false
 	return func() SourceFile {
-		switch {
-		case found == true:
+		if found {
 			return exact
-		default:
-			return selfhost_compiler_compiler_findSourceFileBasename(files, path, index)
 		}
+		return selfhost_compiler_compiler_findSourceFileBasename(files, path, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findSourceFileExact(files []SourceFile, path string, index int) SourceFile {
 	done := index >= len(files)
 	return func() SourceFile {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptySourceFile()
-		default:
-			return selfhost_compiler_compiler_findSourceFileExactAt(files, path, index)
 		}
+		return selfhost_compiler_compiler_findSourceFileExactAt(files, path, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findSourceFileExactAt(files []SourceFile, path string, index int) SourceFile {
 	matched := selfhost_compiler_compiler_compilerPathNormalize(files[index].path) == path
 	return func() SourceFile {
-		switch {
-		case matched == true:
+		if matched {
 			return files[index]
-		default:
-			return selfhost_compiler_compiler_findSourceFileExact(files, path, index+1)
 		}
+		return selfhost_compiler_compiler_findSourceFileExact(files, path, index+1)
 	}()
 }
 
 func selfhost_compiler_compiler_findSourceFileBasename(files []SourceFile, path string, index int) SourceFile {
 	done := index >= len(files)
 	return func() SourceFile {
-		switch {
-		case done == true:
+		if done {
 			return selfhost_compiler_compiler_emptySourceFile()
-		default:
-			return selfhost_compiler_compiler_findSourceFileBasenameAt(files, path, index)
 		}
+		return selfhost_compiler_compiler_findSourceFileBasenameAt(files, path, index)
 	}()
 }
 
 func selfhost_compiler_compiler_findSourceFileBasenameAt(files []SourceFile, path string, index int) SourceFile {
 	matched := selfhost_compiler_compiler_compilerPathBasename(files[index].path) == selfhost_compiler_compiler_compilerPathBasename(path)
 	return func() SourceFile {
-		switch {
-		case matched == true:
+		if matched {
 			return files[index]
-		default:
-			return selfhost_compiler_compiler_findSourceFileBasename(files, path, index+1)
 		}
+		return selfhost_compiler_compiler_findSourceFileBasename(files, path, index+1)
 	}()
 }
 
@@ -19325,12 +18795,10 @@ func selfhost_compiler_compiler_sourceFileIsTypeScript(file SourceFile) bool {
 func selfhost_compiler_compiler_resolveCompilerImportPath(basePath string, importPath string) string {
 	absolute := strings.HasPrefix(importPath, "/")
 	return func() string {
-		switch {
-		case absolute == true:
+		if absolute {
 			return selfhost_compiler_compiler_compilerPathNormalize(importPath)
-		default:
-			return selfhost_compiler_compiler_compilerPathNormalize(selfhost_compiler_compiler_compilerPathJoin(selfhost_compiler_compiler_compilerPathDirname(basePath), importPath))
 		}
+		return selfhost_compiler_compiler_compilerPathNormalize(selfhost_compiler_compiler_compilerPathJoin(selfhost_compiler_compiler_compilerPathDirname(basePath), importPath))
 	}()
 }
 
@@ -19452,20 +18920,6 @@ func selfhost_compiler_compiler_lowerTypeScriptSourceFile(file SourceFile, speci
 		}()
 	}
 	return out
-}
-
-func selfhost_compiler_compiler_typeScriptImportSpecifier(path string, imports []IRImport, index int) string {
-	return func() string {
-		if index >= len(imports) {
-			return ""
-		}
-		return func() string {
-			if strings.HasSuffix(imports[index].path, ".ts") && selfhost_compiler_compiler_compilerPathBasename(path) == selfhost_compiler_compiler_compilerPathBasename(imports[index].path) {
-				return imports[index].path
-			}
-			return selfhost_compiler_compiler_typeScriptImportSpecifier(path, imports, index+1)
-		}()
-	}()
 }
 
 func selfhost_compiler_compiler_compilerPathBasename(path string) string {
@@ -19647,14 +19101,6 @@ func selfhost_compiler_compiler_parseTypeScriptParams(text string) []IRParam {
 		}()
 	}
 	return params
-}
-
-func selfhost_compiler_compiler_emptyIRParam() IRParam {
-	return IRParam{name: "", typeName: "Dynamic", line: 0, column: 0}
-}
-
-func selfhost_compiler_compiler_emptyIRConst() IRConst {
-	return IRConst{name: "", private: false, typeName: "Dynamic", value: emptyIRExpr(), line: 0, column: 0}
 }
 
 func selfhost_compiler_compiler_parseTypeScriptParam(text string) IRParam {
