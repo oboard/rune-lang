@@ -9699,7 +9699,7 @@ func selfhost_compiler_mbt_emitMoonBitEnumMethods(enumDecl IREnumType) string {
 }
 
 func selfhost_compiler_mbt_methodWithMoonBitReceiver(typeName string, method IRFunction) IRFunction {
-	return IRFunction{name: method.name, private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: typeName, generics: method.generics, params: func() []IRParam {
+	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, generics: method.generics, returnType: method.returnType, body: method.body, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, receiverType: "", params: func() []IRParam {
 		switch {
 		case method.static == true:
 			return method.params
@@ -9707,7 +9707,7 @@ func selfhost_compiler_mbt_methodWithMoonBitReceiver(typeName string, method IRF
 			return selfhost_compiler_mbt_prependMoonBitSelfParam(typeName, method.params)
 		}
 		return nil
-	}(), returnType: method.returnType, body: method.body, sourcePath: method.sourcePath, line: method.line, column: method.column}
+	}()}
 }
 
 func selfhost_compiler_mbt_prependMoonBitSelfParam(typeName string, params []IRParam) []IRParam {
@@ -9728,18 +9728,12 @@ func selfhost_compiler_mbt_emitMoonBitFunction(fn IRFunction, receiverType strin
 		return ""
 	}()
 	name := mangleIdent(fn.name)
-	receiver := func() string {
-		if fn.receiverType != "" && fn.static == false {
-			return selfhost_compiler_mbt_moonBitTypeIdent(fn.receiverType) + "::"
-		}
-		return ""
-	}()
 	bodyReturns := returnsValue(fn.returnType) && fn.name != "main"
 	head := func() string {
 		if fn.name == "main" && params == "" {
 			return "fn main"
 		}
-		return "fn " + receiver + name + selfhost_compiler_mbt_emitMoonBitGenerics(fn.generics) + "(" + params + ")" + ret
+		return "fn " + name + selfhost_compiler_mbt_emitMoonBitGenerics(fn.generics) + "(" + params + ")" + ret
 	}()
 	out := head + " {\n"
 	out = out + selfhost_compiler_mbt_emitMoonBitBody(fn.body, bodyReturns, fn.returnType, 1)
@@ -14478,11 +14472,173 @@ func selfhost_compiler_compiler_checkPatternBlockBranch(branches []IRExpr, index
 }
 
 func selfhost_compiler_compiler_checkPatternBlockBranchValue(branches []IRExpr, index int, value IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, expected string) []string {
-	checked := selfhost_compiler_compiler_checkExpr(value, structs, callables, errors, bindings)
-	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+	patternBindings := selfhost_compiler_compiler_compilerPatternBindings(branches[index].children[0].text, bindings)
+	checked := selfhost_compiler_compiler_checkExpr(value, structs, callables, errors, patternBindings)
+	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, patternBindings)
 	nextExpected := selfhost_compiler_compiler_compilerNextPatternBranchType(expected, actual)
 	nextErrors := selfhost_compiler_compiler_checkPatternBranchTypeError(expected, actual, checked)
 	return selfhost_compiler_compiler_checkPatternBlockBranches(branches, index+1, structs, callables, nextErrors, bindings, nextExpected)
+}
+
+func selfhost_compiler_compiler_compilerPatternBindings(pattern string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	return selfhost_compiler_compiler_compilerPatternBindingParts(selfhost_compiler_compiler_compilerPatternParts(pattern, 0, 0, []string{}, ""), 0, bindings)
+}
+
+func selfhost_compiler_compiler_compilerPatternBindingParts(parts []string, index int, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	return func() []CompilerTypeBinding {
+		if index >= len(parts) {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerPatternBindingParts(parts, index+1, selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace(parts[index]), bindings))
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternBindingPart(pattern string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	alias := selfhost_compiler_compiler_compilerPatternTopLevelIndex(pattern, '@', 0, 0)
+	aliased := func() []CompilerTypeBinding {
+		if alias < 0 {
+			return bindings
+		}
+		return selfhost_compiler_compiler_addCompilerValueBinding(selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[0:alias]) }())), bindings), strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[alias+1 : len([]rune(pattern))]) }())), "")
+	}()
+	return func() []CompilerTypeBinding {
+		if alias >= 0 {
+			return aliased
+		}
+		return selfhost_compiler_compiler_compilerPatternBindingNonAlias(pattern, bindings)
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternBindingNonAlias(pattern string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	constructor := selfhost_compiler_compiler_compilerPatternTopLevelIndex(pattern, '(', 0, 0)
+	return func() []CompilerTypeBinding {
+		if constructor > 0 && strings.HasSuffix(pattern, ")") {
+			return selfhost_compiler_compiler_compilerPatternBindings(func() string { runes := []rune(pattern); return string(runes[constructor+1 : len([]rune(pattern))-1]) }(), bindings)
+		}
+		return func() []CompilerTypeBinding {
+			if strings.HasPrefix(pattern, "[") && strings.HasSuffix(pattern, "]") {
+				return selfhost_compiler_compiler_compilerPatternBindings(func() string { runes := []rune(pattern); return string(runes[1 : len([]rune(pattern))-1]) }(), bindings)
+			}
+			return func() []CompilerTypeBinding {
+				if strings.HasPrefix(pattern, "{") && strings.HasSuffix(pattern, "}") {
+					return selfhost_compiler_compiler_compilerMapPatternBindings(func() string { runes := []rune(pattern); return string(runes[1 : len([]rune(pattern))-1]) }(), bindings)
+				}
+				return selfhost_compiler_compiler_compilerPatternSimpleBinding(pattern, bindings)
+			}()
+		}()
+	}()
+}
+
+func selfhost_compiler_compiler_compilerMapPatternBindings(text string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	return selfhost_compiler_compiler_compilerMapPatternBindingParts(selfhost_compiler_compiler_compilerPatternParts(text, 0, 0, []string{}, ""), 0, bindings)
+}
+
+func selfhost_compiler_compiler_compilerMapPatternBindingParts(parts []string, index int, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	return func() []CompilerTypeBinding {
+		if index >= len(parts) {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerMapPatternBindingParts(parts, index+1, selfhost_compiler_compiler_compilerMapPatternBindingPart(parts[index], bindings))
+	}()
+}
+
+func selfhost_compiler_compiler_compilerMapPatternBindingPart(part string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	colon := selfhost_compiler_compiler_compilerPatternTopLevelIndex(part, ':', 0, 0)
+	return func() []CompilerTypeBinding {
+		if colon < 0 {
+			return bindings
+		}
+		return selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string { runes := []rune(part); return string(runes[colon+1 : len([]rune(part))]) }())), bindings)
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternSimpleBinding(pattern string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
+	name := func() string {
+		if strings.HasPrefix(pattern, "..") {
+			return strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[2:len([]rune(pattern))]) }()))
+		}
+		return pattern
+	}()
+	return func() []CompilerTypeBinding {
+		if selfhost_compiler_compiler_compilerPatternBindingName(name) {
+			return selfhost_compiler_compiler_addCompilerValueBinding(bindings, name, "")
+		}
+		return bindings
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternBindingName(name string) bool {
+	valid := len([]rune(name)) > 0
+	first := func() rune {
+		if valid {
+			return []rune(name)[0]
+		}
+		return ' '
+	}()
+	return valid && first >= 'a' && first <= 'z'
+}
+
+func selfhost_compiler_compiler_compilerPatternParts(text string, index int, depth int, out []string, current string) []string {
+	done := index >= len([]rune(text))
+	return func() []string {
+		if done {
+			return func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, out...)
+				__rune_spread_out = append(__rune_spread_out, current)
+				return __rune_spread_out
+			}()
+		}
+		return selfhost_compiler_compiler_compilerPatternPartsAt(text, index, depth, out, current)
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternPartsAt(text string, index int, depth int, out []string, current string) []string {
+	ch := []rune(text)[index]
+	return func() []string {
+		if ch == ',' && depth == 0 {
+			return selfhost_compiler_compiler_compilerPatternParts(text, index+1, depth, func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, out...)
+				__rune_spread_out = append(__rune_spread_out, current)
+				return __rune_spread_out
+			}(), "")
+		}
+		return selfhost_compiler_compiler_compilerPatternParts(text, index+1, selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth), out, current+string(ch))
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternTopLevelIndex(text string, target rune, index int, depth int) int {
+	return func() int {
+		if index >= len([]rune(text)) {
+			return -1
+		}
+		return selfhost_compiler_compiler_compilerPatternTopLevelIndexAt(text, target, index, depth)
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternTopLevelIndexAt(text string, target rune, index int, depth int) int {
+	ch := []rune(text)[index]
+	return func() int {
+		if ch == target && depth == 0 {
+			return index
+		}
+		return selfhost_compiler_compiler_compilerPatternTopLevelIndex(text, target, index+1, selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth))
+	}()
+}
+
+func selfhost_compiler_compiler_compilerPatternDepthAfter(ch rune, depth int) int {
+	return func() int {
+		if ch == '(' || ch == '[' || ch == '{' {
+			return depth + 1
+		}
+		return func() int {
+			if ch == ')' || ch == ']' || ch == '}' {
+				return depth - 1
+			}
+			return depth
+		}()
+	}()
 }
 
 func selfhost_compiler_compiler_compilerNextPatternBranchType(expected string, actual string) string {

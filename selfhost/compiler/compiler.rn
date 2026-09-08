@@ -1288,12 +1288,148 @@ checkPatternBlockBranchValue(
   bindings: Array[CompilerTypeBinding],
   expected: String
 ) -> Array[String] => {
-  checked := checkExpr(value, structs, callables, errors, bindings)
-  actual := inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
+  patternBindings := compilerPatternBindings(branches[index].children[0].text, bindings)
+  checked := checkExpr(value, structs, callables, errors, patternBindings)
+  actual := inferCompilerExprTypeWithStructs(value, structs, callables, patternBindings)
   nextExpected := compilerNextPatternBranchType(expected, actual)
   nextErrors := checkPatternBranchTypeError(expected, actual, checked)
   checkPatternBlockBranches(branches, index + 1, structs, callables, nextErrors, bindings, nextExpected)
 }
+
+compilerPatternBindings(
+  pattern: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => compilerPatternBindingParts(compilerPatternParts(pattern, 0, 0, [], ""), 0, bindings)
+
+compilerPatternBindingParts(
+  parts: Array[String],
+  index: Int,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => (
+  index >= parts.length() ? bindings
+    : compilerPatternBindingParts(parts, index + 1, compilerPatternBindingPart(parts[index].trim(), bindings))
+)
+
+compilerPatternBindingPart(
+  pattern: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  alias := compilerPatternTopLevelIndex(pattern, '@', 0, 0)
+  aliased := alias < 0 ? bindings
+    : addCompilerValueBinding(compilerPatternBindingPart(pattern.slice(0, alias).trim(), bindings), pattern.slice(alias + 1, pattern.length()).trim(), "")
+  alias >= 0 ? aliased
+    : compilerPatternBindingNonAlias(pattern, bindings)
+}
+
+compilerPatternBindingNonAlias(
+  pattern: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  constructor := compilerPatternTopLevelIndex(pattern, '(', 0, 0)
+  (
+    constructor > 0 && pattern.endsWith(")") ? compilerPatternBindings(pattern.slice(constructor + 1, pattern.length() - 1), bindings)
+      : (
+        pattern.startsWith("[") && pattern.endsWith("]") ? compilerPatternBindings(pattern.slice(1, pattern.length() - 1), bindings)
+          : (
+            pattern.startsWith("{") && pattern.endsWith("}") ? compilerMapPatternBindings(pattern.slice(1, pattern.length() - 1), bindings)
+              : compilerPatternSimpleBinding(pattern, bindings)
+          )
+      )
+  )
+}
+
+compilerMapPatternBindings(
+  text: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => compilerMapPatternBindingParts(compilerPatternParts(text, 0, 0, [], ""), 0, bindings)
+
+compilerMapPatternBindingParts(
+  parts: Array[String],
+  index: Int,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => (
+  index >= parts.length() ? bindings
+    : compilerMapPatternBindingParts(parts, index + 1, compilerMapPatternBindingPart(parts[index], bindings))
+)
+
+compilerMapPatternBindingPart(
+  part: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  colon := compilerPatternTopLevelIndex(part, ':', 0, 0)
+  colon < 0 ? bindings
+    : compilerPatternBindingPart(part.slice(colon + 1, part.length()).trim(), bindings)
+}
+
+compilerPatternSimpleBinding(
+  pattern: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Array[CompilerTypeBinding] => {
+  name := pattern.startsWith("..") ? pattern.slice(2, pattern.length()).trim()
+    : pattern
+  compilerPatternBindingName(name) ? addCompilerValueBinding(bindings, name, "")
+    : bindings
+}
+
+compilerPatternBindingName(name: String) -> Bool => {
+  valid := name.length() > 0
+  first := valid ? name.at(0)
+    : ' '
+  valid && (first >= 'a') && (first <= 'z')
+}
+
+compilerPatternParts(
+  text: String,
+  index: Int,
+  depth: Int,
+  out: Array[String],
+  current: String
+) -> Array[String] => {
+  done := index >= text.length()
+  done ? [..out, current]
+    : compilerPatternPartsAt(text, index, depth, out, current)
+}
+
+compilerPatternPartsAt(
+  text: String,
+  index: Int,
+  depth: Int,
+  out: Array[String],
+  current: String
+) -> Array[String] => {
+  ch := text.at(index)
+  (ch == ',') && (depth == 0) ? compilerPatternParts(text, index + 1, depth, [..out, current], "")
+    : compilerPatternParts(text, index + 1, compilerPatternDepthAfter(ch, depth), out, current + ch.toString())
+}
+
+compilerPatternTopLevelIndex(
+  text: String,
+  target: Char,
+  index: Int,
+  depth: Int
+) -> Int => {
+  index >= text.length() ? -1
+    : compilerPatternTopLevelIndexAt(text, target, index, depth)
+}
+
+compilerPatternTopLevelIndexAt(
+  text: String,
+  target: Char,
+  index: Int,
+  depth: Int
+) -> Int => {
+  ch := text.at(index)
+  (ch == target) && (depth == 0) ? index
+    : compilerPatternTopLevelIndex(text, target, index + 1, compilerPatternDepthAfter(ch, depth))
+}
+
+compilerPatternDepthAfter(ch: Char, depth: Int) -> Int => (
+  (ch == '(') || (ch == '[') || (ch == '{') ? depth + 1
+    : (
+      (ch == ')') || (ch == ']') || (ch == '}') ? depth - 1
+        : depth
+    )
+)
 
 compilerNextPatternBranchType(
   expected: String,

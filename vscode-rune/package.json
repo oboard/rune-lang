@@ -12,9 +12,7 @@
     "Programming Languages"
   ],
   "activationEvents": [
-    "onDebug:rune",
-    "onLanguage:rune",
-    "onCommand:rune.previewRender"
+    "onDebug:rune"
   ],
   "main": "./extension.js",
   "contributes": {

@@ -1,0 +1,16 @@
+Expr: {
+    Num(value: Int)
+    Mul(expr1: Expr, expr2: Expr)
+}
+
+eval(expr: Expr) => {
+    Num(value) => value
+    Mul(expr1, expr2) => eval(expr1) * eval(expr2)
+}
+
+main() => {
+    expr := Mul(Mul(Num(2), Num(3)), Num(4))
+    result := eval(expr)
+    @io.println(`Result: \(result)`)
+}
+    

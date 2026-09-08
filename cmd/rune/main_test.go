@@ -358,6 +358,22 @@ func TestSelfhostCheckerResolvesCoreModuleMacro(t *testing.T) {
 	}
 }
 
+func TestSelfhostCheckerAcceptsConstructorPatternBindings(t *testing.T) {
+	result := checkSelfhostSourceWithCore(`Expr: {
+  Num(value: Int)
+  Mul(expr1: Expr, expr2: Expr)
+}
+
+eval(expr: Expr) -> Int => expr {
+  Num(value) => value
+  Mul(expr1, expr2) => eval(expr1) * eval(expr2)
+}
+`, "examples/pattern_matching.rn")
+	if !result.ok {
+		t.Fatalf("checkSelfhostSourceWithCore() errors = %v", result.errors)
+	}
+}
+
 func TestSelfhostCheckerInfersStringConcatenation(t *testing.T) {
 	result := checkSelfhostSourceWithCore(`main() => {
   str := ("hello"

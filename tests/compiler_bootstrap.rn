@@ -1149,6 +1149,21 @@ r(flag) => {
   @assert.eq(result.errors[0], "undefined name \"missing\"")
 }
 
+? "selfhost compiler accepts constructor pattern bindings" {
+  result := compileGo(`Expr: {
+  Num(value: Int)
+  Mul(expr1: Expr, expr2: Expr)
+}
+
+eval(expr: Expr) -> Int => expr {
+  Num(value) => value
+  Mul(expr1, expr2) => eval(expr1) * eval(expr2)
+}
+`)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.errors.length(), 0)
+}
+
 ? "selfhost compiler keeps errored locals bound" {
   result := compileGo(`main() -> Int => {
   value := missing
