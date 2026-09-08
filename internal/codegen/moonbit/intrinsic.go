@@ -47,6 +47,10 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return "None", true
 	case "io.readAll":
 		return quoteString(""), true
+	case "string.fromChars":
+		if len(args) == 1 {
+			return args[0] + ".iter().collect()", true
+		}
 	case "int.toString", "bigint.toString":
 		if len(args) == 1 {
 			return fmt.Sprintf("(%s).to_string()", args[0]), true
@@ -507,6 +511,12 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 				return fmt.Sprintf("rune_string_at(%s, %s)", receiver, args[0])
 			}
 			return fmt.Sprintf("rune_string_at(%s, %s).to_string()", receiver, args[0])
+		}
+	case "string.chars":
+		return receiver + ".iter().collect()"
+	case "string.fromChars":
+		if len(args) == 1 {
+			return args[0] + ".iter().collect()"
 		}
 	case "string.slice":
 		if len(args) == 2 {

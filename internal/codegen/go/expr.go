@@ -627,6 +627,8 @@ func (g *generator) primitiveMethodCall(call *ir.CallExpr) (string, bool) {
 				return "/* invalid string.at */", true
 			}
 			return fmt.Sprintf("[]rune(%s)[%s]", receiver, args[0]), true
+		case "chars":
+			return fmt.Sprintf("[]rune(%s)", receiver), true
 		case "slice":
 			if len(args) != 2 {
 				return "/* invalid string.slice */", true

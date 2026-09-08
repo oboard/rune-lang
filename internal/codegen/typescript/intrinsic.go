@@ -78,6 +78,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.fsModuleCall(fn, args, call.ResultType()), true
 	case "process.argv", "process.cwd", "process.env", "process.exit", "process.platform":
 		return g.processModuleCall(fn, args, call.ResultType()), true
+	case "string.fromChars":
+		if len(args) != 1 {
+			return "undefined", true
+		}
+		return fmt.Sprintf("(%s).join(\"\")", args[0]), true
 	case "stringbuffer.new", "stringbuffer.from":
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
 	case "symbol.create", "symbol.unique", "symbol.for", "symbol.keyFor", "symbol.description", "symbol.toString":
@@ -984,6 +989,13 @@ func (g *generator) stringIntrinsicCall(fn *stdlib.Function, receiver string, ar
 			return "undefined"
 		}
 		return fmt.Sprintf("(Array.from(%s)[%s] ?? \"\")", receiver, args[0])
+	case "string.chars":
+		return fmt.Sprintf("Array.from(%s)", receiver)
+	case "string.fromChars":
+		if len(args) != 1 {
+			return "undefined"
+		}
+		return fmt.Sprintf("(%s).join(\"\")", args[0])
 	case "string.slice":
 		if len(args) != 2 {
 			return "undefined"

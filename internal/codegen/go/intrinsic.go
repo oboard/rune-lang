@@ -74,6 +74,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.fsModuleCall(fn, args, call.ResultType()), true
 	case "process.argv", "process.cwd", "process.env", "process.exit", "process.platform":
 		return g.processModuleCall(fn, args, call.ResultType()), true
+	case "string.fromChars":
+		if len(args) != 1 {
+			return g.zeroValue(call.ResultType()), true
+		}
+		return fmt.Sprintf("string(%s)", args[0]), true
 	case "stringbuffer.new", "stringbuffer.from":
 		return g.stringBufferModuleCall(fn, args, call.ResultType()), true
 	case "symbol.create", "symbol.unique", "symbol.for", "symbol.keyFor", "symbol.description", "symbol.toString":
@@ -731,6 +736,13 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string,
 			return "/* invalid string.at */"
 		}
 		return fmt.Sprintf("[]rune(%s)[%s]", receiver, args[0])
+	case "string.chars":
+		return fmt.Sprintf("[]rune(%s)", receiver)
+	case "string.fromChars":
+		if len(args) != 1 {
+			return "/* invalid string.fromChars */"
+		}
+		return fmt.Sprintf("string(%s)", args[0])
 	case "string.slice":
 		if len(args) != 2 {
 			return "/* invalid string.slice */"

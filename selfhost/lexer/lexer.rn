@@ -8,6 +8,7 @@
 
 LexState: {
   source: String
+  chars: Array[Char]
   start: Int
   current: Int
   line: Int
@@ -113,6 +114,7 @@ xmlModeExpr() -> Int => 3
 
 + lex(source: String) -> Array[Token] => scan(LexState {
   source: source,
+  chars: source.chars(),
   start: 0,
   current: 0,
   line: 1,
@@ -179,7 +181,7 @@ makeToken(
   kind: TokenKind
 ) -> Token => {
   kind: kind,
-  lexeme: state.source.slice(state.start, state.current),
+  lexeme: @string.fromChars(state.chars.slice(state.start, state.current)),
   offset: state.start,
   line: state.startLine,
   column: state.startColumn
@@ -316,19 +318,19 @@ markStart(state: LexState) -> LexState => {
   startColumn: state.column
 }
 
-atEnd(state: LexState) -> Bool => state.current >= state.source.length()
+atEnd(state: LexState) -> Bool => state.current >= state.chars.length()
 
 charAt(
-  source: String,
+  chars: Array[Char],
   index: Int
 ) -> Char => (
-  (index < 0) || (index >= source.length()) ? ' '
-    : source.at(index)
+  (index < 0) || (index >= chars.length()) ? ' '
+    : chars[index]
 )
 
-peek(state: LexState) -> Char => charAt(state.source, state.current)
+peek(state: LexState) -> Char => charAt(state.chars, state.current)
 
-peekNext(state: LexState) -> Char => charAt(state.source, state.current + 1)
+peekNext(state: LexState) -> Char => charAt(state.chars, state.current + 1)
 
 advanceState(
   state: LexState
@@ -336,7 +338,7 @@ advanceState(
 
 advance(state: LexState) -> Advanced => (
   atEnd(state) ? advanced(state, ' ')
-    : advanceChar(state, state.source.at(state.current))
+    : advanceChar(state, state.chars[state.current])
 )
 
 advanced(
@@ -353,6 +355,7 @@ advanceChar(
 ) -> Advanced => {
   state: LexState {
     source: state.source,
+    chars: state.chars,
     start: state.start,
     current: state.current + 1,
     line: (

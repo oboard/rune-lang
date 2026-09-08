@@ -1120,6 +1120,7 @@ emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("fmt.Println(" + emitGoExprListFrom(expr.children, 1, "")) + ")"
   "json.stringify" => emitGoJSONStringify(expr)
   "json.parse" => emitGoJSONParseDynamic(expr)
+  "string.fromChars" => "string(" + emitGoExpr(expr.children[1]) + ")"
   "map.new" => "map[any]any{}"
   "set.new" => "map[any]struct{}{}"
   "path.isAbsolute" => ("strings.HasPrefix(" + emitGoExpr(expr.children[1])) + ", \"/\")"
@@ -1190,6 +1191,7 @@ emitGoCoreMethodCall(
     "length" | "byteLength" => emitGoCoreLength(selector.children[0])
     "isEmpty" => ("(" + emitGoCoreLength(selector.children[0])) + ") == 0"
     "at" => emitGoCoreAt(expr, selector.children[0])
+    "chars" => emitGoCoreChars(selector.children[0])
     "slice" => emitGoCoreSlice(expr, selector.children[0])
     "push" => emitGoCorePush(expr, selector.children[0])
     "set" => emitGoCoreSet(expr, selector.children[0])
@@ -1215,6 +1217,10 @@ emitGoCoreAt(
   receiver.text == "String" ? ((("[]rune(" + emitGoExpr(receiver)) + ")[") + emitGoExpr(expr.children[1])) + "]"
     : ((emitGoExpr(receiver) + "[") + emitGoExpr(expr.children[1])) + "]"
 )
+
+emitGoCoreChars(
+  receiver: IRExpr
+) -> String => "[]rune(" + emitGoExpr(receiver) + ")"
 
 emitGoCoreSlice(
   expr: IRExpr,

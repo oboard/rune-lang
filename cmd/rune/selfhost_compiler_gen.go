@@ -146,6 +146,7 @@ type Token struct {
 
 type LexState struct {
 	source        string
+	chars         []rune
 	start         int
 	current       int
 	line          int
@@ -795,7 +796,7 @@ func selfhost_lexer_lexer_xmlModeExpr() int {
 }
 
 func lex(source string) []Token {
-	return selfhost_lexer_lexer_scan(LexState{source: source, start: 0, current: 0, line: 1, column: 1, startLine: 1, startColumn: 1, canStartRegex: true, mode: selfhost_lexer_lexer_xmlModeCode(), xmlDepth: 0, xmlClosing: false, xmlSelfClosed: false, xmlExprMode: selfhost_lexer_lexer_xmlModeCode(), xmlExprDepth: 0, xmlAfterMode: selfhost_lexer_lexer_xmlModeCode(), xmlAfterDepth: 0}, selfhost_lexer_lexer_emptyTokens())
+	return selfhost_lexer_lexer_scan(LexState{source: source, chars: []rune(source), start: 0, current: 0, line: 1, column: 1, startLine: 1, startColumn: 1, canStartRegex: true, mode: selfhost_lexer_lexer_xmlModeCode(), xmlDepth: 0, xmlClosing: false, xmlSelfClosed: false, xmlExprMode: selfhost_lexer_lexer_xmlModeCode(), xmlExprDepth: 0, xmlAfterMode: selfhost_lexer_lexer_xmlModeCode(), xmlAfterDepth: 0}, selfhost_lexer_lexer_emptyTokens())
 }
 
 func selfhost_lexer_lexer_emptyTokens() []Token {
@@ -850,15 +851,15 @@ func selfhost_lexer_lexer_appendToken(tokens []Token, token Token) []Token {
 }
 
 func selfhost_lexer_lexer_makeToken(state LexState, kind TokenKind) Token {
-	return Token{kind: kind, lexeme: func() string { runes := []rune(state.source); return string(runes[state.start:state.current]) }(), offset: state.start, line: state.startLine, column: state.startColumn}
+	return Token{kind: kind, lexeme: string(append([]rune{}, state.chars[state.start:state.current]...)), offset: state.start, line: state.startLine, column: state.startColumn}
 }
 
 func selfhost_lexer_lexer_finishToken(state LexState, kind TokenKind) LexState {
-	return LexState{source: state.source, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, canStartRegex: !(selfhost_lexer_lexer_canEndExpression(state, kind))}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, canStartRegex: !(selfhost_lexer_lexer_canEndExpression(state, kind))}
 }
 
 func selfhost_lexer_lexer_lexStateXML(state LexState, mode int, depth int, closing bool, selfClosed bool, exprMode int, exprDepth int) LexState {
-	return LexState{source: state.source, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, mode: mode, xmlDepth: depth, xmlClosing: closing, xmlSelfClosed: selfClosed, xmlExprMode: exprMode, xmlExprDepth: exprDepth}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, mode: mode, xmlDepth: depth, xmlClosing: closing, xmlSelfClosed: selfClosed, xmlExprMode: exprMode, xmlExprDepth: exprDepth}
 }
 
 func selfhost_lexer_lexer_enterXMLTagState(state LexState) LexState {
@@ -872,7 +873,7 @@ func selfhost_lexer_lexer_enterXMLTagState(state LexState) LexState {
 }
 
 func selfhost_lexer_lexer_lexStateXMLAfterMode(state LexState, afterMode int, afterDepth int) LexState {
-	return LexState{source: state.source, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: afterMode, xmlAfterDepth: afterDepth}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: afterMode, xmlAfterDepth: afterDepth}
 }
 
 func selfhost_lexer_lexer_canEndExpression(state LexState, kind TokenKind) bool {
@@ -1024,28 +1025,28 @@ func tokenKindName(kind TokenKind) string {
 }
 
 func selfhost_lexer_lexer_markStart(state LexState) LexState {
-	return LexState{source: state.source, current: state.current, line: state.line, column: state.column, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, start: state.current, startLine: state.line, startColumn: state.column}
+	return LexState{source: state.source, chars: state.chars, current: state.current, line: state.line, column: state.column, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, start: state.current, startLine: state.line, startColumn: state.column}
 }
 
 func selfhost_lexer_lexer_atEnd(state LexState) bool {
-	return state.current >= len([]rune(state.source))
+	return state.current >= len(state.chars)
 }
 
-func selfhost_lexer_lexer_charAt(source string, index int) rune {
+func selfhost_lexer_lexer_charAt(chars []rune, index int) rune {
 	return func() rune {
-		if index < 0 || index >= len([]rune(source)) {
+		if index < 0 || index >= len(chars) {
 			return ' '
 		}
-		return []rune(source)[index]
+		return chars[index]
 	}()
 }
 
 func selfhost_lexer_lexer_peek(state LexState) rune {
-	return selfhost_lexer_lexer_charAt(state.source, state.current)
+	return selfhost_lexer_lexer_charAt(state.chars, state.current)
 }
 
 func selfhost_lexer_lexer_peekNext(state LexState) rune {
-	return selfhost_lexer_lexer_charAt(state.source, state.current+1)
+	return selfhost_lexer_lexer_charAt(state.chars, state.current+1)
 }
 
 func selfhost_lexer_lexer_advanceState(state LexState) LexState {
@@ -1057,7 +1058,7 @@ func selfhost_lexer_lexer_advance(state LexState) Advanced {
 		if selfhost_lexer_lexer_atEnd(state) {
 			return selfhost_lexer_lexer_advanced(state, ' ')
 		}
-		return selfhost_lexer_lexer_advanceChar(state, []rune(state.source)[state.current])
+		return selfhost_lexer_lexer_advanceChar(state, state.chars[state.current])
 	}()
 }
 
@@ -1066,7 +1067,7 @@ func selfhost_lexer_lexer_advanced(state LexState, ch rune) Advanced {
 }
 
 func selfhost_lexer_lexer_advanceChar(state LexState, ch rune) Advanced {
-	return Advanced{state: LexState{source: state.source, start: state.start, current: state.current + 1, line: func() int {
+	return Advanced{state: LexState{source: state.source, chars: state.chars, start: state.start, current: state.current + 1, line: func() int {
 		if ch == '\n' {
 			return state.line + 1
 		}
@@ -8434,6 +8435,8 @@ func selfhost_compiler_go_emitGoCall(expr IRExpr) string {
 			return selfhost_compiler_go_emitGoJSONStringify(expr)
 		case moduleCallKey(expr) == "json.parse":
 			return selfhost_compiler_go_emitGoJSONParseDynamic(expr)
+		case moduleCallKey(expr) == "string.fromChars":
+			return "string(" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "map.new":
 			return "map[any]any{}"
 		case moduleCallKey(expr) == "set.new":
@@ -8564,6 +8567,8 @@ func selfhost_compiler_go_emitGoCoreMethodCall(expr IRExpr, selector IRExpr) str
 					return "(" + selfhost_compiler_go_emitGoCoreLength(selector.children[0]) + ") == 0"
 				case selector.name == "at":
 					return selfhost_compiler_go_emitGoCoreAt(expr, selector.children[0])
+				case selector.name == "chars":
+					return selfhost_compiler_go_emitGoCoreChars(selector.children[0])
 				case selector.name == "slice":
 					return selfhost_compiler_go_emitGoCoreSlice(expr, selector.children[0])
 				case selector.name == "push":
@@ -8601,6 +8606,10 @@ func selfhost_compiler_go_emitGoCoreAt(expr IRExpr, receiver IRExpr) string {
 		}
 		return selfhost_compiler_go_emitGoExpr(receiver) + "[" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + "]"
 	}()
+}
+
+func selfhost_compiler_go_emitGoCoreChars(receiver IRExpr) string {
+	return "[]rune(" + selfhost_compiler_go_emitGoExpr(receiver) + ")"
 }
 
 func selfhost_compiler_go_emitGoCoreSlice(expr IRExpr, receiver IRExpr) string {
@@ -10105,7 +10114,7 @@ func selfhost_compiler_mbt_moonBitValueCoreMethodCall(expr IRExpr) bool {
 func selfhost_compiler_mbt_moonBitValueCoreMethodName(name string) bool {
 	return func() bool {
 		switch {
-		case (name == "length") || (name == "byteLength") || (name == "isEmpty") || (name == "at") || (name == "slice") || (name == "toString"):
+		case (name == "length") || (name == "byteLength") || (name == "isEmpty") || (name == "at") || (name == "chars") || (name == "slice") || (name == "toString"):
 			return true
 		case (name == "push") || (name == "set") || (name == "pop") || (name == "first") || (name == "last") || (name == "clone") || (name == "reverse") || (name == "contains"):
 			return true
@@ -10144,6 +10153,8 @@ func selfhost_compiler_mbt_emitMoonBitCall(expr IRExpr) string {
 			return "println(" + selfhost_compiler_mbt_emitMoonBitPrintArgs(expr.children, 1, "") + ")"
 		case moduleCallKey(expr) == "io.print":
 			return "print(" + selfhost_compiler_mbt_emitMoonBitPrintArgs(expr.children, 1, "") + ")"
+		case moduleCallKey(expr) == "string.fromChars":
+			return selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ".iter().collect()"
 		case moduleCallKey(expr) == "map.new":
 			return "{}"
 		case moduleCallKey(expr) == "set.new":
@@ -10276,6 +10287,8 @@ func selfhost_compiler_mbt_emitMoonBitCoreMethodCall(expr IRExpr, selector IRExp
 					return "(" + selfhost_compiler_mbt_emitMoonBitExpr(selector.children[0]) + ".length() == 0)"
 				case selector.name == "at":
 					return selfhost_compiler_mbt_emitMoonBitExpr(selector.children[0]) + "[" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + "]"
+				case selector.name == "chars":
+					return selfhost_compiler_mbt_emitMoonBitExpr(selector.children[0]) + ".iter().collect()"
 				case selector.name == "slice":
 					return selfhost_compiler_mbt_emitMoonBitExpr(selector.children[0]) + "[" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ":" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[2]) + "].to_owned()"
 				case selector.name == "toString":
@@ -11972,6 +11985,8 @@ func selfhost_compiler_ts_emitTSCall(expr IRExpr) string {
 			return "String(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "bigint.toDouble":
 			return "Number(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
+		case moduleCallKey(expr) == "string.fromChars":
+			return selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ".join(\"\")"
 		case moduleCallKey(expr) == "double.trunc":
 			return "Math.trunc(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "double.floor":
@@ -12006,6 +12021,8 @@ func selfhost_compiler_ts_emitTSCoreMethodCall(expr IRExpr, selector IRExpr) str
 					return "(" + selfhost_compiler_ts_emitTSCoreLength(selector.children[0]) + " === 0)"
 				case selector.name == "at":
 					return selfhost_compiler_ts_emitTSCoreAt(expr, selector.children[0])
+				case selector.name == "chars":
+					return selfhost_compiler_ts_emitTSCoreChars(selector.children[0])
 				case selector.name == "slice":
 					return selfhost_compiler_ts_emitTSCoreSlice(expr, selector.children[0])
 				default:
@@ -12033,6 +12050,10 @@ func selfhost_compiler_ts_emitTSCoreAt(expr IRExpr, receiver IRExpr) string {
 		}
 		return selfhost_compiler_ts_emitTSExpr(receiver) + "[" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + "]"
 	}()
+}
+
+func selfhost_compiler_ts_emitTSCoreChars(receiver IRExpr) string {
+	return "Array.from(" + selfhost_compiler_ts_emitTSExpr(receiver) + ")"
 }
 
 func selfhost_compiler_ts_emitTSCoreSlice(expr IRExpr, receiver IRExpr) string {

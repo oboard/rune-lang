@@ -2,6 +2,7 @@ const vscode = require("vscode");
 const cp = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { LanguageClient } = require("vscode-languageclient/node");
 
 let client;
@@ -358,7 +359,7 @@ async function compilePreview(document, panel, debounce = false) {
     if (previewCompileVersions.get(key) !== version) {
       return;
     }
-    panel.webview.postMessage({ type: "render", source: typeScriptForPreview(generated) });
+    panel.webview.postMessage({ type: "render", source: await transpileTypeScriptForPreview(generated) });
   } catch (error) {
     if (previewCompileVersions.get(key) === version) {
       panel.webview.postMessage({ type: "error", message: error?.message || String(error) });
@@ -388,18 +389,34 @@ async function compilePreviewTypeScript(document) {
   }
 }
 
-function typeScriptForPreview(source) {
-  // Rune's TypeScript emitter only adds annotations to otherwise browser-ready
-  // code. Remove the annotation forms emitted for previewable web programs
-  // before evaluating them in the Webview's JavaScript runtime.
-  return source
-    // The compiler emits ES module exports. A Webview executes this as a classic
-    // script through Function, so declarations are already in scope and exports
-    // must be removed.
-    .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "")
-    .replace(/\)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*(?:=>|\{))/g, ")")
-    .replace(/([A-Za-z_$][\w$]*)\s*:\s*[A-Za-z_$][\w$]*(?:\s*<[^>]*>)?(?:\[\])?(?=\s*[,)=;])/g, "$1")
-    .replace(/\b(let|const|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;\n]+(?=\s*=)/g, "$1 $2");
+async function transpileTypeScriptForPreview(source) {
+  // Use the packaged current `tsc` rather than regex-based stripping. Recent
+  // TypeScript releases ship their native compiler behind the CLI, so invoking
+  // it also avoids depending on a removed JavaScript compiler API.
+  const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "rune-preview-ts-"));
+  const input = path.join(directory, "preview.ts");
+  const output = path.join(directory, "out", "preview.js");
+  try {
+    await fs.promises.writeFile(input, source, "utf8");
+    const tsc = path.join(__dirname, "node_modules", ".bin", executableName("tsc"));
+    const result = await runProcess(tsc, [
+      input,
+      "--target", "es2022",
+      "--module", "es2022",
+      "--outDir", path.dirname(output),
+      "--skipLibCheck",
+      "--noEmitOnError", "false"
+    ], { cwd: directory });
+    if (result.code !== 0) {
+      throw new Error((result.stderr || result.stdout || "TypeScript preview transpilation failed.").trim());
+    }
+    // The emitted file only has the compiler's export declaration. The preview
+    // evaluates classic JavaScript, where render remains in function scope.
+    return (await fs.promises.readFile(output, "utf8"))
+      .replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, "");
+  } finally {
+    await fs.promises.rm(directory, { recursive: true, force: true });
+  }
 }
 
 function previewHtml(webview) {

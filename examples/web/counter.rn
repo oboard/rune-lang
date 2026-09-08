@@ -1,4 +1,5 @@
-render() => {
+#web.preview
++ render() => {
   $count := 0
 
   <div>

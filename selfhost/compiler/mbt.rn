@@ -580,7 +580,7 @@ moonBitValueCoreMethodCall(
 moonBitValueCoreMethodName(
   name: String
 ) -> Bool => name {
-  "length" | "byteLength" | "isEmpty" | "at" | "slice" | "toString" => true
+  "length" | "byteLength" | "isEmpty" | "at" | "chars" | "slice" | "toString" => true
   "push" | "set" | "pop" | "first" | "last" | "clone" | "reverse" | "contains" => true
   _ => false
 }
@@ -606,6 +606,7 @@ emitMoonBitAssign(
 emitMoonBitCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "io.println" => ("println(" + emitMoonBitPrintArgs(expr.children, 1, "")) + ")"
   "io.print" => ("print(" + emitMoonBitPrintArgs(expr.children, 1, "")) + ")"
+  "string.fromChars" => emitMoonBitExpr(expr.children[1]) + ".iter().collect()"
   "map.new" => "{}"
   "set.new" => "Set::new()"
   "path.isAbsolute" => emitMoonBitExpr(expr.children[1]) + ".has_prefix(\"/\")"
@@ -695,6 +696,7 @@ emitMoonBitCoreMethodCall(
     "length" | "byteLength" => emitMoonBitExpr(selector.children[0]) + ".length()"
     "isEmpty" => ("(" + emitMoonBitExpr(selector.children[0])) + ".length() == 0)"
     "at" => ((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + "]"
+    "chars" => emitMoonBitExpr(selector.children[0]) + ".iter().collect()"
     "slice" => ((((emitMoonBitExpr(selector.children[0]) + "[") + emitMoonBitExpr(expr.children[1])) + ":") + emitMoonBitExpr(expr.children[2])) + "].to_owned()"
     "toString" => emitMoonBitCoreToString(expr, selector.children[0])
     "push" => emitMoonBitArrayPush(selector.children[0], expr.children[1])

@@ -55,6 +55,23 @@ func (i *Interpreter) callModuleFunctionValue(module string, name string, values
 		return i.callGoBackedFunction(fn.Go.Symbol, values)
 	}
 	switch fn.Intrinsic {
+	case "string.fromChars":
+		if len(values) != 1 {
+			return nil, fmt.Errorf("@string.fromChars expects 1 arg, got %d", len(values))
+		}
+		chars, ok := values[0].(*Array)
+		if !ok {
+			return nil, fmt.Errorf("@string.fromChars expects Array[Char]")
+		}
+		runes := make([]rune, len(chars.Elements))
+		for index, element := range chars.Elements {
+			char, ok := element.(Char)
+			if !ok {
+				return nil, fmt.Errorf("@string.fromChars expects Array[Char]")
+			}
+			runes[index] = rune(char)
+		}
+		return string(runes), nil
 	case "io.scan":
 		if len(values) != 0 {
 			return nil, fmt.Errorf("@io.scan expects 0 args, got %d", len(values))
@@ -1711,6 +1728,13 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 			return nil, fmt.Errorf("string index %d out of range", index)
 		}
 		return Char(runes[index]), nil
+	case "string.chars":
+		runes := []rune(value)
+		elements := make([]Value, len(runes))
+		for index, r := range runes {
+			elements[index] = Char(r)
+		}
+		return &Array{Elements: elements}, nil
 	case "string.slice":
 		if len(values) != 2 {
 			return nil, fmt.Errorf("string.slice expects 2 args, got %d", len(values))

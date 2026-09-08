@@ -9,6 +9,8 @@
 
   charAt(index: Int) -> Char => "%string.at"
 
+  chars() -> Array[Char] => "%string.chars"
+
   slice(start: Int, end: Int) -> String => "%string.slice"
 
   concat(value: String) -> String => "%string.concat"
@@ -53,3 +55,5 @@
     separator: String
   ) -> Array[String] => "%string.split"
 }
+
++ fromChars(chars: Array[Char]) -> String => "%string.fromChars"

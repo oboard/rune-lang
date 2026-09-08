@@ -1958,6 +1958,7 @@ callModuleFunction(
     "new" => okResult(setValue([]))
     _ => callImportedModuleFunction(interpreter, env, module, name, children)
   }
+  "string" => callStringModuleFunction(interpreter, env, name, children)
   "stringbuffer" => callStringBufferModuleFunction(interpreter, env, name, children)
   "symbol" => callSymbolModuleFunction(interpreter, env, name, children)
   "writer" => callWriterModuleFunction(interpreter, env, name, children)
@@ -1984,6 +1985,16 @@ callIoModuleFunction(
   "scanLine" => okResult(nullValue())
   "readAll" => okResult(stringValue(""))
   _ => callImportedModuleFunction(interpreter, env, "io", name, children)
+}
+
+callStringModuleFunction(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  name: String,
+  children: Array[IRExpr]
+) -> EvalResult => name {
+  "fromChars" => stringFromCharsMethod(interpreter, env, children)
+  _ => callImportedModuleFunction(interpreter, env, "string", name, children)
 }
 
 callSymbolModuleFunction(
@@ -6157,6 +6168,7 @@ callStringMethod(
   "isEmpty" => okResult(boolValue(runtimeText(receiver).length() == 0))
   "toString" => okResult(receiver)
   "at" | "charAt" => stringAtMethod(interpreter, env, receiver, children)
+  "chars" => stringCharsMethod(receiver)
   "slice" => stringSliceMethod(interpreter, env, receiver, children)
   "concat" => stringConcatMethod(interpreter, env, receiver, children)
   "includes" => stringSearchMethod(interpreter, env, receiver, children, "includes")
@@ -6175,6 +6187,39 @@ callStringMethod(
   "split" => stringSplitMethod(interpreter, env, receiver, children)
   _ => errorResult("String has no method " + name)
 }
+
+stringCharsMethod(
+  receiver: RuntimeValue
+) -> EvalResult => stringCharsToRuntimeValues(runtimeText(receiver), 0, [])
+
+stringCharsToRuntimeValues(
+  text: String,
+  index: Int,
+  out: Array[RuntimeValue]
+) -> EvalResult => (
+  index >= text.length() ? okResult(arrayValue(out))
+    : stringCharsToRuntimeValues(text, index + 1, pushRuntime(out, charValue(text.at(index))))
+)
+
+stringFromCharsMethod(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  children: Array[IRExpr]
+) -> EvalResult => {
+  args := evalArgs(interpreter, env, children, 1)
+  runtimeKind(args[0]) == RuntimeValueKind.Array ? stringFromRuntimeChars(runtimeArray(args[0]), 0, "")
+    : errorResult("String.fromChars expects Array[Char]")
+}
+
+stringFromRuntimeChars(
+  chars: Array[RuntimeValue],
+  index: Int,
+  out: String
+) -> EvalResult => (
+  index >= chars.length() ? okResult(stringValue(out))
+    : runtimeKind(chars[index]) == RuntimeValueKind.Char ? stringFromRuntimeChars(chars, index + 1, out + runtimeChar(chars[index]).toString())
+      : errorResult("String.fromChars expects Array[Char]")
+)
 
 stringAtMethod(
   interpreter: Interpreter,

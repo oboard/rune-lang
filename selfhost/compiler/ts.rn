@@ -1354,6 +1354,7 @@ emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "bigint.fromInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
   "bigint.toString" => ("String(" + emitTSExpr(expr.children[1])) + ")"
   "bigint.toDouble" => ("Number(" + emitTSExpr(expr.children[1])) + ")"
+  "string.fromChars" => emitTSExpr(expr.children[1]) + ".join(\"\")"
   "double.trunc" => ("Math.trunc(" + emitTSExpr(expr.children[1])) + ")"
   "double.floor" => ("Math.floor(" + emitTSExpr(expr.children[1])) + ")"
   "double.ceil" => ("Math.ceil(" + emitTSExpr(expr.children[1])) + ")"
@@ -1376,6 +1377,7 @@ emitTSCoreMethodCall(
     "length" | "byteLength" => emitTSCoreLength(selector.children[0])
     "isEmpty" => ("(" + emitTSCoreLength(selector.children[0])) + " === 0)"
     "at" => emitTSCoreAt(expr, selector.children[0])
+    "chars" => emitTSCoreChars(selector.children[0])
     "slice" => emitTSCoreSlice(expr, selector.children[0])
     _ => emitTSDefaultCall(expr)
   }
@@ -1396,6 +1398,10 @@ emitTSCoreAt(
   receiver.text == "String" ? ((("(Array.from(" + emitTSExpr(receiver)) + ")[") + emitTSExpr(expr.children[1])) + "] ?? \"\")"
     : ((emitTSExpr(receiver) + "[") + emitTSExpr(expr.children[1])) + "]"
 )
+
+emitTSCoreChars(
+  receiver: IRExpr
+) -> String => "Array.from(" + emitTSExpr(receiver) + ")"
 
 emitTSCoreSlice(
   expr: IRExpr,

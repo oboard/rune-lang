@@ -120,6 +120,7 @@ func selfhostCoreAPITestSpecs() []selfhostAPITestSpec {
 			"string length and emptiness",
 			"string concat and containment",
 			"string indexing and slicing",
+			"string chars",
 			"string prefix and suffix",
 			"string index search",
 			"string case conversion",
