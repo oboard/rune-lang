@@ -615,6 +615,7 @@ inferAnnotateText(
   ExprKind.Block => "Void"
   ExprKind.Struct => expr.name
   ExprKind.Array => inferArrayText(children)
+  ExprKind.Map => inferMapText(children)
   ExprKind.Let => (
     children.length() > 0 ? inferExprType(children[0])
       : ""
@@ -695,6 +696,21 @@ inferArrayText(
   children.length() == 0 ? "Array"
     : ("Array[" + inferExprType(children[0])) + "]"
 )
+
+inferMapText(
+  entries: Array[IRExpr]
+) -> String => (
+  entries.length() == 0 ? "Map"
+    : inferMapEntryText(entries[0])
+)
+
+inferMapEntryText(
+  entry: IRExpr
+) -> String => {
+  complete := entry.children.length() >= 2
+  complete ? (("Map[" + inferExprType(entry.children[0])) + ", ") + (inferExprType(entry.children[1]) + "]")
+    : "Map"
+}
 
 inferValueType(expr: IRExpr) -> String => inferExprType(expr)
 

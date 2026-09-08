@@ -6698,6 +6698,8 @@ func selfhost_infer_infer_inferAnnotateText(expr IRExpr, children []IRExpr, para
 			return expr.name
 		case expr.kind == ExprKind_Array:
 			return selfhost_infer_infer_inferArrayText(children)
+		case expr.kind == ExprKind_Map:
+			return selfhost_infer_infer_inferMapText(children)
 		case expr.kind == ExprKind_Let:
 			return func() string {
 				if len(children) > 0 {
@@ -6796,6 +6798,25 @@ func selfhost_infer_infer_inferArrayText(children []IRExpr) string {
 			return "Array"
 		}
 		return "Array[" + selfhost_infer_infer_inferExprType(children[0]) + "]"
+	}()
+}
+
+func selfhost_infer_infer_inferMapText(entries []IRExpr) string {
+	return func() string {
+		if len(entries) == 0 {
+			return "Map"
+		}
+		return selfhost_infer_infer_inferMapEntryText(entries[0])
+	}()
+}
+
+func selfhost_infer_infer_inferMapEntryText(entry IRExpr) string {
+	complete := len(entry.children) >= 2
+	return func() string {
+		if complete {
+			return "Map[" + selfhost_infer_infer_inferExprType(entry.children[0]) + ", " + (selfhost_infer_infer_inferExprType(entry.children[1]) + "]")
+		}
+		return "Map"
 	}()
 }
 

@@ -371,6 +371,22 @@ func TestSelfhostCheckerInfersStringConcatenation(t *testing.T) {
 	}
 }
 
+func TestSelfhostCheckerIndexesInferredMapLiterals(t *testing.T) {
+	result := checkSelfhostSourceWithCore(`main() => {
+  scores := {
+    "rune": 10,
+    "core": 20,
+  }
+  @io.println(scores["rune"] ?? 0)
+  scores["core"] = 25
+  @io.println(scores["core"] ?? 0)
+}
+`, "examples/map.rn")
+	if !result.ok {
+		t.Fatalf("checkSelfhostSourceWithCore() errors = %v", result.errors)
+	}
+}
+
 func TestSelfhostCheckerRejectsUnknownCoreModuleMacro(t *testing.T) {
 	result := checkSelfhostSourceWithCore("#web.missing\nThing: {}\n", "examples/list.rn")
 	if result.ok || len(result.errors) != 1 || !strings.Contains(result.errors[0], "unknown macro #web.missing") {
