@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/compiler"
-	"github.com/oboard/rune-lang/internal/interpreter"
-	"github.com/oboard/rune-lang/internal/ir"
+	"github.com/oboard/rune-lang/internal/selfhostrunner"
 )
 
 type analyzeSourceFunc func(string, string) (*compiler.Program, []compiler.Diagnostic)
@@ -27,10 +27,9 @@ type SelfhostCompileResult struct {
 const replFunctionName = "__rune_repl"
 
 type Session struct {
-	decls  []string
-	stmts  []string
-	interp *interpreter.Interpreter
-	out    io.Writer
+	decls []string
+	stmts []string
+	out   io.Writer
 }
 
 func NewSession(out io.Writer) *Session {
@@ -99,13 +98,12 @@ func (s *Session) Eval(src string) error {
 
 func (s *Session) addDeclaration(src string) error {
 	s.decls = append(s.decls, src)
-	prog, diags := analyzeSource("<repl>", s.source())
+	_, diags := analyzeSource("<repl>", s.source())
 	if len(diags) > 0 {
 		s.decls = s.decls[:len(s.decls)-1]
 		printDiagnostics(s.out, diags)
 		return fmt.Errorf("declaration rejected")
 	}
-	s.load(prog.IR)
 	return nil
 }
 
@@ -117,28 +115,47 @@ func (s *Session) evalStatement(src string) error {
 		printDiagnostics(s.out, diags)
 		return fmt.Errorf("statement rejected")
 	}
-	s.load(prog.IR)
-	stmt, ok := currentStatement(prog.IR)
-	if !ok {
-		return fmt.Errorf("internal repl statement not found")
-	}
-	value, show, err := s.interp.Exec(stmt)
-	if err != nil {
+	result := selfhostrunner.RunFunctionIR(prog.IR, replFunctionName, nil)
+	if result.Err != nil {
 		s.stmts = s.stmts[:len(s.stmts)-1]
-		return err
+		return result.Err
 	}
-	if show {
-		fmt.Fprintln(s.out, interpreter.Format(value))
+	if result.Value.Kind != "Void" {
+		fmt.Fprintln(s.out, formatValue(result.Value))
 	}
 	return nil
 }
 
-func (s *Session) load(file *ir.File) {
-	if s.interp == nil {
-		s.interp = interpreter.New(file, interpreter.WithOutput(s.out))
-		return
+func formatValue(value selfhostrunner.Value) string {
+	switch value.Kind {
+	case "Void":
+		return "void"
+	case "Null":
+		return "null"
+	case "Bool":
+		return strconv.FormatBool(value.Bool)
+	case "Int":
+		return strconv.Itoa(value.Int)
+	case "Double":
+		return strconv.FormatFloat(value.Double, 'f', -1, 64)
+	case "String":
+		return strconv.Quote(value.Text)
+	case "Char":
+		return strconv.Quote(value.Char)
+	case "Array":
+		return formatValueList("[", "]", value.Values)
+	case "Tuple":
+		return formatValueList("(", ")", value.Values)
 	}
-	s.interp.Load(file)
+	return value.Kind
+}
+
+func formatValueList(open string, close string, values []selfhostrunner.Value) string {
+	parts := make([]string, 0, len(values))
+	for _, item := range values {
+		parts = append(parts, formatValue(item))
+	}
+	return open + strings.Join(parts, ", ") + close
 }
 
 func (s *Session) source() string {
@@ -156,20 +173,6 @@ func (s *Session) source() string {
 	}
 	b.WriteString("}\n")
 	return b.String()
-}
-
-func currentStatement(file *ir.File) (ir.Stmt, bool) {
-	for _, fn := range file.Functions {
-		if fn.Name != replFunctionName {
-			continue
-		}
-		block, ok := fn.Body.(*ir.BlockExpr)
-		if !ok || len(block.Statements) == 0 {
-			return nil, false
-		}
-		return block.Statements[len(block.Statements)-1], true
-	}
-	return nil, false
 }
 
 func isDeclaration(src string) bool {

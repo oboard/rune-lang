@@ -161,19 +161,21 @@ func executeRuneCLITest(invocation RuneCliInvocation, stdout io.Writer) error {
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	switch runBackend {
 	case "go":
-		if runEntryViaSelfhostInterpreter(entry, programArgs, stdout, stderr) {
-			return nil
+		if len(programArgs) > 0 {
+			return fmt.Errorf("selfhost run does not yet support program arguments")
 		}
-		exe, cleanup, err := compileGoExecutableToTemp(entry, stdout, stderr)
-		if err != nil {
-			return err
+		prog, diags := compiler.AnalyzeFile(entry)
+		if len(diags) > 0 {
+			printDiagnostics(entry, diags)
+			return fmt.Errorf("run failed")
 		}
-		defer cleanup()
-		run := exec.Command(exe, programArgs...)
-		run.Stdout = stdout
-		run.Stderr = stderr
-		run.Stdin = stdin
-		return run.Run()
+		result := selfhostrunner.RunMainIR(prog.IR)
+		if result.Output != "" {
+			if _, err := io.WriteString(stdout, result.Output); err != nil {
+				return err
+			}
+		}
+		return result.Err
 	case "ts":
 		tsFile, runDir, cleanup, err := compileTypeScriptToTemp(entry)
 		if err != nil {
@@ -212,28 +214,6 @@ func runEntry(entry string, runBackend string, runTarget string, programArgs []s
 	default:
 		return validateBackend(runBackend)
 	}
-}
-
-// runEntryViaSelfhostInterpreter attempts to execute a Go-backend program with
-// the self-hosted interpreter. It returns true (handling the run) only when the
-// program does not depend on the compiled-process argv contract that the
-// interpreter replaces with an empty argv.
-func runEntryViaSelfhostInterpreter(entry string, programArgs []string, stdout io.Writer, stderr io.Writer) bool {
-	source, err := os.ReadFile(entry)
-	if err != nil {
-		return false
-	}
-	if strings.Contains(string(source), "@process.argv") || usesMacroAnnotations(string(source)) || len(programArgs) > 0 {
-		return false
-	}
-	result := selfhostrunner.RunMainSource(string(source))
-	if result.Err != nil {
-		return false
-	}
-	if _, err := io.WriteString(stdout, result.Output); err != nil {
-		return false
-	}
-	return true
 }
 
 func selectRunBackend(entry string, requested string, explicit bool) string {

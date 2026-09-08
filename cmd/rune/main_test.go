@@ -731,6 +731,31 @@ func TestSelfhostMoonBitRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.
 	}
 }
 
+func TestRunEntryGoUsesSelfhostInterpreter(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "main.rn")
+	writeTestFile(t, path, `main() => {
+  @io.println("Rune", 42)
+}`)
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runEntry(path, "go", "", nil, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runEntry(go) error = %v, stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "Rune 42\n"; got != want {
+		t.Fatalf("runEntry(go) output = %q, want %q", got, want)
+	}
+}
+
+func TestRunEntryGoRejectsProgramArguments(t *testing.T) {
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	err := runEntry("missing.rn", "go", "", []string{"arg"}, strings.NewReader(""), &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "does not yet support program arguments") {
+		t.Fatalf("runEntry(go args) error = %v, want selfhost argument rejection", err)
+	}
+}
+
 func TestRunEntryMoonBit(t *testing.T) {
 	if _, err := exec.LookPath("moon"); err != nil {
 		t.Skip("moon command not available")
