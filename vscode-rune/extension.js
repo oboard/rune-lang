@@ -398,8 +398,11 @@ async function transpileTypeScriptForPreview(source) {
   const output = path.join(directory, "out", "preview.js");
   try {
     await fs.promises.writeFile(input, source, "utf8");
-    const tsc = path.join(__dirname, "node_modules", ".bin", executableName("tsc"));
-    const result = await runProcess(tsc, [
+    // VSIX packaging omits node_modules/.bin symlinks, so run TypeScript's
+    // actual launcher instead of relying on npm's development-only shim.
+    const tsc = path.join(__dirname, "node_modules", "typescript", "bin", "tsc");
+    const result = await runProcess(process.execPath, [
+      tsc,
       input,
       "--target", "es2022",
       "--module", "es2022",
