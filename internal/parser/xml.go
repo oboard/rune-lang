@@ -36,7 +36,11 @@ func (p *Parser) parseXMLElement() ast.Expr {
 			p.skipNewlines()
 			expr := p.parseExpression(1)
 			p.skipNewlines()
+			for p.check(lexer.XMLText) && normalizeXMLText(p.peek().Lexeme) == "" {
+				p.advance()
+			}
 			p.consume(lexer.RBrace, "expected '}' after XML expression")
+			p.skipNewlines()
 			elem.Children = append(elem.Children, ast.XMLChild{Expr: expr, Pos: open.Pos})
 			continue
 		}
@@ -63,12 +67,20 @@ func (p *Parser) parseXMLAttributes(elem *ast.XMLElement) bool {
 			return true
 		}
 
-		event := p.match(lexer.At)
-		name := p.consume(lexer.Ident, "expected XML attribute name")
-		if name.Kind != lexer.Ident {
-			p.advance()
+		// Spread attribute: {...expr}
+		if p.check(lexer.LBrace) && (p.checkNext(lexer.DotDot) || p.checkNext(lexer.DotDotDot)) {
+			start := p.advance() // consume {
+			p.advance()          // consume ..
+			p.skipNewlines()
+			expr := p.parseExpression(1)
+			p.skipNewlines()
+			p.consume(lexer.RBrace, "expected '}' after spread expression")
+			elem.Attrs = append(elem.Attrs, ast.XMLAttr{Spread: true, Value: expr, Pos: start.Pos})
 			continue
 		}
+
+		event := p.match(lexer.At)
+		name := p.consume(lexer.Ident, "expected XML attribute name")
 		attr := ast.XMLAttr{Name: name.Lexeme, Event: event, Pos: name.Pos}
 		if p.match(lexer.Assign) {
 			attr.Value = p.parseXMLAttributeValue()

@@ -19,13 +19,24 @@ func (l *Lexer) Next() Token {
 
 func (l *Lexer) finishToken(tok Token) Token {
 	switch tok.Kind {
-	case Ident, Int, Double, BigInt, String, TemplateString, Char, Regex, XMLText, RParen, RBracket, RBrace:
+	case Ident, Int, Double, BigInt, String, TemplateString, Char, Regex, XMLText, RParen, RBracket:
 		l.canStartRegex = false
+		l.canStartXML = false
+	case RBrace:
+		l.canStartRegex = false
+		// A closing brace of an XML expression may be followed by the outer element's closing tag.
+		l.canStartXML = l.xmlDepth > 0
 	case Less:
 		l.canStartRegex = !(l.peek() == '/' || isIdentStart(l.peek()))
+		l.canStartXML = true
+	case Greater:
+		// Only XML tag '>' allows subsequent '<' to start a new element
+		l.canStartXML = l.mode == modeXMLTag || l.mode == modeXMLText
 	case EOF:
+		l.canStartXML = true
 	default:
 		l.canStartRegex = true
+		l.canStartXML = true
 	}
 	return tok
 }
@@ -152,7 +163,7 @@ func (l *Lexer) nextCode() Token {
 		if l.match('<') {
 			return l.token(ShiftLeft)
 		}
-		if l.peek() == '/' || isIdentStart(l.peek()) {
+		if l.canStartXML && (l.peek() == '/' || isIdentStart(l.peek())) {
 			l.mode = modeXMLTag
 			l.xmlClosing = l.peek() == '/'
 			l.xmlSelfClosed = false
@@ -212,6 +223,9 @@ func (l *Lexer) nextXMLTag() Token {
 	case '{':
 		l.mode = modeXMLExpr
 		l.xmlExprMode = modeXMLTag
+		if l.xmlExprDepth == 0 {
+			l.xmlSavedDepth = l.xmlDepth
+		}
 		l.xmlExprDepth = 1
 		return l.token(LBrace)
 	case '}':
@@ -232,7 +246,10 @@ func (l *Lexer) nextXMLTag() Token {
 		}
 		l.xmlClosing = false
 		l.xmlSelfClosed = false
-		if l.xmlDepth > 0 {
+		if l.xmlExprDepth > 0 && l.xmlDepth == l.xmlSavedDepth {
+			// Closing tag finished the top-level element inside an expression; stay in expression code mode.
+			l.mode = modeCode
+		} else if l.xmlDepth > 0 {
 			l.mode = modeXMLText
 		} else {
 			l.mode = modeCode
@@ -260,12 +277,27 @@ func (l *Lexer) nextXMLText() Token {
 		return l.token(Less)
 	case '{':
 		l.advance()
+		if l.xmlExprDepth == 0 {
+			l.xmlSavedDepth = l.xmlDepth
+			l.xmlExprDepth = 1
+			l.xmlExprMode = modeXMLText
+		} else {
+			l.xmlExprDepth++
+		}
 		l.mode = modeXMLExpr
-		l.xmlExprMode = modeXMLText
-		l.xmlExprDepth = 1
 		return l.token(LBrace)
+	case '}':
+		if l.xmlExprDepth > 0 {
+			l.advance()
+			l.xmlExprDepth--
+			l.mode = l.xmlExprMode
+			return l.token(RBrace)
+		}
 	}
 	for !l.isAtEnd() && l.peek() != '<' && l.peek() != '{' {
+		if l.xmlExprDepth > 0 && l.peek() == '}' {
+			break
+		}
 		l.advance()
 	}
 	return l.token(XMLText)
@@ -332,7 +364,6 @@ func (l *Lexer) nextXMLExpr() Token {
 		tok := l.token(RBrace)
 		if l.xmlExprDepth <= 0 {
 			l.mode = l.xmlExprMode
-			l.xmlExprMode = modeCode
 		}
 		return tok
 	case '?':
@@ -394,6 +425,11 @@ func (l *Lexer) nextXMLExpr() Token {
 		}
 		if l.match('<') {
 			return l.token(ShiftLeft)
+		}
+		if l.canStartXML && (l.peek() == '/' || isIdentStart(l.peek())) {
+			l.mode = modeXMLTag
+			l.xmlClosing = l.peek() == '/'
+			l.xmlSelfClosed = false
 		}
 		return l.token(Less)
 	case '>':

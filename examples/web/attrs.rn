@@ -1,0 +1,10 @@
+// Dynamic attribute — 对应 Vue JSX :attr
+#web.preview
++ render() => {
+  $id := "u42"
+  $kind := "primary"
+
+  <div>
+    <button data-user={$id} class={$kind}>Bound Attrs</button>
+  </div>
+}

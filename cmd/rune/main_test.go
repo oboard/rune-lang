@@ -68,6 +68,39 @@ func TestRuneCLITypeScriptInvokesHTMLElementComponents(t *testing.T) {
 	}
 }
 
+func TestRuneCLITypeScriptStyleObjectAttribute(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "style.rn")
+	writeTestFile(t, path, `#web.preview
++ render() => {
+  $color := "red"
+
+  <div>
+    <div style={{ color: $color, backgroundColor: "white" }}>Hello World</div>
+  </div>
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts style object) error = %v, stderr = %s", err, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{
+		`function runeStyleText(style: any): string`,
+		`__el4.setAttribute("style", String(runeStyleText({color: color.get(), backgroundColor: "white"})));`,
+		`runeWatch(color, () => { __el4.setAttribute("style", String(runeStyleText({color: color.get(), backgroundColor: "white"}))); });`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `String({color: color.get(), backgroundColor: "white"})`) {
+		t.Fatalf("generated TypeScript stringifies the raw style object:\n%s", got)
+	}
+}
+
 func TestRuneCLIDeclarationEmitsKeywordFreePublicConstant(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mod.rn")

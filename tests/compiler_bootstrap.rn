@@ -33,6 +33,45 @@ render() => {
   @assert.eq(ts.output.includes(`document.createElement("HelloWorld")`), true)
 }
 
+? "selfhost compiler emits CSS text for XML style objects" {
+  source := `render() => {
+  $color := "red"
+
+  <div>
+    <div style={{ color: $color, backgroundColor: "white" }}>Hello World</div>
+  </div>
+}
+`
+  checked := checkSource(source)
+  @assert.eq(checked.ok, true)
+  @assert.eq(checked.errors.length(), 0)
+  ts := compileTypeScript(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.output.includes(`function runeStyleText(style: any): string`), true)
+  @assert.eq(ts.output.includes(`setAttribute("style", String(runeStyleText({color: color, backgroundColor: "white"})));`), true)
+  @assert.eq(ts.output.includes(`String({color: color, backgroundColor: "white"})`), false)
+}
+
+? "selfhost compiler parses multiline XML style objects" {
+  source := `render() => {
+  $color := "red"
+  backgroundColor := "blue"
+
+  <div>
+    <div style={{
+      color: $color,
+      backgroundColor: backgroundColor
+    }}>Hello World</div>
+  </div>
+}
+`
+  ts := compileTypeScript(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.errors.length(), 0)
+  @assert.eq(ts.output.includes(`Hello World`), true)
+  @assert.eq(ts.output.includes(`runeStyleText({color: color, backgroundColor: backgroundColor})`), true)
+}
+
 ? "selfhost compiler checks source without selecting a backend" {
   valid := checkSource(`main() -> Int => 42
 `)
@@ -1982,4 +2021,19 @@ main() -> Int => 1
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "unknown type \"Missing\"")
+}
+
+
+? "selfhost compiler emits XML spread attributes" {
+  source := `render() => {
+  props := {id: "save", class: "primary"}
+  <div {...props} />
+}
+`
+  checked := checkSource(source)
+  @assert.eq(checked.ok, true)
+  ts := compileTypeScript(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.output.includes(`for (const [key, value] of Object.entries(props))`), true)
+  @assert.eq(ts.output.includes(`setAttribute(key, String(value))`), true)
 }

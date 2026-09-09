@@ -369,10 +369,11 @@ func (e *XMLElement) Position() lexer.Position {
 }
 
 type XMLAttr struct {
-	Name  string
-	Event bool
-	Value Expr
-	Pos   lexer.Position
+	Name   string
+	Event  bool
+	Spread bool
+	Value  Expr
+	Pos    lexer.Position
 }
 
 type XMLChild struct {

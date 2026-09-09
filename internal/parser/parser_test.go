@@ -1273,6 +1273,38 @@ func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 	}
 }
 
+func TestParseXMLStyleAttributeWithNestedObjectExpression(t *testing.T) {
+	file, errs := Parse(`render() -> HTMLElement => {
+    $color := "red"
+
+    <div style={{ color: $color }}>Hello World</div>
+}
+`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	block := file.Functions[0].Body.(*ast.BlockExpr)
+	stmt := block.Statements[1].(*ast.ExprStmt)
+	root := stmt.Expr.(*ast.XMLElement)
+	if root.Tag != "div" || len(root.Attrs) != 1 {
+		t.Fatalf("root = %#v, want div with style attribute", root)
+	}
+	style := root.Attrs[0]
+	if style.Name != "style" || style.Event {
+		t.Fatalf("style attr = %#v", style)
+	}
+	obj, ok := style.Value.(*ast.AnonymousObjectLiteral)
+	if !ok {
+		t.Fatalf("style value = %T, want AnonymousObjectLiteral", style.Value)
+	}
+	if len(obj.Fields) != 1 || obj.Fields[0].Name != "color" {
+		t.Fatalf("style fields = %#v, want color", obj.Fields)
+	}
+	if ident, ok := obj.Fields[0].Value.(*ast.Identifier); !ok || ident.Name != "color" || !ident.SignalPrefix {
+		t.Fatalf("style color value = %#v, want signal color identifier", obj.Fields[0].Value)
+	}
+}
+
 func TestParseSignalCollectionLiterals(t *testing.T) {
 	file, errs := Parse(`main() => {
     $list := ["Item 1"]
@@ -1407,5 +1439,30 @@ func TestParseAssignmentExpression(t *testing.T) {
 	}
 	if _, ok := button.Attrs[0].Value.(*ast.AssignExpr); !ok {
 		t.Fatalf("event value = %T, want AssignExpr", button.Attrs[0].Value)
+	}
+}
+
+func TestParseXMLNestedElementInExpression(t *testing.T) {
+	file, errs := Parse(`main() => <div>{<p>Yes</p>}</div>`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	root := file.Functions[0].Body.(*ast.XMLElement)
+	if len(root.Children) != 1 {
+		t.Fatalf("root children = %d", len(root.Children))
+	}
+	if inner, ok := root.Children[0].Expr.(*ast.XMLElement); !ok || inner.Tag != "p" {
+		t.Fatalf("inner = %T, want p element", root.Children[0].Expr)
+	}
+}
+
+func TestParseXMLSpreadAttribute(t *testing.T) {
+	file, errs := Parse(`render() => <div {...props} />`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	root := file.Functions[0].Body.(*ast.XMLElement)
+	if len(root.Attrs) != 1 || !root.Attrs[0].Spread {
+		t.Fatalf("attrs = %#v, want spread attr", root.Attrs)
 	}
 }

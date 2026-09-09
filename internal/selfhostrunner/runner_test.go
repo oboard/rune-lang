@@ -706,7 +706,6 @@ func writeSelfhostMoonBitPackage(t *testing.T, dir string, output string) {
 		"moon.mod": "name = \"oboard/rune_selfhost_target\"\n",
 		"moon.pkg": strings.Join([]string{
 			"import {",
-			"  \"moonbitlang/core/env\",",
 			"  \"moonbitlang/core/string\"",
 			"}",
 			"",

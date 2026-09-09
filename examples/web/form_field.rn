@@ -1,0 +1,9 @@
+#web.preview
++ render() => {
+  $active := true
+
+  <div>
+    <p class={$active ? "active" : "normal"}>uses ternary class</p>
+    <button @click={$active = !$active}>Toggle</button>
+  </div>
+}

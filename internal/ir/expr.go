@@ -277,10 +277,11 @@ type XMLElement struct {
 func (*XMLElement) exprNode() {}
 
 type XMLAttr struct {
-	Name  string
-	Event bool
-	Value Expr
-	Pos   lexer.Position
+	Name   string
+	Event  bool
+	Spread bool
+	Value  Expr
+	Pos    lexer.Position
 }
 
 type XMLChild struct {

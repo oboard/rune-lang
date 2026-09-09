@@ -1,0 +1,13 @@
+// Conditional Rendering — 模拟 Vue JSX 三元表达式 v-if/v-v-else
+#web.preview
++ render() => {
+  $count := 0
+
+  <div>
+    <h1>Conditional Example</h1>
+    <p>{$count == 0 ? "Click the button to increment." : "Count is now " + "<nat>" /*rawHTML*/}</p>
+    <p>{($count > 0) ? "You've clicked " + "some" + " times." : "No clicks yet."}</p>
+    <button @click={$count++}>Click Me</button>
+    <button @click={$count = 0}>Reset</button>
+  </div>
+}

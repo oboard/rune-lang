@@ -42,6 +42,31 @@ func TestGenerateCounterDOMProgram(t *testing.T) {
 	}
 }
 
+func TestGenerateXMLStyleObjectAttribute(t *testing.T) {
+	src := `+ render() -> HTMLElement => {
+  $color := "red"
+
+  <div>
+    <div style={{ color: $color, backgroundColor: "white" }}>Hello World</div>
+  </div>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function runeStyleText(style: any): string`,
+		`__el4.setAttribute("style", String(runeStyleText({color: color.get(), backgroundColor: "white"})));`,
+		`runeWatch(color, () => { __el4.setAttribute("style", String(runeStyleText({color: color.get(), backgroundColor: "white"}))); });`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `String({color: color.get()})`) {
+		t.Fatalf("generated TypeScript stringifies the raw style object:\n%s", got)
+	}
+}
+
 func TestGenerateGenericTraitConstraintFunction(t *testing.T) {
 	src := `add[T: Number](a: T, b: T) -> T => a + b
 
@@ -1067,6 +1092,28 @@ func TestMangleIdentRemovesPrefixAndEscapesTypeScriptKeywords(t *testing.T) {
 	for input, want := range map[string]string{"answer": "answer", "class": "class_", "1st": "rune_1st"} {
 		if got := mangleIdent(input); got != want {
 			t.Errorf("mangleIdent(%q) = %q, want %q", input, got, want)
+		}
+	}
+}
+
+func TestGenerateXMLNestedElementInExpression(t *testing.T) {
+	got := generateForTest(t, `render() => <div>{<p>Yes</p>}</div>`)
+	if !strings.Contains(got, `__el1.appendChild(__el0)`) && !strings.Contains(got, `"Yes"`) {
+		t.Fatalf("missing nested element output:\n%s", got)
+	}
+}
+
+func TestGenerateXMLSpreadAttribute(t *testing.T) {
+	got := generateForTest(t, `render() => {
+  props := {id: "x", cls: "y"}
+  <div {...props} />
+}`)
+	for _, want := range []string{
+		`for (const [key, value] of Object.entries(props))`,
+		`setAttribute(key, String(value))`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q:\n%s", want, got)
 		}
 	}
 }

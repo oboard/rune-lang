@@ -1,0 +1,7 @@
+// 嵌套 JSX element 在条件表达式里 — Vue JSX 风格
+#web.preview
++ render() => {
+  $score := 85
+
+  <p>{($score >= 90) ? (<b>A+</b>) : (<b>B</b>)}</p>
+}

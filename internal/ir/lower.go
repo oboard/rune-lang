@@ -495,7 +495,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.XMLElement:
 		out := &XMLElement{ExprBase: l.base(e), Tag: e.Tag}
 		for _, attr := range e.Attrs {
-			out.Attrs = append(out.Attrs, XMLAttr{Name: attr.Name, Event: attr.Event, Value: l.expr(attr.Value), Pos: attr.Pos})
+			out.Attrs = append(out.Attrs, XMLAttr{Name: attr.Name, Event: attr.Event, Spread: attr.Spread, Value: l.expr(attr.Value), Pos: attr.Pos})
 		}
 		for _, child := range e.Children {
 			out.Children = append(out.Children, XMLChild{Text: child.Text, Expr: l.expr(child.Expr), Pos: child.Pos})

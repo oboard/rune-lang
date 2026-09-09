@@ -1,0 +1,13 @@
+#web.preview
++ render() => {
+  $color := "red"
+  backgroundColor := "blue"
+
+  <div>
+    <div style={{
+      color: $color, 
+      backgroundColor: backgroundColor 
+    }}>Hello World</div>
+    <button @click={() => $color = "green"}>Change Color</button>
+  </div>
+}

@@ -17,6 +17,7 @@ type Usage struct {
 	Signal       bool
 	GoFFI        bool
 	Template     bool
+	StyleObject  bool
 }
 
 func Collect(file *ir.File) Usage {
@@ -77,6 +78,14 @@ func (u *Usage) collectExpr(file *ir.File, expr ir.Expr) {
 			}
 		case *ir.WatchExpr, *ir.ReactiveLiteral:
 			u.Signal = true
+		case *ir.XMLElement:
+			for _, attr := range e.Attrs {
+				if attr.Name == "style" && attr.Value != nil {
+					if _, ok := attr.Value.(*ir.AnonymousObjectLiteral); ok {
+						u.StyleObject = true
+					}
+				}
+			}
 		case *ir.BlockExpr:
 			for _, stmt := range e.Statements {
 				if let, ok := stmt.(*ir.LetStmt); ok && let.Signal {

@@ -83,6 +83,10 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.signalRuntime()
 		g.line("")
 	}
+	if usage.StyleObject {
+		g.styleRuntime()
+		g.line("")
+	}
 	if fileUsesWebComponentRuntime(usage) {
 		g.webComponentRuntime()
 		g.line("")
@@ -278,6 +282,15 @@ func (g *generator) taskRuntime() {
 	g.line("await Promise.allSettled([...runeTasks]);")
 	g.indent--
 	g.line("}")
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) styleRuntime() {
+	g.line("function runeStyleText(style: any): string {")
+	g.indent++
+	g.line("const entries = Object.entries(style ?? {}).map(([name, value]) => [name.replace(/([a-z0-9])([A-Z])/g, \"$1-$2\").toLowerCase(), value]);")
+	g.line("return entries.filter(([_, value]) => value != null && value !== \"\").map(([name, value]) => name + \": \" + value).join(\"; \");")
 	g.indent--
 	g.line("}")
 }

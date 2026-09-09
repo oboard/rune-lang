@@ -121,7 +121,24 @@ func functionHasParam(fn *ir.Function, name string) bool {
 	return false
 }
 
+func (e *xmlEmitter) attrValue(attr ir.XMLAttr) string {
+	if attr.Name == "style" && attr.Value != nil {
+		if _, ok := attr.Value.(*ir.AnonymousObjectLiteral); ok {
+			return fmt.Sprintf("runeStyleText(%s)", e.g.expr(attr.Value))
+		}
+	}
+	return e.g.expr(attr.Value)
+}
+
 func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
+	if attr.Spread && attr.Value != nil {
+		o := e.g.expr(attr.Value)
+		// Apply spread properties as attributes
+		e.linef("for (const [key, value] of Object.entries(%s)) {", o)
+		e.linef("  %s.setAttribute(key, String(value));", elemName)
+		e.linef("}")
+		return
+	}
 	if attr.Event {
 		if attr.Value == nil {
 			return
@@ -137,10 +154,10 @@ func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
 		e.linef("%s.setAttribute(%s, \"\");", elemName, strconv.Quote(attr.Name))
 		return
 	}
-	value := e.g.expr(attr.Value)
+	value := e.attrValue(attr)
 	e.linef("%s.setAttribute(%s, String(%s));", elemName, strconv.Quote(attr.Name), value)
 	for _, dep := range e.g.exprSignalDeps(attr.Value) {
-		e.linef("runeWatch(%s, () => { %s.setAttribute(%s, String(%s)); });", mangleIdent(dep), elemName, strconv.Quote(attr.Name), e.g.expr(attr.Value))
+		e.linef("runeWatch(%s, () => { %s.setAttribute(%s, String(%s)); });", mangleIdent(dep), elemName, strconv.Quote(attr.Name), e.attrValue(attr))
 	}
 }
 

@@ -1,0 +1,8 @@
+#web.preview
++ render() => {
+  $color := "red"
+
+  <div>
+    <div style={{ color: $color }}>Hello World</div>
+  </div>
+}

@@ -23,7 +23,9 @@ type Lexer struct {
 	xmlSelfClosed bool
 	xmlExprMode   mode
 	xmlExprDepth  int
+	xmlSavedDepth int
 	canStartRegex bool
+	canStartXML   bool
 }
 
 func Lex(src string) []Token {
@@ -44,5 +46,6 @@ func New(src string) *Lexer {
 		line:          1,
 		column:        1,
 		canStartRegex: true,
+		canStartXML:   true,
 	}
 }
