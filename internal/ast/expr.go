@@ -355,8 +355,10 @@ type FieldValue struct {
 
 type XMLElement struct {
 	Tag      string
+	NamePos  lexer.Position
 	Attrs    []XMLAttr
 	Children []XMLChild
+	ClosePos lexer.Position
 	Pos      lexer.Position
 }
 

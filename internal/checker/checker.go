@@ -161,6 +161,7 @@ type EnumInfo struct {
 
 type Info struct {
 	Functions                 map[string]*FuncInfo
+	XMLResolvedFunctions      map[*ast.XMLElement]*FuncInfo
 	FunctionDecls             map[*ast.Function]*FuncInfo
 	ExternalFunctions         []*FuncInfo
 	ExternalValues            []*ExternalValueInfo

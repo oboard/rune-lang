@@ -11,6 +11,21 @@ import (
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
+// fuseFromCharsSlice recognizes `@string.fromChars(x.slice(a, b))` and lowers it
+// directly to `string(x[a:b])`, avoiding the intermediate `[]rune` clone produced
+// by `array.slice`. It returns "" when the argument is not exactly that shape.
+func (g *generator) fuseFromCharsSlice(arg ir.Expr) string {
+	call, ok := arg.(*ir.CallExpr)
+	if !ok || len(call.Args) != 2 {
+		return ""
+	}
+	sel, ok := call.Callee.(*ir.SelectorExpr)
+	if !ok || sel.Name != "slice" {
+		return ""
+	}
+	return fmt.Sprintf("string(%s[%s:%s])", g.expr(sel.Receiver), g.expr(call.Args[0]), g.expr(call.Args[1]))
+}
+
 func (g *generator) codegenError() error {
 	return errors.Join(g.errors...)
 }
@@ -75,6 +90,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 	case "process.argv", "process.cwd", "process.env", "process.exit", "process.platform":
 		return g.processModuleCall(fn, args, call.ResultType()), true
 	case "string.fromChars":
+		if len(args) == 1 {
+			if fused := g.fuseFromCharsSlice(call.Args[0]); fused != "" {
+				return fused, true
+			}
+		}
 		if len(args) != 1 {
 			return g.zeroValue(call.ResultType()), true
 		}

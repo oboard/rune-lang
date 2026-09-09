@@ -40,6 +40,9 @@ func (s *server) definition(uri string, pos position) any {
 	if target := typeTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}
+	if target := xmlFunctionTarget(uri, prog, pos); target != nil {
+		return target.location()
+	}
 	if target := localTarget(uri, prog, pos); target != nil {
 		return target.location()
 	}

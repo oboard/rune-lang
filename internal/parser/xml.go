@@ -16,7 +16,7 @@ func (p *Parser) parseXMLElement() ast.Expr {
 		return &ast.Identifier{Name: "<error>", Pos: start.Pos}
 	}
 	name := p.consume(lexer.Ident, "expected XML tag name")
-	elem := &ast.XMLElement{Tag: name.Lexeme, Pos: start.Pos}
+	elem := &ast.XMLElement{Tag: name.Lexeme, NamePos: name.Pos, Pos: start.Pos}
 
 	selfClosing := p.parseXMLAttributes(elem)
 	if selfClosing {
@@ -42,7 +42,7 @@ func (p *Parser) parseXMLElement() ast.Expr {
 		}
 		if p.check(lexer.Less) {
 			if p.checkNext(lexer.Slash) {
-				p.parseXMLClose(elem.Tag)
+				p.parseXMLClose(elem)
 				return elem
 			}
 			child := p.parseXMLElement()
@@ -104,14 +104,15 @@ func (p *Parser) parseXMLAttributeValue() ast.Expr {
 	return &ast.StringLiteral{Value: tok.Lexeme, Pos: tok.Pos}
 }
 
-func (p *Parser) parseXMLClose(tag string) {
+func (p *Parser) parseXMLClose(elem *ast.XMLElement) {
 	start := p.consume(lexer.Less, "expected '</'")
 	p.consume(lexer.Slash, "expected '/' in XML closing tag")
 	name := p.consume(lexer.Ident, "expected XML closing tag name")
-	if name.Lexeme != tag {
-		p.errorAt(name, fmt.Sprintf("mismatched XML closing tag %q, expected %q", name.Lexeme, tag))
+	if name.Lexeme != elem.Tag {
+		p.errorAt(name, fmt.Sprintf("mismatched XML closing tag %q, expected %q", name.Lexeme, elem.Tag))
 	}
 	p.consume(lexer.Greater, "expected '>' after XML closing tag")
+	elem.ClosePos = name.Pos
 	_ = start
 }
 

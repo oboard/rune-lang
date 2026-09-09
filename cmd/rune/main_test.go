@@ -16,6 +16,58 @@ import (
 	"github.com/oboard/rune-lang/internal/parser"
 )
 
+func BenchmarkSelfhostLexer(b *testing.B) {
+	source, err := os.ReadFile(filepath.Join("..", "..", "selfhost", "parser", "parser.rn"))
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(int64(len(source)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		lex(string(source))
+	}
+}
+
+func TestRuneCLITypeScriptInvokesHTMLElementComponents(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "component.rn")
+	writeTestFile(t, path, `#web.preview
++ ListItem(text: String) -> HTMLElement => {
+  <li>{text}</li>
+}
+
++ render() -> HTMLElement => {
+  <ul>
+    <ListItem text={"Item 1"} />
+  </ul>
+}
+`)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts", path}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts component) error = %v, stderr = %s", err, errOut.String())
+	}
+	got := out.String()
+	for _, want := range []string{
+		`const __el8 = ListItem("Item 1");`,
+		`const __el7 = document.createElement("ul");`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		`document.createElement("ListItem")`,
+		`__el8.setAttribute("text"`,
+	} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("generated TypeScript contains %q:\n%s", unwanted, got)
+		}
+	}
+}
+
 func TestRuneCLIDeclarationEmitsKeywordFreePublicConstant(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "mod.rn")

@@ -60,11 +60,21 @@ func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 	if component := e.g.lookupWebComponentFunction(elem.Tag); component != nil {
 		factory := e.webComponentFactory(component, elem)
 		e.linef("const %s = document.createElement(runeDefineWebComponent(%s, %s));", name, strconv.Quote(elem.Tag), factory)
+		for _, attr := range elem.Attrs {
+			e.attr(name, attr)
+		}
+	} else if component := e.g.lookupHTMLElementComponentFunction(elem.Tag); component != nil {
+		e.linef("const %s = %s;", name, e.componentCall(component, elem))
+		for _, attr := range elem.Attrs {
+			if attr.Event || !functionHasParam(component, attr.Name) {
+				e.attr(name, attr)
+			}
+		}
 	} else {
 		e.linef("const %s = document.createElement(%s);", name, strconv.Quote(elem.Tag))
-	}
-	for _, attr := range elem.Attrs {
-		e.attr(name, attr)
+		for _, attr := range elem.Attrs {
+			e.attr(name, attr)
+		}
 	}
 	for _, child := range elem.Children {
 		e.child(name, child)
@@ -76,6 +86,14 @@ func (e *xmlEmitter) webComponentFactory(fn *ir.Function, elem *ir.XMLElement) s
 	name := FunctionSymbolName(fn)
 	if len(fn.Params) == 0 {
 		return name
+	}
+	return fmt.Sprintf("() => %s", e.componentCall(fn, elem))
+}
+
+func (e *xmlEmitter) componentCall(fn *ir.Function, elem *ir.XMLElement) string {
+	name := FunctionSymbolName(fn)
+	if len(fn.Params) == 0 {
+		return name + "()"
 	}
 	attrByName := map[string]ir.XMLAttr{}
 	for _, attr := range elem.Attrs {
@@ -91,7 +109,16 @@ func (e *xmlEmitter) webComponentFactory(fn *ir.Function, elem *ir.XMLElement) s
 		}
 		args = append(args, e.g.zeroValue(param.Type))
 	}
-	return fmt.Sprintf("() => %s(%s)", name, strings.Join(args, ", "))
+	return fmt.Sprintf("%s(%s)", name, strings.Join(args, ", "))
+}
+
+func functionHasParam(fn *ir.Function, name string) bool {
+	for _, param := range fn.Params {
+		if param.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
@@ -118,11 +145,19 @@ func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
 }
 
 func (g *generator) lookupWebComponentFunction(tag string) *ir.Function {
+	return g.lookupComponentFunction(tag, checker.WebComponent)
+}
+
+func (g *generator) lookupHTMLElementComponentFunction(tag string) *ir.Function {
+	return g.lookupComponentFunction(tag, checker.HTMLElement)
+}
+
+func (g *generator) lookupComponentFunction(tag string, returnType checker.Type) *ir.Function {
 	if g.file == nil {
 		return nil
 	}
 	for _, fn := range g.file.Functions {
-		if (fn.SourceName == tag || fn.Name == tag) && fn.Return == checker.WebComponent {
+		if (fn.SourceName == tag || fn.Name == tag) && fn.Return == returnType {
 			return fn
 		}
 	}

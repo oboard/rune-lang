@@ -151,6 +151,41 @@ func TestGenerateWebComponentTagPassesAttributeParams(t *testing.T) {
 	}
 }
 
+func TestGenerateHTMLElementComponentTagCallsFunction(t *testing.T) {
+	src := `+ ListItem(text: String) -> HTMLElement => {
+  <li>{text}</li>
+}
+
++ render() -> HTMLElement => {
+  <ul>
+    <ListItem text={"Item 1"} />
+  </ul>
+}
+`
+	got := generateForTest(t, src)
+	wantParts := []string{
+		`function ListItem(text: string): HTMLElement`,
+		`function render(): HTMLElement`,
+		`const __el8 = ListItem("Item 1");`,
+		`const __el7 = document.createElement("ul");`,
+		`export { ListItem as ListItem, render as render };`,
+	}
+	for _, want := range wantParts {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		`document.createElement("ListItem")`,
+		`__el8.setAttribute("text"`,
+		`runeDefineWebComponent("ListItem"`,
+	} {
+		if strings.Contains(got, unwanted) {
+			t.Fatalf("generated TypeScript contains %q:\n%s", unwanted, got)
+		}
+	}
+}
+
 func TestGeneratePrivateWebComponentTagUsesSourceName(t *testing.T) {
 	src := `HelloWorld() -> WebComponent => {
   <div>hello world</div>

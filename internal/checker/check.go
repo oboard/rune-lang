@@ -26,6 +26,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	c := &checker{
 		info: &Info{
 			Functions:                 map[string]*FuncInfo{},
+			XMLResolvedFunctions:      map[*ast.XMLElement]*FuncInfo{},
 			FunctionDecls:             map[*ast.Function]*FuncInfo{},
 			ConstDecls:                map[*ast.ConstDecl]*ExternalValueInfo{},
 			ResolvedFunctions:         map[*ast.Identifier]*FuncInfo{},

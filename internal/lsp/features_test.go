@@ -9,6 +9,103 @@ import (
 	"github.com/oboard/rune-lang/internal/compiler"
 )
 
+func TestXMLComponentTagDefinitionJumpsToFunction(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `ListItem(text: String) -> HTMLElement => {
+  <li>{text}</li>
+}
+
+render() -> HTMLElement => {
+  <ul>
+    <ListItem text={"Item 1"} />
+  </ul>
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "<ListItem", "ListItem")).(map[string]any)
+	if got := def["uri"]; got != uri {
+		t.Fatalf("definition uri = %v, want %s", got, uri)
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("definition start = %+v, want ListItem declaration", start)
+	}
+}
+
+func TestXMLNestedComponentTagDefinitionJumpsToFunction(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `+ Badge(label: String) -> HTMLElement => {
+  <span>{label}</span>
+}
+
+render() -> HTMLElement => {
+  <ul>
+    <span>
+      <Badge label="new"></Badge>
+    </span>
+  </ul>
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "<Badge", "Badge")).(map[string]any)
+	if got := def["uri"]; got != uri {
+		t.Fatalf("definition uri = %v, want %s", got, uri)
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 2 {
+		t.Fatalf("definition start = %+v, want Badge declaration", start)
+	}
+}
+
+func TestXMLComponentClosingTagDefinitionJumpsToFunction(t *testing.T) {
+	uri := "file:///tmp/main.rn"
+	src := `Badge(label: String) -> HTMLElement => {
+  <span>{label}</span>
+}
+
+render() -> HTMLElement => {
+  <Badge label="new"></Badge>
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "</Badge", "Badge")).(map[string]any)
+	if got := def["uri"]; got != uri {
+		t.Fatalf("definition uri = %v, want %s", got, uri)
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 0 {
+		t.Fatalf("definition start = %+v, want Badge declaration", start)
+	}
+}
+
+func TestImportedComponentTagDefinitionJumpsToSourceFile(t *testing.T) {
+	dir := t.TempDir()
+	helperPath := filepath.Join(dir, "component.rn")
+	writeLSPFile(t, helperPath, `+ ListItem(text: String) -> HTMLElement => <li>{text}</li>
+`)
+	mainPath := filepath.Join(dir, "main.rn")
+	uri := fileURI(mainPath)
+	src := `@"component.rn"
+
+render() -> HTMLElement => {
+  <ul><ListItem text={"x"} /></ul>
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+
+	def := s.definition(uri, positionOf(src, "<ListItem", "ListItem")).(map[string]any)
+	if got := def["uri"].(string); got != fileURI(helperPath) {
+		t.Fatalf("definition uri = %s, want %s", got, fileURI(helperPath))
+	}
+	start := def["range"].(map[string]any)["start"].(position)
+	if start.Line != 0 || start.Character != 2 {
+		t.Fatalf("definition start = %+v, want ListItem declaration", start)
+	}
+}
+
 func TestMethodDefinitionAndRename(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
