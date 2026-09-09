@@ -359,7 +359,10 @@ async function compilePreview(document, panel, debounce = false) {
     if (previewCompileVersions.get(key) !== version) {
       return;
     }
-    panel.webview.postMessage({ type: "render", source: await transpileTypeScriptForPreview(generated) });
+    panel.webview.postMessage({
+      type: "render",
+      source: await transpileTypeScriptForPreview(instrumentPreviewSignalState(generated))
+    });
   } catch (error) {
     if (previewCompileVersions.get(key) === version) {
       panel.webview.postMessage({ type: "error", message: error?.message || String(error) });
@@ -387,6 +390,27 @@ async function compilePreviewTypeScript(document) {
   } finally {
     await fs.promises.unlink(temporaryPath).catch(() => {});
   }
+}
+
+function instrumentPreviewSignalState(source) {
+  // Rename the generated factory and put a state-aware wrapper in front of it.
+  // The wrapper assigns a stable call-order slot per render. On HMR a fresh
+  // render gets fresh DOM/watchers, while its signals restore the last value in
+  // that slot. It covers both `$list` reactive collections and direct signals.
+  const runtime = `
+let runePreviewSignalIndex = 0;
+function runeSignal<T>(initial: T): RuneSignal<T> {
+  const state: Map<number, unknown> = (globalThis as any).__runePreviewState || ((globalThis as any).__runePreviewState = new Map());
+  const key = runePreviewSignalIndex++;
+  const signal = runeSignalRaw(state.has(key) ? state.get(key) as T : initial);
+  signal.watch(() => state.set(key, signal.get()));
+  state.set(key, signal.get());
+  return signal;
+}
+`;
+  return source
+    .replace("function runeSignal<T>", "function runeSignalRaw<T>")
+    .replace(/\nfunction render\(/, `${runtime}\nfunction render(`);
 }
 
 async function transpileTypeScriptForPreview(source) {
@@ -424,7 +448,7 @@ async function transpileTypeScriptForPreview(source) {
 
 function previewHtml(webview) {
   const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval';"><style>body{font-family:var(--vscode-font-family);padding:16px;color:var(--vscode-editor-foreground)}#status{color:var(--vscode-descriptionForeground)}#error{white-space:pre-wrap;color:var(--vscode-errorForeground)}</style></head><body><div id="status">Waiting for Rune preview…</div><pre id="error" hidden></pre><main id="preview"></main><script nonce="${nonce}">const status=document.querySelector('#status'),error=document.querySelector('#error'),mount=document.querySelector('#preview');window.addEventListener('message',({data})=>{if(data.type==='loading'){status.textContent='Compiling…';error.hidden=true;return}if(data.type==='error'){status.textContent='Preview failed';error.textContent=data.message;error.hidden=false;return}if(data.type==='render'){try{mount.replaceChildren();new Function('mount',data.source+'\\nconst __runePreviewResult = typeof render === "function" ? render() : undefined;\\nif (__runePreviewResult instanceof Node) mount.appendChild(__runePreviewResult);')(mount);status.textContent='Preview updated';error.hidden=true}catch(exception){status.textContent='Preview failed';error.textContent=exception.stack||String(exception);error.hidden=false}}});</script></body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval';"><style>body{font-family:var(--vscode-font-family);padding:16px;color:var(--vscode-editor-foreground)}#status{color:var(--vscode-descriptionForeground)}#error{white-space:pre-wrap;color:var(--vscode-errorForeground)}</style></head><body><div id="status">Waiting for Rune preview…</div><pre id="error" hidden></pre><main id="preview"></main><script nonce="${nonce}">const status=document.querySelector('#status'),error=document.querySelector('#error'),mount=document.querySelector('#preview');window.addEventListener('message',({data})=>{if(data.type==='loading'){status.textContent='Compiling…';error.hidden=true;return}if(data.type==='error'){status.textContent='Preview failed';error.textContent=data.message;error.hidden=false;return}if(data.type==='render'){try{mount.replaceChildren();new Function('mount',data.source+'\\nrunePreviewSignalIndex = 0;\\nconst __runePreviewResult = typeof render === "function" ? render() : undefined;\\nif (__runePreviewResult instanceof Node) mount.appendChild(__runePreviewResult);')(mount);status.textContent='Preview updated';error.hidden=true}catch(exception){status.textContent='Preview failed';error.textContent=exception.stack||String(exception);error.hidden=false}}});</script></body></html>`;
 }
 
 async function runFile(uri) {
