@@ -161,17 +161,19 @@ func cli_appendRootOptionArgs(rootArgs []string, args []string, index int, consu
 }
 
 func cli_appendRuntimeRest(args []string, index int, out []string) []string {
-	return func() []string {
+	for {
 		if index >= len(args) {
 			return out
+		} else {
+			args, index, out = args, index+1, func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, out...)
+				__rune_spread_out = append(__rune_spread_out, args[index])
+				return __rune_spread_out
+			}()
+			continue
 		}
-		return cli_appendRuntimeRest(args, index+1, func() []string {
-			__rune_spread_out := []string{}
-			__rune_spread_out = append(__rune_spread_out, out...)
-			__rune_spread_out = append(__rune_spread_out, args[index])
-			return __rune_spread_out
-		}())
-	}()
+	}
 }
 
 func cli_argument(name string, help string, required bool) CliArgument {
@@ -191,17 +193,18 @@ func cli_contains(values []string, value string) bool {
 }
 
 func cli_containsAt(values []string, value string, index int) bool {
-	return func() bool {
+	for {
 		if index >= len(values) {
 			return false
-		}
-		return func() bool {
+		} else {
 			if values[index] == value {
 				return true
+			} else {
+				values, value, index = values, value, index+1
+				continue
 			}
-			return cli_containsAt(values, value, index+1)
-		}()
-	}()
+		}
+	}
 }
 
 func cli_emptyCommand() CliCommand {
@@ -213,45 +216,48 @@ func cli_emptyOption() CliOption {
 }
 
 func cli_findCommand(commands []CliCommand, name string, index int) CliCommandLookup {
-	return func() CliCommandLookup {
+	for {
 		if len(name) == 0 || index >= len(commands) {
 			return CliCommandLookup{command: cli_emptyCommand(), found: false}
-		}
-		return func() CliCommandLookup {
+		} else {
 			if commands[index].name == name {
 				return CliCommandLookup{command: commands[index], found: true}
+			} else {
+				commands, name, index = commands, name, index+1
+				continue
 			}
-			return cli_findCommand(commands, name, index+1)
-		}()
-	}()
+		}
+	}
 }
 
 func cli_findOptionByName(options []CliOption, name string, index int) CliOption {
-	return func() CliOption {
+	for {
 		if index >= len(options) {
 			return cli_emptyOption()
-		}
-		return func() CliOption {
+		} else {
 			if options[index].name == name {
 				return options[index]
+			} else {
+				options, name, index = options, name, index+1
+				continue
 			}
-			return cli_findOptionByName(options, name, index+1)
-		}()
-	}()
+		}
+	}
 }
 
 func cli_findOptionByShort(options []CliOption, short string, index int) CliOption {
-	return func() CliOption {
+	for {
 		if index >= len(options) {
 			return cli_emptyOption()
-		}
-		return func() CliOption {
+		} else {
 			if options[index].short == short {
 				return options[index]
+			} else {
+				options, short, index = options, short, index+1
+				continue
 			}
-			return cli_findOptionByShort(options, short, index+1)
-		}()
-	}()
+		}
+	}
 }
 
 func cli_flag(name string, short string, help string) CliOption {
@@ -1014,17 +1020,18 @@ func cli_positionalIncrement(arg string) int {
 }
 
 func cli_resolveAlias(aliases []CliCommandAlias, name string, index int) string {
-	return func() string {
+	for {
 		if index >= len(aliases) {
 			return name
-		}
-		return func() string {
+		} else {
 			if aliases[index].from == name {
 				return aliases[index].to
+			} else {
+				aliases, name, index = aliases, name, index+1
+				continue
 			}
-			return cli_resolveAlias(aliases, name, index+1)
-		}()
-	}()
+		}
+	}
 }
 
 func cli_rootOption(root CliCommand, arg string) CliOption {

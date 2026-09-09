@@ -485,7 +485,10 @@ emitGoFunction(
       }
   )
   out :=: (((((("func " + receiver) + name) + "(") + params) + ")") + ret) + " {\n"
-  out = out + emitGoBody(file, fn.body, returnsValue(returnType), returnType, 1)
+  out = out + (
+    fn.tailLoop ? emitGoTailLoopBody(file, fn, returnType, 1)
+      : emitGoBody(file, fn.body, returnsValue(returnType), returnType, 1)
+  )
   out + "}\n"
 }
 
@@ -558,6 +561,56 @@ emitGoBody(
       : emitGoExpr(expr)
   ))
 }
+
+/// Emit the normalized self-tail-loop IR as imperative Go. The IR pass marks
+/// only direct, checked tail calls; all right-hand sides are written as one Go
+/// multiple assignment so their old parameter values are evaluated first.
+emitGoTailLoopBody(
+  file: IRFile,
+  fn: IRFunction,
+  returnType: String,
+  level: Int
+) -> String => line(level, "for {") + emitGoTailLoopExpr(file, fn, fn.body, returnType, level + 1) + line(level, "}")
+
+emitGoTailLoopExpr(
+  file: IRFile,
+  fn: IRFunction,
+  expr: IRExpr,
+  returnType: String,
+  level: Int
+) -> String => expr.kind {
+  ExprKind.Ternary => emitGoTailLoopTernary(file, fn, expr, returnType, level)
+  ExprKind.Call => (
+    isGoTailSelfCall(expr, fn) ? line(level, emitGoTailLoopParamNames(fn.params, 0, "") + " = " + emitGoExprListFrom(expr.children, 1, "")) + line(level, "continue")
+      : line(level, "return " + emitGoExprExpectedForFile(file, expr, returnType))
+  )
+  _ => line(level, "return " + emitGoExprExpectedForFile(file, expr, returnType))
+}
+
+emitGoTailLoopTernary(
+  file: IRFile,
+  fn: IRFunction,
+  expr: IRExpr,
+  returnType: String,
+  level: Int
+) -> String => line(level, "if " + emitGoExpr(expr.children[0]) + " {") + emitGoTailLoopExpr(file, fn, expr.children[1], returnType, level + 1) + line(level, "} else {") + emitGoTailLoopExpr(file, fn, expr.children[2], returnType, level + 1) + line(level, "}")
+
+isGoTailSelfCall(
+  expr: IRExpr,
+  fn: IRFunction
+) -> Bool => (((expr.children.length() == (fn.params.length() + 1)) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier)) && (expr.children[0].name == fn.tailLoopName)
+
+emitGoTailLoopParamNames(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitGoTailLoopParamNames(params, index + 1, out + (
+      out == "" ? ""
+        : ", "
+    ) + mangleIdent(params[index].name))
+)
 
 emitGoPatternBlock(
   file: IRFile,

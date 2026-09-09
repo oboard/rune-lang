@@ -129,6 +129,16 @@ Status: {
   @assert.eq(stmt.value, "User")
 }
 
+? "selfhost ir marks direct self tail loops" {
+  file := lower(`scan(state: Int) -> Int => state < 3 ? scan(state + 1) : state
+nonTail(state: Int) -> Int => 1 + nonTail(state + 1)
+`)
+  lowered := eliminateSelfTailCalls(file)
+  @assert.eq(lowered.functions[0].tailLoop, true)
+  @assert.eq(lowered.functions[0].tailLoopName, "scan")
+  @assert.eq(lowered.functions[1].tailLoop, false)
+}
+
 ? "selfhost ir lowers nested expressions" {
   file := lower(`main() => {
   values := [1, 2, 3]

@@ -165,6 +165,8 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error 
 		return g.patternBlock(fn, e, ret)
 	case *ir.BlockExpr:
 		return g.block(e, ret)
+	case *ir.LoopExpr:
+		return g.loopExpr(e, ret)
 	default:
 		if unwrap, ok := expr.(*ir.ResultUnwrapExpr); ok {
 			g.resultUnwrapExprStmt(unwrap, ret, true)
@@ -245,6 +247,16 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				continue
 			}
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
+		case *ir.MultiAssignStmt:
+			names := make([]string, 0, len(s.Names))
+			values := make([]string, 0, len(s.Values))
+			for _, name := range s.Names {
+				names = append(names, mangleIdent(name))
+			}
+			for _, value := range s.Values {
+				values = append(values, g.expr(value))
+			}
+			g.linef("%s = %s", strings.Join(names, ", "), strings.Join(values, ", "))
 		case *ir.ExprStmt:
 			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
@@ -274,6 +286,18 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.linef("return %s", g.returnExpr(s.Expr, ret))
 			} else {
 				g.line(expr)
+			}
+		case *ir.IfStmt:
+			g.ifStmt(s, ret)
+		case *ir.ContinueStmt:
+			g.line("continue")
+		case *ir.ReturnStmt:
+			if ret == checker.Void {
+				if expr := g.expr(s.Value); expr != "" {
+					g.line(expr)
+				}
+			} else {
+				g.linef("return %s", g.returnExpr(s.Value, ret))
 			}
 		}
 	}
@@ -322,6 +346,35 @@ func (g *generator) conditionalExprStmt(expr *ir.TernaryExpr) {
 	if consequence := g.expr(expr.Consequence); consequence != "" {
 		g.line(consequence)
 	}
+	g.indent--
+	g.line("}")
+}
+
+func (g *generator) loopExpr(loop *ir.LoopExpr, ret checker.Type) error {
+	g.line("for {")
+	g.indent++
+	if loop.Body != nil {
+		if err := g.block(loop.Body, ret); err != nil {
+			return err
+		}
+	}
+	g.indent--
+	g.line("}")
+	return nil
+}
+
+func (g *generator) ifStmt(stmt *ir.IfStmt, ret checker.Type) {
+	g.linef("if %s {", g.expr(stmt.Cond))
+	g.indent++
+	_ = g.block(&ir.BlockExpr{Statements: stmt.Then}, ret)
+	g.indent--
+	if len(stmt.Else) == 0 {
+		g.line("}")
+		return
+	}
+	g.line("} else {")
+	g.indent++
+	_ = g.block(&ir.BlockExpr{Statements: stmt.Else}, ret)
 	g.indent--
 	g.line("}")
 }

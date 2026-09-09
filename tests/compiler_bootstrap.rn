@@ -58,6 +58,18 @@ render() => {
   @assert.eq(result.output.includes("func main()"), true)
 }
 
+? "selfhost compiler lowers self tail calls to go loops" {
+  source := `advance(n: Int) -> Int => n + 1
+scan(n: Int) -> Int => n < 3 ? scan(advance(n)) : n
+walk(limit: Int, index: Int, out: Int) -> Int => index >= limit ? out : walk(limit, index + 1, out + index)
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.output.includes("func scan(n int) int {\n  for {"), true)
+  @assert.eq(result.output.includes("n = advance(n)\n      continue"), true)
+  @assert.eq(result.output.includes("limit, index, out = limit, index + 1, out + index"), true)
+}
+
 ? "selfhost compiler emits go pattern blocks" {
   source := `fib(n) => {
   0 => 0

@@ -248,7 +248,7 @@ compileCheckedFile(
     allErrors.length() > 0 ? compileResult(false, "", allErrors)
       : target {
         "ts" => compileResult(true, generateTypeScript(inferred), [])
-        "go" => compileResult(true, generateGo(inferred), [])
+        "go" => compileResult(true, generateGo(eliminateSelfTailCalls(inferred)), [])
         "mbt" => compileResult(true, generateMoonBit(inferred), [])
         "dts" => compileResult(true, generateDeclarations(inferred), [])
         _ => compileResult(false, "", unsupportedTargetErrors(target))
@@ -5946,6 +5946,8 @@ pushTypeScriptFunction(
       ),
       returnType: returnType,
       body: emptyIRExpr(),
+      tailLoop: false,
+      tailLoopName: "",
       sourcePath: "",
       line: 0,
       column: 0

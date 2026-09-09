@@ -66,6 +66,8 @@
   params: Array[IRParam]
   returnType: String
   body: IRExpr
+  tailLoop: Bool
+  tailLoopName: String
   sourcePath: String
   line: Int
   column: Int
@@ -195,6 +197,8 @@ pushEnumType(
   params: [],
   returnType: "",
   body: emptyIRExpr(),
+  tailLoop: false,
+  tailLoopName: "",
   sourcePath: "",
   line: 0,
   column: 0
@@ -346,9 +350,97 @@ lowerFunction(
   params: lowerParams(fn.params),
   returnType: typeRefToString(fn.returnType),
   body: lowerExpr(fn.body),
+  tailLoop: false,
+  tailLoopName: "",
   sourcePath: "",
   line: fn.line,
   column: fn.column
+}
+
+/// Normalize direct self-tail-recursive top-level functions into loop-marked IR.
+/// A unique declaration name is required because call IR has not yet retained
+/// resolved callable identity; ambiguous imported names remain recursive calls.
++ eliminateSelfTailCalls(
+  file: IRFile
+) -> IRFile => {
+  ..file,
+  functions: eliminateSelfTailCallsInFunctions(file.functions)
+}
+
+eliminateSelfTailCallsInFunctions(
+  functions: Array[IRFunction]
+) -> Array[IRFunction] => {
+  out := []
+  functions.each((fn) => out.push(markSelfTailLoop(fn, irFunctionNameCount(functions, fn.name, 0))))
+  out
+}
+
+irFunctionNameCount(
+  functions: Array[IRFunction],
+  name: String,
+  index: Int
+) -> Int => (
+  index >= functions.length() ? 0
+    : (functions[index].name == name ? 1 : 0) + irFunctionNameCount(functions, name, index + 1)
+)
+
+markSelfTailLoop(
+  fn: IRFunction,
+  nameCount: Int
+) -> IRFunction => {
+  eligible := (((((((fn.returnType != "") && (fn.returnType != "Void")) && !fn.routine) && !fn.macro) && (fn.receiverType == "")) && ((fn.generics.length() == 0) && (fn.params.length() > 0))) && (nameCount == 1)) && (irExprContainsSelfCall(fn.body, fn.name) && tailLoopExprIsSafe(fn.body, fn.name, fn.params.length()))
+  IRFunction {
+    ..fn,
+    tailLoop: eligible,
+    tailLoopName: (
+      eligible ? fn.name
+        : ""
+    )
+  }
+}
+
+irExprContainsSelfCall(
+  expr: IRExpr,
+  name: String
+) -> Bool => (
+  isDirectSelfCall(expr, name, -1) ? true
+    : irExprChildrenContainSelfCall(expr.children, name, 0)
+)
+
+irExprChildrenContainSelfCall(
+  children: Array[IRExpr],
+  name: String,
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : irExprContainsSelfCall(children[index], name) || irExprChildrenContainSelfCall(children, name, index + 1)
+)
+
+isDirectSelfCall(
+  expr: IRExpr,
+  name: String,
+  arity: Int
+) -> Bool => (
+  ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier) ? ((expr.children[0].name == name) && ((arity < 0) || ((expr.children.length() - 1) == arity)))
+    : false
+)
+
+/// Only ternary branches are considered tail contexts. Any self call in a
+/// condition or ordinary expression subtree disables the transformation.
+tailLoopExprIsSafe(
+  expr: IRExpr,
+  name: String,
+  arity: Int
+) -> Bool => expr.kind {
+  ExprKind.Ternary => (
+    expr.children.length() == 3 ? (!irExprContainsSelfCall(expr.children[0], name) && tailLoopExprIsSafe(expr.children[1], name, arity)) && tailLoopExprIsSafe(expr.children[2], name, arity)
+      : false
+  )
+  ExprKind.Call => (
+    isDirectSelfCall(expr, name, arity) ? true
+      : !irExprContainsSelfCall(expr, name)
+  )
+  _ => !irExprContainsSelfCall(expr, name)
 }
 
 + withIRFileSourcePath(

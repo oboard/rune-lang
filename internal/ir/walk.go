@@ -90,6 +90,12 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	case *WatchExpr:
 		WalkExpr(e.Target, visit)
 		WalkExpr(e.Handler, visit)
+	case *LoopExpr:
+		if e.Body != nil {
+			for _, stmt := range e.Body.Statements {
+				WalkStmt(stmt, visit)
+			}
+		}
 	}
 }
 
@@ -103,6 +109,21 @@ func WalkStmt(stmt Stmt, visit func(Expr)) {
 		WalkExpr(s.Value, visit)
 	case *ExprStmt:
 		WalkExpr(s.Expr, visit)
+	case *IfStmt:
+		WalkExpr(s.Cond, visit)
+		for _, stmt := range s.Then {
+			WalkStmt(stmt, visit)
+		}
+		for _, stmt := range s.Else {
+			WalkStmt(stmt, visit)
+		}
+	case *ContinueStmt:
+	case *ReturnStmt:
+		WalkExpr(s.Value, visit)
+	case *MultiAssignStmt:
+		for _, value := range s.Values {
+			WalkExpr(value, visit)
+		}
 	}
 }
 

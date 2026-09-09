@@ -23,6 +23,19 @@ func GenerateIR(file *ir.File) (string, error) {
 	}
 	closure := stdlibhelpers.Collect(file)
 	file = closure.With(file)
+	for _, fn := range file.Functions {
+		ir.EliminateSelfTailCalls(fn)
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			ir.EliminateSelfTailCalls(method)
+		}
+	}
+	for _, enum := range file.Enums {
+		for _, method := range enum.Methods {
+			ir.EliminateSelfTailCalls(method)
+		}
+	}
 	g := &generator{file: file, imports: map[string]bool{}}
 	usage := codeusage.Collect(file)
 	for _, imp := range file.GoImports {

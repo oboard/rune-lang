@@ -48,6 +48,37 @@ shell_quote() {
   printf "%q" "$1"
 }
 
+install_vscode_extension() {
+  if [ "$INSTALL_VSCODE_DEPS" -eq 1 ]; then
+    need npm
+    echo "==> Installing VSCode extension dependencies"
+    npm install --prefix vscode-rune
+  fi
+
+  if [ "$INSTALL_VSCODE_EXTENSION" -eq 1 ]; then
+    if command -v code >/dev/null 2>&1; then
+      VSCODE_CLI="code"
+    elif command -v codium >/dev/null 2>&1; then
+      VSCODE_CLI="codium"
+    elif command -v cursor >/dev/null 2>&1; then
+      VSCODE_CLI="cursor"
+    else
+      echo "missing VSCode CLI: install the 'code' command from VSCode first" >&2
+      exit 1
+    fi
+
+    vsix="$BIN_DIR/vscode-rune.vsix"
+    echo "==> Packaging VSCode extension"
+    (
+      cd vscode-rune
+      npm exec -- vsce package --allow-missing-repository --out "$vsix"
+    )
+
+    echo "==> Installing VSCode extension with $VSCODE_CLI"
+    "$VSCODE_CLI" --install-extension "$vsix" --force
+  fi
+}
+
 open_dev_shell() {
   local shell_path shell_name tmp rc zshenv
   shell_path="${SHELL:-/bin/sh}"
@@ -130,8 +161,14 @@ done
 
 cd "$ROOT"
 
-need go
 mkdir -p "$BIN_DIR"
+
+# Install the VSCode extension first, before building/testing.
+if [ "$INSTALL_VSCODE_DEPS" -eq 1 ] || [ "$INSTALL_VSCODE_EXTENSION" -eq 1 ]; then
+  install_vscode_extension
+fi
+
+need go
 
 echo "==> Rune dev root: $ROOT"
 echo "==> Building local rune CLI"
@@ -164,35 +201,6 @@ if command -v node >/dev/null 2>&1; then
   node -c tree-sitter-rune/grammar.js
 else
   echo "==> Skipping tree-sitter grammar validation; node not found"
-fi
-
-if [ "$INSTALL_VSCODE_DEPS" -eq 1 ]; then
-  need npm
-  echo "==> Installing VSCode extension dependencies"
-  npm install --prefix vscode-rune
-fi
-
-if [ "$INSTALL_VSCODE_EXTENSION" -eq 1 ]; then
-  if command -v code >/dev/null 2>&1; then
-    VSCODE_CLI="code"
-  elif command -v codium >/dev/null 2>&1; then
-    VSCODE_CLI="codium"
-  elif command -v cursor >/dev/null 2>&1; then
-    VSCODE_CLI="cursor"
-  else
-    echo "missing VSCode CLI: install the 'code' command from VSCode first" >&2
-    exit 1
-  fi
-
-  vsix="$BIN_DIR/vscode-rune.vsix"
-  echo "==> Packaging VSCode extension"
-  (
-    cd vscode-rune
-    npm exec -- vsce package --allow-missing-repository --out "$vsix"
-  )
-
-  echo "==> Installing VSCode extension with $VSCODE_CLI"
-  "$VSCODE_CLI" --install-extension "$vsix" --force
 fi
 
 echo
