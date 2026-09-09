@@ -1,8 +1,9 @@
-HelloWorld(text: String) -> WebComponent => {
++ HelloWorld(text: String) -> WebComponent => {
   <div>{text}</div>
 }
 
-render() => {
+#web.preview
++ render() => {
   <div>
     <h1>Web Component Example</h1>
     <HelloWorld text={"hello"} />
