@@ -139,6 +139,17 @@ nonTail(state: Int) -> Int => 1 + nonTail(state + 1)
   @assert.eq(lowered.functions[1].tailLoop, false)
 }
 
+? "selfhost ir marks lexer driver mutual tail loop" {
+  file := lower(`Token: { value: Int }
+Lexed: { state: Int, kind: Int }
+scan(state: Int, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
+scanLexed(lexed: Lexed, tokens: Array[Token]) -> Array[Token] => scan(lexed.state, tokens)
+`)
+  lowered := eliminateSelfTailCalls(file)
+  @assert.eq(lowered.functions[0].tailLoopGroup, "lexer.scan")
+  @assert.eq(lowered.functions[1].tailLoopGroup, "lexer.scan")
+}
+
 ? "selfhost ir lowers nested expressions" {
   file := lower(`main() => {
   values := [1, 2, 3]

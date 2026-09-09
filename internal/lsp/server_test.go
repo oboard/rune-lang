@@ -240,6 +240,28 @@ func TestDiagnosticsHighlightEntireUnknownMacroName(t *testing.T) {
 	t.Fatalf("Diagnostics(%s) = %#v, want unknown macro", uri, s.Diagnostics(uri))
 }
 
+func TestDiagnosticsHighlightPostfixOperator(t *testing.T) {
+	uri := "file:///tmp/style.rn"
+	s := NewSession()
+	s.SetDocument(uri, `render() => {
+  count := "red"
+  count++
+}
+`)
+	for _, diag := range s.Diagnostics(uri) {
+		if strings.Contains(diag["message"].(string), "operator '++' expects a numeric type") {
+			rangeValue := diag["range"].(map[string]any)
+			start := rangeValue["start"].(position)
+			end := rangeValue["end"].(position)
+			if start.Line != 2 || start.Character != 7 || end.Line != 2 || end.Character != 9 {
+				t.Fatalf("postfix operator range = %d:%d-%d:%d, want 2:7-2:9", start.Line, start.Character, end.Line, end.Character)
+			}
+			return
+		}
+	}
+	t.Fatalf("Diagnostics(%s) = %#v, want postfix numeric-type error", uri, s.Diagnostics(uri))
+}
+
 func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := "loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)\n"

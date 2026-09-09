@@ -492,21 +492,22 @@ type IREnumMember struct {
 }
 
 type IRFunction struct {
-	name         string
-	private      bool
-	static       bool
-	routine      bool
-	macro        bool
-	receiverType string
-	generics     []string
-	params       []IRParam
-	returnType   string
-	body         IRExpr
-	tailLoop     bool
-	tailLoopName string
-	sourcePath   string
-	line         int
-	column       int
+	name          string
+	private       bool
+	static        bool
+	routine       bool
+	macro         bool
+	receiverType  string
+	generics      []string
+	params        []IRParam
+	returnType    string
+	body          IRExpr
+	tailLoop      bool
+	tailLoopName  string
+	tailLoopGroup string
+	sourcePath    string
+	line          int
+	column        int
 }
 
 type IRConst struct {
@@ -5508,7 +5509,7 @@ func emptyIRExpr() IRExpr {
 }
 
 func emptyIRFunction() IRFunction {
-	return IRFunction{name: "", private: false, static: false, routine: false, macro: false, receiverType: "", generics: []string{}, params: []IRParam{}, returnType: "", body: emptyIRExpr(), tailLoop: false, tailLoopName: "", sourcePath: "", line: 0, column: 0}
+	return IRFunction{name: "", private: false, static: false, routine: false, macro: false, receiverType: "", generics: []string{}, params: []IRParam{}, returnType: "", body: emptyIRExpr(), tailLoop: false, tailLoopName: "", tailLoopGroup: "", sourcePath: "", line: 0, column: 0}
 }
 
 func selfhost_ir_ir_lowerImport(importDecl ParsedImport) IRImport {
@@ -5598,11 +5599,11 @@ func selfhost_ir_ir_lowerEnumMember(member ParsedEnumMember) IREnumMember {
 }
 
 func selfhost_ir_ir_lowerFunction(fn ParsedFunction) IRFunction {
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: selfhost_ir_ir_parsedFunctionCompileTimeOnly(fn), receiverType: fn.receiverType, generics: fn.generics, params: selfhost_ir_ir_lowerParams(fn.params), returnType: typeRefToString(fn.returnType), body: selfhost_ir_ir_lowerExpr(fn.body), tailLoop: false, tailLoopName: "", sourcePath: "", line: fn.line, column: fn.column}
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: selfhost_ir_ir_parsedFunctionCompileTimeOnly(fn), receiverType: fn.receiverType, generics: fn.generics, params: selfhost_ir_ir_lowerParams(fn.params), returnType: typeRefToString(fn.returnType), body: selfhost_ir_ir_lowerExpr(fn.body), tailLoop: false, tailLoopName: "", tailLoopGroup: "", sourcePath: "", line: fn.line, column: fn.column}
 }
 
 func eliminateSelfTailCalls(file IRFile) IRFile {
-	return IRFile{imports: file.imports, tsImports: file.tsImports, structs: file.structs, enums: file.enums, constants: file.constants, tests: file.tests, errors: file.errors, functions: selfhost_ir_ir_eliminateSelfTailCallsInFunctions(file.functions)}
+	return IRFile{imports: file.imports, tsImports: file.tsImports, structs: file.structs, enums: file.enums, constants: file.constants, tests: file.tests, errors: file.errors, functions: selfhost_ir_ir_eliminateMutualTailCalls(selfhost_ir_ir_eliminateSelfTailCallsInFunctions(file.functions))}
 }
 
 func selfhost_ir_ir_eliminateSelfTailCallsInFunctions(functions []IRFunction) []IRFunction {
@@ -5615,6 +5616,138 @@ func selfhost_ir_ir_eliminateSelfTailCallsInFunctions(functions []IRFunction) []
 		}()
 	}
 	return out
+}
+
+func selfhost_ir_ir_eliminateMutualTailCalls(functions []IRFunction) []IRFunction {
+	out := []IRFunction{}
+	for _, fn := range functions {
+		_ = fn
+		func() int { out = append(out, selfhost_ir_ir_markScanTailLoopGroup(fn, functions)); return len(out) }()
+	}
+	return out
+}
+
+func selfhost_ir_ir_markScanTailLoopGroup(fn IRFunction, functions []IRFunction) IRFunction {
+	group := "lexer.scan"
+	eligible := (selfhost_ir_ir_scanTailLoopIsScanName(fn.name) || selfhost_ir_ir_scanTailLoopIsScanLexedName(fn.name)) && selfhost_ir_ir_scanTailLoopNameCount(functions, true, 0) == 1 && selfhost_ir_ir_scanTailLoopNameCount(functions, false, 0) == 1 && selfhost_ir_ir_scanTailLoopGroupIsSafe(fn.body)
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: fn.body, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, tailLoopGroup: func() string {
+		if eligible {
+			return group
+		}
+		return ""
+	}()}
+}
+
+func selfhost_ir_ir_scanTailLoopNameCount(functions []IRFunction, scan bool, index int) int {
+	return func() int {
+		if index >= len(functions) {
+			return 0
+		}
+		return func() int {
+			if func() bool {
+				if scan {
+					return selfhost_ir_ir_scanTailLoopIsScanName(functions[index].name)
+				}
+				return selfhost_ir_ir_scanTailLoopIsScanLexedName(functions[index].name)
+			}() {
+				return 1
+			}
+			return 0
+		}() + selfhost_ir_ir_scanTailLoopNameCount(functions, scan, index+1)
+	}()
+}
+
+func selfhost_ir_ir_scanTailLoopIsScanName(name string) bool {
+	return strings.HasSuffix(name, "_scan") || name == "scan"
+}
+
+func selfhost_ir_ir_scanTailLoopIsScanLexedName(name string) bool {
+	return strings.HasSuffix(name, "_scanLexed") || name == "scanLexed"
+}
+
+func selfhost_ir_ir_scanTailLoopLexerSignatureIsSafe(functions []IRFunction) bool {
+	return selfhost_ir_ir_scanTailLoopFindScanFunction(functions, 0).returnType == "Array[Token]"
+}
+
+func selfhost_ir_ir_scanTailLoopFindScanFunction(functions []IRFunction, index int) IRFunction {
+	for {
+		if index >= len(functions) {
+			return emptyIRFunction()
+		} else {
+			if selfhost_ir_ir_scanTailLoopIsScanName(functions[index].name) {
+				return functions[index]
+			} else {
+				functions, index = functions, index+1
+				continue
+			}
+		}
+	}
+}
+
+func selfhost_ir_ir_scanTailLoopGroupIsSafe(expr IRExpr) bool {
+	return func() bool {
+		switch {
+		case expr.kind == ExprKind_Block:
+			return selfhost_ir_ir_scanTailLoopBlockIsSafe(expr.children, 0)
+		case expr.kind == ExprKind_Ternary:
+			return func() bool {
+				if len(expr.children) == 3 {
+					return !(selfhost_ir_ir_scanTailLoopContainsCall(expr.children[0])) && selfhost_ir_ir_scanTailLoopGroupIsSafe(expr.children[1]) && selfhost_ir_ir_scanTailLoopGroupIsSafe(expr.children[2])
+				}
+				return false
+			}()
+		case expr.kind == ExprKind_Call:
+			return func() bool {
+				if selfhost_ir_ir_scanTailLoopIsMemberCall(expr) {
+					return true
+				}
+				return !(selfhost_ir_ir_scanTailLoopContainsCall(expr))
+			}()
+		default:
+			return !(selfhost_ir_ir_scanTailLoopContainsCall(expr))
+		}
+	}()
+}
+
+func selfhost_ir_ir_scanTailLoopBlockIsSafe(children []IRExpr, index int) bool {
+	return func() bool {
+		if len(children) == 0 {
+			return false
+		}
+		return func() bool {
+			if index >= len(children)-1 {
+				return selfhost_ir_ir_scanTailLoopGroupIsSafe(children[len(children)-1])
+			}
+			return !(selfhost_ir_ir_scanTailLoopContainsCall(children[index])) && selfhost_ir_ir_scanTailLoopBlockIsSafe(children, index+1)
+		}()
+	}()
+}
+
+func selfhost_ir_ir_scanTailLoopContainsCall(expr IRExpr) bool {
+	return func() bool {
+		if selfhost_ir_ir_scanTailLoopIsMemberCall(expr) {
+			return true
+		}
+		return selfhost_ir_ir_scanTailLoopChildrenContainCall(expr.children, 0)
+	}()
+}
+
+func selfhost_ir_ir_scanTailLoopChildrenContainCall(children []IRExpr, index int) bool {
+	return func() bool {
+		if index >= len(children) {
+			return false
+		}
+		return selfhost_ir_ir_scanTailLoopContainsCall(children[index]) || selfhost_ir_ir_scanTailLoopChildrenContainCall(children, index+1)
+	}()
+}
+
+func selfhost_ir_ir_scanTailLoopIsMemberCall(expr IRExpr) bool {
+	return func() bool {
+		if expr.kind == ExprKind_Call && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier {
+			return selfhost_ir_ir_scanTailLoopIsScanName(expr.children[0].name) || selfhost_ir_ir_scanTailLoopIsScanLexedName(expr.children[0].name)
+		}
+		return false
+	}()
 }
 
 func selfhost_ir_ir_irFunctionNameCount(functions []IRFunction, name string, index int) int {
@@ -5633,7 +5766,7 @@ func selfhost_ir_ir_irFunctionNameCount(functions []IRFunction, name string, ind
 
 func selfhost_ir_ir_markSelfTailLoop(fn IRFunction, nameCount int) IRFunction {
 	eligible := fn.returnType != "" && fn.returnType != "Void" && !(fn.routine) && !(fn.macro) && fn.receiverType == "" && (len(fn.generics) == 0 && len(fn.params) > 0) && nameCount == 1 && (selfhost_ir_ir_irExprContainsSelfCall(fn.body, fn.name) && selfhost_ir_ir_tailLoopExprIsSafe(fn.body, fn.name, len(fn.params)))
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: fn.body, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, tailLoop: eligible, tailLoopName: func() string {
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: fn.body, tailLoopGroup: fn.tailLoopGroup, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, tailLoop: eligible, tailLoopName: func() string {
 		if eligible {
 			return fn.name
 		}
@@ -5696,7 +5829,7 @@ func withIRFileSourcePath(file IRFile, sourcePath string) IRFile {
 }
 
 func selfhost_ir_ir_withIRFunctionSourcePath(fn IRFunction, sourcePath string) IRFunction {
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: fn.body, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, line: fn.line, column: fn.column, sourcePath: sourcePath}
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, body: fn.body, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, tailLoopGroup: fn.tailLoopGroup, line: fn.line, column: fn.column, sourcePath: sourcePath}
 }
 
 func selfhost_ir_ir_withIRFunctionSourcePaths(functions []IRFunction, sourcePath string) []IRFunction {
@@ -6278,7 +6411,7 @@ func selfhost_infer_infer_inferFunction(fn IRFunction, structs []IRStructType, e
 	seed := selfhost_infer_infer_inferSeedBindings(fn.params, fn.receiverType, []CompilerTypeBinding{})
 	rawBody := selfhost_infer_infer_inferBody(fn.body, structs, enums, seed)
 	body := selfhost_infer_infer_inferExpectedFunctionBody(rawBody, fn.returnType)
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, params: selfhost_infer_infer_inferParams(fn.params, fn.body), returnType: func() string {
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, tailLoopGroup: fn.tailLoopGroup, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, params: selfhost_infer_infer_inferParams(fn.params, fn.body), returnType: func() string {
 		if fn.returnType == "" {
 			return selfhost_infer_infer_inferExprType(body)
 		}
@@ -7537,16 +7670,147 @@ func generateGo(file IRFile) string {
 	for _, fn := range file.functions {
 		_ = fn
 		out = func() string {
-			if fn.macro {
+			if fn.macro || fn.tailLoopGroup != "" {
 				return out
 			}
 			return out + selfhost_compiler_go_emitGoFunction(file, fn, "") + "\n"
 		}()
 	}
+	out = out + selfhost_compiler_go_emitGoTailLoopGroups(file)
 	if selfhost_compiler_go_hasMain(file) {
 		out = out + "func main() {\n\t" + mangleIdent("main") + "()\n}\n"
 	}
 	return out
+}
+
+func selfhost_compiler_go_emitGoTailLoopGroups(file IRFile) string {
+	return func() string {
+		if selfhost_compiler_go_goHasTailLoopGroup(file.functions, "lexer.scan", 0) {
+			return selfhost_compiler_go_emitGoLexerScanTailLoopGroup(file)
+		}
+		return ""
+	}()
+}
+
+func selfhost_compiler_go_goHasTailLoopGroup(functions []IRFunction, group string, index int) bool {
+	return func() bool {
+		if index >= len(functions) {
+			return false
+		}
+		return functions[index].tailLoopGroup == group || selfhost_compiler_go_goHasTailLoopGroup(functions, group, index+1)
+	}()
+}
+
+func selfhost_compiler_go_emitGoLexerScanTailLoopGroup(file IRFile) string {
+	scan := selfhost_compiler_go_goFindLexerScanTailLoopFunction(file.functions, true, 0)
+	scanLexed := selfhost_compiler_go_goFindLexerScanTailLoopFunction(file.functions, false, 0)
+	return selfhost_compiler_go_emitGoLexerScanWrapper(file, scan, scanLexed) + "\n" + selfhost_compiler_go_emitGoLexerScanLexedWrapper(file, scan, scanLexed) + "\n" + selfhost_compiler_go_emitGoLexerScanDispatcher(file, scan, scanLexed) + "\n"
+}
+
+func selfhost_compiler_go_goFindLexerScanTailLoopFunction(functions []IRFunction, scan bool, index int) IRFunction {
+	for {
+		if index >= len(functions) {
+			return emptyIRFunction()
+		} else {
+			if func() bool {
+				if scan {
+					return strings.HasSuffix(functions[index].name, "_scan") || functions[index].name == "scan"
+				}
+				return strings.HasSuffix(functions[index].name, "_scanLexed") || functions[index].name == "scanLexed"
+			}() {
+				return functions[index]
+			} else {
+				functions, scan, index = functions, scan, index+1
+				continue
+			}
+		}
+	}
+}
+
+func selfhost_compiler_go_emitGoLexerScanWrapper(file IRFile, fn IRFunction, scanLexed IRFunction) string {
+	return "func " + mangleIdent(fn.name) + "(" + selfhost_compiler_go_emitGoParams(fn.params, 0, "") + ") " + selfhost_compiler_go_goType(fn.returnType) + " {\n" + line(1, "return __lexerScanLoop(0, "+selfhost_compiler_go_emitGoParamNames(fn.params, 0, "")+", "+selfhost_compiler_go_goTailLoopZero(scanLexed.params[0].typeName)+", "+selfhost_compiler_go_goTailLoopZero(scanLexed.params[1].typeName)+")") + "}"
+}
+
+func selfhost_compiler_go_emitGoLexerScanLexedWrapper(file IRFile, scan IRFunction, fn IRFunction) string {
+	return "func " + mangleIdent(fn.name) + "(" + selfhost_compiler_go_emitGoParams(fn.params, 0, "") + ") " + selfhost_compiler_go_goType(fn.returnType) + " {\n" + line(1, "return __lexerScanLoop(1, "+selfhost_compiler_go_goTailLoopZero(scan.params[0].typeName)+", "+selfhost_compiler_go_goTailLoopZero(scan.params[1].typeName)+", "+selfhost_compiler_go_emitGoParamNames(fn.params, 0, "")+")") + "}"
+}
+
+func selfhost_compiler_go_goTailLoopZero(typeName string) string {
+	return func() string {
+		if strings.HasPrefix(typeName, "Array[") {
+			return "nil"
+		}
+		return func() string {
+			if strings.HasSuffix(typeName, "State") || typeName == "Lexed" {
+				return selfhost_compiler_go_goType(typeName) + "{}"
+			}
+			return selfhost_compiler_go_goZero(typeName)
+		}()
+	}()
+}
+
+func selfhost_compiler_go_emitGoLexerScanDispatcher(file IRFile, scan IRFunction, scanLexed IRFunction) string {
+	return "func __lexerScanLoop(__pc int, __scanState " + selfhost_compiler_go_goType(scan.params[0].typeName) + ", __scanTokens " + selfhost_compiler_go_goType(scan.params[1].typeName) + ", __scanLexed " + selfhost_compiler_go_goType(scanLexed.params[0].typeName) + ", __scanLexedTokens " + selfhost_compiler_go_goType(scanLexed.params[1].typeName) + ") " + selfhost_compiler_go_goType(scan.returnType) + " {\n" + line(1, "for {") + line(2, "switch __pc {") + line(2, "case 0:") + selfhost_compiler_go_emitGoLexerScanCase(file, scan, 3) + line(2, "case 1:") + selfhost_compiler_go_emitGoLexerScanLexedCase(file, scanLexed, 3) + line(2, "}") + line(1, "}") + "}"
+}
+
+func selfhost_compiler_go_emitGoLexerScanCase(file IRFile, fn IRFunction, level int) string {
+	return line(level, "{") + line(level+1, "state := __scanState") + line(level+1, "tokens := __scanTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, level+1) + line(level, "}")
+}
+
+func selfhost_compiler_go_emitGoLexerScanLexedCase(file IRFile, fn IRFunction, level int) string {
+	return line(level, "{") + line(level+1, "lexed := __scanLexed") + line(level+1, "tokens := __scanLexedTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, level+1) + line(level, "}")
+}
+
+func selfhost_compiler_go_emitGoLexerTailExpr(file IRFile, expr IRExpr, level int) string {
+	return func() string {
+		switch {
+		case expr.kind == ExprKind_Block:
+			return selfhost_compiler_go_emitGoLexerTailBlock(file, expr.children, 0, level)
+		case expr.kind == ExprKind_Ternary:
+			return line(level, "if "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[1], level+1) + line(level, "} else {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[2], level+1) + line(level, "}")
+		case expr.kind == ExprKind_Call:
+			return selfhost_compiler_go_emitGoLexerTailCall(file, expr, level)
+		default:
+			return line(level, "return "+selfhost_compiler_go_emitGoExpr(expr))
+		}
+	}()
+}
+
+func selfhost_compiler_go_emitGoLexerTailBlock(file IRFile, children []IRExpr, index int, level int) string {
+	return func() string {
+		if index >= len(children) {
+			return ""
+		}
+		return func() string {
+			if index == len(children)-1 {
+				return selfhost_compiler_go_emitGoLexerTailExpr(file, children[index], level)
+			}
+			return selfhost_compiler_go_emitGoStatement(file, children[index], false, false, "", level) + selfhost_compiler_go_emitGoLexerTailBlock(file, children, index+1, level)
+		}()
+	}()
+}
+
+func selfhost_compiler_go_emitGoLexerTailCall(file IRFile, expr IRExpr, level int) string {
+	return func() string {
+		if selfhost_compiler_go_isGoLexerTailMemberCall(expr, true) {
+			return line(level, "__scanState, __scanTokens = "+selfhost_compiler_go_emitGoExpr(expr.children[1])+", "+selfhost_compiler_go_emitGoExpr(expr.children[2])) + line(level, "__pc = 0") + line(level, "continue")
+		}
+		return func() string {
+			if selfhost_compiler_go_isGoLexerTailMemberCall(expr, false) {
+				return line(level, "__scanLexed, __scanLexedTokens = "+selfhost_compiler_go_emitGoExpr(expr.children[1])+", "+selfhost_compiler_go_emitGoExpr(expr.children[2])) + line(level, "__pc = 1") + line(level, "continue")
+			}
+			return line(level, "return "+selfhost_compiler_go_emitGoExpr(expr))
+		}()
+	}()
+}
+
+func selfhost_compiler_go_isGoLexerTailMemberCall(expr IRExpr, scan bool) bool {
+	return len(expr.children) == 3 && expr.children[0].kind == ExprKind_Identifier && func() bool {
+		if scan {
+			return strings.HasSuffix(expr.children[0].name, "_scan") || expr.children[0].name == "scan"
+		}
+		return strings.HasSuffix(expr.children[0].name, "_scanLexed") || expr.children[0].name == "scanLexed"
+	}()
 }
 
 func selfhost_compiler_go_emitGoConst(file IRFile, constant IRConst) string {
@@ -9956,7 +10220,7 @@ func selfhost_compiler_mbt_emitMoonBitEnumMethods(enumDecl IREnumType) string {
 }
 
 func selfhost_compiler_mbt_methodWithMoonBitReceiver(typeName string, method IRFunction) IRFunction {
-	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, generics: method.generics, returnType: method.returnType, body: method.body, tailLoop: method.tailLoop, tailLoopName: method.tailLoopName, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, receiverType: "", params: func() []IRParam {
+	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, generics: method.generics, returnType: method.returnType, body: method.body, tailLoop: method.tailLoop, tailLoopName: method.tailLoopName, tailLoopGroup: method.tailLoopGroup, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, receiverType: "", params: func() []IRParam {
 		switch {
 		case method.static == true:
 			return method.params
@@ -11110,7 +11374,7 @@ func selfhost_compiler_ts_rewriteTSFunctionBody(fn IRFunction, structs []IRStruc
 		return selfhost_compiler_ts_tsAddBinding(bindings, "this", thisType)
 	}()
 	body := selfhost_compiler_ts_rewriteTSExpr(fn.body, structs, enums, bindings)
-	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, body: body}
+	return IRFunction{name: fn.name, private: fn.private, static: fn.static, routine: fn.routine, macro: fn.macro, receiverType: fn.receiverType, generics: fn.generics, params: fn.params, returnType: fn.returnType, tailLoop: fn.tailLoop, tailLoopName: fn.tailLoopName, tailLoopGroup: fn.tailLoopGroup, sourcePath: fn.sourcePath, line: fn.line, column: fn.column, body: body}
 }
 
 func selfhost_compiler_ts_emptyCompilerTypeBinding() CompilerTypeBinding {
@@ -11706,7 +11970,7 @@ func selfhost_compiler_ts_emitTSEnumMethods(enumDecl IREnumType) string {
 }
 
 func selfhost_compiler_ts_methodWithTSReceiver(typeName string, method IRFunction) IRFunction {
-	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: method.receiverType, generics: method.generics, returnType: method.returnType, body: method.body, tailLoop: method.tailLoop, tailLoopName: method.tailLoopName, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, params: func() []IRParam {
+	return IRFunction{private: method.private, static: method.static, routine: method.routine, macro: method.macro, receiverType: method.receiverType, generics: method.generics, returnType: method.returnType, body: method.body, tailLoop: method.tailLoop, tailLoopName: method.tailLoopName, tailLoopGroup: method.tailLoopGroup, sourcePath: method.sourcePath, line: method.line, column: method.column, name: typeName + "_" + method.name, params: func() []IRParam {
 		if method.static {
 			return method.params
 		}
@@ -19885,7 +20149,7 @@ func selfhost_compiler_compiler_pushTypeScriptFunction(imports IRTSImport, text 
 					return selfhost_compiler_compiler_parseTypeScriptParams(func() string { runes := []rune(text); return string(runes[open+1 : close]) }())
 				}
 				return []IRParam{}
-			}(), returnType: returnType, body: emptyIRExpr(), tailLoop: false, tailLoopName: "", sourcePath: "", line: 0, column: 0})
+			}(), returnType: returnType, body: emptyIRExpr(), tailLoop: false, tailLoopName: "", tailLoopGroup: "", sourcePath: "", line: 0, column: 0})
 			return len(imports.functions)
 		}()
 	}

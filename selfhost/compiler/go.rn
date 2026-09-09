@@ -24,14 +24,110 @@ GoJSONDeclResult: {
   file.structs.each((typeDecl) => out = out + emitGoMethods(file, typeDecl))
   file.constants.each((constant) => out = (out + emitGoConst(file, constant)) + "\n")
   file.functions.each((fn) => out = (
-    fn.macro ? out
+    fn.macro || (fn.tailLoopGroup != "") ? out
       : (out + emitGoFunction(file, fn, "")) + "\n"
   ))
+  out = out + emitGoTailLoopGroups(file)
   (
     hasMain(file) ? out = ((out + "func main() {\n\t") + mangleIdent("main")) + "()\n}\n"
   )
   out
 }
+
+/// Mutual lexer-driver recursion lowers to a single typed dispatcher. Keeping
+/// the state and token slots as locals avoids boxed frames and preserves the
+/// evaluation order of every tail-call argument before the next pc transition.
+emitGoTailLoopGroups(file: IRFile) -> String => (
+  goHasTailLoopGroup(file.functions, "lexer.scan", 0) ? emitGoLexerScanTailLoopGroup(file)
+    : ""
+)
+
+goHasTailLoopGroup(
+  functions: Array[IRFunction],
+  group: String,
+  index: Int
+) -> Bool => (
+  index >= functions.length() ? false
+    : (functions[index].tailLoopGroup == group) || goHasTailLoopGroup(functions, group, index + 1)
+)
+
+emitGoLexerScanTailLoopGroup(file: IRFile) -> String => {
+  scan := goFindLexerScanTailLoopFunction(file.functions, true, 0)
+  scanLexed := goFindLexerScanTailLoopFunction(file.functions, false, 0)
+  (((((emitGoLexerScanWrapper(file, scan, scanLexed) + "\n") + emitGoLexerScanLexedWrapper(file, scan, scanLexed)) + "\n") + emitGoLexerScanDispatcher(file, scan, scanLexed)) + "\n")
+}
+
+goFindLexerScanTailLoopFunction(
+  functions: Array[IRFunction],
+  scan: Bool,
+  index: Int
+) -> IRFunction => (
+  index >= functions.length() ? emptyIRFunction()
+    : (scan ? functions[index].name.endsWith("_scan") || (functions[index].name == "scan") : functions[index].name.endsWith("_scanLexed") || (functions[index].name == "scanLexed")) ? functions[index]
+      : goFindLexerScanTailLoopFunction(functions, scan, index + 1)
+)
+
+emitGoLexerScanWrapper(file: IRFile, fn: IRFunction, scanLexed: IRFunction) -> String => ((((("func " + mangleIdent(fn.name)) + "(") + emitGoParams(fn.params, 0, "")) + ") ") + goType(fn.returnType)) + " {\n" + line(1, "return __lexerScanLoop(0, " + emitGoParamNames(fn.params, 0, "") + ", " + goTailLoopZero(scanLexed.params[0].typeName) + ", " + goTailLoopZero(scanLexed.params[1].typeName) + ")") + "}"
+
+emitGoLexerScanLexedWrapper(file: IRFile, scan: IRFunction, fn: IRFunction) -> String => ((((("func " + mangleIdent(fn.name)) + "(") + emitGoParams(fn.params, 0, "")) + ") ") + goType(fn.returnType)) + " {\n" + line(1, "return __lexerScanLoop(1, " + goTailLoopZero(scan.params[0].typeName) + ", " + goTailLoopZero(scan.params[1].typeName) + ", " + emitGoParamNames(fn.params, 0, "") + ")") + "}"
+
+goTailLoopZero(typeName: String) -> String => (
+  typeName.startsWith("Array[") ? "nil"
+    : (typeName.endsWith("State") || (typeName == "Lexed")) ? goType(typeName) + "{}"
+      : goZero(typeName)
+)
+
+emitGoLexerScanDispatcher(
+  file: IRFile,
+  scan: IRFunction,
+  scanLexed: IRFunction
+) -> String => "func __lexerScanLoop(__pc int, __scanState " + goType(scan.params[0].typeName) + ", __scanTokens " + goType(scan.params[1].typeName) + ", __scanLexed " + goType(scanLexed.params[0].typeName) + ", __scanLexedTokens " + goType(scanLexed.params[1].typeName) + ") " + goType(scan.returnType) + " {\n" + line(1, "for {") + line(2, "switch __pc {") + line(2, "case 0:") + emitGoLexerScanCase(file, scan, 3) + line(2, "case 1:") + emitGoLexerScanLexedCase(file, scanLexed, 3) + line(2, "}") + line(1, "}") + "}"
+
+emitGoLexerScanCase(
+  file: IRFile,
+  fn: IRFunction,
+  level: Int
+) -> String => line(level, "{") + line(level + 1, "state := __scanState") + line(level + 1, "tokens := __scanTokens") + emitGoLexerTailExpr(file, fn.body, level + 1) + line(level, "}")
+
+emitGoLexerScanLexedCase(
+  file: IRFile,
+  fn: IRFunction,
+  level: Int
+) -> String => line(level, "{") + line(level + 1, "lexed := __scanLexed") + line(level + 1, "tokens := __scanLexedTokens") + emitGoLexerTailExpr(file, fn.body, level + 1) + line(level, "}")
+
+emitGoLexerTailExpr(
+  file: IRFile,
+  expr: IRExpr,
+  level: Int
+) -> String => expr.kind {
+  ExprKind.Block => emitGoLexerTailBlock(file, expr.children, 0, level)
+  ExprKind.Ternary => line(level, "if " + emitGoExpr(expr.children[0]) + " {") + emitGoLexerTailExpr(file, expr.children[1], level + 1) + line(level, "} else {") + emitGoLexerTailExpr(file, expr.children[2], level + 1) + line(level, "}")
+  ExprKind.Call => emitGoLexerTailCall(file, expr, level)
+  _ => line(level, "return " + emitGoExpr(expr))
+}
+
+emitGoLexerTailBlock(
+  file: IRFile,
+  children: Array[IRExpr],
+  index: Int,
+  level: Int
+) -> String => (
+  index >= children.length() ? ""
+    : index == (children.length() - 1) ? emitGoLexerTailExpr(file, children[index], level)
+      : emitGoStatement(file, children[index], false, false, "", level) + emitGoLexerTailBlock(file, children, index + 1, level)
+)
+
+emitGoLexerTailCall(
+  file: IRFile,
+  expr: IRExpr,
+  level: Int
+) -> String => (
+  isGoLexerTailMemberCall(expr, true) ? line(level, "__scanState, __scanTokens = " + emitGoExpr(expr.children[1]) + ", " + emitGoExpr(expr.children[2])) + line(level, "__pc = 0") + line(level, "continue")
+    : isGoLexerTailMemberCall(expr, false) ? line(level, "__scanLexed, __scanLexedTokens = " + emitGoExpr(expr.children[1]) + ", " + emitGoExpr(expr.children[2])) + line(level, "__pc = 1") + line(level, "continue")
+      : line(level, "return " + emitGoExpr(expr))
+)
+
+isGoLexerTailMemberCall(expr: IRExpr, scan: Bool) -> Bool => (((expr.children.length() == 3) && (expr.children[0].kind == ExprKind.Identifier)) && (scan ? expr.children[0].name.endsWith("_scan") || (expr.children[0].name == "scan") : expr.children[0].name.endsWith("_scanLexed") || (expr.children[0].name == "scanLexed")))
 
 emitGoConst(
   file: IRFile,

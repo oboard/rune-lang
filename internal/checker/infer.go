@@ -506,7 +506,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		switch e.Op {
 		case lexer.PlusPlus:
 			if !isNumericType(typ) && typ != Unknown {
-				c.errorf(e.Pos, "operator '++' expects a numeric type, got %s", typ)
+				c.errorAt(e.OpPos, len(e.Op.String()), "operator '++' expects a numeric type, got %s", typ)
 			}
 			return typ
 		default:

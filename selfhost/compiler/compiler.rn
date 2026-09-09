@@ -5948,6 +5948,7 @@ pushTypeScriptFunction(
       body: emptyIRExpr(),
       tailLoop: false,
       tailLoopName: "",
+      tailLoopGroup: "",
       sourcePath: "",
       line: 0,
       column: 0

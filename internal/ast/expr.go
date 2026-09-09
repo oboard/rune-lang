@@ -149,9 +149,10 @@ func (e *UnaryExpr) Position() lexer.Position {
 }
 
 type PostfixExpr struct {
-	Op   lexer.Kind
-	Expr Expr
-	Pos  lexer.Position
+	Op    lexer.Kind
+	Expr  Expr
+	Pos   lexer.Position
+	OpPos lexer.Position
 }
 
 func (*PostfixExpr) exprNode() {}

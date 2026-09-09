@@ -70,6 +70,20 @@ walk(limit: Int, index: Int, out: Int) -> Int => index >= limit ? out : walk(lim
   @assert.eq(result.output.includes("limit, index, out = limit, index + 1, out + index"), true)
 }
 
+? "selfhost compiler lowers lexer driver mutual tail calls" {
+  source := `Token: { value: Int }
+Lexed: { state: Int, kind: Int }
+scan(state: Int, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
+scanLexed(lexed: Lexed, tokens: Array[Token]) -> Array[Token] => scan(lexed.state, tokens)
+`
+  result := compileGo(source)
+  @assert.eq(result.ok, true)
+  @assert.eq(result.output.includes("func __lexerScanLoop(__pc int"), true)
+  @assert.eq(result.output.includes("__scanLexed, __scanLexedTokens ="), true)
+  @assert.eq(result.output.includes("__scanState, __scanTokens ="), true)
+  @assert.eq(result.output.includes("return __lexerScanLoop(1, 0, nil, lexed, tokens)"), true)
+}
+
 ? "selfhost compiler emits go pattern blocks" {
   source := `fib(n) => {
   0 => 0

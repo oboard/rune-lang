@@ -62,7 +62,8 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			continue
 		}
 		if p.match(lexer.PlusPlus) {
-			left = &ast.PostfixExpr{Expr: left, Op: lexer.PlusPlus, Pos: left.Position()}
+			op := p.previous()
+			left = &ast.PostfixExpr{Expr: left, Op: lexer.PlusPlus, Pos: left.Position(), OpPos: op.Pos}
 			continue
 		}
 		if p.match(lexer.Apostrophe) {

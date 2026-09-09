@@ -68,6 +68,7 @@
   body: IRExpr
   tailLoop: Bool
   tailLoopName: String
+  tailLoopGroup: String
   sourcePath: String
   line: Int
   column: Int
@@ -199,6 +200,7 @@ pushEnumType(
   body: emptyIRExpr(),
   tailLoop: false,
   tailLoopName: "",
+  tailLoopGroup: "",
   sourcePath: "",
   line: 0,
   column: 0
@@ -352,6 +354,7 @@ lowerFunction(
   body: lowerExpr(fn.body),
   tailLoop: false,
   tailLoopName: "",
+  tailLoopGroup: "",
   sourcePath: "",
   line: fn.line,
   column: fn.column
@@ -364,7 +367,7 @@ lowerFunction(
   file: IRFile
 ) -> IRFile => {
   ..file,
-  functions: eliminateSelfTailCallsInFunctions(file.functions)
+  functions: eliminateMutualTailCalls(eliminateSelfTailCallsInFunctions(file.functions))
 }
 
 eliminateSelfTailCallsInFunctions(
@@ -374,6 +377,104 @@ eliminateSelfTailCallsInFunctions(
   functions.each((fn) => out.push(markSelfTailLoop(fn, irFunctionNameCount(functions, fn.name, 0))))
   out
 }
+
+/// The first mutual-recursion lowering target is the lexer driver pair. Both
+/// members have compatible result types but distinct parameter shapes, so the
+/// backend emits wrappers and one typed state-machine dispatcher.
+eliminateMutualTailCalls(
+  functions: Array[IRFunction]
+) -> Array[IRFunction] => {
+  out := []
+  functions.each((fn) => out.push(markScanTailLoopGroup(fn, functions)))
+  out
+}
+
+markScanTailLoopGroup(
+  fn: IRFunction,
+  functions: Array[IRFunction]
+) -> IRFunction => {
+  group := "lexer.scan"
+  eligible := (scanTailLoopIsScanName(fn.name) || scanTailLoopIsScanLexedName(fn.name)) && (scanTailLoopNameCount(functions, true, 0) == 1) && (scanTailLoopNameCount(functions, false, 0) == 1) && scanTailLoopGroupIsSafe(fn.body)
+  IRFunction {
+    ..fn,
+    tailLoopGroup: (
+      eligible ? group
+        : ""
+    )
+  }
+}
+
+scanTailLoopNameCount(
+  functions: Array[IRFunction],
+  scan: Bool,
+  index: Int
+) -> Int => (
+  index >= functions.length() ? 0
+    : ((scan ? scanTailLoopIsScanName(functions[index].name) : scanTailLoopIsScanLexedName(functions[index].name)) ? 1 : 0) + scanTailLoopNameCount(functions, scan, index + 1)
+)
+
+scanTailLoopIsScanName(name: String) -> Bool => name.endsWith("_scan") || (name == "scan")
+
+scanTailLoopIsScanLexedName(name: String) -> Bool => name.endsWith("_scanLexed") || (name == "scanLexed")
+
+scanTailLoopLexerSignatureIsSafe(
+  functions: Array[IRFunction]
+) -> Bool => scanTailLoopFindScanFunction(functions, 0).returnType == "Array[Token]"
+
+scanTailLoopFindScanFunction(
+  functions: Array[IRFunction],
+  index: Int
+) -> IRFunction => (
+  index >= functions.length() ? emptyIRFunction()
+    : scanTailLoopIsScanName(functions[index].name) ? functions[index]
+      : scanTailLoopFindScanFunction(functions, index + 1)
+)
+
+scanTailLoopGroupIsSafe(
+  expr: IRExpr
+) -> Bool => expr.kind {
+  ExprKind.Block => scanTailLoopBlockIsSafe(expr.children, 0)
+  ExprKind.Ternary => (
+    expr.children.length() == 3 ? (!scanTailLoopContainsCall(expr.children[0]) && scanTailLoopGroupIsSafe(expr.children[1])) && scanTailLoopGroupIsSafe(expr.children[2])
+      : false
+  )
+  ExprKind.Call => (
+    scanTailLoopIsMemberCall(expr) ? true
+      : !scanTailLoopContainsCall(expr)
+  )
+  _ => !scanTailLoopContainsCall(expr)
+}
+
+scanTailLoopBlockIsSafe(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  children.length() == 0 ? false
+    : index >= (children.length() - 1) ? scanTailLoopGroupIsSafe(children[children.length() - 1])
+      : !scanTailLoopContainsCall(children[index]) && scanTailLoopBlockIsSafe(children, index + 1)
+)
+
+scanTailLoopContainsCall(
+  expr: IRExpr
+) -> Bool => (
+  scanTailLoopIsMemberCall(expr) ? true
+    : scanTailLoopChildrenContainCall(expr.children, 0)
+)
+
+scanTailLoopChildrenContainCall(
+  children: Array[IRExpr],
+  index: Int
+) -> Bool => (
+  index >= children.length() ? false
+    : scanTailLoopContainsCall(children[index]) || scanTailLoopChildrenContainCall(children, index + 1)
+)
+
+scanTailLoopIsMemberCall(
+  expr: IRExpr
+) -> Bool => (
+  ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier) ? scanTailLoopIsScanName(expr.children[0].name) || scanTailLoopIsScanLexedName(expr.children[0].name)
+    : false
+)
 
 irFunctionNameCount(
   functions: Array[IRFunction],
