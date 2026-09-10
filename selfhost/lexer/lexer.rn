@@ -575,7 +575,7 @@ xmlStateAfterExprBrace(
     nextDepth <= 0 ? state.xmlExprMode
       : xmlModeExpr()
   )
-  lexStateXMLAfterMode(lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, xmlModeCode(), nextDepth), xmlModeCode(), 0)
+  lexStateXMLAfterMode(lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
 }
 
 lexed(

@@ -15,16 +15,14 @@
 }
 
 ? "selfhost formatter indents structured XML" {
-  formatted := formatSource(`render()=>{<div><h1>Hello</h1><div style={{color:$color,backgroundColor:backgroundColor}}>{"Hello World"}</div><button @click={()=>$color="green"}>{"Change Color"}</button></div>}`)
+  formatted := formatSource(`render()=>{<div><h1>Hello World</h1><div style={{color:$color,backgroundColor:backgroundColor}}>Hello World</div><button @click={()=>$color="green"}>{"Change Color"}</button></div>}`)
   @assert.eq(formatted, `render() => {
   <div>
-    <h1>Hello</h1>
+    <h1>Hello World</h1>
     <div style={{
       color: $color,
       backgroundColor: backgroundColor
-    }}>
-      {"Hello World"}
-    </div>
+    }}>Hello World</div>
     <button @click={() => $color = "green"}>
       {"Change Color"}
     </button>

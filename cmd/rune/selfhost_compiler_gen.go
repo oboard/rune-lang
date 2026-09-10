@@ -1401,7 +1401,7 @@ func selfhost_lexer_lexer_xmlStateAfterExprBrace(state LexState) LexState {
 		}
 		return selfhost_lexer_lexer_xmlModeExpr()
 	}()
-	return selfhost_lexer_lexer_lexStateXMLAfterMode(selfhost_lexer_lexer_lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, selfhost_lexer_lexer_xmlModeCode(), nextDepth), selfhost_lexer_lexer_xmlModeCode(), 0)
+	return selfhost_lexer_lexer_lexStateXMLAfterMode(selfhost_lexer_lexer_lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
 }
 
 func selfhost_lexer_lexer_lexed(state LexState, kind TokenKind) Lexed {

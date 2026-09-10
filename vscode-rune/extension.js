@@ -406,6 +406,13 @@ async function compilePreviewTypeScript(document) {
 }
 
 function instrumentPreviewSignalState(source) {
+  // Signal runtime helpers are emitted only when a preview uses reactivity.
+  // Leave ordinary component previews untouched so we do not introduce
+  // references to RuneSignal/runeSignalRaw that do not exist in their output.
+  if (!source.includes("type RuneSignal<") || !source.includes("function runeSignal<")) {
+    return source;
+  }
+
   // Rename the generated factory and put a state-aware wrapper in front of it.
   // The wrapper assigns a stable call-order slot per render. On HMR a fresh
   // render gets fresh DOM/watchers, while its signals restore the last value in

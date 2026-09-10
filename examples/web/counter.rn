@@ -2,9 +2,10 @@
 + render() => {
   $count := 0
 
+  // MARK: Template
   <div>
     <h1>Counter Example</h1>
-    <p>Count: {count}</p>
+    <p>Count: {$count}</p>
     <button @click={$count++}>Click Me</button>
   </div>
 }
