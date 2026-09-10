@@ -32,45 +32,46 @@ const (
 	TokenKind_DotDotEqual        TokenKind = 18
 	TokenKind_DotDotDot          TokenKind = 19
 	TokenKind_Comma              TokenKind = 20
-	TokenKind_Colon              TokenKind = 21
-	TokenKind_DoubleColon        TokenKind = 22
-	TokenKind_LParen             TokenKind = 23
-	TokenKind_RParen             TokenKind = 24
-	TokenKind_LBracket           TokenKind = 25
-	TokenKind_RBracket           TokenKind = 26
-	TokenKind_LBrace             TokenKind = 27
-	TokenKind_RBrace             TokenKind = 28
-	TokenKind_Question           TokenKind = 29
-	TokenKind_QuestionQuestion   TokenKind = 30
-	TokenKind_Apostrophe         TokenKind = 31
-	TokenKind_FatArrow           TokenKind = 32
-	TokenKind_Assign             TokenKind = 33
-	TokenKind_Declare            TokenKind = 34
-	TokenKind_MutDeclare         TokenKind = 35
-	TokenKind_Arrow              TokenKind = 36
-	TokenKind_Plus               TokenKind = 37
-	TokenKind_PlusPlus           TokenKind = 38
-	TokenKind_Minus              TokenKind = 39
-	TokenKind_Star               TokenKind = 40
-	TokenKind_Slash              TokenKind = 41
-	TokenKind_Percent            TokenKind = 42
-	TokenKind_Bang               TokenKind = 43
-	TokenKind_Tilde              TokenKind = 44
-	TokenKind_BitAnd             TokenKind = 45
-	TokenKind_BitOr              TokenKind = 46
-	TokenKind_BitXor             TokenKind = 47
-	TokenKind_ShiftLeft          TokenKind = 48
-	TokenKind_ShiftRight         TokenKind = 49
-	TokenKind_UnsignedShiftRight TokenKind = 50
-	TokenKind_AndAnd             TokenKind = 51
-	TokenKind_OrOr               TokenKind = 52
-	TokenKind_EqualEqual         TokenKind = 53
-	TokenKind_BangEqual          TokenKind = 54
-	TokenKind_Less               TokenKind = 55
-	TokenKind_LessEqual          TokenKind = 56
-	TokenKind_Greater            TokenKind = 57
-	TokenKind_GreaterEqual       TokenKind = 58
-	TokenKind_Underscore         TokenKind = 59
+	TokenKind_Semicolon          TokenKind = 21
+	TokenKind_Colon              TokenKind = 22
+	TokenKind_DoubleColon        TokenKind = 23
+	TokenKind_LParen             TokenKind = 24
+	TokenKind_RParen             TokenKind = 25
+	TokenKind_LBracket           TokenKind = 26
+	TokenKind_RBracket           TokenKind = 27
+	TokenKind_LBrace             TokenKind = 28
+	TokenKind_RBrace             TokenKind = 29
+	TokenKind_Question           TokenKind = 30
+	TokenKind_QuestionQuestion   TokenKind = 31
+	TokenKind_Apostrophe         TokenKind = 32
+	TokenKind_FatArrow           TokenKind = 33
+	TokenKind_Assign             TokenKind = 34
+	TokenKind_Declare            TokenKind = 35
+	TokenKind_MutDeclare         TokenKind = 36
+	TokenKind_Arrow              TokenKind = 37
+	TokenKind_Plus               TokenKind = 38
+	TokenKind_PlusPlus           TokenKind = 39
+	TokenKind_Minus              TokenKind = 40
+	TokenKind_Star               TokenKind = 41
+	TokenKind_Slash              TokenKind = 42
+	TokenKind_Percent            TokenKind = 43
+	TokenKind_Bang               TokenKind = 44
+	TokenKind_Tilde              TokenKind = 45
+	TokenKind_BitAnd             TokenKind = 46
+	TokenKind_BitOr              TokenKind = 47
+	TokenKind_BitXor             TokenKind = 48
+	TokenKind_ShiftLeft          TokenKind = 49
+	TokenKind_ShiftRight         TokenKind = 50
+	TokenKind_UnsignedShiftRight TokenKind = 51
+	TokenKind_AndAnd             TokenKind = 52
+	TokenKind_OrOr               TokenKind = 53
+	TokenKind_EqualEqual         TokenKind = 54
+	TokenKind_BangEqual          TokenKind = 55
+	TokenKind_Less               TokenKind = 56
+	TokenKind_LessEqual          TokenKind = 57
+	TokenKind_Greater            TokenKind = 58
+	TokenKind_GreaterEqual       TokenKind = 59
+	TokenKind_Underscore         TokenKind = 60
 )
 
 type TypeRefKind int
@@ -943,6 +944,8 @@ func tokenKindName(kind TokenKind) string {
 			return "DotDotDot"
 		case kind == TokenKind_Comma:
 			return "Comma"
+		case kind == TokenKind_Semicolon:
+			return "Semicolon"
 		case kind == TokenKind_Colon:
 			return "Colon"
 		case kind == TokenKind_DoubleColon:
@@ -1179,6 +1182,8 @@ func selfhost_lexer_lexer_scanToken(step Advanced) Lexed {
 			return selfhost_lexer_lexer_lexDot(state)
 		case ch == ',':
 			return selfhost_lexer_lexer_lexed(state, TokenKind_Comma)
+		case ch == ';':
+			return selfhost_lexer_lexer_lexed(state, TokenKind_Semicolon)
 		case ch == ':':
 			return selfhost_lexer_lexer_lexColon(state)
 		case ch == '(':
@@ -2287,11 +2292,13 @@ func selfhost_parser_parser_parserSkipNewlines(state ParserState) ParserState {
 }
 
 func selfhost_parser_parser_consumeStatementEnd(state ParserState) ParserState {
+	current := selfhost_parser_parser_parserSkipNewlines(state)
+	semicolon := selfhost_parser_parser_parserMatch(current, TokenKind_Semicolon)
 	return func() ParserState {
-		if selfhost_parser_parser_parserMatch(state, TokenKind_Newline).ok {
-			return selfhost_parser_parser_parserSkipNewlines(selfhost_parser_parser_parserAdvance(state).state)
+		if semicolon.ok {
+			return selfhost_parser_parser_consumeStatementEnd(semicolon.state)
 		}
-		return state
+		return current
 	}()
 }
 
@@ -3228,7 +3235,7 @@ func selfhost_parser_parser_parseSignalPrefixLetStatement(state ParserState) Exp
 	op := selfhost_parser_parser_parserAdvance(name.state)
 	value := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(op.state), 1)
 	typeName := selfhost_parser_parser_parseLetTypeAnnotation(value.state)
-	return ExprStep{state: typeName.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Let, "$"+name.token.lexeme, name.token.lexeme, typeName.value, op.token.lexeme, []ParsedParam{}, []ParsedExpr{value.expr}, name.token.line, name.token.column)}
+	return ExprStep{state: typeName.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Let, "$"+name.token.lexeme, name.token.lexeme, typeName.value, "$"+op.token.lexeme, []ParsedParam{}, []ParsedExpr{value.expr}, name.token.line, name.token.column)}
 }
 
 func selfhost_parser_parser_parseLetStatement(state ParserState) ExprStep {
@@ -3992,7 +3999,7 @@ func selfhost_parser_parser_parseDollarExpression(state ParserState) ExprStep {
 
 func selfhost_parser_parser_parseSignalPrefixIdentifier(start TokenStep) ExprStep {
 	name := selfhost_parser_parser_parserAdvance(start.state)
-	return ExprStep{state: name.state, expr: selfhost_parser_parser_namedNode(ExprKind_Identifier, name.token.lexeme, name.token)}
+	return ExprStep{state: name.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Identifier, "$"+name.token.lexeme, name.token.lexeme, "", "$", []ParsedParam{}, []ParsedExpr{}, name.token.line, name.token.column)}
 }
 
 func selfhost_parser_parser_parseBraceLiteral(state ParserState) ExprStep {
@@ -4000,7 +4007,12 @@ func selfhost_parser_parser_parseBraceLiteral(state ParserState) ExprStep {
 		if selfhost_parser_parser_looksLikeMapLiteralBody(state) {
 			return selfhost_parser_parser_parseMapLiteral(state)
 		}
-		return selfhost_parser_parser_parseObjectLiteral(state)
+		return func() ExprStep {
+			if selfhost_parser_parser_looksLikeObjectLiteralBody(state) {
+				return selfhost_parser_parser_parseObjectLiteral(state)
+			}
+			return selfhost_parser_parser_parseBlock(state)
+		}()
 	}()
 }
 
@@ -6591,7 +6603,13 @@ func selfhost_infer_infer_inferLetStep(children []IRExpr, structs []IRStructType
 	letExpr := children[index]
 	value := selfhost_infer_infer_inferAnnotate(letExpr.children[0], structs, enums, bindings)
 	bindingType := selfhost_infer_infer_inferLetBindingType(letExpr, value)
-	newBindings := selfhost_infer_infer_inferAddBinding(bindings, letExpr.name, bindingType)
+	plainBindings := selfhost_infer_infer_inferAddBinding(bindings, letExpr.name, bindingType)
+	newBindings := func() []CompilerTypeBinding {
+		if strings.HasPrefix(letExpr.op, "$") {
+			return selfhost_infer_infer_inferAddBinding(plainBindings, "$"+letExpr.name, bindingType)
+		}
+		return plainBindings
+	}()
 	next := selfhost_infer_infer_inferBlockStatements(children, structs, enums, newBindings, index+1, func() []IRExpr {
 		__rune_spread_out := []IRExpr{}
 		__rune_spread_out = append(__rune_spread_out, out...)
@@ -6744,11 +6762,11 @@ func selfhost_infer_infer_inferRefineStep(bindings []CompilerTypeBinding, name s
 		if index >= len(bindings) {
 			return selfhost_infer_infer_inferRefineFinish(out, name, elemType)
 		} else {
-			if bindings[index].name == name {
+			if bindings[index].name == name || bindings[index].name == "$"+name {
 				bindings, name, elemType, index, out = bindings, name, elemType, index+1, func() []CompilerTypeBinding {
 					__rune_spread_out := []CompilerTypeBinding{}
 					__rune_spread_out = append(__rune_spread_out, out...)
-					__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_compilerTypeBinding(name, "Array["+elemType+"]"))
+					__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_compilerTypeBinding(bindings[index].name, "Array["+elemType+"]"))
 					return __rune_spread_out
 				}()
 				continue
@@ -6983,10 +7001,25 @@ func selfhost_infer_infer_inferAnnotateText(expr IRExpr, children []IRExpr, para
 
 func selfhost_infer_infer_inferIdentifierText(expr IRExpr, bindings []CompilerTypeBinding) string {
 	return func() string {
-		if strings.HasPrefix(expr.text, "$") || expr.name == "this" {
-			return selfhost_infer_infer_inferFindBinding(bindings, "this", 0).typeName
+		if strings.HasPrefix(expr.text, "$") {
+			return selfhost_infer_infer_inferFindSignalBinding(bindings, expr.name)
 		}
-		return selfhost_infer_infer_inferFindBinding(bindings, expr.name, 0).typeName
+		return func() string {
+			if expr.name == "this" {
+				return selfhost_infer_infer_inferFindBinding(bindings, "this", 0).typeName
+			}
+			return selfhost_infer_infer_inferFindBinding(bindings, expr.name, 0).typeName
+		}()
+	}()
+}
+
+func selfhost_infer_infer_inferFindSignalBinding(bindings []CompilerTypeBinding, name string) string {
+	prefixed := selfhost_infer_infer_inferFindBinding(bindings, "$"+name, 0).typeName
+	return func() string {
+		if prefixed != "" {
+			return prefixed
+		}
+		return selfhost_infer_infer_inferFindBinding(bindings, name, 0).typeName
 	}()
 }
 
@@ -7416,6 +7449,8 @@ func selfhost_format_format_formatToken(state FormatState, token Token) FormatSt
 			return selfhost_format_format_formatCloseBrace(state)
 		case token.kind == TokenKind_Comma:
 			return selfhost_format_format_formatPunctuation(state, ", ", TokenKind_Comma)
+		case token.kind == TokenKind_Semicolon:
+			return selfhost_format_format_formatNewline(state)
 		case token.kind == TokenKind_Colon:
 			return selfhost_format_format_formatPunctuation(state, ": ", TokenKind_Colon)
 		case token.kind == TokenKind_At:
@@ -12072,7 +12107,7 @@ func selfhost_compiler_ts_emitTSLet(expr IRExpr, level int) string {
 func selfhost_compiler_ts_tsLetKeyword(op string) string {
 	return func() string {
 		switch {
-		case op == ":=:":
+		case (op == ":=:") || (op == "$:=:"):
 			return "let "
 		default:
 			return "const "
@@ -12226,7 +12261,7 @@ func selfhost_compiler_ts_emitTSExpr(expr IRExpr) string {
 		case expr.kind == ExprKind_Unary:
 			return expr.op + selfhost_compiler_ts_emitTSExpr(expr.children[0])
 		case expr.kind == ExprKind_Postfix:
-			return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + expr.op
+			return selfhost_compiler_ts_emitTSPostfix(expr)
 		case expr.kind == ExprKind_CompileTime:
 			return selfhost_compiler_ts_emitTSExpr(expr.children[0])
 		case expr.kind == ExprKind_Unwrap:
@@ -12351,7 +12386,12 @@ func selfhost_compiler_ts_emitTSXMLEventAttr(parent string, attr IRExpr, level i
 		if len(attr.children) == 0 {
 			return ""
 		}
-		return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", () => { "+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"; });")
+		return func() string {
+			if attr.children[0].kind == ExprKind_Lambda {
+				return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", "+selfhost_compiler_ts_emitTSEventLambda(attr.children[0])+");")
+			}
+			return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", () => { "+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"; });")
+		}()
 	}()
 }
 
@@ -12462,6 +12502,15 @@ func selfhost_compiler_ts_emitTSAssign(expr IRExpr) string {
 			return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + " = " + selfhost_compiler_ts_emitTSExpr(expr.children[1])
 		}
 		return mangleIdent(expr.name) + " = " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+	}()
+}
+
+func selfhost_compiler_ts_emitTSPostfix(expr IRExpr) string {
+	return func() string {
+		if len(expr.children) == 0 {
+			return "undefined"
+		}
+		return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + expr.op
 	}()
 }
 
@@ -12646,6 +12695,32 @@ func selfhost_compiler_ts_emitTSDefaultCall(expr IRExpr) string {
 
 func selfhost_compiler_ts_emitTSLambda(expr IRExpr) string {
 	return "(" + selfhost_compiler_ts_emitTSParams(expr.params, 0, "") + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+}
+
+func selfhost_compiler_ts_emitTSEventLambda(expr IRExpr) string {
+	params := selfhost_compiler_ts_emitTSEventParams(expr.params, 0, "")
+	return func() string {
+		if expr.children[0].kind == ExprKind_Block {
+			return "(" + params + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+		}
+		return "(" + params + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+	}()
+}
+
+func selfhost_compiler_ts_emitTSEventParams(params []IRParam, index int, out string) string {
+	for {
+		if index >= len(params) {
+			return out
+		} else {
+			params, index, out = params, index+1, out+func() string {
+				if index == 0 {
+					return ""
+				}
+				return ", "
+			}()+mangleIdent(params[index].name)+": any"
+			continue
+		}
+	}
 }
 
 func selfhost_compiler_ts_emitTSSelector(expr IRExpr) string {
@@ -14729,14 +14804,20 @@ func selfhost_compiler_compiler_compilerIdentifierDefined(expr IRExpr, callables
 }
 
 func selfhost_compiler_compiler_compilerIdentifierBinding(expr IRExpr, bindings []CompilerTypeBinding) CompilerTypeBinding {
+	prefixed := func() CompilerTypeBinding {
+		if expr.op == "$" || strings.HasPrefix(expr.text, "$") {
+			return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, "$"+expr.name, 0)
+		}
+		return selfhost_compiler_compiler_emptyCompilerTypeBinding()
+	}()
 	binding := selfhost_compiler_compiler_findCompilerTypeBinding(bindings, expr.name, 0)
 	return func() CompilerTypeBinding {
-		if binding.name != "" {
-			return binding
+		if prefixed.name != "" {
+			return prefixed
 		}
 		return func() CompilerTypeBinding {
-			if strings.HasPrefix(expr.text, "$") {
-				return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, expr.text, 0)
+			if binding.name != "" {
+				return binding
 			}
 			return selfhost_compiler_compiler_emptyCompilerTypeBinding()
 		}()
@@ -14996,19 +15077,40 @@ func selfhost_compiler_compiler_checkAssignTargetExpr(target IRExpr, value IRExp
 func selfhost_compiler_compiler_checkIdentifierAssignExpr(target IRExpr, value IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
 	binding := selfhost_compiler_compiler_compilerIdentifierBinding(target, bindings)
 	checked := selfhost_compiler_compiler_checkExpr(value, structs, callables, errors, bindings)
+	signalTarget := selfhost_compiler_compiler_compilerSignalBindingExists(target.name, bindings)
+	withPrefixCheck := func() []string {
+		if signalTarget {
+			return func() []string {
+				if target.op == "$" || strings.HasPrefix(target.text, "$") {
+					return checked
+				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, checked...)
+					__rune_spread_out = append(__rune_spread_out, "signal \""+target.name+"\" must be assigned as \"$"+target.name+"\"")
+					return __rune_spread_out
+				}()
+			}()
+		}
+		return checked
+	}()
 	return func() []string {
 		switch {
 		case binding.name == "":
 			return func() []string {
 				__rune_spread_out := []string{}
-				__rune_spread_out = append(__rune_spread_out, checked...)
+				__rune_spread_out = append(__rune_spread_out, withPrefixCheck...)
 				__rune_spread_out = append(__rune_spread_out, "cannot assign undefined name \""+target.name+"\"")
 				return __rune_spread_out
 			}()
 		default:
-			return selfhost_compiler_compiler_checkAssignmentType(binding.typeName, selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings), checked)
+			return selfhost_compiler_compiler_checkAssignmentType(binding.typeName, selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings), withPrefixCheck)
 		}
 	}()
+}
+
+func selfhost_compiler_compiler_compilerSignalBindingExists(name string, bindings []CompilerTypeBinding) bool {
+	return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, "$"+name, 0).name != ""
 }
 
 func selfhost_compiler_compiler_checkIndexAssignExpr(target IRExpr, value IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
@@ -16000,7 +16102,27 @@ func selfhost_compiler_compiler_checkPostfixNumericOperand(expr IRExpr, callable
 	complete := len(expr.children) > 0
 	return func() []string {
 		if complete {
-			return selfhost_compiler_compiler_checkPostfixNumericOperandType(expr.op, selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings), errors)
+			return selfhost_compiler_compiler_checkPostfixSignalOperand(expr.children[0], bindings, selfhost_compiler_compiler_checkPostfixNumericOperandType(expr.op, selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings), errors))
+		}
+		return errors
+	}()
+}
+
+func selfhost_compiler_compiler_checkPostfixSignalOperand(operand IRExpr, bindings []CompilerTypeBinding, errors []string) []string {
+	signalTarget := operand.kind == ExprKind_Identifier && selfhost_compiler_compiler_compilerSignalBindingExists(operand.name, bindings)
+	return func() []string {
+		if signalTarget {
+			return func() []string {
+				if operand.op == "$" || strings.HasPrefix(operand.text, "$") {
+					return errors
+				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "signal \""+operand.name+"\" must be assigned as \"$"+operand.name+"\"")
+					return __rune_spread_out
+				}()
+			}()
 		}
 		return errors
 	}()
@@ -16406,42 +16528,56 @@ func selfhost_compiler_compiler_checkSelectorReceiverExpr(expr IRExpr, receiver 
 func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverType string, structs []IRStructType, bindings []CompilerTypeBinding, errors []string) []string {
 	return func() []string {
 		switch {
-		case receiverType == "":
+		case (receiverType == "") || (receiverType == "Dynamic"):
 			return errors
 		default:
 			return func() []string {
 				switch {
+				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(receiverType, expr.name) == "Dynamic":
+					return errors
 				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(receiverType, expr.name) == "":
-					return func() []string {
-						typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(receiverType), 0)
-						found := typeDecl.name != ""
-						return func() []string {
-							if found {
-								return func() []string {
-									if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
-										return selfhost_compiler_compiler_checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
-									}
-									return func() []string {
-										__rune_spread_out := []string{}
-										__rune_spread_out = append(__rune_spread_out, errors...)
-										__rune_spread_out = append(__rune_spread_out, "type \""+typeDecl.name+"\" is private")
-										return __rune_spread_out
-									}()
-								}()
-							}
-							return func() []string {
-								__rune_spread_out := []string{}
-								__rune_spread_out = append(__rune_spread_out, errors...)
-								__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no fields")
-								return __rune_spread_out
-							}()
-						}()
-					}()
+					return selfhost_compiler_compiler_checkUnknownStructSelectorExpr(expr, receiverType, structs, bindings, errors)
 				default:
 					return errors
 				}
 			}()
 		}
+	}()
+}
+
+func selfhost_compiler_compiler_checkUnknownStructSelectorExpr(expr IRExpr, receiverType string, structs []IRStructType, bindings []CompilerTypeBinding, errors []string) []string {
+	structural := strings.HasPrefix(receiverType, "{") && strings.HasSuffix(receiverType, "}")
+	return func() []string {
+		if structural {
+			return errors
+		}
+		return selfhost_compiler_compiler_checkNamedStructSelectorExpr(expr, receiverType, structs, bindings, errors)
+	}()
+}
+
+func selfhost_compiler_compiler_checkNamedStructSelectorExpr(expr IRExpr, receiverType string, structs []IRStructType, bindings []CompilerTypeBinding, errors []string) []string {
+	typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(receiverType), 0)
+	found := typeDecl.name != ""
+	return func() []string {
+		if found {
+			return func() []string {
+				if selfhost_compiler_compiler_compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) {
+					return selfhost_compiler_compiler_checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
+				}
+				return func() []string {
+					__rune_spread_out := []string{}
+					__rune_spread_out = append(__rune_spread_out, errors...)
+					__rune_spread_out = append(__rune_spread_out, "type \""+typeDecl.name+"\" is private")
+					return __rune_spread_out
+				}()
+			}()
+		}
+		return func() []string {
+			__rune_spread_out := []string{}
+			__rune_spread_out = append(__rune_spread_out, errors...)
+			__rune_spread_out = append(__rune_spread_out, "type "+receiverType+" has no fields")
+			return __rune_spread_out
+		}()
 	}()
 }
 
@@ -16480,7 +16616,12 @@ func selfhost_compiler_compiler_compilerStructuralObjectFieldTypePart(part strin
 		if len(pieces) == 2 && pieces[0] == fieldName {
 			return pieces[1]
 		}
-		return ""
+		return func() string {
+			if strings.TrimSpace(part) != "" && fieldName == "" {
+				return "Dynamic"
+			}
+			return ""
+		}()
 	}()
 }
 
@@ -16758,11 +16899,23 @@ func selfhost_compiler_compiler_blockBindingsAfterStatement(statement IRExpr, st
 
 func selfhost_compiler_compiler_bindCompilerLet(expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding) []CompilerTypeBinding {
 	hasValue := len(expr.children) > 0
-	return func() []CompilerTypeBinding {
+	typeName := func() string {
 		if hasValue {
-			return selfhost_compiler_compiler_addCompilerValueBinding(bindings, expr.name, selfhost_compiler_compiler_compilerLetBindingType(expr, structs, callables, bindings))
+			return selfhost_compiler_compiler_compilerLetBindingType(expr, structs, callables, bindings)
+		}
+		return ""
+	}()
+	withValue := func() []CompilerTypeBinding {
+		if hasValue {
+			return selfhost_compiler_compiler_addCompilerValueBinding(bindings, expr.name, typeName)
 		}
 		return bindings
+	}()
+	return func() []CompilerTypeBinding {
+		if hasValue && strings.HasPrefix(expr.op, "$") {
+			return selfhost_compiler_compiler_addCompilerValueBinding(withValue, "$"+expr.name, typeName)
+		}
+		return withValue
 	}()
 }
 

@@ -971,7 +971,7 @@ emitTSLet(
 ) -> String => line(level, (((tsLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitTSExpr(expr.children[0])) + ";")
 
 tsLetKeyword(op: String) -> String => op {
-  ":=:" => "let "
+  ":=:" | "$:=:" => "let "
   _ => "const "
 }
 
@@ -1079,7 +1079,7 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Bool => expr.value
   ExprKind.Null => "null"
   ExprKind.Unary => expr.op + emitTSExpr(expr.children[0])
-  ExprKind.Postfix => emitTSExpr(expr.children[0]) + expr.op
+  ExprKind.Postfix => emitTSPostfix(expr)
   ExprKind.CompileTime => emitTSExpr(expr.children[0])
   ExprKind.Unwrap => ("__runeUnwrap(" + emitTSExpr(expr.children[0])) + ")"
   ExprKind.Binary => emitTSBinary(expr)
@@ -1198,7 +1198,10 @@ emitTSXMLEventAttr(
   level: Int
 ) -> String => (
   attr.children.length() == 0 ? ""
-    : line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", () => { ") + emitTSExpr(attr.children[0])) + "; });")
+    : (
+      attr.children[0].kind == ExprKind.Lambda ? line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", ") + emitTSEventLambda(attr.children[0])) + ");")
+        : line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", () => { ") + emitTSExpr(attr.children[0])) + "; });")
+    )
 )
 
 emitTSXMLPlainAttr(
@@ -1305,6 +1308,11 @@ emitTSTernary(expr: IRExpr) -> String => (((emitTSExpr(expr.children[0]) + " ? "
 emitTSAssign(expr: IRExpr) -> String => (
   expr.children.length() == 2 ? (emitTSExpr(expr.children[0]) + " = ") + emitTSExpr(expr.children[1])
     : (mangleIdent(expr.name) + " = ") + emitTSExpr(expr.children[0])
+)
+
+emitTSPostfix(expr: IRExpr) -> String => (
+  expr.children.length() == 0 ? "undefined"
+    : emitTSExpr(expr.children[0]) + expr.op
 )
 
 emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
@@ -1416,6 +1424,24 @@ emitTSDefaultCall(
 ) -> String => ((emitTSExpr(expr.children[0]) + "(") + emitTSExprListFrom(expr.children, 1, "")) + ")"
 
 emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
+
+emitTSEventLambda(expr: IRExpr) -> String => {
+  params := emitTSEventParams(expr.params, 0, "")
+  expr.children[0].kind == ExprKind.Block ? (("(" + params) + ") => ") + emitTSExpr(expr.children[0])
+    : (("(" + params) + ") => ") + emitTSExpr(expr.children[0])
+}
+
+emitTSEventParams(
+  params: Array[IRParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : emitTSEventParams(params, index + 1, (((out + (
+      index == 0 ? ""
+        : ", "
+    )) + mangleIdent(params[index].name)) + ": any"))
+)
 
 emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
   ExprKind.At => emitTSAtSelector(expr)

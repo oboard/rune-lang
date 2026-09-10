@@ -257,7 +257,11 @@ inferLetStep(
   letExpr := children[index]
   value := inferAnnotate(letExpr.children[0], structs, enums, bindings)
   bindingType := inferLetBindingType(letExpr, value)
-  newBindings := inferAddBinding(bindings, letExpr.name, bindingType)
+  plainBindings := inferAddBinding(bindings, letExpr.name, bindingType)
+  newBindings := (
+    letExpr.op.startsWith("$") ? inferAddBinding(plainBindings, "$" + letExpr.name, bindingType)
+      : plainBindings
+  )
   next := inferBlockStatements(children, structs, enums, newBindings, index + 1, [..out, inferLetRebuildTyped(letExpr, value, bindingType)])
   next
 }
@@ -423,7 +427,7 @@ inferRefineStep(
 ) -> Array[CompilerTypeBinding] => (
   index >= bindings.length() ? inferRefineFinish(out, name, elemType)
     : (
-      bindings[index].name == name ? inferRefineStep(bindings, name, elemType, index + 1, [..out, compilerTypeBinding(name, ("Array[" + elemType) + "]")])
+      (bindings[index].name == name) || (bindings[index].name == ("$" + name)) ? inferRefineStep(bindings, name, elemType, index + 1, [..out, compilerTypeBinding(bindings[index].name, ("Array[" + elemType) + "]")])
         : inferRefineStep(bindings, name, elemType, index + 1, [..out, bindings[index]])
     )
 )
@@ -627,9 +631,21 @@ inferIdentifierText(
   expr: IRExpr,
   bindings: Array[CompilerTypeBinding]
 ) -> String => (
-  expr.text.startsWith("$") || (expr.name == "this") ? inferFindBinding(bindings, "this", 0).typeName
-    : inferFindBinding(bindings, expr.name, 0).typeName
+  expr.text.startsWith("$") ? inferFindSignalBinding(bindings, expr.name)
+    : (
+      expr.name == "this" ? inferFindBinding(bindings, "this", 0).typeName
+        : inferFindBinding(bindings, expr.name, 0).typeName
+    )
 )
+
+inferFindSignalBinding(
+  bindings: Array[CompilerTypeBinding],
+  name: String
+) -> String => {
+  prefixed := inferFindBinding(bindings, "$" + name, 0).typeName
+  prefixed != "" ? prefixed
+    : inferFindBinding(bindings, name, 0).typeName
+}
 
 inferFieldSelectorText(
   expr: IRExpr,

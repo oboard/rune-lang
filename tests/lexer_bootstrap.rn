@@ -117,6 +117,11 @@ newline := '\\n'`)
   @assert.eq(tokens[5].kind, TokenKind.Apostrophe)
 }
 
+? "selfhost lexer reads semicolon separators" {
+  tokens := lex("first(); second()")
+  @assert.eq(tokens[3].kind, TokenKind.Semicolon)
+}
+
 ? "selfhost lexer reads range pattern operator" {
   tokens := lex("'0'..='9' .. ??")
   @assert.eq(tokens[0].kind, TokenKind.Char)

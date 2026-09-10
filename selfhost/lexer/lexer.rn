@@ -63,6 +63,7 @@ ScannedString: {
   DotDotEqual
   DotDotDot
   Comma
+  Semicolon
   Colon
   DoubleColon
   LParen
@@ -269,6 +270,7 @@ canEndXmlLess(
   TokenKind.DotDotEqual => "DotDotEqual"
   TokenKind.DotDotDot => "DotDotDot"
   TokenKind.Comma => "Comma"
+  TokenKind.Semicolon => "Semicolon"
   TokenKind.Colon => "Colon"
   TokenKind.DoubleColon => "DoubleColon"
   TokenKind.LParen => "LParen"
@@ -437,6 +439,7 @@ scanToken(step: Advanced) => {
     '$' => lexDollar(state)
     '.' => lexDot(state)
     ',' => lexed(state, TokenKind.Comma)
+    ';' => lexed(state, TokenKind.Semicolon)
     ':' => lexColon(state)
     '(' => lexed(state, TokenKind.LParen)
     ')' => lexed(state, TokenKind.RParen)

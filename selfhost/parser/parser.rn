@@ -372,10 +372,12 @@ parserSkipNewlines(
 
 consumeStatementEnd(
   state: ParserState
-) -> ParserState => (
-  parserMatch(state, TokenKind.Newline).ok ? parserSkipNewlines(parserAdvance(state).state)
-    : state
-)
+) -> ParserState => {
+  current := parserSkipNewlines(state)
+  semicolon := parserMatch(current, TokenKind.Semicolon)
+  semicolon.ok ? consumeStatementEnd(semicolon.state)
+    : current
+}
 
 consumeFieldSeparator(
   state: ParserState,
@@ -1628,7 +1630,7 @@ parseSignalPrefixLetStatement(
   typeName := parseLetTypeAnnotation(value.state)
   ExprStep {
     state: typeName.state,
-    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, typeName.value, op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
+    expr: makeExpr(ExprKind.Let, "$" + name.token.lexeme, name.token.lexeme, typeName.value, "$" + op.token.lexeme, [], [value.expr], name.token.line, name.token.column)
   }
 }
 
@@ -2556,7 +2558,7 @@ parseSignalPrefixIdentifier(
   name := parserAdvance(start.state)
   ExprStep {
     state: name.state,
-    expr: namedNode(ExprKind.Identifier, name.token.lexeme, name.token)
+    expr: makeExpr(ExprKind.Identifier, "$" + name.token.lexeme, name.token.lexeme, "", "$", [], [], name.token.line, name.token.column)
   }
 }
 
@@ -2564,7 +2566,10 @@ parseBraceLiteral(
   state: ParserState
 ) -> ExprStep => (
   looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
-    : parseObjectLiteral(state)
+    : (
+      looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
+        : parseBlock(state)
+    )
 )
 
 parseMapLiteral(

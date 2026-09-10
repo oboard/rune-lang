@@ -878,11 +878,13 @@ compilerIdentifierBinding(
   expr: IRExpr,
   bindings: Array[CompilerTypeBinding]
 ) -> CompilerTypeBinding => {
+  prefixed := ((expr.op == "$") || expr.text.startsWith("$")) ? findCompilerTypeBinding(bindings, "$" + expr.name, 0)
+    : emptyCompilerTypeBinding()
   binding := findCompilerTypeBinding(bindings, expr.name, 0)
   (
-    binding.name != "" ? binding
+    prefixed.name != "" ? prefixed
       : (
-        expr.text.startsWith("$") ? findCompilerTypeBinding(bindings, expr.text, 0)
+        binding.name != "" ? binding
           : emptyCompilerTypeBinding()
       )
   )
@@ -1188,11 +1190,21 @@ checkIdentifierAssignExpr(
 ) -> Array[String] => {
   binding := compilerIdentifierBinding(target, bindings)
   checked := checkExpr(value, structs, callables, errors, bindings)
+  signalTarget := compilerSignalBindingExists(target.name, bindings)
+  withPrefixCheck := signalTarget ? (
+    (target.op == "$") || target.text.startsWith("$") ? checked
+      : [..checked, ("signal \"" + target.name) + "\" must be assigned as \"$" + target.name + "\""]
+  ) : checked
   binding.name {
-    "" => [..checked, ("cannot assign undefined name \"" + target.name) + "\""]
-    _ => checkAssignmentType(binding.typeName, inferCompilerExprTypeWithStructs(value, structs, callables, bindings), checked)
+    "" => [..withPrefixCheck, ("cannot assign undefined name \"" + target.name) + "\""]
+    _ => checkAssignmentType(binding.typeName, inferCompilerExprTypeWithStructs(value, structs, callables, bindings), withPrefixCheck)
   }
 }
+
+compilerSignalBindingExists(
+  name: String,
+  bindings: Array[CompilerTypeBinding]
+) -> Bool => findCompilerTypeBinding(bindings, "$" + name, 0).name != ""
 
 checkIndexAssignExpr(
   target: IRExpr,
@@ -2125,8 +2137,20 @@ checkPostfixNumericOperand(
   errors: Array[String]
 ) -> Array[String] => {
   complete := expr.children.length() > 0
-  complete ? checkPostfixNumericOperandType(expr.op, inferCompilerExprType(expr.children[0], callables, bindings), errors)
+  complete ? checkPostfixSignalOperand(expr.children[0], bindings, checkPostfixNumericOperandType(expr.op, inferCompilerExprType(expr.children[0], callables, bindings), errors))
     : errors
+}
+
+checkPostfixSignalOperand(
+  operand: IRExpr,
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  signalTarget := (operand.kind == ExprKind.Identifier) && compilerSignalBindingExists(operand.name, bindings)
+  signalTarget ? (
+    (operand.op == "$") || operand.text.startsWith("$") ? errors
+      : [..errors, ("signal \"" + operand.name) + "\" must be assigned as \"$" + operand.name + "\""]
+  ) : errors
 }
 
 checkPostfixNumericOperandType(
@@ -2490,17 +2514,38 @@ checkStructSelectorExpr(
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
 ) -> Array[String] => receiverType {
-  "" => errors
+  "" | "Dynamic" => errors
   _ => compilerStructuralObjectFieldType(receiverType, expr.name) {
-    "" => {
-      typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
-      found := typeDecl.name != ""
-      found ? compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
-        : [..errors, ("type \"" + typeDecl.name) + "\" is private"]
-        : [..errors, ("type " + receiverType) + " has no fields"]
-    }
+    "Dynamic" => errors
+    "" => checkUnknownStructSelectorExpr(expr, receiverType, structs, bindings, errors)
     _ => errors
   }
+}
+
+checkUnknownStructSelectorExpr(
+  expr: IRExpr,
+  receiverType: String,
+  structs: Array[IRStructType],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  structural := receiverType.startsWith("{") && receiverType.endsWith("}")
+  structural ? errors
+    : checkNamedStructSelectorExpr(expr, receiverType, structs, bindings, errors)
+}
+
+checkNamedStructSelectorExpr(
+  expr: IRExpr,
+  receiverType: String,
+  structs: Array[IRStructType],
+  bindings: Array[CompilerTypeBinding],
+  errors: Array[String]
+) -> Array[String] => {
+  typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
+  found := typeDecl.name != ""
+  found ? compilerCanAccessPrivate(typeDecl.private, typeDecl.sourcePath, bindings) ? checkStructSelectorField(expr, receiverType, typeDecl, bindings, errors)
+    : [..errors, ("type \"" + typeDecl.name) + "\" is private"]
+    : [..errors, ("type " + receiverType) + " has no fields"]
 }
 
 compilerStructuralObjectFieldType(
@@ -2531,7 +2576,10 @@ compilerStructuralObjectFieldTypePart(
   pieces := part.split(":")
   (
     (pieces.length() == 2) && (pieces[0] == fieldName) ? pieces[1]
-      : ""
+      : (
+        (part.trim() != "") && (fieldName == "") ? "Dynamic"
+          : ""
+      )
   )
 }
 
@@ -2800,8 +2848,12 @@ bindCompilerLet(
   bindings: Array[CompilerTypeBinding]
 ) -> Array[CompilerTypeBinding] => {
   hasValue := expr.children.length() > 0
-  hasValue ? addCompilerValueBinding(bindings, expr.name, compilerLetBindingType(expr, structs, callables, bindings))
+  typeName := hasValue ? compilerLetBindingType(expr, structs, callables, bindings)
+    : ""
+  withValue := hasValue ? addCompilerValueBinding(bindings, expr.name, typeName)
     : bindings
+  (hasValue && expr.op.startsWith("$")) ? addCompilerValueBinding(withValue, "$" + expr.name, typeName)
+    : withValue
 }
 
 compilerLetBindingType(

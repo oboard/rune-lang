@@ -1,0 +1,25 @@
+#web.preview
++ render() => {
+  // list is a reactive list
+  $list := ["Item 1", "Item 2", "Item 3"]
+  $inputValue := ""
+
+  <div>
+    <h1>Todo Example</h1>
+    <ul>
+      {$list.map((item) => (
+          <li>{item}</li>
+      ))}
+      <input 
+        type={"text"}
+        placeholder={"Add new item"}
+        @change={(e) => $inputValue = e.target.value}
+        @keydown={(e) => ((e.key == "Enter") ? {
+          $list.push(e.target.value)
+          e.target.value = ""
+        })
+      } />
+      <button @click={$list.push($inputValue)}>Add Item</button>
+    </ul>
+  </div>
+}

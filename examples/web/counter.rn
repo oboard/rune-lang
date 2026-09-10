@@ -5,6 +5,6 @@
   <div>
     <h1>Counter Example</h1>
     <p>Count: {count}</p>
-    <button @click={count++}>Click Me</button>
+    <button @click={$count++}>Click Me</button>
   </div>
 }

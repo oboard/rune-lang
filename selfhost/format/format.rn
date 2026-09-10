@@ -41,6 +41,7 @@ formatToken(
   TokenKind.LBrace => formatOpenBrace(state)
   TokenKind.RBrace => formatCloseBrace(state)
   TokenKind.Comma => formatPunctuation(state, ", ", TokenKind.Comma)
+  TokenKind.Semicolon => formatNewline(state)
   TokenKind.Colon => formatPunctuation(state, ": ", TokenKind.Colon)
   TokenKind.At => formatPunctuation(state, "@", TokenKind.At)
   TokenKind.Dot => formatPunctuation(state, ".", TokenKind.Dot)
