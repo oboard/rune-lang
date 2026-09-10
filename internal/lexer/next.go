@@ -329,6 +329,9 @@ func (l *Lexer) nextXMLExpr() Token {
 			if l.match('.') {
 				return l.token(DotDotDot)
 			}
+			if l.match('<') {
+				return l.token(DotDotLess)
+			}
 			if l.match('=') {
 				return l.token(DotDotEqual)
 			}
