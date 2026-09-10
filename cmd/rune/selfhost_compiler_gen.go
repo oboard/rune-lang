@@ -821,12 +821,34 @@ func selfhost_lexer_lexer_scan(state LexState, tokens []Token) []Token {
 func selfhost_lexer_lexer_prepareLexState(state LexState) LexState {
 	return func() LexState {
 		switch {
-		case state.mode == selfhost_lexer_lexer_xmlModeCode() || state.mode == selfhost_lexer_lexer_xmlModeExpr() == true:
+		case state.mode == selfhost_lexer_lexer_xmlModeCode() == true:
 			return selfhost_lexer_lexer_skipIgnored(state)
 		default:
-			return selfhost_lexer_lexer_skipXMLSpaces(state)
+			return func() LexState {
+				switch {
+				case state.mode == selfhost_lexer_lexer_xmlModeExpr() == true:
+					return selfhost_lexer_lexer_skipXMLExprSpaces(state)
+				default:
+					return selfhost_lexer_lexer_skipXMLSpaces(state)
+				}
+			}()
 		}
 	}()
+}
+
+func selfhost_lexer_lexer_skipXMLExprSpaces(state LexState) LexState {
+	for {
+		if selfhost_lexer_lexer_atEnd(state) || selfhost_lexer_lexer_peek(state) == '\n' {
+			return state
+		} else {
+			if selfhost_lexer_lexer_isXMLSpace(selfhost_lexer_lexer_peek(state)) {
+				state = selfhost_lexer_lexer_advanceState(state)
+				continue
+			} else {
+				return state
+			}
+		}
+	}
 }
 
 func selfhost_lexer_lexer_scanModeToken(state LexState) Lexed {
@@ -1281,6 +1303,8 @@ func selfhost_lexer_lexer_scanXMLTagToken(step Advanced) Lexed {
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, state.mode, state.xmlDepth, selfhost_lexer_lexer_peek(state) != '>', selfhost_lexer_lexer_peek(state) == '>', state.xmlExprMode, state.xmlExprDepth), TokenKind_Slash)
 		case ch == '>':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_xmlStateAfterTagEnd(state), TokenKind_Greater)
+		case ch == '\n':
+			return selfhost_lexer_lexer_lexed(state, TokenKind_Newline)
 		case ch == '"':
 			return selfhost_lexer_lexer_lexStringToken(state)
 		default:
@@ -1328,6 +1352,8 @@ func selfhost_lexer_lexer_scanXMLTextToken(state LexState) Lexed {
 			return selfhost_lexer_lexer_scanXMLTextLess(selfhost_lexer_lexer_advanceState(state))
 		case selfhost_lexer_lexer_peek(state) == '{':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(selfhost_lexer_lexer_advanceState(state), selfhost_lexer_lexer_xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, selfhost_lexer_lexer_xmlModeText(), 1), TokenKind_LBrace)
+		case selfhost_lexer_lexer_peek(state) == '\n':
+			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_advanceState(state), TokenKind_Newline)
 		default:
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_scanXMLTextContent(state), TokenKind_XMLText)
 		}
@@ -1340,7 +1366,7 @@ func selfhost_lexer_lexer_scanXMLTextLess(state LexState) Lexed {
 
 func selfhost_lexer_lexer_scanXMLTextContent(state LexState) LexState {
 	for {
-		if selfhost_lexer_lexer_atEnd(state) || selfhost_lexer_lexer_peek(state) == '<' || selfhost_lexer_lexer_peek(state) == '{' {
+		if selfhost_lexer_lexer_atEnd(state) || selfhost_lexer_lexer_peek(state) == '<' || selfhost_lexer_lexer_peek(state) == '{' || selfhost_lexer_lexer_peek(state) == '\n' {
 			return state
 		} else {
 			state = selfhost_lexer_lexer_advanceState(state)
@@ -1359,6 +1385,8 @@ func selfhost_lexer_lexer_scanXMLExprToken(step Advanced) Lexed {
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, selfhost_lexer_lexer_xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, state.xmlExprDepth+1), TokenKind_LBrace)
 		case ch == '}':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_xmlStateAfterExprBrace(state), TokenKind_RBrace)
+		case ch == '\n':
+			return selfhost_lexer_lexer_lexed(state, TokenKind_Newline)
 		default:
 			return selfhost_lexer_lexer_scanToken(step)
 		}
@@ -3751,8 +3779,19 @@ func selfhost_parser_parser_parseXMLExpressionChild(state ParserState, element P
 func selfhost_parser_parser_parseXMLBracedExpression(state ParserState) ExprStep {
 	open := selfhost_parser_parser_parserConsume(state, TokenKind_LBrace, "expected '{'")
 	expr := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(open.state), 1)
-	close := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(expr.state), TokenKind_RBrace, "expected '}' after XML expression")
+	close := selfhost_parser_parser_parserConsume(selfhost_parser_parser_skipXMLWhitespace(selfhost_parser_parser_parserSkipNewlines(expr.state)), TokenKind_RBrace, "expected '}' after XML expression")
 	return ExprStep{state: close.state, expr: expr.expr}
+}
+
+func selfhost_parser_parser_skipXMLWhitespace(state ParserState) ParserState {
+	for {
+		if selfhost_parser_parser_parserCheck(state, TokenKind_XMLText) && selfhost_parser_parser_normalizeXMLText(selfhost_parser_parser_parserPeek(state).lexeme) == "" {
+			state = selfhost_parser_parser_parserAdvance(state).state
+			continue
+		} else {
+			return state
+		}
+	}
 }
 
 func selfhost_parser_parser_parseXMLClose(state ParserState, tag string) ParserState {

@@ -1276,20 +1276,31 @@ func TestParseXMLElementWithEmbeddedExpressions(t *testing.T) {
 func TestParseXMLStyleAttributeWithNestedObjectExpression(t *testing.T) {
 	file, errs := Parse(`render() -> HTMLElement => {
     $color := "red"
+    backgroundColor := "blue"
 
-    <div style={{ color: $color }}>Hello World</div>
+    <div>
+      <div style={{
+        color: $color,
+        backgroundColor: backgroundColor
+      }}>Hello World</div>
+      <button @click={() => $color = "green"}>Change Color</button>
+    </div>
 }
 `)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
 	}
 	block := file.Functions[0].Body.(*ast.BlockExpr)
-	stmt := block.Statements[1].(*ast.ExprStmt)
+	stmt := block.Statements[2].(*ast.ExprStmt)
 	root := stmt.Expr.(*ast.XMLElement)
-	if root.Tag != "div" || len(root.Attrs) != 1 {
-		t.Fatalf("root = %#v, want div with style attribute", root)
+	if root.Tag != "div" || len(root.Children) != 2 {
+		t.Fatalf("root = %#v, want div with two children", root)
 	}
-	style := root.Attrs[0]
+	inner, ok := root.Children[0].Expr.(*ast.XMLElement)
+	if !ok || inner.Tag != "div" || len(inner.Attrs) != 1 {
+		t.Fatalf("inner child = %#v, want div with style attribute", root.Children[0].Expr)
+	}
+	style := inner.Attrs[0]
 	if style.Name != "style" || style.Event {
 		t.Fatalf("style attr = %#v", style)
 	}
@@ -1297,8 +1308,8 @@ func TestParseXMLStyleAttributeWithNestedObjectExpression(t *testing.T) {
 	if !ok {
 		t.Fatalf("style value = %T, want AnonymousObjectLiteral", style.Value)
 	}
-	if len(obj.Fields) != 1 || obj.Fields[0].Name != "color" {
-		t.Fatalf("style fields = %#v, want color", obj.Fields)
+	if len(obj.Fields) != 2 || obj.Fields[0].Name != "color" || obj.Fields[1].Name != "backgroundColor" {
+		t.Fatalf("style fields = %#v, want color and backgroundColor", obj.Fields)
 	}
 	if ident, ok := obj.Fields[0].Value.(*ast.Identifier); !ok || ident.Name != "color" || !ident.SignalPrefix {
 		t.Fatalf("style color value = %#v, want signal color identifier", obj.Fields[0].Value)

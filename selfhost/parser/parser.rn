@@ -2260,12 +2260,19 @@ parseXMLBracedExpression(
 ) -> ExprStep => {
   open := parserConsume(state, TokenKind.LBrace, "expected '{'")
   expr := parseExpression(parserSkipNewlines(open.state), 1)
-  close := parserConsume(parserSkipNewlines(expr.state), TokenKind.RBrace, "expected '}' after XML expression")
+  close := parserConsume(skipXMLWhitespace(parserSkipNewlines(expr.state)), TokenKind.RBrace, "expected '}' after XML expression")
   ExprStep {
     state: close.state,
     expr: expr.expr
   }
 }
+
+skipXMLWhitespace(
+  state: ParserState
+) -> ParserState => (
+  parserCheck(state, TokenKind.XMLText) && (normalizeXMLText(parserPeek(state).lexeme) == "") ? skipXMLWhitespace(parserAdvance(state).state)
+    : state
+)
 
 parseXMLClose(
   state: ParserState,

@@ -149,10 +149,23 @@ scan(
 
 prepareLexState(
   state: LexState
-) -> LexState => ((state.mode == xmlModeCode()) || (state.mode == xmlModeExpr())) {
+) -> LexState => (state.mode == xmlModeCode()) {
   true => skipIgnored(state)
-  _ => skipXMLSpaces(state)
+  _ => (state.mode == xmlModeExpr()) {
+    true => skipXMLExprSpaces(state)
+    _ => skipXMLSpaces(state)
+  }
 }
+
+skipXMLExprSpaces(
+  state: LexState
+) -> LexState => (
+  atEnd(state) || (peek(state) == '\n') ? state
+    : (
+      isXMLSpace(peek(state)) ? skipXMLExprSpaces(advanceState(state))
+        : state
+    )
+)
 
 scanModeToken(state: LexState) -> Lexed => state.mode {
   1 => scanXMLTagToken(advance(state))
@@ -492,6 +505,7 @@ scanXMLTagToken(step: Advanced) -> Lexed => {
     '{' => lexed(lexStateXML(state, xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, xmlModeTag(), 1), TokenKind.LBrace)
     '/' => lexed(lexStateXML(state, state.mode, state.xmlDepth, peek(state) != '>', peek(state) == '>', state.xmlExprMode, state.xmlExprDepth), TokenKind.Slash)
     '>' => lexed(xmlStateAfterTagEnd(state), TokenKind.Greater)
+    '\n' => lexed(state, TokenKind.Newline)
     '"' => lexStringToken(state)
     _ => (
       isIdentStart(ch) ? lexXMLIdentifierToken(state)
@@ -526,6 +540,7 @@ scanXMLTextToken(
 ) -> Lexed => peek(state) {
   '<' => scanXMLTextLess(advanceState(state))
   '{' => lexed(lexStateXML(advanceState(state), xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, xmlModeText(), 1), TokenKind.LBrace)
+  '\n' => lexed(advanceState(state), TokenKind.Newline)
   _ => lexed(scanXMLTextContent(state), TokenKind.XMLText)
 }
 
@@ -536,7 +551,7 @@ scanXMLTextLess(
 scanXMLTextContent(
   state: LexState
 ) -> LexState => (
-  (atEnd(state) || (peek(state) == '<')) || (peek(state) == '{') ? state
+  ((atEnd(state) || (peek(state) == '<')) || (peek(state) == '{')) || (peek(state) == '\n') ? state
     : scanXMLTextContent(advanceState(state))
 )
 
@@ -547,6 +562,7 @@ scanXMLExprToken(
   ch {
     '{' => lexed(lexStateXML(state, xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, state.xmlExprDepth + 1), TokenKind.LBrace)
     '}' => lexed(xmlStateAfterExprBrace(state), TokenKind.RBrace)
+    '\n' => lexed(state, TokenKind.Newline)
     _ => scanToken(step)
   }
 }
