@@ -61,6 +61,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 	c.collectCoreTypes()
 	c.checkGoImports(file)
 	c.collect(file)
+	c.collectDOMTypes()
 	c.checkMacros(file)
 	for _, constant := range file.Constants {
 		c.inferConstDecl(constant)

@@ -1,4 +1,5 @@
 @"../lexer/lexer.rn"
+@"../parser/parser.rn"
 
 FormatState: {
   text: String
@@ -8,9 +9,213 @@ FormatState: {
 }
 
 + formatSource(source: String) -> String => {
+  parsed := parse(source)
+  parsed.errors.length() > 0 ? formatTokenSource(source)
+    : preserveComments(source, finishFormat(formatParsedFile(parsed)))
+}
+
+formatTokenSource(source: String) -> String => {
   tokens := lex(source)
   state := formatTokens(tokens, 0, emptyFormatState())
   preserveComments(source, finishFormat(state.text))
+}
+
+formatParsedFile(file: ParsedFile) -> String => formatParsedFunctions(file.functions, 0, "")
+
+formatParsedFunctions(
+  functions: Array[ParsedFunction],
+  index: Int,
+  out: String
+) -> String => (
+  index >= functions.length() ? out
+    : formatParsedFunctions(functions, index + 1, out + formatParsedFunction(functions[index]) + "\n")
+)
+
+formatParsedFunction(fn: ParsedFunction) -> String => (
+  fn.body.kind == ExprKind.Block ? formatFunctionBlock(fn)
+    : fn.name + formatParams(fn.params, 0, "(") + ")" + formatReturnType(fn.returnType) + " => " + formatExpr(fn.body, 0)
+)
+
+formatFunctionBlock(fn: ParsedFunction) -> String => {
+  header := fn.name + formatParams(fn.params, 0, "(") + ")" + formatReturnType(fn.returnType) + " => {"
+  header + "\n" + formatBlockChildren(fn.body.children, 0, 1, "") + "}"
+}
+
+formatParams(
+  params: Array[ParsedParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : formatParams(params, index + 1, params[index].typeRef.name == "" ? out + params[index].name + paramSeparator(params, index)
+      : out + params[index].name + ": " + formatTypeRef(params[index].typeRef) + paramSeparator(params, index))
+)
+
+paramSeparator(params: Array[ParsedParam], index: Int) -> String => (
+  (index + 1) < params.length() ? ", "
+    : ""
+)
+
+formatReturnType(typeRef: ParsedTypeRef) -> String => (
+  typeRef.name == "" ? ""
+    : " -> " + formatTypeRef(typeRef)
+)
+
+formatTypeRef(typeRef: ParsedTypeRef) -> String => (
+  typeRef.args.length() == 0 ? typeRef.name
+    : typeRef.name + "[" + formatTypeArgs(typeRef.args, 0, "") + "]"
+)
+
+formatTypeArgs(
+  args: Array[ParsedTypeRef],
+  index: Int,
+  out: String
+) -> String => (
+  index >= args.length() ? out
+    : formatTypeArgs(args, index + 1, out + formatTypeRef(args[index]) + ((index + 1) < args.length() ? ", " : ""))
+)
+
+formatBlockChildren(
+  children: Array[ParsedExpr],
+  index: Int,
+  indent: Int,
+  out: String
+) -> String => (
+  index >= children.length() ? out
+    : formatBlockChildren(children, index + 1, indent, out + indentText(indent) + formatExpr(children[index], indent) + "\n")
+)
+
+formatExpr(expr: ParsedExpr, indent: Int) -> String => expr.kind {
+  ExprKind.XMLElement => formatXMLElement(expr, indent)
+  ExprKind.Object => formatObjectExpr(expr, indent)
+  ExprKind.Let => formatLetExpr(expr, indent)
+  ExprKind.Identifier => formatIdentifierExpr(expr)
+  ExprKind.String => expr.value
+  ExprKind.Int => expr.value
+  ExprKind.Double => expr.value
+  ExprKind.Bool => expr.value
+  ExprKind.Null => "null"
+  ExprKind.Reactive => "$" + formatExpr(expr.children[0], indent)
+  ExprKind.Assign => formatAssignExpr(expr, indent)
+  ExprKind.Binary => formatExpr(expr.children[0], indent) + " " + expr.op + " " + formatExpr(expr.children[1], indent)
+  ExprKind.Lambda => "() => " + formatExpr(expr.children[0], indent)
+  ExprKind.Call => formatCallExpr(expr, indent)
+  ExprKind.Selector => formatSelectorExpr(expr, indent)
+  ExprKind.At => "@" + expr.name
+  _ => formatTokenSource(expr.text)
+}
+
+formatIdentifierExpr(expr: ParsedExpr) -> String => (
+  expr.op == "$" ? "$" + expr.name
+    : expr.name
+)
+
+formatObjectExpr(expr: ParsedExpr, indent: Int) -> String => {
+  expr.children.length() == 0 ? "{}"
+    : "{\n" + formatObjectFields(expr.children, 0, indent + 1, "") + indentText(indent) + "}"
+}
+
+formatObjectFields(
+  fields: Array[ParsedExpr],
+  index: Int,
+  indent: Int,
+  out: String
+) -> String => (
+  index >= fields.length() ? out
+    : formatObjectFields(fields, index + 1, indent, out + indentText(indent) + fields[index].name + ": " + formatExpr(fields[index].children[0], indent) + ((index + 1) < fields.length() ? "," : "") + "\n")
+)
+
+formatLetExpr(expr: ParsedExpr, indent: Int) -> String => expr.name + " := " + formatExpr(expr.children[0], indent)
+
+formatAssignExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + " = " + formatExpr(expr.children[1], indent)
+
+formatCallExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + "(" + formatExprArgs(expr.children, 1, indent, "") + ")"
+
+formatExprArgs(
+  children: Array[ParsedExpr],
+  index: Int,
+  indent: Int,
+  out: String
+) -> String => (
+  index >= children.length() ? out
+    : formatExprArgs(children, index + 1, indent, out + formatExpr(children[index], indent) + ((index + 1) < children.length() ? ", " : ""))
+)
+
+formatSelectorExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + expr.op + expr.name
+
+formatXMLElement(element: ParsedExpr, indent: Int) -> String => {
+  attrs := formatXMLAttributes(element.children, 0, "")
+  children := xmlChildren(element.children, 0, [])
+  children.length() == 0 ? "<" + element.name + attrs + " />"
+    : formatXMLElementWithChildren(element, attrs, children, indent)
+}
+
+formatXMLAttributes(
+  children: Array[ParsedExpr],
+  index: Int,
+  out: String
+) -> String => (
+  index >= children.length() ? out
+    : (
+      isXMLAttribute(children[index]) ? formatXMLAttributes(children, index + 1, out + " " + formatXMLAttribute(children[index]))
+        : formatXMLAttributes(children, index + 1, out)
+    )
+)
+
+isXMLAttribute(expr: ParsedExpr) -> Bool => (expr.kind == ExprKind.Field) && ((expr.op == "xmlAttr") || (expr.op == "xmlEvent") || (expr.op == "xmlBareAttr"))
+
+formatXMLAttribute(attr: ParsedExpr) -> String => {
+  name := attr.op == "xmlEvent" ? "@" + attr.name
+    : attr.name
+  attr.children.length() == 0 ? name
+    : name + "={" + formatExpr(attr.children[0], 2) + "}"
+}
+
+xmlChildren(
+  children: Array[ParsedExpr],
+  index: Int,
+  out: Array[ParsedExpr]
+) -> Array[ParsedExpr] => (
+  index >= children.length() ? out
+    : (
+      isXMLAttribute(children[index]) ? xmlChildren(children, index + 1, out)
+        : xmlChildren(children, index + 1, [..out, children[index]])
+    )
+)
+
+formatXMLElementWithChildren(
+  element: ParsedExpr,
+  attrs: String,
+  children: Array[ParsedExpr],
+  indent: Int
+) -> String => {
+  single := children.length() == 1
+  inline := single && (children[0].kind == ExprKind.XMLText)
+  inline ? "<" + element.name + attrs + ">" + children[0].value + "</" + element.name + ">"
+    : formatMultilineXMLElement(element, attrs, children, indent)
+}
+
+formatMultilineXMLElement(
+  element: ParsedExpr,
+  attrs: String,
+  children: Array[ParsedExpr],
+  indent: Int
+) -> String => "<" + element.name + attrs + ">\n" + formatXMLChildren(children, 0, indent + 1, "") + indentText(indent) + "</" + element.name + ">"
+
+formatXMLChildren(
+  children: Array[ParsedExpr],
+  index: Int,
+  indent: Int,
+  out: String
+) -> String => (
+  index >= children.length() ? out
+    : formatXMLChildren(children, index + 1, indent, out + indentText(indent) + formatXMLChild(children[index], indent) + "\n")
+)
+
+formatXMLChild(child: ParsedExpr, indent: Int) -> String => child.kind {
+  ExprKind.XMLElement => formatXMLElement(child, indent)
+  ExprKind.XMLText => child.value
+  _ => "{" + formatExpr(child, indent) + "}"
 }
 
 emptyFormatState() -> FormatState => {

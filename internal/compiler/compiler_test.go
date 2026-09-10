@@ -256,11 +256,17 @@ main() => {
 	if mystery == nil || len(mystery.Params) != 1 || mystery.Params[0].Type != checker.Unknown || mystery.Return != checker.Unknown {
 		t.Fatalf("mystery function = %#v, want Unknown types", mystery)
 	}
-	if len(prog.Info.ExternalValues) != 1 {
-		t.Fatalf("external values = %#v, want version", prog.Info.ExternalValues)
+	// The declaration file introduced ambient DOM globals (document, window,
+	// etc.). Assert that the user's own `version` value is still present and
+	// correctly typed, regardless of how many ambient values joined the list.
+	var version *checker.ExternalValueInfo
+	for _, v := range prog.Info.ExternalValues {
+		if v.Name == "version" {
+			version = v
+			break
+		}
 	}
-	version := prog.Info.ExternalValues[0]
-	if version.Name != "version" || version.Type != checker.String {
+	if version == nil || version.Type != checker.String {
 		t.Fatalf("external value = %#v, want version: String", version)
 	}
 }

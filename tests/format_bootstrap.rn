@@ -14,6 +14,25 @@
 `)
 }
 
+? "selfhost formatter indents structured XML" {
+  formatted := formatSource(`render()=>{<div><h1>Hello</h1><div style={{color:$color,backgroundColor:backgroundColor}}>{"Hello World"}</div><button @click={()=>$color="green"}>{"Change Color"}</button></div>}`)
+  @assert.eq(formatted, `render() => {
+  <div>
+    <h1>Hello</h1>
+    <div style={{
+      color: $color,
+      backgroundColor: backgroundColor
+    }}>
+      {"Hello World"}
+    </div>
+    <button @click={() => $color = "green"}>
+      {"Change Color"}
+    </button>
+  </div>
+}
+`)
+}
+
 ? "selfhost formatter preserves end-of-line comments" {
   formatted := formatSource("main()=>{\nvalue:=1 // value\n@io.println(value) // print\n}")
   @assert.eq(formatted, `main() => {

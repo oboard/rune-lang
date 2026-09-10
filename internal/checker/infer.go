@@ -965,7 +965,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			c.info.ExprTypes[sel] = functionType(method)
 			c.info.ResolvedSelectorFunctions[sel] = method
 			c.refineCallArgsFromParams(method.Params, call.Args, argTypes, env)
-			c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
+			c.checkFuncArgs(sel.Name, method, call.Args, argTypes, sel.Pos)
 			return c.finishRoutineCall(call, method.Routine, method.Return)
 		}
 		if ident, ok := sel.Receiver.(*ast.Identifier); ok {
@@ -1095,7 +1095,7 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 			return Unknown
 		}
 		c.refineCallArgsFromParams(method.Params, call.Args, argTypes, env)
-		c.checkArgs(sel.Name, method.Params, call.Args, argTypes, sel.Pos)
+		c.checkFuncArgs(sel.Name, method, call.Args, argTypes, sel.Pos)
 		return c.finishRoutineCall(call, method.Routine, method.Return)
 	}
 	if ident, ok := call.Callee.(*ast.Identifier); ok {
@@ -1140,7 +1140,11 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		c.refineCallArgsFromParams(params, call.Args, argTypes, env)
 		c.info.ResolvedFunctions[ident] = fn
 		c.info.ExprTypes[ident] = functionType(fn)
-		c.checkArgs(ident.Name, params, call.Args, argTypes, ident.Pos)
+		minRequired := fn.MinRequired
+		if minRequired < 0 {
+			minRequired = len(params)
+		}
+		c.checkArgsWithMin(ident.Name, minRequired, params, call.Args, argTypes, ident.Pos)
 		return c.finishRoutineCall(call, fn.Routine, substituteTypeParams(fn.Return, bindings))
 	}
 	calleeType := c.inferExpr(call.Callee, env)

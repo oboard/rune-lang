@@ -14,6 +14,15 @@ func classMethodSignature(typeName string, fn *checker.FuncInfo) string {
 	if ret == "" {
 		ret = checker.Void
 	}
+	if fn.Node == nil {
+		// Synthetic FuncInfo (e.g. ambient DOM method) — synthesise a
+		// positional signature from FuncInfo metadata.
+		params := make([]string, 0, len(fn.Params))
+		for _, p := range fn.Params {
+			params = append(params, fmt.Sprintf("%s: %s", p.Name, p.Type))
+		}
+		return fmt.Sprintf("%s.%s(%s) -> %s", typeName, fn.Name, strings.Join(params, ", "), ret)
+	}
 	sig := methodNodeSignature(fn.Node)
 	return fmt.Sprintf("%s.%s -> %s", typeName, sig, ret)
 }

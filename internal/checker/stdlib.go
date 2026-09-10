@@ -126,13 +126,52 @@ func (c *checker) checkDeclaredArg(moduleName string, functionName string, index
 }
 
 func (c *checker) checkArgs(name string, params []ParamInfo, args []ast.Expr, argTypes []Type, pos lexer.Position) {
-	if len(params) != len(args) {
+	c.checkArgsWithMin(name, len(params), params, args, argTypes, pos)
+}
+
+// checkArgsWithMin enforces positional counts. Callers may pass
+// minRequired < len(params) for functions declared with trailing optional
+// parameters (e.g. DOM ambient stubs).
+func (c *checker) checkFuncArgs(name string, info *FuncInfo, args []ast.Expr, argTypes []Type, pos lexer.Position) {
+	minRequired := info.MinRequired
+	if minRequired < 0 {
+		minRequired = len(info.Params)
+	}
+	c.checkArgsWithMin(name, minRequired, info.Params, args, argTypes, pos)
+}
+
+func (c *checker) checkArgsWithMin(name string, minRequired int, params []ParamInfo, args []ast.Expr, argTypes []Type, pos lexer.Position) {
+	if minRequired < 0 {
+		minRequired = len(params)
+	}
+	// Variadic: trailing param marked Rest accepts any positional overflow.
+	variadic := false
+	if len(params) > 0 && params[len(params)-1].Rest {
+		variadic = true
+	}
+	if len(args) < minRequired || (!variadic && len(args) > len(params)) {
 		c.errorf(pos, "function %q expects %d args, got %d", name, len(params), len(args))
 	}
-	limit := min(len(params), len(argTypes))
-	for i := 0; i < limit; i++ {
+	// Positional pattern — args padded to params length; for variadic the
+	// final params slot is the rest marker, so we check fixed slots (up to
+	// len(params)-1) separately from rest.
+	fixedCount := len(params)
+	if variadic {
+		fixedCount = len(params) - 1
+	}
+	for i := 0; i < min(len(argTypes), fixedCount); i++ {
 		if !c.typesCompatible(params[i].Type, argTypes[i], nil) {
 			c.errorf(args[i].Position(), "argument %d to %q has type %s, expected %s", i+1, name, argTypes[i], params[i].Type)
+		}
+	}
+	// Rest args all type-check against the rest param's element type (the
+	// parse-side unwrapped the `T[]`, so Type IS the element).
+	if variadic && len(argTypes) > fixedCount {
+		restType := params[len(params)-1].Type
+		for k := fixedCount; k < len(argTypes); k++ {
+			if !c.typesCompatible(restType, argTypes[k], nil) {
+				c.errorf(args[k].Position(), "argument %d to %q has type %s, expected %s", k+1, name, argTypes[k], restType)
+			}
 		}
 	}
 }

@@ -69,6 +69,9 @@ const (
 type ParamInfo struct {
 	Name string
 	Type Type
+	// Rest marks the final param of a variadic function: callers pass as
+	// many arguments as they like, all of which must compatible with Type.
+	Rest bool
 }
 
 type ExternalValueInfo struct {
@@ -99,6 +102,13 @@ type FuncInfo struct {
 	Pos                lexer.Position
 	NamePos            lexer.Position
 	Node               *ast.Function
+	// MinRequired marks how many params must be supplied at the call site;
+	// -1 means "all Params are required" (the default for Rune functions).
+	// Ambient DOM declarations may leave some trailing params optional via
+	// TypeScript `?` — capped by this threshold.
+	MinRequired int
+	// Variadic is true when the final Params entry is a rest parameter.
+	Variadic bool
 }
 
 type FieldInfo struct {
