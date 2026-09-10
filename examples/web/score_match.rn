@@ -1,0 +1,18 @@
+// if / else if 链
+#web.preview
++ render() => {
+  score := 85
+
+  <div>
+    <h2>Grade</h2>
+    <p>
+      {score {
+        >=90 => <b>A+</b>
+        >=80 => <b>A</b>
+        >=70 => <b>B</b>
+        >=60 => <b>C</b>
+        _ => <em>F</em>
+      }}
+    </p>
+  </div>
+}

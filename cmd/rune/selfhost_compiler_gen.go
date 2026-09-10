@@ -7470,7 +7470,27 @@ func selfhost_format_format_formatTokenSource(source string) string {
 }
 
 func selfhost_format_format_formatParsedFile(file ParsedFile) string {
-	return selfhost_format_format_formatParsedFunctions(file.functions, 0, "")
+	return selfhost_format_format_formatParsedConstants(file.constants, 0, "") + selfhost_format_format_formatParsedFunctions(file.functions, 0, "")
+}
+
+func selfhost_format_format_formatParsedConstants(constants []ParsedConst, index int, out string) string {
+	for {
+		if index >= len(constants) {
+			return out
+		} else {
+			constants, index, out = constants, index+1, out+selfhost_format_format_formatParsedConstant(constants[index])+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatParsedConstant(constant ParsedConst) string {
+	return func() string {
+		if constant.private {
+			return constant.name + " := " + selfhost_format_format_formatExpr(constant.value, 0)
+		}
+		return "+ " + constant.name + " := " + selfhost_format_format_formatExpr(constant.value, 0)
+	}()
 }
 
 func selfhost_format_format_formatParsedFunctions(functions []ParsedFunction, index int, out string) string {
@@ -7575,6 +7595,10 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return selfhost_format_format_formatXMLElement(expr, indent)
 		case expr.kind == ExprKind_Object:
 			return selfhost_format_format_formatObjectExpr(expr, indent)
+		case expr.kind == ExprKind_Block:
+			return selfhost_format_format_formatBlockExpr(expr, indent)
+		case expr.kind == ExprKind_PatternBlock:
+			return selfhost_format_format_formatBlockExpr(expr, indent)
 		case expr.kind == ExprKind_Let:
 			return selfhost_format_format_formatLetExpr(expr, indent)
 		case expr.kind == ExprKind_Identifier:
@@ -7596,7 +7620,7 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 		case expr.kind == ExprKind_Binary:
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + " " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[1], indent)
 		case expr.kind == ExprKind_Lambda:
-			return "() => " + selfhost_format_format_formatExpr(expr.children[0], indent)
+			return selfhost_format_format_formatLambdaExpr(expr, indent)
 		case expr.kind == ExprKind_Call:
 			return selfhost_format_format_formatCallExpr(expr, indent)
 		case expr.kind == ExprKind_Selector:
@@ -7627,6 +7651,10 @@ func selfhost_format_format_formatObjectExpr(expr ParsedExpr, indent int) string
 	}()
 }
 
+func selfhost_format_format_formatBlockExpr(expr ParsedExpr, indent int) string {
+	return "{\n" + selfhost_format_format_formatBlockChildren(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+}
+
 func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, indent int, out string) string {
 	for {
 		if index >= len(fields) {
@@ -7649,6 +7677,10 @@ func selfhost_format_format_formatLetExpr(expr ParsedExpr, indent int) string {
 
 func selfhost_format_format_formatAssignExpr(expr ParsedExpr, indent int) string {
 	return selfhost_format_format_formatExpr(expr.children[0], indent) + " = " + selfhost_format_format_formatExpr(expr.children[1], indent)
+}
+
+func selfhost_format_format_formatLambdaExpr(expr ParsedExpr, indent int) string {
+	return "() => " + selfhost_format_format_formatExpr(expr.children[0], indent)
 }
 
 func selfhost_format_format_formatCallExpr(expr ParsedExpr, indent int) string {
@@ -7676,7 +7708,7 @@ func selfhost_format_format_formatSelectorExpr(expr ParsedExpr, indent int) stri
 }
 
 func selfhost_format_format_formatXMLElement(element ParsedExpr, indent int) string {
-	attrs := selfhost_format_format_formatXMLAttributes(element.children, 0, "")
+	attrs := selfhost_format_format_formatXMLAttributes(element.children, 0, indent, "")
 	children := selfhost_format_format_xmlChildren(element.children, 0, []ParsedExpr{})
 	return func() string {
 		if len(children) == 0 {
@@ -7686,16 +7718,16 @@ func selfhost_format_format_formatXMLElement(element ParsedExpr, indent int) str
 	}()
 }
 
-func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int, out string) string {
+func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int, indent int, out string) string {
 	for {
 		if index >= len(children) {
 			return out
 		} else {
 			if selfhost_format_format_isXMLAttribute(children[index]) {
-				children, index, out = children, index+1, out+" "+selfhost_format_format_formatXMLAttribute(children[index])
+				children, index, indent, out = children, index+1, indent, out+" "+selfhost_format_format_formatXMLAttribute(children[index], indent)
 				continue
 			} else {
-				children, index, out = children, index+1, out
+				children, index, indent, out = children, index+1, indent, out
 				continue
 			}
 		}
@@ -7706,7 +7738,7 @@ func selfhost_format_format_isXMLAttribute(expr ParsedExpr) bool {
 	return expr.kind == ExprKind_Field && (expr.op == "xmlAttr" || expr.op == "xmlEvent" || expr.op == "xmlBareAttr")
 }
 
-func selfhost_format_format_formatXMLAttribute(attr ParsedExpr) string {
+func selfhost_format_format_formatXMLAttribute(attr ParsedExpr, indent int) string {
 	name := func() string {
 		if attr.op == "xmlEvent" {
 			return "@" + attr.name
@@ -7717,7 +7749,18 @@ func selfhost_format_format_formatXMLAttribute(attr ParsedExpr) string {
 		if len(attr.children) == 0 {
 			return name
 		}
-		return name + "={" + selfhost_format_format_formatExpr(attr.children[0], 2) + "}"
+		return name + "={" + selfhost_format_format_formatXMLAttributeValue(attr.children[0], indent) + "}"
+	}()
+}
+
+func selfhost_format_format_formatXMLAttributeValue(value ParsedExpr, indent int) string {
+	return func() string {
+		switch {
+		case value.kind == ExprKind_Object:
+			return selfhost_format_format_formatObjectExpr(value, indent)
+		default:
+			return selfhost_format_format_formatExpr(value, indent)
+		}
 	}()
 }
 

@@ -8730,7 +8730,7 @@ matchNonWildcardPatternText(
                 : (
                   isArrayPatternText(text) ? matchArrayPatternText(subject, text, env)
                     : (
-                      isRangePatternText(text) ? boolPatternResult(matchRangeText(subject, text), env)
+                      isRangePatternText(text) ? boolPatternResult(matchRangeText(subject, text, env), env)
                         : (
                           isConstructorPatternText(text) ? matchConstructorPatternText(subject, text, env)
                             : (
@@ -10184,7 +10184,8 @@ isUnsignedIntText(
 
 matchRangeText(
   subject: RuntimeValue,
-  text: String
+  text: String,
+  env: RuntimeEnv
 ) -> Bool => {
   inclusive := text.includes("..=")
   parts := (
@@ -10192,44 +10193,169 @@ matchRangeText(
       : text.split("..<")
   )
   (
-    runtimeKind(subject) == RuntimeValueKind.Char ? matchCharRangeText(runtimeChar(subject), parts[0].trim(), parts[1].trim(), inclusive)
+    runtimeKind(subject) == RuntimeValueKind.Char ? matchCharRangeText(runtimeChar(subject), parts[0].trim(), parts[1].trim(), inclusive, env)
       : (
-        runtimeKind(subject) == RuntimeValueKind.Int ? matchIntRangeText(runtimeInt(subject), parts[0].trim(), parts[1].trim(), inclusive)
-          : false
+        runtimeKind(subject) == RuntimeValueKind.Int ? matchIntRangeText(runtimeInt(subject), parts[0].trim(), parts[1].trim(), inclusive, env)
+          : (
+            runtimeKind(subject) == RuntimeValueKind.Double ? matchDoubleRangeText(runtimeDouble(subject), parts[0].trim(), parts[1].trim(), inclusive, env)
+              : false
+          )
       )
   )
 }
+
+rangeBoundValue(
+  text: String,
+  env: RuntimeEnv
+) -> RuntimeValue => (
+  text.startsWith("=") ? envGet(env, text.slice(1, text.length())).value
+    : (
+      isIntText(text) ? intValue(parseIntText(text))
+        : (
+          text.startsWith("'") ? charValue(decodeCharLiteral(text))
+            : (
+              isDoubleText(text) ? doubleValue(parseDoubleText(text), text)
+                : voidValue()
+            )
+        )
+    )
+)
+
+isDoubleText(text: String) -> Bool => (
+  text.length() == 0 ? false
+    : (
+      text.indexOf(".") >= 0 ? isDoubleTextChars(text, 0)
+        : (
+          (text.indexOf("e") >= 0) || (text.indexOf("E") >= 0) ? isDoubleTextChars(text, 0)
+            : false
+        )
+    )
+)
+
+isDoubleTextChars(
+  text: String,
+  index: Int
+) -> Bool => (
+  index >= text.length() ? true
+    : (
+      ((isDigitChar(text.at(index)) || (text.at(index) == '.')) || (text.at(index) == 'e')) || (text.at(index) == 'E') ? isDoubleTextChars(text, index + 1)
+        : (
+          ((index == 0) || (text.at(index - 1) == 'e')) || (text.at(index - 1) == 'E') ? ((text.at(index) == '+') || (text.at(index) == '-')) && isDoubleTextChars(text, index + 1)
+            : false
+        )
+    )
+)
 
 matchIntRangeText(
   value: Int,
   start: String,
   end: String,
-  inclusive: Bool
+  inclusive: Bool,
+  env: RuntimeEnv
 ) -> Bool => {
-  lower := (start == "_") || (value >= parseIntText(start))
-  upper := (
-    end == "_" ? true
+  lower := rangeIntBoundOk(value, start, true, inclusive, env)
+  upper := rangeIntBoundOk(value, end, false, inclusive, env)
+  lower && upper
+}
+
+rangeIntBoundOk(
+  value: Int,
+  bound: String,
+  isStart: Bool,
+  inclusive: Bool,
+  env: RuntimeEnv
+) -> Bool => {
+  boundValue := (
+    bound == "_" ? intValue(0)
+      : rangeBoundValue(bound, env)
+  )
+  (
+    bound == "_" ? true
       : (
-        inclusive ? value <= parseIntText(end)
-          : value < parseIntText(end)
+        runtimeKind(boundValue) == RuntimeValueKind.Int ? (
+          isStart ? value >= runtimeInt(boundValue)
+            : (
+              inclusive ? value <= runtimeInt(boundValue)
+                : value < runtimeInt(boundValue)
+            )
+        )
+          : false
       )
   )
+}
+
+matchDoubleRangeText(
+  value: Double,
+  start: String,
+  end: String,
+  inclusive: Bool,
+  env: RuntimeEnv
+) -> Bool => {
+  lower := rangeDoubleBoundOk(value, start, true, inclusive, env)
+  upper := rangeDoubleBoundOk(value, end, false, inclusive, env)
   lower && upper
+}
+
+rangeDoubleBoundOk(
+  value: Double,
+  bound: String,
+  isStart: Bool,
+  inclusive: Bool,
+  env: RuntimeEnv
+) -> Bool => {
+  boundValue := (
+    bound == "_" ? doubleValue(0.0, "0")
+      : rangeBoundValue(bound, env)
+  )
+  (
+    bound == "_" ? true
+      : (
+        runtimeKind(boundValue) == RuntimeValueKind.Double ? (
+          isStart ? value >= runtimeDouble(boundValue)
+            : (
+              inclusive ? value <= runtimeDouble(boundValue)
+                : value < runtimeDouble(boundValue)
+            )
+        )
+          : false
+      )
+  )
 }
 
 matchCharRangeText(
   value: Char,
   start: String,
   end: String,
-  inclusive: Bool
+  inclusive: Bool,
+  env: RuntimeEnv
 ) -> Bool => {
-  lower := (start == "_") || (value >= decodeCharLiteral(start))
-  upper := (
-    end == "_" ? true
+  lower := rangeCharBoundOk(value, start, true, inclusive, env)
+  upper := rangeCharBoundOk(value, end, false, inclusive, env)
+  lower && upper
+}
+
+rangeCharBoundOk(
+  value: Char,
+  bound: String,
+  isStart: Bool,
+  inclusive: Bool,
+  env: RuntimeEnv
+) -> Bool => {
+  boundValue := (
+    bound == "_" ? charValue('\x00')
+      : rangeBoundValue(bound, env)
+  )
+  (
+    bound == "_" ? true
       : (
-        inclusive ? value <= decodeCharLiteral(end)
-          : value < decodeCharLiteral(end)
+        runtimeKind(boundValue) == RuntimeValueKind.Char ? (
+          isStart ? value >= runtimeChar(boundValue)
+            : (
+              inclusive ? value <= runtimeChar(boundValue)
+                : value < runtimeChar(boundValue)
+            )
+        )
+          : false
       )
   )
-  lower && upper
 }

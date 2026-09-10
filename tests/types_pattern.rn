@@ -32,6 +32,26 @@ patternClassify(value: Int) -> Int => value {
   _ => -1
 }
 
+RangeLimit := 99
+
+patternSign(value: Int) -> Int => value {
+  _..<PatternZero => 0 - 1
+  PatternZero => 0
+  1..<_ => 1
+}
+
+patternTrimToLimit(value: Int) -> Int => value {
+  0..<RangeLimit => value
+  _ => -1
+}
+
+patternCharClass(c: Char) -> String => c {
+  'a'..='z' => "lowercase"
+  'A'..='Z' => "uppercase"
+  '0'..='9' => "digit"
+  _ => "other"
+}
+
 patternConst(value: Int) -> Int => value {
   PatternOne => 10
   other => other
@@ -122,6 +142,31 @@ patternJSONKinds(value: Object) -> Int => value {
   @assert.eq(patternConst(1), 10)
   @assert.eq(patternConst(4), 4)
   @assert.eq(patternMiddle("中b文"), "b中文")
+}
+
+? "moonbit-style open range sign and const bounds" {
+  @assert.eq(patternSign(0 - 5), 0 - 1)
+  @assert.eq(patternSign(0 - 1), 0 - 1)
+  @assert.eq(patternSign(0), 0)
+  @assert.eq(patternSign(1), 1)
+  @assert.eq(patternSign(1000), 1)
+  @assert.eq(patternTrimToLimit(0 - 1), -1)
+  @assert.eq(patternTrimToLimit(0), 0)
+  @assert.eq(patternTrimToLimit(98), 98)
+  @assert.eq(patternTrimToLimit(99), -1)
+  @assert.eq(patternTrimToLimit(100), -1)
+}
+
+? "moonbit-style char range patterns" {
+  @assert.eq(patternCharClass('a'), "lowercase")
+  @assert.eq(patternCharClass('z'), "lowercase")
+  @assert.eq(patternCharClass('k'), "lowercase")
+  @assert.eq(patternCharClass('A'), "uppercase")
+  @assert.eq(patternCharClass('Z'), "uppercase")
+  @assert.eq(patternCharClass('0'), "digit")
+  @assert.eq(patternCharClass('9'), "digit")
+  @assert.eq(patternCharClass('!'), "other")
+  @assert.eq(patternCharClass('@'), "other")
 }
 
 ? "moonbit-style constructor payload patterns" {

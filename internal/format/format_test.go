@@ -238,6 +238,61 @@ func TestPatternAliasFormattingUsesAt(t *testing.T) {
 	}
 }
 
+func TestRangePatternFormattingKeepsBoundsAndOperators(t *testing.T) {
+	src := `label(value: Int) -> String => value {
+  _..<0 => "neg"
+  _..=Limit => "atMostLimit"
+  0..=10 => "small"
+  1..<_ => "big"
+  10..<_ => "big"
+  _ => "other"
+}
+`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `label(value: Int) -> String => value {
+  _..<0 => "neg"
+  _..=Limit => "atMostLimit"
+  0..=10 => "small"
+  1..<_ => "big"
+  10..<_ => "big"
+  _ => "other"
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestRangePatternFormattingCharBounds(t *testing.T) {
+	src := `classifyChar(c: Char) -> String => c {
+  'a'..='z' => "lowercase"
+  'A'..='Z' => "uppercase"
+  '0'..<'9' => "digit"
+  _ => "other"
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `classifyChar(c: Char) -> String => c {
+  'a'..='z' => "lowercase"
+  'A'..='Z' => "uppercase"
+  '0'..<'9' => "digit"
+  _ => "other"
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestPatternPredicateExpressionFormatting(t *testing.T) {
 	src := `canEnd(kind:TokenKind)->Bool=>kind~(Ident|Int|RParen)`
 	file, errs := parser.Parse(src)
@@ -639,6 +694,71 @@ func TestXMLElementFormatting(t *testing.T) {
           <li>{item}</li>
       ))}
     </ul>
+  </div>
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestXMLStyleAttributeIndentation(t *testing.T) {
+	src := `render() => {
+  <div>
+    <div style={{color: $color, backgroundColor: backgroundColor}}>Hello World</div>
+  </div>
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `render() => {
+  <div>
+    <div style={{
+      color: $color,
+      backgroundColor: backgroundColor
+    }}>
+      Hello World
+    </div>
+  </div>
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestXMLMatchChildFormatting(t *testing.T) {
+	src := `+ render() => {
+  score := 85
+  <div><p>{score {
+    >=90 => <b>A+</b>
+    >=80 => <b>A</b>
+    _ => <em>F</em>
+  }}</p></div>
+}`
+	file, errs := parser.Parse(src)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `+ render() => {
+  score := 85
+
+  <div>
+    <p>
+      {score {
+        >=90 => <b>A+</b>
+        >=80 => <b>A</b>
+        _ => <em>F</em>
+      }}
+    </p>
   </div>
 }
 `

@@ -17,7 +17,11 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 	case *ast.ComparePattern:
 		return p.Op.String() + f.expr(p.Value)
 	case *ast.RangePattern:
-		return f.expr(p.Start) + "..=" + f.expr(p.End)
+		op := "..<"
+		if p.Inclusive {
+			op = "..="
+		}
+		return f.rangeBoundExpr(p.Start) + op + f.rangeBoundExpr(p.End)
 	case *ast.OrPattern:
 		parts := make([]string, 0, len(p.Alternatives))
 		for _, alternative := range p.Alternatives {
@@ -93,4 +97,11 @@ func (f *formatter) pattern(pattern ast.Pattern) string {
 	default:
 		return "_"
 	}
+}
+
+func (f *formatter) rangeBoundExpr(expr ast.Expr) string {
+	if expr == nil {
+		return "_"
+	}
+	return f.expr(expr)
 }

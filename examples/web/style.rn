@@ -3,16 +3,13 @@
   $color := "red"
   backgroundColor := "blue"
 
-
   <div>
     <div style={{
       color: $color,
       backgroundColor: backgroundColor
     }}>
-      {"Hello World"}
+      Hello World
     </div>
-    <button @click={$color = "white"}>
-      {"Change Color"}
-    </button>
+    <button @click={$color = "white"}>Change Color</button>
   </div>
 }

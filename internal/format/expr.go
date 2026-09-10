@@ -306,7 +306,7 @@ func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadi
 	b.WriteString(elem.Tag)
 	for _, attr := range elem.Attrs {
 		b.WriteByte(' ')
-		b.WriteString(f.xmlAttr(attr))
+		b.WriteString(f.xmlAttrWithIndent(attr, indent))
 	}
 	b.WriteByte('>')
 	b.WriteByte('\n')
@@ -335,7 +335,19 @@ func (f *formatter) xmlElementWithIndent(elem *ast.XMLElement, indent int, leadi
 	return b.String()
 }
 
+func (f *formatter) xmlElementHasMultilineAttr(elem *ast.XMLElement) bool {
+	for _, attr := range elem.Attrs {
+		if attr.Value != nil && f.exprNeedsMultiline(attr.Value) {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *formatter) xmlElementCanInline(elem *ast.XMLElement) bool {
+	if f.xmlElementHasMultilineAttr(elem) {
+		return false
+	}
 	if len(elem.Children) == 0 {
 		return true
 	}
@@ -389,6 +401,10 @@ func (f *formatter) xmlElementInline(elem *ast.XMLElement) string {
 }
 
 func (f *formatter) xmlAttr(attr ast.XMLAttr) string {
+	return f.xmlAttrWithIndent(attr, f.indent)
+}
+
+func (f *formatter) xmlAttrWithIndent(attr ast.XMLAttr, indent int) string {
 	var b strings.Builder
 	if attr.Event {
 		b.WriteByte('@')
@@ -396,7 +412,10 @@ func (f *formatter) xmlAttr(attr ast.XMLAttr) string {
 	b.WriteString(attr.Name)
 	if attr.Value != nil {
 		b.WriteString("={")
+		previous := f.indent
+		f.indent = indent
 		b.WriteString(f.expr(attr.Value))
+		f.indent = previous
 		b.WriteByte('}')
 	}
 	return b.String()
@@ -565,6 +584,13 @@ func mapKeyNeedsParens(expr ast.Expr) bool {
 	}
 }
 
+func (f *formatter) matchExprCanInline(match *ast.MatchExpr) bool {
+	if len(match.Branches) == 0 {
+		return true
+	}
+	return false
+}
+
 func (f *formatter) matchExpr(match *ast.MatchExpr) string {
 	if pattern, ok := patternPredicateMatchPattern(match); ok {
 		formatted := f.pattern(pattern)
@@ -686,7 +712,9 @@ func (f *formatter) ternaryExpr(expr *ast.TernaryExpr) string {
 	b.WriteString(f.indentString(f.indent + 1))
 	b.WriteString(appendToLastLine(condition, " ? "+consequence))
 	b.WriteByte('\n')
-	if expr.Alternative != nil {
+	if next, ok := expr.Alternative.(*ast.TernaryExpr); ok {
+		f.writeFlatTernaryAlternatives(&b, next, f.indent+1)
+	} else if expr.Alternative != nil {
 		alternative := f.exprWithIndent(expr.Alternative, f.indent+2)
 		b.WriteString(f.indentString(f.indent + 2))
 		b.WriteString(": ")
@@ -696,6 +724,26 @@ func (f *formatter) ternaryExpr(expr *ast.TernaryExpr) string {
 	b.WriteString(f.indentString(f.indent))
 	b.WriteString(")")
 	return b.String()
+}
+
+func (f *formatter) writeFlatTernaryAlternatives(b *strings.Builder, alternative ast.Expr, indent int) {
+	if alternative == nil {
+		return
+	}
+	if next, ok := alternative.(*ast.TernaryExpr); ok {
+		condition := f.exprWithIndent(next.Condition, indent)
+		consequence := f.exprWithIndent(next.Consequence, indent)
+		b.WriteString(f.indentString(indent))
+		b.WriteString(": ")
+		b.WriteString(appendToLastLine(condition, " ? "+consequence))
+		b.WriteByte('\n')
+		f.writeFlatTernaryAlternatives(b, next.Alternative, indent)
+		return
+	}
+	b.WriteString(f.indentString(indent))
+	b.WriteString(": ")
+	b.WriteString(f.exprWithIndent(alternative, indent))
+	b.WriteByte('\n')
 }
 
 func (f *formatter) exprWithParens(expr ast.Expr) string {
@@ -798,6 +846,10 @@ func (f *formatter) exprNeedsMultiline(expr ast.Expr) bool {
 			}
 		}
 		return false
+	case *ast.AnonymousObjectLiteral:
+		return len(e.Fields) > 0
+	case *ast.MatchExpr:
+		return !f.matchExprCanInline(e)
 	case *ast.TernaryExpr:
 		return true
 	default:

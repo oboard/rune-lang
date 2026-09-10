@@ -649,6 +649,9 @@ func selfhostRangePatternBound(expr ir.Expr) string {
 	if expr == nil {
 		return "_"
 	}
+	if ident, ok := expr.(*ir.Identifier); ok {
+		return "=" + ident.Name
+	}
 	return selfhostLiteralPatternText(expr)
 }
 

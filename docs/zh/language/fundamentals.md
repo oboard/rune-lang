@@ -397,9 +397,35 @@ null
 <= 10
 > 10
 >= 10
+0..=10     // 包含上界的区间模式
+0..<10     // 不包含上界的区间模式
+_..<0      // 无下界的开放式区间
+1..<_      // 无上界的开放式区间
+_..=Limit  // 上界取自具名常量
+'a'..='z'  // Char 区间模式
 (1, _)     // 元组模式语法，预留给 tuple-like subject
 Ok(value)  // Result 构造器模式
 Err(error)
+```
+
+区间模式支持整数类型、`Double` 与 `Char`。边界可以是字面量、具名常量
+或 `_`（该侧不做限制）；具名常量从外层作用域取值：
+
+```rune
+Limit := 99
+
+classify(value: Int) -> String => value {
+  _..<0 => "negative"
+  0..=Limit => "small"
+  _ => "big"
+}
+
+classifyChar(c: Char) -> String => c {
+  'a'..='z' => "lowercase"
+  'A'..='Z' => "uppercase"
+  '0'..='9' => "digit"
+  _ => "other"
+}
 ```
 
 所有非 `Void` 分支应该返回兼容类型。嵌套 match 只是普通表达式：

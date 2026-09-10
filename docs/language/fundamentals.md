@@ -407,9 +407,36 @@ null
 <= 10
 > 10
 >= 10
+0..=10     // inclusive range pattern
+0..<10     // exclusive range pattern
+_..<0      // open range (no lower bound)
+1..<_      // open range (no upper bound)
+_..=Limit  // upper bound from a const
+'a'..='z'  // Char range pattern
 (1, _)     // tuple pattern syntax, reserved for tuple-like subjects
 Ok(value)  // Result constructor pattern
 Err(error)
+```
+
+Range patterns work for integer types, `Double`, and `Char`. Bounds may be
+literals, named constants, or `_` (no restriction on that side); named
+constants keep their value from the surrounding scope:
+
+```rune
+Limit := 99
+
+classify(value: Int) -> String => value {
+  _..<0 => "negative"
+  0..=Limit => "small"
+  _ => "big"
+}
+
+classifyChar(c: Char) -> String => c {
+  'a'..='z' => "lowercase"
+  'A'..='Z' => "uppercase"
+  '0'..='9' => "digit"
+  _ => "other"
+}
 ```
 
 All non-void branches should return compatible types. Nested matches are just

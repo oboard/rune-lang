@@ -16,10 +16,8 @@ func TestTernaryExpressionFormatting(t *testing.T) {
 	want := `main() => {
   value := (
     flag ? 1
-      : (
-        other ? 2
-          : 3
-      )
+    : other ? 2
+    : 3
   )
   total := (
     flag ? 1
@@ -73,6 +71,44 @@ func TestTernarySelectorReceiverFormatting(t *testing.T) {
     flag ? left
       : right
   ).map()
+}
+`
+	if got != want {
+		t.Fatalf("File() =\n%s\nwant:\n%s", got, want)
+	}
+	if _, errs := parser.Parse(got); len(errs) > 0 {
+		t.Fatalf("formatted source does not parse: %v\n%s", errs, got)
+	}
+}
+
+func TestXMLTernaryChainStayFlat(t *testing.T) {
+	file, errs := parser.Parse(`+ render() => {
+  $score := 85
+  <div>
+    <h2>Grade</h2>
+    <p>{($score >= 90) ? (<b>A+</b>) : ($score >= 80) ? (<b>A</b>) : ($score >= 70) ? (<b>B</b>) : ($score >= 60) ? (<b>C</b>) : (<em>F</em>)}</p>
+  </div>
+}`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+
+	got := File(file)
+	want := `+ render() => {
+  $score := 85
+
+  <div>
+    <h2>Grade</h2>
+    <p>
+      {(
+        $score >= 90 ? <b>A+</b>
+        : $score >= 80 ? <b>A</b>
+        : $score >= 70 ? <b>B</b>
+        : $score >= 60 ? <b>C</b>
+        : <em>F</em>
+      )}
+    </p>
+  </div>
 }
 `
 	if got != want {

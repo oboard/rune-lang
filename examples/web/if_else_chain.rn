@@ -1,16 +1,18 @@
-// if / else if 链 — Vue JSX 风格三元
+// if / else if 链
 #web.preview
 + render() => {
-  $score := 85
+  score := 85
 
   <div>
     <h2>Grade</h2>
     <p>{
-      ($score >= 90) ? (<b>A+</b>) :
-      ($score >= 80) ? (<b>A</b>) :
-      ($score >= 70) ? (<b>B</b>) :
-      ($score >= 60) ? (<b>C</b>) :
-      (<em>F</em>)
+      score {
+        90..<_ => <b>A+</b>
+        80..<90 => <b>A</b>
+        70..<80 => <b>B</b>
+        60..<70 => <b>C</b>
+        _ => <em>F</em>
+      }
     }</p>
   </div>
 }

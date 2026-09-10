@@ -2,5 +2,9 @@
 + render() => {
   $color := "red"
 
-  <div style={{ color: $color }}>Hello World</div>
+  <div style={{
+    color: $color
+  }}>
+    Hello World
+  </div>
 }
