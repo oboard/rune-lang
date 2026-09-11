@@ -168,7 +168,43 @@ func memberCompletionReceiverType(text string, prog *compiler.Program, pos posit
 	if name == "" {
 		return "", false
 	}
+	// If `name` is the field name of a selector whose position is just before
+	// the cursor, use the selector's inferred type (e.g. `e.target.` where
+	// `target` is a selector field and we want the type of `e.target`).
+	if typ := selectorFieldTypeBeforePosition(prog.File, prog.Info, name, pos); typ != "" {
+		return typ, true
+	}
 	return localValueTypeBeforePosition(prog, name, pos)
+}
+
+// selectorFieldTypeBeforePosition looks for a SelectorExpr whose field name
+// matches `name` and whose position is immediately before the cursor. Returns
+// the inferred type of that selector (e.g. for `e.target.`, finds the selector
+// `e.target` and returns its type).
+func selectorFieldTypeBeforePosition(file *ast.File, info *checker.Info, name string, pos position) checker.Type {
+	var best checker.Type
+	bestOffset := -1
+	walkFileSelectors(file, func(sel *ast.SelectorExpr) {
+		if sel.Name != name {
+			return
+		}
+		// Check if this selector is right before the cursor position.
+		tok := sel.NamePos
+		if !tokenBeforePosition(tok, pos) {
+			return
+		}
+		offset := tok.Offset
+		if offset == 0 {
+			offset = (tok.Line * 1_000_000) + tok.Column
+		}
+		if offset > bestOffset {
+			if typ := info.ExprTypes[sel]; typ != "" {
+				bestOffset = offset
+				best = typ
+			}
+		}
+	})
+	return best
 }
 
 func selectorAtCompletion(file *ast.File, pos position) *ast.SelectorExpr {

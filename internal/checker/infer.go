@@ -458,6 +458,7 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		// DOM event handler target narrowing: `e.target` inside a handler on
 		// <input> resolves to HTMLInputElement instead of the vanilla EventTarget.
 		if override, ok := c.domTargetOverrides[e]; ok {
+			c.info.ExprTypes[e] = override
 			return override
 		}
 		field, ok := structInfo.ByName[e.Name]
