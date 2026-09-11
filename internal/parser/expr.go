@@ -676,13 +676,60 @@ func (p *Parser) parseBraceLiteral() ast.Expr {
 	// when neither lookahead matches (e.g. `cond ? { stmt; stmt }`) — a block
 	// expression. The block fallthrough is what lets ternary branches hold
 	// statement blocks.
-	if !p.looksLikePatternBranch() && p.looksLikeObjectLiteralBody() {
+	//
+	// Object literal includes method syntax `greet() => ...`, which overlaps
+	// with pattern branch syntax. We prioritize object literal interpretation
+	// when the first element looks like a method, matching the original
+	// behavior before block support was added.
+	if p.looksLikeObjectLiteralBody() || p.looksLikeObjectMethodBody() {
 		return p.parseAnonymousObjectLiteral()
 	}
-	if !p.looksLikePatternBranch() && p.looksLikeMapLiteralBody() {
+	if p.looksLikeMapLiteralBody() {
 		return p.parseMapLiteral()
 	}
+	// Only fall back to block when neither object nor map patterns match.
+	// Pattern block (inside block) will be handled by parseBlock itself.
 	return p.parseBlock()
+}
+
+// looksLikeObjectMethodBody reports whether a `{` starts an object literal with
+// method syntax `name() => ...`. This overlaps with pattern branch syntax but
+// we interpret it as object method to preserve compatibility with the original
+// parseBraceLiteral behavior.
+func (p *Parser) looksLikeObjectMethodBody() bool {
+	if !p.check(lexer.LBrace) {
+		return false
+	}
+	i := p.curr + 1
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
+		i++
+	}
+	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Ident {
+		return false
+	}
+	// Need ident followed by LParen (method name and params)
+	if i+1 >= len(p.tokens) || p.tokens[i+1].Kind != lexer.LParen {
+		return false
+	}
+	// Skip past the params to find FatArrow
+	depth := 1
+	i += 2
+	for i < len(p.tokens) && depth > 0 {
+		switch p.tokens[i].Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		}
+		i++
+	}
+	if i >= len(p.tokens) {
+		return false
+	}
+	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
+		i++
+	}
+	return i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow
 }
 
 func (p *Parser) parseMapLiteral() ast.Expr {

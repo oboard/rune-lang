@@ -169,7 +169,7 @@ func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[st
 	}
 	if block, ok := fn.Body.(*ast.PatternBlock); ok && info != nil && len(info.Params) > 0 {
 		ret := c.inferPatternBlockForSubject(block, info.Params[0].Type, env)
-		if info == nil || !info.Routine {
+		if !info.Routine {
 			c.unwrapErrors = append(c.unwrapErrors, Unknown)
 		}
 		return ret
@@ -454,6 +454,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		}
 		if !c.checkPrivateAccess("type", structInfo.Name, structInfo.Private, structInfo.SourcePath, e.Pos) {
 			return Unknown
+		}
+		// DOM event handler target narrowing: `e.target` inside a handler on
+		// <input> resolves to HTMLInputElement instead of the vanilla EventTarget.
+		if override, ok := c.domTargetOverrides[e]; ok {
+			return override
 		}
 		field, ok := structInfo.ByName[e.Name]
 		if !ok {
