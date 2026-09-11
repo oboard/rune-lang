@@ -6,6 +6,8 @@
 @"./mbt.rn"
 @"./ts.rn"
 @"./dts.rn"
+@"./dom_types.rn"
+@"./dom.rn"
 
 + CompileResult: {
   ok: Bool
@@ -851,6 +853,7 @@ checkExpr(
   ExprKind.Unwrap => checkUnwrapExpr(expr, structs, callables, errors, bindings)
   ExprKind.Identifier => checkIdentifierExpr(expr, callables, bindings, errors)
   ExprKind.This => checkThisExpr(bindings, errors)
+  ExprKind.XMLElement => checkXMLElementExpr(expr, structs, callables, errors, bindings)
   _ => checkExprDefault(expr, structs, callables, errors, bindings)
 }
 
@@ -1596,6 +1599,86 @@ checkExprDefault(
   next := checkExprCall(expr, structs, callables, errors, bindings)
   expr.children.each((child) => next = checkExpr(child, structs, callables, next, bindings))
   next
+}
+
+// checkXMLElementExpr type-checks an XML element, specialising event handler
+// attributes: `@keydown={(e) => e.key}` binds `e` to the DOM event interface
+// derived from lib.dom.d.ts (KeyboardEvent, PointerEvent, ...) so member
+// access and the resulting diagnostics resolve correctly, and the element's tag
+// narrows `e.target` to the element interface (React `ChangeEvent<T>` parity:
+// `<input @change={(e) => e.target.value}>`). Non-event attributes and child
+// nodes flow through the default walk.
+checkXMLElementExpr(
+  expr: IRExpr,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => checkXMLChildExprs(expr.children, 0, expr.name, structs, callables, errors, bindings)
+
+checkXMLChildExprs(
+  children: Array[IRExpr],
+  index: Int,
+  tag: String,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => (
+  index >= children.length() ? errors
+    : checkXMLChildExprs(children, index + 1, tag, structs, callables, checkXMLChildExpr(children[index], tag, structs, callables, errors, bindings), bindings)
+)
+
+checkXMLChildExpr(
+  child: IRExpr,
+  tag: String,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  eventAttr := (
+    (child.kind == ExprKind.Field) && (child.op == "xmlEvent")
+  )
+  eventAttr ? checkXMLEventHandler(child, tag, structs, callables, errors, bindings)
+    : checkExpr(child, structs, callables, errors, bindings)
+}
+
+// checkXMLEventHandler binds an `@event={(e) => ...}` handler's first parameter
+// to the resolved DOM event interface, narrows that event's target fields to
+// the element interface for the handler's tag, then checks the lambda body
+// directly so the DOM bindings are not clobbered by the lambda's own (untyped)
+// parameter binding in compilerFunctionBindings.
+checkXMLEventHandler(
+  attr: IRExpr,
+  tag: String,
+  structs: Array[IRStructType],
+  callables: Array[CompilerCallable],
+  errors: Array[String],
+  bindings: Array[CompilerTypeBinding]
+) -> Array[String] => {
+  hasValue := attr.children.length() > 0
+  lambda := hasValue ? attr.children[0] : emptyIRExpr()
+  isLambda := lambda.kind == ExprKind.Lambda
+  hasBody := isLambda && (lambda.children.length() > 0)
+  hasParam := isLambda && (lambda.params.length() > 0)
+  eventType := compilerDomEventType(attr.name)
+  targetType := compilerDomTargetType(tag)
+  // A one-element ambient view scoped to this handler: the event struct with
+  // its target fields narrowed. Prepend so findCompilerStruct prefers it over
+  // the un-narrowed ambient view when resolving `e.target` inside the body.
+  narrowed := compilerDomStructViewWithTarget(eventType, targetType)
+  narrowedKnown := narrowed.name != ""
+  bodyStructs := narrowedKnown ? [narrowed, ..structs] : structs
+  withEvent := (
+    hasParam ? addCompilerValueBinding(bindings, lambda.params[0].name, eventType)
+      : bindings
+  )
+  hasBody ? checkExpr(lambda.children[0], bodyStructs, callables, errors, withEvent)
+    : (
+      hasValue && !isLambda ? checkExpr(attr.children[0], structs, callables, errors, bindings)
+        : errors
+    )
 }
 
 checkTernaryExpr(
@@ -4314,7 +4397,9 @@ findCompilerStruct(
   index: Int
 ) -> IRStructType => {
   done := index >= structs.length()
-  done ? emptyCompilerStruct()
+  // Ambient DOM event interfaces (datum from lib.dom.d.ts) backstop local
+  // struct lookup so event handler params like KeyboardEvent resolve fields.
+  done ? compilerDomStructView(name)
     : findCompilerStructAt(structs, name, index)
 }
 

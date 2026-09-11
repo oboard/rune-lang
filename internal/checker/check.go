@@ -55,6 +55,7 @@ func CheckWithStdlibForPath(file *ast.File, reg *stdlib.Registry, sourcePath str
 		sourcePath:          normalizeSourcePath(sourcePath),
 		currentSourcePath:   normalizeSourcePath(sourcePath),
 		importedCoreModules: collectImportedCoreModules(file),
+		domTargetOverrides:  map[*ast.SelectorExpr]Type{},
 	}
 	c.sourcePaths = collectSourcePaths(file, c.sourcePath)
 	c.collectCoreTraits()
@@ -96,6 +97,11 @@ type checker struct {
 	currentSourcePath   string
 	routineDepth        int
 	unwrapErrors        []Type
+	// domTargetOverrides narrows `e.target` selectors inside a specific DOM
+	// event handler to the handler element's interface (React ChangeEvent<T>
+	// parity). Keyed by the *ast.SelectorExpr node so each handler narrows
+	// independently without mutating the shared ambient event struct.
+	domTargetOverrides map[*ast.SelectorExpr]Type
 }
 
 func (c *checker) collectCoreTraits() {

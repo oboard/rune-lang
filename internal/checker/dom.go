@@ -3,6 +3,7 @@ package checker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/oboard/rune-lang/internal/tsdecl"
@@ -149,6 +150,56 @@ func (c *checker) collectDOMTypes() {
 			c.info.Functions[name] = info
 		}
 	}
+}
+
+// domEventType resolves an XML event listener name (the part after the leading
+// `@` in `@keydown`) to the ambient DOM event interface it dispatches, derived
+// entirely from lib.dom.d.ts. lib.dom.d.ts declares the mapping through the
+// `GlobalEventHandlersEventMap` mixin (e.g. `"keydown": KeyboardEvent`), which
+// `HTMLElementEventMap` extends, so a single flattened lookup of
+// `HTMLElementEventMap` covers every standard HTML listener. Unknown listeners
+// degrade to the base `Event` interface so the handler parameter stays typed.
+func (c *checker) domEventType(name string) Type {
+	_, flat := loadDOMLib()
+	if flat == nil {
+		return Type("Event")
+	}
+	// EventMap keys are quoted string literals in the parse model
+	// (Member.Name holds `"keydown"`, i.e. with the surrounding quotes).
+	if m := flat["HTMLElementEventMap"]; m != nil {
+		for _, mem := range m.Members {
+			if strings.Trim(mem.Name, `"`) == name {
+				if t := c.domToRuneType(mem.Type); t != Unknown {
+					return t
+				}
+				break
+			}
+		}
+	}
+	return Type("Event")
+}
+
+// domTargetType resolves an XML tag name to the element interface a handler's
+// `e.target` narrows to, mirroring the self-hosted compilerDomTargetType. For
+// form-control tags whose element interface is a registered ambient type
+// (input, textarea, select, button, option) this returns that interface so
+// `e.target.value` resolves; every other tag keeps the vanilla `EventTarget`.
+func (c *checker) domTargetType(tag string) Type {
+	_, flat := loadDOMLib()
+	if flat == nil {
+		return Type("EventTarget")
+	}
+	if m := flat["HTMLElementTagNameMap"]; m != nil {
+		for _, mem := range m.Members {
+			if strings.Trim(mem.Name, `"`) == tag {
+				if t := c.domToRuneType(mem.Type); t != Unknown && t != Type("Event") {
+					return t
+				}
+				break
+			}
+		}
+	}
+	return Type("EventTarget")
 }
 
 // domFunctionToFuncInfo collapses TypeScript overloads into a single FuncInfo

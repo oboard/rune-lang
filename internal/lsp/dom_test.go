@@ -78,6 +78,51 @@ func TestDOMErrorDetection(t *testing.T) {
 	}
 }
 
+// TestDOMEventParamCompletion mirrors examples/web/todo.rn: an XML event
+// handler's parameter must resolve to the DOM event interface so `e.` offers
+// member completion (e.g. `e.target`, `e.key`).
+func TestDOMEventParamCompletion(t *testing.T) {
+	if checker.LocateDOMLib() == "" {
+		t.Skip("lib.dom.d.ts not on this machine")
+	}
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+  <input @keydown={(e) => e.} />
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	pos := positionOf(src, "e.", ".")
+	pos.Character++
+	items := s.completion(uri, pos).([]map[string]any)
+	for _, label := range []string{"key", "target", "preventDefault", "stopPropagation", "altKey", "code"} {
+		if !domCompletionContains(items, label) {
+			t.Errorf("missing completion %q; sample items: %.200v", label, items[:min(5, len(items))])
+		}
+	}
+}
+
+// TestDOMEventParamHover types the event param on hover.
+func TestDOMEventParamHover(t *testing.T) {
+	if checker.LocateDOMLib() == "" {
+		t.Skip("lib.dom.d.ts not on this machine")
+	}
+	uri := "file:///tmp/main.rn"
+	src := `main() => {
+  <input @keydown={(e) => e.key} />
+}
+`
+	s := &server{docs: map[string]string{uri: src}}
+	hover := s.hover(uri, positionOf(src, "e.key", "e"))
+	hoverMap, ok := hover.(map[string]any)
+	if !ok {
+		t.Fatalf("hover = %#v", hover)
+	}
+	val := hoverValue(hoverMap)
+	if !strings.Contains(val, "KeyboardEvent") {
+		t.Errorf("hover = %q, want KeyboardEvent", val)
+	}
+}
+
 func domCompletionContains(items []map[string]any, needle string) bool {
 	for _, item := range items {
 		if item["label"] == needle {

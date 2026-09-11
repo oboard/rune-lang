@@ -31,6 +31,11 @@ echo "==> Building host rune CLI"
 go mod download
 go build -o "$BIN_DIR/rune" ./cmd/rune
 
+echo "==> Regenerating ambient DOM event stub from lib.dom.d.ts"
+go run ./internal/tsdecl/cmd/gen-dom-stub \
+  -lib "/Applications/Visual Studio Code.app/Contents/Resources/app/extensions/node_modules/typescript/lib/lib.dom.d.ts" \
+  -out "$ROOT/selfhost/compiler/dom_types.rn"
+
 gen() {
   local entry="$1" out="$2" strip="$3" tmp
   tmp="$(mktemp)"

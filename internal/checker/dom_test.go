@@ -3,6 +3,7 @@ package checker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/ast"
@@ -120,6 +121,59 @@ func parseSource(t *testing.T, src string) *ast.File {
 		t.Fatalf("parse error: %v", errs)
 	}
 	return f
+}
+
+func TestDOMEventHandlerParamTyping(t *testing.T) {
+	if locateDOMLib() == "" {
+		t.Skip("lib.dom.d.ts not available on this machine")
+	}
+	src := `
+main() => {
+  <div>
+    <input @keydown={(e) => e.key == "Enter"} />
+    <button @click={(e) => e.clientX} />
+  </div>
+}
+`
+	file := parseSource(t, src)
+	info, diags := CheckWithStdlibForPath(file, nil, "test.rn")
+	for _, d := range diags {
+		t.Logf("diag: %s", d.Message)
+	}
+	// The keydown handler's `e` must resolve to KeyboardEvent (so `.key`
+	// type-checks), and the click handler's `e` to PointerEvent (`.clientX`).
+	if kb := info.Types["KeyboardEvent"]; kb == nil {
+		t.Error("KeyboardEvent interface absent from ambient DOM")
+	} else if kb.ByName["key"].Name == "" {
+		t.Error("KeyboardEvent.key member absent")
+	}
+	if pe := info.Types["PointerEvent"]; pe == nil {
+		t.Error("PointerEvent interface absent from ambient DOM")
+	} else if pe.ByName["clientX"].Name == "" {
+		t.Error("PointerEvent.clientX member absent")
+	}
+}
+
+func TestDOMEventHandlerWrongMemberErrors(t *testing.T) {
+	if locateDOMLib() == "" {
+		t.Skip("lib.dom.d.ts not available on this machine")
+	}
+	src := `
+main() => {
+  <input @keydown={(e) => e.noSuchThing} />
+}
+`
+	file := parseSource(t, src)
+	_, diags := CheckWithStdlibForPath(file, nil, "test.rn")
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Message, "noSuchThing") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("diagnostics = %#v, want noSuchThing error on KeyboardEvent", diags)
+	}
 }
 
 func TestDOMLibPath(t *testing.T) {

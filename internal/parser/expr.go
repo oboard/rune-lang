@@ -671,10 +671,18 @@ func (p *Parser) parseReactiveLiteralAfterDollar(start lexer.Token) ast.Expr {
 }
 
 func (p *Parser) parseBraceLiteral() ast.Expr {
-	if p.looksLikeMapLiteralBody() {
+	// Mirrors the self-hosted parseBraceLiteral and parseBody disambiguation:
+	// a `{` in expression position is a map literal, an object literal, or —
+	// when neither lookahead matches (e.g. `cond ? { stmt; stmt }`) — a block
+	// expression. The block fallthrough is what lets ternary branches hold
+	// statement blocks.
+	if !p.looksLikePatternBranch() && p.looksLikeObjectLiteralBody() {
+		return p.parseAnonymousObjectLiteral()
+	}
+	if !p.looksLikePatternBranch() && p.looksLikeMapLiteralBody() {
 		return p.parseMapLiteral()
 	}
-	return p.parseAnonymousObjectLiteral()
+	return p.parseBlock()
 }
 
 func (p *Parser) parseMapLiteral() ast.Expr {
