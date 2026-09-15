@@ -183,9 +183,14 @@ formatXMLAttributes(
     )
 )
 
-isXMLAttribute(expr: ParsedExpr) -> Bool => (expr.kind == ExprKind.Field) && ((expr.op == "xmlAttr") || (expr.op == "xmlEvent") || (expr.op == "xmlBareAttr"))
+isXMLAttribute(expr: ParsedExpr) -> Bool => (expr.op == "xmlSpread") || ((expr.kind == ExprKind.Field) && ((expr.op == "xmlAttr") || (expr.op == "xmlEvent") || (expr.op == "xmlBareAttr")))
 
 formatXMLAttribute(attr: ParsedExpr, indent: Int) -> String => {
+  attr.op == "xmlSpread" ? "{..." + formatExpr(attr.children[0], indent) + "}"
+    : formatNamedXMLAttribute(attr, indent)
+}
+
+formatNamedXMLAttribute(attr: ParsedExpr, indent: Int) -> String => {
   name := attr.op == "xmlEvent" ? "@" + attr.name
     : attr.name
   attr.children.length() == 0 ? name

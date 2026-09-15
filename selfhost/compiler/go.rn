@@ -821,15 +821,13 @@ emitGoLet(
   line(level, (mangleIdent(expr.name) + " := ") + value) + line(level, "_ = " + mangleIdent(expr.name))
 }
 
-// When infer infers `x := []` as `Array[Elem]` (an empty array that later gets
-// `x.push(...)` calls), declare a typed empty array (`[]Elem{}`) instead of the
-// generic `[]any{}`, matching the host Go emitter. Only applies to empty array
-// literals; non-empty/homeosmocic literals are left as `[]any{...}`.
+// Lower inferred array bindings to typed Go slices. This applies to both empty
+// and non-empty literals so callbacks receive concrete values instead of `any`.
 goLetArrayElem(
   file: IRFile,
   expr: IRExpr
 ) -> String => (
-  ((expr.text.startsWith("Array[") || expr.value.startsWith("Array[")) && (expr.children[0].kind == ExprKind.Array)) && (expr.children[0].children.length() == 0) ? genericInner((
+  (expr.text.startsWith("Array[") || expr.value.startsWith("Array[")) && (expr.children[0].kind == ExprKind.Array) ? genericInner((
     expr.text.startsWith("Array[") ? expr.text
       : expr.value
   ), "Array")
@@ -842,7 +840,7 @@ emitGoLetValue(
 ) -> String => {
   elem := goLetArrayElem(file, expr)
   (
-    elem != "" ? ("[]" + goType(elem)) + "{}"
+    elem != "" ? ("[]" + goType(elem)) + "{" + emitGoExprList(expr.children[0].children, 0, "") + "}"
       : (
         expr.value == "" ? emitGoExpr(expr.children[0])
           : emitGoExprExpectedForFile(file, expr.children[0], expr.value)
@@ -1343,6 +1341,8 @@ emitGoCoreMethodCall(
     "chars" => emitGoCoreChars(selector.children[0])
     "slice" => emitGoCoreSlice(expr, selector.children[0])
     "push" => emitGoCorePush(expr, selector.children[0])
+    "each" => emitGoCoreEach(expr, selector.children[0])
+    "map" => emitGoCoreMap(expr, selector.children[0])
     "set" => emitGoCoreSet(expr, selector.children[0])
     "getOr" => emitGoCoreGetOr(expr, selector.children[0])
     "toDouble" | "toInt" => emitGoCoreNumericConversion(selector.children[0], selector.name)
@@ -1383,6 +1383,40 @@ emitGoCorePush(
   expr: IRExpr,
   receiver: IRExpr
 ) -> String => ((((((("func() int { " + emitGoExpr(receiver)) + " = append(") + emitGoExpr(receiver)) + ", ") + emitGoExpr(expr.children[1])) + "); return len(") + emitGoExpr(receiver)) + ") }()"
+
+emitGoCoreEach(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => {
+  callback := expr.children[1]
+  valueName := mangleIdent(callback.params[0].name)
+  indexName := callback.params.length() > 1 ? mangleIdent(callback.params[1].name) : "_"
+  arrayBinding := callback.params.length() > 2 ? ("\n\t\t" + mangleIdent(callback.params[2].name)) + " := " + emitGoExpr(receiver) : ""
+  out :=: "func() {\n\tfor " + indexName
+  out = ((out + ", ") + valueName) + " := range " + emitGoExpr(receiver)
+  unusedIndex := callback.params.length() > 1 ? "\n\t\t_ = " + indexName : ""
+  out = ((out + " {") + arrayBinding) + unusedIndex + "\n\t\t" + emitGoExpr(callback.children[0])
+  out + "\n\t}\n}()"
+}
+
+emitGoCoreMap(
+  expr: IRExpr,
+  receiver: IRExpr
+) -> String => {
+  callback := expr.children[1]
+  resultType := genericInner(expr.text, "Array")
+  resultType = resultType == "" ? callback.children[0].text : resultType
+  valueName := mangleIdent(callback.params[0].name)
+  indexName := callback.params.length() > 1 ? mangleIdent(callback.params[1].name) : "_"
+  arrayBinding := callback.params.length() > 2 ? ("\n\t\t" + mangleIdent(callback.params[2].name)) + " := values" : ""
+  out :=: (("func() []" + goType(resultType)) + " {\n\tvalues := ") + emitGoExpr(receiver)
+  out = ((out + "\n\tresult := make([]") + goType(resultType)) + ", 0, len(values))\n\tfor " + indexName
+  unusedIndex := callback.params.length() > 1 ? "\n\t\t_ = " + indexName : ""
+  unusedArray := callback.params.length() > 2 ? "\n\t\t_ = " + mangleIdent(callback.params[2].name) : ""
+  out = ((out + ", ") + valueName) + " := range values {" + arrayBinding + "\n\t\t_ = " + valueName + unusedIndex + unusedArray
+  out = (out + "\n\t\tresult = append(result, ") + emitGoExpr(callback.children[0]) + ")"
+  out + "\n\t}\n\treturn result\n}()"
+}
 
 emitGoCoreSet(
   expr: IRExpr,

@@ -24,8 +24,14 @@ type Lexer struct {
 	xmlExprMode   mode
 	xmlExprDepth  int
 	xmlSavedDepth int
-	canStartRegex bool
-	canStartXML   bool
+	// XML attribute expressions can occur inside an XML element nested in an
+	// outer `{...}` child expression. Preserve that outer expression state while
+	// lexing the attribute expression, then restore it at the matching brace.
+	xmlAttrExpr        bool
+	xmlAttrReturnMode  mode
+	xmlAttrReturnDepth int
+	canStartRegex      bool
+	canStartXML        bool
 }
 
 func Lex(src string) []Token {

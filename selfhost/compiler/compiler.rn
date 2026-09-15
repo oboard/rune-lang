@@ -2596,12 +2596,16 @@ checkStructSelectorExpr(
   structs: Array[IRStructType],
   bindings: Array[CompilerTypeBinding],
   errors: Array[String]
-) -> Array[String] => receiverType {
-  "" | "Dynamic" => errors
-  _ => compilerStructuralObjectFieldType(receiverType, expr.name) {
-    "Dynamic" => errors
-    "" => checkUnknownStructSelectorExpr(expr, receiverType, structs, bindings, errors)
-    _ => errors
+) -> Array[String] => {
+  checkedType := (expr.op == "?.") && receiverType.endsWith("?") ? receiverType.slice(0, receiverType.length() - 1)
+    : receiverType
+  checkedType {
+    "" | "Dynamic" => errors
+    _ => compilerStructuralObjectFieldType(checkedType, expr.name) {
+      "Dynamic" => errors
+      "" => checkUnknownStructSelectorExpr(expr, checkedType, structs, bindings, errors)
+      _ => errors
+    }
   }
 }
 
@@ -3712,13 +3716,20 @@ inferCompilerStructSelectorType(
   expr: IRExpr,
   receiverType: String,
   structs: Array[IRStructType]
-) -> String => receiverType {
-  "" => ""
-  _ => {
-    typeDecl := findCompilerStruct(structs, compilerTypeBase(receiverType), 0)
-    field := findCompilerStructField(typeDecl.fields, expr.name, 0)
-    field.typeName
+) -> String => {
+  optional := expr.op == "?."
+  checkedType := optional && receiverType.endsWith("?") ? receiverType.slice(0, receiverType.length() - 1)
+    : receiverType
+  result := checkedType {
+    "" => ""
+    _ => {
+      typeDecl := findCompilerStruct(structs, compilerTypeBase(checkedType), 0)
+      field := findCompilerStructField(typeDecl.fields, expr.name, 0)
+      field.typeName
+    }
   }
+  optional ? compilerNullableType(result)
+    : result
 }
 
 inferCompilerArrayType(

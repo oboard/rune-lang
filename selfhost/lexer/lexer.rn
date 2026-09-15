@@ -22,6 +22,11 @@ LexState: {
   xmlSelfClosed: Bool
   xmlExprMode: Int
   xmlExprDepth: Int
+  // xmlNestedExprMode saves the enclosing XML expression mode while lexing an
+  // attribute `{...}` inside an XML element nested in that expression.
+  xmlNestedExprMode: Int
+  xmlNestedExprDepth: Int
+  xmlInAttributeExpr: Bool
   xmlAfterMode: Int
   xmlAfterDepth: Int
 }
@@ -74,6 +79,7 @@ ScannedString: {
   RBrace
   Question
   QuestionQuestion
+  QuestionDot
   Apostrophe
   FatArrow
   Assign
@@ -129,6 +135,9 @@ xmlModeExpr() -> Int => 3
   xmlSelfClosed: false,
   xmlExprMode: xmlModeCode(),
   xmlExprDepth: 0,
+  xmlNestedExprMode: xmlModeCode(),
+  xmlNestedExprDepth: 0,
+  xmlInAttributeExpr: false,
   xmlAfterMode: xmlModeCode(),
   xmlAfterDepth: 0
 }, emptyTokens())
@@ -294,6 +303,7 @@ canEndXmlLess(
   TokenKind.RBrace => "RBrace"
   TokenKind.Question => "Question"
   TokenKind.QuestionQuestion => "QuestionQuestion"
+  TokenKind.QuestionDot => "QuestionDot"
   TokenKind.Apostrophe => "Apostrophe"
   TokenKind.FatArrow => "FatArrow"
   TokenKind.Assign => "Assign"
@@ -390,6 +400,9 @@ advanceChar(
     xmlSelfClosed: state.xmlSelfClosed,
     xmlExprMode: state.xmlExprMode,
     xmlExprDepth: state.xmlExprDepth,
+    xmlNestedExprMode: state.xmlNestedExprMode,
+    xmlNestedExprDepth: state.xmlNestedExprDepth,
+    xmlInAttributeExpr: state.xmlInAttributeExpr,
     xmlAfterMode: state.xmlAfterMode,
     xmlAfterDepth: state.xmlAfterDepth
   },
@@ -502,7 +515,7 @@ scanXMLTagToken(step: Advanced) -> Lexed => {
   ch {
     '@' => lexed(state, TokenKind.At)
     '=' => lexed(state, TokenKind.Assign)
-    '{' => lexed(lexStateXML(state, xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, xmlModeTag(), 1), TokenKind.LBrace)
+    '{' => lexed(enterXMLAttributeExpr(state), TokenKind.LBrace)
     '/' => lexed(lexStateXML(state, state.mode, state.xmlDepth, peek(state) != '>', peek(state) == '>', state.xmlExprMode, state.xmlExprDepth), TokenKind.Slash)
     '>' => lexed(xmlStateAfterTagEnd(state), TokenKind.Greater)
     '\n' => lexed(state, TokenKind.Newline)
@@ -512,6 +525,31 @@ scanXMLTagToken(step: Advanced) -> Lexed => {
         : lexed(state, TokenKind.Illegal)
     )
   }
+}
+
+enterXMLAttributeExpr(
+  state: LexState
+) -> LexState => LexState {
+  source: state.source,
+  chars: state.chars,
+  start: state.start,
+  current: state.current,
+  line: state.line,
+  column: state.column,
+  startLine: state.startLine,
+  startColumn: state.startColumn,
+  canStartRegex: state.canStartRegex,
+  mode: xmlModeExpr(),
+  xmlDepth: state.xmlDepth,
+  xmlClosing: state.xmlClosing,
+  xmlSelfClosed: state.xmlSelfClosed,
+  xmlExprMode: xmlModeTag(),
+  xmlExprDepth: 1,
+  xmlNestedExprMode: state.xmlExprMode,
+  xmlNestedExprDepth: state.xmlExprDepth,
+  xmlInAttributeExpr: true,
+  xmlAfterMode: state.xmlAfterMode,
+  xmlAfterDepth: state.xmlAfterDepth
 }
 
 xmlStateAfterTagEnd(
@@ -575,7 +613,9 @@ xmlStateAfterExprBrace(
     nextDepth <= 0 ? state.xmlExprMode
       : xmlModeExpr()
   )
-  lexStateXMLAfterMode(lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
+  restored := lexStateXMLAfterMode(lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
+  (nextDepth <= 0) && state.xmlInAttributeExpr ? lexStateXML(restored, restored.mode, restored.xmlDepth, restored.xmlClosing, restored.xmlSelfClosed, state.xmlNestedExprMode, state.xmlNestedExprDepth)
+    : restored
 }
 
 lexed(
@@ -609,6 +649,7 @@ lexColon(state: LexState) -> Lexed => peek(state) {
 
 lexQuestion(state: LexState) -> Lexed => peek(state) {
   '?' => lexed(advanceState(state), TokenKind.QuestionQuestion)
+  '.' => lexed(advanceState(state), TokenKind.QuestionDot)
   _ => lexed(state, TokenKind.Question)
 }
 

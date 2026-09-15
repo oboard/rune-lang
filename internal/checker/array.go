@@ -84,6 +84,14 @@ func (c *checker) inferMapLiteral(lit *ast.MapLiteral, env map[string]Type) Type
 
 func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type {
 	receiver := c.inferExpr(expr.Receiver, env)
+	optional := expr.Optional
+	if optional {
+		if inner, ok := parseNullableType(string(receiver)); ok {
+			receiver = Type(inner)
+		} else if receiver == Null {
+			return Null
+		}
+	}
 	index := c.inferExpr(expr.Index, env)
 	if elems, ok := TupleElements(receiver); ok {
 		lit, ok := expr.Index.(*ast.IntegerLiteral)
@@ -95,7 +103,11 @@ func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type 
 			c.errorf(expr.Index.Position(), "tuple index %d out of range", lit.Value)
 			return Unknown
 		}
-		return elems[lit.Value]
+		result := elems[lit.Value]
+		if optional {
+			return makeNullable(result)
+		}
+		return result
 	}
 	if elem, ok := ArrayElement(receiver); ok {
 		if _, ok := c.info.Stdlib.FunctionByAlias("array", "_[_]"); !ok {
@@ -103,6 +115,9 @@ func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type 
 		}
 		if index != Int && index != Unknown {
 			c.errorf(expr.Index.Position(), "array index expects Int, got %s", index)
+		}
+		if optional {
+			return makeNullable(elem)
 		}
 		return elem
 	}
@@ -128,6 +143,28 @@ func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env ma
 		}
 		if !c.typesCompatible(expected, actual, nil) {
 			c.errorf(value.Position(), "map assignment has type %s, expected %s", actual, expected)
+		}
+		return Void
+	}
+	if elem, ok := ArrayElement(receiver); ok {
+		fn, ok := c.info.Stdlib.FunctionByAlias("array", "[_]=_")
+		if !ok {
+			fn, ok = c.info.Stdlib.Function("array", "set")
+		}
+		if !ok {
+			c.errorf(target.Pos, "array index assignment is not declared in core/array")
+			return Void
+		}
+		bindings := c.arrayTypeBindings(fn, elem)
+		if index != Int && index != Unknown {
+			c.errorf(target.Index.Position(), "array index expects Int, got %s", index)
+		}
+		expected := c.resolveDeclaredType(fn.Return, bindings)
+		if expected == Unknown || expected == "" || expected == "Void" {
+			expected = elem
+		}
+		if !c.typesCompatible(expected, actual, nil) && !c.typesCompatible(actual, expected, nil) {
+			c.errorf(value.Position(), "array assignment has type %s, expected %s", actual, expected)
 		}
 		return Void
 	}
@@ -434,6 +471,18 @@ func parseNullableType(name string) (string, bool) {
 		return "", false
 	}
 	return strings.TrimSuffix(name, "?"), true
+}
+
+// makeNullable wraps a type in the nullable form `T?`. Null stays Null,
+// Unknown stays Unknown, and an already-nullable type is unchanged.
+func makeNullable(t Type) Type {
+	if t == Null || t == Unknown {
+		return t
+	}
+	if _, ok := parseNullableType(string(t)); ok {
+		return t
+	}
+	return Type(string(t) + "?")
 }
 
 func parseArrayType(name string) (string, bool) {

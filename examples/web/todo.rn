@@ -1,25 +1,47 @@
+TodoItem: {
+  name: String
+  status: TodoStatus
+}
+
+TodoStatus: {
+  PENDING
+  COMPLETED
+}
+
 #web.preview
 + render() => {
   // list is a reactive list
-  $list := ["Item 1", "Item 2", "Item 3"]
+  $list := [TodoItem {
+    name: "Item 1",
+    status: TodoStatus.PENDING
+  }, TodoItem {
+    name: "Item 2",
+    status: TodoStatus.PENDING
+  }, TodoItem {
+    name: "Item 3",
+    status: TodoStatus.PENDING
+  }]
   $inputValue := ""
+  addTodo := () => {
+    $list.push(TodoItem {
+      name: $inputValue,
+      status: TodoStatus.PENDING
+    })
+  }
 
   <div>
     <h1>Todo Example</h1>
     <ul>
-      {$list.map((item) => (
-          <li>{item}</li>
+      {$list.map((item, index: Int) => (
+          <input value={item.name} @change={(e) => {
+        $list[index] = {
+          ..item,
+          name: e.target?.value ?? ""
+        }
+      }} />
       ))}
-      <input 
-        type={"text"}
-        placeholder={"Add new item"}
-        @change={(e) => $inputValue = e.target.value}
-        @keydown={(e) => ((e.key == "Enter") ? {
-          $list.push(e.target.value)
-          e.target.value = ""
-        })
-      } />
-      <button @click={$list.push($inputValue)}>Add Item</button>
     </ul>
+    <input type={"text"} placeholder={"Add new item"} @change={(e) => $inputValue = e.target?.value ?? ""} @keydown={(e) => e.key} />
+    <button @click={addTodo}>Add Item</button>
   </div>
 }

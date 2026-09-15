@@ -38,6 +38,7 @@ const (
 	RBrace
 	Question
 	QuestionQuestion
+	QuestionDot
 	Apostrophe
 
 	FatArrow
@@ -163,6 +164,8 @@ func (k Kind) String() string {
 		return "?"
 	case QuestionQuestion:
 		return "??"
+	case QuestionDot:
+		return "?."
 	case Apostrophe:
 		return "'"
 	case FatArrow:

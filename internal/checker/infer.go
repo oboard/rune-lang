@@ -434,6 +434,16 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return typ
 		}
 		receiver := c.inferExpr(e.Receiver, env)
+		// Optional chaining `e?.field`: unwrap nullable receiver before
+		// field lookup, then make the result nullable.
+		optional := e.Optional
+		if optional {
+			if inner, ok := parseNullableType(string(receiver)); ok {
+				receiver = Type(inner)
+			} else if receiver == Null {
+				return Null
+			}
+		}
 		if typ, ok := c.inferNamespaceSelector(e, receiver); ok {
 			return typ
 		}
@@ -443,7 +453,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 				c.errorf(e.Pos, "trait %s has no field %q", trait.Name, e.Name)
 				return Unknown
 			}
-			return substituteSelfType(field.Type, receiver)
+			result := substituteSelfType(field.Type, receiver)
+			if optional {
+				return makeNullable(result)
+			}
+			return result
 		}
 		structInfo := c.info.Types[baseTypeName(receiver)]
 		if structInfo == nil {
@@ -459,6 +473,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		// <input> resolves to HTMLInputElement instead of the vanilla EventTarget.
 		if override, ok := c.domTargetOverrides[e]; ok {
 			c.info.ExprTypes[e] = override
+			if optional {
+				return makeNullable(override)
+			}
 			return override
 		}
 		field, ok := structInfo.ByName[e.Name]
@@ -469,7 +486,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		if !c.checkPrivateAccess("field", structInfo.Name+"."+e.Name, field.Private, field.SourcePath, e.Pos) {
 			return Unknown
 		}
-		return structFieldType(structInfo, receiver, field)
+		result := structFieldType(structInfo, receiver, field)
+		if optional {
+			return makeNullable(result)
+		}
+		return result
 	case *ast.StructLiteral:
 		return c.inferStructLiteral(e, env)
 	case *ast.AnonymousObjectLiteral:

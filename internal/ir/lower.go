@@ -423,7 +423,7 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	case *ast.AssignExpr:
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Target: l.expr(e.Target), Value: l.expr(e.Value)}
 	case *ast.CallExpr:
-		out := &CallExpr{ExprBase: l.base(e), Callee: l.expr(e.Callee)}
+		out := &CallExpr{ExprBase: l.base(e), Callee: l.expr(e.Callee), Optional: e.Optional}
 		if l.info != nil {
 			out.Async = l.info.AsyncCalls[e]
 			out.Await = l.info.AwaitCalls[e]
@@ -443,9 +443,9 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 				resolved = value.LinkName
 			}
 		}
-		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name, Static: e.Static, ResolvedName: resolved}
+		return &SelectorExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Name: e.Name, Static: e.Static, Optional: e.Optional, ResolvedName: resolved}
 	case *ast.IndexExpr:
-		return &IndexExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Index: l.expr(e.Index)}
+		return &IndexExpr{ExprBase: l.base(e), Receiver: l.expr(e.Receiver), Index: l.expr(e.Index), Optional: e.Optional}
 	case *ast.ArrayLiteral:
 		out := &ArrayLiteral{ExprBase: l.base(e)}
 		for _, elem := range e.Elements {

@@ -51,6 +51,36 @@ func (p *Parser) parseExpression(minPrec int) ast.Expr {
 			left = &ast.IndexExpr{Receiver: left, Index: index, Pos: left.Position()}
 			continue
 		}
+		if p.match(lexer.QuestionDot) {
+			if p.check(lexer.LParen) {
+				// Optional call: expr?.(args).
+				p.advance()
+				call := &ast.CallExpr{Callee: left, Pos: left.Position()}
+				p.skipNewlines()
+				if !p.check(lexer.RParen) {
+					for {
+						call.Args = append(call.Args, p.parseExpression(1))
+						p.skipNewlines()
+						if !p.match(lexer.Comma) {
+							break
+						}
+						p.skipNewlines()
+					}
+				}
+				p.consume(lexer.RParen, "expected ')' after arguments")
+				call.Optional = true
+				left = call
+			} else if p.check(lexer.LBracket) {
+				p.advance()
+				index := p.parseExpression(1)
+				p.consume(lexer.RBracket, "expected ']' after index")
+				left = &ast.IndexExpr{Receiver: left, Index: index, Optional: true, Pos: left.Position()}
+			} else {
+				name := p.consume(lexer.Ident, "expected selector name after '?.'")
+				left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Optional: true, Pos: left.Position(), NamePos: name.Pos}
+			}
+			continue
+		}
 		if p.match(lexer.Dot) {
 			name := p.consume(lexer.Ident, "expected selector name after '.'")
 			left = &ast.SelectorExpr{Receiver: left, Name: name.Lexeme, Pos: left.Position(), NamePos: name.Pos}

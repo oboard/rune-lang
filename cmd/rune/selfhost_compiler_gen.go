@@ -43,35 +43,36 @@ const (
 	TokenKind_RBrace             TokenKind = 29
 	TokenKind_Question           TokenKind = 30
 	TokenKind_QuestionQuestion   TokenKind = 31
-	TokenKind_Apostrophe         TokenKind = 32
-	TokenKind_FatArrow           TokenKind = 33
-	TokenKind_Assign             TokenKind = 34
-	TokenKind_Declare            TokenKind = 35
-	TokenKind_MutDeclare         TokenKind = 36
-	TokenKind_Arrow              TokenKind = 37
-	TokenKind_Plus               TokenKind = 38
-	TokenKind_PlusPlus           TokenKind = 39
-	TokenKind_Minus              TokenKind = 40
-	TokenKind_Star               TokenKind = 41
-	TokenKind_Slash              TokenKind = 42
-	TokenKind_Percent            TokenKind = 43
-	TokenKind_Bang               TokenKind = 44
-	TokenKind_Tilde              TokenKind = 45
-	TokenKind_BitAnd             TokenKind = 46
-	TokenKind_BitOr              TokenKind = 47
-	TokenKind_BitXor             TokenKind = 48
-	TokenKind_ShiftLeft          TokenKind = 49
-	TokenKind_ShiftRight         TokenKind = 50
-	TokenKind_UnsignedShiftRight TokenKind = 51
-	TokenKind_AndAnd             TokenKind = 52
-	TokenKind_OrOr               TokenKind = 53
-	TokenKind_EqualEqual         TokenKind = 54
-	TokenKind_BangEqual          TokenKind = 55
-	TokenKind_Less               TokenKind = 56
-	TokenKind_LessEqual          TokenKind = 57
-	TokenKind_Greater            TokenKind = 58
-	TokenKind_GreaterEqual       TokenKind = 59
-	TokenKind_Underscore         TokenKind = 60
+	TokenKind_QuestionDot        TokenKind = 32
+	TokenKind_Apostrophe         TokenKind = 33
+	TokenKind_FatArrow           TokenKind = 34
+	TokenKind_Assign             TokenKind = 35
+	TokenKind_Declare            TokenKind = 36
+	TokenKind_MutDeclare         TokenKind = 37
+	TokenKind_Arrow              TokenKind = 38
+	TokenKind_Plus               TokenKind = 39
+	TokenKind_PlusPlus           TokenKind = 40
+	TokenKind_Minus              TokenKind = 41
+	TokenKind_Star               TokenKind = 42
+	TokenKind_Slash              TokenKind = 43
+	TokenKind_Percent            TokenKind = 44
+	TokenKind_Bang               TokenKind = 45
+	TokenKind_Tilde              TokenKind = 46
+	TokenKind_BitAnd             TokenKind = 47
+	TokenKind_BitOr              TokenKind = 48
+	TokenKind_BitXor             TokenKind = 49
+	TokenKind_ShiftLeft          TokenKind = 50
+	TokenKind_ShiftRight         TokenKind = 51
+	TokenKind_UnsignedShiftRight TokenKind = 52
+	TokenKind_AndAnd             TokenKind = 53
+	TokenKind_OrOr               TokenKind = 54
+	TokenKind_EqualEqual         TokenKind = 55
+	TokenKind_BangEqual          TokenKind = 56
+	TokenKind_Less               TokenKind = 57
+	TokenKind_LessEqual          TokenKind = 58
+	TokenKind_Greater            TokenKind = 59
+	TokenKind_GreaterEqual       TokenKind = 60
+	TokenKind_Underscore         TokenKind = 61
 )
 
 type TypeRefKind int
@@ -146,23 +147,26 @@ type Token struct {
 }
 
 type LexState struct {
-	source        string
-	chars         []rune
-	start         int
-	current       int
-	line          int
-	column        int
-	startLine     int
-	startColumn   int
-	canStartRegex bool
-	mode          int
-	xmlDepth      int
-	xmlClosing    bool
-	xmlSelfClosed bool
-	xmlExprMode   int
-	xmlExprDepth  int
-	xmlAfterMode  int
-	xmlAfterDepth int
+	source             string
+	chars              []rune
+	start              int
+	current            int
+	line               int
+	column             int
+	startLine          int
+	startColumn        int
+	canStartRegex      bool
+	mode               int
+	xmlDepth           int
+	xmlClosing         bool
+	xmlSelfClosed      bool
+	xmlExprMode        int
+	xmlExprDepth       int
+	xmlNestedExprMode  int
+	xmlNestedExprDepth int
+	xmlInAttributeExpr bool
+	xmlAfterMode       int
+	xmlAfterDepth      int
 }
 
 type Advanced struct {
@@ -812,7 +816,7 @@ func selfhost_lexer_lexer_xmlModeExpr() int {
 }
 
 func lex(source string) []Token {
-	return selfhost_lexer_lexer_scan(LexState{source: source, chars: []rune(source), start: 0, current: 0, line: 1, column: 1, startLine: 1, startColumn: 1, canStartRegex: true, mode: selfhost_lexer_lexer_xmlModeCode(), xmlDepth: 0, xmlClosing: false, xmlSelfClosed: false, xmlExprMode: selfhost_lexer_lexer_xmlModeCode(), xmlExprDepth: 0, xmlAfterMode: selfhost_lexer_lexer_xmlModeCode(), xmlAfterDepth: 0}, selfhost_lexer_lexer_emptyTokens())
+	return selfhost_lexer_lexer_scan(LexState{source: source, chars: []rune(source), start: 0, current: 0, line: 1, column: 1, startLine: 1, startColumn: 1, canStartRegex: true, mode: selfhost_lexer_lexer_xmlModeCode(), xmlDepth: 0, xmlClosing: false, xmlSelfClosed: false, xmlExprMode: selfhost_lexer_lexer_xmlModeCode(), xmlExprDepth: 0, xmlNestedExprMode: selfhost_lexer_lexer_xmlModeCode(), xmlNestedExprDepth: 0, xmlInAttributeExpr: false, xmlAfterMode: selfhost_lexer_lexer_xmlModeCode(), xmlAfterDepth: 0}, selfhost_lexer_lexer_emptyTokens())
 }
 
 func selfhost_lexer_lexer_emptyTokens() []Token {
@@ -893,11 +897,11 @@ func selfhost_lexer_lexer_makeToken(state LexState, kind TokenKind) Token {
 }
 
 func selfhost_lexer_lexer_finishToken(state LexState, kind TokenKind) LexState {
-	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, canStartRegex: !(selfhost_lexer_lexer_canEndExpression(state, kind))}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, canStartRegex: !(selfhost_lexer_lexer_canEndExpression(state, kind))}
 }
 
 func selfhost_lexer_lexer_lexStateXML(state LexState, mode int, depth int, closing bool, selfClosed bool, exprMode int, exprDepth int) LexState {
-	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, mode: mode, xmlDepth: depth, xmlClosing: closing, xmlSelfClosed: selfClosed, xmlExprMode: exprMode, xmlExprDepth: exprDepth}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, mode: mode, xmlDepth: depth, xmlClosing: closing, xmlSelfClosed: selfClosed, xmlExprMode: exprMode, xmlExprDepth: exprDepth}
 }
 
 func selfhost_lexer_lexer_enterXMLTagState(state LexState) LexState {
@@ -911,7 +915,7 @@ func selfhost_lexer_lexer_enterXMLTagState(state LexState) LexState {
 }
 
 func selfhost_lexer_lexer_lexStateXMLAfterMode(state LexState, afterMode int, afterDepth int) LexState {
-	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: afterMode, xmlAfterDepth: afterDepth}
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: afterMode, xmlAfterDepth: afterDepth}
 }
 
 func selfhost_lexer_lexer_canEndExpression(state LexState, kind TokenKind) bool {
@@ -1000,6 +1004,8 @@ func tokenKindName(kind TokenKind) string {
 			return "Question"
 		case kind == TokenKind_QuestionQuestion:
 			return "QuestionQuestion"
+		case kind == TokenKind_QuestionDot:
+			return "QuestionDot"
 		case kind == TokenKind_Apostrophe:
 			return "Apostrophe"
 		case kind == TokenKind_FatArrow:
@@ -1065,7 +1071,7 @@ func tokenKindName(kind TokenKind) string {
 }
 
 func selfhost_lexer_lexer_markStart(state LexState) LexState {
-	return LexState{source: state.source, chars: state.chars, current: state.current, line: state.line, column: state.column, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, start: state.current, startLine: state.line, startColumn: state.column}
+	return LexState{source: state.source, chars: state.chars, current: state.current, line: state.line, column: state.column, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth, start: state.current, startLine: state.line, startColumn: state.column}
 }
 
 func selfhost_lexer_lexer_atEnd(state LexState) bool {
@@ -1117,7 +1123,7 @@ func selfhost_lexer_lexer_advanceChar(state LexState, ch rune) Advanced {
 			return 1
 		}
 		return state.column + 1
-	}(), startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth}, ch: ch}
+	}(), startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth}, ch: ch}
 }
 
 func selfhost_lexer_lexer_skipIgnored(state LexState) LexState {
@@ -1310,7 +1316,7 @@ func selfhost_lexer_lexer_scanXMLTagToken(step Advanced) Lexed {
 		case ch == '=':
 			return selfhost_lexer_lexer_lexed(state, TokenKind_Assign)
 		case ch == '{':
-			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, selfhost_lexer_lexer_xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, selfhost_lexer_lexer_xmlModeTag(), 1), TokenKind_LBrace)
+			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_enterXMLAttributeExpr(state), TokenKind_LBrace)
 		case ch == '/':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, state.mode, state.xmlDepth, selfhost_lexer_lexer_peek(state) != '>', selfhost_lexer_lexer_peek(state) == '>', state.xmlExprMode, state.xmlExprDepth), TokenKind_Slash)
 		case ch == '>':
@@ -1328,6 +1334,10 @@ func selfhost_lexer_lexer_scanXMLTagToken(step Advanced) Lexed {
 			}()
 		}
 	}()
+}
+
+func selfhost_lexer_lexer_enterXMLAttributeExpr(state LexState) LexState {
+	return LexState{source: state.source, chars: state.chars, start: state.start, current: state.current, line: state.line, column: state.column, startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: selfhost_lexer_lexer_xmlModeExpr(), xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: selfhost_lexer_lexer_xmlModeTag(), xmlExprDepth: 1, xmlNestedExprMode: state.xmlExprMode, xmlNestedExprDepth: state.xmlExprDepth, xmlInAttributeExpr: true, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth}
 }
 
 func selfhost_lexer_lexer_xmlStateAfterTagEnd(state LexState) LexState {
@@ -1413,7 +1423,13 @@ func selfhost_lexer_lexer_xmlStateAfterExprBrace(state LexState) LexState {
 		}
 		return selfhost_lexer_lexer_xmlModeExpr()
 	}()
-	return selfhost_lexer_lexer_lexStateXMLAfterMode(selfhost_lexer_lexer_lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
+	restored := selfhost_lexer_lexer_lexStateXMLAfterMode(selfhost_lexer_lexer_lexStateXML(state, nextMode, state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, nextDepth), state.xmlAfterMode, state.xmlAfterDepth)
+	return func() LexState {
+		if nextDepth <= 0 && state.xmlInAttributeExpr {
+			return selfhost_lexer_lexer_lexStateXML(restored, restored.mode, restored.xmlDepth, restored.xmlClosing, restored.xmlSelfClosed, state.xmlNestedExprMode, state.xmlNestedExprDepth)
+		}
+		return restored
+	}()
 }
 
 func selfhost_lexer_lexer_lexed(state LexState, kind TokenKind) Lexed {
@@ -1469,6 +1485,8 @@ func selfhost_lexer_lexer_lexQuestion(state LexState) Lexed {
 		switch {
 		case selfhost_lexer_lexer_peek(state) == '?':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_advanceState(state), TokenKind_QuestionQuestion)
+		case selfhost_lexer_lexer_peek(state) == '.':
+			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_advanceState(state), TokenKind_QuestionDot)
 		default:
 			return selfhost_lexer_lexer_lexed(state, TokenKind_Question)
 		}
@@ -3177,12 +3195,12 @@ func selfhost_parser_parser_parseBody(state ParserState) ExprStep {
 
 func selfhost_parser_parser_parseBraceBody(state ParserState) ExprStep {
 	return func() ExprStep {
-		if selfhost_parser_parser_looksLikePatternBranch(state) == false && selfhost_parser_parser_looksLikeMapLiteralBody(state) {
-			return selfhost_parser_parser_parseMapLiteral(state)
+		if selfhost_parser_parser_looksLikePatternBranch(state) == false && selfhost_parser_parser_looksLikeObjectLiteralBody(state) {
+			return selfhost_parser_parser_parseObjectLiteral(state)
 		}
 		return func() ExprStep {
-			if selfhost_parser_parser_looksLikePatternBranch(state) == false && selfhost_parser_parser_looksLikeObjectLiteralBody(state) {
-				return selfhost_parser_parser_parseObjectLiteral(state)
+			if selfhost_parser_parser_looksLikePatternBranch(state) == false && selfhost_parser_parser_looksLikeMapLiteralBody(state) {
+				return selfhost_parser_parser_parseMapLiteral(state)
 			}
 			return selfhost_parser_parser_parseBlock(state)
 		}()
@@ -3375,7 +3393,7 @@ func selfhost_parser_parser_parseExpressionLoop(left ExprStep, minPrec int) Expr
 					return selfhost_parser_parser_parseIndexExpression(state, expr, minPrec)
 				}
 				return func() ExprStep {
-					if selfhost_parser_parser_parserCheck(state, TokenKind_Dot) || selfhost_parser_parser_parserCheck(state, TokenKind_DoubleColon) {
+					if selfhost_parser_parser_parserCheck(state, TokenKind_Dot) || selfhost_parser_parser_parserCheck(state, TokenKind_DoubleColon) || selfhost_parser_parser_parserCheck(state, TokenKind_QuestionDot) {
 						return selfhost_parser_parser_parseSelectorExpression(state, expr, minPrec)
 					}
 					return func() ExprStep {
@@ -3488,7 +3506,12 @@ func selfhost_parser_parser_parseSelectorExpression(state ParserState, receiver 
 		if selfhost_parser_parser_parserCheck(state, TokenKind_DoubleColon) {
 			return selfhost_parser_parser_parserConsume(state, TokenKind_DoubleColon, "expected '::'")
 		}
-		return selfhost_parser_parser_parserConsume(state, TokenKind_Dot, "expected '.'")
+		return func() TokenStep {
+			if selfhost_parser_parser_parserCheck(state, TokenKind_QuestionDot) {
+				return selfhost_parser_parser_parserConsume(state, TokenKind_QuestionDot, "expected '?.'")
+			}
+			return selfhost_parser_parser_parserConsume(state, TokenKind_Dot, "expected '.'")
+		}()
 	}()
 	name := selfhost_parser_parser_parserConsume(operator.state, TokenKind_Ident, "expected selector name")
 	return selfhost_parser_parser_parseExpressionLoop(ExprStep{state: name.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Selector, name.token.lexeme, name.token.lexeme, "", operator.token.lexeme, []ParsedParam{}, []ParsedExpr{receiver}, operator.token.line, operator.token.column)}, minPrec)
@@ -3693,9 +3716,23 @@ func selfhost_parser_parser_parseXMLAttributes(state ParserState, element Parsed
 			if selfhost_parser_parser_parserCheck(current, TokenKind_Greater) || selfhost_parser_parser_parserCheck(current, TokenKind_EOF) {
 				return XMLAttrStep{state: current, element: element, selfClosing: false}
 			}
-			return selfhost_parser_parser_parseXMLAttribute(current, element)
+			return func() XMLAttrStep {
+				if selfhost_parser_parser_parserCheck(current, TokenKind_LBrace) && (selfhost_parser_parser_parserCheckNext(current, TokenKind_DotDot) || selfhost_parser_parser_parserCheckNext(current, TokenKind_DotDotDot)) {
+					return selfhost_parser_parser_parseXMLSpreadAttribute(current, element)
+				}
+				return selfhost_parser_parser_parseXMLAttribute(current, element)
+			}()
 		}()
 	}()
+}
+
+func selfhost_parser_parser_parseXMLSpreadAttribute(state ParserState, element ParsedExpr) XMLAttrStep {
+	open := selfhost_parser_parser_parserConsume(state, TokenKind_LBrace, "expected '{'")
+	spreadStep := selfhost_parser_parser_parserAdvance(open.state)
+	value := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(spreadStep.state), 1)
+	close := selfhost_parser_parser_parserConsume(selfhost_parser_parser_skipXMLWhitespace(selfhost_parser_parser_parserSkipNewlines(value.state)), TokenKind_RBrace, "expected '}' after spread expression")
+	attr := selfhost_parser_parser_makeExpr(ExprKind_Spread, "", "", "", "xmlSpread", []ParsedParam{}, []ParsedExpr{value.expr}, open.token.line, open.token.column)
+	return selfhost_parser_parser_parseXMLAttributes(close.state, selfhost_parser_parser_appendChild(element, attr))
 }
 
 func selfhost_parser_parser_parseXMLAttribute(state ParserState, element ParsedExpr) XMLAttrStep {
@@ -4055,12 +4092,12 @@ func selfhost_parser_parser_parseSignalPrefixIdentifier(start TokenStep) ExprSte
 
 func selfhost_parser_parser_parseBraceLiteral(state ParserState) ExprStep {
 	return func() ExprStep {
-		if selfhost_parser_parser_looksLikeMapLiteralBody(state) {
-			return selfhost_parser_parser_parseMapLiteral(state)
+		if selfhost_parser_parser_looksLikeObjectLiteralBody(state) {
+			return selfhost_parser_parser_parseObjectLiteral(state)
 		}
 		return func() ExprStep {
-			if selfhost_parser_parser_looksLikeObjectLiteralBody(state) {
-				return selfhost_parser_parser_parseObjectLiteral(state)
+			if selfhost_parser_parser_looksLikeMapLiteralBody(state) {
+				return selfhost_parser_parser_parseMapLiteral(state)
 			}
 			return selfhost_parser_parser_parseBlock(state)
 		}()
@@ -6934,14 +6971,14 @@ func selfhost_infer_infer_inferAnnotate(expr IRExpr, structs []IRStructType, enu
 
 func selfhost_infer_infer_inferCallLambdaParams(expr IRExpr, children []IRExpr, params []IRParam) []IRExpr {
 	return func() []IRExpr {
-		if expr.kind == ExprKind_Call && len(children) > 1 && children[0].kind == ExprKind_Selector && children[0].name == "each" && len(children[0].children) > 0 && children[1].kind == ExprKind_Lambda {
-			return selfhost_infer_infer_inferSetEachLambdaParam(children, genericInner(selfhost_infer_infer_inferExprType(children[0].children[0]), "Array"))
+		if expr.kind == ExprKind_Call && len(children) > 1 && children[0].kind == ExprKind_Selector && (children[0].name == "each" || children[0].name == "map") && len(children[0].children) > 0 && children[1].kind == ExprKind_Lambda {
+			return selfhost_infer_infer_inferSetArrayCallbackLambdaParam(children, genericInner(selfhost_infer_infer_inferExprType(children[0].children[0]), "Array"))
 		}
 		return children
 	}()
 }
 
-func selfhost_infer_infer_inferSetEachLambdaParam(children []IRExpr, elemType string) []IRExpr {
+func selfhost_infer_infer_inferSetArrayCallbackLambdaParam(children []IRExpr, elemType string) []IRExpr {
 	return func() []IRExpr {
 		if elemType == "" {
 			return children
@@ -6951,10 +6988,10 @@ func selfhost_infer_infer_inferSetEachLambdaParam(children []IRExpr, elemType st
 }
 
 func selfhost_infer_infer_inferRebuildLambdaWithElement(expr IRExpr, elemType string) IRExpr {
-	return IRExpr{text: expr.text, name: expr.name, value: expr.value, op: expr.op, children: expr.children, line: expr.line, column: expr.column, kind: ExprKind_Lambda, params: selfhost_infer_infer_inferSetFirstParamType(expr.params, elemType, 0, []IRParam{})}
+	return IRExpr{text: expr.text, name: expr.name, value: expr.value, op: expr.op, children: expr.children, line: expr.line, column: expr.column, kind: ExprKind_Lambda, params: selfhost_infer_infer_inferSetArrayCallbackParamTypes(expr.params, elemType, 0, []IRParam{})}
 }
 
-func selfhost_infer_infer_inferSetFirstParamType(params []IRParam, elemType string, index int, out []IRParam) []IRParam {
+func selfhost_infer_infer_inferSetArrayCallbackParamTypes(params []IRParam, elemType string, index int, out []IRParam) []IRParam {
 	for {
 		if index >= len(params) {
 			return out
@@ -6966,7 +7003,17 @@ func selfhost_infer_infer_inferSetFirstParamType(params []IRParam, elemType stri
 					if index == 0 {
 						return elemType
 					}
-					return params[index].typeName
+					return func() string {
+						if index == 1 {
+							return "Int"
+						}
+						return func() string {
+							if index == 2 {
+								return "Array[" + elemType + "]"
+							}
+							return params[index].typeName
+						}()
+					}()
 				}()})
 				return __rune_spread_out
 			}()
@@ -7747,10 +7794,19 @@ func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int
 }
 
 func selfhost_format_format_isXMLAttribute(expr ParsedExpr) bool {
-	return expr.kind == ExprKind_Field && (expr.op == "xmlAttr" || expr.op == "xmlEvent" || expr.op == "xmlBareAttr")
+	return expr.op == "xmlSpread" || expr.kind == ExprKind_Field && (expr.op == "xmlAttr" || expr.op == "xmlEvent" || expr.op == "xmlBareAttr")
 }
 
 func selfhost_format_format_formatXMLAttribute(attr ParsedExpr, indent int) string {
+	return func() string {
+		if attr.op == "xmlSpread" {
+			return "{..." + selfhost_format_format_formatExpr(attr.children[0], indent) + "}"
+		}
+		return selfhost_format_format_formatNamedXMLAttribute(attr, indent)
+	}()
+}
+
+func selfhost_format_format_formatNamedXMLAttribute(attr ParsedExpr, indent int) string {
 	name := func() string {
 		if attr.op == "xmlEvent" {
 			return "@" + attr.name
@@ -8812,7 +8868,7 @@ func selfhost_compiler_go_emitGoLet(file IRFile, expr IRExpr, level int) string 
 
 func selfhost_compiler_go_goLetArrayElem(file IRFile, expr IRExpr) string {
 	return func() string {
-		if (strings.HasPrefix(expr.text, "Array[") || strings.HasPrefix(expr.value, "Array[")) && expr.children[0].kind == ExprKind_Array && len(expr.children[0].children) == 0 {
+		if (strings.HasPrefix(expr.text, "Array[") || strings.HasPrefix(expr.value, "Array[")) && expr.children[0].kind == ExprKind_Array {
 			return genericInner(func() string {
 				if strings.HasPrefix(expr.text, "Array[") {
 					return expr.text
@@ -8828,7 +8884,7 @@ func selfhost_compiler_go_emitGoLetValue(file IRFile, expr IRExpr) string {
 	elem := selfhost_compiler_go_goLetArrayElem(file, expr)
 	return func() string {
 		if elem != "" {
-			return "[]" + selfhost_compiler_go_goType(elem) + "{}"
+			return "[]" + selfhost_compiler_go_goType(elem) + "{" + selfhost_compiler_go_emitGoExprList(expr.children[0].children, 0, "") + "}"
 		}
 		return func() string {
 			if expr.value == "" {
@@ -9519,6 +9575,10 @@ func selfhost_compiler_go_emitGoCoreMethodCall(expr IRExpr, selector IRExpr) str
 					return selfhost_compiler_go_emitGoCoreSlice(expr, selector.children[0])
 				case selector.name == "push":
 					return selfhost_compiler_go_emitGoCorePush(expr, selector.children[0])
+				case selector.name == "each":
+					return selfhost_compiler_go_emitGoCoreEach(expr, selector.children[0])
+				case selector.name == "map":
+					return selfhost_compiler_go_emitGoCoreMap(expr, selector.children[0])
 				case selector.name == "set":
 					return selfhost_compiler_go_emitGoCoreSet(expr, selector.children[0])
 				case selector.name == "getOr":
@@ -9569,6 +9629,74 @@ func selfhost_compiler_go_emitGoCoreSlice(expr IRExpr, receiver IRExpr) string {
 
 func selfhost_compiler_go_emitGoCorePush(expr IRExpr, receiver IRExpr) string {
 	return "func() int { " + selfhost_compiler_go_emitGoExpr(receiver) + " = append(" + selfhost_compiler_go_emitGoExpr(receiver) + ", " + selfhost_compiler_go_emitGoExpr(expr.children[1]) + "); return len(" + selfhost_compiler_go_emitGoExpr(receiver) + ") }()"
+}
+
+func selfhost_compiler_go_emitGoCoreEach(expr IRExpr, receiver IRExpr) string {
+	callback := expr.children[1]
+	valueName := mangleIdent(callback.params[0].name)
+	indexName := func() string {
+		if len(callback.params) > 1 {
+			return mangleIdent(callback.params[1].name)
+		}
+		return "_"
+	}()
+	arrayBinding := func() string {
+		if len(callback.params) > 2 {
+			return "\n\t\t" + mangleIdent(callback.params[2].name) + " := " + selfhost_compiler_go_emitGoExpr(receiver)
+		}
+		return ""
+	}()
+	out := "func() {\n\tfor " + indexName
+	out = out + ", " + valueName + " := range " + selfhost_compiler_go_emitGoExpr(receiver)
+	unusedIndex := func() string {
+		if len(callback.params) > 1 {
+			return "\n\t\t_ = " + indexName
+		}
+		return ""
+	}()
+	out = out + " {" + arrayBinding + unusedIndex + "\n\t\t" + selfhost_compiler_go_emitGoExpr(callback.children[0])
+	return out + "\n\t}\n}()"
+}
+
+func selfhost_compiler_go_emitGoCoreMap(expr IRExpr, receiver IRExpr) string {
+	callback := expr.children[1]
+	resultType := genericInner(expr.text, "Array")
+	resultType = func() string {
+		if resultType == "" {
+			return callback.children[0].text
+		}
+		return resultType
+	}()
+	valueName := mangleIdent(callback.params[0].name)
+	indexName := func() string {
+		if len(callback.params) > 1 {
+			return mangleIdent(callback.params[1].name)
+		}
+		return "_"
+	}()
+	arrayBinding := func() string {
+		if len(callback.params) > 2 {
+			return "\n\t\t" + mangleIdent(callback.params[2].name) + " := values"
+		}
+		return ""
+	}()
+	out := "func() []" + selfhost_compiler_go_goType(resultType) + " {\n\tvalues := " + selfhost_compiler_go_emitGoExpr(receiver)
+	out = out + "\n\tresult := make([]" + selfhost_compiler_go_goType(resultType) + ", 0, len(values))\n\tfor " + indexName
+	unusedIndex := func() string {
+		if len(callback.params) > 1 {
+			return "\n\t\t_ = " + indexName
+		}
+		return ""
+	}()
+	unusedArray := func() string {
+		if len(callback.params) > 2 {
+			return "\n\t\t_ = " + mangleIdent(callback.params[2].name)
+		}
+		return ""
+	}()
+	out = out + ", " + valueName + " := range values {" + arrayBinding + "\n\t\t_ = " + valueName + unusedIndex + unusedArray
+	out = out + "\n\t\tresult = append(result, " + selfhost_compiler_go_emitGoExpr(callback.children[0]) + ")"
+	return out + "\n\t}\n\treturn result\n}()"
 }
 
 func selfhost_compiler_go_emitGoCoreSet(expr IRExpr, receiver IRExpr) string {
@@ -12728,20 +12856,20 @@ func selfhost_compiler_ts_emitTSXMLCreateElement(expr IRExpr) string {
 
 func selfhost_compiler_ts_emitTSXMLExprBody(expr IRExpr, name string, level int) string {
 	out := line(level, "const "+name+" = "+selfhost_compiler_ts_emitTSXMLCreateElement(expr)+";")
-	out = out + selfhost_compiler_ts_emitTSXMLParts(name, expr.children, 0, level, 1)
+	out = out + selfhost_compiler_ts_emitTSXMLParts(name, expr.name, expr.children, 0, level, 1)
 	return out
 }
 
-func selfhost_compiler_ts_emitTSXMLParts(parent string, children []IRExpr, index int, level int, childIndex int) string {
+func selfhost_compiler_ts_emitTSXMLParts(parent string, tag string, children []IRExpr, index int, level int, childIndex int) string {
 	return func() string {
 		if index >= len(children) {
 			return ""
 		}
-		return selfhost_compiler_ts_emitTSXMLPart(parent, children, index, level, childIndex)
+		return selfhost_compiler_ts_emitTSXMLPart(parent, tag, children, index, level, childIndex)
 	}()
 }
 
-func selfhost_compiler_ts_emitTSXMLPart(parent string, children []IRExpr, index int, level int, childIndex int) string {
+func selfhost_compiler_ts_emitTSXMLPart(parent string, tag string, children []IRExpr, index int, level int, childIndex int) string {
 	child := children[index]
 	nextIndex := func() int {
 		if child.kind == ExprKind_XMLElement {
@@ -12749,14 +12877,14 @@ func selfhost_compiler_ts_emitTSXMLPart(parent string, children []IRExpr, index 
 		}
 		return childIndex
 	}()
-	return selfhost_compiler_ts_emitTSXMLChild(parent, child, level, childIndex) + selfhost_compiler_ts_emitTSXMLParts(parent, children, index+1, level, nextIndex)
+	return selfhost_compiler_ts_emitTSXMLChild(parent, tag, child, level, childIndex) + selfhost_compiler_ts_emitTSXMLParts(parent, tag, children, index+1, level, nextIndex)
 }
 
-func selfhost_compiler_ts_emitTSXMLChild(parent string, child IRExpr, level int, childIndex int) string {
+func selfhost_compiler_ts_emitTSXMLChild(parent string, tag string, child IRExpr, level int, childIndex int) string {
 	return func() string {
 		switch {
 		case child.kind == ExprKind_Field:
-			return selfhost_compiler_ts_emitTSXMLAttr(parent, child, level)
+			return selfhost_compiler_ts_emitTSXMLAttr(parent, tag, child, level)
 		case child.kind == ExprKind_XMLText:
 			return line(level, parent+".appendChild(document.createTextNode("+selfhost_compiler_ts_tsQuoteString(child.value)+"));")
 		case child.kind == ExprKind_XMLElement:
@@ -12788,23 +12916,23 @@ func selfhost_compiler_ts_emitTSXMLExprChild(parent string, child IRExpr, level 
 	}()
 }
 
-func selfhost_compiler_ts_emitTSXMLAttr(parent string, attr IRExpr, level int) string {
+func selfhost_compiler_ts_emitTSXMLAttr(parent string, tag string, attr IRExpr, level int) string {
 	return func() string {
 		if attr.op == "xmlEvent" {
-			return selfhost_compiler_ts_emitTSXMLEventAttr(parent, attr, level)
+			return selfhost_compiler_ts_emitTSXMLEventAttr(parent, tag, attr, level)
 		}
 		return selfhost_compiler_ts_emitTSXMLPlainAttr(parent, attr, level)
 	}()
 }
 
-func selfhost_compiler_ts_emitTSXMLEventAttr(parent string, attr IRExpr, level int) string {
+func selfhost_compiler_ts_emitTSXMLEventAttr(parent string, tag string, attr IRExpr, level int) string {
 	return func() string {
 		if len(attr.children) == 0 {
 			return ""
 		}
 		return func() string {
 			if attr.children[0].kind == ExprKind_Lambda {
-				return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", "+selfhost_compiler_ts_emitTSEventLambda(attr.children[0])+");")
+				return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", "+selfhost_compiler_ts_emitTSEventListener(attr.children[0], tag, attr.name)+");")
 			}
 			return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", () => { "+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"; });")
 		}()
@@ -13113,27 +13241,54 @@ func selfhost_compiler_ts_emitTSLambda(expr IRExpr) string {
 	return "(" + selfhost_compiler_ts_emitTSParams(expr.params, 0, "") + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
 }
 
-func selfhost_compiler_ts_emitTSEventLambda(expr IRExpr) string {
-	params := selfhost_compiler_ts_emitTSEventParams(expr.params, 0, "")
+func selfhost_compiler_ts_emitTSEventListener(expr IRExpr, tag string, eventName string) string {
 	return func() string {
-		if expr.children[0].kind == ExprKind_Block {
-			return "(" + params + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+		if len(expr.params) == 0 {
+			return selfhost_compiler_ts_emitTSEventLambda(expr)
 		}
-		return "(" + params + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+		return func() string {
+			viewType := selfhost_compiler_ts_emitTSEventViewType(tag, eventName)
+			return "(e) => { (" + selfhost_compiler_ts_emitTSEventLambdaTyped(expr, viewType) + ")(e as " + viewType + "); }"
+		}()
 	}()
 }
 
-func selfhost_compiler_ts_emitTSEventParams(params []IRParam, index int, out string) string {
+func selfhost_compiler_ts_emitTSEventViewType(tag string, eventName string) string {
+	eventType := compilerDomEventType(eventName)
+	targetType := compilerDomTargetType(tag)
+	return func() string {
+		if targetType == "EventTarget" {
+			return eventType
+		}
+		return eventType + " & { target: " + targetType + "; currentTarget: " + targetType + " }"
+	}()
+}
+
+func selfhost_compiler_ts_emitTSEventLambda(expr IRExpr) string {
+	return selfhost_compiler_ts_emitTSEventLambdaTyped(expr, "any")
+}
+
+func selfhost_compiler_ts_emitTSEventLambdaTyped(expr IRExpr, eventType string) string {
+	params := selfhost_compiler_ts_emitTSEventParamsTyped(expr.params, 0, "", eventType)
+	return "(" + params + ") => " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+}
+
+func selfhost_compiler_ts_emitTSEventParamsTyped(params []IRParam, index int, out string, eventType string) string {
 	for {
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out, eventType = params, index+1, out+func() string {
 				if index == 0 {
 					return ""
 				}
 				return ", "
-			}()+mangleIdent(params[index].name)+": any"
+			}()+mangleIdent(params[index].name)+": "+func() string {
+				if index == 0 {
+					return eventType
+				}
+				return "any"
+			}(), eventType
 			continue
 		}
 	}
@@ -13149,12 +13304,19 @@ func selfhost_compiler_ts_emitTSSelector(expr IRExpr) string {
 				switch {
 				case expr.op == "::":
 					return mangleIdent(expr.children[0].name + "_" + expr.name)
+				case expr.op == "?.":
+					return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + "?." + selfhost_compiler_ts_tsPropertyName(expr.name)
 				default:
 					return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + "." + selfhost_compiler_ts_tsPropertyName(expr.name)
 				}
 			}()
 		default:
-			return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + "." + selfhost_compiler_ts_tsPropertyName(expr.name)
+			return func() string {
+				if expr.op == "?." {
+					return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + "?." + selfhost_compiler_ts_tsPropertyName(expr.name)
+				}
+				return selfhost_compiler_ts_emitTSExpr(expr.children[0]) + "." + selfhost_compiler_ts_tsPropertyName(expr.name)
+			}()
 		}
 	}()
 }
@@ -17167,17 +17329,23 @@ func selfhost_compiler_compiler_checkSelectorReceiverExpr(expr IRExpr, receiver 
 }
 
 func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverType string, structs []IRStructType, bindings []CompilerTypeBinding, errors []string) []string {
+	checkedType := func() string {
+		if expr.op == "?." && strings.HasSuffix(receiverType, "?") {
+			return func() string { runes := []rune(receiverType); return string(runes[0 : len([]rune(receiverType))-1]) }()
+		}
+		return receiverType
+	}()
 	return func() []string {
 		switch {
-		case (receiverType == "") || (receiverType == "Dynamic"):
+		case (checkedType == "") || (checkedType == "Dynamic"):
 			return errors
 		default:
 			return func() []string {
 				switch {
-				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(receiverType, expr.name) == "Dynamic":
+				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(checkedType, expr.name) == "Dynamic":
 					return errors
-				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(receiverType, expr.name) == "":
-					return selfhost_compiler_compiler_checkUnknownStructSelectorExpr(expr, receiverType, structs, bindings, errors)
+				case selfhost_compiler_compiler_compilerStructuralObjectFieldType(checkedType, expr.name) == "":
+					return selfhost_compiler_compiler_checkUnknownStructSelectorExpr(expr, checkedType, structs, bindings, errors)
 				default:
 					return errors
 				}
@@ -18493,17 +18661,30 @@ func selfhost_compiler_compiler_inferCompilerSelectorTypeFromReceiverWithStructs
 }
 
 func selfhost_compiler_compiler_inferCompilerStructSelectorType(expr IRExpr, receiverType string, structs []IRStructType) string {
-	return func() string {
+	optional := expr.op == "?."
+	checkedType := func() string {
+		if optional && strings.HasSuffix(receiverType, "?") {
+			return func() string { runes := []rune(receiverType); return string(runes[0 : len([]rune(receiverType))-1]) }()
+		}
+		return receiverType
+	}()
+	result := func() string {
 		switch {
-		case receiverType == "":
+		case checkedType == "":
 			return ""
 		default:
 			return func() string {
-				typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(receiverType), 0)
+				typeDecl := selfhost_compiler_compiler_findCompilerStruct(structs, selfhost_compiler_compiler_compilerTypeBase(checkedType), 0)
 				field := selfhost_compiler_compiler_findCompilerStructField(typeDecl.fields, expr.name, 0)
 				return field.typeName
 			}()
 		}
+	}()
+	return func() string {
+		if optional {
+			return selfhost_compiler_compiler_compilerNullableType(result)
+		}
+		return result
 	}()
 }
 

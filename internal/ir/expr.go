@@ -170,10 +170,11 @@ func (*AssignExpr) exprNode() {}
 
 type CallExpr struct {
 	ExprBase
-	Callee Expr
-	Args   []Expr
-	Async  bool
-	Await  bool
+	Callee   Expr
+	Args     []Expr
+	Optional bool
+	Async    bool
+	Await    bool
 }
 
 func (*CallExpr) exprNode() {}
@@ -191,6 +192,7 @@ type SelectorExpr struct {
 	Receiver     Expr
 	Name         string
 	Static       bool
+	Optional     bool
 	ResolvedName string
 }
 
@@ -200,6 +202,7 @@ type IndexExpr struct {
 	ExprBase
 	Receiver Expr
 	Index    Expr
+	Optional bool
 }
 
 func (*IndexExpr) exprNode() {}

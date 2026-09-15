@@ -524,19 +524,19 @@ inferAnnotate(
   }
 }
 
-// Receiver methods such as Array.each carry the receiver element type into the
-// callback parameter. Preserve the callback body but rewrite its parameter list
-// so Go emission no longer falls back to `any` for `functions.each((fn) => ...)`.
+// Array callbacks receive the receiver element as their first parameter. Preserve
+// the callback body but rewrite its parameter list so Go emission does not fall
+// back to `any` for `array.each((value) => ...)` or `array.map((value) => ...)`.
 inferCallLambdaParams(
   expr: IRExpr,
   children: Array[IRExpr],
   params: Array[IRParam]
 ) -> Array[IRExpr] => (
-  (((((expr.kind == ExprKind.Call) && (children.length() > 1)) && (children[0].kind == ExprKind.Selector)) && (children[0].name == "each")) && (children[0].children.length() > 0)) && (children[1].kind == ExprKind.Lambda) ? inferSetEachLambdaParam(children, genericInner(inferExprType(children[0].children[0]), "Array"))
+  (((((expr.kind == ExprKind.Call) && (children.length() > 1)) && (children[0].kind == ExprKind.Selector)) && ((children[0].name == "each") || (children[0].name == "map"))) && (children[0].children.length() > 0)) && (children[1].kind == ExprKind.Lambda) ? inferSetArrayCallbackLambdaParam(children, genericInner(inferExprType(children[0].children[0]), "Array"))
     : children
 )
 
-inferSetEachLambdaParam(
+inferSetArrayCallbackLambdaParam(
   children: Array[IRExpr],
   elemType: String
 ) -> Array[IRExpr] => (
@@ -550,21 +550,23 @@ inferRebuildLambdaWithElement(
 ) -> IRExpr => {
   ..expr,
   kind: ExprKind.Lambda,
-  params: inferSetFirstParamType(expr.params, elemType, 0, [])
+  params: inferSetArrayCallbackParamTypes(expr.params, elemType, 0, [])
 }
 
-inferSetFirstParamType(
+inferSetArrayCallbackParamTypes(
   params: Array[IRParam],
   elemType: String,
   index: Int,
   out: Array[IRParam]
 ) -> Array[IRParam] => (
   index >= params.length() ? out
-    : inferSetFirstParamType(params, elemType, index + 1, [..out, IRParam {
+    : inferSetArrayCallbackParamTypes(params, elemType, index + 1, [..out, IRParam {
       ..params[index],
       typeName: (
         index == 0 ? elemType
-          : params[index].typeName
+          : index == 1 ? "Int"
+            : index == 2 ? "Array[" + elemType + "]"
+              : params[index].typeName
       )
     }])
 )

@@ -61,19 +61,19 @@ func (e *xmlEmitter) element(elem *ir.XMLElement) string {
 		factory := e.webComponentFactory(component, elem)
 		e.linef("const %s = document.createElement(runeDefineWebComponent(%s, %s));", name, strconv.Quote(elem.Tag), factory)
 		for _, attr := range elem.Attrs {
-			e.attr(name, attr)
+			e.attr(name, elem.Tag, attr)
 		}
 	} else if component := e.g.lookupHTMLElementComponentFunction(elem.Tag); component != nil {
 		e.linef("const %s = %s;", name, e.componentCall(component, elem))
 		for _, attr := range elem.Attrs {
 			if attr.Event || !functionHasParam(component, attr.Name) {
-				e.attr(name, attr)
+				e.attr(name, elem.Tag, attr)
 			}
 		}
 	} else {
 		e.linef("const %s = document.createElement(%s);", name, strconv.Quote(elem.Tag))
 		for _, attr := range elem.Attrs {
-			e.attr(name, attr)
+			e.attr(name, elem.Tag, attr)
 		}
 	}
 	for _, child := range elem.Children {
@@ -121,6 +121,57 @@ func functionHasParam(fn *ir.Function, name string) bool {
 	return false
 }
 
+// eventListener keeps the listener parameter compatible with DOM's
+// addEventListener overload while invoking the Rune handler through a narrowed
+// event view. A callback that directly accepts a narrower target is rejected by
+// TypeScript's contravariant function-parameter checking.
+func (e *xmlEmitter) eventListener(lambda *ir.LambdaExpr, tag, eventName string) string {
+	if len(lambda.Params) == 0 {
+		return e.g.expr(lambda)
+	}
+	narrowedType := e.eventViewType(tag, eventName)
+	handler := e.eventLambda(lambda, narrowedType)
+	return "(e) => { (" + handler + ")(e as " + narrowedType + "); }"
+}
+
+// eventLambda renders a Rune event lambda with its first argument narrowed to
+// the tag's lib.dom.d.ts element type.
+func (e *xmlEmitter) eventLambda(lambda *ir.LambdaExpr, eventType string) string {
+	params, ret, ok := parseTSFuncType(string(lambda.ResultType()))
+	if !ok {
+		params = make([]string, len(lambda.Params))
+		ret = string(checker.Void)
+	}
+	tsParams := make([]string, 0, len(lambda.Params))
+	for i, name := range lambda.Params {
+		typ := checker.Unknown
+		if i < len(params) {
+			typ = checker.Type(params[i])
+		}
+		if i == 0 {
+			tsParams = append(tsParams, fmt.Sprintf("%s: %s", mangleIdent(name), eventType))
+			continue
+		}
+		tsParams = append(tsParams, fmt.Sprintf("%s: %s", mangleIdent(name), tsType(typ)))
+	}
+	if block, ok := lambda.Body.(*ir.BlockExpr); ok {
+		return "(" + strings.Join(tsParams, ", ") + "): " + tsType(checker.Type(ret)) + " => { " + e.g.blockInline(block, checker.Type(ret)) + " }"
+	}
+	if checker.Type(ret) == checker.Void {
+		return "(" + strings.Join(tsParams, ", ") + ") => { " + e.g.stmtExpr(lambda.Body) + "; }"
+	}
+	return "(" + strings.Join(tsParams, ", ") + "): " + tsType(checker.Type(ret)) + " => " + e.g.arrowExprBody(lambda.Body)
+}
+
+func (e *xmlEmitter) eventViewType(tag, eventName string) string {
+	eventType := tsType(checker.DOMEventType(eventName))
+	targetType := tsType(checker.DOMTargetType(tag))
+	if targetType == "EventTarget" {
+		return eventType
+	}
+	return eventType + " & { target: " + targetType + "; currentTarget: " + targetType + " }"
+}
+
 func (e *xmlEmitter) attrValue(attr ir.XMLAttr) string {
 	if attr.Name == "style" && attr.Value != nil {
 		if _, ok := attr.Value.(*ir.AnonymousObjectLiteral); ok {
@@ -130,7 +181,7 @@ func (e *xmlEmitter) attrValue(attr ir.XMLAttr) string {
 	return e.g.expr(attr.Value)
 }
 
-func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
+func (e *xmlEmitter) attr(elemName, tag string, attr ir.XMLAttr) {
 	if attr.Spread && attr.Value != nil {
 		o := e.g.expr(attr.Value)
 		// Apply spread properties as attributes
@@ -143,8 +194,8 @@ func (e *xmlEmitter) attr(elemName string, attr ir.XMLAttr) {
 		if attr.Value == nil {
 			return
 		}
-		if _, ok := attr.Value.(*ir.LambdaExpr); ok {
-			e.linef("%s.addEventListener(%s, %s);", elemName, strconv.Quote(attr.Name), e.g.expr(attr.Value))
+		if lambda, ok := attr.Value.(*ir.LambdaExpr); ok {
+			e.linef("%s.addEventListener(%s, %s);", elemName, strconv.Quote(attr.Name), e.eventListener(lambda, tag, attr.Name))
 			return
 		}
 		e.linef("%s.addEventListener(%s, () => { %s; });", elemName, strconv.Quote(attr.Name), e.g.stmtExpr(attr.Value))

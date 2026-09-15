@@ -1112,23 +1112,25 @@ emitTSXMLExprBody(
   level: Int
 ) -> String => {
   out := line(level, ((("const " + name) + " = ") + emitTSXMLCreateElement(expr)) + ";")
-  out = out + emitTSXMLParts(name, expr.children, 0, level, 1)
+  out = out + emitTSXMLParts(name, expr.name, expr.children, 0, level, 1)
   out
 }
 
 emitTSXMLParts(
   parent: String,
+  tag: String,
   children: Array[IRExpr],
   index: Int,
   level: Int,
   childIndex: Int
 ) -> String => (
   index >= children.length() ? ""
-    : emitTSXMLPart(parent, children, index, level, childIndex)
+    : emitTSXMLPart(parent, tag, children, index, level, childIndex)
 )
 
 emitTSXMLPart(
   parent: String,
+  tag: String,
   children: Array[IRExpr],
   index: Int,
   level: Int,
@@ -1139,16 +1141,17 @@ emitTSXMLPart(
     child.kind == ExprKind.XMLElement ? childIndex + 1
       : childIndex
   )
-  emitTSXMLChild(parent, child, level, childIndex) + emitTSXMLParts(parent, children, index + 1, level, nextIndex)
+  emitTSXMLChild(parent, tag, child, level, childIndex) + emitTSXMLParts(parent, tag, children, index + 1, level, nextIndex)
 }
 
 emitTSXMLChild(
   parent: String,
+  tag: String,
   child: IRExpr,
   level: Int,
   childIndex: Int
 ) -> String => child.kind {
-  ExprKind.Field => emitTSXMLAttr(parent, child, level)
+  ExprKind.Field => emitTSXMLAttr(parent, tag, child, level)
   ExprKind.XMLText => line(level, ((parent + ".appendChild(document.createTextNode(") + tsQuoteString(child.value)) + "));")
   ExprKind.XMLElement => emitTSXMLNestedChild(parent, child, level, childIndex)
   _ => emitTSXMLExprChild(parent, child, level, childIndex)
@@ -1183,23 +1186,25 @@ emitTSXMLExprChild(
 
 emitTSXMLAttr(
   parent: String,
+  tag: String,
   attr: IRExpr,
   level: Int
 ) -> String => {
   (
-    attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, attr, level)
+    attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, tag, attr, level)
       : emitTSXMLPlainAttr(parent, attr, level)
   )
 }
 
 emitTSXMLEventAttr(
   parent: String,
+  tag: String,
   attr: IRExpr,
   level: Int
 ) -> String => (
   attr.children.length() == 0 ? ""
     : (
-      attr.children[0].kind == ExprKind.Lambda ? line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", ") + emitTSEventLambda(attr.children[0])) + ");")
+      attr.children[0].kind == ExprKind.Lambda ? line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", ") + emitTSEventListener(attr.children[0], tag, attr.name)) + ");")
         : line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", () => { ") + emitTSExpr(attr.children[0])) + "; });")
     )
 )
@@ -1425,31 +1430,66 @@ emitTSDefaultCall(
 
 emitTSLambda(expr: IRExpr) -> String => (("(" + emitTSParams(expr.params, 0, "")) + ") => ") + emitTSExpr(expr.children[0])
 
-emitTSEventLambda(expr: IRExpr) -> String => {
-  params := emitTSEventParams(expr.params, 0, "")
-  expr.children[0].kind == ExprKind.Block ? (("(" + params) + ") => ") + emitTSExpr(expr.children[0])
-    : (("(" + params) + ") => ") + emitTSExpr(expr.children[0])
+// Keep the callback accepted by addEventListener, then invoke the typed Rune
+// handler with an explicit narrow view. Directly passing a narrower callback is
+// invalid under TypeScript's function parameter variance rules.
+emitTSEventListener(
+  expr: IRExpr,
+  tag: String,
+  eventName: String
+) -> String => (
+  expr.params.length() == 0 ? emitTSEventLambda(expr)
+    : {
+      viewType := emitTSEventViewType(tag, eventName)
+      "(e) => { (" + emitTSEventLambdaTyped(expr, viewType) + ")(e as " + viewType + "); }"
+    }
+)
+
+emitTSEventViewType(
+  tag: String,
+  eventName: String
+) -> String => {
+  eventType := compilerDomEventType(eventName)
+  targetType := compilerDomTargetType(tag)
+  targetType == "EventTarget" ? eventType
+    : ((eventType + " & { target: ") + targetType) + "; currentTarget: " + targetType + " }"
 }
 
-emitTSEventParams(
+emitTSEventLambda(expr: IRExpr) -> String => emitTSEventLambdaTyped(expr, "any")
+
+emitTSEventLambdaTyped(
+  expr: IRExpr,
+  eventType: String
+) -> String => {
+  params := emitTSEventParamsTyped(expr.params, 0, "", eventType)
+  (("(" + params) + ") => ") + emitTSExpr(expr.children[0])
+}
+
+emitTSEventParamsTyped(
   params: Array[IRParam],
   index: Int,
-  out: String
+  out: String,
+  eventType: String
 ) -> String => (
   index >= params.length() ? out
-    : emitTSEventParams(params, index + 1, (((out + (
+    : emitTSEventParamsTyped(params, index + 1, (((out + (
       index == 0 ? ""
         : ", "
-    )) + mangleIdent(params[index].name)) + ": any"))
+    )) + mangleIdent(params[index].name)) + ": ") + (
+      index == 0 ? eventType
+        : "any"
+    ), eventType)
 )
 
 emitTSSelector(expr: IRExpr) -> String => expr.children[0].kind {
   ExprKind.At => emitTSAtSelector(expr)
   ExprKind.Identifier => expr.op {
     "::" => mangleIdent((expr.children[0].name + "_") + expr.name)
+    "?." => (emitTSExpr(expr.children[0]) + "?.") + tsPropertyName(expr.name)
     _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
   }
-  _ => (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
+  _ => expr.op == "?." ? (emitTSExpr(expr.children[0]) + "?.") + tsPropertyName(expr.name)
+    : (emitTSExpr(expr.children[0]) + ".") + tsPropertyName(expr.name)
 }
 
 emitTSAtSelector(expr: IRExpr) -> String => {

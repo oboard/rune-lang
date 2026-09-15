@@ -97,6 +97,9 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		if err != nil {
 			return nil, err
 		}
+		if e.Optional && receiver == nil {
+			return nil, nil
+		}
 		index, err := i.eval(e.Index, env)
 		if err != nil {
 			return nil, err
@@ -913,6 +916,9 @@ func (i *Interpreter) evalSelector(expr *ir.SelectorExpr, env *Env) (Value, erro
 	receiver, err := i.eval(expr.Receiver, env)
 	if err != nil {
 		return nil, err
+	}
+	if expr.Optional && receiver == nil {
+		return nil, nil
 	}
 	switch value := receiver.(type) {
 	case *ir.AtExpr:

@@ -108,6 +108,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return fmt.Sprintf("%s.set(%s)", mangleIdent(e.Name), g.expr(e.Value))
 		}
 		if e.Target != nil && e.Name == "" {
+			if target, ok := e.Target.(*ir.SelectorExpr); ok && target.Optional {
+				receiver := g.nextTemp("optional")
+				return fmt.Sprintf("((%s) => { if (%s != null) { %s.%s = %s } })(%s)", receiver, receiver, receiver, target.Name, g.expr(e.Value), g.expr(target.Receiver))
+			}
 			return fmt.Sprintf("%s = %s", g.expr(e.Target), g.expr(e.Value))
 		}
 		return fmt.Sprintf("%s = %s", mangleIdent(e.Name), g.expr(e.Value))
@@ -130,7 +134,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if at, ok := e.Receiver.(*ir.AtExpr); ok {
 			return "@" + at.Name + "." + e.Name
 		}
-		return tsPropertyAccess(g.selectorReceiverExpr(e.Receiver), e.Name)
+		receiver := g.selectorReceiverExpr(e.Receiver)
+		if e.Optional {
+			return receiver + "?." + e.Name
+		}
+		return tsPropertyAccess(receiver, e.Name)
 	case *ir.IndexExpr:
 		if _, ok := checker.TupleElements(e.Receiver.ResultType()); ok {
 			return fmt.Sprintf("%s[%s]", g.expr(e.Receiver), g.expr(e.Index))
@@ -140,7 +148,11 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			keyName := g.nextTemp("key")
 			return fmt.Sprintf("((%s, %s) => %s.has(%s) ? %s.get(%s)! : null)(%s, %s)", mapName, keyName, mapName, keyName, mapName, keyName, g.expr(e.Receiver), g.expr(e.Index))
 		}
-		return fmt.Sprintf("%s[%s]", g.selectorReceiverExpr(e.Receiver), g.expr(e.Index))
+		receiver := g.selectorReceiverExpr(e.Receiver)
+		if e.Optional {
+			return fmt.Sprintf("%s?.[%s]", receiver, g.expr(e.Index))
+		}
+		return fmt.Sprintf("%s[%s]", receiver, g.expr(e.Index))
 	case *ir.ArrayLiteral:
 		elems := make([]string, 0, len(e.Elements))
 		for _, elem := range e.Elements {

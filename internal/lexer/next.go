@@ -107,6 +107,9 @@ func (l *Lexer) nextCode() Token {
 		if l.match('?') {
 			return l.token(QuestionQuestion)
 		}
+		if l.match('.') {
+			return l.token(QuestionDot)
+		}
 		return l.token(Question)
 	case '+':
 		if l.match('+') {
@@ -221,11 +224,11 @@ func (l *Lexer) nextXMLTag() Token {
 	case '"':
 		return l.string()
 	case '{':
+		l.xmlAttrExpr = true
+		l.xmlAttrReturnMode = l.xmlExprMode
+		l.xmlAttrReturnDepth = l.xmlExprDepth
 		l.mode = modeXMLExpr
 		l.xmlExprMode = modeXMLTag
-		if l.xmlExprDepth == 0 {
-			l.xmlSavedDepth = l.xmlDepth
-		}
 		l.xmlExprDepth = 1
 		return l.token(LBrace)
 	case '}':
@@ -247,8 +250,9 @@ func (l *Lexer) nextXMLTag() Token {
 		l.xmlClosing = false
 		l.xmlSelfClosed = false
 		if l.xmlExprDepth > 0 && l.xmlDepth == l.xmlSavedDepth {
-			// Closing tag finished the top-level element inside an expression; stay in expression code mode.
-			l.mode = modeCode
+			// A nested element inside `{...}` has finished. Continue lexing the
+			// enclosing XML expression so its closing brace restores XML text mode.
+			l.mode = modeXMLExpr
 		} else if l.xmlDepth > 0 {
 			l.mode = modeXMLText
 		} else {
@@ -367,11 +371,19 @@ func (l *Lexer) nextXMLExpr() Token {
 		tok := l.token(RBrace)
 		if l.xmlExprDepth <= 0 {
 			l.mode = l.xmlExprMode
+			if l.xmlAttrExpr {
+				l.xmlExprMode = l.xmlAttrReturnMode
+				l.xmlExprDepth = l.xmlAttrReturnDepth
+				l.xmlAttrExpr = false
+			}
 		}
 		return tok
 	case '?':
 		if l.match('?') {
 			return l.token(QuestionQuestion)
+		}
+		if l.match('.') {
+			return l.token(QuestionDot)
 		}
 		return l.token(Question)
 	case '+':

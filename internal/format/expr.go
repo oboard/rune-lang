@@ -73,14 +73,20 @@ func (f *formatter) expr(expr ast.Expr) string {
 	case *ast.LambdaExpr:
 		return f.lambdaExpr(e)
 	case *ast.IndexExpr:
-		return fmt.Sprintf("%s[%s]", f.postfixReceiverExpr(e.Receiver), f.expr(e.Index))
+		operator := "["
+		if e.Optional {
+			operator = "?.["
+		}
+		return fmt.Sprintf("%s%s%s]", f.postfixReceiverExpr(e.Receiver), operator, f.expr(e.Index))
 	case *ast.SelectorExpr:
-		if _, ok := e.Receiver.(*ast.ThisExpr); ok {
+		if _, ok := e.Receiver.(*ast.ThisExpr); ok && !e.Optional {
 			return "." + e.Name
 		}
 		operator := "."
 		if e.Static {
 			operator = "::"
+		} else if e.Optional {
+			operator = "?."
 		}
 		return f.postfixReceiverExpr(e.Receiver) + operator + e.Name
 	case *ast.ArrayLiteral:
@@ -242,6 +248,8 @@ func (f *formatter) callChainParts(expr ast.Expr) []string {
 			operator := "."
 			if sel.Static {
 				operator = "::"
+			} else if sel.Optional {
+				operator = "?."
 			}
 			parts = append(parts, operator+sel.Name+f.formatCallArgs(call.Args))
 			return parts

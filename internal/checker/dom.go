@@ -160,6 +160,12 @@ func (c *checker) collectDOMTypes() {
 // `HTMLElementEventMap` covers every standard HTML listener. Unknown listeners
 // degrade to the base `Event` interface so the handler parameter stays typed.
 func (c *checker) domEventType(name string) Type {
+	return DOMEventType(name)
+}
+
+// DOMEventType resolves an HTML event name through HTMLElementEventMap from
+// lib.dom.d.ts. It gives code generators the same event type used by checking.
+func DOMEventType(name string) Type {
 	_, flat := loadDOMLib()
 	if flat == nil {
 		return Type("Event")
@@ -169,7 +175,7 @@ func (c *checker) domEventType(name string) Type {
 	if m := flat["HTMLElementEventMap"]; m != nil {
 		for _, mem := range m.Members {
 			if strings.Trim(mem.Name, `"`) == name {
-				if t := c.domToRuneType(mem.Type); t != Unknown {
+				if t := domCodegenType(mem.Type); t != Unknown {
 					return t
 				}
 				break
@@ -185,6 +191,13 @@ func (c *checker) domEventType(name string) Type {
 // (input, textarea, select, button, option) this returns that interface so
 // `e.target.value` resolves; every other tag keeps the vanilla `EventTarget`.
 func (c *checker) domTargetType(tag string) Type {
+	return DOMTargetType(tag)
+}
+
+// DOMTargetType resolves an HTML tag to its lib.dom.d.ts element interface.
+// It is used by code generators to preserve the same event target narrowing
+// that the checker applies to XML event handlers.
+func DOMTargetType(tag string) Type {
 	_, flat := loadDOMLib()
 	if flat == nil {
 		return Type("EventTarget")
@@ -192,7 +205,7 @@ func (c *checker) domTargetType(tag string) Type {
 	if m := flat["HTMLElementTagNameMap"]; m != nil {
 		for _, mem := range m.Members {
 			if strings.Trim(mem.Name, `"`) == tag {
-				if t := c.domToRuneType(mem.Type); t != Unknown && t != Type("Event") {
+				if t := domCodegenType(mem.Type); t != Unknown && t != Type("Event") {
 					return t
 				}
 				break
@@ -265,8 +278,9 @@ func memberOverloadScore(mem *tsdecl.Member) int {
 }
 
 // overloadScore ranks a TS function for collapse. Higher is better.
-//   +2 for a concrete (non-Any) return type
-//   +1 if all required params are non-Any
+//
+//	+2 for a concrete (non-Any) return type
+//	+1 if all required params are non-Any
 func overloadScore(fn *tsdecl.Function) int {
 	score := 0
 	if _, isAny := fn.Return.(tsdecl.Any); !isAny {
@@ -377,6 +391,16 @@ func (c *checker) populateDOMInterface(name string, flat *tsdecl.Flattened) {
 			info.Fields = append(info.Fields, info.ByName[mem.Name])
 		}
 	}
+}
+
+// domCodegenType extracts a named DOM interface from lib.dom.d.ts for target
+// code generation. Unlike domToRuneType, it does not require a checker Info.
+func domCodegenType(t tsdecl.Type) Type {
+	ref, ok := t.(tsdecl.Ref)
+	if !ok {
+		return Unknown
+	}
+	return Type(ref.Name)
 }
 
 // domToRuneType maps the tsdecl type model back to Rune checker.Type.

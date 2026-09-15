@@ -5,6 +5,7 @@
 
   push(value: T) -> Int => "%array.push"
 
+  #alias("[_]=_")
   set(index: Int, value: T) -> T => "%array.set"
 
   pop() -> T => "%array.pop"

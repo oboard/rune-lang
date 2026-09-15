@@ -1535,9 +1535,9 @@ parseBody(
 parseBraceBody(
   state: ParserState
 ) -> ExprStep => (
-  (looksLikePatternBranch(state) == false) && looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
+  (looksLikePatternBranch(state) == false) && looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
     : (
-      (looksLikePatternBranch(state) == false) && looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
+      (looksLikePatternBranch(state) == false) && looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
         : parseBlock(state)
     )
 )
@@ -1759,7 +1759,7 @@ parseExpressionLoop(
           : (
             parserCheck(state, TokenKind.LBracket) ? parseIndexExpression(state, expr, minPrec)
               : (
-                parserCheck(state, TokenKind.Dot) || parserCheck(state, TokenKind.DoubleColon) ? parseSelectorExpression(state, expr, minPrec)
+                parserCheck(state, TokenKind.Dot) || parserCheck(state, TokenKind.DoubleColon) || parserCheck(state, TokenKind.QuestionDot) ? parseSelectorExpression(state, expr, minPrec)
                   : (
                     parserCheck(state, TokenKind.PlusPlus) ? parsePostfixExpression(state, expr, minPrec)
                       : (
@@ -1882,7 +1882,10 @@ parseSelectorExpression(
 ) -> ExprStep => {
   operator := (
     parserCheck(state, TokenKind.DoubleColon) ? parserConsume(state, TokenKind.DoubleColon, "expected '::'")
-      : parserConsume(state, TokenKind.Dot, "expected '.'")
+      : (
+        parserCheck(state, TokenKind.QuestionDot) ? parserConsume(state, TokenKind.QuestionDot, "expected '?.'")
+          : parserConsume(state, TokenKind.Dot, "expected '.'")
+      )
   )
   name := parserConsume(operator.state, TokenKind.Ident, "expected selector name")
   parseExpressionLoop(ExprStep {
@@ -2154,9 +2157,22 @@ parseXMLAttributes(
           element: element,
           selfClosing: false
         }
-          : parseXMLAttribute(current, element)
+          : parserCheck(current, TokenKind.LBrace) && (parserCheckNext(current, TokenKind.DotDot) || parserCheckNext(current, TokenKind.DotDotDot)) ? parseXMLSpreadAttribute(current, element)
+            : parseXMLAttribute(current, element)
       )
   )
+}
+
+parseXMLSpreadAttribute(
+  state: ParserState,
+  element: ParsedExpr
+) -> XMLAttrStep => {
+  open := parserConsume(state, TokenKind.LBrace, "expected '{'")
+  spreadStep := parserAdvance(open.state)
+  value := parseExpression(parserSkipNewlines(spreadStep.state), 1)
+  close := parserConsume(skipXMLWhitespace(parserSkipNewlines(value.state)), TokenKind.RBrace, "expected '}' after spread expression")
+  attr := makeExpr(ExprKind.Spread, "", "", "", "xmlSpread", [], [value.expr], open.token.line, open.token.column)
+  parseXMLAttributes(close.state, appendChild(element, attr))
 }
 
 parseXMLAttribute(
@@ -2572,9 +2588,9 @@ parseSignalPrefixIdentifier(
 parseBraceLiteral(
   state: ParserState
 ) -> ExprStep => (
-  looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
+  looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
     : (
-      looksLikeObjectLiteralBody(state) ? parseObjectLiteral(state)
+      looksLikeMapLiteralBody(state) ? parseMapLiteral(state)
         : parseBlock(state)
     )
 )

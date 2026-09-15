@@ -219,9 +219,10 @@ func (e *AssignExpr) Position() lexer.Position {
 }
 
 type CallExpr struct {
-	Callee Expr
-	Args   []Expr
-	Pos    lexer.Position
+	Callee   Expr
+	Args     []Expr
+	Optional bool
+	Pos      lexer.Position
 }
 
 func (*CallExpr) exprNode() {}
@@ -248,6 +249,7 @@ type SelectorExpr struct {
 	Receiver Expr
 	Name     string
 	Static   bool
+	Optional bool
 	Pos      lexer.Position
 	NamePos  lexer.Position
 }
@@ -260,6 +262,7 @@ func (e *SelectorExpr) Position() lexer.Position {
 type IndexExpr struct {
 	Receiver Expr
 	Index    Expr
+	Optional bool
 	Pos      lexer.Position
 }
 
