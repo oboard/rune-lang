@@ -3263,14 +3263,19 @@ func selfhost_parser_parser_parseStatement(state ParserState) ExprStep {
 					return selfhost_parser_parser_parseDollarStatement(state)
 				}
 				return func() ExprStep {
-					if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && (selfhost_parser_parser_parserCheckNext(state, TokenKind_Declare) || selfhost_parser_parser_parserCheckNext(state, TokenKind_MutDeclare)) {
-						return selfhost_parser_parser_parseLetStatement(state)
+					if selfhost_parser_parser_parserCheck(state, TokenKind_Dollar) && selfhost_parser_parser_parserKindAt(state, state.current+1) == TokenKind_LBracket {
+						return selfhost_parser_parser_parseExpression(state, 1)
 					}
 					return func() ExprStep {
-						if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Assign) {
-							return selfhost_parser_parser_parseAssignStatement(state)
+						if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && (selfhost_parser_parser_parserCheckNext(state, TokenKind_Declare) || selfhost_parser_parser_parserCheckNext(state, TokenKind_MutDeclare)) {
+							return selfhost_parser_parser_parseLetStatement(state)
 						}
-						return selfhost_parser_parser_parseExpression(state, 1)
+						return func() ExprStep {
+							if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Assign) {
+								return selfhost_parser_parser_parseAssignStatement(state)
+							}
+							return selfhost_parser_parser_parseExpression(state, 1)
+						}()
 					}()
 				}()
 			}()
@@ -7654,6 +7659,10 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return selfhost_format_format_formatXMLElement(expr, indent)
 		case expr.kind == ExprKind_Object:
 			return selfhost_format_format_formatObjectExpr(expr, indent)
+		case expr.kind == ExprKind_Array:
+			return selfhost_format_format_formatArrayExpr(expr, indent)
+		case expr.kind == ExprKind_Struct:
+			return selfhost_format_format_formatStructExpr(expr, indent)
 		case expr.kind == ExprKind_Block:
 			return selfhost_format_format_formatBlockExpr(expr, indent)
 		case expr.kind == ExprKind_PatternBlock:
@@ -7710,6 +7719,40 @@ func selfhost_format_format_formatObjectExpr(expr ParsedExpr, indent int) string
 	}()
 }
 
+func selfhost_format_format_formatArrayExpr(expr ParsedExpr, indent int) string {
+	return func() string {
+		if len(expr.children) == 0 {
+			return "[]"
+		}
+		return "[\n" + selfhost_format_format_formatArrayItems(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "]"
+	}()
+}
+
+func selfhost_format_format_formatArrayItems(items []ParsedExpr, index int, indent int, out string) string {
+	for {
+		if index >= len(items) {
+			return out
+		} else {
+			items, index, indent, out = items, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(items[index], indent)+func() string {
+				if index+1 < len(items) {
+					return ","
+				}
+				return ""
+			}()+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatStructExpr(expr ParsedExpr, indent int) string {
+	return func() string {
+		if len(expr.children) == 0 {
+			return expr.name + " {}"
+		}
+		return expr.name + " {\n" + selfhost_format_format_formatObjectFields(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+	}()
+}
+
 func selfhost_format_format_formatBlockExpr(expr ParsedExpr, indent int) string {
 	return "{\n" + selfhost_format_format_formatBlockChildren(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
 }
@@ -7731,7 +7774,12 @@ func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, i
 }
 
 func selfhost_format_format_formatLetExpr(expr ParsedExpr, indent int) string {
-	return expr.name + " := " + selfhost_format_format_formatExpr(expr.children[0], indent)
+	return func() string {
+		if expr.op == "$:=" {
+			return "$" + expr.name + " := " + selfhost_format_format_formatExpr(expr.children[0], indent)
+		}
+		return expr.name + " := " + selfhost_format_format_formatExpr(expr.children[0], indent)
+	}()
 }
 
 func selfhost_format_format_formatAssignExpr(expr ParsedExpr, indent int) string {

@@ -18,7 +18,6 @@ import (
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
-	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
@@ -660,36 +659,10 @@ func formatTarget(path string, checkOnly bool, stdout bool, out io.Writer) error
 	return nil
 }
 
-// formatWithSelfhostBridge uses the generated self-host formatter when it has
-// verified parity for the source shape; otherwise it falls back to the host
-// formatter. This keeps user-visible formatting stable while expanding the
-// self-hosted subset with explicit evidence.
-func formatWithSelfhostBridge(file *ast.File, source string) string {
-	goFormatted := runefmt.Source(file, source)
-	if !selfhostFormatterEligible(source) {
-		return goFormatted
-	}
-	selfhostFormatted := formatSource(source)
-	if selfhostFormatted == goFormatted {
-		return selfhostFormatted
-	}
-	return goFormatted
-}
-
-func selfhostFormatterEligible(source string) bool {
-	if strings.Contains(source, "//") || strings.Contains(source, "/*") {
-		return false
-	}
-	if strings.Contains(source, "?") {
-		return false
-	}
-	if strings.Contains(source, "=>") && strings.Contains(source, "{") {
-		return false
-	}
-	if strings.Contains(source, "User {") || strings.Contains(source, "Box[") {
-		return false
-	}
-	return true
+// formatWithSelfhostBridge delegates all CLI formatting to the generated
+// self-hosted formatter.
+func formatWithSelfhostBridge(source string) string {
+	return formatSource(source)
 }
 
 func formatFile(path string, checkOnly bool, stdout bool, out io.Writer) error {
@@ -697,12 +670,7 @@ func formatFile(path string, checkOnly bool, stdout bool, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	file, errs := parser.Parse(string(original))
-	if len(errs) > 0 {
-		printDiagnostics(path, parseDiagnostics(errs))
-		return fmt.Errorf("format failed")
-	}
-	formatted := formatWithSelfhostBridge(file, string(original))
+	formatted := formatWithSelfhostBridge(string(original))
 	if stdout {
 		fmt.Fprint(out, formatted)
 		return nil

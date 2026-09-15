@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/compiler"
-	runefmt "github.com/oboard/rune-lang/internal/format"
-	"github.com/oboard/rune-lang/internal/parser"
 )
 
 func BenchmarkSelfhostLexer(b *testing.B) {
@@ -536,87 +534,44 @@ func TestExecuteSelfhostCheckDirectory(t *testing.T) {
 	}
 }
 
-func TestGeneratedSelfhostFormatterMatchesHostForComments(t *testing.T) {
-	for _, src := range []string{
-		"main()=>{\nvalue:=1 // value\n@io.println(value) // print\n}",
-		"main()=>{\nvalue:=1 /* value */\n@io.println(value)}",
-	} {
-		file, errs := parser.Parse(src)
-		if len(errs) > 0 {
-			t.Fatalf("Parse(%q) errors = %v", src, errs)
-		}
-		if got, want := formatSource(src), runefmt.Source(file, src); got != want {
-			t.Fatalf("formatSource(%q) = %q, want %q", src, got, want)
-		}
-	}
-}
-
-func TestGeneratedSelfhostFormatterMatchesHostCorpus(t *testing.T) {
-	cases := []struct {
-		src      string
-		eligible bool
-	}{
-		{"1 + 2", true},
-		{"let x: Int = 3\nx + 1", true},
-		{`let s: String = "hello"`, true},
-		{"User: { name: String, age: Int }\n\nmain() => User { name: \"a\", age: 1 }.name", false},
-		{"Box[T]: { value: T }\n\nmain() => Box[Int] { value: 1 }", false},
-		{"+ Task: { id: Int, label: String, done: Bool }", true},
-		{"fib(n: Int) -> Int => (n < 2 ? n : fib(n - 1) + fib(n - 2))", false},
-		{`Color: { Red, Green, Blue }
-
-describe(color: Color) -> String => color {
-	Red => "r"
-	Blue => "b"
-	_ => "g"
-}`, false},
-		{`Circle: { radius: Double }
-Square: { side: Double }
-
-main() => 0`, false},
-		{"\tif true { 1 } else { 2 }", true},
-		{"main() => {\n\ta := 1\n\tb := 2\n\ta + b\n}", false},
-		{"main() => @io.println(\"hi\")", true},
-		{"+ answer() -> Int => 42", true},
-		{"main() => item.length()", true},
-		{"data := 1 + 2 * 3", true},
-		{"square := (n: Int) -> Int => n * n", true},
-		{`TaggedWrapper: {
-  Int: Int
-  String: String
-}`, true},
-		{`main() => {
-	a := 1
-	b := 2
-	a ? b
-}`, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.src[0:min(len(tc.src), 30)], func(t *testing.T) {
-			file, errs := parser.Parse(tc.src)
-			if len(errs) > 0 {
-				t.Skipf("parser rejected input: %v", errs)
-			}
-			if got := selfhostFormatterEligible(tc.src); got != tc.eligible {
-				t.Fatalf("selfhostFormatterEligible(%q) = %v, want %v", tc.src, got, tc.eligible)
-			}
-			if got, want := formatWithSelfhostBridge(file, tc.src), runefmt.Source(file, tc.src); got != want {
-				t.Fatalf("formatWithSelfhostBridge(%q) = %q (selfhost: %q), want %q", tc.src, got, formatSource(tc.src), want)
-			}
-		})
-	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func TestGeneratedSelfhostFormatterFormatsSimpleProgram(t *testing.T) {
 	if got, want := formatSource("main()=>1"), "main() => 1\n"; got != want {
 		t.Fatalf("formatSource() = %q, want %q", got, want)
+	}
+}
+
+func TestGeneratedSelfhostFormatterExpandsArrayOfStructLiterals(t *testing.T) {
+	src := `render() => {
+  $list := [TodoItem {
+    name: "Item 1",
+    status: TodoStatus.PENDING
+  }, TodoItem {
+    name: "Item 2",
+    status: TodoStatus.PENDING
+  }, TodoItem {
+    name: "Item 3",
+    status: TodoStatus.PENDING
+  }]
+}`
+	want := `render() => {
+  $list := [
+    TodoItem {
+      name: "Item 1",
+      status: TodoStatus.PENDING
+    },
+    TodoItem {
+      name: "Item 2",
+      status: TodoStatus.PENDING
+    },
+    TodoItem {
+      name: "Item 3",
+      status: TodoStatus.PENDING
+    }
+  ]
+}
+`
+	if got := formatSource(src); got != want {
+		t.Fatalf("formatSource() =\n%s\nwant:\n%s", got, want)
 	}
 }
 

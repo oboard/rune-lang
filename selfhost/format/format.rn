@@ -102,6 +102,8 @@ formatBlockChildren(
 formatExpr(expr: ParsedExpr, indent: Int) -> String => expr.kind {
   ExprKind.XMLElement => formatXMLElement(expr, indent)
   ExprKind.Object => formatObjectExpr(expr, indent)
+  ExprKind.Array => formatArrayExpr(expr, indent)
+  ExprKind.Struct => formatStructExpr(expr, indent)
   ExprKind.Block => formatBlockExpr(expr, indent)
   ExprKind.PatternBlock => formatBlockExpr(expr, indent)
   ExprKind.Let => formatLetExpr(expr, indent)
@@ -131,6 +133,26 @@ formatObjectExpr(expr: ParsedExpr, indent: Int) -> String => {
     : "{\n" + formatObjectFields(expr.children, 0, indent + 1, "") + indentText(indent) + "}"
 }
 
+formatArrayExpr(expr: ParsedExpr, indent: Int) -> String => {
+  expr.children.length() == 0 ? "[]"
+    : "[\n" + formatArrayItems(expr.children, 0, indent + 1, "") + indentText(indent) + "]"
+}
+
+formatArrayItems(
+  items: Array[ParsedExpr],
+  index: Int,
+  indent: Int,
+  out: String
+) -> String => (
+  index >= items.length() ? out
+    : formatArrayItems(items, index + 1, indent, out + indentText(indent) + formatExpr(items[index], indent) + ((index + 1) < items.length() ? "," : "") + "\n")
+)
+
+formatStructExpr(expr: ParsedExpr, indent: Int) -> String => {
+  expr.children.length() == 0 ? expr.name + " {}"
+    : expr.name + " {\n" + formatObjectFields(expr.children, 0, indent + 1, "") + indentText(indent) + "}"
+}
+
 formatBlockExpr(expr: ParsedExpr, indent: Int) -> String => "{\n" + formatBlockChildren(expr.children, 0, indent + 1, "") + indentText(indent) + "}"
 
 formatObjectFields(
@@ -143,7 +165,10 @@ formatObjectFields(
     : formatObjectFields(fields, index + 1, indent, out + indentText(indent) + fields[index].name + ": " + formatExpr(fields[index].children[0], indent) + ((index + 1) < fields.length() ? "," : "") + "\n")
 )
 
-formatLetExpr(expr: ParsedExpr, indent: Int) -> String => expr.name + " := " + formatExpr(expr.children[0], indent)
+formatLetExpr(expr: ParsedExpr, indent: Int) -> String => (
+  expr.op == "$:=" ? "$" + expr.name + " := " + formatExpr(expr.children[0], indent)
+    : expr.name + " := " + formatExpr(expr.children[0], indent)
+)
 
 formatAssignExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + " = " + formatExpr(expr.children[1], indent)
 

@@ -599,7 +599,7 @@ func (g *generator) stmtExpr(expr ir.Expr) string {
 func (g *generator) reactiveLiteral(lit *ir.ReactiveLiteral) string {
 	switch value := lit.Value.(type) {
 	case *ir.ArrayLiteral:
-		return "runeReactiveArray(" + g.expr(value) + ")"
+		return g.reactiveArrayLiteral(value, lit.ResultType())
 	case *ir.AnonymousObjectLiteral:
 		return "runeReactiveObject(" + g.expr(value) + ")"
 	default:
@@ -607,12 +607,23 @@ func (g *generator) reactiveLiteral(lit *ir.ReactiveLiteral) string {
 	}
 }
 
+// reactiveArrayLiteral supplies the inferred element type explicitly. TypeScript
+// otherwise widens object literals (including enum members) before generic
+// inference, losing a declared struct type such as TodoItem.
+func (g *generator) reactiveArrayLiteral(value *ir.ArrayLiteral, typ checker.Type) string {
+	elem, ok := checker.ArrayElement(typ)
+	if !ok || elem == checker.Unknown {
+		return "runeReactiveArray(" + g.expr(value) + ")"
+	}
+	return fmt.Sprintf("runeReactiveArray<%s>(%s)", tsType(elem), g.expr(value))
+}
+
 func (g *generator) signalInitialValue(expr ir.Expr) string {
-	switch expr.(type) {
+	switch value := expr.(type) {
 	case *ir.ArrayLiteral:
-		return "runeReactiveArray(" + g.expr(expr) + ")"
+		return g.reactiveArrayLiteral(value, expr.ResultType())
 	case *ir.AnonymousObjectLiteral:
-		return "runeReactiveObject(" + g.expr(expr) + ")"
+		return "runeReactiveObject(" + g.expr(value) + ")"
 	default:
 		return "runeSignal(" + g.expr(expr) + ")"
 	}

@@ -418,6 +418,21 @@ func TestGenerateElementArrayChild(t *testing.T) {
 	}
 }
 
+func TestGenerateReactiveStructArrayPreservesElementType(t *testing.T) {
+	src := `TodoStatus: { PENDING }
+TodoItem: { name: String, status: TodoStatus }
+
+render() => {
+  $list := [TodoItem { name: "Item 1", status: TodoStatus.PENDING }]
+}
+`
+	got := generateForTest(t, src)
+	want := `const list = runeReactiveArray<TodoItem>([{name: "Item 1", status: TodoStatus.PENDING}]);`
+	if !strings.Contains(got, want) {
+		t.Fatalf("generated TypeScript missing typed reactive array %q:\n%s", want, got)
+	}
+}
+
 func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	src := `render() => {
   $list := ["Item 1", "Item 2", "Item 3"]
@@ -433,7 +448,7 @@ func TestGenerateReactiveElementArrayChild(t *testing.T) {
 	got := generateForTest(t, src)
 	wantParts := []string{
 		`function runeReactiveArray<T>(initial: T[]): RuneSignal<T[]>`,
-		`const list = runeReactiveArray(["Item 1", "Item 2", "Item 3"]);`,
+		`const list = runeReactiveArray<string>(["Item 1", "Item 2", "Item 3"]);`,
 		`const __start`,
 		`const __render`,
 		`runeWatch(list, __render`,
@@ -912,7 +927,7 @@ func TestGenerateSignalAssignmentExpression(t *testing.T) {
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
-		`const list = runeReactiveArray(["Item 1"]);`,
+		`const list = runeReactiveArray<string>(["Item 1"]);`,
 		`.addEventListener("click", () => { list.set([...list.get(), "New Item"]); });`,
 	}
 	for _, want := range wantParts {

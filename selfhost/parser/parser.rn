@@ -1603,10 +1603,13 @@ parseStatement(
         : (
           parserCheck(state, TokenKind.Dollar) && parserCheckNext(state, TokenKind.Ident) ? parseDollarStatement(state)
             : (
-              parserCheck(state, TokenKind.Ident) && (parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) ? parseLetStatement(state)
+              parserCheck(state, TokenKind.Dollar) && (parserKindAt(state, state.current + 1) == TokenKind.LBracket) ? parseExpression(state, 1)
                 : (
-                  parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state)
-                    : parseExpression(state, 1)
+                  parserCheck(state, TokenKind.Ident) && (parserCheckNext(state, TokenKind.Declare) || parserCheckNext(state, TokenKind.MutDeclare)) ? parseLetStatement(state)
+                    : (
+                      parserCheck(state, TokenKind.Ident) && parserCheckNext(state, TokenKind.Assign) ? parseAssignStatement(state)
+                        : parseExpression(state, 1)
+                    )
                 )
             )
         )
