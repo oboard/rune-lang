@@ -9,7 +9,10 @@ import (
 func TestEventModifierInfersReferencedHandlerParam(t *testing.T) {
 	file := parseSource(t, `
 main() => {
-  addTodo := (e) => e.type
+  addTodo := (e) => {
+    e.preventDefault()
+    e.type
+  }
   <form @submit.prevent={addTodo} />
 }
 `)
@@ -19,7 +22,8 @@ main() => {
 	}
 	block := file.Functions[0].Body.(*ast.BlockExpr)
 	lambda := block.Statements[0].(*ast.LetStmt).Value.(*ast.LambdaExpr)
-	ident := lambda.Body.(*ast.SelectorExpr).Receiver.(*ast.Identifier)
+	lambdaBody := lambda.Body.(*ast.BlockExpr)
+	ident := lambdaBody.Statements[1].(*ast.ExprStmt).Expr.(*ast.SelectorExpr).Receiver.(*ast.Identifier)
 	if got := info.ExprTypes[ident]; got != Type("SubmitEvent") {
 		t.Fatalf("addTodo event type = %s, want SubmitEvent", got)
 	}

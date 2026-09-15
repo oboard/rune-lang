@@ -400,8 +400,40 @@ func (c *checker) registerAnonymousObjectType(typ Type, fields []FieldInfo, byNa
 	}
 }
 
+// blockEventHandlerTypes collects local handler references used by XML event
+// attributes and gives their declarations the event function type before normal
+// block-order inference reaches them.
+func (c *checker) blockEventHandlerTypes(block *ast.BlockExpr) map[string]Type {
+	types := map[string]Type{}
+	for _, stmt := range block.Statements {
+		exprStmt, ok := stmt.(*ast.ExprStmt)
+		if !ok {
+			continue
+		}
+		ast.WalkExpr(exprStmt.Expr, func(expr ast.Expr) {
+			elem, ok := expr.(*ast.XMLElement)
+			if !ok {
+				return
+			}
+			for _, attr := range elem.Attrs {
+				ident, ok := attr.Value.(*ast.Identifier)
+				if !attr.Event || !ok {
+					continue
+				}
+				types[ident.Name] = FuncOfTypes([]Type{c.domEventType(attr.Name)}, Void)
+			}
+		})
+	}
+	return types
+}
+
 func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 	local := cloneEnv(env)
+	// Event attributes may reference a lambda declared earlier in this same
+	// block. Seed those lambdas before their declarations are inferred, so a
+	// body such as `e.preventDefault()` is checked as SubmitEvent rather than
+	// being prematurely structurally inferred as an unknown callable field.
+	eventHandlerTypes := c.blockEventHandlerTypes(block)
 	result := Void
 	blockExpected := c.expectedType
 	c.expectedType = Unknown
@@ -412,6 +444,9 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 		isLast := index == len(block.Statements)-1
 		switch s := stmt.(type) {
 		case *ast.LetStmt:
+			if expected, ok := eventHandlerTypes[s.Name]; ok {
+				c.applyExpectedType(s.Value, expected)
+			}
 			if _, exists := local[s.Name]; exists {
 				c.errorf(s.Pos, "name %q is already defined", s.Name)
 			}

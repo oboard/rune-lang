@@ -9,14 +9,6 @@ TodoItem: {
     TodoItem {
       name: "Item 1",
       status: false
-    },
-    TodoItem {
-      name: "Item 2",
-      status: false
-    },
-    TodoItem {
-      name: "Item 3",
-      status: false
     }
   ]
   $inputValue := ""
@@ -28,24 +20,21 @@ TodoItem: {
     $inputValue = ""
   }
   <div>
-    <h1>Todo Example</h1>
-    <ul>
-      {$list.map((item, index) => (
-        <li>
-          <input
-            type="checkbox"
-            checked={item.status}
-            @change={(e) => {
-              $list[index] = {
-                ..item,
-                status: e.target.checked
-              }
-            }}
-          />
-          {item.name}
-        </li>
-      ))}
-    </ul>
+    {$list.map((item, index) => (
+      <li>
+        <input
+          type="checkbox"
+          checked={item.status}
+          @change={(e) => {
+            $list[index] = {
+              ..item,
+              status: e.target.checked
+            }
+          }}
+        />
+        {item.name}
+      </li>
+    ))}
     <form @submit.prevent={addTodo}>
       <input
         type="text"
