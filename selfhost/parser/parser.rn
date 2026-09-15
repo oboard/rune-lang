@@ -2184,8 +2184,10 @@ parseXMLAttribute(
 ) -> XMLAttrStep => {
   eventStep := parserMatch(state, TokenKind.At)
   name := parserConsume(eventStep.state, TokenKind.Ident, "expected XML attribute name")
+  fullName := eventStep.ok ? parseXMLEventName(name.state, name.token.lexeme)
+    : StringStep { state: name.state, value: name.token.lexeme }
   valueStep := (
-    parserCheck(name.state, TokenKind.Assign) ? parseXMLAttributeValue(parserAdvance(name.state).state)
+    parserCheck(fullName.state, TokenKind.Assign) ? parseXMLAttributeValue(parserAdvance(fullName.state).state)
       : ExprStep {
         state: name.state,
         expr: emptyExpr()
@@ -2198,11 +2200,23 @@ parseXMLAttribute(
           : "xmlAttr"
       )
   )
-  attr := makeExpr(ExprKind.Field, name.token.lexeme, name.token.lexeme, "", op, [], (
+  attr := makeExpr(ExprKind.Field, fullName.value, fullName.value, "", op, [], (
     valueStep.expr.kind == ExprKind.Unknown ? []
       : [valueStep.expr]
   ), name.token.line, name.token.column)
   parseXMLAttributes(valueStep.state, appendChild(element, attr))
+}
+
+parseXMLEventName(
+  state: ParserState,
+  name: String
+) -> StringStep => {
+  dot := parserMatch(state, TokenKind.Dot)
+  dot.ok ? {
+    suffix := parserConsume(dot.state, TokenKind.Ident, "expected event name segment after '.'")
+    parseXMLEventName(suffix.state, name + "." + suffix.token.lexeme)
+  }
+    : StringStep { state: state, value: name }
 }
 
 parseXMLAttributeValue(

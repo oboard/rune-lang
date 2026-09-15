@@ -1192,7 +1192,7 @@ emitTSXMLAttr(
 ) -> String => {
   (
     attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, tag, attr, level)
-      : emitTSXMLPlainAttr(parent, attr, level)
+      : emitTSXMLPlainAttr(parent, tag, attr, level)
   )
 }
 
@@ -1203,23 +1203,72 @@ emitTSXMLEventAttr(
   level: Int
 ) -> String => (
   attr.children.length() == 0 ? ""
-    : (
-      attr.children[0].kind == ExprKind.Lambda ? line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", ") + emitTSEventListener(attr.children[0], tag, attr.name)) + ");")
-        : line(level, ((((parent + ".addEventListener(") + tsQuoteString(attr.name)) + ", () => { ") + emitTSExpr(attr.children[0])) + "; });")
-    )
+    : emitTSXMLEventAttrValue(parent, tag, attr, level, compilerDomEventBaseName(attr.name), compilerDomEventHasModifier(attr.name, "prevent"))
 )
+
+emitTSXMLEventAttrValue(
+  parent: String,
+  tag: String,
+  attr: IRExpr,
+  level: Int,
+  eventName: String,
+  prevent: Bool
+) -> String => {
+  value := attr.children[0]
+  listener := value.kind == ExprKind.Lambda ? emitTSEventListener(value, tag, attr.name)
+    : emitTSReferencedEventListener(value, prevent)
+  wrapped := prevent && (value.kind == ExprKind.Lambda) ? emitTSPreventingEventListener(listener)
+    : listener
+  line(level, ((((parent + ".addEventListener(") + tsQuoteString(eventName)) + ", ") + wrapped) + ");")
+}
+
+emitTSReferencedEventListener(
+  expr: IRExpr,
+  prevent: Bool
+) -> String => {
+  prefix := prevent ? "e.preventDefault(); "
+    : ""
+  "(e) => { " + prefix + emitTSEventHandlerWithEvent(expr) + "; }"
+}
+
+emitTSPreventingEventListener(listener: String) -> String => "(e) => { e.preventDefault(); (" + listener + ")(e); }"
+
+emitTSEventHandler(expr: IRExpr) -> String => expr.kind {
+  ExprKind.Identifier => emitTSExpr(expr) + "()"
+  _ => emitTSExpr(expr)
+}
+
+emitTSEventHandlerWithEvent(expr: IRExpr) -> String => expr.kind {
+  ExprKind.Identifier => emitTSExpr(expr) + "(e)"
+  _ => emitTSExpr(expr)
+}
 
 emitTSXMLPlainAttr(
   parent: String,
+  tag: String,
   attr: IRExpr,
   level: Int
 ) -> String => {
-  prefix := (parent + ".setAttribute(") + tsQuoteString(attr.name)
   (
-    attr.children.length() == 0 ? line(level, prefix + ", \"\");")
-      : line(level, ((prefix + ", String(") + emitTSExpr(attr.children[0])) + "));")
+    attr.children.length() == 0 ? line(level, ((parent + ".setAttribute(") + tsQuoteString(attr.name)) + ", \"\");")
+      : (
+        isTSBooleanDOMProperty(tag, attr.name) ? line(level, ((((parent + ".") + attr.name) + " = Boolean(") + emitTSExpr(attr.children[0])) + ");")
+          : (
+            isTSStringDOMProperty(tag, attr.name) ? line(level, ((((parent + ".") + attr.name) + " = String(") + emitTSExpr(attr.children[0])) + ");")
+              : line(level, ((((parent + ".setAttribute(") + tsQuoteString(attr.name)) + ", String(") + emitTSExpr(attr.children[0])) + "));")
+          )
+      )
   )
 }
+
+isTSBooleanDOMProperty(tag: String, name: String) -> Bool => name {
+  "checked" | "disabled" | "selected" | "multiple" | "readOnly" | "required" => true
+  _ => false
+}
+
+isTSStringDOMProperty(tag: String, name: String) -> Bool => (
+  name == "value" && (tag == "input" || tag == "textarea" || tag == "select")
+)
 
 emitTSTemplate(expr: IRExpr) -> String => {
   raw := expr.value

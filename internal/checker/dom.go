@@ -163,9 +163,30 @@ func (c *checker) domEventType(name string) Type {
 	return DOMEventType(name)
 }
 
+// DOMEventBaseName returns the lib.dom.d.ts event-map key from a full web
+// event attribute name such as `submit.prevent`.
+func DOMEventBaseName(name string) string {
+	if base, _, ok := strings.Cut(name, "."); ok {
+		return base
+	}
+	return name
+}
+
+// DOMEventHasModifier reports whether a full web event attribute name includes
+// a dot-separated modifier. The generic XML AST retains the complete name.
+func DOMEventHasModifier(name, modifier string) bool {
+	for _, part := range strings.Split(name, ".")[1:] {
+		if part == modifier {
+			return true
+		}
+	}
+	return false
+}
+
 // DOMEventType resolves an HTML event name through HTMLElementEventMap from
 // lib.dom.d.ts. It gives code generators the same event type used by checking.
 func DOMEventType(name string) Type {
+	name = DOMEventBaseName(name)
 	_, flat := loadDOMLib()
 	if flat == nil {
 		return Type("Event")

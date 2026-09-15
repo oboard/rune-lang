@@ -20,11 +20,12 @@ TodoItem: {
     }
   ]
   $inputValue := ""
-  addTodo := () => {
+  addTodo := (e) => {
     $list.push(TodoItem {
       name: $inputValue,
       status: false
     })
+    $inputValue = ""
   }
   <div>
     <h1>Todo Example</h1>
@@ -45,12 +46,15 @@ TodoItem: {
         </li>
       ))}
     </ul>
-    <input
-      type="text"
-      placeholder="Add new item"
-      @keyup={(e) => $inputValue = e.target?.value ?? ""}
-      @keydown={(e) => e.key}
-    />
-    <button @click={addTodo}>Add Item</button>
+    <form @submit.prevent={addTodo}>
+      <input
+        type="text"
+        placeholder="Add new item"
+        value={$inputValue}
+        @keyup={(e) => $inputValue = e.target?.value ?? ""}
+        @keydown={(e) => e.key}
+      />
+      <button type="submit">Add Item</button>
+    </form>
   </div>
 }

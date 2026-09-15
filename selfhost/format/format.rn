@@ -300,7 +300,7 @@ formatObjectDestructureExpr(expr: ParsedExpr, indent: Int) -> String => "{ " + f
 
 formatObjectDestructureParams(params: Array[ParsedParam], index: Int, out: String) -> String => (
   index >= params.length() ? out
-    : formatObjectDestructureParams(params, index + 1, out + params[index].name + (params[index].typeRef.name == "" ? "" : ": " + params[index].typeRef.name) + ((index + 1) < params.length() ? ", " : ""))
+    : formatObjectDestructureParams(params, index + 1, out + (params[index].typeRef.name == params[index].name ? params[index].name : params[index].typeRef.name + ": " + params[index].name) + ((index + 1) < params.length() ? ", " : ""))
 )
 
 formatMethodExpr(expr: ParsedExpr, indent: Int) -> String => {
@@ -343,7 +343,10 @@ formatExprArgs(
     : formatExprArgs(children, index + 1, indent, out + formatExpr(children[index], indent) + ((index + 1) < children.length() ? ", " : ""))
 )
 
-formatSelectorExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + expr.op + expr.name
+formatSelectorExpr(expr: ParsedExpr, indent: Int) -> String => (
+  expr.children[0].kind == ExprKind.This ? "." + expr.name
+    : formatExpr(expr.children[0], indent) + expr.op + expr.name
+)
 
 formatXMLElement(element: ParsedExpr, indent: Int) -> String => {
   attrs := formatXMLAttributes(element.children, 0, indent, "")

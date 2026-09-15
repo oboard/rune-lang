@@ -73,6 +73,22 @@ classify(values: Array[Int]) -> Int => values {
 `)
 }
 
+? "selfhost formatter ports legacy destructure watch and object methods" {
+  formatted := formatSource(`main()=>{{state:nextState,ch}:=:step $count->(old,new)=>{seen:=old} obj:={name:"Alice",greet()=>.name,- secret()=>1}}`)
+  @assert.eq(formatted, `main() => {
+  { state: nextState, ch } :=: step
+  $count -> (old, new) => {
+    seen := old
+  }
+  obj := {
+    name: "Alice",
+    greet() => .name,
+    - secret() => 1
+  }
+}
+`)
+}
+
 ? "selfhost formatter keeps direct XML string attributes" {
   formatted := formatSource(`render() => <input type={"checkbox"} placeholder={"Add todo"} checked={item.done} />`)
   @assert.eq(formatted, `render() => <input type="checkbox" placeholder="Add todo" checked={item.done} />

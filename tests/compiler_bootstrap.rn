@@ -2065,6 +2065,17 @@ main() -> Int => 1
   @assert.eq(ts.output.includes(`setAttribute(key, String(value))`), true)
 }
 
+? "selfhost compiler emits live text input value properties" {
+  source := `render() => {
+  <input type="text" value={"initial"} />
+}
+`
+  ts := compileTypeScript(source)
+  @assert.eq(ts.ok, true)
+  @assert.eq(ts.output.includes(`.value = String("initial");`), true)
+  @assert.eq(ts.output.includes(`setAttribute("value"`), false)
+}
+
 ? "selfhost compiler allows bare reads of signal bindings" {
   source := `render() => {
   $count := 0

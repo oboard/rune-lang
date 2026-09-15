@@ -219,6 +219,8 @@ func (l *Lexer) nextXMLTag() Token {
 	switch ch {
 	case '@':
 		return l.token(At)
+	case '.':
+		return l.token(Dot)
 	case '=':
 		return l.token(Assign)
 	case '"':

@@ -15,6 +15,25 @@ func TestOptionalChain(t *testing.T) {
 	}
 }
 
+func TestSubmitPreventUsesFullEventName(t *testing.T) {
+	got := generateForTest(t, `
+main() => {
+  addTodo := (e) => e.type
+  <form @submit.prevent={addTodo} />
+}
+`)
+	for _, want := range []string{
+		`addEventListener("submit"`,
+		"e.preventDefault()",
+		"addTodo(e)",
+		"SubmitEvent",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestInputEventTargetIsNarrowed(t *testing.T) {
 	got := generateForTest(t, `
 main() => <input @change={(e) => e.target?.value ?? ""} @keydown={(e) => e.target?.value = ""} />

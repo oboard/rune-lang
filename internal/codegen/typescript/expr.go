@@ -1449,6 +1449,12 @@ func (g *generator) lookupSignal(name string) (checker.Type, bool) {
 }
 
 func (g *generator) exprUsesSignal(expr ir.Expr) bool {
+	// A closure may capture signals, but the closure itself is a stable value.
+	// Treating it as a computed signal wraps it in RuneSignal, so event handlers
+	// such as @click={addTodo} only read the closure instead of invoking it.
+	if _, ok := expr.(*ir.LambdaExpr); ok {
+		return false
+	}
 	used := false
 	ir.WalkExpr(expr, func(e ir.Expr) {
 		if ident, ok := e.(*ir.Identifier); ok && (g.isSignal(ident.Name) || g.isReactive(ident.Name)) {
@@ -1459,6 +1465,11 @@ func (g *generator) exprUsesSignal(expr ir.Expr) bool {
 }
 
 func (g *generator) exprSignalDeps(expr ir.Expr) []string {
+	// See exprUsesSignal: a root closure captures dependencies at invocation
+	// time; it does not need to be re-created when they change.
+	if _, ok := expr.(*ir.LambdaExpr); ok {
+		return nil
+	}
 	seen := map[string]bool{}
 	var deps []string
 	ir.WalkExpr(expr, func(e ir.Expr) {

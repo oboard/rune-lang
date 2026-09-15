@@ -4,6 +4,20 @@ import (
 	"github.com/oboard/rune-lang/internal/ast"
 )
 
+// eventHandlerExpr follows a local handler reference to its lambda binding so
+// XML event context can type an inferred handler declaration.
+func (c *checker) eventHandlerExpr(expr ast.Expr) ast.Expr {
+	ident, ok := expr.(*ast.Identifier)
+	if !ok {
+		return expr
+	}
+	bound := c.bindings[ident.Name]
+	if _, ok := bound.(*ast.LambdaExpr); ok {
+		return bound
+	}
+	return expr
+}
+
 func (c *checker) inferXMLElement(elem *ast.XMLElement, env map[string]Type) Type {
 	if fn, ok := c.resolveFunction(elem.Tag, elem.Pos); ok {
 		c.info.XMLResolvedFunctions[elem] = fn
@@ -24,13 +38,19 @@ func (c *checker) inferXMLElement(elem *ast.XMLElement, env map[string]Type) Typ
 		if attr.Event {
 			// Seed the handler's parameter with the DOM event interface before
 			// inference so `(e) => e.key` resolves `e` to KeyboardEvent (etc.)
-			// instead of a structurally-inferred anonymous field type.
+			// instead of a structurally-inferred anonymous field type. A handler
+			// reference (for example `@submit.prevent={addTodo}`) resolves to its
+			// bound lambda so it receives the same expected event type.
 			eventType := c.domEventType(attr.Name)
-			c.applyExpectedType(attr.Value, FuncOfTypes([]Type{eventType}, Void))
+			handler := c.eventHandlerExpr(attr.Value)
+			c.applyExpectedType(handler, FuncOfTypes([]Type{eventType}, Void))
 			// Narrow e.target / e.currentTarget to the handler element for
 			// form-control tags (React ChangeEvent<T> parity).
-			c.applyDOMEventTargetNarrowing(attr.Value, elem.Tag, eventType)
-			c.inferExpr(attr.Value, env)
+			c.applyDOMEventTargetNarrowing(handler, elem.Tag, eventType)
+			c.inferExpr(handler, env)
+			if handler != attr.Value {
+				c.inferExpr(attr.Value, env)
+			}
 			continue
 		}
 		c.inferExpr(attr.Value, env)

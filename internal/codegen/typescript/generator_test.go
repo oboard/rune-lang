@@ -418,6 +418,73 @@ func TestGenerateElementArrayChild(t *testing.T) {
 	}
 }
 
+func TestGenerateEventHandlerClosureCapturesSignalsWithoutBecomingSignal(t *testing.T) {
+	src := `TodoItem: { name: String, status: Bool }
+
+render() => {
+  $list := [TodoItem { name: "Item 1", status: false }]
+  $inputValue := ""
+  addTodo := () => {
+    $list.push(TodoItem { name: $inputValue, status: false })
+  }
+
+  <button @click={addTodo}>Add Item</button>
+}
+`
+	got := generateForTest(t, src)
+	for _, want := range []string{
+		`let addTodo = (): number => { return list.mutate((__value) => __value.push({name: inputValue.get(), status: false})) };`,
+		`.addEventListener("click", () => { addTodo(); });`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "runeSignal(()") || strings.Contains(got, "addTodo.get()") {
+		t.Fatalf("event handler closure must remain callable:\n%s", got)
+	}
+}
+
+func TestGenerateCheckboxUsesBooleanDOMProperty(t *testing.T) {
+	src := `render() => {
+  $checked := false
+  <input type="checkbox" checked={$checked} />
+}
+`
+	got := generateForTest(t, src)
+	for _, want := range []string{
+		`__el2.checked = Boolean(checked.get());`,
+		`runeWatch(checked, () => { __el2.checked = Boolean(checked.get()); });`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `setAttribute("checked"`) {
+		t.Fatalf("checkbox state must use its DOM property, not a string attribute:\n%s", got)
+	}
+}
+
+func TestGenerateTextInputValueUsesLiveDOMProperty(t *testing.T) {
+	src := `render() => {
+  $value := "initial"
+  <input type="text" value={$value} />
+}
+`
+	got := generateForTest(t, src)
+	for _, want := range []string{
+		`__el2.value = String(value.get());`,
+		`runeWatch(value, () => { __el2.value = String(value.get()); });`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("generated TypeScript missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `setAttribute("value"`) {
+		t.Fatalf("text input state must use its live value property:\n%s", got)
+	}
+}
+
 func TestGenerateReactiveStructArrayPreservesElementType(t *testing.T) {
 	src := `TodoStatus: { PENDING }
 TodoItem: { name: String, status: TodoStatus }

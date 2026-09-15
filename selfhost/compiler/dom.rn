@@ -10,11 +10,24 @@
 //
 // Nothing here is hand-maintained: every mapping is derived from lib.dom.d.ts.
 
+// compilerDomEventBaseName strips web event suffixes from the generic XML
+// attribute name, e.g. `submit.prevent` becomes the lib.dom.d.ts key `submit`.
++ compilerDomEventBaseName(name: String) -> String => {
+  index := name.indexOf(".")
+  index < 0 ? name
+    : name.slice(0, index)
+}
+
++ compilerDomEventHasModifier(
+  name: String,
+  modifier: String
+) -> Bool => name.split(".").contains(modifier)
+
 // compilerDomEventType resolves an XML `@event` listener name to the DOM event
 // interface it dispatches. Unknown listeners degrade to "Event".
 + compilerDomEventType(
   name: String
-) -> String => compilerDomEventTypeAt(name, 0)
+) -> String => compilerDomEventTypeAt(compilerDomEventBaseName(name), 0)
 
 compilerDomEventTypeAt(
   name: String,

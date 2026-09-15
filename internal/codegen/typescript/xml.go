@@ -136,6 +136,10 @@ func (e *xmlEmitter) eventListener(lambda *ir.LambdaExpr, tag, eventName string)
 
 // eventLambda renders a Rune event lambda with its first argument narrowed to
 // the tag's lib.dom.d.ts element type.
+func (e *xmlEmitter) preventingEventListener(listener string) string {
+	return "(e) => { e.preventDefault(); (" + listener + ")(e); }"
+}
+
 func (e *xmlEmitter) eventLambda(lambda *ir.LambdaExpr, eventType string) string {
 	params, ret, ok := parseTSFuncType(string(lambda.ResultType()))
 	if !ok {
@@ -194,11 +198,26 @@ func (e *xmlEmitter) attr(elemName, tag string, attr ir.XMLAttr) {
 		if attr.Value == nil {
 			return
 		}
+		eventName := checker.DOMEventBaseName(attr.Name)
+		prevent := checker.DOMEventHasModifier(attr.Name, "prevent")
 		if lambda, ok := attr.Value.(*ir.LambdaExpr); ok {
-			e.linef("%s.addEventListener(%s, %s);", elemName, strconv.Quote(attr.Name), e.eventListener(lambda, tag, attr.Name))
+			listener := e.eventListener(lambda, tag, attr.Name)
+			if prevent {
+				listener = e.preventingEventListener(listener)
+			}
+			e.linef("%s.addEventListener(%s, %s);", elemName, strconv.Quote(eventName), listener)
 			return
 		}
-		e.linef("%s.addEventListener(%s, () => { %s; });", elemName, strconv.Quote(attr.Name), e.g.stmtExpr(attr.Value))
+		handler := e.g.stmtExpr(attr.Value)
+		prefix := ""
+		if prevent {
+			prefix = "e.preventDefault(); "
+		}
+		if _, ok := attr.Value.(*ir.Identifier); ok {
+			e.linef("%s.addEventListener(%s, (e) => { %s%s(e); });", elemName, strconv.Quote(eventName), prefix, handler)
+			return
+		}
+		e.linef("%s.addEventListener(%s, (e) => { %s%s; });", elemName, strconv.Quote(eventName), prefix, handler)
 		return
 	}
 	if attr.Value == nil {
@@ -206,10 +225,37 @@ func (e *xmlEmitter) attr(elemName, tag string, attr ir.XMLAttr) {
 		return
 	}
 	value := e.attrValue(attr)
+	if booleanDOMProperty(tag, attr.Name) {
+		e.linef("%s.%s = Boolean(%s);", elemName, attr.Name, value)
+		for _, dep := range e.g.exprSignalDeps(attr.Value) {
+			e.linef("runeWatch(%s, () => { %s.%s = Boolean(%s); });", mangleIdent(dep), elemName, attr.Name, e.attrValue(attr))
+		}
+		return
+	}
+	if stringDOMProperty(tag, attr.Name) {
+		e.linef("%s.%s = String(%s);", elemName, attr.Name, value)
+		for _, dep := range e.g.exprSignalDeps(attr.Value) {
+			e.linef("runeWatch(%s, () => { %s.%s = String(%s); });", mangleIdent(dep), elemName, attr.Name, e.attrValue(attr))
+		}
+		return
+	}
 	e.linef("%s.setAttribute(%s, String(%s));", elemName, strconv.Quote(attr.Name), value)
 	for _, dep := range e.g.exprSignalDeps(attr.Value) {
 		e.linef("runeWatch(%s, () => { %s.setAttribute(%s, String(%s)); });", mangleIdent(dep), elemName, strconv.Quote(attr.Name), e.attrValue(attr))
 	}
+}
+
+func booleanDOMProperty(tag, name string) bool {
+	switch name {
+	case "checked", "disabled", "selected", "multiple", "readOnly", "required":
+		return true
+	default:
+		return false
+	}
+}
+
+func stringDOMProperty(tag, name string) bool {
+	return name == "value" && (tag == "input" || tag == "textarea" || tag == "select")
 }
 
 func (g *generator) lookupWebComponentFunction(tag string) *ir.Function {

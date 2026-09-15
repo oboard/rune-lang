@@ -514,6 +514,7 @@ scanXMLTagToken(step: Advanced) -> Lexed => {
   { state, ch } := step
   ch {
     '@' => lexed(state, TokenKind.At)
+    '.' => lexed(state, TokenKind.Dot)
     '=' => lexed(state, TokenKind.Assign)
     '{' => lexed(enterXMLAttributeExpr(state), TokenKind.LBrace)
     '/' => lexed(lexStateXML(state, state.mode, state.xmlDepth, peek(state) != '>', peek(state) == '>', state.xmlExprMode, state.xmlExprDepth), TokenKind.Slash)

@@ -81,7 +81,15 @@ func (p *Parser) parseXMLAttributes(elem *ast.XMLElement) bool {
 
 		event := p.match(lexer.At)
 		name := p.consume(lexer.Ident, "expected XML attribute name")
-		attr := ast.XMLAttr{Name: name.Lexeme, Event: event, Pos: name.Pos}
+		attrName := name.Lexeme
+		// Event attribute names may include web-specific suffixes such as
+		// `@submit.prevent`. Preserve the full name in the AST; only the web
+		// checker/emitter interprets the suffix.
+		for event && p.match(lexer.Dot) {
+			suffix := p.consume(lexer.Ident, "expected event name segment after '.'")
+			attrName += "." + suffix.Lexeme
+		}
+		attr := ast.XMLAttr{Name: attrName, Event: event, Pos: name.Pos}
 		if p.match(lexer.Assign) {
 			attr.Value = p.parseXMLAttributeValue()
 		}

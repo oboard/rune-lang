@@ -1313,6 +1313,8 @@ func selfhost_lexer_lexer_scanXMLTagToken(step Advanced) Lexed {
 		switch {
 		case ch == '@':
 			return selfhost_lexer_lexer_lexed(state, TokenKind_At)
+		case ch == '.':
+			return selfhost_lexer_lexer_lexed(state, TokenKind_Dot)
 		case ch == '=':
 			return selfhost_lexer_lexer_lexed(state, TokenKind_Assign)
 		case ch == '{':
@@ -3743,9 +3745,15 @@ func selfhost_parser_parser_parseXMLSpreadAttribute(state ParserState, element P
 func selfhost_parser_parser_parseXMLAttribute(state ParserState, element ParsedExpr) XMLAttrStep {
 	eventStep := selfhost_parser_parser_parserMatch(state, TokenKind_At)
 	name := selfhost_parser_parser_parserConsume(eventStep.state, TokenKind_Ident, "expected XML attribute name")
+	fullName := func() StringStep {
+		if eventStep.ok {
+			return selfhost_parser_parser_parseXMLEventName(name.state, name.token.lexeme)
+		}
+		return StringStep{state: name.state, value: name.token.lexeme}
+	}()
 	valueStep := func() ExprStep {
-		if selfhost_parser_parser_parserCheck(name.state, TokenKind_Assign) {
-			return selfhost_parser_parser_parseXMLAttributeValue(selfhost_parser_parser_parserAdvance(name.state).state)
+		if selfhost_parser_parser_parserCheck(fullName.state, TokenKind_Assign) {
+			return selfhost_parser_parser_parseXMLAttributeValue(selfhost_parser_parser_parserAdvance(fullName.state).state)
 		}
 		return ExprStep{state: name.state, expr: selfhost_parser_parser_emptyExpr()}
 	}()
@@ -3760,13 +3768,26 @@ func selfhost_parser_parser_parseXMLAttribute(state ParserState, element ParsedE
 			return "xmlAttr"
 		}()
 	}()
-	attr := selfhost_parser_parser_makeExpr(ExprKind_Field, name.token.lexeme, name.token.lexeme, "", op, []ParsedParam{}, func() []ParsedExpr {
+	attr := selfhost_parser_parser_makeExpr(ExprKind_Field, fullName.value, fullName.value, "", op, []ParsedParam{}, func() []ParsedExpr {
 		if valueStep.expr.kind == ExprKind_Unknown {
 			return []ParsedExpr{}
 		}
 		return []ParsedExpr{valueStep.expr}
 	}(), name.token.line, name.token.column)
 	return selfhost_parser_parser_parseXMLAttributes(valueStep.state, selfhost_parser_parser_appendChild(element, attr))
+}
+
+func selfhost_parser_parser_parseXMLEventName(state ParserState, name string) StringStep {
+	dot := selfhost_parser_parser_parserMatch(state, TokenKind_Dot)
+	return func() StringStep {
+		if dot.ok {
+			return func() StringStep {
+				suffix := selfhost_parser_parser_parserConsume(dot.state, TokenKind_Ident, "expected event name segment after '.'")
+				return selfhost_parser_parser_parseXMLEventName(suffix.state, name+"."+suffix.token.lexeme)
+			}()
+		}
+		return StringStep{state: state, value: name}
+	}()
 }
 
 func selfhost_parser_parser_parseXMLAttributeValue(state ParserState) ExprStep {
@@ -8085,11 +8106,11 @@ func selfhost_format_format_formatObjectDestructureParams(params []ParsedParam, 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+params[index].name+func() string {
-				if params[index].typeRef.name == "" {
-					return ""
+			params, index, out = params, index+1, out+func() string {
+				if params[index].typeRef.name == params[index].name {
+					return params[index].name
 				}
-				return ": " + params[index].typeRef.name
+				return params[index].typeRef.name + ": " + params[index].name
 			}()+func() string {
 				if index+1 < len(params) {
 					return ", "
@@ -8179,7 +8200,12 @@ func selfhost_format_format_formatExprArgs(children []ParsedExpr, index int, ind
 }
 
 func selfhost_format_format_formatSelectorExpr(expr ParsedExpr, indent int) string {
-	return selfhost_format_format_formatExpr(expr.children[0], indent) + expr.op + expr.name
+	return func() string {
+		if expr.children[0].kind == ExprKind_This {
+			return "." + expr.name
+		}
+		return selfhost_format_format_formatExpr(expr.children[0], indent) + expr.op + expr.name
+	}()
 }
 
 func selfhost_format_format_formatXMLElement(element ParsedExpr, indent int) string {
@@ -13390,7 +13416,7 @@ func selfhost_compiler_ts_emitTSXMLAttr(parent string, tag string, attr IRExpr, 
 		if attr.op == "xmlEvent" {
 			return selfhost_compiler_ts_emitTSXMLEventAttr(parent, tag, attr, level)
 		}
-		return selfhost_compiler_ts_emitTSXMLPlainAttr(parent, attr, level)
+		return selfhost_compiler_ts_emitTSXMLPlainAttr(parent, tag, attr, level)
 	}()
 }
 
@@ -13399,23 +13425,95 @@ func selfhost_compiler_ts_emitTSXMLEventAttr(parent string, tag string, attr IRE
 		if len(attr.children) == 0 {
 			return ""
 		}
+		return selfhost_compiler_ts_emitTSXMLEventAttrValue(parent, tag, attr, level, compilerDomEventBaseName(attr.name), compilerDomEventHasModifier(attr.name, "prevent"))
+	}()
+}
+
+func selfhost_compiler_ts_emitTSXMLEventAttrValue(parent string, tag string, attr IRExpr, level int, eventName string, prevent bool) string {
+	value := attr.children[0]
+	listener := func() string {
+		if value.kind == ExprKind_Lambda {
+			return selfhost_compiler_ts_emitTSEventListener(value, tag, attr.name)
+		}
+		return selfhost_compiler_ts_emitTSReferencedEventListener(value, prevent)
+	}()
+	wrapped := func() string {
+		if prevent && value.kind == ExprKind_Lambda {
+			return selfhost_compiler_ts_emitTSPreventingEventListener(listener)
+		}
+		return listener
+	}()
+	return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(eventName)+", "+wrapped+");")
+}
+
+func selfhost_compiler_ts_emitTSReferencedEventListener(expr IRExpr, prevent bool) string {
+	prefix := func() string {
+		if prevent {
+			return "e.preventDefault(); "
+		}
+		return ""
+	}()
+	return "(e) => { " + prefix + selfhost_compiler_ts_emitTSEventHandlerWithEvent(expr) + "; }"
+}
+
+func selfhost_compiler_ts_emitTSPreventingEventListener(listener string) string {
+	return "(e) => { e.preventDefault(); (" + listener + ")(e); }"
+}
+
+func selfhost_compiler_ts_emitTSEventHandler(expr IRExpr) string {
+	return func() string {
+		switch {
+		case expr.kind == ExprKind_Identifier:
+			return selfhost_compiler_ts_emitTSExpr(expr) + "()"
+		default:
+			return selfhost_compiler_ts_emitTSExpr(expr)
+		}
+	}()
+}
+
+func selfhost_compiler_ts_emitTSEventHandlerWithEvent(expr IRExpr) string {
+	return func() string {
+		switch {
+		case expr.kind == ExprKind_Identifier:
+			return selfhost_compiler_ts_emitTSExpr(expr) + "(e)"
+		default:
+			return selfhost_compiler_ts_emitTSExpr(expr)
+		}
+	}()
+}
+
+func selfhost_compiler_ts_emitTSXMLPlainAttr(parent string, tag string, attr IRExpr, level int) string {
+	return func() string {
+		if len(attr.children) == 0 {
+			return line(level, parent+".setAttribute("+selfhost_compiler_ts_tsQuoteString(attr.name)+", \"\");")
+		}
 		return func() string {
-			if attr.children[0].kind == ExprKind_Lambda {
-				return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", "+selfhost_compiler_ts_emitTSEventListener(attr.children[0], tag, attr.name)+");")
+			if selfhost_compiler_ts_isTSBooleanDOMProperty(tag, attr.name) {
+				return line(level, parent+"."+attr.name+" = Boolean("+selfhost_compiler_ts_emitTSExpr(attr.children[0])+");")
 			}
-			return line(level, parent+".addEventListener("+selfhost_compiler_ts_tsQuoteString(attr.name)+", () => { "+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"; });")
+			return func() string {
+				if selfhost_compiler_ts_isTSStringDOMProperty(tag, attr.name) {
+					return line(level, parent+"."+attr.name+" = String("+selfhost_compiler_ts_emitTSExpr(attr.children[0])+");")
+				}
+				return line(level, parent+".setAttribute("+selfhost_compiler_ts_tsQuoteString(attr.name)+", String("+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"));")
+			}()
 		}()
 	}()
 }
 
-func selfhost_compiler_ts_emitTSXMLPlainAttr(parent string, attr IRExpr, level int) string {
-	prefix := parent + ".setAttribute(" + selfhost_compiler_ts_tsQuoteString(attr.name)
-	return func() string {
-		if len(attr.children) == 0 {
-			return line(level, prefix+", \"\");")
+func selfhost_compiler_ts_isTSBooleanDOMProperty(tag string, name string) bool {
+	return func() bool {
+		switch {
+		case (name == "checked") || (name == "disabled") || (name == "selected") || (name == "multiple") || (name == "readOnly") || (name == "required"):
+			return true
+		default:
+			return false
 		}
-		return line(level, prefix+", String("+selfhost_compiler_ts_emitTSExpr(attr.children[0])+"));")
 	}()
+}
+
+func selfhost_compiler_ts_isTSStringDOMProperty(tag string, name string) bool {
+	return name == "value" && (tag == "input" || tag == "textarea" || tag == "select")
 }
 
 func selfhost_compiler_ts_emitTSTemplate(expr IRExpr) string {
@@ -14832,8 +14930,29 @@ func selfhost_compiler_dts_dtsReservedName(name string) bool {
 	}()
 }
 
+func compilerDomEventBaseName(name string) string {
+	index := strings.Index(name, ".")
+	return func() string {
+		if index < 0 {
+			return name
+		}
+		return func() string { runes := []rune(name); return string(runes[0:index]) }()
+	}()
+}
+
+func compilerDomEventHasModifier(name string, modifier string) bool {
+	return func() bool {
+		for _, item := range func() []string { parts := strings.Split(name, "."); return parts }() {
+			if item == modifier {
+				return true
+			}
+		}
+		return false
+	}()
+}
+
 func compilerDomEventType(name string) string {
-	return selfhost_compiler_dom_compilerDomEventTypeAt(name, 0)
+	return selfhost_compiler_dom_compilerDomEventTypeAt(compilerDomEventBaseName(name), 0)
 }
 
 func selfhost_compiler_dom_compilerDomEventTypeAt(name string, index int) string {
