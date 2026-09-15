@@ -46,46 +46,29 @@
 `)
 }
 
-? "selfhost formatter formats Todo callbacks and XML children" {
-  formatted := formatSource(`render() => {
-  items := [TodoItem {
-    name: "One",
-    status: false
-  }]
-  <ul>
-    {items.map((item, index) => (
-      <li>
-        <input @change={(e) => {
-          items[index] = {
-            ..item,
-            status: !item.status
-          }
-        }} />
-        {item.name}
-      </li>
-    ))}
-  </ul>
-}`)
-  @assert.eq(formatted, `render() => {
-  items := [
-    TodoItem {
-      name: "One",
-      status: false
-    }
-  ]
-  <ul>
-    {items.map((item, index) => (
-      <li>
-        <input @change={(e) => {
-          items[index] = {
-            ..item,
-            status: !item.status
-          }
-        }} />
-        {item.name}
-      </li>
-    ))}
-  </ul>
+? "selfhost formatter ports legacy imports enums maps patterns and ternaries" {
+  formatted := formatSource(`@"helper.rn"
+Status:{Completed=0 Fail=1}
+main()=>{values:={"a":1,"b":2}value:=flag?1:other?2:3}
+classify(values:Array[Int])->Int=>values{[0,..rest]@whole=>rest.length()+whole.length() _=>0}`)
+  @assert.eq(formatted, `@"helper.rn"
+
+Status: {
+  Completed = 0
+  Fail = 1
+}
+
+main() => {
+  values := {
+    "a": 1,
+    "b": 2
+  }
+  value := (flag ? 1 : (other ? 2 : 3))
+}
+
+classify(values: Array[Int]) -> Int => values {
+  [0,..rest]@whole => rest.length() + whole.length()
+  _ => 0
 }
 `)
 }

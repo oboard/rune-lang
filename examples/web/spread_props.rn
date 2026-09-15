@@ -1,20 +1,15 @@
-// Spread props — JavaScript JSX 风格 {...props}
 #web.preview
 + render() => {
   btnClass := "primary"
   btnId := "save-btn"
-
   defaultProps := {
     type: "button",
     role: "button"
   }
-
   overrides := {
     id: btnId,
     class: btnClass
   }
-
-  <button {...defaultProps} {...overrides}>
-    Save Changes
-  </button>
+  <button {...defaultProps} {...overrides}>Save Changes</button>
 }
+ // Spread props — JavaScript JSX 风格 {...props}

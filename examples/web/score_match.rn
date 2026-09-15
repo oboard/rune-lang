@@ -1,7 +1,6 @@
 #web.preview
 + render() => {
   score := 85
-
   <div>
     <h2>Grade</h2>
     <p>

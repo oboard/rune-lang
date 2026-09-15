@@ -7655,14 +7655,35 @@ func selfhost_format_format_formatParsedTypeMethods(methods []ParsedFunction, in
 					return "\n"
 				}
 				return ""
-			}()+selfhost_format_format_indentMultiline(selfhost_format_format_formatParsedFunction(methods[index]), 1)+"\n"
+			}()+selfhost_format_format_indentMultiline(selfhost_format_format_formatParsedTypeMethod(methods[index]), 1)+"\n"
 			continue
 		}
 	}
 }
 
+func selfhost_format_format_formatParsedTypeMethod(fn ParsedFunction) string {
+	prefix := func() string {
+		if fn.static {
+			return "::"
+		}
+		return func() string {
+			if fn.private {
+				return "- "
+			}
+			return ""
+		}()
+	}()
+	header := prefix + fn.name + selfhost_format_format_formatParams(fn.params, 0, "(") + ")" + selfhost_format_format_formatReturnType(fn.returnType)
+	return func() string {
+		if fn.body.kind == ExprKind_Block {
+			return header + " => {\n" + selfhost_format_format_formatBlockChildren(fn.body.children, 0, 1, "") + "}"
+		}
+		return header + " => " + selfhost_format_format_formatExpr(fn.body, 0)
+	}()
+}
+
 func selfhost_format_format_indentMultiline(text string, indent int) string {
-	return selfhost_format_format_indentText(indent) + strings.Replace(text, "\n", "\n"+selfhost_format_format_indentText(indent), 1)
+	return selfhost_format_format_indentText(indent) + strings.ReplaceAll(text, "\n", "\n"+selfhost_format_format_indentText(indent))
 }
 
 func selfhost_format_format_formatParsedEnumType(header string, members []ParsedEnumMember, index int, out string) string {
@@ -7675,7 +7696,12 @@ func selfhost_format_format_formatParsedEnumType(header string, members []Parsed
 					return "- "
 				}
 				return ""
-			}()+members[index].name+"\n"
+			}()+members[index].name+func() string {
+				if members[index].value == "" {
+					return ""
+				}
+				return " = " + members[index].value
+			}()+"\n"
 			continue
 		}
 	}
@@ -7853,6 +7879,8 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return "null"
 		case expr.kind == ExprKind_Reactive:
 			return "$" + selfhost_format_format_formatExpr(expr.children[0], indent)
+		case expr.kind == ExprKind_This:
+			return "."
 		case expr.kind == ExprKind_Assign:
 			return selfhost_format_format_formatAssignExpr(expr, indent)
 		case expr.kind == ExprKind_Unary:
@@ -7875,6 +7903,14 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return selfhost_format_format_formatObjectDestructureExpr(expr, indent)
 		case expr.kind == ExprKind_Watch:
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + " -> " + selfhost_format_format_formatExpr(expr.children[1], indent)
+		case expr.kind == ExprKind_Field:
+			return expr.name + ": " + selfhost_format_format_formatExpr(expr.children[0], indent)
+		case expr.kind == ExprKind_PrivateField:
+			return "- " + expr.name + ": " + selfhost_format_format_formatExpr(expr.children[0], indent)
+		case expr.kind == ExprKind_Method:
+			return selfhost_format_format_formatMethodExpr(expr, indent)
+		case expr.kind == ExprKind_PrivateMethod:
+			return "- " + selfhost_format_format_formatMethodExpr(expr, indent)
 		case expr.kind == ExprKind_Lambda:
 			return selfhost_format_format_formatLambdaExpr(expr, indent)
 		case expr.kind == ExprKind_Call:
@@ -7966,7 +8002,7 @@ func selfhost_format_format_formatObjectField(field ParsedExpr, indent int) stri
 		if field.kind == ExprKind_Spread {
 			return ".." + selfhost_format_format_formatExpr(field.children[0], indent)
 		}
-		return field.name + ": " + selfhost_format_format_formatExpr(field.children[0], indent)
+		return selfhost_format_format_formatExpr(field, indent)
 	}()
 }
 
@@ -8065,6 +8101,22 @@ func selfhost_format_format_formatObjectDestructureParams(params []ParsedParam, 
 	}
 }
 
+func selfhost_format_format_formatMethodExpr(expr ParsedExpr, indent int) string {
+	header := expr.name + selfhost_format_format_formatParams(expr.params, 0, "(") + ")" + func() string {
+		if expr.text == "" {
+			return ""
+		}
+		return " -> " + expr.text
+	}() + " => "
+	body := expr.children[0]
+	return func() string {
+		if body.kind == ExprKind_Block {
+			return header + selfhost_format_format_formatBlockExpr(body, indent)
+		}
+		return header + selfhost_format_format_formatExpr(body, indent)
+	}()
+}
+
 func selfhost_format_format_formatLambdaExpr(expr ParsedExpr, indent int) string {
 	header := "(" + selfhost_format_format_formatLambdaParams(expr.params, 0, "") + ")" + selfhost_format_format_formatLambdaReturnType(expr.text) + " => "
 	body := expr.children[0]
@@ -8135,10 +8187,54 @@ func selfhost_format_format_formatXMLElement(element ParsedExpr, indent int) str
 	children := selfhost_format_format_xmlChildren(element.children, 0, []ParsedExpr{})
 	return func() string {
 		if len(children) == 0 {
-			return "<" + element.name + attrs + " />"
+			return selfhost_format_format_formatXMLSelfClosing(element, attrs, indent)
 		}
 		return selfhost_format_format_formatXMLElementWithChildren(element, attrs, children, indent)
 	}()
+}
+
+func selfhost_format_format_formatXMLSelfClosing(element ParsedExpr, attrs string, indent int) string {
+	singleLine := "<" + element.name + attrs + " />"
+	return func() string {
+		if selfhost_format_format_xmlAttributeCount(element.children, 0) <= 1 || selfhost_format_format_xmlLineFits(singleLine, indent) {
+			return singleLine
+		}
+		return "<" + element.name + selfhost_format_format_formatXMLAttributesMultiline(element.children, 0, indent+1, "") + "\n" + selfhost_format_format_indentText(indent) + "/>"
+	}()
+}
+
+func selfhost_format_format_xmlAttributeCount(children []ParsedExpr, index int) int {
+	return func() int {
+		if index >= len(children) {
+			return 0
+		}
+		return func() int {
+			if selfhost_format_format_isXMLAttribute(children[index]) {
+				return 1
+			}
+			return 0
+		}() + selfhost_format_format_xmlAttributeCount(children, index+1)
+	}()
+}
+
+func selfhost_format_format_formatXMLAttributesMultiline(children []ParsedExpr, index int, indent int, out string) string {
+	for {
+		if index >= len(children) {
+			return out
+		} else {
+			if selfhost_format_format_isXMLAttribute(children[index]) {
+				children, index, indent, out = children, index+1, indent, out+"\n"+selfhost_format_format_indentText(indent)+selfhost_format_format_formatXMLAttribute(children[index], indent)
+				continue
+			} else {
+				children, index, indent, out = children, index+1, indent, out
+				continue
+			}
+		}
+	}
+}
+
+func selfhost_format_format_xmlLineFits(line string, indent int) bool {
+	return len([]rune((selfhost_format_format_indentText(indent))))+len([]rune(line)) <= 80
 }
 
 func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int, indent int, out string) string {

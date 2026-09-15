@@ -2,14 +2,11 @@
 + render() => {
   $color := "red"
   backgroundColor := "blue"
-
   <div>
     <div style={{
       color: $color,
       backgroundColor: backgroundColor
-    }}>
-      Hello World
-    </div>
+    }}>Hello World</div>
     <button @click={$color = "white"}>Change Color</button>
   </div>
 }

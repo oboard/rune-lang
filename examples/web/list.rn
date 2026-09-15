@@ -1,12 +1,17 @@
 #web.preview
 + render() => {
-  list := ["Item 1", "Item 2", "Item 3"]
-
+  list := [
+    "Item 1",
+    "Item 2",
+    "Item 3"
+  ]
   <div>
     <h1>List Example</h1>
     <ul>
       {list.map((item) => (
-          <li>{item}</li>
+        <li>
+          {item}
+        </li>
       ))}
     </ul>
   </div>

@@ -78,7 +78,7 @@ formatParsedTypeMethod(fn: ParsedFunction) -> String => {
     : header + " => " + formatExpr(fn.body, 0)
 }
 
-indentMultiline(text: String, indent: Int) -> String => indentText(indent) + text.replace("\n", "\n" + indentText(indent))
+indentMultiline(text: String, indent: Int) -> String => indentText(indent) + text.replaceAll("\n", "\n" + indentText(indent))
 
 formatParsedEnumType(
   header: String,
@@ -189,6 +189,7 @@ formatExpr(expr: ParsedExpr, indent: Int) -> String => expr.kind {
   ExprKind.Bool => expr.value
   ExprKind.Null => "null"
   ExprKind.Reactive => "$" + formatExpr(expr.children[0], indent)
+  ExprKind.This => "."
   ExprKind.Assign => formatAssignExpr(expr, indent)
   ExprKind.Unary => expr.op + formatExpr(expr.children[0], indent)
   ExprKind.Spread => ".." + formatExpr(expr.children[0], indent)
@@ -200,6 +201,10 @@ formatExpr(expr: ParsedExpr, indent: Int) -> String => expr.kind {
   ExprKind.Match => formatMatchExpr(expr, indent)
   ExprKind.ObjectDestructure => formatObjectDestructureExpr(expr, indent)
   ExprKind.Watch => formatExpr(expr.children[0], indent) + " -> " + formatExpr(expr.children[1], indent)
+  ExprKind.Field => expr.name + ": " + formatExpr(expr.children[0], indent)
+  ExprKind.PrivateField => "- " + expr.name + ": " + formatExpr(expr.children[0], indent)
+  ExprKind.Method => formatMethodExpr(expr, indent)
+  ExprKind.PrivateMethod => "- " + formatMethodExpr(expr, indent)
   ExprKind.Lambda => formatLambdaExpr(expr, indent)
   ExprKind.Call => formatCallExpr(expr, indent)
   ExprKind.Selector => formatSelectorExpr(expr, indent)
@@ -251,7 +256,7 @@ formatObjectFields(
 
 formatObjectField(field: ParsedExpr, indent: Int) -> String => (
   field.kind == ExprKind.Spread ? ".." + formatExpr(field.children[0], indent)
-    : field.name + ": " + formatExpr(field.children[0], indent)
+    : formatExpr(field, indent)
 )
 
 formatLetExpr(expr: ParsedExpr, indent: Int) -> String => (
@@ -298,6 +303,13 @@ formatObjectDestructureParams(params: Array[ParsedParam], index: Int, out: Strin
     : formatObjectDestructureParams(params, index + 1, out + params[index].name + (params[index].typeRef.name == "" ? "" : ": " + params[index].typeRef.name) + ((index + 1) < params.length() ? ", " : ""))
 )
 
+formatMethodExpr(expr: ParsedExpr, indent: Int) -> String => {
+  header := expr.name + formatParams(expr.params, 0, "(") + ")" + (expr.text == "" ? "" : " -> " + expr.text) + " => "
+  body := expr.children[0]
+  body.kind == ExprKind.Block ? header + formatBlockExpr(body, indent)
+    : header + formatExpr(body, indent)
+}
+
 formatLambdaExpr(expr: ParsedExpr, indent: Int) -> String => {
   header := "(" + formatLambdaParams(expr.params, 0, "") + ")" + formatLambdaReturnType(expr.text) + " => "
   body := expr.children[0]
@@ -342,9 +354,14 @@ formatXMLElement(element: ParsedExpr, indent: Int) -> String => {
 
 formatXMLSelfClosing(element: ParsedExpr, attrs: String, indent: Int) -> String => {
   singleLine := "<" + element.name + attrs + " />"
-  xmlLineFits(singleLine, indent) ? singleLine
+  (xmlAttributeCount(element.children, 0) <= 1) || xmlLineFits(singleLine, indent) ? singleLine
     : "<" + element.name + formatXMLAttributesMultiline(element.children, 0, indent + 1, "") + "\n" + indentText(indent) + "/>"
 }
+
+xmlAttributeCount(children: Array[ParsedExpr], index: Int) -> Int => (
+  index >= children.length() ? 0
+    : (isXMLAttribute(children[index]) ? 1 : 0) + xmlAttributeCount(children, index + 1)
+)
 
 formatXMLAttributesMultiline(
   children: Array[ParsedExpr],
