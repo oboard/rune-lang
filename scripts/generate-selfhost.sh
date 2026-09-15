@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Regenerates the self-hosted bootstrap artifacts checked into cmd/rune/.
 #
-#   selfhost_compiler_gen.go  <- rune go ./selfhost/compiler/compiler.rn
-#                                 (includes selfhost/format/format.rn)
+#   internal/selfhost/generated.go <- rune go ./selfhost/compiler/compiler.rn
+#                                    (includes the formatter and compiler)
 #   selfhost_cli_gen.go       <- rune go ./selfhost/cli/cli.rn
+#   internal/selfhostformat/generated.go <- rune go ./selfhost/format/format.rn
 #
 # This is self-bootstrapping: the `rune go` subcommand uses the currently built
 # .bin/rune (host compiler/selfhost bridge) to compile the Rune bootstrap source
@@ -52,7 +53,27 @@ gen() {
   mv "$tmp" "$ROOT/$out"
 }
 
-gen selfhost/compiler/compiler.rn cmd/rune/selfhost_compiler_gen.go ""
+gen selfhost/compiler/compiler.rn internal/selfhost/generated.go ""
+sed -i.bak '1s/package main/package selfhost/' "$ROOT/internal/selfhost/generated.go"
+rm -f "$ROOT/internal/selfhost/generated.go.bak"
+cat >> "$ROOT/internal/selfhost/generated.go" <<'EOF'
+
+// SourceFileInput is a source file consumed by the generated self-host compiler.
+type SourceFileInput struct { Path string; Source string }
+// CompileOutput is the transport-safe result of generated self-host compilation.
+type CompileOutput struct { Ok bool; Output string; Errors []string }
+func toSourceFiles(inputs []SourceFileInput) []SourceFile { out := make([]SourceFile, len(inputs)); for i, input := range inputs { out[i] = SourceFile{path: input.Path, source: input.Source} }; return out }
+func toCompileOutput(result CompileResult) CompileOutput { return CompileOutput{Ok: result.ok, Output: result.output, Errors: result.errors} }
+func FormatSource(source string) string { return formatSource(source) }
+func CompileGo(source string) CompileOutput { return toCompileOutput(compileGo(source)) }
+func CompileGoFiles(files []SourceFileInput) CompileOutput { return toCompileOutput(compileGoFiles(toSourceFiles(files))) }
+func CompileTypeScriptFiles(files []SourceFileInput) CompileOutput { return toCompileOutput(compileTypeScriptFiles(toSourceFiles(files))) }
+func CompileMoonBitFiles(files []SourceFileInput) CompileOutput { return toCompileOutput(compileMoonBitFiles(toSourceFiles(files))) }
+func CompileDeclarations(source string) CompileOutput { return toCompileOutput(compileDeclarations(source)) }
+func CompileDeclarationsFiles(files []SourceFileInput) CompileOutput { return toCompileOutput(compileDeclarationsFiles(toSourceFiles(files))) }
+func CheckSourceWithCore(source, sourcePath string, files []SourceFileInput) CompileOutput { return toCompileOutput(checkSourceWithCore(source, sourcePath, toSourceFiles(files))) }
+EOF
+gofmt -w "$ROOT/internal/selfhost/generated.go"
 gen selfhost/cli/cli.rn cmd/rune/selfhost_cli_gen.go "strip"
 
 echo "==> rebuilding rune with generated artifacts"
@@ -60,5 +81,5 @@ go build -o "$BIN_DIR/rune" ./cmd/rune
 
 echo
 echo "Generated bootstrap artifacts are up to date:"
-echo "  cmd/rune/selfhost_compiler_gen.go (includes formatter)"
+echo "  internal/selfhost/generated.go (includes formatter and compiler)"
 echo "  cmd/rune/selfhost_cli_gen.go"

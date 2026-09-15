@@ -12,11 +12,10 @@ import (
 
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
-	runefmt "github.com/oboard/rune-lang/internal/format"
 	"github.com/oboard/rune-lang/internal/interpreter"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lsp"
-	"github.com/oboard/rune-lang/internal/parser"
+	"github.com/oboard/rune-lang/internal/selfhost"
 	"github.com/oboard/rune-lang/internal/stdlib"
 )
 
@@ -158,23 +157,9 @@ func (b *bridge) format(_ js.Value, args []js.Value) any {
 		if len(args) != 1 || args[0].Type() != js.TypeString {
 			return response{OK: false, Error: "runeFormat expects source text"}
 		}
-		src := args[0].String()
-		file, errs := parser.Parse(src)
-		if len(errs) > 0 {
-			diags := make([]compiler.Diagnostic, 0, len(errs))
-			for _, err := range errs {
-				diags = append(diags, compiler.Diagnostic{Message: err.Message, Pos: err.Pos})
-			}
-			return response{
-				OK:          false,
-				Error:       "format failed",
-				Diagnostics: convertDiagnostics(diags),
-				ElapsedMS:   float64(time.Since(start).Microseconds()) / 1000,
-			}
-		}
 		return response{
 			OK:        true,
-			Formatted: runefmt.Source(file, src),
+			Formatted: selfhost.FormatSource(args[0].String()),
 			ElapsedMS: float64(time.Since(start).Microseconds()) / 1000,
 		}
 	})

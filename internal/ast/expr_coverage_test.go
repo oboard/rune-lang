@@ -21,8 +21,6 @@ func TestExpressionNodesHavePipelineCoverage(t *testing.T) {
 	assertTypeSwitchCovers(t, astExprs, filepath.Join(root, "internal", "ast", "walk.go"), "WalkExpr")
 	assertTypeSwitchCovers(t, astExprs, filepath.Join(root, "internal", "checker", "infer.go"), "inferExprType")
 	assertTypeSwitchCovers(t, astExprs, filepath.Join(root, "internal", "ir", "lower.go"), "expr")
-	assertTypeSwitchCovers(t, astExprs, filepath.Join(root, "internal", "format", "expr.go"), "expr")
-
 	assertTypeSwitchCovers(t, irExprs, filepath.Join(root, "internal", "ir", "walk.go"), "WalkExpr")
 	assertTypeSwitchCovers(t, irExprs, filepath.Join(root, "internal", "interpreter", "expr.go"), "eval")
 	assertTypeSwitchCovers(t, irExprs, filepath.Join(root, "internal", "codegen", "go", "expr.go"), "exprPrec")

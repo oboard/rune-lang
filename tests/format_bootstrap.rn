@@ -90,6 +90,37 @@
 `)
 }
 
+? "selfhost formatter keeps direct XML string attributes" {
+  formatted := formatSource(`render() => <input type={"checkbox"} placeholder={"Add todo"} checked={item.done} />`)
+  @assert.eq(formatted, `render() => <input type="checkbox" placeholder="Add todo" checked={item.done} />
+`)
+}
+
+? "selfhost formatter expands long self-closing XML attributes" {
+  formatted := formatSource(`render() => {
+  <input type={"text"} placeholder={"Add new item"} @keyup={(e) => $inputValue = e.target?.value ?? ""} @keydown={(e) => e.key} />
+}`)
+  @assert.eq(formatted, `render() => {
+  <input
+    type="text"
+    placeholder="Add new item"
+    @keyup={(e) => $inputValue = e.target?.value ?? ""}
+    @keydown={(e) => e.key}
+  />
+}
+`)
+}
+
+? "selfhost formatter formats statement assignments" {
+  formatted := formatSource(`render() => {
+  selected=false
+}`)
+  @assert.eq(formatted, `render() => {
+  selected = false
+}
+`)
+}
+
 ? "selfhost formatter indents structured XML" {
   formatted := formatSource(`render()=>{<div><h1>Hello World</h1><div style={{color:$color,backgroundColor:backgroundColor}}>Hello World</div><button @click={()=>$color="green"}>{"Change Color"}</button></div>}`)
   @assert.eq(formatted, `render() => {

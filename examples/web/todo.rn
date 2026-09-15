@@ -30,7 +30,7 @@ TodoItem: {
     <ul>
       {$list.map((item, index) => (
         <li>
-          <input type={"checkbox"} checked={item.status} @change={(e) => {
+          <input type="checkbox" checked={item.status} @change={(e) => {
             $list[index] = {
               ..item,
               status: !item.status
@@ -40,7 +40,7 @@ TodoItem: {
         </li>
       ))}
     </ul>
-    <input type={"text"} placeholder={"Add new item"} @keyup={(e) => $inputValue = e.target?.value ?? ""} @keydown={(e) => e.key} />
+    <input type="text" placeholder="Add new item" @keyup={(e) => $inputValue = e.target?.value ?? ""} @keydown={(e) => e.key} />
     <button @click={addTodo}>Add Item</button>
   </div>
 }

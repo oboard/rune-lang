@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
-	"github.com/oboard/rune-lang/internal/format"
+	"github.com/oboard/rune-lang/internal/selfhost"
 )
 
 func (s *server) expandedMacro(uri string) any {
@@ -19,9 +19,59 @@ func (s *server) expandedMacro(uri string) any {
 		}
 		return map[string]any{"error": strings.Join(messages, "\n")}
 	}
-	return map[string]any{
-		"source": format.File(expandedDocumentFile(uri, prog.File)),
+	source := formatExpandedMacroSource(expandedDocumentFile(uri, prog.File))
+	return map[string]any{"source": selfhost.FormatSource(source)}
+}
+
+func formatExpandedMacroSource(file *ast.File) string {
+	var out strings.Builder
+	for _, typ := range file.Types {
+		writeExpandedStruct(&out, typ)
 	}
+	for _, enum := range file.Enums {
+		writeExpandedEnum(&out, enum)
+	}
+	for _, fn := range file.Functions {
+		out.WriteString(fn.Signature())
+		out.WriteString(" => {}\n")
+	}
+	return out.String()
+}
+
+func writeExpandedStruct(out *strings.Builder, typ *ast.StructType) {
+	if !typ.Private {
+		out.WriteString("+ ")
+	}
+	out.WriteString(typ.Name)
+	out.WriteString(": {\n")
+	for _, field := range typ.Fields {
+		out.WriteString("  ")
+		if field.Private {
+			out.WriteString("- ")
+		}
+		out.WriteString(field.Name)
+		out.WriteString(": ")
+		out.WriteString(field.Type.String())
+		out.WriteByte('\n')
+	}
+	out.WriteString("}\n")
+}
+
+func writeExpandedEnum(out *strings.Builder, enum *ast.EnumType) {
+	if !enum.Private {
+		out.WriteString("+ ")
+	}
+	out.WriteString(enum.Name)
+	out.WriteString(": {\n")
+	for _, member := range enum.Members {
+		out.WriteString("  ")
+		if member.Private {
+			out.WriteString("- ")
+		}
+		out.WriteString(member.Name)
+		out.WriteByte('\n')
+	}
+	out.WriteString("}\n")
 }
 
 func expandedDocumentFile(uri string, file *ast.File) *ast.File {

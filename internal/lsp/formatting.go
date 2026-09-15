@@ -3,8 +3,7 @@ package lsp
 import (
 	"strings"
 
-	runefmt "github.com/oboard/rune-lang/internal/format"
-	"github.com/oboard/rune-lang/internal/parser"
+	"github.com/oboard/rune-lang/internal/selfhost"
 )
 
 func (s *server) formatting(uri string, options *formattingOptions) any {
@@ -12,11 +11,8 @@ func (s *server) formatting(uri string, options *formattingOptions) any {
 	if !ok {
 		return nil
 	}
-	file, errs := parser.Parse(text)
-	if len(errs) > 0 {
-		return nil
-	}
-	formatted := runefmt.SourceWithOptions(file, text, formatOptions(options))
+	formatted := selfhost.FormatSource(text)
+	formatted = applyFormattingIndent(formatted, options)
 	if formatted == text {
 		return []map[string]any{}
 	}
@@ -28,18 +24,17 @@ func (s *server) formatting(uri string, options *formattingOptions) any {
 	}
 }
 
-func formatOptions(options *formattingOptions) runefmt.Options {
-	if options == nil {
-		return runefmt.Options{}
+func applyFormattingIndent(formatted string, options *formattingOptions) string {
+	if options == nil || (options.InsertSpaces && options.TabSize == 2) {
+		return formatted
 	}
+	unit := "  "
 	if !options.InsertSpaces {
-		return runefmt.Options{Indent: "\t"}
+		unit = "\t"
+	} else if options.TabSize > 0 {
+		unit = strings.Repeat(" ", options.TabSize)
 	}
-	tabSize := options.TabSize
-	if tabSize <= 0 {
-		return runefmt.Options{}
-	}
-	return runefmt.Options{Indent: strings.Repeat(" ", tabSize)}
+	return strings.ReplaceAll(formatted, "  ", unit)
 }
 
 func fullDocumentRange(text string) map[string]any {

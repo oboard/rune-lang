@@ -1,4 +1,4 @@
-package main
+package selfhost
 
 import (
 	"fmt"
@@ -7534,10 +7534,11 @@ func selfhost_format_format_formatTokenSource(source string) string {
 }
 
 func selfhost_format_format_formatParsedFile(file ParsedFile) string {
+	imports := selfhost_format_format_formatParsedImports(file.imports, 0, "")
 	types := selfhost_format_format_formatParsedTypes(file.types, 0, "")
 	constants := selfhost_format_format_formatParsedConstants(file.constants, 0, "")
 	functions := selfhost_format_format_formatParsedFunctions(file.functions, 0, "")
-	return types + func() string {
+	declarations := types + func() string {
 		if types != "" && (constants != "" || functions != "") {
 			return "\n"
 		}
@@ -7548,6 +7549,33 @@ func selfhost_format_format_formatParsedFile(file ParsedFile) string {
 		}
 		return ""
 	}() + functions
+	return imports + func() string {
+		if imports != "" && declarations != "" {
+			return "\n"
+		}
+		return ""
+	}() + declarations
+}
+
+func selfhost_format_format_formatParsedImports(imports []ParsedImport, index int, out string) string {
+	for {
+		if index >= len(imports) {
+			return out
+		} else {
+			imports, index, out = imports, index+1, out+func() string {
+				if imports[index].go_ {
+					return "@\"go:" + imports[index].path + "\""
+				}
+				return func() string {
+					if imports[index].module {
+						return "@" + imports[index].path
+					}
+					return "@\"" + imports[index].path + "\""
+				}()
+			}()+"\n"
+			continue
+		}
+	}
 }
 
 func selfhost_format_format_formatParsedTypes(types []ParsedType, index int, out string) string {
@@ -7572,29 +7600,69 @@ func selfhost_format_format_formatParsedType(typeDecl ParsedType) string {
 			return ""
 		}
 		return "+ "
-	}() + typeDecl.name + ""
+	}() + typeDecl.name + selfhost_format_format_formatGenericNames(typeDecl.generics, 0, "[")
 	return func() string {
 		if typeDecl.enum {
 			return selfhost_format_format_formatParsedEnumType(header, typeDecl.members, 0, "")
 		}
-		return selfhost_format_format_formatParsedStructType(header, typeDecl.fields, 0, "")
+		return selfhost_format_format_formatParsedStructType(header, typeDecl.fields, typeDecl.methods, 0, "")
 	}()
 }
 
-func selfhost_format_format_formatParsedStructType(header string, fields []ParsedField, index int, out string) string {
+func selfhost_format_format_formatGenericNames(generics []string, index int, out string) string {
 	for {
-		if index >= len(fields) {
-			return header + ": {\n" + out + "}"
+		if len(generics) == 0 {
+			return ""
 		} else {
-			header, fields, index, out = header, fields, index+1, out+selfhost_format_format_indentText(1)+func() string {
+			if index >= len(generics) {
+				return out + "]"
+			} else {
+				generics, index, out = generics, index+1, out+generics[index]+func() string {
+					if index+1 < len(generics) {
+						return ", "
+					}
+					return ""
+				}()
+				continue
+			}
+		}
+	}
+}
+
+func selfhost_format_format_formatParsedStructType(header string, fields []ParsedField, methods []ParsedFunction, index int, out string) string {
+	for {
+		if index < len(fields) {
+			header, fields, methods, index, out = header, fields, methods, index+1, out+selfhost_format_format_indentText(1)+func() string {
 				if fields[index].private {
 					return "- "
 				}
 				return ""
 			}()+fields[index].name+": "+selfhost_format_format_formatTypeRef(fields[index].typeRef)+"\n"
 			continue
+		} else {
+			return header + ": {\n" + out + selfhost_format_format_formatParsedTypeMethods(methods, 0, "") + "}"
 		}
 	}
+}
+
+func selfhost_format_format_formatParsedTypeMethods(methods []ParsedFunction, index int, out string) string {
+	for {
+		if index >= len(methods) {
+			return out
+		} else {
+			methods, index, out = methods, index+1, out+func() string {
+				if index == 0 && out != "" {
+					return "\n"
+				}
+				return ""
+			}()+selfhost_format_format_indentMultiline(selfhost_format_format_formatParsedFunction(methods[index]), 1)+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_indentMultiline(text string, indent int) string {
+	return selfhost_format_format_indentText(indent) + strings.Replace(text, "\n", "\n"+selfhost_format_format_indentText(indent), 1)
 }
 
 func selfhost_format_format_formatParsedEnumType(header string, members []ParsedEnumMember, index int, out string) string {
@@ -7795,6 +7863,18 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + "[" + selfhost_format_format_formatExpr(expr.children[1], indent) + "]"
 		case expr.kind == ExprKind_Binary:
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + " " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[1], indent)
+		case expr.kind == ExprKind_Ternary:
+			return selfhost_format_format_formatTernaryExpr(expr, indent)
+		case expr.kind == ExprKind_Tuple:
+			return "(" + selfhost_format_format_formatExprArgs(expr.children, 0, indent, "") + ")"
+		case expr.kind == ExprKind_Map:
+			return selfhost_format_format_formatMapExpr(expr, indent)
+		case expr.kind == ExprKind_Match:
+			return selfhost_format_format_formatMatchExpr(expr, indent)
+		case expr.kind == ExprKind_ObjectDestructure:
+			return selfhost_format_format_formatObjectDestructureExpr(expr, indent)
+		case expr.kind == ExprKind_Watch:
+			return selfhost_format_format_formatExpr(expr.children[0], indent) + " -> " + selfhost_format_format_formatExpr(expr.children[1], indent)
 		case expr.kind == ExprKind_Lambda:
 			return selfhost_format_format_formatLambdaExpr(expr, indent)
 		case expr.kind == ExprKind_Call:
@@ -7900,7 +7980,89 @@ func selfhost_format_format_formatLetExpr(expr ParsedExpr, indent int) string {
 }
 
 func selfhost_format_format_formatAssignExpr(expr ParsedExpr, indent int) string {
-	return selfhost_format_format_formatExpr(expr.children[0], indent) + " = " + selfhost_format_format_formatExpr(expr.children[1], indent)
+	return func() string {
+		if len(expr.children) >= 2 {
+			return selfhost_format_format_formatExpr(expr.children[0], indent) + " = " + selfhost_format_format_formatExpr(expr.children[1], indent)
+		}
+		return expr.name + " " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[0], indent)
+	}()
+}
+
+func selfhost_format_format_formatTernaryExpr(expr ParsedExpr, indent int) string {
+	condition := selfhost_format_format_formatExpr(expr.children[0], indent)
+	consequence := selfhost_format_format_formatExpr(expr.children[1], indent)
+	return func() string {
+		if len(expr.children) < 3 {
+			return "(" + condition + " ? " + consequence + ")"
+		}
+		return "(" + condition + " ? " + consequence + " : " + selfhost_format_format_formatExpr(expr.children[2], indent) + ")"
+	}()
+}
+
+func selfhost_format_format_formatMapExpr(expr ParsedExpr, indent int) string {
+	return func() string {
+		if len(expr.children) == 0 {
+			return "{}"
+		}
+		return "{\n" + selfhost_format_format_formatMapEntries(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+	}()
+}
+
+func selfhost_format_format_formatMapEntries(entries []ParsedExpr, index int, indent int, out string) string {
+	for {
+		if index >= len(entries) {
+			return out
+		} else {
+			entries, index, indent, out = entries, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(entries[index].children[0], indent)+": "+selfhost_format_format_formatExpr(entries[index].children[1], indent)+func() string {
+				if index+1 < len(entries) {
+					return ","
+				}
+				return ""
+			}()+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatMatchExpr(expr ParsedExpr, indent int) string {
+	subject := selfhost_format_format_formatExpr(expr.children[0], indent)
+	return subject + " {\n" + selfhost_format_format_formatMatchBranches(expr.children, 1, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+}
+
+func selfhost_format_format_formatMatchBranches(children []ParsedExpr, index int, indent int, out string) string {
+	for {
+		if index >= len(children) {
+			return out
+		} else {
+			children, index, indent, out = children, index+1, indent, out+selfhost_format_format_indentText(indent)+children[index].children[0].text+" => "+selfhost_format_format_formatExpr(children[index].children[1], indent)+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatObjectDestructureExpr(expr ParsedExpr, indent int) string {
+	return "{ " + selfhost_format_format_formatObjectDestructureParams(expr.params, 0, "") + " } " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[0], indent)
+}
+
+func selfhost_format_format_formatObjectDestructureParams(params []ParsedParam, index int, out string) string {
+	for {
+		if index >= len(params) {
+			return out
+		} else {
+			params, index, out = params, index+1, out+params[index].name+func() string {
+				if params[index].typeRef.name == "" {
+					return ""
+				}
+				return ": " + params[index].typeRef.name
+			}()+func() string {
+				if index+1 < len(params) {
+					return ", "
+				}
+				return ""
+			}()
+			continue
+		}
+	}
 }
 
 func selfhost_format_format_formatLambdaExpr(expr ParsedExpr, indent int) string {
@@ -8019,7 +8181,16 @@ func selfhost_format_format_formatNamedXMLAttribute(attr ParsedExpr, indent int)
 		if len(attr.children) == 0 {
 			return name
 		}
-		return name + "={" + selfhost_format_format_formatXMLAttributeValue(attr.children[0], indent) + "}"
+		return selfhost_format_format_formatNamedXMLAttributeValue(name, attr.children[0], indent)
+	}()
+}
+
+func selfhost_format_format_formatNamedXMLAttributeValue(name string, value ParsedExpr, indent int) string {
+	return func() string {
+		if value.kind == ExprKind_String {
+			return name + "=" + value.value
+		}
+		return name + "={" + selfhost_format_format_formatXMLAttributeValue(value, indent) + "}"
 	}()
 }
 
@@ -21523,4 +21694,48 @@ func selfhost_compiler_compiler_parseErrorMessages(errors []ParseError) []string
 		}()
 	}
 	return out
+}
+
+// SourceFileInput is a source file consumed by the generated self-host compiler.
+type SourceFileInput struct {
+	Path   string
+	Source string
+}
+
+// CompileOutput is the transport-safe result of generated self-host compilation.
+type CompileOutput struct {
+	Ok     bool
+	Output string
+	Errors []string
+}
+
+func toSourceFiles(inputs []SourceFileInput) []SourceFile {
+	out := make([]SourceFile, len(inputs))
+	for i, input := range inputs {
+		out[i] = SourceFile{path: input.Path, source: input.Source}
+	}
+	return out
+}
+func toCompileOutput(result CompileResult) CompileOutput {
+	return CompileOutput{Ok: result.ok, Output: result.output, Errors: result.errors}
+}
+func FormatSource(source string) string     { return formatSource(source) }
+func CompileGo(source string) CompileOutput { return toCompileOutput(compileGo(source)) }
+func CompileGoFiles(files []SourceFileInput) CompileOutput {
+	return toCompileOutput(compileGoFiles(toSourceFiles(files)))
+}
+func CompileTypeScriptFiles(files []SourceFileInput) CompileOutput {
+	return toCompileOutput(compileTypeScriptFiles(toSourceFiles(files)))
+}
+func CompileMoonBitFiles(files []SourceFileInput) CompileOutput {
+	return toCompileOutput(compileMoonBitFiles(toSourceFiles(files)))
+}
+func CompileDeclarations(source string) CompileOutput {
+	return toCompileOutput(compileDeclarations(source))
+}
+func CompileDeclarationsFiles(files []SourceFileInput) CompileOutput {
+	return toCompileOutput(compileDeclarationsFiles(toSourceFiles(files)))
+}
+func CheckSourceWithCore(source, sourcePath string, files []SourceFileInput) CompileOutput {
+	return toCompileOutput(checkSourceWithCore(source, sourcePath, toSourceFiles(files)))
 }

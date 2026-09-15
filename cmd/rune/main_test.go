@@ -21,9 +21,9 @@ func BenchmarkSelfhostLexer(b *testing.B) {
 	}
 	b.SetBytes(int64(len(source)))
 	b.ReportAllocs()
-	b.ResetTimer()
-	for range b.N {
-		lex(string(source))
+
+	for b.Loop() {
+		formatSource(string(source))
 	}
 }
 
