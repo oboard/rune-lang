@@ -46,6 +46,50 @@
 `)
 }
 
+? "selfhost formatter formats Todo callbacks and XML children" {
+  formatted := formatSource(`render() => {
+  items := [TodoItem {
+    name: "One",
+    status: false
+  }]
+  <ul>
+    {items.map((item, index) => (
+      <li>
+        <input @change={(e) => {
+          items[index] = {
+            ..item,
+            status: !item.status
+          }
+        }} />
+        {item.name}
+      </li>
+    ))}
+  </ul>
+}`)
+  @assert.eq(formatted, `render() => {
+  items := [
+    TodoItem {
+      name: "One",
+      status: false
+    }
+  ]
+  <ul>
+    {items.map((item, index) => (
+      <li>
+        <input @change={(e) => {
+          items[index] = {
+            ..item,
+            status: !item.status
+          }
+        }} />
+        {item.name}
+      </li>
+    ))}
+  </ul>
+}
+`)
+}
+
 ? "selfhost formatter indents structured XML" {
   formatted := formatSource(`render()=>{<div><h1>Hello World</h1><div style={{color:$color,backgroundColor:backgroundColor}}>Hello World</div><button @click={()=>$color="green"}>{"Change Color"}</button></div>}`)
   @assert.eq(formatted, `render() => {

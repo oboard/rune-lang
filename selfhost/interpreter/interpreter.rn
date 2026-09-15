@@ -256,18 +256,18 @@ newInterpreter(
   functions: file.functions,
   structs: file.structs,
   enums: file.enums,
-  closures: {},
+  closures: @map.new(0, emptyRuntimeClosure()),
   closureCount: {
     "count": 0,
   },
   output: [],
-  outputLog: {},
+  outputLog: @map.new(0, ""),
   outputCount: {
     "count": 0,
   },
-  fsFiles: {},
-  fsFileBytes: {},
-  fsFileExists: {},
+  fsFiles: @map.new("", ""),
+  fsFileBytes: @map.new("", runtimeArray(emptyValue())),
+  fsFileExists: @map.new("", false),
   fsDirs: {
     ".": true,
     "/": true,
@@ -303,7 +303,7 @@ runTest(
 }
 
 emptyEnv() -> RuntimeEnv => {
-  bindings: {},
+  bindings: @map.new(0, emptyRuntimeBinding()),
   bindingCount: {
     "count": 0,
   }

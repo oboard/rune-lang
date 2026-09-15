@@ -20,7 +20,47 @@ formatTokenSource(source: String) -> String => {
   preserveComments(source, finishFormat(state.text))
 }
 
-formatParsedFile(file: ParsedFile) -> String => formatParsedConstants(file.constants, 0, "") + formatParsedFunctions(file.functions, 0, "")
+formatParsedFile(file: ParsedFile) -> String => {
+  types := formatParsedTypes(file.types, 0, "")
+  constants := formatParsedConstants(file.constants, 0, "")
+  functions := formatParsedFunctions(file.functions, 0, "")
+  types + ((types != "") && ((constants != "") || (functions != "")) ? "\n" : "") + constants + ((constants != "") && (functions != "") ? "\n" : "") + functions
+}
+
+formatParsedTypes(
+  types: Array[ParsedType],
+  index: Int,
+  out: String
+) -> String => (
+  index >= types.length() ? out
+    : formatParsedTypes(types, index + 1, out + (index == 0 ? "" : "\n") + formatParsedType(types[index]) + "\n")
+)
+
+formatParsedType(typeDecl: ParsedType) -> String => {
+  header := (typeDecl.private ? "" : "+ ") + typeDecl.name + ""
+  typeDecl.enum ? formatParsedEnumType(header, typeDecl.members, 0, "")
+    : formatParsedStructType(header, typeDecl.fields, 0, "")
+}
+
+formatParsedStructType(
+  header: String,
+  fields: Array[ParsedField],
+  index: Int,
+  out: String
+) -> String => (
+  index >= fields.length() ? header + ": {\n" + out + "}"
+    : formatParsedStructType(header, fields, index + 1, out + indentText(1) + (fields[index].private ? "- " : "") + fields[index].name + ": " + formatTypeRef(fields[index].typeRef) + "\n")
+)
+
+formatParsedEnumType(
+  header: String,
+  members: Array[ParsedEnumMember],
+  index: Int,
+  out: String
+) -> String => (
+  index >= members.length() ? header + ": {\n" + out + "}"
+    : formatParsedEnumType(header, members, index + 1, out + indentText(1) + (members[index].private ? "- " : "") + members[index].name + "\n")
+)
 
 formatParsedConstants(
   constants: Array[ParsedConst],
@@ -42,12 +82,19 @@ formatParsedFunctions(
   out: String
 ) -> String => (
   index >= functions.length() ? out
-    : formatParsedFunctions(functions, index + 1, out + formatParsedFunction(functions[index]) + "\n")
+    : formatParsedFunctions(functions, index + 1, out + (index == 0 ? "" : "\n") + formatParsedFunction(functions[index]) + "\n")
 )
 
-formatParsedFunction(fn: ParsedFunction) -> String => (
-  fn.body.kind == ExprKind.Block ? formatFunctionBlock(fn)
-    : fn.name + formatParams(fn.params, 0, "(") + ")" + formatReturnType(fn.returnType) + " => " + formatExpr(fn.body, 0)
+formatParsedFunction(fn: ParsedFunction) -> String => formatParsedAnnotations(fn.annotations, 0, "") + (fn.private ? "" : "+ ") + (fn.body.kind == ExprKind.Block ? formatFunctionBlock(fn)
+  : fn.name + formatParams(fn.params, 0, "(") + ")" + formatReturnType(fn.returnType) + " => " + formatExpr(fn.body, 0))
+
+formatParsedAnnotations(
+  annotations: Array[ParsedAnnotation],
+  index: Int,
+  out: String
+) -> String => (
+  index >= annotations.length() ? out
+    : formatParsedAnnotations(annotations, index + 1, out + annotations[index].marker + (annotations[index].module == "" ? "" : annotations[index].module + ".") + annotations[index].name + "\n")
 )
 
 formatFunctionBlock(fn: ParsedFunction) -> String => {
@@ -115,6 +162,9 @@ formatExpr(expr: ParsedExpr, indent: Int) -> String => expr.kind {
   ExprKind.Null => "null"
   ExprKind.Reactive => "$" + formatExpr(expr.children[0], indent)
   ExprKind.Assign => formatAssignExpr(expr, indent)
+  ExprKind.Unary => expr.op + formatExpr(expr.children[0], indent)
+  ExprKind.Spread => ".." + formatExpr(expr.children[0], indent)
+  ExprKind.Index => formatExpr(expr.children[0], indent) + "[" + formatExpr(expr.children[1], indent) + "]"
   ExprKind.Binary => formatExpr(expr.children[0], indent) + " " + expr.op + " " + formatExpr(expr.children[1], indent)
   ExprKind.Lambda => formatLambdaExpr(expr, indent)
   ExprKind.Call => formatCallExpr(expr, indent)
@@ -162,7 +212,12 @@ formatObjectFields(
   out: String
 ) -> String => (
   index >= fields.length() ? out
-    : formatObjectFields(fields, index + 1, indent, out + indentText(indent) + fields[index].name + ": " + formatExpr(fields[index].children[0], indent) + ((index + 1) < fields.length() ? "," : "") + "\n")
+    : formatObjectFields(fields, index + 1, indent, out + indentText(indent) + formatObjectField(fields[index], indent) + ((index + 1) < fields.length() ? "," : "") + "\n")
+)
+
+formatObjectField(field: ParsedExpr, indent: Int) -> String => (
+  field.kind == ExprKind.Spread ? ".." + formatExpr(field.children[0], indent)
+    : field.name + ": " + formatExpr(field.children[0], indent)
 )
 
 formatLetExpr(expr: ParsedExpr, indent: Int) -> String => (
@@ -172,7 +227,26 @@ formatLetExpr(expr: ParsedExpr, indent: Int) -> String => (
 
 formatAssignExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + " = " + formatExpr(expr.children[1], indent)
 
-formatLambdaExpr(expr: ParsedExpr, indent: Int) -> String => "() => " + formatExpr(expr.children[0], indent)
+formatLambdaExpr(expr: ParsedExpr, indent: Int) -> String => {
+  header := "(" + formatLambdaParams(expr.params, 0, "") + ")" + formatLambdaReturnType(expr.text) + " => "
+  body := expr.children[0]
+  body.kind == ExprKind.XMLElement ? header + "(\n" + indentText(indent + 1) + formatExpr(body, indent + 1) + "\n" + indentText(indent) + ")"
+    : header + formatExpr(body, indent)
+}
+
+formatLambdaParams(
+  params: Array[ParsedParam],
+  index: Int,
+  out: String
+) -> String => (
+  index >= params.length() ? out
+    : formatLambdaParams(params, index + 1, out + params[index].name + (params[index].typeRef.name == "" ? "" : ": " + formatTypeRef(params[index].typeRef)) + ((index + 1) < params.length() ? ", " : ""))
+)
+
+formatLambdaReturnType(typeName: String) -> String => (
+  typeName == "" ? ""
+    : " -> " + typeName
+)
 
 formatCallExpr(expr: ParsedExpr, indent: Int) -> String => formatExpr(expr.children[0], indent) + "(" + formatExprArgs(expr.children, 1, indent, "") + ")"
 

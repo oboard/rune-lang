@@ -7534,7 +7534,83 @@ func selfhost_format_format_formatTokenSource(source string) string {
 }
 
 func selfhost_format_format_formatParsedFile(file ParsedFile) string {
-	return selfhost_format_format_formatParsedConstants(file.constants, 0, "") + selfhost_format_format_formatParsedFunctions(file.functions, 0, "")
+	types := selfhost_format_format_formatParsedTypes(file.types, 0, "")
+	constants := selfhost_format_format_formatParsedConstants(file.constants, 0, "")
+	functions := selfhost_format_format_formatParsedFunctions(file.functions, 0, "")
+	return types + func() string {
+		if types != "" && (constants != "" || functions != "") {
+			return "\n"
+		}
+		return ""
+	}() + constants + func() string {
+		if constants != "" && functions != "" {
+			return "\n"
+		}
+		return ""
+	}() + functions
+}
+
+func selfhost_format_format_formatParsedTypes(types []ParsedType, index int, out string) string {
+	for {
+		if index >= len(types) {
+			return out
+		} else {
+			types, index, out = types, index+1, out+func() string {
+				if index == 0 {
+					return ""
+				}
+				return "\n"
+			}()+selfhost_format_format_formatParsedType(types[index])+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatParsedType(typeDecl ParsedType) string {
+	header := func() string {
+		if typeDecl.private {
+			return ""
+		}
+		return "+ "
+	}() + typeDecl.name + ""
+	return func() string {
+		if typeDecl.enum {
+			return selfhost_format_format_formatParsedEnumType(header, typeDecl.members, 0, "")
+		}
+		return selfhost_format_format_formatParsedStructType(header, typeDecl.fields, 0, "")
+	}()
+}
+
+func selfhost_format_format_formatParsedStructType(header string, fields []ParsedField, index int, out string) string {
+	for {
+		if index >= len(fields) {
+			return header + ": {\n" + out + "}"
+		} else {
+			header, fields, index, out = header, fields, index+1, out+selfhost_format_format_indentText(1)+func() string {
+				if fields[index].private {
+					return "- "
+				}
+				return ""
+			}()+fields[index].name+": "+selfhost_format_format_formatTypeRef(fields[index].typeRef)+"\n"
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatParsedEnumType(header string, members []ParsedEnumMember, index int, out string) string {
+	for {
+		if index >= len(members) {
+			return header + ": {\n" + out + "}"
+		} else {
+			header, members, index, out = header, members, index+1, out+selfhost_format_format_indentText(1)+func() string {
+				if members[index].private {
+					return "- "
+				}
+				return ""
+			}()+members[index].name+"\n"
+			continue
+		}
+	}
 }
 
 func selfhost_format_format_formatParsedConstants(constants []ParsedConst, index int, out string) string {
@@ -7562,19 +7638,45 @@ func selfhost_format_format_formatParsedFunctions(functions []ParsedFunction, in
 		if index >= len(functions) {
 			return out
 		} else {
-			functions, index, out = functions, index+1, out+selfhost_format_format_formatParsedFunction(functions[index])+"\n"
+			functions, index, out = functions, index+1, out+func() string {
+				if index == 0 {
+					return ""
+				}
+				return "\n"
+			}()+selfhost_format_format_formatParsedFunction(functions[index])+"\n"
 			continue
 		}
 	}
 }
 
 func selfhost_format_format_formatParsedFunction(fn ParsedFunction) string {
-	return func() string {
+	return selfhost_format_format_formatParsedAnnotations(fn.annotations, 0, "") + func() string {
+		if fn.private {
+			return ""
+		}
+		return "+ "
+	}() + func() string {
 		if fn.body.kind == ExprKind_Block {
 			return selfhost_format_format_formatFunctionBlock(fn)
 		}
 		return fn.name + selfhost_format_format_formatParams(fn.params, 0, "(") + ")" + selfhost_format_format_formatReturnType(fn.returnType) + " => " + selfhost_format_format_formatExpr(fn.body, 0)
 	}()
+}
+
+func selfhost_format_format_formatParsedAnnotations(annotations []ParsedAnnotation, index int, out string) string {
+	for {
+		if index >= len(annotations) {
+			return out
+		} else {
+			annotations, index, out = annotations, index+1, out+annotations[index].marker+func() string {
+				if annotations[index].module == "" {
+					return ""
+				}
+				return annotations[index].module + "."
+			}()+annotations[index].name+"\n"
+			continue
+		}
+	}
 }
 
 func selfhost_format_format_formatFunctionBlock(fn ParsedFunction) string {
@@ -7685,6 +7787,12 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 			return "$" + selfhost_format_format_formatExpr(expr.children[0], indent)
 		case expr.kind == ExprKind_Assign:
 			return selfhost_format_format_formatAssignExpr(expr, indent)
+		case expr.kind == ExprKind_Unary:
+			return expr.op + selfhost_format_format_formatExpr(expr.children[0], indent)
+		case expr.kind == ExprKind_Spread:
+			return ".." + selfhost_format_format_formatExpr(expr.children[0], indent)
+		case expr.kind == ExprKind_Index:
+			return selfhost_format_format_formatExpr(expr.children[0], indent) + "[" + selfhost_format_format_formatExpr(expr.children[1], indent) + "]"
 		case expr.kind == ExprKind_Binary:
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + " " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[1], indent)
 		case expr.kind == ExprKind_Lambda:
@@ -7762,7 +7870,7 @@ func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, i
 		if index >= len(fields) {
 			return out
 		} else {
-			fields, index, indent, out = fields, index+1, indent, out+selfhost_format_format_indentText(indent)+fields[index].name+": "+selfhost_format_format_formatExpr(fields[index].children[0], indent)+func() string {
+			fields, index, indent, out = fields, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatObjectField(fields[index], indent)+func() string {
 				if index+1 < len(fields) {
 					return ","
 				}
@@ -7771,6 +7879,15 @@ func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, i
 			continue
 		}
 	}
+}
+
+func selfhost_format_format_formatObjectField(field ParsedExpr, indent int) string {
+	return func() string {
+		if field.kind == ExprKind_Spread {
+			return ".." + selfhost_format_format_formatExpr(field.children[0], indent)
+		}
+		return field.name + ": " + selfhost_format_format_formatExpr(field.children[0], indent)
+	}()
 }
 
 func selfhost_format_format_formatLetExpr(expr ParsedExpr, indent int) string {
@@ -7787,7 +7904,44 @@ func selfhost_format_format_formatAssignExpr(expr ParsedExpr, indent int) string
 }
 
 func selfhost_format_format_formatLambdaExpr(expr ParsedExpr, indent int) string {
-	return "() => " + selfhost_format_format_formatExpr(expr.children[0], indent)
+	header := "(" + selfhost_format_format_formatLambdaParams(expr.params, 0, "") + ")" + selfhost_format_format_formatLambdaReturnType(expr.text) + " => "
+	body := expr.children[0]
+	return func() string {
+		if body.kind == ExprKind_XMLElement {
+			return header + "(\n" + selfhost_format_format_indentText(indent+1) + selfhost_format_format_formatExpr(body, indent+1) + "\n" + selfhost_format_format_indentText(indent) + ")"
+		}
+		return header + selfhost_format_format_formatExpr(body, indent)
+	}()
+}
+
+func selfhost_format_format_formatLambdaParams(params []ParsedParam, index int, out string) string {
+	for {
+		if index >= len(params) {
+			return out
+		} else {
+			params, index, out = params, index+1, out+params[index].name+func() string {
+				if params[index].typeRef.name == "" {
+					return ""
+				}
+				return ": " + selfhost_format_format_formatTypeRef(params[index].typeRef)
+			}()+func() string {
+				if index+1 < len(params) {
+					return ", "
+				}
+				return ""
+			}()
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatLambdaReturnType(typeName string) string {
+	return func() string {
+		if typeName == "" {
+			return ""
+		}
+		return " -> " + typeName
+	}()
 }
 
 func selfhost_format_format_formatCallExpr(expr ParsedExpr, indent int) string {
