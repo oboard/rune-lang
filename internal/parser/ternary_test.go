@@ -69,9 +69,9 @@ func TestParseConditionalExpressionWithoutElse(t *testing.T) {
 
 func TestParseInvalidTernaryCalleeDoesNotHang(t *testing.T) {
 	_, errs := Parse(`Return: {
-  b: Int
+  b: Int32
   z: Bool
-  a: Int
+  a: Int32
 }
 
 fun(flag) => {

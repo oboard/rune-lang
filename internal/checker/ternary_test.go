@@ -32,7 +32,7 @@ main() => {
 		t.Fatalf("Check() diagnostics = %v", diags)
 	}
 
-	want := Type("{b: Int, z: Bool, a: Int}")
+	want := Type("{b: Int32, z: Bool, a: Int32}")
 	for _, name := range []string{"x", "y"} {
 		if got := identifierType(info, file, name); got != want {
 			t.Fatalf("%s type = %s, want %s", name, got, want)

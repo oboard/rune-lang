@@ -27,7 +27,7 @@ assertCompilesAllBackends(
   scores.set("total", total)
   seen := @set.new("")
   seen.add(trimmed)
-  joined + ":" + @int.toString(scores.getOr("total", 0)) + ":" + @int.toString(seen.size())
+  joined + ":" + @int32.toString(scores.getOr("total", 0)) + ":" + @int32.toString(seen.size())
 }
 `
   assertCompilesAllBackends(source)
@@ -35,9 +35,9 @@ assertCompilesAllBackends(
 
 ? "selfhost compiler resolves methods declared later" {
   source := `+ Buffer: {
-  appendBytes(values: Array[Int]) -> Buffer => .appendInts(values)
+  appendBytes(values: Array[Int32]) -> Buffer => .appendInts(values)
 
-  appendInts(values: Array[Int]) -> Buffer => this
+  appendInts(values: Array[Int32]) -> Buffer => this
 }
 `
   result := checkSource(source)
@@ -58,7 +58,7 @@ assertCompilesAllBackends(
   third := @float.toDouble(reader.readFloat32(true))
   buffer := @buffer.fromBytes(bytes.clone())
   buffer.append(@uint8.fromInt(9))
-  @int.toString(first) + ":" + @int.toString(second) + ":" + @int.toString(@double.trunc(third)) + ":" + @int.toString(buffer.length())
+  @int32.toString(first) + ":" + @int32.toString(second) + ":" + @int32.toString(@double.trunc(third)) + ":" + @int32.toString(buffer.length())
 }
 `
   assertCompilesAllBackends(source)
@@ -74,7 +74,7 @@ assertCompilesAllBackends(
   total :=: 0
   @iter.range(1, 4).each((value) => total = total + value)
   symbol := @symbol.for("rune.key")
-  @path.basename(joined) + ":" + relative + ":" + text.includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")
+  @path.basename(joined) + ":" + relative + ":" + text.includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int32.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")
 }
 `
   assertCompilesAllBackends(source)
@@ -106,7 +106,7 @@ main() -> String => {
   first := user.name.at(0)
   label := fallback > 3 ? statusText(user.status) : "small"
   symbol := @symbol.for("type.value")
-  first.toString() + ":" + label + ":" + @int.toString(fallback) + ":" + (@symbol.keyFor(symbol) ?? "")
+  first.toString() + ":" + label + ":" + @int32.toString(fallback) + ":" + (@symbol.keyFor(symbol) ?? "")
 }
 `
   assertCompilesAllBackends(source)
@@ -123,7 +123,7 @@ main() -> String => {
   conn := listener.accept()?
   written := conn.write(@bytes.fromInts([1, 2, 3]))?
   read := conn.read(2)?
-  plain + ":" + listener.address() + ":" + @int.toString(written) + ":" + @int.toString(read.length())
+  plain + ":" + listener.address() + ":" + @int32.toString(written) + ":" + @int32.toString(read.length())
 }
 `
   assertCompilesAllBackends(source)

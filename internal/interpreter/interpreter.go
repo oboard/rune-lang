@@ -156,7 +156,105 @@ func (i *Interpreter) exec(stmt ir.Stmt, env *Env) (Value, bool, error) {
 	case *ir.ExprStmt:
 		value, err := i.eval(s.Expr, env)
 		return value, s.Expr.ResultType() != "Void", err
+	case *ir.ReturnStmt:
+		var value Value
+		if s.Value != nil {
+			evaluated, err := i.eval(s.Value, env)
+			if err != nil {
+				return nil, false, err
+			}
+			value = evaluated
+		}
+		return nil, false, &returnSignal{value: value}
+	case *ir.BreakStmt:
+		return nil, false, &breakSignal{}
+	case *ir.ContinueStmt:
+		return nil, false, &continueSignal{}
+	case *ir.ThrowStmt:
+		value, err := i.eval(s.Value, env)
+		if err != nil {
+			return nil, false, err
+		}
+		return nil, false, &throwSignal{value: value}
+	case *ir.TryStmt:
+		return nil, false, i.execTry(s, env)
+	case *ir.IfStmt:
+		condition, err := i.eval(s.Cond, env)
+		if err != nil {
+			return nil, false, err
+		}
+		keepGoing, ok := condition.(bool)
+		if !ok {
+			return nil, false, fmt.Errorf("if condition expects Bool")
+		}
+		statements := s.Then
+		if !keepGoing {
+			statements = s.Else
+		}
+		for _, statement := range statements {
+			if _, _, err := i.exec(statement, env); err != nil {
+				return nil, false, err
+			}
+		}
+		return nil, false, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported statement %T", stmt)
 	}
+}
+
+type returnSignal struct {
+	value Value
+}
+
+func (e *returnSignal) Error() string {
+	return "return"
+}
+
+type breakSignal struct{}
+
+func (*breakSignal) Error() string {
+	return "break"
+}
+
+type continueSignal struct{}
+
+func (*continueSignal) Error() string {
+	return "continue"
+}
+
+type throwSignal struct {
+	value Value
+}
+
+func (e *throwSignal) Error() string {
+	return "uncaught throw"
+}
+
+func (i *Interpreter) execTry(stmt *ir.TryStmt, env *Env) error {
+	var runErr error
+	func() {
+		defer func() {
+			if stmt.Finally == nil {
+				return
+			}
+			if _, err := i.evalBlock(&ir.BlockExpr{Statements: stmt.Finally}, env); err != nil {
+				runErr = err
+			}
+		}()
+		if _, err := i.evalBlock(&ir.BlockExpr{Statements: stmt.Body}, env); err != nil {
+			thrown, ok := err.(*throwSignal)
+			if !ok || stmt.Catch == nil {
+				runErr = err
+				return
+			}
+			catchEnv := NewEnv(env)
+			if stmt.CatchName != "" {
+				catchEnv.Define(stmt.CatchName, thrown.value)
+			}
+			if _, catchErr := i.evalBlock(&ir.BlockExpr{Statements: stmt.Catch}, catchEnv); catchErr != nil {
+				runErr = catchErr
+			}
+		}
+	}()
+	return runErr
 }

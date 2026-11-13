@@ -9,11 +9,11 @@ import (
 
 func TestObjectDestructureInfersFieldTypes(t *testing.T) {
 	src := `Advanced: {
-  state: Int
+  state: Int32
   ch: Char
 }
 
-read(step: Advanced) -> Int => {
+read(step: Advanced) -> Int32 => {
   { state, ch } := step
   ch == 'a' ? state + 1 : state
 }
@@ -30,7 +30,7 @@ read(step: Advanced) -> Int => {
 
 func TestObjectDestructureRequiresExistingField(t *testing.T) {
 	src := `Advanced: {
-  state: Int
+  state: Int32
 }
 
 main(step: Advanced) => {

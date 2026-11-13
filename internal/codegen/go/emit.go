@@ -195,6 +195,10 @@ func (g *generator) letExpr(value ir.Expr, declared checker.Type) string {
 }
 
 func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
+	return g.blockBody(block, ret, true)
+}
+
+func (g *generator) blockBody(block *ir.BlockExpr, ret checker.Type, tail bool) error {
 	resultName := returnedIdentifier(block)
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
@@ -234,6 +238,10 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			if s.Name == resultName {
 				declared = ret
 			}
+			if checker.IsUnionType(declared) {
+				g.linef("var %s any = %s", mangleIdent(s.Name), g.expr(s.Value))
+				continue
+			}
 			g.linef("%s := %s", mangleIdent(s.Name), g.letExpr(s.Value, declared))
 		case *ir.ObjectDestructureStmt:
 			if unwrap, ok := s.Value.(*ir.ResultUnwrapExpr); ok {
@@ -266,8 +274,20 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.effectScope(block)
 				continue
 			}
+			if nested, ok := s.Expr.(*ir.BlockExpr); ok {
+				if err := g.blockBody(nested, ret, tail && last); err != nil {
+					return err
+				}
+				continue
+			}
 			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok && ternary.Alternative == nil && !(last && ret != checker.Void) {
 				g.conditionalExprStmt(ternary)
+				continue
+			}
+			if loop, ok := s.Expr.(*ir.WhileExpr); ok {
+				if err := g.whileStmt(loop, ret); err != nil {
+					return err
+				}
 				continue
 			}
 			if stmt, ok := g.arrayEachStmt(s.Expr); ok {
@@ -282,15 +302,23 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			if expr == "" {
 				continue
 			}
-			if last && ret != checker.Void {
+			if last && tail && ret != checker.Void {
 				g.linef("return %s", g.returnExpr(s.Expr, ret))
 			} else {
 				g.line(expr)
 			}
 		case *ir.IfStmt:
 			g.ifStmt(s, ret)
+		case *ir.ThrowStmt:
+			g.linef("panic(runeThrown{Value: %s})", g.expr(s.Value))
+		case *ir.TryStmt:
+			if err := g.tryStmt(s); err != nil {
+				return err
+			}
 		case *ir.ContinueStmt:
 			g.line("continue")
+		case *ir.BreakStmt:
+			g.line("break")
 		case *ir.ReturnStmt:
 			if ret == checker.Void {
 				if expr := g.expr(s.Value); expr != "" {
@@ -301,10 +329,85 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 			}
 		}
 	}
-	if ret != checker.Void && len(block.Statements) == 0 {
+	if tail && ret != checker.Void && len(block.Statements) == 0 {
 		g.linef("return %s", g.zeroValue(ret))
 	}
 	return nil
+}
+
+// tryStmt emits a panic/recover block. Go cannot resume the enclosing function
+// from inside the closure, so `return`, `break`, and `continue` inside a try
+// block are rejected instead of silently changing their target.
+func (g *generator) tryStmt(stmt *ir.TryStmt) error {
+	if flow := tryControlFlow(stmt.Body, stmt.Catch, stmt.Finally); flow != "" {
+		return fmt.Errorf("Go backend does not support %s inside try/catch/finally yet", flow)
+	}
+	g.line("func() {")
+	g.indent++
+	if len(stmt.Finally) > 0 {
+		g.line("defer func() {")
+		g.indent++
+		if err := g.block(&ir.BlockExpr{Statements: stmt.Finally}, checker.Void); err != nil {
+			return err
+		}
+		g.indent--
+		g.line("}()")
+	}
+	if stmt.Catch != nil {
+		g.line("defer func() {")
+		g.indent++
+		g.line("if rec := recover(); rec != nil {")
+		g.indent++
+		g.line("if thrown, ok := rec.(runeThrown); ok {")
+		g.indent++
+		g.line("_ = thrown")
+		if stmt.CatchName != "" {
+			name := mangleIdent(stmt.CatchName)
+			g.linef("%s := thrown.Value", name)
+			g.linef("_ = %s", name)
+		}
+		if err := g.block(&ir.BlockExpr{Statements: stmt.Catch}, checker.Void); err != nil {
+			return err
+		}
+		g.line("return")
+		g.indent--
+		g.line("}")
+		g.line("panic(rec)")
+		g.indent--
+		g.line("}")
+		g.indent--
+		g.line("}()")
+	}
+	if err := g.block(&ir.BlockExpr{Statements: stmt.Body}, checker.Void); err != nil {
+		return err
+	}
+	g.indent--
+	g.line("}()")
+	return nil
+}
+
+func tryControlFlow(groups ...[]ir.Stmt) string {
+	for _, group := range groups {
+		for _, stmt := range group {
+			switch s := stmt.(type) {
+			case *ir.ReturnStmt:
+				return "return"
+			case *ir.BreakStmt:
+				return "break"
+			case *ir.ContinueStmt:
+				return "continue"
+			case *ir.IfStmt:
+				if flow := tryControlFlow(s.Then, s.Else); flow != "" {
+					return flow
+				}
+			case *ir.TryStmt:
+				if flow := tryControlFlow(s.Body, s.Catch, s.Finally); flow != "" {
+					return flow
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (g *generator) effectScope(block *ir.BlockExpr) {
@@ -357,6 +460,21 @@ func (g *generator) loopExpr(loop *ir.LoopExpr, ret checker.Type) error {
 		if err := g.block(loop.Body, ret); err != nil {
 			return err
 		}
+	}
+	g.indent--
+	g.line("}")
+	return nil
+}
+
+func (g *generator) whileStmt(loop *ir.WhileExpr, ret checker.Type) error {
+	g.linef("for %s {", g.expr(loop.Cond))
+	g.indent++
+	if block, ok := loop.Body.(*ir.BlockExpr); ok {
+		if err := g.blockBody(block, ret, false); err != nil {
+			return err
+		}
+	} else {
+		g.line(g.expr(loop.Body))
 	}
 	g.indent--
 	g.line("}")

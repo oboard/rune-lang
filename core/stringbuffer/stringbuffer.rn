@@ -1,5 +1,5 @@
 + StringBuffer: {
-  length() -> Int => "%stringbuffer.length"
+  length() -> Int32 => "%stringbuffer.length"
 
   isEmpty() -> Bool => "%stringbuffer.isEmpty"
 

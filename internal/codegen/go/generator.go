@@ -120,6 +120,14 @@ func GenerateIR(file *ir.File) (string, error) {
 		g.line(")")
 		g.line("")
 	}
+	g.line("var runeInt32Zero int")
+	g.line("type runeUndefinedValue struct{}")
+	g.line("var runeUndefined = runeUndefinedValue{}")
+	g.line("type runeThrown struct{ Value any }")
+	if fileUsesTypeofRuntime(file) {
+		g.typeofRuntime()
+	}
+	g.line("")
 	if fileUsesGenericArithmeticConstraint(file) {
 		g.numberConstraintRuntime()
 		g.line("")

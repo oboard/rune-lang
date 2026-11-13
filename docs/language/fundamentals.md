@@ -12,7 +12,7 @@ A Rune source file contains top-level declarations:
 
 User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 isAdult(user: User) -> Bool => user.age >= 18
@@ -72,17 +72,17 @@ ok := true
 missing := null
 ```
 
-Integer literals have type `Int`. Decimal or exponent literals have type
+Integer literals have type `Int32`. Decimal or exponent literals have type
 `Double`. Literals ending in `n` have type `BigInt`. Single-quoted character
 literals have type `Char`. `true` and `false` have type `Bool`. `null` has type
-`Null` and can flow into nullable types such as `Int?` or `String?`.
+`Null` and can flow into nullable types such as `Int32?` or `String?`.
 
 ## Built-In Types
 
 The user-facing built-in scalar and special types are:
 
 ```text
-Int
+Int32
 Double
 BigInt
 String
@@ -117,8 +117,8 @@ main() => {
 Generic type application uses brackets:
 
 ```rune
-values: Array[Int]
-scores: Map[String, Int]
+values: Array[Int32]
+scores: Map[String, Int32]
 seen: Set[String]
 ```
 
@@ -126,7 +126,7 @@ Function types use `(params) -> Return`. Parameter names inside function types
 are optional documentation for call sites and callback checking:
 
 ```rune
-each[R](callback: (value: Int, index?: Int, array?: Array[Int]) -> R) -> Void
+each[R](callback: (value: Int32, index?: Int32, array?: Array[Int32]) -> R) -> Void
 ```
 
 ## Operators
@@ -161,7 +161,7 @@ Binary operators, from low to high precedence:
 ```
 
 Numeric arithmetic requires both sides to have the same numeric type. `%` is
-available for `Int` and `BigInt`, not `Double`. `+` also concatenates strings,
+available for `Int32` and `BigInt`, not `Double`. `+` also concatenates strings,
 but both sides must be `String` when either side is a string.
 
 ```rune
@@ -172,7 +172,7 @@ but both sides must be `String` when either side is a string.
 ```
 
 `&&` and `||` short-circuit and require boolean operands. Ordered comparison
-works on matching `Int`, `Double`, `BigInt`, `String`, or `Char` values.
+works on matching `Int32`, `Double`, `BigInt`, `String`, or `Char` values.
 
 Bitwise operators `~`, `&`, `|`, `^`, `<<`, `>>`, and `>>>` require matching
 integer operands. `>>>` requires an unsigned integer left operand.
@@ -183,7 +183,7 @@ Blocks are expressions. A block returns the final expression, or `Void` if the
 last statement has no value:
 
 ```rune
-sum(a: Int, b: Int) -> Int => {
+sum(a: Int32, b: Int32) -> Int32 => {
   result := a + b
   result
 }
@@ -193,15 +193,16 @@ Bindings are written inside blocks:
 
 ```rune
 value := 1
-mutable ~= 1
+count :=: 0
 $signal := 0
 ```
 
-`:=` creates an ordinary local binding. `~=` marks a binding as mutable intent.
-`$name :=` creates a signal binding for reactive code. Assignment uses `=`:
+`:=` creates an immutable local binding. `:=:` creates a mutable one.
+`$name :=` creates a signal binding for reactive code. Assignment to a mutable
+binding uses `=`:
 
 ```rune
-count ~= 0
+count :=: 0
 count = count + 1
 ```
 
@@ -216,7 +217,7 @@ Assignment can also appear as an expression, especially in event handlers:
 Functions map parameters to a body expression:
 
 ```rune
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 ```
 
 Top-level declarations and enum members are private by default. Prefix a
@@ -260,7 +261,7 @@ those trait capabilities.
 Prefix a function with `~` to mark it as a routine:
 
 ```rune
-~ test(count: Int) => {
+~ test(count: Int32) => {
   @io.println("Hello World" + count.toString())
 }
 
@@ -286,7 +287,7 @@ Result[T, E]: {
 }
 
 Error: {
-  code: Int
+  code: Int32
   message: String
   cause: Error?
 }
@@ -310,7 +311,7 @@ Lambda parameters must be parenthesized:
 
 ```rune
 values.map((value) => value * 2)
-values.map((value: Int, index: Int) => value + index)
+values.map((value: Int32, index: Int32) => value + index)
 ```
 
 This is intentionally invalid:
@@ -322,7 +323,7 @@ values.map(value => value * 2)
 Lambda bodies can be expressions or blocks:
 
 ```rune
-handle := (value: Int) => {
+handle := (value: Int32) => {
   next := value + 1
   next
 }
@@ -374,7 +375,7 @@ A function body can be a pattern block. This form is intended for
 single-parameter functions:
 
 ```rune
-fib(n: Int) -> Int => {
+fib(n: Int32) -> Int32 => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)
@@ -384,7 +385,7 @@ fib(n: Int) -> Int => {
 Every expression can be matched with `subject { pattern => expression }`:
 
 ```rune
-label(value: Int) -> String => value {
+label(value: Int32) -> String => value {
   <0 => "negative"
   0 => "zero"
   _ => "positive"
@@ -395,7 +396,7 @@ Supported pattern forms are:
 
 ```rune
 _          // wildcard
-1          // Int literal
+1          // Int32 literal
 1.5        // Double literal
 1n         // BigInt literal
 "text"     // String literal
@@ -425,7 +426,7 @@ constants keep their value from the surrounding scope:
 ```rune
 Limit := 99
 
-classify(value: Int) -> String => value {
+classify(value: Int32) -> String => value {
   _..<0 => "negative"
   0..=Limit => "small"
   _ => "big"
@@ -466,7 +467,7 @@ readUser("user.json") {
 Rune also supports C-style conditional expressions:
 
 ```rune
-choose(flag: Bool) -> Int => flag ? 1 : 2
+choose(flag: Bool) -> Int32 => flag ? 1 : 2
 ```
 
 The condition must be `Bool`. The consequence and alternative branches must
@@ -491,7 +492,7 @@ middle := [2, 3]
 values := [1, ...middle, 4]
 ```
 
-Indexing uses an `Int` index:
+Indexing uses an `Int32` index:
 
 ```rune
 first := values[0]
@@ -520,9 +521,9 @@ Named record-like types are declared with `Name: { ... }`:
 
 ```rune
 User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 
   isAdult() -> Bool => .age >= 18
   label(prefix: String) -> String => prefix + .name
@@ -604,7 +605,7 @@ account := {
   name: "core"
   age: 4
 
-  nextAge() -> Int => .age + 1
+  nextAge() -> Int32 => .age + 1
   title(prefix: String) -> String => prefix + .name
 }
 ```
@@ -647,7 +648,7 @@ Imported declarations are private by default, so `helper.rn` must mark helper
 APIs with `+` when other files should use them:
 
 ```rune
-+ helper() -> Int => 42
++ helper() -> Int32 => 42
 ```
 
 Relative paths are resolved from the importing file. Import paths must include
@@ -734,7 +735,7 @@ The Go backend supports inline Go through `@go`:
 ```rune
 @go.import("fmt")
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 
 main() => {
   name := "Ada"
@@ -763,7 +764,8 @@ Tests are ordinary Rune blocks. The standard assertion helper is
 
 ## Current Syntax Boundaries
 
-Rune intentionally has a small surface today. There is no `if`, `for`, `while`,
-explicit `impl`, `class`, or exception syntax in the current parser. Use
+Rune intentionally has a small surface today. There is no `if` keyword, classic
+`for(;;)`, explicit `impl`, or `class` syntax in the current parser. Use
 structural traits, match expressions, ternary expressions, recursion, array
-callbacks, and core modules for the supported equivalents.
+callbacks, and core modules for the supported equivalents. Loops are written
+`* (cond) { ... }`; inside a loop, `^` breaks out and `^>` continues.

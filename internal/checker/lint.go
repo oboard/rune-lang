@@ -130,6 +130,16 @@ func (l *linter) visitExpr(expr ast.Expr) {
 		l.visitExpr(e.Condition)
 		l.visitExpr(e.Consequence)
 		l.visitExpr(e.Alternative)
+	case *ast.IfExpr:
+		l.visitExpr(e.Cond)
+		l.visitExpr(e.Then)
+		l.visitExpr(e.Else)
+	case *ast.ForOfExpr:
+		l.visitExpr(e.Iterable)
+		l.visitExpr(e.Body)
+	case *ast.WhileExpr:
+		l.visitExpr(e.Cond)
+		l.visitExpr(e.Body)
 	case *ast.AssignExpr:
 		l.visitExpr(e.Target)
 		l.visitExpr(e.Value)
@@ -209,6 +219,8 @@ func (l *linter) visitBlock(block *ast.BlockExpr) {
 			l.markDestructuredFields(s)
 			l.visitExpr(s.Value)
 		case *ast.AssignStmt:
+			l.visitExpr(s.Value)
+		case *ast.ReturnStmt:
 			l.visitExpr(s.Value)
 		case *ast.ExprStmt:
 			l.visitExpr(s.Expr)

@@ -25,7 +25,7 @@ func TestSessionEvalPersistsBindings(t *testing.T) {
 func TestSessionEvalFunctionAndArray(t *testing.T) {
 	var out bytes.Buffer
 	session := NewSession(&out)
-	if err := session.Eval(`fib(n: Int) -> Int => {
+	if err := session.Eval(`fib(n: Int32) -> Int32 => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)

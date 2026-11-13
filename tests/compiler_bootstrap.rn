@@ -1,8 +1,8 @@
 @"../selfhost/compiler/compiler.rn"
 
 ? "selfhost compiler emits typescript functions" {
-  source := `+ add(a: Int, b: Int) -> Int => a + b
-+ main() -> Int => add(20, 22)
+  source := `+ add(a: Int32, b: Int32) -> Int32 => a + b
++ main() -> Int32 => add(20, 22)
 `
   result := compileTypeScript(source)
   @assert.eq(result.ok, true)
@@ -100,20 +100,20 @@ render() => {
 }
 
 ? "selfhost compiler checks source without selecting a backend" {
-  valid := checkSource(`main() -> Int => 42
+  valid := checkSource(`main() -> Int32 => 42
 `)
-  invalid := checkSource(`main() -> Int => "wrong"
+  invalid := checkSource(`main() -> Int32 => "wrong"
 `)
   @assert.eq(valid.ok, true)
   @assert.eq(valid.output, "")
   @assert.eq(valid.errors.length(), 0)
   @assert.eq(invalid.ok, false)
-  @assert.eq(invalid.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(invalid.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler emits go functions" {
-  source := `+ add(a: Int, b: Int) -> Int => a + b
-+ main() -> Int => add(20, 22)
+  source := `+ add(a: Int32, b: Int32) -> Int32 => a + b
++ main() -> Int32 => add(20, 22)
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)
@@ -125,9 +125,9 @@ render() => {
 }
 
 ? "selfhost compiler lowers self tail calls to go loops" {
-  source := `advance(n: Int) -> Int => n + 1
-scan(n: Int) -> Int => n < 3 ? scan(advance(n)) : n
-walk(limit: Int, index: Int, out: Int) -> Int => index >= limit ? out : walk(limit, index + 1, out + index)
+  source := `advance(n: Int32) -> Int32 => n + 1
+scan(n: Int32) -> Int32 => n < 3 ? scan(advance(n)) : n
+walk(limit: Int32, index: Int32, out: Int32) -> Int32 => index >= limit ? out : walk(limit, index + 1, out + index)
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)
@@ -137,9 +137,9 @@ walk(limit: Int, index: Int, out: Int) -> Int => index >= limit ? out : walk(lim
 }
 
 ? "selfhost compiler lowers lexer driver mutual tail calls" {
-  source := `Token: { value: Int }
-Lexed: { state: Int, kind: Int }
-scan(state: Int, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
+  source := `Token: { value: Int32 }
+Lexed: { state: Int32, kind: Int32 }
+scan(state: Int32, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
 scanLexed(lexed: Lexed, tokens: Array[Token]) -> Array[Token] => scan(lexed.state, tokens)
 `
   result := compileGo(source)
@@ -174,7 +174,7 @@ main() => {
     path: "main.rn",
     source: `@"helper.rn"
 
-main() -> Int => importedAnswer()
+main() -> Int32 => importedAnswer()
 `
   }, SourceFile {
     path: "helper.rn",
@@ -182,7 +182,7 @@ main() -> Int => importedAnswer()
   name: String
 }
 
-+ importedAnswer() -> Int => 42
++ importedAnswer() -> Int32 => 42
 `
   }]
   go := compileGoFiles(files)
@@ -202,7 +202,7 @@ main() -> Int => importedAnswer()
     path: "main.rn",
     source: `@"helper.rn"
 
-+ main() -> Int => Answer + 1
++ main() -> Int32 => Answer + 1
 `
   }, SourceFile {
     path: "helper.rn",
@@ -220,7 +220,7 @@ main() -> Int => importedAnswer()
   @assert.eq(ts.output.includes("const __Answer: number = 42;"), true)
   @assert.eq(ts.output.includes("return __Answer + 1;"), true)
   @assert.eq(ts.output.includes("export { __main as main, __Answer as Answer };"), true)
-  @assert.eq(mbt.output.includes("let __Answer : Int = 42"), true)
+  @assert.eq(mbt.output.includes("let __Answer : Int32 = 42"), true)
   @assert.eq(mbt.output.includes("__Answer + 1"), true)
 }
 
@@ -229,15 +229,15 @@ main() -> Int => importedAnswer()
     path: "app/main.rn",
     source: `@"./helper.rn"
 
-main() -> Int => importedAnswer()
+main() -> Int32 => importedAnswer()
 `
   }, SourceFile {
     path: "other/helper.rn",
-    source: `+ importedAnswer() -> Int => 1
+    source: `+ importedAnswer() -> Int32 => 1
 `
   }, SourceFile {
     path: "app/helper.rn",
-    source: `+ importedAnswer() -> Int => 42
+    source: `+ importedAnswer() -> Int32 => 42
 `
   }]
   result := compileGoFiles(files)
@@ -250,11 +250,11 @@ main() -> Int => importedAnswer()
 ? "selfhost compiler emits direct import expression calls" {
   files := [SourceFile {
     path: "main.rn",
-    source: `main() -> Int => @"helper.rn".importedAnswer(1)
+    source: `main() -> Int32 => @"helper.rn".importedAnswer(1)
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+    source: `+ importedAnswer(offset: Int32) -> Int32 => offset + 42
 `
   }]
   go := compileGoFiles(files)
@@ -271,17 +271,17 @@ main() -> Int => importedAnswer()
 ? "selfhost compiler checks direct import expression call types" {
   files := [SourceFile {
     path: "main.rn",
-    source: `main() -> Int => @"helper.rn".importedAnswer("bad")
+    source: `main() -> Int32 => @"helper.rn".importedAnswer("bad")
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+    source: `+ importedAnswer(offset: Int32) -> Int32 => offset + 42
 `
   }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"importedAnswer\" has type String, expected Int")
+  @assert.eq(result.errors[0], "argument 1 to \"importedAnswer\" has type String, expected Int32")
 }
 
 ? "selfhost compiler emits direct TypeScript import values" {
@@ -304,11 +304,11 @@ main() -> Int => importedAnswer()
 ? "selfhost compiler keeps unimported files private" {
   files := [SourceFile {
     path: "main.rn",
-    source: `main() -> Int => hiddenAnswer()
+    source: `main() -> Int32 => hiddenAnswer()
 `
   }, SourceFile {
     path: "hidden.rn",
-    source: `hiddenAnswer() -> Int => 42
+    source: `hiddenAnswer() -> Int32 => 42
 `
   }]
   go := compileGoFiles(files)
@@ -322,12 +322,12 @@ main() -> Int => importedAnswer()
     path: "main.rn",
     source: `@"helper.rn"
 
-main() -> Int => hiddenAnswer()
+main() -> Int32 => hiddenAnswer()
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `hiddenAnswer() -> Int => 42
-+ publicAnswer() -> Int => hiddenAnswer()
+    source: `hiddenAnswer() -> Int32 => 42
++ publicAnswer() -> Int32 => hiddenAnswer()
 `
   }]
   result := compileGoFiles(files)
@@ -348,7 +348,7 @@ main() => {
   }, SourceFile {
     path: "helper.rn",
     source: `Hidden: {
-  value: Int
+  value: Int32
 }
 `
   }]
@@ -390,9 +390,9 @@ main() => {
 ? "selfhost compiler allows same-file private functions" {
   files := [SourceFile {
     path: "main.rn",
-    source: `hiddenAnswer() -> Int => 42
+    source: `hiddenAnswer() -> Int32 => 42
 
-main() -> Int => hiddenAnswer()
+main() -> Int32 => hiddenAnswer()
 `
   }]
   result := compileGoFiles(files)
@@ -433,8 +433,8 @@ export const version: string = "1"
     path: "main.rn",
     source: `@"./values.ts"
 
-takesInt(value: Int) -> Int => value
-main() -> Int => takesInt(version)
+takesInt(value: Int32) -> Int32 => value
+main() -> Int32 => takesInt(version)
 `
   }, SourceFile {
     path: "values.ts",
@@ -444,7 +444,7 @@ main() -> Int => takesInt(version)
   result := compileTypeScriptFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int")
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int32")
 }
 
 ? "selfhost compiler checks imported TypeScript return types" {
@@ -452,7 +452,7 @@ main() -> Int => takesInt(version)
     path: "main.rn",
     source: `@"./values.ts"
 
-main() -> Int => version
+main() -> Int32 => version
 `
   }, SourceFile {
     path: "values.ts",
@@ -462,7 +462,7 @@ main() -> Int => version
   result := compileTypeScriptFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler resolves TypeScript imports relative to source file" {
@@ -550,7 +550,7 @@ export const version: string = "1"
 ? "selfhost compiler rejects Go imports outside Go backend" {
   source := `@"go:fmt"
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   ts := compileTypeScript(source)
   mbt := compileMoonBit(source)
@@ -627,7 +627,7 @@ main() => {
 ? "selfhost compiler omits macro functions from runtime" {
   source := `#tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => CallExpr(IdentifierExpr("x"), [])
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   go := compileGo(source)
   ts := compileTypeScript(source)
@@ -660,7 +660,7 @@ main() => tag()
   tree
 }
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   result := compileGo(source)
   @assert.eq(result.ok, false)
@@ -675,7 +675,7 @@ Box: {
   #bad(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 }
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   result := compileGo(source)
   @assert.eq(result.ok, false)
@@ -686,7 +686,7 @@ main() -> Int => 1
 ? "selfhost compiler rejects legacy macro signatures" {
   source := `#tag(name: String) -> String => name
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   result := compileTypeScript(source)
   @assert.eq(result.ok, false)
@@ -699,10 +699,10 @@ main() -> Int => 1
 
 #tag("command")
 Args: {
-  value: Int
+  value: Int32
 }
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)
@@ -712,7 +712,7 @@ main() -> Int => 1
 ? "selfhost compiler rejects unknown local macro annotations" {
   result := compileTypeScript(`#missing
 Args: {
-  value: Int
+  value: Int32
 }
 `)
   @assert.eq(result.ok, false)
@@ -725,7 +725,7 @@ Args: {
 
 #tag("command")
 Args: {
-  value: Int
+  value: Int32
 }
 `)
   @assert.eq(result.ok, false)
@@ -738,12 +738,12 @@ Args: {
 
 #tag(1)
 Args: {
-  value: Int
+  value: Int32
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int, expected String"), true)
+  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int32, expected String"), true)
 }
 
 ? "selfhost compiler checks builtin macro annotation arity" {
@@ -784,7 +784,7 @@ render() => <div />
 Thing: {}
 `, "main.rn", core)
   @assert.eq(result.ok, false)
-  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int, expected String"), true)
+  @assert.eq(result.errors[0].includes("argument 1 to \"tag\" has type Int32, expected String"), true)
 }
 
 ? "selfhost compiler accepts core module imports in file graph" {
@@ -794,7 +794,7 @@ Thing: {}
 
 #tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => tree
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   }]
   result := compileGoFiles(files)
@@ -807,21 +807,21 @@ main() -> Int => 1
 
 #tag(tree: SyntaxFile, context: MacroContext) -> SyntaxFile => 1
 
-main() -> Int => 1
+main() -> Int32 => 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"tag\" returns Int, expected SyntaxFile")
+  @assert.eq(result.errors[0], "function \"tag\" returns Int32, expected SyntaxFile")
 }
 
 ? "selfhost compiler expands rename declaration macro" {
   source := `#macro.renameDeclaration("RenamedArgs")
 Args: {
   #macro.renameDeclaration("renamedField")
-  value: Int
+  value: Int32
 
   #macro.renameDeclaration("renamedMethod")
-  read() -> Int => 1
+  read() -> Int32 => 1
 }
 
 #macro.renameDeclaration("RenamedCommand")
@@ -831,7 +831,7 @@ Command: {
 }
 
 #macro.renameDeclaration("renamedFunction")
-execute() -> Int => 1
+execute() -> Int32 => 1
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)
@@ -938,7 +938,7 @@ decode(text: String) -> Document => @json.parse(text)
 Wrong: {
   name: String
 
-  static fromJson(value: Int) -> Wrong => Wrong { name: "" }
+  static fromJson(value: Int32) -> Wrong => Wrong { name: "" }
 }
 
 main(text: String) => {
@@ -972,7 +972,7 @@ main(text: String) => {
 ? "selfhost compiler omits syntax helpers from runtime" {
   source := `helper(name: String) -> SyntaxExpr => CallExpr(IdentifierExpr(name), [])
 
-main() -> Int => 1
+main() -> Int32 => 1
 `
   result := compileGo(source)
   @assert.eq(result.ok, true)
@@ -982,13 +982,13 @@ main() -> Int => 1
 }
 
 ? "selfhost compiler emits moonbit functions" {
-  source := `+ add(a: Int, b: Int) -> Int => a + b
-+ main() -> Int => add(20, 22)
+  source := `+ add(a: Int32, b: Int32) -> Int32 => a + b
++ main() -> Int32 => add(20, 22)
 `
   result := compileMoonBit(source)
   @assert.eq(result.ok, true)
   @assert.eq(result.errors.length(), 0)
-  @assert.eq(result.output.includes("fn add(a : Int, b : Int) -> Int"), true)
+  @assert.eq(result.output.includes("fn add(a : Int32, b : Int32) -> Int32"), true)
   @assert.eq(result.output.includes("a + b"), true)
   @assert.eq(result.output.includes("fn main {"), true)
   @assert.eq(result.output.includes("add(20, 22)"), true)
@@ -1053,7 +1053,7 @@ main() => @io.println(User::make("Rune").name)
 ? "selfhost compiler emits go payload enums" {
   source := `MaybeInt: {
   None
-  Some(value: Int)
+  Some(value: Int32)
 }
 main() -> MaybeInt => Some(42)
 `
@@ -1074,9 +1074,9 @@ main() -> MaybeInt => Some(42)
   Err(error: E)
 }
 
-read() -> Result[Int, String] => Ok(41)
+read() -> Result[Int32, String] => Ok(41)
 
-main() -> Int => {
+main() -> Int32 => {
   value := read()?
   value + 1
 }
@@ -1108,7 +1108,7 @@ main() -> Int => {
   Err(error: E)
 }
 
-read() -> Result[Int, String] => Ok(41)
+read() -> Result[Int32, String] => Ok(41)
 
 main() -> String => {
   value := read()?
@@ -1117,18 +1117,18 @@ main() -> String => {
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"main\" returns Int32, expected String")
 }
 
 ? "selfhost compiler rejects unwrap on non-results" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   value := 1?
   value
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "operator '?' expects Result, got Int")
+  @assert.eq(result.errors[0], "operator '?' expects Result, got Int32")
 }
 
 ? "selfhost compiler reports parser errors" {
@@ -1143,12 +1143,12 @@ main() -> String => {
 }
 
 User: {
-  age: Int
+  age: Int32
 }
 
-run() -> Int => 1
+run() -> Int32 => 1
 
-run() -> Int => 2
+run() -> Int32 => 2
 `
   result := compileGo(source)
   @assert.eq(result.ok, false)
@@ -1192,7 +1192,7 @@ Status: {
 }
 
 ? "selfhost compiler reports duplicate parameters" {
-  source := `main(value: Int, value: Int) -> Int => value
+  source := `main(value: Int32, value: Int32) -> Int32 => value
 `
   result := compileGo(source)
   @assert.eq(result.ok, false)
@@ -1201,7 +1201,7 @@ Status: {
 }
 
 ? "selfhost compiler reports undefined function calls" {
-  result := compileGo("main() -> Int => missing()\n")
+  result := compileGo("main() -> Int32 => missing()\n")
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "undefined function missing")
@@ -1235,7 +1235,7 @@ r(flag) => {
 }
 
 ? "selfhost compiler reports undefined identifiers" {
-  result := compileGo("main() -> Int => missing\n")
+  result := compileGo("main() -> Int32 => missing\n")
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
   @assert.eq(result.errors[0], "undefined name \"missing\"")
@@ -1243,11 +1243,11 @@ r(flag) => {
 
 ? "selfhost compiler accepts constructor pattern bindings" {
   result := compileGo(`Expr: {
-  Num(value: Int)
+  Num(value: Int32)
   Mul(expr1: Expr, expr2: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Num(value) => value
   Mul(expr1, expr2) => eval(expr1) * eval(expr2)
 }
@@ -1257,7 +1257,7 @@ eval(expr: Expr) -> Int => expr {
 }
 
 ? "selfhost compiler keeps errored locals bound" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   value := missing
   value
 }
@@ -1268,7 +1268,7 @@ eval(expr: Expr) -> Int => expr {
 }
 
 ? "selfhost compiler reports undefined assignments" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   missing = 1
   0
 }
@@ -1279,7 +1279,7 @@ eval(expr: Expr) -> Int => expr {
 }
 
 ? "selfhost compiler reports assignment type errors" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   value := 1
   value = "wrong"
   value
@@ -1287,7 +1287,7 @@ eval(expr: Expr) -> Int => expr {
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "assignment has type String, expected Int")
+  @assert.eq(result.errors[0], "assignment has type String, expected Int32")
 }
 
 ? "selfhost compiler emits go signal assignment statements" {
@@ -1331,8 +1331,8 @@ eval(expr: Expr) -> Int => expr {
 }
 
 ? "selfhost compiler reports function call arity errors" {
-  result := compileGo(`add(a: Int, b: Int) -> Int => a + b
-main() -> Int => add(1)
+  result := compileGo(`add(a: Int32, b: Int32) -> Int32 => a + b
+main() -> Int32 => add(1)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1344,11 +1344,11 @@ main() -> Int => add(1)
     path: "main.rn",
     source: `@"helper.rn"
 
-main() -> Int => importedAnswer()
+main() -> Int32 => importedAnswer()
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `+ importedAnswer(offset: Int) -> Int => offset + 42
+    source: `+ importedAnswer(offset: Int32) -> Int32 => offset + 42
 `
   }]
   result := compileGoFiles(files)
@@ -1360,7 +1360,7 @@ main() -> Int => importedAnswer()
 ? "selfhost compiler reports enum constructor arity errors" {
   result := compileGo(`MaybeInt: {
   None
-  Some(value: Int)
+  Some(value: Int32)
 }
 
 main() -> MaybeInt => Some()
@@ -1371,19 +1371,19 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler reports literal return type errors" {
-  result := compileGo(`main() -> Int => "oops"
+  result := compileGo(`main() -> Int32 => "oops"
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler reports ternary condition type errors" {
-  result := compileGo(`main() -> Int => 1 ? 2 : 3
+  result := compileGo(`main() -> Int32 => 1 ? 2 : 3
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "ternary condition expects Bool, got Int")
+  @assert.eq(result.errors[0], "ternary condition expects Bool, got Int32")
 }
 
 ? "selfhost compiler reports ternary branch type errors" {
@@ -1391,57 +1391,57 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "ternary branches return Int and String")
+  @assert.eq(result.errors[0], "ternary branches return Int32 and String")
 }
 
 ? "selfhost compiler reports pattern branch type errors" {
-  result := compileGo(`main(n: Int) => {
+  result := compileGo(`main(n: Int32) => {
   0 => 0
   _ => "wrong"
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "pattern branch returns String, expected Int")
+  @assert.eq(result.errors[0], "pattern branch returns String, expected Int32")
 }
 
 ? "selfhost compiler infers pattern block return types" {
-  result := compileGo(`main(n: Int) -> Int => {
+  result := compileGo(`main(n: Int32) -> Int32 => {
   _ => "wrong"
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler reports match branch type errors" {
-  result := compileGo(`main(n: Int) => n {
+  result := compileGo(`main(n: Int32) => n {
   0 => 0
   _ => "wrong"
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "pattern branch returns String, expected Int")
+  @assert.eq(result.errors[0], "pattern branch returns String, expected Int32")
 }
 
 ? "selfhost compiler infers match return types" {
-  result := compileGo(`main(n: Int) -> Int => n {
+  result := compileGo(`main(n: Int32) -> Int32 => n {
   _ => "wrong"
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler infers pattern predicate booleans" {
-  result := compileGo(`main(n: Int) -> Int => n ~ 0
+  result := compileGo(`main(n: Int32) -> Int32 => n ~ 0
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Bool, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns Bool, expected Int32")
 }
 
 ? "selfhost compiler reports boolean binary operand type errors" {
@@ -1449,7 +1449,7 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "operator '&&' expects Bool, got Int")
+  @assert.eq(result.errors[0], "operator '&&' expects Bool, got Int32")
 }
 
 ? "selfhost compiler reports boolean unary operand type errors" {
@@ -1457,7 +1457,7 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "operator '!' expects Bool, got Int")
+  @assert.eq(result.errors[0], "operator '!' expects Bool, got Int32")
 }
 
 ? "selfhost compiler reports equality comparison type errors" {
@@ -1465,7 +1465,7 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "cannot compare Int and String")
+  @assert.eq(result.errors[0], "cannot compare Int32 and String")
 }
 
 ? "selfhost compiler accepts nullable equality comparisons" {
@@ -1480,7 +1480,7 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "ordered comparison requires matching types, got Int and String")
+  @assert.eq(result.errors[0], "ordered comparison requires matching types, got Int32 and String")
 }
 
 ? "selfhost compiler accepts widened integer comparisons" {
@@ -1491,12 +1491,12 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler reports unary numeric type errors" {
-  result := compileGo(`main() -> Int => -"wrong"
+  result := compileGo(`main() -> Int32 => -"wrong"
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 2)
   @assert.eq(result.errors[0], "operator '-' expects a numeric type, got String")
-  @assert.eq(result.errors[1], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[1], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler reports postfix numeric type errors" {
@@ -1508,15 +1508,15 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler infers postfix return types" {
-  result := compileGo(`main(value: Int) -> String => value++
+  result := compileGo(`main(value: Int32) -> String => value++
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"main\" returns Int32, expected String")
 }
 
 ? "selfhost compiler reports arithmetic operand type errors" {
-  result := compileGo(`main() -> Int => "wrong" - 1
+  result := compileGo(`main() -> Int32 => "wrong" - 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1528,7 +1528,7 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "string concatenation expects String, got Int")
+  @assert.eq(result.errors[0], "string concatenation expects String, got Int32")
 }
 
 ? "selfhost compiler reports unary bitwise type errors" {
@@ -1540,7 +1540,7 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler reports bitwise operand type errors" {
-  result := compileGo(`main() -> Int => 1 & "wrong"
+  result := compileGo(`main() -> Int32 => 1 & "wrong"
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1556,37 +1556,37 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler reports unsigned shift type errors" {
-  result := compileGo(`main(value: Int, shift: Int) -> Int => value >>> shift
+  result := compileGo(`main(value: Int32, shift: Int32) -> Int32 => value >>> shift
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "operator '>>>' expects an unsigned integer left operand, got Int")
+  @assert.eq(result.errors[0], "operator '>>>' expects an unsigned integer left operand, got Int32")
 }
 
 ? "selfhost compiler reports array element type errors" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   values := [1, "wrong"]
   1
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "array element has type String, expected Int")
+  @assert.eq(result.errors[0], "array element has type String, expected Int32")
 }
 
 ? "selfhost compiler reports array spread type errors" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   values := [..1]
   1
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "spread expects Array, got Int")
+  @assert.eq(result.errors[0], "spread expects Array, got Int32")
 }
 
 ? "selfhost compiler reports map key type errors" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   values := {
     "a": 1,
     2: 3
@@ -1596,11 +1596,11 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "map key has type Int, expected String")
+  @assert.eq(result.errors[0], "map key has type Int32, expected String")
 }
 
 ? "selfhost compiler reports map value type errors" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   values := {
     "a": 1,
     "b": "wrong"
@@ -1610,11 +1610,11 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "map value has type String, expected Int")
+  @assert.eq(result.errors[0], "map value has type String, expected Int32")
 }
 
 ? "selfhost compiler reports unsupported map key types" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   values := {
     [1]: 2
   }
@@ -1623,27 +1623,27 @@ main() -> MaybeInt => Some()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "map key type Array[Int] is not supported")
+  @assert.eq(result.errors[0], "map key type Array[Int32] is not supported")
 }
 
 ? "selfhost compiler reports tuple literal return type errors" {
-  result := compileGo(`main() -> Tuple[Int,String] => (1, 2)
+  result := compileGo(`main() -> Tuple[Int32,String] => (1, 2)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Tuple[Int,Int], expected Tuple[Int,String]")
+  @assert.eq(result.errors[0], "function \"main\" returns Tuple[Int32,Int32], expected Tuple[Int32,String]")
 }
 
 ? "selfhost compiler infers tuple index return types" {
-  result := compileGo(`main(value: Tuple[Int,String]) -> String => value[0]
+  result := compileGo(`main(value: Tuple[Int32,String]) -> String => value[0]
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"main\" returns Int32, expected String")
 }
 
 ? "selfhost compiler reports tuple index range errors" {
-  result := compileGo(`main(value: Tuple[Int,String]) -> Int => value[2]
+  result := compileGo(`main(value: Tuple[Int32,String]) -> Int32 => value[2]
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1651,53 +1651,53 @@ main() -> MaybeInt => Some()
 }
 
 ? "selfhost compiler reports array index type errors" {
-  result := compileGo(`main(values: Array[Int]) -> Int => values["wrong"]
+  result := compileGo(`main(values: Array[Int32]) -> Int32 => values["wrong"]
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "array index expects Int, got String")
+  @assert.eq(result.errors[0], "array index expects Int32, got String")
 }
 
 ? "selfhost compiler reports non-indexable type errors" {
-  result := compileGo(`main(value: Int) -> Int => value[0]
+  result := compileGo(`main(value: Int32) -> Int32 => value[0]
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "type Int is not indexable")
+  @assert.eq(result.errors[0], "type Int32 is not indexable")
 }
 
 ? "selfhost compiler reports call return type errors" {
   result := compileGo(`label() -> String => "rune"
-main() -> Int => label()
+main() -> Int32 => label()
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler reports parameter return type errors" {
-  result := compileGo(`identity(value: Int) -> String => value
+  result := compileGo(`identity(value: Int32) -> String => value
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"identity\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"identity\" returns Int32, expected String")
 }
 
 ? "selfhost compiler infers parameter binary return types" {
-  result := compileGo(`add(a: Int, b: Int) -> String => a + b
+  result := compileGo(`add(a: Int32, b: Int32) -> String => a + b
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"add\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"add\" returns Int32, expected String")
 }
 
 ? "selfhost compiler reports call argument type errors" {
-  result := compileGo(`takesString(name: String) -> Int => 1
-main() -> Int => takesString(1)
+  result := compileGo(`takesString(name: String) -> Int32 => 1
+main() -> Int32 => takesString(1)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int32, expected String")
 }
 
 ? "selfhost compiler accepts nullable null arguments" {
@@ -1709,24 +1709,24 @@ main() -> String => fallback(null)
 }
 
 ? "selfhost compiler reports parameter argument type errors" {
-  result := compileGo(`takesInt(value: Int) -> Int => value
-main(flag: Bool) -> Int => takesInt(flag)
+  result := compileGo(`takesInt(value: Int32) -> Int32 => value
+main(flag: Bool) -> Int32 => takesInt(flag)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type Bool, expected Int")
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type Bool, expected Int32")
 }
 
 ? "selfhost compiler reports local argument type errors" {
-  result := compileGo(`takesString(value: String) -> Int => 1
-main() -> Int => {
+  result := compileGo(`takesString(value: String) -> Int32 => 1
+main() -> Int32 => {
   value := 1
   takesString(value)
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"takesString\" has type Int32, expected String")
 }
 
 ? "selfhost compiler reports local return type errors" {
@@ -1737,12 +1737,12 @@ main() -> Int => {
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"main\" returns Int32, expected String")
 }
 
 ? "selfhost compiler binds object destructure field types" {
   result := compileGo(`Advanced: {
-  state: Int
+  state: Int32
   ch: Char
 }
 
@@ -1753,15 +1753,15 @@ main(step: Advanced) -> String => {
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns Int, expected String")
+  @assert.eq(result.errors[0], "function \"main\" returns Int32, expected String")
 }
 
 ? "selfhost compiler reports missing destructured fields" {
   result := compileGo(`Advanced: {
-  state: Int
+  state: Int32
 }
 
-main(step: Advanced) -> Int => {
+main(step: Advanced) -> Int32 => {
   { ch } := step
   0
 }
@@ -1772,22 +1772,22 @@ main(step: Advanced) -> Int => {
 }
 
 ? "selfhost compiler rejects destructuring fieldless types" {
-  result := compileGo(`main() -> Int => {
+  result := compileGo(`main() -> Int32 => {
   { value } := 1
   0
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "type Int has no fields")
+  @assert.eq(result.errors[0], "type Int32 has no fields")
 }
 
 ? "selfhost compiler reports duplicate destructured fields" {
   result := compileGo(`Advanced: {
-  state: Int
+  state: Int32
 }
 
-main(step: Advanced) -> Int => {
+main(step: Advanced) -> Int32 => {
   { state, state: next } := step
   state + next
 }
@@ -1806,7 +1806,7 @@ main() -> User => User { name: 1 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "field User.name has type Int, expected String")
+  @assert.eq(result.errors[0], "field User.name has type Int32, expected String")
 }
 
 ? "selfhost compiler reports unknown struct literal fields" {
@@ -1839,11 +1839,11 @@ main() -> User => User { name: "Rune" }
   name: String
 }
 
-main(user: User) -> Int => user.name
+main(user: User) -> Int32 => user.name
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler binds field selector locals" {
@@ -1851,14 +1851,14 @@ main(user: User) -> Int => user.name
   name: String
 }
 
-main(user: User) -> Int => {
+main(user: User) -> Int32 => {
   name := user.name
   name
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"main\" returns String, expected Int32")
 }
 
 ? "selfhost compiler checks field selector arguments" {
@@ -1866,12 +1866,12 @@ main(user: User) -> Int => {
   name: String
 }
 
-takesInt(value: Int) -> Int => value
-main(user: User) -> Int => takesInt(user.name)
+takesInt(value: Int32) -> Int32 => value
+main(user: User) -> Int32 => takesInt(user.name)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int")
+  @assert.eq(result.errors[0], "argument 1 to \"takesInt\" has type String, expected Int32")
 }
 
 ? "selfhost compiler reports unknown selector fields" {
@@ -1879,7 +1879,7 @@ main(user: User) -> Int => takesInt(user.name)
   name: String
 }
 
-main(user: User) -> Int => user.age
+main(user: User) -> Int32 => user.age
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -1890,19 +1890,19 @@ main(user: User) -> Int => user.age
   result := compileGo(`User: {
   name: String
 
-  label() -> Int => .name
+  label() -> Int32 => .name
 }
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int32")
 }
 
 ? "selfhost compiler binds method selector locals" {
   result := compileGo(`User: {
   name: String
 
-  label() -> Int => {
+  label() -> Int32 => {
     value := .name
     value
   }
@@ -1910,7 +1910,7 @@ main(user: User) -> Int => user.age
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int")
+  @assert.eq(result.errors[0], "function \"label\" returns String, expected Int32")
 }
 
 ? "selfhost compiler checks anonymous object methods with this and parameters" {
@@ -1939,30 +1939,30 @@ main(user: User) -> Int => user.age
     path: "main.rn",
     source: `@"helper.rn"
 
-main() -> Int => importedAnswer(1)
+main() -> Int32 => importedAnswer(1)
 `
   }, SourceFile {
     path: "helper.rn",
-    source: `+ importedAnswer(label: String) -> Int => 42
+    source: `+ importedAnswer(label: String) -> Int32 => 42
 `
   }]
   result := compileGoFiles(files)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"importedAnswer\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"importedAnswer\" has type Int32, expected String")
 }
 
 ? "selfhost compiler reports constructor argument type errors" {
   result := compileGo(`MaybeInt: {
   None
-  Some(value: Int)
+  Some(value: Int32)
 }
 
 main() -> MaybeInt => Some("x")
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"Some\" has type String, expected Int")
+  @assert.eq(result.errors[0], "argument 1 to \"Some\" has type String, expected Int32")
 }
 
 ? "selfhost compiler reports static method argument type errors" {
@@ -1976,7 +1976,7 @@ main() -> User => User::make(1)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"User::make\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"User::make\" has type Int32, expected String")
 }
 
 ? "selfhost compiler reports instance method argument type errors" {
@@ -1990,7 +1990,7 @@ main(user: User) -> User => user.rename(1)
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"User.rename\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"User.rename\" has type Int32, expected String")
 }
 
 ? "selfhost compiler checks local receiver method calls" {
@@ -2007,11 +2007,11 @@ main() -> User => {
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
-  @assert.eq(result.errors[0], "argument 1 to \"User.rename\" has type Int, expected String")
+  @assert.eq(result.errors[0], "argument 1 to \"User.rename\" has type Int32, expected String")
 }
 
 ? "selfhost compiler reports unknown function parameter types" {
-  result := compileGo(`main(value: Missing) -> Int => 1
+  result := compileGo(`main(value: Missing) -> Int32 => 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -2023,7 +2023,7 @@ main() -> User => {
   name: Missing
 }
 
-main() -> Int => 1
+main() -> Int32 => 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -2035,7 +2035,7 @@ main() -> Int => 1
   Some(value: Missing)
 }
 
-main() -> Int => 1
+main() -> Int32 => 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)
@@ -2043,7 +2043,7 @@ main() -> Int => 1
 }
 
 ? "selfhost compiler reports unknown generic argument types" {
-  result := compileGo(`main(values: Array[Missing]) -> Int => 1
+  result := compileGo(`main(values: Array[Missing]) -> Int32 => 1
 `)
   @assert.eq(result.ok, false)
   @assert.eq(result.errors.length(), 1)

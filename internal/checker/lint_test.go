@@ -10,7 +10,7 @@ import (
 func TestLintMoonBitStyleWarnings(t *testing.T) {
 	src := `Token: {
   kind: TokenKind
-  - offset: Int
+  - offset: Int32
 }
 
 TokenKind: {
@@ -66,7 +66,7 @@ main() => {
 }
 
 func TestLintWarnsForSelfRecursiveOnlyFunction(t *testing.T) {
-	src := `loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)
+	src := `loop(value: Int32) -> Int32 => value == 0 ? 0 : loop(value - 1)
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -91,7 +91,7 @@ func TestLintDoesNotTreatEnumMemberBindingAsCatchAll(t *testing.T) {
   Bool(value: Bool)
 }
 
-runtimeKind(value: RuntimeValue) -> Int => value {
+runtimeKind(value: RuntimeValue) -> Int32 => value {
   Void => 0
   Null => 1
   Bool(_) => 2
@@ -114,7 +114,7 @@ runtimeKind(value: RuntimeValue) -> Int => value {
 
 func TestLintSkipsPublicDeclarations(t *testing.T) {
 	src := `+ Token: {
-  offset: Int
+  offset: Int32
 }
 
 + TokenKind: {
@@ -140,7 +140,7 @@ func TestLintSkipsPublicDeclarations(t *testing.T) {
 }
 
 func TestLintRejectsChainedEqualityTernary(t *testing.T) {
-	src := `dispatch(op: String) -> Int => op == "-" ? 1 : (op == "*" ? 2 : (op == "/" ? 3 : 0))
+	src := `dispatch(op: String) -> Int32 => op == "-" ? 1 : (op == "*" ? 2 : (op == "/" ? 3 : 0))
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -159,11 +159,11 @@ func TestLintRejectsChainedEqualityTernary(t *testing.T) {
 func TestLintRejectsChainedEqualityOr(t *testing.T) {
 	src := `TokenKind: {
   Ident
-  Int
+  Int32
   RParen
 }
 
-canEndValueToken(kind: TokenKind) -> Bool => ((kind == TokenKind.Ident) || (kind == TokenKind.Int)) || (kind == TokenKind.RParen)
+canEndValueToken(kind: TokenKind) -> Bool => ((kind == TokenKind.Ident) || (kind == TokenKind.Int32)) || (kind == TokenKind.RParen)
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -217,7 +217,7 @@ withVersion(command: CliCommand, version: String) -> CliCommand => {
 func TestLintDoesNotWarnRecordSpreadForDifferentSourceType(t *testing.T) {
 	src := `SyntaxField: {
   name: String
-  value: Int
+  value: Int32
 }
 
 SyntaxExprField: {
@@ -275,7 +275,7 @@ withAliases(command: CliCommand, aliases: Array[String]) => {
 }
 
 func TestLintWarnsPreferTernaryForBoolPatternBlock(t *testing.T) {
-	src := `choose(aaa: Bool, bbb: Int, ccc: Int) -> Int => aaa {
+	src := `choose(aaa: Bool, bbb: Int32, ccc: Int32) -> Int32 => aaa {
   true => bbb
   _ => ccc
 }
@@ -295,8 +295,8 @@ func TestLintWarnsPreferTernaryForBoolPatternBlock(t *testing.T) {
 			continue
 		}
 		found = true
-		if diag.Pos.Line != 1 || diag.Pos.Column != 49 {
-			t.Fatalf("prefer_ternary position = %d:%d, want 1:49", diag.Pos.Line, diag.Pos.Column)
+		if diag.Pos.Line != 1 || diag.Pos.Column != 55 {
+			t.Fatalf("prefer_ternary position = %d:%d, want 1:55", diag.Pos.Line, diag.Pos.Column)
 		}
 	}
 	if !found {

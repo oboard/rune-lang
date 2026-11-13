@@ -122,7 +122,7 @@ func (i *Interpreter) callModuleFunctionValue(module string, name string, values
 		}
 		length, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("@bytes.new length expects Int")
+			return nil, fmt.Errorf("@bytes.new length expects Int32")
 		}
 		if length < 0 {
 			return nil, fmt.Errorf("@bytes.new length out of range")
@@ -134,13 +134,13 @@ func (i *Interpreter) callModuleFunctionValue(module string, name string, values
 		}
 		array, ok := values[0].(*Array)
 		if !ok {
-			return nil, fmt.Errorf("@bytes.fromInts expects Array[Int]")
+			return nil, fmt.Errorf("@bytes.fromInts expects Array[Int32]")
 		}
 		out := make([]byte, len(array.Elements))
 		for idx, elem := range array.Elements {
 			value, ok := elem.(int)
 			if !ok {
-				return nil, fmt.Errorf("@bytes.fromInts element %d expects Int", idx)
+				return nil, fmt.Errorf("@bytes.fromInts element %d expects Int32", idx)
 			}
 			out[idx] = byte(value)
 		}
@@ -179,7 +179,7 @@ func (i *Interpreter) callModuleFunctionValue(module string, name string, values
 		}
 		capacity, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("@writer.withCapacity expects Int")
+			return nil, fmt.Errorf("@writer.withCapacity expects Int32")
 		}
 		if capacity < 0 {
 			return nil, fmt.Errorf("@writer.withCapacity capacity out of range")
@@ -231,7 +231,7 @@ func (i *Interpreter) callModuleFunctionValue(module string, name string, values
 		}
 		code, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("@process.exit expects Int")
+			return nil, fmt.Errorf("@process.exit expects Int32")
 		}
 		os.Exit(code)
 		return nil, nil
@@ -319,49 +319,49 @@ func callNumericIntrinsic(intrinsic string, values []Value) (Value, error) {
 	case "int4.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return int4(n), nil
 	case "int8.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return int8(n), nil
 	case "int16.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return int16(n), nil
 	case "int64.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return int64(n), nil
 	case "uint.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return uint(n), nil
 	case "uint8.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return uint8(n), nil
 	case "uint16.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return uint16(n), nil
 	case "uint64.fromInt":
 		n, ok := value.(int)
 		if !ok {
-			return nil, fmt.Errorf("%s expects Int", intrinsic)
+			return nil, fmt.Errorf("%s expects Int32", intrinsic)
 		}
 		return uint64(n), nil
 	case "float.fromDouble":
@@ -515,11 +515,11 @@ func (i *Interpreter) callBytesMethod(value *Bytes, name string, args []ir.Expr,
 		}
 		start, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("bytes.slice start expects Int")
+			return nil, fmt.Errorf("bytes.slice start expects Int32")
 		}
 		end, ok := values[1].(int)
 		if !ok {
-			return nil, fmt.Errorf("bytes.slice end expects Int")
+			return nil, fmt.Errorf("bytes.slice end expects Int32")
 		}
 		if err := checkBytesRange(value, start, end-start); err != nil {
 			return nil, err
@@ -546,7 +546,7 @@ func (i *Interpreter) callBytesMethod(value *Bytes, name string, args []ir.Expr,
 		}
 		offset, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("bytes.%s offset expects Int", name)
+			return nil, fmt.Errorf("bytes.%s offset expects Int32", name)
 		}
 		n, ok := values[1].(int8)
 		if !ok {
@@ -655,7 +655,7 @@ func callBytesDataViewMethod(value *Bytes, name string, intrinsic string, values
 		}
 		n, ok := values[1].(int)
 		if !ok {
-			return nil, true, fmt.Errorf("bytes.%s value expects Int", name)
+			return nil, true, fmt.Errorf("bytes.%s value expects Int32", name)
 		}
 		order.PutUint32(value.Data[offset:], uint32(int32(n)))
 		return n, true, nil
@@ -755,7 +755,7 @@ func bytesOffset(values []Value, expected int, name string) (int, error) {
 	}
 	offset, ok := values[0].(int)
 	if !ok {
-		return 0, fmt.Errorf("bytes.%s offset expects Int", name)
+		return 0, fmt.Errorf("bytes.%s offset expects Int32", name)
 	}
 	return offset, nil
 }
@@ -995,7 +995,7 @@ func (i *Interpreter) callBufferMethod(value *Buffer, name string, args []ir.Exp
 		}
 		n, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("buffer.appendInt expects Int")
+			return nil, fmt.Errorf("buffer.appendInt expects Int32")
 		}
 		value.Data = append(value.Data, byte(n))
 		return value, nil
@@ -1059,7 +1059,7 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 		}
 		offset, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("reader.seek expects Int")
+			return nil, fmt.Errorf("reader.seek expects Int32")
 		}
 		if offset < 0 || offset > len(value.Data) {
 			return nil, fmt.Errorf("reader offset out of range")
@@ -1073,7 +1073,7 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 		}
 		count, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("reader.skip expects Int")
+			return nil, fmt.Errorf("reader.skip expects Int32")
 		}
 		if count < 0 || value.Offset+count > len(value.Data) {
 			return nil, fmt.Errorf("reader offset out of range")
@@ -1087,7 +1087,7 @@ func (i *Interpreter) callReaderMethod(value *Reader, name string, args []ir.Exp
 		}
 		length, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("reader.%s expects Int", name)
+			return nil, fmt.Errorf("reader.%s expects Int32", name)
 		}
 		if err := readerAlign(value); err != nil {
 			return nil, err
@@ -1379,7 +1379,7 @@ func callWriterNumericMethod(writer *Writer, name string, intrinsic string, valu
 	case "writer.writeInt":
 		n, ok := values[0].(int)
 		if !ok {
-			return true, fmt.Errorf("writer.%s expects Int", name)
+			return true, fmt.Errorf("writer.%s expects Int32", name)
 		}
 		chunk.SetInt(0, n, littleEndian)
 	case "writer.writeUInt":
@@ -1433,7 +1433,10 @@ func (i *Interpreter) callGoBackedFunction(symbol string, args []Value) (Value, 
 		}
 		return nil, nil
 	case "fmt.Println":
-		for _, arg := range args {
+		for index, arg := range args {
+			if index > 0 {
+				fmt.Fprint(i.out, " ")
+			}
 			fmt.Fprint(i.out, printValue(arg))
 		}
 		fmt.Fprintln(i.out)
@@ -1505,7 +1508,7 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		}
 		n, ok := index.(int)
 		if !ok {
-			return nil, fmt.Errorf("array.set index expects Int")
+			return nil, fmt.Errorf("array.set index expects Int32")
 		}
 		if n < 0 || n >= len(array.Elements) {
 			return nil, fmt.Errorf("array index %d out of range", n)
@@ -1546,11 +1549,11 @@ func (i *Interpreter) callArrayMethod(array *Array, name string, args []ir.Expr,
 		}
 		s, ok := start.(int)
 		if !ok {
-			return nil, fmt.Errorf("array.slice start expects Int")
+			return nil, fmt.Errorf("array.slice start expects Int32")
 		}
 		e, ok := end.(int)
 		if !ok {
-			return nil, fmt.Errorf("array.slice end expects Int")
+			return nil, fmt.Errorf("array.slice end expects Int32")
 		}
 		if s < 0 || e < s || e > len(array.Elements) {
 			return nil, fmt.Errorf("array.slice range out of bounds")
@@ -1721,7 +1724,7 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 		}
 		index, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("string.%s expects Int", name)
+			return nil, fmt.Errorf("string.%s expects Int32", name)
 		}
 		runes := []rune(value)
 		if index < 0 || index >= len(runes) {
@@ -1741,11 +1744,11 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 		}
 		start, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("string.slice start expects Int")
+			return nil, fmt.Errorf("string.slice start expects Int32")
 		}
 		end, ok := values[1].(int)
 		if !ok {
-			return nil, fmt.Errorf("string.slice end expects Int")
+			return nil, fmt.Errorf("string.slice end expects Int32")
 		}
 		runes := []rune(value)
 		if start < 0 || end < start || end > len(runes) {
@@ -1804,7 +1807,7 @@ func (i *Interpreter) callStringMethod(value string, name string, args []ir.Expr
 		}
 		count, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("string.repeat expects Int")
+			return nil, fmt.Errorf("string.repeat expects Int32")
 		}
 		return strings.Repeat(value, count), nil
 	case "string.replace":
@@ -1857,71 +1860,71 @@ func (i *Interpreter) callIntMethod(value int, name string, args []ir.Expr, env 
 	if i.file.Stdlib == nil {
 		return nil, fmt.Errorf("stdlib is not loaded")
 	}
-	fn, ok := i.file.Stdlib.ReceiverFunction("int", "Int", name)
+	fn, ok := i.file.Stdlib.ReceiverFunction("int32", "Int32", name)
 	if !ok {
-		return nil, fmt.Errorf("type Int has no method %q", name)
+		return nil, fmt.Errorf("type Int32 has no method %q", name)
 	}
 	values, err := i.evalArgs(args, env)
 	if err != nil {
 		return nil, err
 	}
 	switch fn.Intrinsic {
-	case "int.toString":
+	case "int32.toString":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("int.toString expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("int32.toString expects 0 args, got %d", len(values))
 		}
 		return fmt.Sprintf("%d", value), nil
-	case "int.toDouble":
+	case "int32.toDouble":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("int.toDouble expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("int32.toDouble expects 0 args, got %d", len(values))
 		}
 		return float64(value), nil
-	case "int.toBigInt":
+	case "int32.toBigInt":
 		if len(values) != 0 {
-			return nil, fmt.Errorf("int.toBigInt expects 0 args, got %d", len(values))
+			return nil, fmt.Errorf("int32.toBigInt expects 0 args, got %d", len(values))
 		}
 		return big.NewInt(int64(value)), nil
-	case "int.add":
+	case "int32.add":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("int.add expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("int32.add expects 1 arg, got %d", len(values))
 		}
 		other, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("int.add expects Int")
+			return nil, fmt.Errorf("int32.add expects Int32")
 		}
 		return value + other, nil
-	case "int.sub":
+	case "int32.sub":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("int.sub expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("int32.sub expects 1 arg, got %d", len(values))
 		}
 		other, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("int.sub expects Int")
+			return nil, fmt.Errorf("int32.sub expects Int32")
 		}
 		return value - other, nil
-	case "int.mul":
+	case "int32.mul":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("int.mul expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("int32.mul expects 1 arg, got %d", len(values))
 		}
 		other, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("int.mul expects Int")
+			return nil, fmt.Errorf("int32.mul expects Int32")
 		}
 		return value * other, nil
-	case "int.div":
+	case "int32.div":
 		if len(values) != 1 {
-			return nil, fmt.Errorf("int.div expects 1 arg, got %d", len(values))
+			return nil, fmt.Errorf("int32.div expects 1 arg, got %d", len(values))
 		}
 		other, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("int.div expects Int")
+			return nil, fmt.Errorf("int32.div expects Int32")
 		}
 		if other == 0 {
 			return nil, fmt.Errorf("division by zero")
 		}
 		return value / other, nil
 	default:
-		return nil, fmt.Errorf("int.%s is not supported by the interpreter", name)
+		return nil, fmt.Errorf("int32.%s is not supported by the interpreter", name)
 	}
 }
 

@@ -1,11 +1,11 @@
 PatternLookup: {
-  entries: Map[String, Int]
+  entries: Map[String, Int32]
 
-  get(key: String) -> Int? => .entries[key]
+  get(key: String) -> Int32? => .entries[key]
 }
 
 PatternExpr: {
-  PatternLit(value: Int)
+  PatternLit(value: Int32)
   PatternAdd(left: PatternExpr, right: PatternExpr)
   PatternMul(left: PatternExpr, right: PatternExpr)
 }
@@ -20,13 +20,13 @@ PatternKeyA := "a"
 
 PatternKeyB := "b"
 
-patternScore(values: Array[Int]) -> Int => values {
+patternScore(values: Array[Int32]) -> Int32 => values {
   [head, ..rest, tail] @ whole => ((head + tail) + rest.length()) + whole.length()
   [] => 0
   _ => 1
 }
 
-patternClassify(value: Int) -> Int => value {
+patternClassify(value: Int32) -> Int32 => value {
   PatternZero => 0
   1..=99 => 1
   _ => -1
@@ -34,13 +34,13 @@ patternClassify(value: Int) -> Int => value {
 
 RangeLimit := 99
 
-patternSign(value: Int) -> Int => value {
+patternSign(value: Int32) -> Int32 => value {
   _..<PatternZero => 0 - 1
   PatternZero => 0
   1..<_ => 1
 }
 
-patternTrimToLimit(value: Int) -> Int => value {
+patternTrimToLimit(value: Int32) -> Int32 => value {
   0..<RangeLimit => value
   _ => -1
 }
@@ -52,7 +52,7 @@ patternCharClass(c: Char) -> String => c {
   _ => "other"
 }
 
-patternConst(value: Int) -> Int => value {
+patternConst(value: Int32) -> Int32 => value {
   PatternOne => 10
   other => other
 }
@@ -62,13 +62,13 @@ patternMiddle(text: String) -> String => text {
   _ => text
 }
 
-patternEval(expr: PatternExpr) -> Int => expr {
+patternEval(expr: PatternExpr) -> Int32 => expr {
   PatternAdd(left, _) => patternEval(left)
   PatternAdd(left, right) | PatternMul(left, right) => patternEval(left) + patternEval(right)
   PatternLit(value) => value
 }
 
-patternLeft(expr: PatternExpr) -> Int => expr {
+patternLeft(expr: PatternExpr) -> Int32 => expr {
   PatternAdd(value, _) => patternEval(value)
   _ => 0
 }
@@ -82,49 +82,49 @@ patternHasMiddleHan(
 patternHasNo(bytes: Bytes) -> Bool => bytes ~ [.. PatternNo, ..]
 
 patternMapMissing(
-  values: Map[String, Int]
-) -> Int => values {
+  values: Map[String, Int32]
+) -> Int32 => values {
   { PatternKeyB?: null, PatternKeyA: x, .. } => x
   { PatternKeyB?: b, .. } => b ?? 0
 }
 
 patternLookupMissing(
   values: PatternLookup
-) -> Int => values {
+) -> Int32 => values {
   { PatternKeyB?: null, PatternKeyA: x, .. } => x
   { PatternKeyB?: b, .. } => b ?? 0
 }
 
 patternPacketSummary(
   packet: Bytes
-) -> Int => packet {
+) -> Int32 => packet {
   [flag, kind] => (@uint8.toInt(flag) * 10) + @uint8.toInt(kind)
   _ => 0
 }
 
-patternTaggedRest(packet: Bytes) -> Int => packet {
+patternTaggedRest(packet: Bytes) -> Int32 => packet {
   [tag, _, ..rest] => (@uint8.toInt(tag) * 10) + rest.length()
   _ => 0
 }
 
-patternSignedBit(packet: Bytes) -> Int => packet {
+patternSignedBit(packet: Bytes) -> Int32 => packet {
   [value, ..] => @uint8.toInt(value) - 129
   _ => 1
 }
 
 patternLittleEndian(
   packet: Bytes
-) -> Int => packet {
+) -> Int32 => packet {
   [first, second] => @uint8.toInt(first) + (@uint8.toInt(second) * 256)
   _ => 0
 }
 
-patternJSONImports(value: Object) -> Int => value {
+patternJSONImports(value: Object) -> Int32 => value {
   { "version": "1.0.0", "import": Array(imports), .. } => imports.length()
   _ => 0
 }
 
-patternJSONKinds(value: Object) -> Int => value {
+patternJSONKinds(value: Object) -> Int32 => value {
   { "enabled": Bool(_), .. } => 2
   _ => 0
 }

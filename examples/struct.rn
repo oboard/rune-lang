@@ -1,7 +1,7 @@
 User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 
   isAdult() => .age >= 18
 }

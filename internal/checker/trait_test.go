@@ -9,12 +9,12 @@ import (
 
 func TestStructuralTraitAcceptsExtraMembersAndSelf(t *testing.T) {
 	file, parseErrs := parser.Parse(`&Cloneable: {
-  value: Int
+  value: Int32
   clone() -> Self
 }
 
 Item: {
-  value: Int
+  value: Int32
   extra: String
   clone() -> Item => Item { value: .value, extra: .extra }
 }
@@ -34,12 +34,12 @@ main() => accept(Item { value: 1, extra: "ok" })
 
 func TestStructuralTraitRejectsMissingOrWrongMembers(t *testing.T) {
 	file, parseErrs := parser.Parse(`&Cloneable: {
-  value: Int
+  value: Int32
   clone() -> Self
 }
 
 Missing: {
-  value: Int
+  value: Int32
 }
 
 Wrong: {
@@ -158,7 +158,7 @@ func TestJSONParseRejectsWrongGeneratedMethodOverride(t *testing.T) {
 	file, parseErrs := parser.Parse(`#json.object
 Wrong: {
   name: String
-  ::fromJson(value: Int) -> Wrong => Wrong { name: "" }
+  ::fromJson(value: Int32) -> Wrong => Wrong { name: "" }
 }
 
 main() => {
@@ -215,7 +215,7 @@ main() => User.create()
 func TestStructLiteralSpreadStillChecksExplicitDuplicateFields(t *testing.T) {
 	file, parseErrs := parser.Parse(`User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 main(existing: User) => User {

@@ -32,7 +32,7 @@ declare class RuneWriter {}
 
 dtsStructs(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= structs.length() ? ""
     : (
@@ -52,7 +52,7 @@ dtsStruct(
 
 dtsStructFields(
   fields: Array[IRField],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= fields.length() ? ""
     : (
@@ -63,7 +63,7 @@ dtsStructFields(
 
 dtsEnums(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= enums.length() ? ""
     : (
@@ -87,7 +87,7 @@ dtsEnum(enumDecl: IREnumType) -> String => {
 
 dtsEnumHasPayload(
   members: Array[IREnumMember],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= members.length() ? false
     : (
@@ -98,7 +98,7 @@ dtsEnumHasPayload(
 
 dtsEnumMembers(
   members: Array[IREnumMember],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= members.length() ? ""
     : dtsEnumMembersAt(members, index)
@@ -106,7 +106,7 @@ dtsEnumMembers(
 
 dtsEnumMembersAt(
   members: Array[IREnumMember],
-  index: Int
+  index: Int32
 ) -> String => (
   members[index].private ? dtsEnumMembers(members, index + 1)
     : (((((indent(1) + "readonly ") + dtsPropertyName(members[index].name)) + ": ") + enumValue(members[index], index)) + ";\n") + dtsEnumMembers(members, index + 1)
@@ -114,7 +114,7 @@ dtsEnumMembersAt(
 
 dtsConsts(
   constants: Array[IRConst],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= constants.length() ? ""
     : dtsConstsAt(constants, index)
@@ -122,7 +122,7 @@ dtsConsts(
 
 dtsConstsAt(
   constants: Array[IRConst],
-  index: Int
+  index: Int32
 ) -> String => (
   constants[index].private ? dtsConsts(constants, index + 1)
     : (((("declare const " + mangleIdent(constants[index].name)) + ": ") + dtsType(constants[index].typeName)) + ";\n") + dtsConsts(constants, index + 1)
@@ -130,7 +130,7 @@ dtsConstsAt(
 
 dtsFunctions(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= functions.length() ? ""
     : dtsFunctionAt(functions, index) + dtsFunctions(functions, index + 1)
@@ -138,7 +138,7 @@ dtsFunctions(
 
 dtsFunctionAt(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> String => (
   functions[index].macro || functions[index].private ? ""
     : dtsFunction(functions[index])
@@ -162,7 +162,7 @@ dtsGenerics(
 
 dtsGenericNames(
   generics: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= generics.length() ? out
@@ -174,7 +174,7 @@ dtsGenericNames(
 
 dtsParams(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -205,7 +205,7 @@ dtsTypeRoot(
 
 dtsFirstTypeToken(
   tokens: Array[Token],
-  index: Int
+  index: Int32
 ) -> Token => (
   index >= tokens.length() ? dtsTypeToken("Dynamic")
     : (
@@ -252,7 +252,7 @@ dtsTypeToken(typeName: String) -> Token => {
 
 dtsTypeRefPostfix(
   tokens: Array[Token],
-  index: Int,
+  index: Int32,
   typeRef: ParsedTypeRef
 ) -> ParsedTypeRef => (
   index >= tokens.length() ? typeRef
@@ -261,7 +261,7 @@ dtsTypeRefPostfix(
 
 dtsTypeRefPostfixStep(
   tokens: Array[Token],
-  index: Int,
+  index: Int32,
   typeRef: ParsedTypeRef
 ) -> ParsedTypeRef => {
   token := tokens[index]
@@ -279,7 +279,7 @@ dtsApplyTypeArgs(
 
 dtsBracketArgs(
   tokens: Array[Token],
-  open: Int
+  open: Int32
 ) -> Array[ParsedTypeRef] => {
   close := dtsBracketClose(tokens, open + 1, 1)
   inner := dtsTokenRangeText(tokens, open + 1, close, "")
@@ -289,9 +289,9 @@ dtsBracketArgs(
 
 dtsBracketClose(
   tokens: Array[Token],
-  index: Int,
-  depth: Int
-) -> Int => (
+  index: Int32,
+  depth: Int32
+) -> Int32 => (
   index >= tokens.length() ? index
     : (
       tokens[index].kind == TokenKind.LBracket ? dtsBracketClose(tokens, index + 1, depth + 1)
@@ -307,9 +307,9 @@ dtsBracketClose(
 
 dtsSkipBracket(
   tokens: Array[Token],
-  index: Int,
-  depth: Int
-) -> Int => (
+  index: Int32,
+  depth: Int32
+) -> Int32 => (
   index >= tokens.length() ? index
     : (
       tokens[index].kind == TokenKind.LBracket ? dtsSkipBracket(tokens, index + 1, depth + 1)
@@ -325,7 +325,7 @@ dtsSkipBracket(
 
 dtsTokenAt(
   tokens: Array[Token],
-  index: Int
+  index: Int32
 ) -> Token => (
   index >= tokens.length() ? dtsTypeToken("Dynamic")
     : tokens[index]
@@ -333,8 +333,8 @@ dtsTokenAt(
 
 dtsTokenRangeText(
   tokens: Array[Token],
-  index: Int,
-  endExclusive: Int,
+  index: Int32,
+  endExclusive: Int32,
   out: String
 ) -> String => (
   (index >= endExclusive) || (index >= tokens.length()) ? out
@@ -347,9 +347,9 @@ dtsSplitTopLevelTypeArgs(
 
 dtsSplitTopLevelTypeArgsLoop(
   source: String,
-  index: Int,
-  start: Int,
-  depth: Int,
+  index: Int32,
+  start: Int32,
+  depth: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= source.length() ? dtsPushTypeArg(out, source.slice(start, source.length()).trim())
@@ -358,9 +358,9 @@ dtsSplitTopLevelTypeArgsLoop(
 
 dtsSplitTopLevelTypeArgsStep(
   source: String,
-  index: Int,
-  start: Int,
-  depth: Int,
+  index: Int32,
+  start: Int32,
+  depth: Int32,
   out: Array[String]
 ) -> Array[String] => {
   ch := source.at(index)
@@ -387,7 +387,7 @@ dtsPushTypeArg(
 
 dtsTypeRefsFromStrings(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[ParsedTypeRef]
 ) -> Array[ParsedTypeRef] => {
   (
@@ -398,7 +398,7 @@ dtsTypeRefsFromStrings(
 
 dtsTypeRefsFromStringsPush(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[ParsedTypeRef]
 ) -> Array[ParsedTypeRef] => {
   out.push(parseDtsTypeRef(parts[index]))
@@ -407,7 +407,7 @@ dtsTypeRefsFromStringsPush(
 
 dtsTupleParamsFromStrings(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[ParsedTypeParam]
 ) -> Array[ParsedTypeParam] => {
   (
@@ -418,7 +418,7 @@ dtsTupleParamsFromStrings(
 
 dtsTupleParamsFromStringsPush(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[ParsedTypeParam]
 ) -> Array[ParsedTypeParam] => {
   param := emptyParsedTypeParam()
@@ -454,7 +454,7 @@ dtsTypeRef(
 
 dtsNullableTypeRef(
   typeRef: ParsedTypeRef
-) -> String => dtsTypeRef(clearNullableTypeRef(typeRef)) + " | null"
+) -> String => dtsTypeRef(clearNullableTypeRef(typeRef)) + " | null | undefined"
 
 dtsPlainTypeRef(
   typeRef: ParsedTypeRef
@@ -472,7 +472,7 @@ dtsNamedTypeRef(
   typeName := dtsQualifiedTypeName(typeRef)
   typeName {
     "" | "Void" => "void"
-    "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Byte" | "Double" | "Float" => "number"
+    "Int32" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Byte" | "Double" | "Float" => "number"
     "BigInt" | "Int64" | "UInt64" => "bigint"
     "String" | "Char" => "string"
     "Bool" => "boolean"
@@ -595,7 +595,7 @@ dtsFunctionTypeRef(
 
 dtsTypeRefs(
   refs: Array[ParsedTypeRef],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= refs.length() ? out
@@ -607,7 +607,7 @@ dtsTypeRefs(
 
 dtsTypeParams(
   params: Array[ParsedTypeParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -637,7 +637,7 @@ dtsExports(file: IRFile) -> String => (
 
 dtsStructExports(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= structs.length() ? ""
     : (
@@ -648,7 +648,7 @@ dtsStructExports(
 
 dtsEnumExports(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= enums.length() ? ""
     : (
@@ -659,7 +659,7 @@ dtsEnumExports(
 
 dtsConstExports(
   constants: Array[IRConst],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= constants.length() ? ""
     : (
@@ -670,7 +670,7 @@ dtsConstExports(
 
 dtsFunctionExports(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> String => (
   index >= functions.length() ? ""
     : (
@@ -704,7 +704,7 @@ dtsQuoteName(name: String) -> String => ("\"" + dtsEscapeName(name, 0, "")) + "\
 
 dtsEscapeName(
   name: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= name.length() ? out
@@ -726,7 +726,7 @@ dtsCanUseBareProperty(
 
 dtsSafeIdent(
   name: String,
-  index: Int,
+  index: Int32,
   first: Bool
 ) -> Bool => (
   index >= name.length() ? true

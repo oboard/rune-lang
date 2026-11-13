@@ -8,6 +8,7 @@ import (
 	"unicode"
 
 	"github.com/oboard/rune-lang/internal/checker"
+	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lexer"
 )
 
@@ -90,6 +91,9 @@ func mbtType(typ checker.Type) string {
 	if strings.HasPrefix(name, "&") {
 		return "Unit"
 	}
+	if checker.IsUnionType(typ) {
+		return "Json"
+	}
 	if inner, ok := parseNullableType(name); ok {
 		return mbtType(checker.Type(inner)) + "?"
 	}
@@ -131,8 +135,8 @@ func mbtType(typ checker.Type) string {
 		return "(" + strings.Join(parts, ", ") + ") -> " + mbtType(checker.Type(ret))
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16:
-		return "Int"
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16:
+		return "Int32"
 	case checker.Int64:
 		return "Int64"
 	case checker.UInt, checker.UInt8, checker.UInt16:
@@ -149,12 +153,12 @@ func mbtType(typ checker.Type) string {
 		return "Char"
 	case checker.Bool:
 		return "Bool"
-	case checker.Void, checker.Null, checker.Never, checker.Unknown:
+	case checker.Void, checker.Null, checker.Undefined, checker.Never, checker.Unknown:
 		return "Unit"
 	case checker.BigInt:
 		return "BigInt"
 	case checker.Bytes, checker.Data, checker.Buffer, checker.Writer:
-		return "Array[Int]"
+		return "Array[Int32]"
 	case checker.Reader:
 		return "RuneReader"
 	case checker.Error:
@@ -473,7 +477,7 @@ func zeroValue(typ checker.Type) string {
 		_ = args
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "0"
 	case checker.Int64:
 		return "0L"
@@ -538,6 +542,146 @@ func mbtJSONValueType(typ checker.Type) bool {
 	return typ == checker.Object || name == "Dynamic"
 }
 
+func typeofTag(typ checker.Type) string {
+	if inner, ok := parseNullableType(string(typ)); ok {
+		if tag := typeofTag(checker.Type(inner)); tag != "object" {
+			return tag
+		}
+	}
+	if checker.IsUnionType(typ) {
+		return "object"
+	}
+	switch {
+	case typ == checker.String || typ == checker.Char:
+		return "string"
+	case typ == checker.Bool:
+		return "boolean"
+	case typ == checker.Int32 || typ == checker.Int4 || typ == checker.Int8 || typ == checker.Int16 ||
+		typ == checker.Int64 || typ == checker.UInt || typ == checker.UInt8 || typ == checker.UInt16 ||
+		typ == checker.UInt64 || typ == checker.Double || typ == checker.Float:
+		return "number"
+	case typ == checker.Null || typ == checker.Undefined:
+		return "undefined"
+	default:
+		if _, _, ok := parseFuncType(string(typ)); ok {
+			return "function"
+		}
+		return "object"
+	}
+}
+
 func unsupportedError(backendName string, feature string) error {
 	return fmt.Errorf("MoonBit backend does not support %s", feature)
+}
+
+// rejectUnionTypes fails the MoonBit backend before emission. The RFC's final
+// representation is a native union/enum; until that lowering exists, silently
+// mapping `A | B` to Json would produce a program that does not compile.
+func rejectUnionTypes(file *ir.File) error {
+	check := func(typ checker.Type) error {
+		if checker.IsUnionType(typ) {
+			return unsupportedError("MoonBit", "union types yet (use --target ts or --target go)")
+		}
+		return nil
+	}
+	checkFunction := func(fn *ir.Function) error {
+		if err := check(fn.Return); err != nil {
+			return err
+		}
+		for _, param := range fn.Params {
+			if err := check(param.Type); err != nil {
+				return err
+			}
+		}
+		var failure error
+		ir.WalkExpr(fn.Body, func(expr ir.Expr) {
+			if failure == nil {
+				failure = check(expr.ResultType())
+			}
+		})
+		return failure
+	}
+	for _, fn := range file.Functions {
+		if err := checkFunction(fn); err != nil {
+			return err
+		}
+	}
+	for _, typ := range file.Types {
+		for _, field := range typ.Fields {
+			if err := check(field.Type); err != nil {
+				return err
+			}
+		}
+		for _, method := range typ.Methods {
+			if err := checkFunction(method); err != nil {
+				return err
+			}
+		}
+	}
+	for _, enum := range file.Enums {
+		for _, member := range enum.Members {
+			for _, param := range member.Params {
+				if err := check(param.Type); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func rejectTryStatements(file *ir.File) error {
+	checkExpr := func(expr ir.Expr) bool {
+		found := false
+		ir.WalkExpr(expr, func(e ir.Expr) {
+			switch x := e.(type) {
+			case *ir.BlockExpr:
+				if blockContainsTry(x.Statements) {
+					found = true
+				}
+			case *ir.LoopExpr:
+				if x.Body != nil && blockContainsTry(x.Body.Statements) {
+					found = true
+				}
+			}
+		})
+		return found
+	}
+	checkFunction := func(fn *ir.Function) bool {
+		return checkExpr(fn.Body)
+	}
+	for _, fn := range file.Functions {
+		if checkFunction(fn) {
+			return unsupportedError("MoonBit", "try/catch/throw yet (use --target ts or --target go)")
+		}
+	}
+	for _, typ := range file.Types {
+		for _, method := range typ.Methods {
+			if checkFunction(method) {
+				return unsupportedError("MoonBit", "try/catch/throw yet (use --target ts or --target go)")
+			}
+		}
+	}
+	for _, enum := range file.Enums {
+		for _, method := range enum.Methods {
+			if checkFunction(method) {
+				return unsupportedError("MoonBit", "try/catch/throw yet (use --target ts or --target go)")
+			}
+		}
+	}
+	return nil
+}
+
+func blockContainsTry(stmts []ir.Stmt) bool {
+	for _, stmt := range stmts {
+		switch s := stmt.(type) {
+		case *ir.TryStmt, *ir.ThrowStmt:
+			return true
+		case *ir.IfStmt:
+			if blockContainsTry(s.Then) || blockContainsTry(s.Else) {
+				return true
+			}
+		}
+	}
+	return false
 }

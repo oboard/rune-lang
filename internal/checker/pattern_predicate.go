@@ -180,7 +180,7 @@ func (c *checker) bitOrExprType(expr ast.Expr, env map[string]Type) (Type, bool)
 func (c *checker) bitOrLeafType(expr ast.Expr, env map[string]Type) (Type, bool) {
 	switch e := expr.(type) {
 	case *ast.IntegerLiteral:
-		return Int, true
+		return Int32, true
 	case *ast.BigIntLiteral:
 		return BigInt, true
 	case *ast.Identifier:

@@ -132,8 +132,8 @@ func testIneligibleFunctionsFile() *ir.File {
 			{
 				Name:       "helper",
 				SourceName: "helper",
-				Return:     checker.Int,
-				Body:       &ir.IntegerLiteral{ExprBase: ir.ExprBase{Type: checker.Int}, Value: 1},
+				Return:     checker.Int32,
+				Body:       &ir.IntegerLiteral{ExprBase: ir.ExprBase{Type: checker.Int32}, Value: 1},
 			},
 			{
 				Name:       "main",
@@ -151,8 +151,8 @@ func testDuplicateMainFile() *ir.File {
 			{
 				Name:       "main",
 				SourceName: "main",
-				Return:     checker.Int,
-				Body:       &ir.IntegerLiteral{ExprBase: ir.ExprBase{Type: checker.Int}, Value: 1},
+				Return:     checker.Int32,
+				Body:       &ir.IntegerLiteral{ExprBase: ir.ExprBase{Type: checker.Int32}, Value: 1},
 			},
 			{
 				Name:       "main",

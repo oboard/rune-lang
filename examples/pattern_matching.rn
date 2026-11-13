@@ -1,5 +1,5 @@
 Expr: {
-    Num(value: Int)
+    Num(value: Int32)
     Mul(expr1: Expr, expr2: Expr)
 }
 

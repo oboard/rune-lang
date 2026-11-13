@@ -32,7 +32,7 @@ checks Rune source, lowers it to a shared IR, and can interpret it, compile it
 to Go, or emit TypeScript for DOM-style programs.
 
 ```rune
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 
 main() => {
   @io.println(add(1, 2))

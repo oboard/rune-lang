@@ -60,7 +60,7 @@ main() => {
 }
 
 func TestResultUnwrapRequiresRoutine(t *testing.T) {
-	file, parseErrs := parser.Parse(`readResult() -> Result[Int, Error] => Ok(1)
+	file, parseErrs := parser.Parse(`readResult() -> Result[Int32, Error] => Ok(1)
 
 read() => {
   readResult()?
@@ -183,7 +183,7 @@ tree(name: String) -> Tree[String] => Branch(Leaf(name), Leaf(name))
 }
 
 func TestIntToStringReceiverUsesCoreDecl(t *testing.T) {
-	src := `label(count: Int) => count.toString()
+	src := `label(count: Int32) => count.toString()
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {

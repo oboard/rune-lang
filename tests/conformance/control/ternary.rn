@@ -1,0 +1,3 @@
+// expect: 7
+// targets: interpreter,go,ts,mbt
+main() => @io.println(true ? 7 : 9)

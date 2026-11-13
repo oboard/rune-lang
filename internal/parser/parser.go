@@ -21,6 +21,7 @@ type Parser struct {
 	curr              int
 	errors            []Error
 	expressionNesting int
+	loopDepth         int
 }
 
 func Parse(src string) (*ast.File, []Error) {

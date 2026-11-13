@@ -23,6 +23,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		return mangleIdent(e.Name)
 	case *ir.IntegerLiteral:
+		if e.ResultType() == checker.Int32 && int(int32(e.Value)) != e.Value {
+			return fmt.Sprintf("int(int32(%d + runeInt32Zero))", e.Value)
+		}
 		return strconv.Itoa(e.Value)
 	case *ir.DoubleLiteral:
 		if e.Raw != "" {
@@ -46,6 +49,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return "false"
 	case *ir.NullLiteral:
 		return "any(nil)"
+	case *ir.UndefinedLiteral:
+		return "any(runeUndefined)"
 	case *ir.UnaryExpr:
 		if e.Op == lexer.Minus && e.Expr.ResultType() == checker.BigInt {
 			return fmt.Sprintf("new(big.Int).Neg(%s)", g.exprPrec(e.Expr, 5))
@@ -62,6 +67,9 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		if e.Op == lexer.Tilde {
 			op = "^"
 		}
+		if e.Expr.ResultType() == checker.Int32 && (e.Op == lexer.Minus || e.Op == lexer.Tilde) {
+			return "int(" + op + "int32(" + g.exprPrec(e.Expr, 6) + "))"
+		}
 		s := fmt.Sprintf("%s%s", op, g.exprPrec(e.Expr, 6))
 		if 5 < parentPrec {
 			return "(" + s + ")"
@@ -69,6 +77,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return s
 	case *ir.PostfixExpr:
 		return g.postfixExpr(e)
+	case *ir.TypeOfExpr:
+		return "runeTypeof(" + g.expr(e.Argument) + ")"
+	case *ir.NarrowExpr:
+		return g.narrowExpr(e)
 	case *ir.ResultUnwrapExpr:
 		return "/* result unwrap is only supported in statement position */"
 	case *ir.BinaryExpr:
@@ -80,12 +92,17 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		}
 		prec := goPrecedence(e.Op)
 		s := fmt.Sprintf("%s %s %s", g.exprPrec(e.Left, prec), goBinaryOp(e.Op), g.exprPrec(e.Right, prec+1))
+		if e.ResultType() == checker.Int32 && wrapsInt32Arithmetic(e.Op) {
+			return "int(int32(" + s + " + runeInt32Zero))"
+		}
 		if prec < parentPrec {
 			return "(" + s + ")"
 		}
 		return s
 	case *ir.TernaryExpr:
 		return g.ternaryExpr(e)
+	case *ir.WhileExpr:
+		return "func() { for " + g.expr(e.Cond) + " { " + g.expr(e.Body) + " } }()"
 	case *ir.BlockExpr:
 		ret := e.ResultType()
 		if ret == checker.Void {
@@ -755,10 +772,16 @@ func (g *generator) postfixExpr(expr *ir.PostfixExpr) string {
 	}
 	if g.isSignal(target.Name) {
 		name := mangleIdent(target.Name)
-		return fmt.Sprintf("func() int { old := %s.Get(); %s.Set(old + 1); return old }()", name, name)
+		if expr.Expr.ResultType() == checker.Int32 {
+			return fmt.Sprintf("func() int { old := %s.Get(); %s.Set(int(int32(old) + 1)); return old }()", name, name)
+		}
+		return fmt.Sprintf("func() %s { old := %s.Get(); %s.Set(old + 1); return old }()", goType(expr.Expr.ResultType()), name, name)
 	}
 	name := mangleIdent(target.Name)
-	return fmt.Sprintf("func() int { old := %s; %s++; return old }()", name, name)
+	if expr.Expr.ResultType() == checker.Int32 {
+		return fmt.Sprintf("func() int { old := %s; %s = int(int32(old) + 1); return old }()", name, name)
+	}
+	return fmt.Sprintf("func() %s { old := %s; %s++; return old }()", goType(expr.Expr.ResultType()), name, name)
 }
 
 func (g *generator) watchExpr(watch *ir.WatchExpr) string {
@@ -1571,4 +1594,17 @@ func goBinaryOp(op lexer.Kind) string {
 		return ">>"
 	}
 	return op.String()
+}
+
+// wrapsInt32Arithmetic reports whether op must be evaluated with 32-bit
+// wrapping when its Rune result type is Int32. Go's int is pointer-sized, so
+// arithmetic is narrowed back through int32 to keep Int32 overflow semantics.
+func wrapsInt32Arithmetic(op lexer.Kind) bool {
+	switch op {
+	case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent,
+		lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
+		return true
+	default:
+		return false
+	}
 }

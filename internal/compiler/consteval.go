@@ -91,6 +91,8 @@ func (r *compileTimeRewriter) stmt(stmt ast.Stmt) ast.Stmt {
 		s.Value = r.expr(s.Value)
 	case *ast.AssignStmt:
 		s.Value = r.expr(s.Value)
+	case *ast.ReturnStmt:
+		s.Value = r.expr(s.Value)
 	case *ast.ExprStmt:
 		s.Expr = r.expr(s.Expr)
 	}
@@ -122,6 +124,16 @@ func (r *compileTimeRewriter) expr(expr ast.Expr) ast.Expr {
 		e.Condition = r.expr(e.Condition)
 		e.Consequence = r.expr(e.Consequence)
 		e.Alternative = r.expr(e.Alternative)
+	case *ast.IfExpr:
+		e.Cond = r.expr(e.Cond)
+		e.Then = r.expr(e.Then)
+		e.Else = r.expr(e.Else)
+	case *ast.ForOfExpr:
+		e.Iterable = r.expr(e.Iterable)
+		e.Body = r.expr(e.Body)
+	case *ast.WhileExpr:
+		e.Cond = r.expr(e.Cond)
+		e.Body = r.expr(e.Body)
 	case *ast.AssignExpr:
 		e.Target = r.expr(e.Target)
 		e.Value = r.expr(e.Value)
@@ -298,13 +310,13 @@ func compileTimeValueExpr(value interpreter.Value, pos lexer.Position) (ast.Expr
 	case int32:
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case int64:
-		if v < math.MinInt || v > math.MaxInt {
-			return nil, fmt.Errorf("integer %d is outside Int range", v)
+		if v < math.MinInt32 || v > math.MaxInt32 {
+			return nil, fmt.Errorf("integer %d is outside Int32 range", v)
 		}
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case uint:
-		if uint64(v) > uint64(math.MaxInt) {
-			return nil, fmt.Errorf("integer %d is outside Int range", v)
+		if uint64(v) > uint64(math.MaxInt32) {
+			return nil, fmt.Errorf("integer %d is outside Int32 range", v)
 		}
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case uint8:
@@ -312,13 +324,13 @@ func compileTimeValueExpr(value interpreter.Value, pos lexer.Position) (ast.Expr
 	case uint16:
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case uint32:
-		if uint64(v) > uint64(math.MaxInt) {
-			return nil, fmt.Errorf("integer %d is outside Int range", v)
+		if uint64(v) > uint64(math.MaxInt32) {
+			return nil, fmt.Errorf("integer %d is outside Int32 range", v)
 		}
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case uint64:
-		if v > uint64(math.MaxInt) {
-			return nil, fmt.Errorf("integer %d is outside Int range", v)
+		if v > uint64(math.MaxInt32) {
+			return nil, fmt.Errorf("integer %d is outside Int32 range", v)
 		}
 		return &ast.IntegerLiteral{Value: int(v), Pos: pos}, nil
 	case float32:

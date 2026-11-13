@@ -55,7 +55,12 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return "false"
 	case *ir.NullLiteral:
 		return "null"
+	case *ir.UndefinedLiteral:
+		return "undefined"
 	case *ir.UnaryExpr:
+		if e.Op == lexer.Bang {
+			return "!(" + g.expr(e.Expr) + ")"
+		}
 		s := fmt.Sprintf("%s%s", e.Op, g.exprPrec(e.Expr, 6))
 		if 5 < parentPrec {
 			return "(" + s + ")"
@@ -63,6 +68,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return s
 	case *ir.PostfixExpr:
 		return g.postfixExpr(e)
+	case *ir.TypeOfExpr:
+		return "(typeof " + g.expr(e.Argument) + ")"
+	case *ir.NarrowExpr:
+		return "(" + g.expr(e.Expr) + " as " + tsType(e.AssertType) + ")"
 	case *ir.ResultUnwrapExpr:
 		return "undefined /* result unwrap is only supported in statement position */"
 	case *ir.BinaryExpr:
@@ -90,6 +99,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + s + ")"
 		}
 		return s
+	case *ir.WhileExpr:
+		return "(() => { while (" + g.expr(e.Cond) + ") { " + g.expr(e.Body) + " } })()"
 	case *ir.AssignExpr:
 		if target, ok := e.Target.(*ir.IndexExpr); ok {
 			if expr, ok := g.indexAssignExpr(target, e.Value); ok {
@@ -192,7 +203,7 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 
 func tsIntegerResultType(typ checker.Type) bool {
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return true
 	default:
 		return false

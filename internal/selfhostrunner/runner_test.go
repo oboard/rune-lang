@@ -12,7 +12,7 @@ import (
 )
 
 func TestRunFunctionIRReturnsStructuredValue(t *testing.T) {
-	prog, diags := compiler.AnalyzeSource("function_ir.rn", `+ pair() -> Tuple[String, Int] => ("Rune", 42)
+	prog, diags := compiler.AnalyzeSource("function_ir.rn", `+ pair() -> Tuple[String, Int32] => ("Rune", 42)
 main() => @io.println("unused")`)
 	if len(diags) > 0 {
 		t.Fatalf("AnalyzeSource diagnostics = %v", diags)
@@ -173,7 +173,7 @@ func selfhostCoreAPITestSpecs() []selfhostAPITestSpec {
 			"set core methods",
 		}},
 		{"types_bytes.rn", []string{
-			"bitwise operators on Int",
+			"bitwise operators on Int32",
 			"bitwise operators on widened integers",
 			"bitwise operators on BigInt",
 			"widened numeric conversions",
@@ -238,6 +238,7 @@ func selfhostCoreAPITestSpecs() []selfhostAPITestSpec {
 		}},
 		{"types_numeric.rn", []string{
 			"int literals",
+			"int32 overflow wraps",
 			"int arithmetic",
 			"int comparison",
 			"int negation",
@@ -485,9 +486,9 @@ func TestSelfhostCompilerTargetOutputsTypecheck(t *testing.T) {
   Err(error: E)
 }
 
-read() -> Result[Int, String] => Ok(41)
+read() -> Result[Int32, String] => Ok(41)
 
-main() -> Int => {
+main() -> Int32 => {
   value := read()?
   value + 1
 }
@@ -570,9 +571,9 @@ main() => {
   uint16 := @uint16.toInt(@uint16.fromInt(65535))
   uint64 := @uint64.toInt(@uint64.fromInt(123456))
   float := @float.toDouble(@float.fromDouble(1.5))
-  number := @int.toString(42)
-  double := @int.toDouble(7)
-  bigint := @int.toBigInt(5)
+  number := @int32.toString(42)
+  double := @int32.toDouble(7)
+  bigint := @int32.toBigInt(5)
   bigintFromInt := @bigint.fromInt(6)
   bigintText := @bigint.toString(6n)
   bigintDouble := @bigint.toDouble(7n)
@@ -705,10 +706,6 @@ func writeSelfhostMoonBitPackage(t *testing.T, dir string, output string) {
 		"main.mbt": output,
 		"moon.mod": "name = \"oboard/rune_selfhost_target\"\n",
 		"moon.pkg": strings.Join([]string{
-			"import {",
-			"  \"moonbitlang/core/string\"",
-			"}",
-			"",
 			"warnings = \"-1-7-23-67\"",
 			"",
 			"options(",

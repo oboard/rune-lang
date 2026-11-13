@@ -2,14 +2,14 @@
   "Function mapping": {
     "prefix": "fn",
     "body": [
-      "${1:name}(${2:arg}: ${3:Int}) -> ${4:Int} => ${5:arg}"
+      "${1:name}(${2:arg}: ${3:Int32}) -> ${4:Int32} => ${5:arg}"
     ],
     "description": "Create a Rune function mapping"
   },
   "Pattern block": {
     "prefix": "match",
     "body": [
-      "${1:name}(${2:value}: ${3:Int}) => {",
+      "${1:name}(${2:value}: ${3:Int32}) => {",
       "  ${4:0} => ${5:0}",
       "  _ => ${6:value}",
       "}"
@@ -22,5 +22,25 @@
       "@io.println(${1:value})"
     ],
     "description": "Print a value with the core io module"
+  },
+  "If expression": {
+    "prefix": "if",
+    "body": [
+      "if (${1:condition}) {",
+      "  ${2:value}",
+      "}"
+    ],
+    "description": "Create a Rune if expression"
+  },
+  "If else expression": {
+    "prefix": "ifelse",
+    "body": [
+      "if (${1:condition}) {",
+      "  ${2:value}",
+      "} else {",
+      "  ${3:value}",
+      "}"
+    ],
+    "description": "Create a Rune if/else expression"
   }
 }

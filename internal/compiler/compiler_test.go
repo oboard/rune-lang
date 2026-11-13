@@ -72,9 +72,9 @@ func TestAnalyzeFileLoadsAllRuneSourcesInModuleDirectory(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "feature", "nested"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	writeRuneFile(t, filepath.Join(dir, "feature", "feature.rn"), "+ primary() -> Int => 1\n")
-	writeRuneFile(t, filepath.Join(dir, "feature", "helpers.rn"), "+ helper() -> Int => 41\n")
-	writeRuneFile(t, filepath.Join(dir, "feature", "nested", "hidden.rn"), "+ hidden() -> Int => 99\n")
+	writeRuneFile(t, filepath.Join(dir, "feature", "feature.rn"), "+ primary() -> Int32 => 1\n")
+	writeRuneFile(t, filepath.Join(dir, "feature", "helpers.rn"), "+ helper() -> Int32 => 41\n")
+	writeRuneFile(t, filepath.Join(dir, "feature", "nested", "hidden.rn"), "+ hidden() -> Int32 => 99\n")
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), "@feature\n\nmain() => @io.println(helper() + primary())\n")
 
 	prog, diags := AnalyzeFile(filepath.Join(dir, "main.rn"))
@@ -105,7 +105,7 @@ func TestAnalyzeSourceRequiresSyntaxImport(t *testing.T) {
 
 func TestAnalyzeFileLoadsRuneImports(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `+ inc(value: Int) -> Int => value + 1
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `+ inc(value: Int32) -> Int32 => value + 1
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -333,7 +333,7 @@ func TestGenerateTypeScriptDeclarationFileExportsPublicAPI(t *testing.T) {
 	dir := t.TempDir()
 	writeRuneFile(t, filepath.Join(dir, "math.rn"), `+ User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 + Status: {
@@ -343,9 +343,9 @@ func TestGenerateTypeScriptDeclarationFileExportsPublicAPI(t *testing.T) {
 
 + answer := 42
 
-+ add(a: Int, b: Int) -> Int => a + b
++ add(a: Int32, b: Int32) -> Int32 => a + b
 
-hidden() -> Int => 0
+hidden() -> Int32 => 0
 `)
 
 	got, diags := GenerateTypeScriptDeclarationFile(filepath.Join(dir, "math.rn"))
@@ -435,7 +435,7 @@ func TestAnalyzeSourceSupportsUnicodeIdentifiers(t *testing.T) {
   欢迎👋() -> String => .名字💡 + "!"
 }
 
-计算✅(数值🐉: Int) -> Int => {
+计算✅(数值🐉: Int32) -> Int32 => {
   增量📈 := 1
   数值🐉 + 增量📈
 }
@@ -458,11 +458,11 @@ main() => {
 
 func TestAnalyzeFileLoadsTransitiveRuneImports(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "base.rn"), `+ base() -> Int => 40
+	writeRuneFile(t, filepath.Join(dir, "base.rn"), `+ base() -> Int32 => 40
 `)
 	writeRuneFile(t, filepath.Join(dir, "math.rn"), `@"base.rn"
 
-+ inc2(value: Int) -> Int => value + 2
++ inc2(value: Int32) -> Int32 => value + 2
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -480,9 +480,9 @@ main() => @io.println(inc2(base()))
 
 func TestAnalyzeFileKeepsPrivateImportsAvailableToOwner(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int, b: Int) -> Int => a + b
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int32, b: Int32) -> Int32 => a + b
 
-+ sum(a: Int, b: Int) -> Int => add(a, b)
++ sum(a: Int32, b: Int32) -> Int32 => add(a, b)
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -504,7 +504,7 @@ main() => @io.println(sum(20, 22))
 
 func TestAnalyzeFileRejectsPrivateImportedFunctionUse(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int, b: Int) -> Int => a + b
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `add(a: Int32, b: Int32) -> Int32 => a + b
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math.rn"
 
@@ -585,7 +585,7 @@ main() => {
 
 func TestAnalyzeFileRequiresRuneImportExtension(t *testing.T) {
 	dir := t.TempDir()
-	writeRuneFile(t, filepath.Join(dir, "math.rn"), `inc(value: Int) -> Int => value + 1
+	writeRuneFile(t, filepath.Join(dir, "math.rn"), `inc(value: Int32) -> Int32 => value + 1
 `)
 	writeRuneFile(t, filepath.Join(dir, "main.rn"), `@"math"
 
@@ -622,7 +622,7 @@ Args: {
 }
 
 func TestAnalyzeSourceEvaluatesCompileTimeExpression(t *testing.T) {
-	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int) -> Int => value * 2
+	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int32) -> Int32 => value * 2
 
 main() => (double(21))'
 `)
@@ -660,7 +660,7 @@ func TestAnalyzeSourceEvaluatesCompileTimeProcessPlatform(t *testing.T) {
 }
 
 func TestAnalyzeSourceKeepsRuntimeUseOfCompileTimeFunction(t *testing.T) {
-	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int) -> Int => value * 2
+	prog, diags := AnalyzeSource("consteval.rn", `double(value: Int32) -> Int32 => value * 2
 
 main() => double(1) + (double(21))'
 `)
@@ -783,7 +783,7 @@ func TestAnalyzeSourceLowersReturnedSyntaxTree(t *testing.T) {
 
 #renameFirst("Generated")
 Original: {
-  value: Int
+  value: Int32
 }
 `)
 	if len(diags) > 0 {
@@ -819,7 +819,7 @@ func TestAnalyzeSourceExpandsStructLiteralSpreadInMacro(t *testing.T) {
 
 #renameFirst("Generated")
 Original: {
-  value: Int
+  value: Int32
 }
 `)
 	if len(diags) > 0 {

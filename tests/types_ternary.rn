@@ -1,9 +1,9 @@
-choose(flag: Bool) -> Int => (
+choose(flag: Bool) -> Int32 => (
   flag ? 1
     : 2
 )
 
-chooseNullable(flag: Bool) -> Int? => (
+chooseNullable(flag: Bool) -> Int32? => (
   flag ? 7
     : null
 )

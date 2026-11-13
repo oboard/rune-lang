@@ -2,7 +2,7 @@
   name: String
 }
 
-+ importedAnswer() -> Int => 42
++ importedAnswer() -> Int32 => 42
 
 + importedLabel(
   user: ImportedUser

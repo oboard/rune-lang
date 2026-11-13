@@ -1,5 +1,5 @@
 + Map[K, V]: {
-  size() -> Int => "%map.size"
+  size() -> Int32 => "%map.size"
 
   has(key: K) -> Bool => "%map.has"
 

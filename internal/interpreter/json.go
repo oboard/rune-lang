@@ -115,7 +115,7 @@ func (i *Interpreter) jsonDecodedValue(raw any, seed Value, typ checker.Type) (V
 			return nil, jsonTypeError(typ, raw)
 		}
 		return value, nil
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.Int64,
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.Int64,
 		checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
 		value, ok := raw.(json.Number)
 		if !ok {
@@ -205,7 +205,7 @@ func (i *Interpreter) jsonZeroValue(typ checker.Type) Value {
 		return Char(0)
 	case checker.Bool:
 		return false
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.Int64,
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.Int64,
 		checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
 		return 0
 	case checker.Double, checker.Float:

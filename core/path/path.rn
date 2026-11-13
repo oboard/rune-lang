@@ -70,7 +70,7 @@
 
 + joinParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= parts.length() ? out
@@ -90,7 +90,7 @@
 
 + normalizeParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => (
@@ -100,7 +100,7 @@
 
 + normalizePart(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => {
@@ -116,7 +116,7 @@
 
 + normalizeParent(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => (
@@ -129,14 +129,14 @@
 
 + normalizePop(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => normalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
 
 + normalizePush(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String],
   part: String
@@ -152,7 +152,7 @@
 
 + collectPathParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= parts.length() ? out
@@ -164,14 +164,14 @@
 
 + collectPathPart(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => collectPathParts(parts, index + 1, [..out, parts[index]])
 
 + relativeFromParts(
   fromParts: Array[String],
   toParts: Array[String],
-  index: Int
+  index: Int32
 ) -> String => (
   (index < fromParts.length()) && ((index < toParts.length()) && (fromParts[index] == toParts[index])) ? relativeFromParts(fromParts, toParts, index + 1)
     : relativeTail(fromParts, toParts, index, index, "")
@@ -180,8 +180,8 @@
 + relativeTail(
   fromParts: Array[String],
   toParts: Array[String],
-  fromIndex: Int,
-  toIndex: Int,
+  fromIndex: Int32,
+  toIndex: Int32,
   out: String
 ) -> String => (
   fromIndex < fromParts.length() ? relativeTail(fromParts, toParts, fromIndex + 1, toIndex, appendPathPart(out, ".."))

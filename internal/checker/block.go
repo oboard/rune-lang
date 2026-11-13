@@ -41,8 +41,14 @@ func (c *checker) inferStructLiteral(lit *ast.StructLiteral, env map[string]Type
 			continue
 		}
 		seen[field.Name] = true
-		valueType := c.inferExpr(field.Value, env)
 		expectedType := fieldInfo.Type
+		var valueType Type
+		if obj, ok := field.Value.(*ast.AnonymousObjectLiteral); ok && len(obj.Fields) == 0 && isMapLikeType(expectedType) {
+			valueType = expectedType
+			c.info.ExprTypes[obj] = expectedType
+		} else {
+			valueType = c.inferExpr(field.Value, env)
+		}
 		if len(typeBindings) > 0 {
 			c.bindTypeParams(expectedType, valueType, typeBindings)
 			expectedType = substituteTypeParams(expectedType, typeBindings)
@@ -222,7 +228,24 @@ func (c *checker) inferAnonymousObjectLiteral(lit *ast.AnonymousObjectLiteral, e
 	return c.inferAnonymousObjectLiteralWithSelf(lit, env, "")
 }
 
+func isMapLikeType(typ Type) bool {
+	if typ == Unknown {
+		return false
+	}
+	base, _, ok := parseGenericType(string(typ))
+	return ok && base == "Map"
+}
+
 func (c *checker) inferAnonymousObjectLiteralWithSelf(lit *ast.AnonymousObjectLiteral, env map[string]Type, selfName string) Type {
+	if len(lit.Fields) == 0 {
+		expected := c.expectedType
+		if typ, ok := c.info.ExprTypes[lit]; ok {
+			expected = typ
+		}
+		if isMapLikeType(expected) {
+			return expected
+		}
+	}
 	if selfName == "" && c.expectedType != Unknown {
 		if typ, ok := c.inferAnonymousObjectLiteralAsStruct(lit, c.expectedType, env); ok {
 			return typ
@@ -496,6 +519,48 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 				}
 			}
 			result = Void
+		case *ast.ReturnStmt:
+			valueType := Void
+			if s.Value != nil {
+				valueType = c.inferExpr(s.Value, local)
+			}
+			if c.currentReturn == Unknown {
+				c.currentReturn = valueType
+			} else if valueType != Unknown && !c.typesCompatible(c.currentReturn, valueType, nil) {
+				c.errorf(s.Pos, "return has type %s, expected %s", valueType, c.currentReturn)
+			}
+			result = Never
+		case *ast.ThrowStmt:
+			c.inferExpr(s.Value, local)
+			result = Never
+		case *ast.TryStmt:
+			bodyType := c.inferExpr(s.Body, local)
+			catchType := Never
+			if s.Catch != nil {
+				catchEnv := cloneEnv(local)
+				if s.CatchName != "" {
+					catchEnv[s.CatchName] = Unknown
+				}
+				catchType = c.inferExpr(s.Catch, catchEnv)
+			}
+			if s.Finally != nil {
+				c.inferExpr(s.Finally, local)
+			}
+			if bodyType == Never && catchType == Never {
+				result = Never
+			} else {
+				result = Void
+			}
+		case *ast.BreakStmt:
+			if c.loopDepth == 0 {
+				c.errorf(s.Pos, "break outside loop")
+			}
+			result = Never
+		case *ast.ContinueStmt:
+			if c.loopDepth == 0 {
+				c.errorf(s.Pos, "continue outside loop")
+			}
+			result = Never
 		case *ast.ExprStmt:
 			expected := Unknown
 			if isLast {
@@ -503,6 +568,13 @@ func (c *checker) inferBlock(block *ast.BlockExpr, env map[string]Type) Type {
 				c.refineExpectedBlockResultIdentifier(s.Expr, expected, local)
 			}
 			result = c.inferExprExpected(s.Expr, local, expected)
+			// An `if` without `else` whose body always leaves the block narrows
+			// the following statements to the negated condition. This is what
+			// makes the early-return idiom (`if (typeof x == "string") return x`)
+			// type-check the code below the guard.
+			if ifExpr, ok := s.Expr.(*ast.IfExpr); ok && ifExpr.Else == nil && result == Never {
+				local = c.narrowEnv(ifExpr.Cond, local, false)
+			}
 		}
 	}
 	return result
@@ -666,6 +738,11 @@ func (c *checker) applyExpectedType(expr ast.Expr, typ Type) {
 		if e.Alternative != nil {
 			c.applyExpectedType(e.Alternative, typ)
 		}
+	case *ast.IfExpr:
+		c.applyExpectedType(e.Then, typ)
+		if e.Else != nil {
+			c.applyExpectedType(e.Else, typ)
+		}
 	}
 }
 
@@ -828,7 +905,7 @@ func (c *checker) patternExprType(expr ast.Expr) Type {
 	case *ast.BoolLiteral:
 		return Bool
 	case *ast.IntegerLiteral:
-		return Int
+		return Int32
 	case *ast.DoubleLiteral:
 		return Double
 	case *ast.BigIntLiteral:
@@ -979,7 +1056,7 @@ func (c *checker) checkPatternWithSubject(pattern ast.Pattern, subject Type, env
 	case *ast.ComparePattern:
 		typ := c.inferExpr(p.Value, env)
 		if !orderedComparisonType(typ) && typ != Unknown {
-			c.errorf(p.Pos, "comparison pattern expects Int, Double, BigInt, String, or Char literal")
+			c.errorf(p.Pos, "comparison pattern expects Int32, Double, BigInt, String, or Char literal")
 		}
 	case *ast.RangePattern:
 		start := Unknown
@@ -1273,7 +1350,7 @@ func bitPatternValueType(pattern *ast.BitPattern) Type {
 		return UInt64
 	}
 	if pattern.Signed {
-		return Int
+		return Int32
 	}
 	return UInt
 }

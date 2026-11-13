@@ -20,6 +20,7 @@ import (
 	moonbitcodegen "github.com/oboard/rune-lang/internal/codegen/moonbit"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/interpreter"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/selfhostrunner"
 )
@@ -64,6 +65,13 @@ type Summary struct {
 
 func Run(path string, pattern string, out io.Writer) (Summary, error) {
 	return run(path, pattern, out, runSelfhostTest)
+}
+
+// RunHost executes tests with the host reference interpreter. It is used for
+// language constructs the self-hosted interpreter does not represent yet
+// (union/typeof, try/catch, undefined, classes lowered through them).
+func RunHost(path string, pattern string, out io.Writer) (Summary, error) {
+	return run(path, pattern, out, runHostTest)
 }
 
 func RunWithBackend(path string, pattern string, backend string, out io.Writer) (Summary, error) {
@@ -161,6 +169,13 @@ func run(path string, pattern string, out io.Writer, runner testRunner) (Summary
 
 func runSelfhostTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
 	return selfhostrunner.RunTestIR(file, test.Name)
+}
+
+func runHostTest(file *ir.File, test *ir.Test) selfhostrunner.Result {
+	var out bytes.Buffer
+	runner := interpreter.New(file, interpreter.WithOutput(&out))
+	err := runner.RunTest(test)
+	return selfhostrunner.Result{Output: out.String(), Err: err}
 }
 
 const goBatchTestMarker = "__RUNE_TEST_START__"

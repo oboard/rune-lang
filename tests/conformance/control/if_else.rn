@@ -1,0 +1,17 @@
+// expect: positive
+// expect: zero
+// expect: negative
+// targets: interpreter,go,ts,mbt
+sign(value: Int32) -> String => (value > 0) ? {
+  "positive"
+} : (value == 0) ? {
+  "zero"
+} : {
+  "negative"
+}
+
+main() => {
+  @io.println(sign(1))
+  @io.println(sign(0))
+  @io.println(sign(0 - 1))
+}

@@ -1,6 +1,6 @@
 JsonUser: {
   name: String
-  age: Int
+  age: Int32
 }
 
 #json.object

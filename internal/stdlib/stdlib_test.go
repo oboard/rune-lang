@@ -72,12 +72,12 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array length declaration")
 	}
-	if lenFn.Receiver != "Array" || lenFn.Intrinsic != "array.len" || lenFn.Return != "Int" {
+	if lenFn.Receiver != "Array" || lenFn.Intrinsic != "array.len" || lenFn.Return != "Int32" {
 		t.Fatalf("unexpected array.length declaration: %#v", lenFn)
 	}
-	intAdd, ok := reg.ReceiverFunction("int", "Int", "add")
-	if !ok || intAdd.Return != "Int" || len(intAdd.Params) != 1 || intAdd.Params[0] != "Int" {
-		t.Fatalf("unexpected Int.add declaration: %#v", intAdd)
+	intAdd, ok := reg.ReceiverFunction("int32", "Int32", "add")
+	if !ok || intAdd.Return != "Int32" || len(intAdd.Params) != 1 || intAdd.Params[0] != "Int32" {
+		t.Fatalf("unexpected Int32.add declaration: %#v", intAdd)
 	}
 	doubleDiv, ok := reg.ReceiverFunction("double", "Double", "div")
 	if !ok || doubleDiv.Return != "Double" || len(doubleDiv.Params) != 1 || doubleDiv.Params[0] != "Double" {
@@ -104,7 +104,7 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array map declaration")
 	}
-	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,Int,Array[T],U]" {
+	if mapFn.Intrinsic != "array.map" || mapFn.Return != "Array[U]" || len(mapFn.Params) != 1 || mapFn.Params[0] != "Func[T,Int32,Array[T],U]" {
 		t.Fatalf("unexpected array map declaration: %#v", mapFn)
 	}
 
@@ -112,7 +112,7 @@ func TestLoadCoreStubs(t *testing.T) {
 	if !ok {
 		t.Fatal("missing core/array reduce declaration")
 	}
-	if reduceFn.Intrinsic != "array.reduce" || reduceFn.Return != "U" || len(reduceFn.Params) != 2 || reduceFn.Params[0] != "U" || reduceFn.Params[1] != "Func[U,T,Int,Array[T],U]" {
+	if reduceFn.Intrinsic != "array.reduce" || reduceFn.Return != "U" || len(reduceFn.Params) != 2 || reduceFn.Params[0] != "U" || reduceFn.Params[1] != "Func[U,T,Int32,Array[T],U]" {
 		t.Fatalf("unexpected array reduce declaration: %#v", reduceFn)
 	}
 
@@ -169,9 +169,9 @@ func TestLoadDiscoversTopLevelRuneFilesInCoreModule(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	write(filepath.Join(moduleDir, "syntax.rn"), "primary() -> Int => 1\n")
-	write(filepath.Join(moduleDir, "helpers.rn"), "helper() -> Int => 1\n")
-	write(filepath.Join(moduleDir, "nested", "hidden.rn"), "hidden() -> Int => 1\n")
+	write(filepath.Join(moduleDir, "syntax.rn"), "primary() -> Int32 => 1\n")
+	write(filepath.Join(moduleDir, "helpers.rn"), "helper() -> Int32 => 1\n")
+	write(filepath.Join(moduleDir, "nested", "hidden.rn"), "hidden() -> Int32 => 1\n")
 
 	reg, err := Load(root)
 	if err != nil {
@@ -216,7 +216,7 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
   each[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> R
   ) -> Void => "%array.each"
@@ -229,7 +229,7 @@ func TestParseMultilineFunctionTypeStub(t *testing.T) {
 	if fn == nil {
 		t.Fatal("missing each declaration")
 	}
-	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int,Array[T],R]" {
+	if len(fn.Params) != 1 || fn.Params[0] != "Func[T,Int32,Array[T],R]" {
 		t.Fatalf("each params = %v, want callback Func", fn.Params)
 	}
 	if fn.Return != "Void" {

@@ -9,7 +9,7 @@ import (
 )
 
 func TestArrayAndAliasPatternBindings(t *testing.T) {
-	src := `score(values: Array[Int]) -> Int => values {
+	src := `score(values: Array[Int32]) -> Int32 => values {
   [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   _ => 0
 }
@@ -24,14 +24,14 @@ func TestArrayAndAliasPatternBindings(t *testing.T) {
 	}
 	match := file.Functions[0].Body.(*ast.MatchExpr)
 	aliasPattern := match.Branches[0].Pattern.(*ast.AliasPattern)
-	if got, want := aliasPattern.Type, "Array[Int]"; got != want {
+	if got, want := aliasPattern.Type, "Array[Int32]"; got != want {
 		t.Fatalf("alias binding type = %q, want %q", got, want)
 	}
 	arrayPattern := aliasPattern.Pattern.(*ast.ArrayPattern)
-	if got, want := arrayPattern.RestType, "Array[Int]"; got != want {
+	if got, want := arrayPattern.RestType, "Array[Int32]"; got != want {
 		t.Fatalf("rest type = %q, want %q", got, want)
 	}
-	if got, want := info.Functions["score"].Return, Int; got != want {
+	if got, want := info.Functions["score"].Return, Int32; got != want {
 		t.Fatalf("return = %s, want %s", got, want)
 	}
 }
@@ -66,11 +66,11 @@ func TestStringArrayPatternBindings(t *testing.T) {
 func TestPatternPredicateExpressionInfersEnumMembers(t *testing.T) {
 	src := `TokenKind: {
   Ident = 0
-  Int = 1
+  Int32 = 1
   RParen = 2
 }
 
-canEndValueToken(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
+canEndValueToken(kind: TokenKind) -> Bool => kind ~ (Ident | Int32 | RParen)
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -95,12 +95,12 @@ canEndValueToken(kind: TokenKind) -> Bool => kind ~ (Ident | Int | RParen)
 
 func TestConstructorArgPatternsAndOrBindings(t *testing.T) {
 	src := `Expr: {
-  Lit(value: Int)
+  Lit(value: Int32)
   Add(left: Expr, right: Expr)
   Mul(left: Expr, right: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Add(Lit(left), Lit(0)) => left
   Add(left, right) | Mul(left, right) => 1
   _ => 0
@@ -116,18 +116,18 @@ eval(expr: Expr) -> Int => expr {
 	}
 	match := file.Functions[0].Body.(*ast.MatchExpr)
 	leftExpr := match.Branches[0].Expr.(*ast.Identifier)
-	if got, want := info.ExprTypes[leftExpr], Int; got != want {
+	if got, want := info.ExprTypes[leftExpr], Int32; got != want {
 		t.Fatalf("nested constructor binding type = %s, want %s", got, want)
 	}
 }
 
 func TestOrPatternRequiresSameBindings(t *testing.T) {
 	src := `Expr: {
-  Lit(value: Int)
+  Lit(value: Int32)
   Add(left: Expr, right: Expr)
 }
 
-bad(expr: Expr) -> Int => expr {
+bad(expr: Expr) -> Int32 => expr {
   Add(left, right) | Lit(left) => 1
   _ => 0
 }
@@ -145,7 +145,7 @@ bad(expr: Expr) -> Int => expr {
 func TestMapPatternAllowsConstKeys(t *testing.T) {
 	src := `KeyA := "a"
 
-score(values: Map[String, Int]) -> Int => values {
+score(values: Map[String, Int32]) -> Int32 => values {
   { KeyA: value, .. } => value
   _ => 0
 }
@@ -161,7 +161,7 @@ score(values: Map[String, Int]) -> Int => values {
 }
 
 func TestMapPatternRejectsNonConstKeys(t *testing.T) {
-	src := `score(values: Map[String, Int], KeyA: String) -> Int => values {
+	src := `score(values: Map[String, Int32], KeyA: String) -> Int32 => values {
   { KeyA: value, .. } => value
   _ => 0
 }
@@ -180,7 +180,7 @@ func TestMapPatternRejectsNonConstKeys(t *testing.T) {
 }
 
 func TestRangePatternRejectsNonConstBounds(t *testing.T) {
-	src := `score(value: Int, Limit: Int) -> Int => value {
+	src := `score(value: Int32, Limit: Int32) -> Int32 => value {
   0..<Limit => 1
   _ => 0
 }

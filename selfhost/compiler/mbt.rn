@@ -92,7 +92,7 @@ fn __rune_path_relative(from : String, to : String) -> String {
   __rune_path_relative_from_parts(from_parts, to_parts, 0)
 }
 
-fn __rune_path_join_parts(parts : Array[String], index : Int, out : String) -> String {
+fn __rune_path_join_parts(parts : Array[String], index : Int32, out : String) -> String {
   if index >= parts.length() {
     out
   } else {
@@ -110,7 +110,7 @@ fn __rune_path_append_part(out : String, part : String) -> String {
   }
 }
 
-fn __rune_path_normalize_parts(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+fn __rune_path_normalize_parts(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {
   if index >= parts.length() {
     out
   } else {
@@ -125,7 +125,7 @@ fn __rune_path_normalize_parts(parts : Array[String], index : Int, absolute : Bo
   }
 }
 
-fn __rune_path_normalize_parent(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+fn __rune_path_normalize_parent(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {
   if out.length() > 0 {
     __rune_path_normalize_pop(parts, index, absolute, out)
   } else if absolute {
@@ -135,11 +135,11 @@ fn __rune_path_normalize_parent(parts : Array[String], index : Int, absolute : B
   }
 }
 
-fn __rune_path_normalize_pop(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {
+fn __rune_path_normalize_pop(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {
   __rune_path_normalize_parts(parts, index + 1, absolute, out[:out.length() - 1].to_owned())
 }
 
-fn __rune_path_normalize_push(parts : Array[String], index : Int, absolute : Bool, out : Array[String], part : String) -> Array[String] {
+fn __rune_path_normalize_push(parts : Array[String], index : Int32, absolute : Bool, out : Array[String], part : String) -> Array[String] {
   __rune_path_normalize_parts(parts, index + 1, absolute, [..out, part])
 }
 
@@ -148,7 +148,7 @@ fn __rune_path_parts(path : String) -> Array[String] {
   __rune_path_collect_parts(pieces, 0, [])
 }
 
-fn __rune_path_collect_parts(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {
+fn __rune_path_collect_parts(parts : Array[String], index : Int32, out : Array[String]) -> Array[String] {
   if index >= parts.length() {
     out
   } else if parts[index].is_empty() {
@@ -158,7 +158,7 @@ fn __rune_path_collect_parts(parts : Array[String], index : Int, out : Array[Str
   }
 }
 
-fn __rune_path_collect_part(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {
+fn __rune_path_collect_part(parts : Array[String], index : Int32, out : Array[String]) -> Array[String] {
   if index < parts.length() {
     __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])
   } else {
@@ -166,7 +166,7 @@ fn __rune_path_collect_part(parts : Array[String], index : Int, out : Array[Stri
   }
 }
 
-fn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[String], index : Int) -> String {
+fn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[String], index : Int32) -> String {
   if index < from_parts.length() && index < to_parts.length() && from_parts[index] == to_parts[index] {
     __rune_path_relative_from_parts(from_parts, to_parts, index + 1)
   } else {
@@ -174,7 +174,7 @@ fn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[
   }
 }
 
-fn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String], from_index : Int, to_index : Int, out : String) -> String {
+fn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String], from_index : Int32, to_index : Int32, out : String) -> String {
   if from_index < from_parts.length() {
     __rune_path_relative_tail(from_parts, to_parts, from_index + 1, to_index, __rune_path_append_part(out, ".."))
   } else if to_index < to_parts.length() {
@@ -198,7 +198,7 @@ emitMoonBitEnum(
 
 emitMoonBitEnumMembers(
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -287,7 +287,7 @@ emitMoonBitBody(
   expr: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Block => emitMoonBitBlock(expr.children, 0, returns, returnType, level, "")
   _ => line(level, (
@@ -298,10 +298,10 @@ emitMoonBitBody(
 
 emitMoonBitBlock(
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   returns: Bool,
   returnType: String,
-  level: Int,
+  level: Int32,
   out: String
 ) -> String => (
   index >= statements.length() ? (
@@ -315,7 +315,7 @@ emitMoonBitStatement(
   expr: IRExpr,
   last: Bool,
   returns: Bool,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Let => emitMoonBitLet(expr, level)
   ExprKind.ObjectDestructure => emitMoonBitObjectDestructure(expr, level)
@@ -327,7 +327,7 @@ emitMoonBitStatement(
 
 emitMoonBitLet(
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => line(level, ((moonBitLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitMoonBitExpr(expr.children[0]))
 
 moonBitLetKeyword(op: String) -> String => op {
@@ -337,7 +337,7 @@ moonBitLetKeyword(op: String) -> String => op {
 
 emitMoonBitObjectDestructure(
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => {
   source := emitMoonBitExpr(expr.children[0])
   tmp := mangleIdent("__object")
@@ -348,7 +348,7 @@ emitMoonBitObjectDestructure(
 
 emitMoonBitParams(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -360,7 +360,7 @@ emitMoonBitParams(
 
 emitMoonBitParamTypes(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -410,6 +410,10 @@ emitMoonBitExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Object => ("{ " + emitMoonBitFields(expr.children, 0, "")) + " }"
   ExprKind.XMLElement => "()"
   ExprKind.Block => ("{\n" + emitMoonBitBlock(expr.children, 0, true, "Dynamic", 1, "")) + "}"
+  ExprKind.Loop => "{\n" + line(1, "while " + emitMoonBitExpr(expr.children[0]) + " {") + emitMoonBitBlock(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "}"
+  ExprKind.Return => expr.children.length() > 0 ? "return " + emitMoonBitExpr(expr.children[0]) : "return"
+  ExprKind.Break => "break"
+  ExprKind.Continue => "continue"
   _ => "()"
 }
 
@@ -431,7 +435,7 @@ emitMoonBitTemplate(
 mbtTemplateAccumulate(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= segments.length() ? out
@@ -441,7 +445,7 @@ mbtTemplateAccumulate(
 mbtTemplateAppendStep(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => {
   withText := (
@@ -463,7 +467,7 @@ mbtTemplateInterpolation(
 
 joinMoonBitTemplateParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= parts.length() ? out
@@ -480,7 +484,7 @@ mbtStringLiteral(raw: String) -> String => ("\"" + mbtStringLiteralChars(raw, 0,
 
 mbtStringLiteralChars(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= raw.length() ? out
@@ -489,7 +493,7 @@ mbtStringLiteralChars(
 
 mbtStringLiteralChar(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => ((raw.at(index) == '\\') && ((index + 1) < raw.length())) {
   true => mbtStringLiteralNext(raw, index + 2, out + mbtStringLiteralEscaped(raw.at(index + 1)))
@@ -536,7 +540,7 @@ mbtStringLiteralPlain(
 
 mbtStringLiteralNext(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => mbtStringLiteralChars(raw, index, out)
 
@@ -624,12 +628,12 @@ emitMoonBitCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "process.cwd" => "\".\""
   "process.env" => "(None : String?)"
   "process.argv" => "([] : Array[String])"
-  "int.toString" => ("(" + emitMoonBitExpr(expr.children[1])) + ").to_string()"
-  "int.toDouble" => ("(" + emitMoonBitExpr(expr.children[1])) + ").to_double()"
-  "int.toBigInt" => ("BigInt::from_int(" + emitMoonBitExpr(expr.children[1])) + ")"
-  "int4.fromInt" => ("(fn(__value : Int) -> Int { let __n = __value & 0xf; if __n >= 8 { __n - 16 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
-  "int8.fromInt" => ("(fn(__value : Int) -> Int { let __n = __value & 0xff; if __n >= 128 { __n - 256 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
-  "int16.fromInt" => ("(fn(__value : Int) -> Int { let __n = __value & 0xffff; if __n >= 32768 { __n - 65536 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
+  "int32.toString" => ("(" + emitMoonBitExpr(expr.children[1])) + ").to_string()"
+  "int32.toDouble" => ("(" + emitMoonBitExpr(expr.children[1])) + ").to_double()"
+  "int32.toBigInt" => ("BigInt::from_int(" + emitMoonBitExpr(expr.children[1])) + ")"
+  "int4.fromInt" => ("(fn(__value : Int32) -> Int32 { let __n = __value & 0xf; if __n >= 8 { __n - 16 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
+  "int8.fromInt" => ("(fn(__value : Int32) -> Int32 { let __n = __value & 0xff; if __n >= 128 { __n - 256 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
+  "int16.fromInt" => ("(fn(__value : Int32) -> Int32 { let __n = __value & 0xffff; if __n >= 32768 { __n - 65536 } else { __n } })(" + emitMoonBitExpr(expr.children[1])) + ")"
   "int64.fromInt" => ("Int64::from_int(" + emitMoonBitExpr(expr.children[1])) + ")"
   "uint.fromInt" | "uint8.fromInt" | "uint16.fromInt" => ("(" + emitMoonBitExpr(expr.children[1])) + ").reinterpret_as_uint()"
   "uint64.fromInt" => ("(" + emitMoonBitExpr(expr.children[1])) + ").to_uint64()"
@@ -749,7 +753,7 @@ emitMoonBitDefaultCall(
 
 emitMoonBitPrintArgs(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= exprs.length() ? (
@@ -799,13 +803,13 @@ emitMoonBitAtSelector(
 
 emitMoonBitExprList(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => emitMoonBitExprListFrom(exprs, index, out)
 
 emitMoonBitExprListFrom(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= exprs.length() ? out
@@ -817,7 +821,7 @@ emitMoonBitExprListFrom(
 
 emitMoonBitMapEntries(
   entries: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   (
@@ -831,7 +835,7 @@ emitMoonBitMapEntries(
 
 emitMoonBitFields(
   fields: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fields.length() ? out
@@ -856,7 +860,7 @@ moonBitBinaryOp(op: String) -> String => op {
 
 moonBitType(typeName: String) -> String => {
   "" | "Void" => "Unit"
-  "Int" | "Int4" | "Int8" | "Int16" => "Int"
+  "Int32" | "Int4" | "Int8" | "Int16" => "Int32"
   "UInt" | "UInt8" | "UInt16" => "UInt"
   "Int64" => "Int64"
   "UInt64" => "UInt64"
@@ -867,7 +871,7 @@ moonBitType(typeName: String) -> String => {
   "Char" => "Char"
   "Bool" => "Bool"
   "Dynamic" | "Object" => "Unit"
-  "Data" | "@io.Data" => "Array[Int]"
+  "Data" | "@io.Data" => "Array[Int32]"
   _ => moonBitTypeFallback(typeName)
 }
 
@@ -906,7 +910,7 @@ emitMoonBitTypeArgs(
 
 emitMoonBitTypeArgList(
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= args.length() ? out
@@ -917,7 +921,7 @@ emitMoonBitTypeArgList(
 )
 
 moonBitZero(typeName: String) -> String => typeName {
-  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" => "0"
+  "Int32" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" => "0"
   "Int64" => "0L"
   "UInt64" => "0UL"
   "Double" | "Float" => "0.0"
@@ -928,7 +932,7 @@ moonBitZero(typeName: String) -> String => typeName {
 
 joinMoonBitStrings(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= values.length() ? out
@@ -940,7 +944,7 @@ joinMoonBitStrings(
 
 joinMoonBitGenericNames(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= values.length() ? out

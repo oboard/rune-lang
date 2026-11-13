@@ -24,6 +24,9 @@ func goType(typ checker.Type) string {
 	if strings.HasPrefix(string(typ), "&") {
 		return "any"
 	}
+	if checker.IsUnionType(typ) {
+		return "any"
+	}
 	if _, ok := parseGoNullableType(string(typ)); ok {
 		return "any"
 	}
@@ -71,7 +74,7 @@ func goType(typ checker.Type) string {
 		return "func(" + strings.Join(goParams, ", ") + ") " + goType(checker.Type(ret))
 	}
 	switch typ {
-	case checker.Int:
+	case checker.Int32:
 		return "int"
 	case checker.Int4, checker.Int8:
 		return "int8"
@@ -100,6 +103,8 @@ func goType(typ checker.Type) string {
 	case checker.Bool:
 		return "bool"
 	case checker.Null:
+		return "any"
+	case checker.Undefined:
 		return "any"
 	case checker.Object:
 		return "any"
@@ -283,7 +288,7 @@ func zeroValue(typ checker.Type) string {
 		}
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.Int64, checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.Int64, checker.UInt, checker.UInt8, checker.UInt16, checker.UInt64:
 		return "0"
 	case checker.Double, checker.Float:
 		return "0"

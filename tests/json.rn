@@ -1,6 +1,6 @@
 JsonUser: {
   name: String
-  age: Int
+  age: Int32
 }
 
 #json.object
@@ -14,7 +14,7 @@ JsonAccount: {
 #json.object
 JsonProfile: {
   label: String
-  scores: Array[Int]
+  scores: Array[Int32]
 }
 
 #json.object

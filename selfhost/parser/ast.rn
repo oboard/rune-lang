@@ -14,22 +14,22 @@
   args: Array[ParsedTypeRef]
   params: Array[ParsedTypeParam]
   returnTypes: Array[ParsedTypeRef]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParseError: {
   message: String
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedImport: {
   path: String
   go: Bool
   module: Bool
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedConst: {
@@ -37,8 +37,8 @@
   private: Bool
   typeRef: ParsedTypeRef
   value: ParsedExpr
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedAnnotation: {
@@ -46,15 +46,15 @@
   module: String
   name: String
   args: Array[ParsedExpr]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedParam: {
   name: String
   typeRef: ParsedTypeRef
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedExpr: {
@@ -65,8 +65,8 @@
   op: String
   params: Array[ParsedParam]
   children: Array[ParsedExpr]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedField: {
@@ -74,8 +74,8 @@
   private: Bool
   annotations: Array[ParsedAnnotation]
   typeRef: ParsedTypeRef
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedEnumMember: {
@@ -84,8 +84,8 @@
   annotations: Array[ParsedAnnotation]
   value: String
   params: Array[ParsedParam]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedFunction: {
@@ -100,8 +100,8 @@
   params: Array[ParsedParam]
   returnType: ParsedTypeRef
   body: ParsedExpr
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedType: {
@@ -113,15 +113,15 @@
   fields: Array[ParsedField]
   methods: Array[ParsedFunction]
   members: Array[ParsedEnumMember]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedTest: {
   name: String
   body: ParsedExpr
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + ParsedFile: {
@@ -190,6 +190,10 @@
   Error = 45
   Watch = 46
   XMLElement = 47
+  Loop = 48
+  Return = 49
+  Break = 50
+  Continue = 51
 }
 
 + emptyParsedTypeRef() -> ParsedTypeRef => {
@@ -371,7 +375,7 @@ typeParamToString(
 
 typeRefsToString(
   refs: Array[ParsedTypeRef],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= refs.length() ? out
@@ -383,7 +387,7 @@ typeRefsToString(
 
 typeParamsToString(
   params: Array[ParsedTypeParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -441,5 +445,9 @@ typeParamsToString(
   ExprKind.Error => "error"
   ExprKind.Watch => "watch"
   ExprKind.XMLElement => "xmlElement"
+  ExprKind.Loop => "loop"
+  ExprKind.Return => "return"
+  ExprKind.Break => "break"
+  ExprKind.Continue => "continue"
   _ => "unknown"
 }

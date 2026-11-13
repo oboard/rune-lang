@@ -1,5 +1,9 @@
 # Rune Core Library
 
+> **Frozen by RFC 0001.** This directory is being retired in favor of
+> TypeScript's `lib.*.d.ts`. Do not add modules or intrinsics here; new built-in
+> APIs belong in `internal/libenv` and the backend runtime shims.
+
 `/core` is the declaration source for built-in Rune modules. The compiler does
 not invent `@module.function` calls: checker and codegen load declarations from
 these module files.

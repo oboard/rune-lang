@@ -44,7 +44,7 @@ func (g *generator) netRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_net_connection_read(connection : RuneTCPConnection, length : Int) -> Result[Array[Int], String] {")
+	g.line("async fn rune_net_connection_read(connection : RuneTCPConnection, length : Int32) -> Result[Array[Int32], String] {")
 	g.indent++
 	g.line("if length < 0 { return Err(\"net read length out of range\") }")
 	g.line("if length == 0 { return Ok([]) }")
@@ -65,7 +65,7 @@ func (g *generator) netRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_net_connection_write(connection : RuneTCPConnection, data : Array[Int]) -> Result[Int, String] {")
+	g.line("async fn rune_net_connection_write(connection : RuneTCPConnection, data : Array[Int32]) -> Result[Int32, String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++

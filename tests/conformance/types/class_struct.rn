@@ -1,0 +1,19 @@
+// expect: 3
+// expect: 0
+// targets: interpreter,go,ts,mbt
+Point: {
+  x: Double
+  y: Double
+  sum() -> Double => .x + .y
+}
+
+Point_new(x: Double, y: Double) -> Point => Point { x: x, y: y }
+
+Point_origin() -> Point => Point_new(0.0, 0.0)
+
+main() => {
+  point := Point_new(1.0, 2.0)
+  @io.println(point.sum())
+  origin := Point_origin()
+  @io.println(origin.sum())
+}

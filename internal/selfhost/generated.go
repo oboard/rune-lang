@@ -8,6 +8,14 @@ import (
 	"sync"
 )
 
+var runeInt32Zero int
+
+type runeUndefinedValue struct{}
+
+var runeUndefined = runeUndefinedValue{}
+
+type runeThrown struct{ Value any }
+
 type TokenKind int
 
 const (
@@ -136,6 +144,10 @@ const (
 	ExprKind_Error             ExprKind = 45
 	ExprKind_Watch             ExprKind = 46
 	ExprKind_XMLElement        ExprKind = 47
+	ExprKind_Loop              ExprKind = 48
+	ExprKind_Return            ExprKind = 49
+	ExprKind_Break             ExprKind = 50
+	ExprKind_Continue          ExprKind = 51
 )
 
 type Token struct {
@@ -439,6 +451,12 @@ type EnumMemberPayloadStep struct {
 type AnnotationStep struct {
 	state      ParserState
 	annotation ParsedAnnotation
+}
+
+type SwitchCasesStep struct {
+	state      ParserState
+	block      ParsedExpr
+	hasDefault bool
 }
 
 type IRImport struct {
@@ -1092,7 +1110,7 @@ func selfhost_lexer_lexer_peek(state LexState) rune {
 }
 
 func selfhost_lexer_lexer_peekNext(state LexState) rune {
-	return selfhost_lexer_lexer_charAt(state.chars, state.current+1)
+	return selfhost_lexer_lexer_charAt(state.chars, int(int32(state.current+1+runeInt32Zero)))
 }
 
 func selfhost_lexer_lexer_advanceState(state LexState) LexState {
@@ -1113,16 +1131,16 @@ func selfhost_lexer_lexer_advanced(state LexState, ch rune) Advanced {
 }
 
 func selfhost_lexer_lexer_advanceChar(state LexState, ch rune) Advanced {
-	return Advanced{state: LexState{source: state.source, chars: state.chars, start: state.start, current: state.current + 1, line: func() int {
+	return Advanced{state: LexState{source: state.source, chars: state.chars, start: state.start, current: int(int32(state.current + 1 + runeInt32Zero)), line: func() int {
 		if ch == '\n' {
-			return state.line + 1
+			return int(int32(state.line + 1 + runeInt32Zero))
 		}
 		return state.line
 	}(), column: func() int {
 		if ch == '\n' {
 			return 1
 		}
-		return state.column + 1
+		return int(int32(state.column + 1 + runeInt32Zero))
 	}(), startLine: state.startLine, startColumn: state.startColumn, canStartRegex: state.canStartRegex, mode: state.mode, xmlDepth: state.xmlDepth, xmlClosing: state.xmlClosing, xmlSelfClosed: state.xmlSelfClosed, xmlExprMode: state.xmlExprMode, xmlExprDepth: state.xmlExprDepth, xmlNestedExprMode: state.xmlNestedExprMode, xmlNestedExprDepth: state.xmlNestedExprDepth, xmlInAttributeExpr: state.xmlInAttributeExpr, xmlAfterMode: state.xmlAfterMode, xmlAfterDepth: state.xmlAfterDepth}, ch: ch}
 }
 
@@ -1345,13 +1363,13 @@ func selfhost_lexer_lexer_enterXMLAttributeExpr(state LexState) LexState {
 func selfhost_lexer_lexer_xmlStateAfterTagEnd(state LexState) LexState {
 	nextDepth := func() int {
 		if state.xmlClosing {
-			return state.xmlDepth - 1
+			return int(int32(state.xmlDepth - 1 + runeInt32Zero))
 		}
 		return func() int {
 			if state.xmlSelfClosed {
 				return state.xmlDepth
 			}
-			return state.xmlDepth + 1
+			return int(int32(state.xmlDepth + 1 + runeInt32Zero))
 		}()
 	}()
 	nextMode := func() int {
@@ -1406,7 +1424,7 @@ func selfhost_lexer_lexer_scanXMLExprToken(step Advanced) Lexed {
 	return func() Lexed {
 		switch {
 		case ch == '{':
-			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, selfhost_lexer_lexer_xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, state.xmlExprDepth+1), TokenKind_LBrace)
+			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_lexStateXML(state, selfhost_lexer_lexer_xmlModeExpr(), state.xmlDepth, state.xmlClosing, state.xmlSelfClosed, state.xmlExprMode, int(int32(state.xmlExprDepth+1+runeInt32Zero))), TokenKind_LBrace)
 		case ch == '}':
 			return selfhost_lexer_lexer_lexed(selfhost_lexer_lexer_xmlStateAfterExprBrace(state), TokenKind_RBrace)
 		case ch == '\n':
@@ -1418,7 +1436,7 @@ func selfhost_lexer_lexer_scanXMLExprToken(step Advanced) Lexed {
 }
 
 func selfhost_lexer_lexer_xmlStateAfterExprBrace(state LexState) LexState {
-	nextDepth := state.xmlExprDepth - 1
+	nextDepth := int(int32(state.xmlExprDepth - 1 + runeInt32Zero))
 	nextMode := func() int {
 		if nextDepth <= 0 {
 			return state.xmlExprMode
@@ -2050,7 +2068,7 @@ func selfhost_parser_ast_typeRefsToString(refs []ParsedTypeRef, index int, out s
 		if index >= len(refs) {
 			return out
 		} else {
-			refs, index, out = refs, index+1, out+func() string {
+			refs, index, out = refs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -2066,7 +2084,7 @@ func selfhost_parser_ast_typeParamsToString(params []ParsedTypeParam, index int,
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -2174,6 +2192,14 @@ func exprKindName(kind ExprKind) string {
 			return "watch"
 		case kind == ExprKind_XMLElement:
 			return "xmlElement"
+		case kind == ExprKind_Loop:
+			return "loop"
+		case kind == ExprKind_Return:
+			return "return"
+		case kind == ExprKind_Break:
+			return "break"
+		case kind == ExprKind_Continue:
+			return "continue"
 		default:
 			return "unknown"
 		}
@@ -2265,7 +2291,7 @@ func selfhost_parser_parser_parserPrevious(state ParserState) Token {
 		if state.current <= 0 {
 			return selfhost_parser_parser_emptyToken()
 		}
-		return state.tokens[state.current-1]
+		return state.tokens[int(int32(state.current-1+runeInt32Zero))]
 	}()
 }
 
@@ -2287,7 +2313,7 @@ func selfhost_parser_parser_parserCheck(state ParserState, kind TokenKind) bool 
 }
 
 func selfhost_parser_parser_parserCheckNext(state ParserState, kind TokenKind) bool {
-	return selfhost_parser_parser_parserKindAt(state, state.current+1) == kind
+	return selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero))) == kind
 }
 
 func selfhost_parser_parser_stateAt(state ParserState, current int) ParserState {
@@ -2299,7 +2325,7 @@ func selfhost_parser_parser_parserAdvance(state ParserState) TokenStep {
 		if selfhost_parser_parser_parserCheck(state, TokenKind_EOF) {
 			return TokenStep{state: state, token: selfhost_parser_parser_parserPeek(state)}
 		}
-		return TokenStep{state: selfhost_parser_parser_stateAt(state, state.current+1), token: selfhost_parser_parser_parserPeek(state)}
+		return TokenStep{state: selfhost_parser_parser_stateAt(state, int(int32(state.current+1+runeInt32Zero))), token: selfhost_parser_parser_parserPeek(state)}
 	}()
 }
 
@@ -2381,7 +2407,10 @@ func selfhost_parser_parser_consumeFieldSeparator(state ParserState, close Token
 func selfhost_parser_parser_unquote(raw string) string {
 	return func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -2482,7 +2511,7 @@ func selfhost_parser_parser_looksLikeGoImportDecl(state ParserState) bool {
 }
 
 func selfhost_parser_parser_looksLikeGoImportAfterMarker(state ParserState) bool {
-	module := selfhost_parser_parser_parserKindAt(state, state.current+1) == TokenKind_Ident && selfhost_parser_parser_parserTokenAt(state, state.current+1).lexeme == "go"
+	module := selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero))) == TokenKind_Ident && selfhost_parser_parser_parserTokenAt(state, int(int32(state.current+1+runeInt32Zero))).lexeme == "go"
 	return func() bool {
 		if module {
 			return selfhost_parser_parser_looksLikeGoImportAfterModule(state)
@@ -2492,10 +2521,10 @@ func selfhost_parser_parser_looksLikeGoImportAfterMarker(state ParserState) bool
 }
 
 func selfhost_parser_parser_looksLikeGoImportAfterModule(state ParserState) bool {
-	dot := selfhost_parser_parser_parserKindAt(state, state.current+2) == TokenKind_Dot
+	dot := selfhost_parser_parser_parserKindAt(state, int(int32(state.current+2+runeInt32Zero))) == TokenKind_Dot
 	return func() bool {
 		if dot {
-			return selfhost_parser_parser_parserKindAt(state, state.current+3) == TokenKind_Ident && selfhost_parser_parser_parserTokenAt(state, state.current+3).lexeme == "import"
+			return selfhost_parser_parser_parserKindAt(state, int(int32(state.current+3+runeInt32Zero))) == TokenKind_Ident && selfhost_parser_parser_parserTokenAt(state, int(int32(state.current+3+runeInt32Zero))).lexeme == "import"
 		}
 		return false
 	}()
@@ -2525,7 +2554,7 @@ func selfhost_parser_parser_parseTopLevelImport(state ParserState, file ParsedFi
 }
 
 func selfhost_parser_parser_looksLikeBareModuleImportDecl(state ParserState) bool {
-	return selfhost_parser_parser_parserCheck(state, TokenKind_At) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Ident) && selfhost_parser_parser_parserKindAt(state, state.current+2) != TokenKind_Dot
+	return selfhost_parser_parser_parserCheck(state, TokenKind_At) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Ident) && selfhost_parser_parser_parserKindAt(state, int(int32(state.current+2+runeInt32Zero))) != TokenKind_Dot
 }
 
 func selfhost_parser_parser_parseTopLevelTest(state ParserState, file ParsedFile) FileStep {
@@ -3179,7 +3208,7 @@ func selfhost_parser_parser_parseUnnamedTypeParam(state ParserState) TypeParamSt
 }
 
 func selfhost_parser_parser_typeParamHasName(state ParserState) bool {
-	return selfhost_parser_parser_parserKindAt(state, state.current+1) == TokenKind_Colon || selfhost_parser_parser_parserKindAt(state, state.current+1) == TokenKind_Question && selfhost_parser_parser_parserKindAt(state, state.current+2) == TokenKind_Colon
+	return selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero))) == TokenKind_Colon || selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero))) == TokenKind_Question && selfhost_parser_parser_parserKindAt(state, int(int32(state.current+2+runeInt32Zero))) == TokenKind_Colon
 }
 
 func selfhost_parser_parser_parseTypeRefError(state ParserState) TypeRefStep {
@@ -3210,8 +3239,8 @@ func selfhost_parser_parser_parseBraceBody(state ParserState) ExprStep {
 }
 
 func selfhost_parser_parser_looksLikeObjectLiteralBody(state ParserState) bool {
-	first := selfhost_parser_parser_skipNewlinesAt(state, state.current+1)
-	return selfhost_parser_parser_parserKindAt(state, first) == TokenKind_DotDot || selfhost_parser_parser_parserKindAt(state, first) == TokenKind_Ident && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, first+1)) == TokenKind_Colon
+	first := selfhost_parser_parser_skipNewlinesAt(state, int(int32(state.current+1+runeInt32Zero)))
+	return selfhost_parser_parser_parserKindAt(state, first) == TokenKind_DotDot || selfhost_parser_parser_parserKindAt(state, first) == TokenKind_Ident && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(first+1+runeInt32Zero)))) == TokenKind_Colon
 }
 
 func selfhost_parser_parser_parseBlock(state ParserState) ExprStep {
@@ -3253,30 +3282,60 @@ func selfhost_parser_parser_parseBlockStatement(state ParserState, block ParsedE
 
 func selfhost_parser_parser_parseStatement(state ParserState) ExprStep {
 	return func() ExprStep {
-		if selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_looksLikeObjectDestructureDecl(state) {
-			return selfhost_parser_parser_parseObjectDestructureStatement(state)
+		if selfhost_parser_parser_parserCheck(state, TokenKind_Star) && selfhost_parser_parser_parserCheckNext(state, TokenKind_LParen) {
+			return selfhost_parser_parser_parseStarLoopExpression(state)
 		}
 		return func() ExprStep {
-			if selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) {
-				return selfhost_parser_parser_parseBlock(state)
+			if selfhost_parser_parser_parserCheck(state, TokenKind_BitXor) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Greater) {
+				return selfhost_parser_parser_parseSymbolLoopControlStatement(state, ExprKind_Continue, "^>")
 			}
 			return func() ExprStep {
-				if selfhost_parser_parser_parserCheck(state, TokenKind_Dollar) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Ident) {
-					return selfhost_parser_parser_parseDollarStatement(state)
+				if selfhost_parser_parser_parserCheck(state, TokenKind_BitXor) {
+					return selfhost_parser_parser_parseSymbolLoopControlStatement(state, ExprKind_Break, "^")
 				}
 				return func() ExprStep {
-					if selfhost_parser_parser_parserCheck(state, TokenKind_Dollar) && selfhost_parser_parser_parserKindAt(state, state.current+1) == TokenKind_LBracket {
-						return selfhost_parser_parser_parseExpression(state, 1)
+					if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserPeek(state).lexeme == "break" {
+						return selfhost_parser_parser_parseLoopControlStatement(state, ExprKind_Break)
 					}
 					return func() ExprStep {
-						if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && (selfhost_parser_parser_parserCheckNext(state, TokenKind_Declare) || selfhost_parser_parser_parserCheckNext(state, TokenKind_MutDeclare)) {
-							return selfhost_parser_parser_parseLetStatement(state)
+						if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserPeek(state).lexeme == "continue" {
+							return selfhost_parser_parser_parseLoopControlStatement(state, ExprKind_Continue)
 						}
 						return func() ExprStep {
-							if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Assign) {
-								return selfhost_parser_parser_parseAssignStatement(state)
+							if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserPeek(state).lexeme == "return" {
+								return selfhost_parser_parser_parseReturnStatement(state)
 							}
-							return selfhost_parser_parser_parseExpression(state, 1)
+							return func() ExprStep {
+								if selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_looksLikeObjectDestructureDecl(state) {
+									return selfhost_parser_parser_parseObjectDestructureStatement(state)
+								}
+								return func() ExprStep {
+									if selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) {
+										return selfhost_parser_parser_parseBlock(state)
+									}
+									return func() ExprStep {
+										if selfhost_parser_parser_parserCheck(state, TokenKind_Dollar) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Ident) {
+											return selfhost_parser_parser_parseDollarStatement(state)
+										}
+										return func() ExprStep {
+											if selfhost_parser_parser_parserCheck(state, TokenKind_Dollar) && selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero))) == TokenKind_LBracket {
+												return selfhost_parser_parser_parseExpression(state, 1)
+											}
+											return func() ExprStep {
+												if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && (selfhost_parser_parser_parserCheckNext(state, TokenKind_Declare) || selfhost_parser_parser_parserCheckNext(state, TokenKind_MutDeclare)) {
+													return selfhost_parser_parser_parseLetStatement(state)
+												}
+												return func() ExprStep {
+													if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserCheckNext(state, TokenKind_Assign) {
+														return selfhost_parser_parser_parseAssignStatement(state)
+													}
+													return selfhost_parser_parser_parseExpression(state, 1)
+												}()
+											}()
+										}()
+									}()
+								}()
+							}()
 						}()
 					}()
 				}()
@@ -3285,9 +3344,40 @@ func selfhost_parser_parser_parseStatement(state ParserState) ExprStep {
 	}()
 }
 
+func selfhost_parser_parser_parseLoopControlStatement(state ParserState, kind ExprKind) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	return ExprStep{state: keyword.state, expr: selfhost_parser_parser_makeExpr(kind, keyword.token.lexeme, "", "", "", []ParsedParam{}, []ParsedExpr{}, keyword.token.line, keyword.token.column)}
+}
+
+func selfhost_parser_parser_parseSymbolLoopControlStatement(state ParserState, kind ExprKind, symbol string) ExprStep {
+	mark := selfhost_parser_parser_parserAdvance(state)
+	next := func() ParserState {
+		if kind == ExprKind_Continue {
+			return selfhost_parser_parser_parserConsume(mark.state, TokenKind_Greater, "expected '>' after '^'").state
+		}
+		return mark.state
+	}()
+	return ExprStep{state: next, expr: selfhost_parser_parser_makeExpr(kind, symbol, "", "", "", []ParsedParam{}, []ParsedExpr{}, mark.token.line, mark.token.column)}
+}
+
+func selfhost_parser_parser_parseReturnStatement(state ParserState) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	next := selfhost_parser_parser_parserPeek(keyword.state)
+	bare := next.kind == TokenKind_Newline || next.kind == TokenKind_RBrace || next.kind == TokenKind_EOF
+	return func() ExprStep {
+		if bare {
+			return ExprStep{state: keyword.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Return, "return", "", "", "", []ParsedParam{}, []ParsedExpr{}, keyword.token.line, keyword.token.column)}
+		}
+		return func() ExprStep {
+			value := selfhost_parser_parser_parseExpression(keyword.state, 1)
+			return ExprStep{state: value.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Return, "return", "", "", "", []ParsedParam{}, []ParsedExpr{value.expr}, keyword.token.line, keyword.token.column)}
+		}()
+	}()
+}
+
 func selfhost_parser_parser_parseDollarStatement(state ParserState) ExprStep {
 	return func() ExprStep {
-		if selfhost_parser_parser_parserKindAt(state, state.current+2) == TokenKind_Declare {
+		if selfhost_parser_parser_parserKindAt(state, int(int32(state.current+2+runeInt32Zero))) == TokenKind_Declare {
 			return selfhost_parser_parser_parseSignalPrefixLetStatement(state)
 		}
 		return selfhost_parser_parser_parseExpression(state, 1)
@@ -3638,7 +3728,7 @@ func selfhost_parser_parser_parseBinaryExpression(state ParserState, expr Parsed
 
 func selfhost_parser_parser_parseBinaryExpressionAtPrec(state ParserState, expr ParsedExpr, minPrec int, prec int) ExprStep {
 	op := selfhost_parser_parser_parserAdvance(state)
-	right := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(op.state), prec+1)
+	right := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(op.state), int(int32(prec+1+runeInt32Zero)))
 	return selfhost_parser_parser_parseExpressionLoop(ExprStep{state: right.state, expr: selfhost_parser_parser_opNode(ExprKind_Binary, op.token.lexeme, op.token, []ParsedExpr{expr, right.expr})}, minPrec)
 }
 
@@ -3660,43 +3750,211 @@ func selfhost_parser_parser_parseUnaryOperator(state ParserState) ExprStep {
 func selfhost_parser_parser_parsePrimary(state ParserState) ExprStep {
 	token := selfhost_parser_parser_parserPeek(state)
 	return func() ExprStep {
-		switch {
-		case token.kind == TokenKind_Int:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_Int)
-		case token.kind == TokenKind_Double:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_Double)
-		case token.kind == TokenKind_BigInt:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_BigInt)
-		case token.kind == TokenKind_String:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_String)
-		case token.kind == TokenKind_TemplateString:
-			return selfhost_parser_parser_parseTemplateLiteral(state)
-		case token.kind == TokenKind_Char:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_Char)
-		case token.kind == TokenKind_Regex:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_Regex)
-		case token.kind == TokenKind_XMLText:
-			return selfhost_parser_parser_parseLiteral(state, ExprKind_XMLText)
-		case token.kind == TokenKind_Ident:
-			return selfhost_parser_parser_parseIdentifierPrimary(state)
-		case token.kind == TokenKind_At:
-			return selfhost_parser_parser_parseAtExpression(state)
-		case token.kind == TokenKind_Dot:
-			return selfhost_parser_parser_parseThisSelector(state)
-		case token.kind == TokenKind_LBracket:
-			return selfhost_parser_parser_parseArrayLiteral(state)
-		case token.kind == TokenKind_Dollar:
-			return selfhost_parser_parser_parseDollarExpression(state)
-		case token.kind == TokenKind_LBrace:
-			return selfhost_parser_parser_parseBraceLiteral(state)
-		case token.kind == TokenKind_LParen:
-			return selfhost_parser_parser_parseParenOrTuple(state)
-		case token.kind == TokenKind_Less:
-			return selfhost_parser_parser_parseXMLElement(state)
-		default:
-			return selfhost_parser_parser_parsePrimaryError(state)
+		if token.kind == TokenKind_Ident && token.lexeme == "if" {
+			return selfhost_parser_parser_parseIfExpression(state)
 		}
+		return func() ExprStep {
+			if token.kind == TokenKind_Ident && token.lexeme == "switch" {
+				return selfhost_parser_parser_parseSwitchExpression(state)
+			}
+			return func() ExprStep {
+				if token.kind == TokenKind_Ident && token.lexeme == "for" {
+					return selfhost_parser_parser_parseForOfExpression(state)
+				}
+				return func() ExprStep {
+					if token.kind == TokenKind_Ident && token.lexeme == "while" {
+						return selfhost_parser_parser_parseWhileExpression(state)
+					}
+					return func() ExprStep {
+						switch {
+						case token.kind == TokenKind_Int:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_Int)
+						case token.kind == TokenKind_Double:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_Double)
+						case token.kind == TokenKind_BigInt:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_BigInt)
+						case token.kind == TokenKind_String:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_String)
+						case token.kind == TokenKind_TemplateString:
+							return selfhost_parser_parser_parseTemplateLiteral(state)
+						case token.kind == TokenKind_Char:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_Char)
+						case token.kind == TokenKind_Regex:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_Regex)
+						case token.kind == TokenKind_XMLText:
+							return selfhost_parser_parser_parseLiteral(state, ExprKind_XMLText)
+						case token.kind == TokenKind_Ident:
+							return selfhost_parser_parser_parseIdentifierPrimary(state)
+						case token.kind == TokenKind_At:
+							return selfhost_parser_parser_parseAtExpression(state)
+						case token.kind == TokenKind_Dot:
+							return selfhost_parser_parser_parseThisSelector(state)
+						case token.kind == TokenKind_LBracket:
+							return selfhost_parser_parser_parseArrayLiteral(state)
+						case token.kind == TokenKind_Dollar:
+							return selfhost_parser_parser_parseDollarExpression(state)
+						case token.kind == TokenKind_LBrace:
+							return selfhost_parser_parser_parseBraceLiteral(state)
+						case token.kind == TokenKind_LParen:
+							return selfhost_parser_parser_parseParenOrTuple(state)
+						case token.kind == TokenKind_Less:
+							return selfhost_parser_parser_parseXMLElement(state)
+						default:
+							return selfhost_parser_parser_parsePrimaryError(state)
+						}
+					}()
+				}()
+			}()
+		}()
 	}()
+}
+
+func selfhost_parser_parser_parseIfExpression(state ParserState) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	open := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(keyword.state), TokenKind_LParen, "expected '(' after 'if'")
+	condition := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(open.state), 1)
+	close := selfhost_parser_parser_parserConsume(condition.state, TokenKind_RParen, "expected ')' after if condition")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(close.state))
+	next := selfhost_parser_parser_parserSkipNewlines(body.state)
+	hasElse := selfhost_parser_parser_parserPeek(next).kind == TokenKind_Ident && selfhost_parser_parser_parserPeek(next).lexeme == "else"
+	return func() ExprStep {
+		if hasElse {
+			return selfhost_parser_parser_parseIfElse(next, keyword.token, condition.expr, body.expr)
+		}
+		return ExprStep{state: next, expr: selfhost_parser_parser_makeExpr(ExprKind_Ternary, "", "if", "", "", []ParsedParam{}, []ParsedExpr{condition.expr, body.expr}, keyword.token.line, keyword.token.column)}
+	}()
+}
+
+func selfhost_parser_parser_parseIfElse(state ParserState, keyword Token, condition ParsedExpr, thenExpr ParsedExpr) ExprStep {
+	elseToken := selfhost_parser_parser_parserAdvance(state)
+	afterElse := selfhost_parser_parser_parserSkipNewlines(elseToken.state)
+	next := selfhost_parser_parser_parserPeek(afterElse)
+	isIf := next.kind == TokenKind_Ident && next.lexeme == "if"
+	return func() ExprStep {
+		if isIf {
+			return func() ExprStep {
+				nested := selfhost_parser_parser_parseIfExpression(afterElse)
+				return ExprStep{state: nested.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Ternary, "", "if", "", "", []ParsedParam{}, []ParsedExpr{condition, thenExpr, nested.expr}, keyword.line, keyword.column)}
+			}()
+		}
+		return func() ExprStep {
+			elseBody := selfhost_parser_parser_parseBraceBody(afterElse)
+			return ExprStep{state: elseBody.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Ternary, "", "if", "", "", []ParsedParam{}, []ParsedExpr{condition, thenExpr, elseBody.expr}, keyword.line, keyword.column)}
+		}()
+	}()
+}
+
+func selfhost_parser_parser_parseSwitchExpression(state ParserState) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	open := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(keyword.state), TokenKind_LParen, "expected '(' after 'switch'")
+	subject := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(open.state), 1)
+	close := selfhost_parser_parser_parserConsume(subject.state, TokenKind_RParen, "expected ')' after switch subject")
+	brace := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(close.state), TokenKind_LBrace, "expected '{' after switch subject")
+	block := selfhost_parser_parser_appendChild(selfhost_parser_parser_makeExpr(ExprKind_Match, "", "switch", "", "", []ParsedParam{}, []ParsedExpr{}, keyword.token.line, keyword.token.column), subject.expr)
+	parsed := selfhost_parser_parser_parseSwitchCases(selfhost_parser_parser_parserSkipNewlines(brace.state), block, false)
+	end := selfhost_parser_parser_parserConsume(parsed.state, TokenKind_RBrace, "expected '}' after switch")
+	final := func() ParsedExpr {
+		if parsed.hasDefault {
+			return parsed.block
+		}
+		return selfhost_parser_parser_appendChild(parsed.block, selfhost_parser_parser_makeExpr(ExprKind_Branch, "_", "", "", "=>", []ParsedParam{}, []ParsedExpr{selfhost_parser_parser_makeExpr(ExprKind_Pattern, "_", "", "", "", []ParsedParam{}, []ParsedExpr{}, keyword.token.line, keyword.token.column), selfhost_parser_parser_node(ExprKind_Block, keyword.token)}, keyword.token.line, keyword.token.column))
+	}()
+	return ExprStep{state: end.state, expr: final}
+}
+
+func selfhost_parser_parser_parseSwitchCases(state ParserState, block ParsedExpr, hasDefault bool) SwitchCasesStep {
+	current := selfhost_parser_parser_parserSkipNewlines(state)
+	return func() SwitchCasesStep {
+		if selfhost_parser_parser_parserCheck(current, TokenKind_RBrace) || selfhost_parser_parser_parserCheck(current, TokenKind_EOF) {
+			return SwitchCasesStep{state: current, block: block, hasDefault: hasDefault}
+		}
+		return selfhost_parser_parser_parseSwitchCase(current, block, hasDefault)
+	}()
+}
+
+func selfhost_parser_parser_parseSwitchCase(state ParserState, block ParsedExpr, hasDefault bool) SwitchCasesStep {
+	token := selfhost_parser_parser_parserPeek(state)
+	return func() SwitchCasesStep {
+		if token.kind == TokenKind_Ident && token.lexeme == "case" {
+			return selfhost_parser_parser_parseCaseBranch(state, block, hasDefault)
+		}
+		return func() SwitchCasesStep {
+			if token.kind == TokenKind_Ident && token.lexeme == "default" {
+				return selfhost_parser_parser_parseDefaultBranch(state, block)
+			}
+			return func() SwitchCasesStep {
+				failed := selfhost_parser_parser_parserAdvance(selfhost_parser_parser_parserErrorAt(state, token, "expected 'case' or 'default' in switch"))
+				return selfhost_parser_parser_parseSwitchCases(failed.state, block, hasDefault)
+			}()
+		}()
+	}()
+}
+
+func selfhost_parser_parser_parseCaseBranch(state ParserState, block ParsedExpr, hasDefault bool) SwitchCasesStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	value := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(keyword.state), 1)
+	colon := selfhost_parser_parser_parserConsume(value.state, TokenKind_Colon, "expected ':' after 'case'")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(colon.state))
+	pattern := selfhost_parser_parser_makeExpr(ExprKind_Pattern, value.expr.text, "", "", "", []ParsedParam{}, []ParsedExpr{}, value.expr.line, value.expr.column)
+	branch := selfhost_parser_parser_makeExpr(ExprKind_Branch, value.expr.text, "", "", "=>", []ParsedParam{}, []ParsedExpr{pattern, body.expr}, value.expr.line, value.expr.column)
+	return selfhost_parser_parser_parseSwitchCases(selfhost_parser_parser_parserSkipNewlines(body.state), selfhost_parser_parser_appendChild(block, branch), hasDefault)
+}
+
+func selfhost_parser_parser_parseDefaultBranch(state ParserState, block ParsedExpr) SwitchCasesStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	colon := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(keyword.state), TokenKind_Colon, "expected ':' after 'default'")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(colon.state))
+	pattern := selfhost_parser_parser_makeExpr(ExprKind_Pattern, "_", "", "", "", []ParsedParam{}, []ParsedExpr{}, keyword.token.line, keyword.token.column)
+	branch := selfhost_parser_parser_makeExpr(ExprKind_Branch, "_", "", "", "=>", []ParsedParam{}, []ParsedExpr{pattern, body.expr}, keyword.token.line, keyword.token.column)
+	return selfhost_parser_parser_parseSwitchCases(selfhost_parser_parser_parserSkipNewlines(body.state), selfhost_parser_parser_appendChild(block, branch), true)
+}
+
+func selfhost_parser_parser_parseForOfExpression(state ParserState) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	open := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(keyword.state), TokenKind_LParen, "expected '(' after 'for'")
+	afterOpen := selfhost_parser_parser_parserSkipNewlines(open.state)
+	constToken := selfhost_parser_parser_parserPeek(afterOpen)
+	isDecl := constToken.kind == TokenKind_Ident && (constToken.lexeme == "const" || constToken.lexeme == "let")
+	declState := func() ParserState {
+		if isDecl {
+			return selfhost_parser_parser_parserAdvance(afterOpen).state
+		}
+		return afterOpen
+	}()
+	name := selfhost_parser_parser_parserConsume(declState, TokenKind_Ident, "expected loop variable name")
+	ofState := selfhost_parser_parser_parserSkipNewlines(name.state)
+	ofToken := selfhost_parser_parser_parserPeek(ofState)
+	afterOf := func() ParserState {
+		if ofToken.kind == TokenKind_Ident && ofToken.lexeme == "of" {
+			return selfhost_parser_parser_parserAdvance(ofState).state
+		}
+		return selfhost_parser_parser_parserErrorAt(ofState, ofToken, "expected 'of' in for-of loop")
+	}()
+	iterable := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(afterOf), 1)
+	close := selfhost_parser_parser_parserConsume(iterable.state, TokenKind_RParen, "expected ')' after for-of iterable")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(close.state))
+	selector := selfhost_parser_parser_makeExpr(ExprKind_Selector, "each", "each", "", ".", []ParsedParam{}, []ParsedExpr{iterable.expr}, keyword.token.line, keyword.token.column)
+	param := ParsedParam{name: name.token.lexeme, typeRef: emptyParsedTypeRef(), line: name.token.line, column: name.token.column}
+	lambda := selfhost_parser_parser_withChildren(selfhost_parser_parser_withParams(selfhost_parser_parser_withText(selfhost_parser_parser_node(ExprKind_Lambda, keyword.token), ""), []ParsedParam{param}), []ParsedExpr{body.expr})
+	return ExprStep{state: body.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Call, "", "for", "", "", []ParsedParam{}, []ParsedExpr{selector, lambda}, keyword.token.line, keyword.token.column)}
+}
+
+func selfhost_parser_parser_parseWhileExpression(state ParserState) ExprStep {
+	keyword := selfhost_parser_parser_parserAdvance(state)
+	open := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(keyword.state), TokenKind_LParen, "expected '(' after 'while'")
+	condition := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(open.state), 1)
+	close := selfhost_parser_parser_parserConsume(condition.state, TokenKind_RParen, "expected ')' after loop condition")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(close.state))
+	return ExprStep{state: body.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Loop, "while", "while", "", "", []ParsedParam{}, []ParsedExpr{condition.expr, body.expr}, keyword.token.line, keyword.token.column)}
+}
+
+func selfhost_parser_parser_parseStarLoopExpression(state ParserState) ExprStep {
+	star := selfhost_parser_parser_parserAdvance(state)
+	open := selfhost_parser_parser_parserConsume(selfhost_parser_parser_parserSkipNewlines(star.state), TokenKind_LParen, "expected '(' after '*'")
+	condition := selfhost_parser_parser_parseExpression(selfhost_parser_parser_parserSkipNewlines(open.state), 1)
+	close := selfhost_parser_parser_parserConsume(condition.state, TokenKind_RParen, "expected ')' after loop condition")
+	body := selfhost_parser_parser_parseBraceBody(selfhost_parser_parser_parserSkipNewlines(close.state))
+	return ExprStep{state: body.state, expr: selfhost_parser_parser_makeExpr(ExprKind_Loop, "*", "*", "", "", []ParsedParam{}, []ParsedExpr{condition.expr, body.expr}, star.token.line, star.token.column)}
 }
 
 func selfhost_parser_parser_parseXMLElement(state ParserState) ExprStep {
@@ -3900,9 +4158,9 @@ func selfhost_parser_parser_normalizeXMLTextChar(text string, index int, spacing
 	isSpace := ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n'
 	return func() string {
 		if isSpace {
-			return selfhost_parser_parser_normalizeXMLTextLoop(text, index+1, true, out)
+			return selfhost_parser_parser_normalizeXMLTextLoop(text, int(int32(index+1+runeInt32Zero)), true, out)
 		}
-		return selfhost_parser_parser_normalizeXMLTextLoop(text, index+1, false, out+func() string {
+		return selfhost_parser_parser_normalizeXMLTextLoop(text, int(int32(index+1+runeInt32Zero)), false, out+func() string {
 			if spacing && out != "" {
 				return " "
 			}
@@ -3920,7 +4178,10 @@ func selfhost_parser_parser_parseTemplateLiteral(state ParserState) ExprStep {
 func selfhost_parser_parser_templateInner(raw string) string {
 	return func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -3938,28 +4199,28 @@ func selfhost_parser_parser_parseTemplateParts(inner string, index int, textStar
 func selfhost_parser_parser_parseTemplatePartAt(inner string, index int, textStart int, out string, children []ParsedExpr) TemplateParse {
 	ch := []rune(inner)[index]
 	return func() TemplateParse {
-		if ch == '\\' && index+1 < len([]rune(inner)) && []rune(inner)[index+1] == '(' {
+		if ch == '\\' && int(int32(index+1+runeInt32Zero)) < len([]rune(inner)) && []rune(inner)[int(int32(index+1+runeInt32Zero))] == '(' {
 			return selfhost_parser_parser_parseTemplateExprPart(inner, index, textStart, out, children)
 		}
-		return selfhost_parser_parser_parseTemplateParts(inner, index+1, textStart, out, children)
+		return selfhost_parser_parser_parseTemplateParts(inner, int(int32(index+1+runeInt32Zero)), textStart, out, children)
 	}()
 }
 
 func selfhost_parser_parser_parseTemplateExprPart(inner string, index int, textStart int, out string, children []ParsedExpr) TemplateParse {
-	exprStart := index + 2
+	exprStart := int(int32(index + 2 + runeInt32Zero))
 	exprEnd := selfhost_parser_parser_scanTemplateExprEnd(inner, exprStart, 1)
 	return func() TemplateParse {
 		if exprEnd < 0 {
 			return TemplateParse{text: out + func() string { runes := []rune(inner); return string(runes[textStart:len([]rune(inner))]) }(), children: children}
 		}
-		return selfhost_parser_parser_parseTemplateParts(inner, exprEnd+1, exprEnd+1, out+func() string { runes := []rune(inner); return string(runes[textStart:index]) }()+"<<<RUNE_TEMPLATE_PART>>>", selfhost_parser_parser_pushTemplateExpr(children, func() string { runes := []rune(inner); return string(runes[exprStart:exprEnd]) }()))
+		return selfhost_parser_parser_parseTemplateParts(inner, int(int32(exprEnd+1+runeInt32Zero)), int(int32(exprEnd+1+runeInt32Zero)), out+func() string { runes := []rune(inner); return string(runes[textStart:index]) }()+"<<<RUNE_TEMPLATE_PART>>>", selfhost_parser_parser_pushTemplateExpr(children, func() string { runes := []rune(inner); return string(runes[exprStart:exprEnd]) }()))
 	}()
 }
 
 func selfhost_parser_parser_scanTemplateExprEnd(inner string, index int, depth int) int {
 	return func() int {
 		if index >= len([]rune(inner)) {
-			return -1
+			return int(-int32(1))
 		}
 		return selfhost_parser_parser_scanTemplateExprEndAt(inner, index, depth)
 	}()
@@ -3970,22 +4231,22 @@ func selfhost_parser_parser_scanTemplateExprEndAt(inner string, index int, depth
 	return func() int {
 		switch {
 		case ch == '"':
-			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, index+1, '"'), depth)
+			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, int(int32(index+1+runeInt32Zero)), '"'), depth)
 		case ch == '\'':
-			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, index+1, '\''), depth)
+			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, int(int32(index+1+runeInt32Zero)), '\''), depth)
 		case ch == '`':
-			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, index+1, '`'), depth)
+			return selfhost_parser_parser_scanTemplateExprEnd(inner, selfhost_parser_parser_skipTemplateQuoted(inner, int(int32(index+1+runeInt32Zero)), '`'), depth)
 		case ch == '(':
-			return selfhost_parser_parser_scanTemplateExprEnd(inner, index+1, depth+1)
+			return selfhost_parser_parser_scanTemplateExprEnd(inner, int(int32(index+1+runeInt32Zero)), int(int32(depth+1+runeInt32Zero)))
 		case ch == ')':
 			return func() int {
 				if depth == 1 {
 					return index
 				}
-				return selfhost_parser_parser_scanTemplateExprEnd(inner, index+1, depth-1)
+				return selfhost_parser_parser_scanTemplateExprEnd(inner, int(int32(index+1+runeInt32Zero)), int(int32(depth-1+runeInt32Zero)))
 			}()
 		default:
-			return selfhost_parser_parser_scanTemplateExprEnd(inner, index+1, depth)
+			return selfhost_parser_parser_scanTemplateExprEnd(inner, int(int32(index+1+runeInt32Zero)), depth)
 		}
 	}()
 }
@@ -4003,13 +4264,13 @@ func selfhost_parser_parser_skipTemplateQuotedAt(text string, index int, quote r
 	ch := []rune(text)[index]
 	return func() int {
 		if ch == '\\' {
-			return selfhost_parser_parser_skipTemplateQuoted(text, index+2, quote)
+			return selfhost_parser_parser_skipTemplateQuoted(text, int(int32(index+2+runeInt32Zero)), quote)
 		}
 		return func() int {
 			if ch == quote {
-				return index + 1
+				return int(int32(index + 1 + runeInt32Zero))
 			}
-			return selfhost_parser_parser_skipTemplateQuoted(text, index+1, quote)
+			return selfhost_parser_parser_skipTemplateQuoted(text, int(int32(index+1+runeInt32Zero)), quote)
 		}()
 	}()
 }
@@ -4280,7 +4541,7 @@ func selfhost_parser_parser_parseParenOrTuple(state ParserState) ExprStep {
 }
 
 func selfhost_parser_parser_parseParenOrTupleAfterOpen(state ParserState, open Token) ExprStep {
-	expr := selfhost_parser_parser_parseExpression(ParserState{tokens: state.tokens, current: state.current, errors: state.errors, expressionNesting: state.expressionNesting + 1}, 1)
+	expr := selfhost_parser_parser_parseExpression(ParserState{tokens: state.tokens, current: state.current, errors: state.errors, expressionNesting: int(int32(state.expressionNesting + 1 + runeInt32Zero))}, 1)
 	afterExpr := selfhost_parser_parser_parserSkipNewlines(ParserState{tokens: expr.state.tokens, current: expr.state.current, errors: expr.state.errors, expressionNesting: state.expressionNesting})
 	return func() ExprStep {
 		if selfhost_parser_parser_parserCheck(afterExpr, TokenKind_Comma) {
@@ -5016,11 +5277,11 @@ func selfhost_parser_parser_skipBalancedStep(state ParserState, openKind TokenKi
 	step := selfhost_parser_parser_parserAdvance(state)
 	nextDepth := func() int {
 		if token.kind == openKind {
-			return depth + 1
+			return int(int32(depth + 1 + runeInt32Zero))
 		}
 		return func() int {
 			if token.kind == closeKind {
-				return depth - 1
+				return int(int32(depth - 1 + runeInt32Zero))
 			}
 			return depth
 		}()
@@ -5029,41 +5290,41 @@ func selfhost_parser_parser_skipBalancedStep(state ParserState, openKind TokenKi
 }
 
 func selfhost_parser_parser_questionIsPostfixUnwrap(state ParserState) bool {
-	next := selfhost_parser_parser_parserKindAt(state, state.current+1)
+	next := selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero)))
 	return next == TokenKind_EOF || next == TokenKind_Newline || next == TokenKind_RParen || next == TokenKind_RBracket || next == TokenKind_RBrace || next == TokenKind_Comma
 }
 
 func selfhost_parser_parser_questionQuestionIsPostfixUnwrap(state ParserState) bool {
-	next := selfhost_parser_parser_parserKindAt(state, state.current+1)
+	next := selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero)))
 	return next == TokenKind_EOF || next == TokenKind_Newline || next == TokenKind_RParen || next == TokenKind_RBracket || next == TokenKind_RBrace || next == TokenKind_Comma
 }
 
 func selfhost_parser_parser_looksLikeTypeDecl(state ParserState) bool {
-	return selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, selfhost_parser_parser_skipGenericNamesAt(state, state.current+1))) == TokenKind_Colon
+	return selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, selfhost_parser_parser_skipGenericNamesAt(state, int(int32(state.current+1+runeInt32Zero))))) == TokenKind_Colon
 }
 
 func selfhost_parser_parser_looksLikeFunctionDecl(state ParserState) bool {
 	start := func() int {
 		if selfhost_parser_parser_parserCheck(state, TokenKind_Tilde) {
-			return selfhost_parser_parser_skipNewlinesAt(state, state.current+1)
+			return selfhost_parser_parser_skipNewlinesAt(state, int(int32(state.current+1+runeInt32Zero)))
 		}
 		return state.current
 	}()
-	return selfhost_parser_parser_parserKindAt(state, start) == TokenKind_Ident && selfhost_parser_parser_looksLikeFunctionAfterName(state, selfhost_parser_parser_skipGenericNamesAt(state, start+1))
+	return selfhost_parser_parser_parserKindAt(state, start) == TokenKind_Ident && selfhost_parser_parser_looksLikeFunctionAfterName(state, selfhost_parser_parser_skipGenericNamesAt(state, int(int32(start+1+runeInt32Zero))))
 }
 
 func selfhost_parser_parser_looksLikeMacroFunctionDecl(state ParserState) bool {
-	return selfhost_parser_parser_parserCheck(state, TokenKind_Hash) && selfhost_parser_parser_looksLikeFunctionDecl(selfhost_parser_parser_stateAt(state, state.current+1))
+	return selfhost_parser_parser_parserCheck(state, TokenKind_Hash) && selfhost_parser_parser_looksLikeFunctionDecl(selfhost_parser_parser_stateAt(state, int(int32(state.current+1+runeInt32Zero))))
 }
 
 func selfhost_parser_parser_looksLikeStaticFunctionDecl(state ParserState) bool {
 	markerState := func() ParserState {
 		if selfhost_parser_parser_parserCheck(state, TokenKind_DoubleColon) {
-			return selfhost_parser_parser_stateAt(state, state.current+1)
+			return selfhost_parser_parser_stateAt(state, int(int32(state.current+1+runeInt32Zero)))
 		}
 		return func() ParserState {
 			if selfhost_parser_parser_parserCheck(state, TokenKind_Ident) && selfhost_parser_parser_parserPeek(state).lexeme == "static" {
-				return selfhost_parser_parser_stateAt(state, state.current+1)
+				return selfhost_parser_parser_stateAt(state, int(int32(state.current+1+runeInt32Zero)))
 			}
 			return state
 		}()
@@ -5079,7 +5340,7 @@ func selfhost_parser_parser_looksLikeFunctionAfterParams(state ParserState, inde
 	afterParams := selfhost_parser_parser_skipNewlinesAt(state, index)
 	afterReturn := func() int {
 		if selfhost_parser_parser_parserKindAt(state, afterParams) == TokenKind_Arrow {
-			return selfhost_parser_parser_skipTypeNameTokensAt(state, afterParams+1)
+			return selfhost_parser_parser_skipTypeNameTokensAt(state, int(int32(afterParams+1+runeInt32Zero)))
 		}
 		return afterParams
 	}()
@@ -5094,7 +5355,7 @@ func selfhost_parser_parser_looksLikeLambdaAfterParams(state ParserState, index 
 	afterParams := selfhost_parser_parser_skipNewlinesAt(state, index)
 	afterReturn := func() int {
 		if selfhost_parser_parser_parserKindAt(state, afterParams) == TokenKind_Arrow {
-			return selfhost_parser_parser_skipTypeNameTokensAt(state, afterParams+1)
+			return selfhost_parser_parser_skipTypeNameTokensAt(state, int(int32(afterParams+1+runeInt32Zero)))
 		}
 		return afterParams
 	}()
@@ -5117,9 +5378,9 @@ func selfhost_parser_parser_looksLikeAnnotationAt(state ParserState, index int) 
 	return func() bool {
 		switch {
 		case kind == TokenKind_Hash:
-			return selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Ident
+			return selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Ident
 		case kind == TokenKind_At:
-			return selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Ident
+			return selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Ident
 		default:
 			return false
 		}
@@ -5127,7 +5388,7 @@ func selfhost_parser_parser_looksLikeAnnotationAt(state ParserState, index int) 
 }
 
 func selfhost_parser_parser_skipAnnotationAt(state ParserState, index int) int {
-	afterName := selfhost_parser_parser_skipAnnotationNameAt(state, index+2)
+	afterName := selfhost_parser_parser_skipAnnotationNameAt(state, int(int32(index+2+runeInt32Zero)))
 	afterNewlines := selfhost_parser_parser_skipNewlinesAt(state, afterName)
 	hasArgs := selfhost_parser_parser_parserKindAt(state, afterNewlines) == TokenKind_LParen
 	return func() int {
@@ -5139,10 +5400,10 @@ func selfhost_parser_parser_skipAnnotationAt(state ParserState, index int) int {
 }
 
 func selfhost_parser_parser_skipAnnotationNameAt(state ParserState, index int) int {
-	qualified := selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Ident
+	qualified := selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Ident
 	return func() int {
 		if qualified {
-			return index + 2
+			return int(int32(index + 2 + runeInt32Zero))
 		}
 		return index
 	}()
@@ -5153,12 +5414,12 @@ func selfhost_parser_parser_looksLikeEnumMember(state ParserState) bool {
 	plus := selfhost_parser_parser_parserKindAt(state, afterAnnotations) == TokenKind_Plus
 	start := func() int {
 		if plus {
-			return selfhost_parser_parser_skipNewlinesAt(state, afterAnnotations+1)
+			return selfhost_parser_parser_skipNewlinesAt(state, int(int32(afterAnnotations+1+runeInt32Zero)))
 		}
 		return afterAnnotations
 	}()
 	token := selfhost_parser_parser_parserTokenAt(state, start)
-	next := selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, start+1))
+	next := selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(start+1+runeInt32Zero))))
 	return token.kind == TokenKind_Ident && (next == TokenKind_Assign || next == TokenKind_LParen && selfhost_parser_parser_startsWithUpper(token.lexeme) || next != TokenKind_Colon && next != TokenKind_LParen)
 }
 
@@ -5172,7 +5433,7 @@ func selfhost_parser_parser_startsWithUpper(name string) bool {
 }
 
 func selfhost_parser_parser_looksLikeObjectDestructureDecl(state ParserState) bool {
-	return selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_scanObjectDestructureDecl(state, selfhost_parser_parser_skipNewlinesAt(state, state.current+1))
+	return selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_scanObjectDestructureDecl(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(state.current+1+runeInt32Zero))))
 }
 
 func selfhost_parser_parser_scanObjectDestructureDecl(state ParserState, index int) bool {
@@ -5189,14 +5450,14 @@ func selfhost_parser_parser_scanObjectDestructureField(state ParserState, index 
 		if selfhost_parser_parser_parserKindAt(state, index) != TokenKind_Ident {
 			return false
 		}
-		return selfhost_parser_parser_scanObjectDestructureAfterField(state, index+1)
+		return selfhost_parser_parser_scanObjectDestructureAfterField(state, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
 func selfhost_parser_parser_scanObjectDestructureAfterField(state ParserState, index int) bool {
 	return func() bool {
 		if selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Colon {
-			return selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, index+1)) == TokenKind_Ident && selfhost_parser_parser_scanObjectDestructureAfterName(state, selfhost_parser_parser_skipNewlinesAt(state, index+1)+1)
+			return selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(index+1+runeInt32Zero)))) == TokenKind_Ident && selfhost_parser_parser_scanObjectDestructureAfterName(state, int(int32(selfhost_parser_parser_skipNewlinesAt(state, int(int32(index+1+runeInt32Zero)))+1+runeInt32Zero)))
 		}
 		return selfhost_parser_parser_scanObjectDestructureAfterName(state, index)
 	}()
@@ -5207,11 +5468,11 @@ func selfhost_parser_parser_scanObjectDestructureAfterName(state ParserState, in
 	kind := selfhost_parser_parser_parserKindAt(state, current)
 	return func() bool {
 		if kind == TokenKind_Comma {
-			return selfhost_parser_parser_scanObjectDestructureAfterComma(state, selfhost_parser_parser_skipNewlinesAt(state, current+1))
+			return selfhost_parser_parser_scanObjectDestructureAfterComma(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(current+1+runeInt32Zero))))
 		}
 		return func() bool {
 			if kind == TokenKind_RBrace {
-				return selfhost_parser_parser_scanObjectDestructureAfterClose(state, current+1)
+				return selfhost_parser_parser_scanObjectDestructureAfterClose(state, int(int32(current+1+runeInt32Zero)))
 			}
 			return false
 		}()
@@ -5221,7 +5482,7 @@ func selfhost_parser_parser_scanObjectDestructureAfterName(state ParserState, in
 func selfhost_parser_parser_scanObjectDestructureAfterComma(state ParserState, index int) bool {
 	return func() bool {
 		if selfhost_parser_parser_parserKindAt(state, index) == TokenKind_RBrace {
-			return selfhost_parser_parser_scanObjectDestructureAfterClose(state, index+1)
+			return selfhost_parser_parser_scanObjectDestructureAfterClose(state, int(int32(index+1+runeInt32Zero)))
 		}
 		return selfhost_parser_parser_scanObjectDestructureField(state, index)
 	}()
@@ -5237,7 +5498,7 @@ func selfhost_parser_parser_looksLikePatternBranch(state ParserState) bool {
 }
 
 func selfhost_parser_parser_looksLikePatternBlockAfterSubject(state ParserState) bool {
-	return selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_tokensLookLikePatternBranch(state, selfhost_parser_parser_skipNewlinesAt(state, state.current+1))
+	return selfhost_parser_parser_parserCheck(state, TokenKind_LBrace) && selfhost_parser_parser_tokensLookLikePatternBranch(state, selfhost_parser_parser_skipNewlinesAt(state, int(int32(state.current+1+runeInt32Zero))))
 }
 
 func selfhost_parser_parser_tokensLookLikePatternBranch(state ParserState, index int) bool {
@@ -5252,7 +5513,7 @@ func selfhost_parser_parser_skipPatternLookahead(state ParserState, index int) i
 func selfhost_parser_parser_skipOrPatternLookahead(state ParserState, index int) int {
 	for {
 		if index >= 0 && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, index)) == TokenKind_BitOr {
-			state, index = state, selfhost_parser_parser_skipSinglePatternLookahead(state, selfhost_parser_parser_skipNewlinesAt(state, index)+1)
+			state, index = state, selfhost_parser_parser_skipSinglePatternLookahead(state, int(int32(selfhost_parser_parser_skipNewlinesAt(state, index)+1+runeInt32Zero)))
 			continue
 		} else {
 			return index
@@ -5262,8 +5523,8 @@ func selfhost_parser_parser_skipOrPatternLookahead(state ParserState, index int)
 
 func selfhost_parser_parser_skipAliasPatternLookahead(state ParserState, index int) int {
 	return func() int {
-		if index >= 0 && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, index)) == TokenKind_At && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, index)+1) == TokenKind_Ident {
-			return selfhost_parser_parser_skipNewlinesAt(state, index) + 2
+		if index >= 0 && selfhost_parser_parser_parserKindAt(state, selfhost_parser_parser_skipNewlinesAt(state, index)) == TokenKind_At && selfhost_parser_parser_parserKindAt(state, int(int32(selfhost_parser_parser_skipNewlinesAt(state, index)+1+runeInt32Zero))) == TokenKind_Ident {
+			return int(int32(selfhost_parser_parser_skipNewlinesAt(state, index) + 2 + runeInt32Zero))
 		}
 		return index
 	}()
@@ -5273,7 +5534,7 @@ func selfhost_parser_parser_skipSinglePatternLookahead(state ParserState, index 
 	kind := selfhost_parser_parser_parserKindAt(state, index)
 	after := func() int {
 		if kind == TokenKind_Underscore || kind == TokenKind_Int || kind == TokenKind_Double || kind == TokenKind_BigInt || kind == TokenKind_String || kind == TokenKind_Char {
-			return index + 1
+			return int(int32(index + 1 + runeInt32Zero))
 		}
 		return func() int {
 			if kind == TokenKind_Ident {
@@ -5281,7 +5542,7 @@ func selfhost_parser_parser_skipSinglePatternLookahead(state ParserState, index 
 			}
 			return func() int {
 				if kind == TokenKind_Less || kind == TokenKind_LessEqual || kind == TokenKind_Greater || kind == TokenKind_GreaterEqual {
-					return selfhost_parser_parser_skipComparePatternLookahead(state, index+1)
+					return selfhost_parser_parser_skipComparePatternLookahead(state, int(int32(index+1+runeInt32Zero)))
 				}
 				return func() int {
 					if kind == TokenKind_LParen {
@@ -5295,7 +5556,7 @@ func selfhost_parser_parser_skipSinglePatternLookahead(state ParserState, index 
 							if kind == TokenKind_LBrace {
 								return selfhost_parser_parser_skipBalancedAt(state, index, TokenKind_LBrace, TokenKind_RBrace)
 							}
-							return -1
+							return int(-int32(1))
 						}()
 					}()
 				}()
@@ -5308,15 +5569,15 @@ func selfhost_parser_parser_skipSinglePatternLookahead(state ParserState, index 
 func selfhost_parser_parser_skipRangePatternLookahead(state ParserState, index int) int {
 	return func() int {
 		if index >= 0 && selfhost_parser_parser_parserKindAt(state, index) == TokenKind_DotDotEqual {
-			return selfhost_parser_parser_skipRangePatternEnd(state, index+1)
+			return selfhost_parser_parser_skipRangePatternEnd(state, int(int32(index+1+runeInt32Zero)))
 		}
 		return func() int {
 			if index >= 0 && selfhost_parser_parser_parserKindAt(state, index) == TokenKind_DotDotLess {
-				return selfhost_parser_parser_skipRangePatternEnd(state, index+1)
+				return selfhost_parser_parser_skipRangePatternEnd(state, int(int32(index+1+runeInt32Zero)))
 			}
 			return func() int {
-				if index >= 0 && selfhost_parser_parser_parserKindAt(state, index) == TokenKind_DotDot && selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Less {
-					return selfhost_parser_parser_skipRangePatternEnd(state, index+2)
+				if index >= 0 && selfhost_parser_parser_parserKindAt(state, index) == TokenKind_DotDot && selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Less {
+					return selfhost_parser_parser_skipRangePatternEnd(state, int(int32(index+2+runeInt32Zero)))
 				}
 				return index
 			}()
@@ -5328,36 +5589,36 @@ func selfhost_parser_parser_skipRangePatternEnd(state ParserState, index int) in
 	kind := selfhost_parser_parser_parserKindAt(state, index)
 	return func() int {
 		if kind == TokenKind_Underscore {
-			return index + 1
+			return int(int32(index + 1 + runeInt32Zero))
 		}
 		return func() int {
 			if kind == TokenKind_Int || kind == TokenKind_Double || kind == TokenKind_BigInt || kind == TokenKind_String || kind == TokenKind_Char || kind == TokenKind_Ident {
 				return selfhost_parser_parser_skipIdentifierRangeEnd(state, index)
 			}
-			return -1
+			return int(-int32(1))
 		}()
 	}()
 }
 
 func selfhost_parser_parser_skipIdentifierRangeEnd(state ParserState, index int) int {
 	return func() int {
-		if selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Ident && selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, index+2) == TokenKind_Ident {
-			return index + 3
+		if selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Ident && selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, int(int32(index+2+runeInt32Zero))) == TokenKind_Ident {
+			return int(int32(index + 3 + runeInt32Zero))
 		}
-		return index + 1
+		return int(int32(index + 1 + runeInt32Zero))
 	}()
 }
 
 func selfhost_parser_parser_skipIdentifierPatternLookahead(state ParserState, index int) int {
 	return func() int {
-		if selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_LParen {
-			return selfhost_parser_parser_skipBalancedAt(state, index+1, TokenKind_LParen, TokenKind_RParen)
+		if selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_LParen {
+			return selfhost_parser_parser_skipBalancedAt(state, int(int32(index+1+runeInt32Zero)), TokenKind_LParen, TokenKind_RParen)
 		}
 		return func() int {
-			if selfhost_parser_parser_parserKindAt(state, index+1) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, index+2) == TokenKind_Ident {
-				return index + 3
+			if selfhost_parser_parser_parserKindAt(state, int(int32(index+1+runeInt32Zero))) == TokenKind_Dot && selfhost_parser_parser_parserKindAt(state, int(int32(index+2+runeInt32Zero))) == TokenKind_Ident {
+				return int(int32(index + 3 + runeInt32Zero))
 			}
-			return index + 1
+			return int(int32(index + 1 + runeInt32Zero))
 		}()
 	}()
 }
@@ -5366,14 +5627,14 @@ func selfhost_parser_parser_skipComparePatternLookahead(state ParserState, index
 	kind := selfhost_parser_parser_parserKindAt(state, index)
 	return func() int {
 		if kind == TokenKind_Int || kind == TokenKind_Double || kind == TokenKind_BigInt || kind == TokenKind_String || kind == TokenKind_Char || kind == TokenKind_Ident {
-			return index + 1
+			return int(int32(index + 1 + runeInt32Zero))
 		}
-		return -1
+		return int(-int32(1))
 	}()
 }
 
 func selfhost_parser_parser_looksLikeMapLiteralBody(state ParserState) bool {
-	start := selfhost_parser_parser_skipNewlinesAt(state, state.current+1)
+	start := selfhost_parser_parser_skipNewlinesAt(state, int(int32(state.current+1+runeInt32Zero)))
 	first := selfhost_parser_parser_parserTokenAt(state, start)
 	return func() bool {
 		if first.kind == TokenKind_EOF || first.kind == TokenKind_RBrace {
@@ -5396,13 +5657,13 @@ func selfhost_parser_parser_scanMapLiteralColon(state ParserState, index int, de
 		}
 		return func() bool {
 			if kind == TokenKind_LParen || kind == TokenKind_LBracket || kind == TokenKind_LBrace {
-				return selfhost_parser_parser_scanMapLiteralColon(state, index+1, depth+1)
+				return selfhost_parser_parser_scanMapLiteralColon(state, int(int32(index+1+runeInt32Zero)), int(int32(depth+1+runeInt32Zero)))
 			}
 			return func() bool {
 				if kind == TokenKind_RParen || kind == TokenKind_RBracket {
-					return selfhost_parser_parser_scanMapLiteralColon(state, index+1, func() int {
+					return selfhost_parser_parser_scanMapLiteralColon(state, int(int32(index+1+runeInt32Zero)), func() int {
 						if depth > 0 {
-							return depth - 1
+							return int(int32(depth - 1 + runeInt32Zero))
 						}
 						return depth
 					}())
@@ -5413,7 +5674,7 @@ func selfhost_parser_parser_scanMapLiteralColon(state ParserState, index int, de
 							if depth == 0 {
 								return false
 							}
-							return selfhost_parser_parser_scanMapLiteralColon(state, index+1, depth-1)
+							return selfhost_parser_parser_scanMapLiteralColon(state, int(int32(index+1+runeInt32Zero)), int(int32(depth-1+runeInt32Zero)))
 						}()
 					}
 					return func() bool {
@@ -5424,7 +5685,7 @@ func selfhost_parser_parser_scanMapLiteralColon(state ParserState, index int, de
 							if kind == TokenKind_Colon && depth == 0 {
 								return true
 							}
-							return selfhost_parser_parser_scanMapLiteralColon(state, index+1, depth)
+							return selfhost_parser_parser_scanMapLiteralColon(state, int(int32(index+1+runeInt32Zero)), depth)
 						}()
 					}()
 				}()
@@ -5460,7 +5721,7 @@ func selfhost_parser_parser_parserPatternIdentLooksLikeObjectField(state ParserS
 }
 
 func selfhost_parser_parser_parserPatternObjectFieldTail(state ParserState) bool {
-	kind := selfhost_parser_parser_parserKindAt(state, state.current+1)
+	kind := selfhost_parser_parser_parserKindAt(state, int(int32(state.current+1+runeInt32Zero)))
 	return func() bool {
 		switch {
 		case kind == TokenKind_Colon:
@@ -5494,7 +5755,7 @@ func selfhost_parser_parser_isUpperAsciiLetter(ch rune) bool {
 func selfhost_parser_parser_skipNewlinesAt(state ParserState, index int) int {
 	for {
 		if selfhost_parser_parser_parserKindAt(state, index) == TokenKind_Newline {
-			state, index = state, index+1
+			state, index = state, int(int32(index+1+runeInt32Zero))
 			continue
 		} else {
 			return index
@@ -5523,18 +5784,18 @@ func selfhost_parser_parser_skipBalancedAtLoop(state ParserState, index int, ope
 		}
 		return func() int {
 			if kind == openKind {
-				return selfhost_parser_parser_skipBalancedAtLoop(state, index+1, openKind, closeKind, depth+1)
+				return selfhost_parser_parser_skipBalancedAtLoop(state, int(int32(index+1+runeInt32Zero)), openKind, closeKind, int(int32(depth+1+runeInt32Zero)))
 			}
 			return func() int {
 				if kind == closeKind {
 					return func() int {
 						if depth <= 1 {
-							return index + 1
+							return int(int32(index + 1 + runeInt32Zero))
 						}
-						return selfhost_parser_parser_skipBalancedAtLoop(state, index+1, openKind, closeKind, depth-1)
+						return selfhost_parser_parser_skipBalancedAtLoop(state, int(int32(index+1+runeInt32Zero)), openKind, closeKind, int(int32(depth-1+runeInt32Zero)))
 					}()
 				}
-				return selfhost_parser_parser_skipBalancedAtLoop(state, index+1, openKind, closeKind, depth)
+				return selfhost_parser_parser_skipBalancedAtLoop(state, int(int32(index+1+runeInt32Zero)), openKind, closeKind, depth)
 			}()
 		}()
 	}()
@@ -5548,11 +5809,11 @@ func selfhost_parser_parser_skipTypeNameTokensAtLoop(state ParserState, index in
 	kind := selfhost_parser_parser_parserKindAt(state, index)
 	return func() int {
 		if kind == TokenKind_Ident || kind == TokenKind_Comma || kind == TokenKind_Colon || kind == TokenKind_Question || kind == TokenKind_Arrow || kind == TokenKind_At || kind == TokenKind_Dot {
-			return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, index+1, depth)
+			return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, int(int32(index+1+runeInt32Zero)), depth)
 		}
 		return func() int {
 			if kind == TokenKind_LBracket || kind == TokenKind_LParen {
-				return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, index+1, depth+1)
+				return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, int(int32(index+1+runeInt32Zero)), int(int32(depth+1+runeInt32Zero)))
 			}
 			return func() int {
 				if kind == TokenKind_RBracket || kind == TokenKind_RParen {
@@ -5560,7 +5821,7 @@ func selfhost_parser_parser_skipTypeNameTokensAtLoop(state ParserState, index in
 						if depth == 0 {
 							return index
 						}
-						return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, index+1, depth-1)
+						return selfhost_parser_parser_skipTypeNameTokensAtLoop(state, int(int32(index+1+runeInt32Zero)), int(int32(depth-1+runeInt32Zero)))
 					}()
 				}
 				return index
@@ -5675,7 +5936,7 @@ func selfhost_ir_ir_lowerJsonFieldNameStep(annotations []ParsedAnnotation, fallb
 		if matched {
 			return selfhost_ir_ir_lowerAnnotationStringArg(annotation, 0, fallback)
 		}
-		return selfhost_ir_ir_lowerJsonFieldNameAt(annotations, fallback, index+1)
+		return selfhost_ir_ir_lowerJsonFieldNameAt(annotations, fallback, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -5696,7 +5957,7 @@ func selfhost_ir_ir_lowerHasAnnotationStep(annotations []ParsedAnnotation, marke
 		if matched {
 			return true
 		}
-		return selfhost_ir_ir_lowerHasAnnotation(annotations, marker, module, name, index+1)
+		return selfhost_ir_ir_lowerHasAnnotation(annotations, marker, module, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -5714,7 +5975,10 @@ func selfhost_ir_ir_lowerUnquoteString(raw string) string {
 	quoted := len([]rune(raw)) >= 2
 	return func() string {
 		if quoted {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -5769,7 +6033,7 @@ func selfhost_ir_ir_scanTailLoopNameCount(functions []IRFunction, scan bool, ind
 		if index >= len(functions) {
 			return 0
 		}
-		return func() int {
+		return int(int32(func() int {
 			if func() bool {
 				if scan {
 					return selfhost_ir_ir_scanTailLoopIsScanName(functions[index].name)
@@ -5779,7 +6043,7 @@ func selfhost_ir_ir_scanTailLoopNameCount(functions []IRFunction, scan bool, ind
 				return 1
 			}
 			return 0
-		}() + selfhost_ir_ir_scanTailLoopNameCount(functions, scan, index+1)
+		}() + selfhost_ir_ir_scanTailLoopNameCount(functions, scan, int(int32(index+1+runeInt32Zero))) + runeInt32Zero))
 	}()
 }
 
@@ -5803,7 +6067,7 @@ func selfhost_ir_ir_scanTailLoopFindScanFunction(functions []IRFunction, index i
 			if selfhost_ir_ir_scanTailLoopIsScanName(functions[index].name) {
 				return functions[index]
 			} else {
-				functions, index = functions, index+1
+				functions, index = functions, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -5841,10 +6105,10 @@ func selfhost_ir_ir_scanTailLoopBlockIsSafe(children []IRExpr, index int) bool {
 			return false
 		}
 		return func() bool {
-			if index >= len(children)-1 {
-				return selfhost_ir_ir_scanTailLoopGroupIsSafe(children[len(children)-1])
+			if index >= int(int32(len(children)-1+runeInt32Zero)) {
+				return selfhost_ir_ir_scanTailLoopGroupIsSafe(children[int(int32(len(children)-1+runeInt32Zero))])
 			}
-			return !(selfhost_ir_ir_scanTailLoopContainsCall(children[index])) && selfhost_ir_ir_scanTailLoopBlockIsSafe(children, index+1)
+			return !(selfhost_ir_ir_scanTailLoopContainsCall(children[index])) && selfhost_ir_ir_scanTailLoopBlockIsSafe(children, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -5863,7 +6127,7 @@ func selfhost_ir_ir_scanTailLoopChildrenContainCall(children []IRExpr, index int
 		if index >= len(children) {
 			return false
 		}
-		return selfhost_ir_ir_scanTailLoopContainsCall(children[index]) || selfhost_ir_ir_scanTailLoopChildrenContainCall(children, index+1)
+		return selfhost_ir_ir_scanTailLoopContainsCall(children[index]) || selfhost_ir_ir_scanTailLoopChildrenContainCall(children, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -5881,12 +6145,12 @@ func selfhost_ir_ir_irFunctionNameCount(functions []IRFunction, name string, ind
 		if index >= len(functions) {
 			return 0
 		}
-		return func() int {
+		return int(int32(func() int {
 			if functions[index].name == name {
 				return 1
 			}
 			return 0
-		}() + selfhost_ir_ir_irFunctionNameCount(functions, name, index+1)
+		}() + selfhost_ir_ir_irFunctionNameCount(functions, name, int(int32(index+1+runeInt32Zero))) + runeInt32Zero))
 	}()
 }
 
@@ -5902,7 +6166,7 @@ func selfhost_ir_ir_markSelfTailLoop(fn IRFunction, nameCount int) IRFunction {
 
 func selfhost_ir_ir_irExprContainsSelfCall(expr IRExpr, name string) bool {
 	return func() bool {
-		if selfhost_ir_ir_isDirectSelfCall(expr, name, -1) {
+		if selfhost_ir_ir_isDirectSelfCall(expr, name, int(-int32(1))) {
 			return true
 		}
 		return selfhost_ir_ir_irExprChildrenContainSelfCall(expr.children, name, 0)
@@ -5914,14 +6178,14 @@ func selfhost_ir_ir_irExprChildrenContainSelfCall(children []IRExpr, name string
 		if index >= len(children) {
 			return false
 		}
-		return selfhost_ir_ir_irExprContainsSelfCall(children[index], name) || selfhost_ir_ir_irExprChildrenContainSelfCall(children, name, index+1)
+		return selfhost_ir_ir_irExprContainsSelfCall(children[index], name) || selfhost_ir_ir_irExprChildrenContainSelfCall(children, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
 func selfhost_ir_ir_isDirectSelfCall(expr IRExpr, name string, arity int) bool {
 	return func() bool {
 		if expr.kind == ExprKind_Call && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier {
-			return expr.children[0].name == name && (arity < 0 || len(expr.children)-1 == arity)
+			return expr.children[0].name == name && (arity < 0 || int(int32(len(expr.children)-1+runeInt32Zero)) == arity)
 		}
 		return false
 	}()
@@ -6011,7 +6275,7 @@ func selfhost_ir_ir_paramsUseSyntaxOnly(params []ParsedParam, index int) bool {
 		if index >= len(params) {
 			return false
 		}
-		return selfhost_ir_ir_typeRefIsSyntaxOnly(params[index].typeRef) || selfhost_ir_ir_paramsUseSyntaxOnly(params, index+1)
+		return selfhost_ir_ir_typeRefIsSyntaxOnly(params[index].typeRef) || selfhost_ir_ir_paramsUseSyntaxOnly(params, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6055,7 +6319,7 @@ func selfhost_ir_ir_inferIRExprText(expr ParsedExpr, children []IRExpr) string {
 		case expr.kind == ExprKind_XMLElement:
 			return "HTMLElement"
 		case expr.kind == ExprKind_Int:
-			return "Int"
+			return "Int32"
 		case expr.kind == ExprKind_Double:
 			return "Double"
 		case expr.kind == ExprKind_BigInt:
@@ -6127,7 +6391,7 @@ func selfhost_ir_ir_inferIRSelectorCallText(selector IRExpr, children []IRExpr) 
 		case selector.name == "isEmpty":
 			return "Bool"
 		case (selector.name == "length") || (selector.name == "byteLength") || (selector.name == "size") || (selector.name == "push"):
-			return "Int"
+			return "Int32"
 		case (selector.name == "includes") || (selector.name == "contains") || (selector.name == "startsWith") || (selector.name == "endsWith"):
 			return "Bool"
 		case (selector.name == "toString") || (selector.name == "trim") || (selector.name == "toUpperCase") || (selector.name == "toLowerCase"):
@@ -6199,7 +6463,10 @@ func returnsValue(typeName string) bool {
 func bigintLiteralDigits(value string) string {
 	return func() string {
 		if strings.HasSuffix(value, "n") {
-			return func() string { runes := []rune(value); return string(runes[0 : len([]rune(value))-1]) }()
+			return func() string {
+				runes := []rune(value)
+				return string(runes[0:int(int32(len([]rune(value))-1+runeInt32Zero))])
+			}()
 		}
 		return value
 	}()
@@ -6246,7 +6513,7 @@ func genericInner(typeName string, base string) string {
 		if strings.HasPrefix(typeName, prefix) && strings.HasSuffix(typeName, "]") {
 			return func() string {
 				runes := []rune(typeName)
-				return string(runes[len([]rune(prefix)) : len([]rune(typeName))-1])
+				return string(runes[len([]rune(prefix)):int(int32(len([]rune(typeName))-1+runeInt32Zero))])
 			}()
 		}
 		return ""
@@ -6297,7 +6564,10 @@ func compilerGoPackageName(path string) string {
 	slash := strings.LastIndex(path, "/")
 	return func() string {
 		if slash >= 0 {
-			return func() string { runes := []rune(path); return string(runes[slash+1 : len([]rune(path))]) }()
+			return func() string {
+				runes := []rune(path)
+				return string(runes[int(int32(slash+1+runeInt32Zero)):len([]rune(path))])
+			}()
 		}
 		return path
 	}()
@@ -6306,7 +6576,10 @@ func compilerGoPackageName(path string) string {
 func compilerIRAtImportPath(expr IRExpr) string {
 	return func() string {
 		if expr.kind == ExprKind_At && expr.value != "" {
-			return func() string { runes := []rune(expr.value); return string(runes[1 : len([]rune(expr.value))-1]) }()
+			return func() string {
+				runes := []rune(expr.value)
+				return string(runes[1:int(int32(len([]rune(expr.value))-1+runeInt32Zero))])
+			}()
 		}
 		return ""
 	}()
@@ -6317,7 +6590,7 @@ func indent(level int) string {
 		if level <= 0 {
 			return ""
 		}
-		return "  " + indent(level-1)
+		return "  " + indent(int(int32(level-1+runeInt32Zero)))
 	}()
 }
 
@@ -6336,9 +6609,9 @@ func selfhost_compiler_common_functionsUseUnwrap(functions []IRFunction, index i
 		}
 		return func() bool {
 			if functions[index].macro {
-				return selfhost_compiler_common_functionsUseUnwrap(functions, index+1)
+				return selfhost_compiler_common_functionsUseUnwrap(functions, int(int32(index+1+runeInt32Zero)))
 			}
-			return exprUsesUnwrap(functions[index].body) || selfhost_compiler_common_functionsUseUnwrap(functions, index+1)
+			return exprUsesUnwrap(functions[index].body) || selfhost_compiler_common_functionsUseUnwrap(functions, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -6348,7 +6621,7 @@ func selfhost_compiler_common_testsUseUnwrap(tests []IRTest, index int) bool {
 		if index >= len(tests) {
 			return false
 		}
-		return exprUsesUnwrap(tests[index].body) || selfhost_compiler_common_testsUseUnwrap(tests, index+1)
+		return exprUsesUnwrap(tests[index].body) || selfhost_compiler_common_testsUseUnwrap(tests, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6357,7 +6630,7 @@ func selfhost_compiler_common_structsUseUnwrap(structs []IRStructType, index int
 		if index >= len(structs) {
 			return false
 		}
-		return selfhost_compiler_common_functionsUseUnwrap(structs[index].methods, 0) || selfhost_compiler_common_structsUseUnwrap(structs, index+1)
+		return selfhost_compiler_common_functionsUseUnwrap(structs[index].methods, 0) || selfhost_compiler_common_structsUseUnwrap(structs, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6366,7 +6639,7 @@ func selfhost_compiler_common_enumsUseUnwrap(enums []IREnumType, index int) bool
 		if index >= len(enums) {
 			return false
 		}
-		return selfhost_compiler_common_functionsUseUnwrap(enums[index].methods, 0) || selfhost_compiler_common_enumsUseUnwrap(enums, index+1)
+		return selfhost_compiler_common_functionsUseUnwrap(enums[index].methods, 0) || selfhost_compiler_common_enumsUseUnwrap(enums, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6390,9 +6663,9 @@ func selfhost_compiler_common_functionsUseModuleCall(functions []IRFunction, key
 		}
 		return func() bool {
 			if functions[index].macro {
-				return selfhost_compiler_common_functionsUseModuleCall(functions, key, index+1)
+				return selfhost_compiler_common_functionsUseModuleCall(functions, key, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_common_exprUsesModuleCall(functions[index].body, key) || selfhost_compiler_common_functionsUseModuleCall(functions, key, index+1)
+			return selfhost_compiler_common_exprUsesModuleCall(functions[index].body, key) || selfhost_compiler_common_functionsUseModuleCall(functions, key, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -6402,7 +6675,7 @@ func selfhost_compiler_common_testsUseModuleCall(tests []IRTest, key string, ind
 		if index >= len(tests) {
 			return false
 		}
-		return selfhost_compiler_common_exprUsesModuleCall(tests[index].body, key) || selfhost_compiler_common_testsUseModuleCall(tests, key, index+1)
+		return selfhost_compiler_common_exprUsesModuleCall(tests[index].body, key) || selfhost_compiler_common_testsUseModuleCall(tests, key, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6411,7 +6684,7 @@ func selfhost_compiler_common_structsUseModuleCall(structs []IRStructType, key s
 		if index >= len(structs) {
 			return false
 		}
-		return selfhost_compiler_common_functionsUseModuleCall(structs[index].methods, key, 0) || selfhost_compiler_common_structsUseModuleCall(structs, key, index+1)
+		return selfhost_compiler_common_functionsUseModuleCall(structs[index].methods, key, 0) || selfhost_compiler_common_structsUseModuleCall(structs, key, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6420,7 +6693,7 @@ func selfhost_compiler_common_enumsUseModuleCall(enums []IREnumType, key string,
 		if index >= len(enums) {
 			return false
 		}
-		return selfhost_compiler_common_functionsUseModuleCall(enums[index].methods, key, 0) || selfhost_compiler_common_enumsUseModuleCall(enums, key, index+1)
+		return selfhost_compiler_common_functionsUseModuleCall(enums[index].methods, key, 0) || selfhost_compiler_common_enumsUseModuleCall(enums, key, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6438,7 +6711,7 @@ func selfhost_compiler_common_exprChildrenUseModuleCall(children []IRExpr, key s
 		if index >= len(children) {
 			return false
 		}
-		return selfhost_compiler_common_exprUsesModuleCall(children[index], key) || selfhost_compiler_common_exprChildrenUseModuleCall(children, key, index+1)
+		return selfhost_compiler_common_exprUsesModuleCall(children[index], key) || selfhost_compiler_common_exprChildrenUseModuleCall(children, key, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6447,7 +6720,7 @@ func selfhost_compiler_common_exprChildrenUseUnwrap(children []IRExpr, index int
 		if index >= len(children) {
 			return false
 		}
-		return exprUsesUnwrap(children[index]) || selfhost_compiler_common_exprChildrenUseUnwrap(children, index+1)
+		return exprUsesUnwrap(children[index]) || selfhost_compiler_common_exprChildrenUseUnwrap(children, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -6458,7 +6731,7 @@ func compilerIntToString(value int) string {
 		}
 		return func() string {
 			if value < 0 {
-				return "-" + selfhost_compiler_common_compilerUnsignedIntToString(0-value, "")
+				return "-" + selfhost_compiler_common_compilerUnsignedIntToString(int(int32(0-value+runeInt32Zero)), "")
 			}
 			return selfhost_compiler_common_compilerUnsignedIntToString(value, "")
 		}()
@@ -6470,7 +6743,7 @@ func selfhost_compiler_common_compilerUnsignedIntToString(value int, out string)
 		if value <= 0 {
 			return out
 		} else {
-			value, out = value/10, selfhost_compiler_common_compilerDigitString(value%10)+out
+			value, out = int(int32(value/10+runeInt32Zero)), selfhost_compiler_common_compilerDigitString(int(int32(value%10+runeInt32Zero)))+out
 			continue
 		}
 	}
@@ -6560,7 +6833,7 @@ func selfhost_infer_infer_inferExpectedReturnBindingName(expr IRExpr) string {
 			return expr.name
 		} else {
 			if expr.kind == ExprKind_Block && len(expr.children) > 0 {
-				expr = expr.children[len(expr.children)-1]
+				expr = expr.children[int(int32(len(expr.children)-1+runeInt32Zero))]
 				continue
 			} else {
 				return ""
@@ -6574,7 +6847,7 @@ func selfhost_infer_infer_inferExpectedBlockBinding(body IRExpr, name string, ex
 		if index >= len(body.children) {
 			return selfhost_infer_infer_inferRebuildBlock(body, out)
 		}
-		return selfhost_infer_infer_inferExpectedBlockBinding(body, name, expected, index+1, func() []IRExpr {
+		return selfhost_infer_infer_inferExpectedBlockBinding(body, name, expected, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 			__rune_spread_out := []IRExpr{}
 			__rune_spread_out = append(__rune_spread_out, out...)
 			__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_inferExpectedLetBinding(body.children[index], name, expected))
@@ -6622,7 +6895,7 @@ func selfhost_infer_infer_inferSeedBindingsStep(params []IRParam, receiverType s
 				return selfhost_infer_infer_inferAddBinding(bindings, "this", receiverType)
 			}
 		} else {
-			params, receiverType, bindings, index = params, receiverType, selfhost_infer_infer_inferAddBinding(bindings, params[index].name, params[index].typeName), index+1
+			params, receiverType, bindings, index = params, receiverType, selfhost_infer_infer_inferAddBinding(bindings, params[index].name, params[index].typeName), int(int32(index+1+runeInt32Zero))
 			continue
 		}
 	}
@@ -6670,7 +6943,7 @@ func selfhost_infer_infer_inferParamTypeInChildren(name string, children []IRExp
 		return func() string {
 			switch {
 			case selfhost_infer_infer_inferParamType(name, children[index]) == "":
-				return selfhost_infer_infer_inferParamTypeInChildren(name, children, index+1)
+				return selfhost_infer_infer_inferParamTypeInChildren(name, children, int(int32(index+1+runeInt32Zero)))
 			default:
 				return selfhost_infer_infer_inferParamType(name, children[index])
 			}
@@ -6724,7 +6997,7 @@ func selfhost_infer_infer_inferLetStep(children []IRExpr, structs []IRStructType
 		}
 		return plainBindings
 	}()
-	next := selfhost_infer_infer_inferBlockStatements(children, structs, enums, newBindings, index+1, func() []IRExpr {
+	next := selfhost_infer_infer_inferBlockStatements(children, structs, enums, newBindings, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 		__rune_spread_out := []IRExpr{}
 		__rune_spread_out = append(__rune_spread_out, out...)
 		__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_inferLetRebuildTyped(letExpr, value, bindingType))
@@ -6735,7 +7008,7 @@ func selfhost_infer_infer_inferLetStep(children []IRExpr, structs []IRStructType
 
 func selfhost_infer_infer_inferPlainStep(expr IRExpr, children []IRExpr, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding, index int, out []IRExpr) InferBlockOut {
 	statement := selfhost_infer_infer_inferAnnotate(expr, structs, enums, bindings)
-	return selfhost_infer_infer_inferBlockStatements(children, structs, enums, bindings, index+1, func() []IRExpr {
+	return selfhost_infer_infer_inferBlockStatements(children, structs, enums, bindings, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 		__rune_spread_out := []IRExpr{}
 		__rune_spread_out = append(__rune_spread_out, out...)
 		__rune_spread_out = append(__rune_spread_out, statement)
@@ -6768,7 +7041,7 @@ func selfhost_infer_infer_inferSyncStatements(statements []IRExpr, bindings []Co
 			return out
 		} else {
 			if statements[index].kind == ExprKind_Let {
-				statements, bindings, index, out = statements, bindings, index+1, func() []IRExpr {
+				statements, bindings, index, out = statements, bindings, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 					__rune_spread_out := []IRExpr{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_inferSyncLet(statements[index], bindings))
@@ -6776,7 +7049,7 @@ func selfhost_infer_infer_inferSyncStatements(statements []IRExpr, bindings []Co
 				}()
 				continue
 			} else {
-				statements, bindings, index, out = statements, bindings, index+1, func() []IRExpr {
+				statements, bindings, index, out = statements, bindings, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 					__rune_spread_out := []IRExpr{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, statements[index])
@@ -6814,7 +7087,7 @@ func selfhost_infer_infer_inferBindingTypeOf(bindings []CompilerTypeBinding, nam
 			if bindings[index].name == name {
 				return bindings[index].typeName
 			} else {
-				bindings, name, index = bindings, name, index+1
+				bindings, name, index = bindings, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -6840,7 +7113,7 @@ func selfhost_infer_infer_inferRefineExpr(bindings []CompilerTypeBinding, expr I
 		if childIndex >= len(expr.children) {
 			return refined
 		}
-		return selfhost_infer_infer_inferRefineExpr(selfhost_infer_infer_inferRefineExpr(refined, expr.children[childIndex], structs, enums, 0), expr, structs, enums, childIndex+1)
+		return selfhost_infer_infer_inferRefineExpr(selfhost_infer_infer_inferRefineExpr(refined, expr.children[childIndex], structs, enums, 0), expr, structs, enums, int(int32(childIndex+1+runeInt32Zero)))
 	}()
 }
 
@@ -6877,7 +7150,7 @@ func selfhost_infer_infer_inferRefineStep(bindings []CompilerTypeBinding, name s
 			return selfhost_infer_infer_inferRefineFinish(out, name, elemType)
 		} else {
 			if bindings[index].name == name || bindings[index].name == "$"+name {
-				bindings, name, elemType, index, out = bindings, name, elemType, index+1, func() []CompilerTypeBinding {
+				bindings, name, elemType, index, out = bindings, name, elemType, int(int32(index+1+runeInt32Zero)), func() []CompilerTypeBinding {
 					__rune_spread_out := []CompilerTypeBinding{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_compilerTypeBinding(bindings[index].name, "Array["+elemType+"]"))
@@ -6885,7 +7158,7 @@ func selfhost_infer_infer_inferRefineStep(bindings []CompilerTypeBinding, name s
 				}()
 				continue
 			} else {
-				bindings, name, elemType, index, out = bindings, name, elemType, index+1, func() []CompilerTypeBinding {
+				bindings, name, elemType, index, out = bindings, name, elemType, int(int32(index+1+runeInt32Zero)), func() []CompilerTypeBinding {
 					__rune_spread_out := []CompilerTypeBinding{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, bindings[index])
@@ -6920,7 +7193,7 @@ func selfhost_infer_infer_inferHasBinding(bindings []CompilerTypeBinding, name s
 			if bindings[index].name == name {
 				return true
 			} else {
-				bindings, name, index = bindings, name, index+1
+				bindings, name, index = bindings, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -6950,10 +7223,10 @@ func selfhost_infer_infer_inferDropBinding(bindings []CompilerTypeBinding, name 
 			return out
 		} else {
 			if bindings[index].name == name {
-				bindings, name, index, out = bindings, name, index+1, out
+				bindings, name, index, out = bindings, name, int(int32(index+1+runeInt32Zero)), out
 				continue
 			} else {
-				bindings, name, index, out = bindings, name, index+1, func() []CompilerTypeBinding {
+				bindings, name, index, out = bindings, name, int(int32(index+1+runeInt32Zero)), func() []CompilerTypeBinding {
 					__rune_spread_out := []CompilerTypeBinding{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, bindings[index])
@@ -6973,7 +7246,7 @@ func selfhost_infer_infer_inferFindBinding(bindings []CompilerTypeBinding, name 
 			if bindings[index].name == name {
 				return bindings[index]
 			} else {
-				bindings, name, index = bindings, name, index+1
+				bindings, name, index = bindings, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -7022,7 +7295,7 @@ func selfhost_infer_infer_inferSetArrayCallbackParamTypes(params []IRParam, elem
 		if index >= len(params) {
 			return out
 		} else {
-			params, elemType, index, out = params, elemType, index+1, func() []IRParam {
+			params, elemType, index, out = params, elemType, int(int32(index+1+runeInt32Zero)), func() []IRParam {
 				__rune_spread_out := []IRParam{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, IRParam{name: params[index].name, line: params[index].line, column: params[index].column, typeName: func() string {
@@ -7031,7 +7304,7 @@ func selfhost_infer_infer_inferSetArrayCallbackParamTypes(params []IRParam, elem
 					}
 					return func() string {
 						if index == 1 {
-							return "Int"
+							return "Int32"
 						}
 						return func() string {
 							if index == 2 {
@@ -7057,7 +7330,7 @@ func selfhost_infer_infer_inferChildrenStep(exprs []IRExpr, structs []IRStructTy
 		if index >= len(exprs) {
 			return out
 		} else {
-			exprs, structs, enums, bindings, index, out = exprs, structs, enums, bindings, index+1, func() []IRExpr {
+			exprs, structs, enums, bindings, index, out = exprs, structs, enums, bindings, int(int32(index+1+runeInt32Zero)), func() []IRExpr {
 				__rune_spread_out := []IRExpr{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_infer_infer_inferChild(exprs[index], structs, enums, bindings))
@@ -7103,6 +7376,19 @@ func selfhost_infer_infer_inferAnnotateText(expr IRExpr, children []IRExpr, para
 		case expr.kind == ExprKind_Watch:
 			return ""
 		case expr.kind == ExprKind_Block:
+			return "Void"
+		case expr.kind == ExprKind_Loop:
+			return "Void"
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(children) > 0 {
+					return selfhost_infer_infer_inferExprType(children[0])
+				}
+				return "Void"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "Void"
+		case expr.kind == ExprKind_Continue:
 			return "Void"
 		case expr.kind == ExprKind_Struct:
 			return expr.name
@@ -7173,11 +7459,11 @@ func selfhost_infer_infer_inferFieldSelectorFromType(criteria string, fieldName 
 func selfhost_infer_infer_inferReceiverRootField(fieldName string) string {
 	return func() string {
 		if fieldName == "length" {
-			return "Int"
+			return "Int32"
 		}
 		return func() string {
 			if fieldName == "size" {
-				return "Int"
+				return "Int32"
 			}
 			return func() string {
 				if fieldName == "isEmpty" || fieldName == "nonEmpty" {
@@ -7197,7 +7483,7 @@ func selfhost_infer_infer_inferFieldInStruct(typeName string, fieldName string, 
 			if structs[index].name == typeName {
 				return selfhost_infer_infer_inferFieldByName(structs[index].fields, fieldName, 0)
 			} else {
-				typeName, fieldName, structs, index = typeName, fieldName, structs, index+1
+				typeName, fieldName, structs, index = typeName, fieldName, structs, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -7212,7 +7498,7 @@ func selfhost_infer_infer_inferFieldByName(fields []IRField, fieldName string, i
 			if fields[index].name == fieldName {
 				return fields[index].typeName
 			} else {
-				fields, fieldName, index = fields, fieldName, index+1
+				fields, fieldName, index = fields, fieldName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -7256,7 +7542,7 @@ func selfhost_infer_infer_inferObjectType(fields []IRExpr, index int, out string
 		if index >= len(fields) {
 			return out + "}"
 		} else {
-			fields, index, out = fields, index+1, out+func() string {
+			fields, index, out = fields, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -7316,7 +7602,7 @@ func selfhost_infer_infer_inferCommonFuncReturnType(left string, right string) s
 }
 
 func selfhost_infer_infer_inferCommonFuncReturnTypeWithParts(left []string, right []string) string {
-	returnIndex := len(left) - 1
+	returnIndex := int(int32(len(left) - 1 + runeInt32Zero))
 	returnType := selfhost_infer_infer_inferCommonTypePart(left[returnIndex], right[returnIndex])
 	return func() string {
 		if returnType == "" {
@@ -7327,8 +7613,14 @@ func selfhost_infer_infer_inferCommonFuncReturnTypeWithParts(left []string, righ
 }
 
 func selfhost_infer_infer_inferCommonTypePart(left string, right string) string {
-	leftReturn := func() string { runes := []rune(left); return string(runes[0 : len([]rune(left))-1]) }()
-	rightReturn := func() string { runes := []rune(right); return string(runes[0 : len([]rune(right))-1]) }()
+	leftReturn := func() string {
+		runes := []rune(left)
+		return string(runes[0:int(int32(len([]rune(left))-1+runeInt32Zero))])
+	}()
+	rightReturn := func() string {
+		runes := []rune(right)
+		return string(runes[0:int(int32(len([]rune(right))-1+runeInt32Zero))])
+	}()
 	common := selfhost_infer_infer_inferCommonType(leftReturn, rightReturn)
 	return func() string {
 		if common == "" {
@@ -7347,7 +7639,7 @@ func selfhost_infer_infer_inferFuncTypeParts(parts []string, returnIndex int, re
 		if index >= len(parts) {
 			return out
 		} else {
-			parts, returnIndex, returnType, index, out = parts, returnIndex, returnType, index+1, out+func() string {
+			parts, returnIndex, returnType, index, out = parts, returnIndex, returnType, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -7383,8 +7675,8 @@ func selfhost_infer_infer_inferFunctionReturnType(typeName string) string {
 
 func selfhost_infer_infer_inferReturnPart(typeName string) string {
 	return func() string {
-		runes := []rune(func() []string { parts := strings.Split(typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(typeName, "|"); return parts }())-1])
-		return string(runes[0 : len([]rune(func() []string { parts := strings.Split(typeName, "|"); return parts }()[len(func() []string { parts := strings.Split(typeName, "|"); return parts }())-1]))-1])
+		runes := []rune(func() []string { parts := strings.Split(typeName, "|"); return parts }()[int(int32(len(func() []string { parts := strings.Split(typeName, "|"); return parts }())-1+runeInt32Zero))])
+		return string(runes[0:int(int32(len([]rune(func() []string { parts := strings.Split(typeName, "|"); return parts }()[int(int32(len(func() []string { parts := strings.Split(typeName, "|"); return parts }())-1+runeInt32Zero))]))-1+runeInt32Zero))])
 	}()
 }
 
@@ -7393,7 +7685,7 @@ func selfhost_infer_infer_inferParamTypes(params []IRParam, index int, out strin
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -7410,10 +7702,10 @@ func selfhost_infer_infer_inferPatternBlockType(branches []IRExpr, index int, pr
 			return previous
 		} else {
 			if len(branches[index].children) > 1 {
-				branches, index, previous = branches, index+1, selfhost_infer_infer_inferExprType(branches[index].children[1])
+				branches, index, previous = branches, int(int32(index+1+runeInt32Zero)), selfhost_infer_infer_inferExprType(branches[index].children[1])
 				continue
 			} else {
-				branches, index, previous = branches, index+1, previous
+				branches, index, previous = branches, int(int32(index+1+runeInt32Zero)), previous
 				continue
 			}
 		}
@@ -7430,7 +7722,7 @@ func selfhost_infer_infer_inferBinaryType(expr IRExpr) string {
 				return false
 			}
 		}() {
-			return "Int"
+			return "Int32"
 		}
 		return expr.text
 	}()
@@ -7449,7 +7741,7 @@ func selfhost_infer_infer_inferExprType(expr IRExpr) string {
 					return func() string {
 						switch {
 						case expr.kind == ExprKind_Int:
-							return "Int"
+							return "Int32"
 						case expr.kind == ExprKind_Double:
 							return "Double"
 						case expr.kind == ExprKind_Bool:
@@ -7463,7 +7755,7 @@ func selfhost_infer_infer_inferExprType(expr IRExpr) string {
 						case expr.kind == ExprKind_Selector:
 							return func() string {
 								if expr.name == "k" {
-									return "Int"
+									return "Int32"
 								}
 								return ""
 							}()
@@ -7483,7 +7775,7 @@ func selfhost_infer_infer_inferBlockType(children []IRExpr, index int, previous 
 		if index >= len(children) {
 			return previous
 		} else {
-			children, index, previous = children, index+1, selfhost_infer_infer_inferExprType(children[index])
+			children, index, previous = children, int(int32(index+1+runeInt32Zero)), selfhost_infer_infer_inferExprType(children[index])
 			continue
 		}
 	}
@@ -7514,7 +7806,7 @@ func selfhost_infer_infer_inferLambdaParamType(name string, children []IRExpr, i
 		return func() string {
 			switch {
 			case selfhost_infer_infer_inferLambdaParamTypeInExpr(name, children[index]) == "":
-				return selfhost_infer_infer_inferLambdaParamType(name, children, index+1)
+				return selfhost_infer_infer_inferLambdaParamType(name, children, int(int32(index+1+runeInt32Zero)))
 			default:
 				return selfhost_infer_infer_inferLambdaParamTypeInExpr(name, children[index])
 			}
@@ -7528,7 +7820,7 @@ func selfhost_infer_infer_inferLambdaParamTypeInExpr(name string, expr IRExpr) s
 		case expr.kind == ExprKind_Selector:
 			return func() string {
 				if len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier && expr.children[0].name == name {
-					return "{b:Int;z:Bool;a:Int}"
+					return "{b:Int32;z:Bool;a:Int32}"
 				}
 				return selfhost_infer_infer_inferLambdaParamType(name, expr.children, 0)
 			}()
@@ -7583,7 +7875,7 @@ func selfhost_format_format_formatParsedImports(imports []ParsedImport, index in
 		if index >= len(imports) {
 			return out
 		} else {
-			imports, index, out = imports, index+1, out+func() string {
+			imports, index, out = imports, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if imports[index].go_ {
 					return "@\"go:" + imports[index].path + "\""
 				}
@@ -7604,7 +7896,7 @@ func selfhost_format_format_formatParsedTypes(types []ParsedType, index int, out
 		if index >= len(types) {
 			return out
 		} else {
-			types, index, out = types, index+1, out+func() string {
+			types, index, out = types, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -7638,8 +7930,8 @@ func selfhost_format_format_formatGenericNames(generics []string, index int, out
 			if index >= len(generics) {
 				return out + "]"
 			} else {
-				generics, index, out = generics, index+1, out+generics[index]+func() string {
-					if index+1 < len(generics) {
+				generics, index, out = generics, int(int32(index+1+runeInt32Zero)), out+generics[index]+func() string {
+					if int(int32(index+1+runeInt32Zero)) < len(generics) {
 						return ", "
 					}
 					return ""
@@ -7653,7 +7945,7 @@ func selfhost_format_format_formatGenericNames(generics []string, index int, out
 func selfhost_format_format_formatParsedStructType(header string, fields []ParsedField, methods []ParsedFunction, index int, out string) string {
 	for {
 		if index < len(fields) {
-			header, fields, methods, index, out = header, fields, methods, index+1, out+selfhost_format_format_indentText(1)+func() string {
+			header, fields, methods, index, out = header, fields, methods, int(int32(index+1+runeInt32Zero)), out+selfhost_format_format_indentText(1)+func() string {
 				if fields[index].private {
 					return "- "
 				}
@@ -7671,7 +7963,7 @@ func selfhost_format_format_formatParsedTypeMethods(methods []ParsedFunction, in
 		if index >= len(methods) {
 			return out
 		} else {
-			methods, index, out = methods, index+1, out+func() string {
+			methods, index, out = methods, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 && out != "" {
 					return "\n"
 				}
@@ -7712,7 +8004,7 @@ func selfhost_format_format_formatParsedEnumType(header string, members []Parsed
 		if index >= len(members) {
 			return header + ": {\n" + out + "}"
 		} else {
-			header, members, index, out = header, members, index+1, out+selfhost_format_format_indentText(1)+func() string {
+			header, members, index, out = header, members, int(int32(index+1+runeInt32Zero)), out+selfhost_format_format_indentText(1)+func() string {
 				if members[index].private {
 					return "- "
 				}
@@ -7733,7 +8025,7 @@ func selfhost_format_format_formatParsedConstants(constants []ParsedConst, index
 		if index >= len(constants) {
 			return out
 		} else {
-			constants, index, out = constants, index+1, out+selfhost_format_format_formatParsedConstant(constants[index])+"\n"
+			constants, index, out = constants, int(int32(index+1+runeInt32Zero)), out+selfhost_format_format_formatParsedConstant(constants[index])+"\n"
 			continue
 		}
 	}
@@ -7753,7 +8045,7 @@ func selfhost_format_format_formatParsedFunctions(functions []ParsedFunction, in
 		if index >= len(functions) {
 			return out
 		} else {
-			functions, index, out = functions, index+1, out+func() string {
+			functions, index, out = functions, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -7783,7 +8075,7 @@ func selfhost_format_format_formatParsedAnnotations(annotations []ParsedAnnotati
 		if index >= len(annotations) {
 			return out
 		} else {
-			annotations, index, out = annotations, index+1, out+annotations[index].marker+func() string {
+			annotations, index, out = annotations, int(int32(index+1+runeInt32Zero)), out+annotations[index].marker+func() string {
 				if annotations[index].module == "" {
 					return ""
 				}
@@ -7804,7 +8096,7 @@ func selfhost_format_format_formatParams(params []ParsedParam, index int, out st
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), func() string {
 				if params[index].typeRef.name == "" {
 					return out + params[index].name + selfhost_format_format_paramSeparator(params, index)
 				}
@@ -7817,7 +8109,7 @@ func selfhost_format_format_formatParams(params []ParsedParam, index int, out st
 
 func selfhost_format_format_paramSeparator(params []ParsedParam, index int) string {
 	return func() string {
-		if index+1 < len(params) {
+		if int(int32(index+1+runeInt32Zero)) < len(params) {
 			return ", "
 		}
 		return ""
@@ -7847,8 +8139,8 @@ func selfhost_format_format_formatTypeArgs(args []ParsedTypeRef, index int, out 
 		if index >= len(args) {
 			return out
 		} else {
-			args, index, out = args, index+1, out+selfhost_format_format_formatTypeRef(args[index])+func() string {
-				if index+1 < len(args) {
+			args, index, out = args, int(int32(index+1+runeInt32Zero)), out+selfhost_format_format_formatTypeRef(args[index])+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(args) {
 					return ", "
 				}
 				return ""
@@ -7863,7 +8155,7 @@ func selfhost_format_format_formatBlockChildren(children []ParsedExpr, index int
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, indent, out = children, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(children[index], indent)+"\n"
+			children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(children[index], indent)+"\n"
 			continue
 		}
 	}
@@ -7913,13 +8205,36 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 		case expr.kind == ExprKind_Binary:
 			return selfhost_format_format_formatExpr(expr.children[0], indent) + " " + expr.op + " " + selfhost_format_format_formatExpr(expr.children[1], indent)
 		case expr.kind == ExprKind_Ternary:
-			return selfhost_format_format_formatTernaryExpr(expr, indent)
+			return func() string {
+				if expr.name == "if" {
+					return selfhost_format_format_formatIfExpr(expr, indent)
+				}
+				return selfhost_format_format_formatTernaryExpr(expr, indent)
+			}()
+		case expr.kind == ExprKind_Loop:
+			return selfhost_format_format_formatWhileExpr(expr, indent)
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(expr.children) > 0 {
+					return "return " + selfhost_format_format_formatExpr(expr.children[0], indent)
+				}
+				return "return"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "^"
+		case expr.kind == ExprKind_Continue:
+			return "^>"
 		case expr.kind == ExprKind_Tuple:
 			return "(" + selfhost_format_format_formatExprArgs(expr.children, 0, indent, "") + ")"
 		case expr.kind == ExprKind_Map:
 			return selfhost_format_format_formatMapExpr(expr, indent)
 		case expr.kind == ExprKind_Match:
-			return selfhost_format_format_formatMatchExpr(expr, indent)
+			return func() string {
+				if expr.name == "switch" {
+					return selfhost_format_format_formatSwitchExpr(expr, indent)
+				}
+				return selfhost_format_format_formatMatchExpr(expr, indent)
+			}()
 		case expr.kind == ExprKind_ObjectDestructure:
 			return selfhost_format_format_formatObjectDestructureExpr(expr, indent)
 		case expr.kind == ExprKind_Watch:
@@ -7935,7 +8250,12 @@ func selfhost_format_format_formatExpr(expr ParsedExpr, indent int) string {
 		case expr.kind == ExprKind_Lambda:
 			return selfhost_format_format_formatLambdaExpr(expr, indent)
 		case expr.kind == ExprKind_Call:
-			return selfhost_format_format_formatCallExpr(expr, indent)
+			return func() string {
+				if expr.name == "for" {
+					return selfhost_format_format_formatForOfExpr(expr, indent)
+				}
+				return selfhost_format_format_formatCallExpr(expr, indent)
+			}()
 		case expr.kind == ExprKind_Selector:
 			return selfhost_format_format_formatSelectorExpr(expr, indent)
 		case expr.kind == ExprKind_At:
@@ -7960,7 +8280,7 @@ func selfhost_format_format_formatObjectExpr(expr ParsedExpr, indent int) string
 		if len(expr.children) == 0 {
 			return "{}"
 		}
-		return "{\n" + selfhost_format_format_formatObjectFields(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+		return "{\n" + selfhost_format_format_formatObjectFields(expr.children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
 	}()
 }
 
@@ -7969,7 +8289,7 @@ func selfhost_format_format_formatArrayExpr(expr ParsedExpr, indent int) string 
 		if len(expr.children) == 0 {
 			return "[]"
 		}
-		return "[\n" + selfhost_format_format_formatArrayItems(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "]"
+		return "[\n" + selfhost_format_format_formatArrayItems(expr.children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "]"
 	}()
 }
 
@@ -7978,8 +8298,8 @@ func selfhost_format_format_formatArrayItems(items []ParsedExpr, index int, inde
 		if index >= len(items) {
 			return out
 		} else {
-			items, index, indent, out = items, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(items[index], indent)+func() string {
-				if index+1 < len(items) {
+			items, index, indent, out = items, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(items[index], indent)+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(items) {
 					return ","
 				}
 				return ""
@@ -7994,12 +8314,12 @@ func selfhost_format_format_formatStructExpr(expr ParsedExpr, indent int) string
 		if len(expr.children) == 0 {
 			return expr.name + " {}"
 		}
-		return expr.name + " {\n" + selfhost_format_format_formatObjectFields(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+		return expr.name + " {\n" + selfhost_format_format_formatObjectFields(expr.children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
 	}()
 }
 
 func selfhost_format_format_formatBlockExpr(expr ParsedExpr, indent int) string {
-	return "{\n" + selfhost_format_format_formatBlockChildren(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+	return "{\n" + selfhost_format_format_formatBlockChildren(expr.children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
 }
 
 func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, indent int, out string) string {
@@ -8007,8 +8327,8 @@ func selfhost_format_format_formatObjectFields(fields []ParsedExpr, index int, i
 		if index >= len(fields) {
 			return out
 		} else {
-			fields, index, indent, out = fields, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatObjectField(fields[index], indent)+func() string {
-				if index+1 < len(fields) {
+			fields, index, indent, out = fields, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatObjectField(fields[index], indent)+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(fields) {
 					return ","
 				}
 				return ""
@@ -8028,12 +8348,20 @@ func selfhost_format_format_formatObjectField(field ParsedExpr, indent int) stri
 }
 
 func selfhost_format_format_formatLetExpr(expr ParsedExpr, indent int) string {
-	return func() string {
-		if expr.op == "$:=" {
-			return "$" + expr.name + " := " + selfhost_format_format_formatExpr(expr.children[0], indent)
+	mutable := !(expr.op == ":=" || expr.op == "$:=")
+	op := func() string {
+		if mutable {
+			return ":=:"
 		}
-		return expr.name + " := " + selfhost_format_format_formatExpr(expr.children[0], indent)
+		return ":="
 	}()
+	prefix := func() string {
+		if strings.HasPrefix(expr.op, "$") {
+			return "$"
+		}
+		return ""
+	}()
+	return prefix + expr.name + " " + op + " " + selfhost_format_format_formatExpr(expr.children[0], indent)
 }
 
 func selfhost_format_format_formatAssignExpr(expr ParsedExpr, indent int) string {
@@ -8056,12 +8384,24 @@ func selfhost_format_format_formatTernaryExpr(expr ParsedExpr, indent int) strin
 	}()
 }
 
+func selfhost_format_format_formatIfExpr(expr ParsedExpr, indent int) string {
+	condition := selfhost_format_format_formatExpr(expr.children[0], indent)
+	thenExpr := selfhost_format_format_formatExpr(expr.children[1], indent)
+	elsePart := func() string {
+		if len(expr.children) >= 3 {
+			return " else " + selfhost_format_format_formatExpr(expr.children[2], indent)
+		}
+		return ""
+	}()
+	return "if (" + condition + ") " + thenExpr + elsePart
+}
+
 func selfhost_format_format_formatMapExpr(expr ParsedExpr, indent int) string {
 	return func() string {
 		if len(expr.children) == 0 {
 			return "{}"
 		}
-		return "{\n" + selfhost_format_format_formatMapEntries(expr.children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+		return "{\n" + selfhost_format_format_formatMapEntries(expr.children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
 	}()
 }
 
@@ -8070,8 +8410,8 @@ func selfhost_format_format_formatMapEntries(entries []ParsedExpr, index int, in
 		if index >= len(entries) {
 			return out
 		} else {
-			entries, index, indent, out = entries, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(entries[index].children[0], indent)+": "+selfhost_format_format_formatExpr(entries[index].children[1], indent)+func() string {
-				if index+1 < len(entries) {
+			entries, index, indent, out = entries, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatExpr(entries[index].children[0], indent)+": "+selfhost_format_format_formatExpr(entries[index].children[1], indent)+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(entries) {
 					return ","
 				}
 				return ""
@@ -8083,7 +8423,44 @@ func selfhost_format_format_formatMapEntries(entries []ParsedExpr, index int, in
 
 func selfhost_format_format_formatMatchExpr(expr ParsedExpr, indent int) string {
 	subject := selfhost_format_format_formatExpr(expr.children[0], indent)
-	return subject + " {\n" + selfhost_format_format_formatMatchBranches(expr.children, 1, indent+1, "") + selfhost_format_format_indentText(indent) + "}"
+	return subject + " {\n" + selfhost_format_format_formatMatchBranches(expr.children, 1, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
+}
+
+func selfhost_format_format_formatSwitchExpr(expr ParsedExpr, indent int) string {
+	subject := selfhost_format_format_formatExpr(expr.children[0], indent)
+	return "switch (" + subject + ") {\n" + selfhost_format_format_formatSwitchBranches(expr.children, 1, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "}"
+}
+
+func selfhost_format_format_formatSwitchBranches(children []ParsedExpr, index int, indent int, out string) string {
+	for {
+		if index >= len(children) {
+			return out
+		} else {
+			children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_formatSwitchBranch(children[index], indent)
+			continue
+		}
+	}
+}
+
+func selfhost_format_format_formatSwitchBranch(branch ParsedExpr, indent int) string {
+	label := func() string {
+		if branch.text == "_" {
+			return "default"
+		}
+		return "case " + branch.text
+	}()
+	return selfhost_format_format_indentText(indent) + label + ": " + selfhost_format_format_formatExpr(branch.children[1], indent) + "\n"
+}
+
+func selfhost_format_format_formatForOfExpr(expr ParsedExpr, indent int) string {
+	selector := expr.children[0]
+	lambda := expr.children[1]
+	name := lambda.params[0].name
+	return "for (const " + name + " of " + selfhost_format_format_formatExpr(selector.children[0], indent) + ") " + selfhost_format_format_formatExpr(lambda.children[0], indent)
+}
+
+func selfhost_format_format_formatWhileExpr(expr ParsedExpr, indent int) string {
+	return "* (" + selfhost_format_format_formatExpr(expr.children[0], indent) + ") " + selfhost_format_format_formatExpr(expr.children[1], indent)
 }
 
 func selfhost_format_format_formatMatchBranches(children []ParsedExpr, index int, indent int, out string) string {
@@ -8091,7 +8468,7 @@ func selfhost_format_format_formatMatchBranches(children []ParsedExpr, index int
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, indent, out = children, index+1, indent, out+selfhost_format_format_indentText(indent)+children[index].children[0].text+" => "+selfhost_format_format_formatExpr(children[index].children[1], indent)+"\n"
+			children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+children[index].children[0].text+" => "+selfhost_format_format_formatExpr(children[index].children[1], indent)+"\n"
 			continue
 		}
 	}
@@ -8106,13 +8483,13 @@ func selfhost_format_format_formatObjectDestructureParams(params []ParsedParam, 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if params[index].typeRef.name == params[index].name {
 					return params[index].name
 				}
 				return params[index].typeRef.name + ": " + params[index].name
 			}()+func() string {
-				if index+1 < len(params) {
+				if int(int32(index+1+runeInt32Zero)) < len(params) {
 					return ", "
 				}
 				return ""
@@ -8143,7 +8520,7 @@ func selfhost_format_format_formatLambdaExpr(expr ParsedExpr, indent int) string
 	body := expr.children[0]
 	return func() string {
 		if body.kind == ExprKind_XMLElement {
-			return header + "(\n" + selfhost_format_format_indentText(indent+1) + selfhost_format_format_formatExpr(body, indent+1) + "\n" + selfhost_format_format_indentText(indent) + ")"
+			return header + "(\n" + selfhost_format_format_indentText(int(int32(indent+1+runeInt32Zero))) + selfhost_format_format_formatExpr(body, int(int32(indent+1+runeInt32Zero))) + "\n" + selfhost_format_format_indentText(indent) + ")"
 		}
 		return header + selfhost_format_format_formatExpr(body, indent)
 	}()
@@ -8154,13 +8531,13 @@ func selfhost_format_format_formatLambdaParams(params []ParsedParam, index int, 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+params[index].name+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+params[index].name+func() string {
 				if params[index].typeRef.name == "" {
 					return ""
 				}
 				return ": " + selfhost_format_format_formatTypeRef(params[index].typeRef)
 			}()+func() string {
-				if index+1 < len(params) {
+				if int(int32(index+1+runeInt32Zero)) < len(params) {
 					return ", "
 				}
 				return ""
@@ -8188,8 +8565,8 @@ func selfhost_format_format_formatExprArgs(children []ParsedExpr, index int, ind
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, indent, out = children, index+1, indent, out+selfhost_format_format_formatExpr(children[index], indent)+func() string {
-				if index+1 < len(children) {
+			children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_formatExpr(children[index], indent)+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(children) {
 					return ", "
 				}
 				return ""
@@ -8225,7 +8602,7 @@ func selfhost_format_format_formatXMLSelfClosing(element ParsedExpr, attrs strin
 		if selfhost_format_format_xmlAttributeCount(element.children, 0) <= 1 || selfhost_format_format_xmlLineFits(singleLine, indent) {
 			return singleLine
 		}
-		return "<" + element.name + selfhost_format_format_formatXMLAttributesMultiline(element.children, 0, indent+1, "") + "\n" + selfhost_format_format_indentText(indent) + "/>"
+		return "<" + element.name + selfhost_format_format_formatXMLAttributesMultiline(element.children, 0, int(int32(indent+1+runeInt32Zero)), "") + "\n" + selfhost_format_format_indentText(indent) + "/>"
 	}()
 }
 
@@ -8234,12 +8611,12 @@ func selfhost_format_format_xmlAttributeCount(children []ParsedExpr, index int) 
 		if index >= len(children) {
 			return 0
 		}
-		return func() int {
+		return int(int32(func() int {
 			if selfhost_format_format_isXMLAttribute(children[index]) {
 				return 1
 			}
 			return 0
-		}() + selfhost_format_format_xmlAttributeCount(children, index+1)
+		}() + selfhost_format_format_xmlAttributeCount(children, int(int32(index+1+runeInt32Zero))) + runeInt32Zero))
 	}()
 }
 
@@ -8249,10 +8626,10 @@ func selfhost_format_format_formatXMLAttributesMultiline(children []ParsedExpr, 
 			return out
 		} else {
 			if selfhost_format_format_isXMLAttribute(children[index]) {
-				children, index, indent, out = children, index+1, indent, out+"\n"+selfhost_format_format_indentText(indent)+selfhost_format_format_formatXMLAttribute(children[index], indent)
+				children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+"\n"+selfhost_format_format_indentText(indent)+selfhost_format_format_formatXMLAttribute(children[index], indent)
 				continue
 			} else {
-				children, index, indent, out = children, index+1, indent, out
+				children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out
 				continue
 			}
 		}
@@ -8260,7 +8637,7 @@ func selfhost_format_format_formatXMLAttributesMultiline(children []ParsedExpr, 
 }
 
 func selfhost_format_format_xmlLineFits(line string, indent int) bool {
-	return len([]rune((selfhost_format_format_indentText(indent))))+len([]rune(line)) <= 80
+	return int(int32(len([]rune((selfhost_format_format_indentText(indent))))+len([]rune(line))+runeInt32Zero)) <= 80
 }
 
 func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int, indent int, out string) string {
@@ -8269,10 +8646,10 @@ func selfhost_format_format_formatXMLAttributes(children []ParsedExpr, index int
 			return out
 		} else {
 			if selfhost_format_format_isXMLAttribute(children[index]) {
-				children, index, indent, out = children, index+1, indent, out+" "+selfhost_format_format_formatXMLAttribute(children[index], indent)
+				children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+" "+selfhost_format_format_formatXMLAttribute(children[index], indent)
 				continue
 			} else {
-				children, index, indent, out = children, index+1, indent, out
+				children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out
 				continue
 			}
 		}
@@ -8333,10 +8710,10 @@ func selfhost_format_format_xmlChildren(children []ParsedExpr, index int, out []
 			return out
 		} else {
 			if selfhost_format_format_isXMLAttribute(children[index]) {
-				children, index, out = children, index+1, out
+				children, index, out = children, int(int32(index+1+runeInt32Zero)), out
 				continue
 			} else {
-				children, index, out = children, index+1, func() []ParsedExpr {
+				children, index, out = children, int(int32(index+1+runeInt32Zero)), func() []ParsedExpr {
 					__rune_spread_out := []ParsedExpr{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, children[index])
@@ -8360,7 +8737,7 @@ func selfhost_format_format_formatXMLElementWithChildren(element ParsedExpr, att
 }
 
 func selfhost_format_format_formatMultilineXMLElement(element ParsedExpr, attrs string, children []ParsedExpr, indent int) string {
-	return "<" + element.name + attrs + ">\n" + selfhost_format_format_formatXMLChildren(children, 0, indent+1, "") + selfhost_format_format_indentText(indent) + "</" + element.name + ">"
+	return "<" + element.name + attrs + ">\n" + selfhost_format_format_formatXMLChildren(children, 0, int(int32(indent+1+runeInt32Zero)), "") + selfhost_format_format_indentText(indent) + "</" + element.name + ">"
 }
 
 func selfhost_format_format_formatXMLChildren(children []ParsedExpr, index int, indent int, out string) string {
@@ -8368,7 +8745,7 @@ func selfhost_format_format_formatXMLChildren(children []ParsedExpr, index int, 
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, indent, out = children, index+1, indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatXMLChild(children[index], indent)+"\n"
+			children, index, indent, out = children, int(int32(index+1+runeInt32Zero)), indent, out+selfhost_format_format_indentText(indent)+selfhost_format_format_formatXMLChild(children[index], indent)+"\n"
 			continue
 		}
 	}
@@ -8398,7 +8775,7 @@ func selfhost_format_format_formatTokens(tokens []Token, index int, state Format
 		case done == true:
 			return state
 		default:
-			return selfhost_format_format_formatTokens(tokens, index+1, selfhost_format_format_formatToken(state, tokens[index]))
+			return selfhost_format_format_formatTokens(tokens, int(int32(index+1+runeInt32Zero)), selfhost_format_format_formatToken(state, tokens[index]))
 		}
 	}()
 }
@@ -8457,13 +8834,13 @@ func selfhost_format_format_formatNewline(state FormatState) FormatState {
 
 func selfhost_format_format_formatOpenBrace(state FormatState) FormatState {
 	text := selfhost_format_format_ensureSpace(state.text, state.lineStart)
-	return FormatState{text: text + "{\n", indent: state.indent + 1, lineStart: true, previous: TokenKind_LBrace}
+	return FormatState{text: text + "{\n", indent: int(int32(state.indent + 1 + runeInt32Zero)), lineStart: true, previous: TokenKind_LBrace}
 }
 
 func selfhost_format_format_formatCloseBrace(state FormatState) FormatState {
 	indent := func() int {
 		if state.indent > 0 {
-			return state.indent - 1
+			return int(int32(state.indent - 1 + runeInt32Zero))
 		}
 		return 0
 	}()
@@ -8520,7 +8897,7 @@ func selfhost_format_format_isTokenInAt(kind TokenKind, kinds []TokenKind, index
 			if kind == kinds[index] {
 				return true
 			} else {
-				kind, kinds, index = kind, kinds, index+1
+				kind, kinds, index = kind, kinds, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -8548,7 +8925,10 @@ func selfhost_format_format_ensureSpace(text string, lineStart bool) string {
 func selfhost_format_format_trimTrailingSpace(text string) string {
 	for {
 		if strings.HasSuffix(text, " ") {
-			text = func() string { runes := []rune(text); return string(runes[0 : len([]rune(text))-1]) }()
+			text = func() string {
+				runes := []rune(text)
+				return string(runes[0:int(int32(len([]rune(text))-1+runeInt32Zero))])
+			}()
 			continue
 		} else {
 			return text
@@ -8561,7 +8941,7 @@ func selfhost_format_format_indentText(indent int) string {
 		if indent <= 0 {
 			return ""
 		}
-		return "  " + selfhost_format_format_indentText(indent-1)
+		return "  " + selfhost_format_format_indentText(int(int32(indent-1+runeInt32Zero)))
 	}()
 }
 
@@ -8574,8 +8954,8 @@ func selfhost_format_format_preserveCommentLines(formatted []string, source []st
 		if index >= len(formatted) {
 			return out
 		} else {
-			formatted, source, index, out = formatted, source, index+1, out+selfhost_format_format_preserveCommentLine(formatted[index], source, 0)+func() string {
-				if index+1 < len(formatted) {
+			formatted, source, index, out = formatted, source, int(int32(index+1+runeInt32Zero)), out+selfhost_format_format_preserveCommentLine(formatted[index], source, 0)+func() string {
+				if int(int32(index+1+runeInt32Zero)) < len(formatted) {
 					return "\n"
 				}
 				return ""
@@ -8608,13 +8988,13 @@ func selfhost_format_format_inlineCommentForLine(line string, formatted string, 
 	commentStart := selfhost_format_format_firstCommentStart(line)
 	return func() string {
 		if commentStart < 0 {
-			return selfhost_format_format_findInlineComment(source, formatted, index+1)
+			return selfhost_format_format_findInlineComment(source, formatted, int(int32(index+1+runeInt32Zero)))
 		}
 		return func() string {
 			if selfhost_format_format_canonicalLine(func() string { runes := []rune(line); return string(runes[0:commentStart]) }()) == formatted {
 				return strings.TrimSpace((func() string { runes := []rune(line); return string(runes[commentStart:len([]rune(line))]) }()))
 			}
-			return selfhost_format_format_findInlineComment(source, formatted, index+1)
+			return selfhost_format_format_findInlineComment(source, formatted, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -8699,7 +9079,7 @@ func selfhost_compiler_go_goHasTailLoopGroup(functions []IRFunction, group strin
 		if index >= len(functions) {
 			return false
 		}
-		return functions[index].tailLoopGroup == group || selfhost_compiler_go_goHasTailLoopGroup(functions, group, index+1)
+		return functions[index].tailLoopGroup == group || selfhost_compiler_go_goHasTailLoopGroup(functions, group, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -8722,7 +9102,7 @@ func selfhost_compiler_go_goFindLexerScanTailLoopFunction(functions []IRFunction
 			}() {
 				return functions[index]
 			} else {
-				functions, scan, index = functions, scan, index+1
+				functions, scan, index = functions, scan, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -8756,11 +9136,11 @@ func selfhost_compiler_go_emitGoLexerScanDispatcher(file IRFile, scan IRFunction
 }
 
 func selfhost_compiler_go_emitGoLexerScanCase(file IRFile, fn IRFunction, level int) string {
-	return line(level, "{") + line(level+1, "state := __scanState") + line(level+1, "tokens := __scanTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, level+1) + line(level, "}")
+	return line(level, "{") + line(int(int32(level+1+runeInt32Zero)), "state := __scanState") + line(int(int32(level+1+runeInt32Zero)), "tokens := __scanTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, int(int32(level+1+runeInt32Zero))) + line(level, "}")
 }
 
 func selfhost_compiler_go_emitGoLexerScanLexedCase(file IRFile, fn IRFunction, level int) string {
-	return line(level, "{") + line(level+1, "lexed := __scanLexed") + line(level+1, "tokens := __scanLexedTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, level+1) + line(level, "}")
+	return line(level, "{") + line(int(int32(level+1+runeInt32Zero)), "lexed := __scanLexed") + line(int(int32(level+1+runeInt32Zero)), "tokens := __scanLexedTokens") + selfhost_compiler_go_emitGoLexerTailExpr(file, fn.body, int(int32(level+1+runeInt32Zero))) + line(level, "}")
 }
 
 func selfhost_compiler_go_emitGoLexerTailExpr(file IRFile, expr IRExpr, level int) string {
@@ -8769,7 +9149,7 @@ func selfhost_compiler_go_emitGoLexerTailExpr(file IRFile, expr IRExpr, level in
 		case expr.kind == ExprKind_Block:
 			return selfhost_compiler_go_emitGoLexerTailBlock(file, expr.children, 0, level)
 		case expr.kind == ExprKind_Ternary:
-			return line(level, "if "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[1], level+1) + line(level, "} else {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[2], level+1) + line(level, "}")
+			return line(level, "if "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[1], int(int32(level+1+runeInt32Zero))) + line(level, "} else {") + selfhost_compiler_go_emitGoLexerTailExpr(file, expr.children[2], int(int32(level+1+runeInt32Zero))) + line(level, "}")
 		case expr.kind == ExprKind_Call:
 			return selfhost_compiler_go_emitGoLexerTailCall(file, expr, level)
 		default:
@@ -8784,10 +9164,10 @@ func selfhost_compiler_go_emitGoLexerTailBlock(file IRFile, children []IRExpr, i
 			return ""
 		}
 		return func() string {
-			if index == len(children)-1 {
+			if index == int(int32(len(children)-1+runeInt32Zero)) {
 				return selfhost_compiler_go_emitGoLexerTailExpr(file, children[index], level)
 			}
-			return selfhost_compiler_go_emitGoStatement(file, children[index], false, false, "", level) + selfhost_compiler_go_emitGoLexerTailBlock(file, children, index+1, level)
+			return selfhost_compiler_go_emitGoStatement(file, children[index], false, false, "", level) + selfhost_compiler_go_emitGoLexerTailBlock(file, children, int(int32(index+1+runeInt32Zero)), level)
 		}()
 	}()
 }
@@ -8826,7 +9206,7 @@ func selfhost_compiler_go_emitGoImports(file IRFile) string {
 	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesModuleCall(file, "process.platform"), "runtime")
 	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit"), "os")
 	imports = selfhost_compiler_go_appendGoImportIf(imports, selfhost_compiler_go_fileUsesDoubleMath(file), "math")
-	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString") || selfhost_compiler_go_fileUsesToString(file), "strconv")
+	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesModuleCall(file, "int32.toString") || fileUsesModuleCall(file, "bigint.toString") || selfhost_compiler_go_fileUsesToString(file), "strconv")
 	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
 	imports = selfhost_compiler_go_appendGoImportIf(imports, fileUsesModuleCall(file, "json.parse") || fileUsesModuleCall(file, "json.stringify"), "encoding/json")
 	empty := len(imports) == 0
@@ -8857,7 +9237,7 @@ func selfhost_compiler_go_appendGoImportDecls(imports []string, importDecls []IR
 						return imports
 					}
 				}()
-				return selfhost_compiler_go_appendGoImportDecls(next, importDecls, index+1)
+				return selfhost_compiler_go_appendGoImportDecls(next, importDecls, int(int32(index+1+runeInt32Zero)))
 			}()
 		}
 	}()
@@ -8905,7 +9285,7 @@ func selfhost_compiler_go_goImportContains(imports []string, path string, index 
 					case matched == true:
 						return true
 					default:
-						return selfhost_compiler_go_goImportContains(imports, path, index+1)
+						return selfhost_compiler_go_goImportContains(imports, path, int(int32(index+1+runeInt32Zero)))
 					}
 				}()
 			}()
@@ -8918,7 +9298,7 @@ func selfhost_compiler_go_emitGoImportLines(imports []string, index int, out str
 		if index >= len(imports) {
 			return out
 		} else {
-			imports, index, out = imports, index+1, out+"\t\""+imports[index]+"\"\n"
+			imports, index, out = imports, int(int32(index+1+runeInt32Zero)), out+"\t\""+imports[index]+"\"\n"
 			continue
 		}
 	}
@@ -8968,7 +9348,7 @@ func selfhost_compiler_go_emitGoPayloadEnumTags(enumName string, members []IREnu
 		if index >= len(members) {
 			return out
 		} else {
-			enumName, members, index, out = enumName, members, index+1, out+"\t"+mangleIdent(enumName+"_"+members[index].name+"_tag")+" = "+enumValue(members[index], index)+"\n"
+			enumName, members, index, out = enumName, members, int(int32(index+1+runeInt32Zero)), out+"\t"+mangleIdent(enumName+"_"+members[index].name+"_tag")+" = "+enumValue(members[index], index)+"\n"
 			continue
 		}
 	}
@@ -8979,7 +9359,7 @@ func selfhost_compiler_go_emitGoPayloadEnumConstructors(enumName string, generic
 		if index >= len(members) {
 			return out
 		} else {
-			enumName, generics, members, index, out = enumName, generics, members, index+1, out+selfhost_compiler_go_emitGoPayloadEnumConstructor(enumName, generics, members[index])
+			enumName, generics, members, index, out = enumName, generics, members, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_go_emitGoPayloadEnumConstructor(enumName, generics, members[index])
 			continue
 		}
 	}
@@ -9001,7 +9381,7 @@ func selfhost_compiler_go_emitGoParamNames(params []IRParam, index int, out stri
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -9024,7 +9404,7 @@ func selfhost_compiler_go_enumHasPayloadAt(members []IREnumMember, index int) bo
 			if len(members[index].params) > 0 {
 				return true
 			} else {
-				members, index = members, index+1
+				members, index = members, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -9036,7 +9416,7 @@ func selfhost_compiler_go_emitGoEnumMembers(enumName string, members []IREnumMem
 		if index >= len(members) {
 			return out
 		} else {
-			enumName, members, index, out = enumName, members, index+1, out+"\t"+mangleIdent(enumName+"_"+members[index].name)+" "+mangleIdent(enumName)+" = "+enumValue(members[index], index)+"\n"
+			enumName, members, index, out = enumName, members, int(int32(index+1+runeInt32Zero)), out+"\t"+mangleIdent(enumName+"_"+members[index].name)+" "+mangleIdent(enumName)+" = "+enumValue(members[index], index)+"\n"
 			continue
 		}
 	}
@@ -9124,7 +9504,7 @@ func selfhost_compiler_go_inferredGoReturnType(fn IRFunction) string {
 		}
 		return func() string {
 			if fn.body.kind == ExprKind_PatternBlock {
-				return "Int"
+				return "Int32"
 			}
 			return selfhost_compiler_go_inferGoExprReturnType(fn.body)
 		}()
@@ -9147,7 +9527,7 @@ func selfhost_compiler_go_inferGoBlockReturnType(statements []IRExpr) string {
 		if len(statements) == 0 {
 			return ""
 		}
-		return selfhost_compiler_go_inferGoStatementReturnType(statements[len(statements)-1])
+		return selfhost_compiler_go_inferGoStatementReturnType(statements[int(int32(len(statements)-1+runeInt32Zero))])
 	}()
 }
 
@@ -9169,7 +9549,7 @@ func selfhost_compiler_go_emitGoFunctionParams(fn IRFunction, index int, out str
 		if index >= len(fn.params) {
 			return out
 		} else {
-			fn, index, out = fn, index+1, out+func() string {
+			fn, index, out = fn, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -9187,7 +9567,7 @@ func selfhost_compiler_go_inferredGoParamType(fn IRFunction, param IRParam) stri
 		}
 		return func() string {
 			if fn.body.kind == ExprKind_PatternBlock && len(fn.params) == 1 {
-				return "Int"
+				return "Int32"
 			}
 			return ""
 		}()
@@ -9213,7 +9593,7 @@ func selfhost_compiler_go_emitGoBody(file IRFile, expr IRExpr, returns bool, ret
 }
 
 func selfhost_compiler_go_emitGoTailLoopBody(file IRFile, fn IRFunction, returnType string, level int) string {
-	return line(level, "for {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, fn.body, returnType, level+1) + line(level, "}")
+	return line(level, "for {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, fn.body, returnType, int(int32(level+1+runeInt32Zero))) + line(level, "}")
 }
 
 func selfhost_compiler_go_emitGoTailLoopExpr(file IRFile, fn IRFunction, expr IRExpr, returnType string, level int) string {
@@ -9235,11 +9615,11 @@ func selfhost_compiler_go_emitGoTailLoopExpr(file IRFile, fn IRFunction, expr IR
 }
 
 func selfhost_compiler_go_emitGoTailLoopTernary(file IRFile, fn IRFunction, expr IRExpr, returnType string, level int) string {
-	return line(level, "if "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, expr.children[1], returnType, level+1) + line(level, "} else {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, expr.children[2], returnType, level+1) + line(level, "}")
+	return line(level, "if "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, expr.children[1], returnType, int(int32(level+1+runeInt32Zero))) + line(level, "} else {") + selfhost_compiler_go_emitGoTailLoopExpr(file, fn, expr.children[2], returnType, int(int32(level+1+runeInt32Zero))) + line(level, "}")
 }
 
 func selfhost_compiler_go_isGoTailSelfCall(expr IRExpr, fn IRFunction) bool {
-	return len(expr.children) == len(fn.params)+1 && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier && expr.children[0].name == fn.tailLoopName
+	return len(expr.children) == int(int32(len(fn.params)+1+runeInt32Zero)) && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier && expr.children[0].name == fn.tailLoopName
 }
 
 func selfhost_compiler_go_emitGoTailLoopParamNames(params []IRParam, index int, out string) string {
@@ -9247,7 +9627,7 @@ func selfhost_compiler_go_emitGoTailLoopParamNames(params []IRParam, index int, 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -9260,7 +9640,7 @@ func selfhost_compiler_go_emitGoTailLoopParamNames(params []IRParam, index int, 
 
 func selfhost_compiler_go_emitGoPatternBlock(file IRFile, expr IRExpr, returns bool, returnType string, level int) string {
 	out := line(level, "switch n {")
-	out = out + selfhost_compiler_go_emitGoPatternBranches(file, expr.children, 0, returns, returnType, level+1, "")
+	out = out + selfhost_compiler_go_emitGoPatternBranches(file, expr.children, 0, returns, returnType, int(int32(level+1+runeInt32Zero)), "")
 	out = out + line(level, "}")
 	return func() string {
 		if returns {
@@ -9275,7 +9655,7 @@ func selfhost_compiler_go_emitGoPatternBranches(file IRFile, branches []IRExpr, 
 		if index >= len(branches) {
 			return out
 		} else {
-			file, branches, index, returns, returnType, level, out = file, branches, index+1, returns, returnType, level, out+selfhost_compiler_go_emitGoPatternBranch(file, branches[index], returns, returnType, level)
+			file, branches, index, returns, returnType, level, out = file, branches, int(int32(index+1+runeInt32Zero)), returns, returnType, level, out+selfhost_compiler_go_emitGoPatternBranch(file, branches[index], returns, returnType, level)
 			continue
 		}
 	}
@@ -9290,7 +9670,7 @@ func selfhost_compiler_go_emitGoPatternBranch(file IRFile, branch IRExpr, return
 		}
 		return "case " + pattern.text + ":"
 	}()
-	return line(level, head) + selfhost_compiler_go_emitGoPatternBranchBody(file, value, returns, returnType, level+1)
+	return line(level, head) + selfhost_compiler_go_emitGoPatternBranchBody(file, value, returns, returnType, int(int32(level+1+runeInt32Zero)))
 }
 
 func selfhost_compiler_go_emitGoPatternBranchBody(file IRFile, value IRExpr, returns bool, returnType string, level int) string {
@@ -9315,7 +9695,7 @@ func selfhost_compiler_go_emitGoBlock(file IRFile, statements []IRExpr, index in
 				return out
 			}
 		} else {
-			file, statements, index, returns, returnType, level, out = file, statements, index+1, returns, returnType, level, out+selfhost_compiler_go_emitGoStatement(file, statements[index], index == len(statements)-1, returns, returnType, level)
+			file, statements, index, returns, returnType, level, out = file, statements, int(int32(index+1+runeInt32Zero)), returns, returnType, level, out+selfhost_compiler_go_emitGoStatement(file, statements[index], index == int(int32(len(statements)-1+runeInt32Zero)), returns, returnType, level)
 			continue
 		}
 	}
@@ -9405,7 +9785,7 @@ func selfhost_compiler_go_emitGoParams(params []IRParam, index int, out string) 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -9483,6 +9863,19 @@ func selfhost_compiler_go_emitGoExpr(expr IRExpr) string {
 			return "/* XML is only supported by the TypeScript backend */"
 		case expr.kind == ExprKind_Block:
 			return "func() any {\n" + selfhost_compiler_go_emitGoBlockNoContext(expr.children, 0, true, "Dynamic", 1, "") + "}()"
+		case expr.kind == ExprKind_Loop:
+			return "func() {\n" + line(1, "for "+selfhost_compiler_go_emitGoExpr(expr.children[0])+" {") + selfhost_compiler_go_emitGoBlockNoContext(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "}()"
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(expr.children) > 0 {
+					return "return " + selfhost_compiler_go_emitGoExpr(expr.children[0])
+				}
+				return "return"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "break"
+		case expr.kind == ExprKind_Continue:
+			return "continue"
 		default:
 			return "nil"
 		}
@@ -9501,7 +9894,10 @@ func selfhost_compiler_go_emitGoInferredObject(expr IRExpr) string {
 
 func selfhost_compiler_go_goStructuralObjectType(typeName string) string {
 	return "struct {" + selfhost_compiler_go_goStructuralObjectFields(func() []string {
-		parts := strings.Split((func() string { runes := []rune(typeName); return string(runes[1 : len([]rune(typeName))-1]) }()), ";")
+		parts := strings.Split((func() string {
+			runes := []rune(typeName)
+			return string(runes[1:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()), ";")
 		return parts
 	}(), 0, "") + "}"
 }
@@ -9511,7 +9907,7 @@ func selfhost_compiler_go_goStructuralObjectFields(parts []string, index int, ou
 		if index >= len(parts) {
 			return out
 		} else {
-			parts, index, out = parts, index+1, out+" "+mangleIdent(func() []string { parts := strings.Split(parts[index], ":"); return parts }()[0])+" "+selfhost_compiler_go_goType(func() []string { parts := strings.Split(parts[index], ":"); return parts }()[1])+";"
+			parts, index, out = parts, int(int32(index+1+runeInt32Zero)), out+" "+mangleIdent(func() []string { parts := strings.Split(parts[index], ":"); return parts }()[0])+" "+selfhost_compiler_go_goType(func() []string { parts := strings.Split(parts[index], ":"); return parts }()[1])+";"
 			continue
 		}
 	}
@@ -9551,7 +9947,10 @@ func selfhost_compiler_go_emitGoTemplate(expr IRExpr) string {
 	raw := expr.value
 	inner := func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -9569,7 +9968,7 @@ func selfhost_compiler_go_goTemplateAccumulate(segments []string, children []IRE
 		if index >= len(segments) {
 			return out
 		} else {
-			segments, children, index, out = segments, children, index+1, selfhost_compiler_go_goTemplateAppendStep(segments, children, index, out)
+			segments, children, index, out = segments, children, int(int32(index+1+runeInt32Zero)), selfhost_compiler_go_goTemplateAppendStep(segments, children, index, out)
 			continue
 		}
 	}
@@ -9605,7 +10004,7 @@ func selfhost_compiler_go_joinGoTemplateParts(parts []string, index int, out str
 		if index >= len(parts) {
 			return out
 		} else {
-			parts, index, out = parts, index+1, func() string {
+			parts, index, out = parts, int(int32(index+1+runeInt32Zero)), func() string {
 				if index == 0 {
 					return out + parts[index]
 				}
@@ -9632,10 +10031,10 @@ func selfhost_compiler_go_goStringLiteralChars(raw string, index int, out string
 func selfhost_compiler_go_goStringLiteralChar(raw string, index int, out string) string {
 	return func() string {
 		switch {
-		case []rune(raw)[index] == '\\' && index+1 < len([]rune(raw)) == true:
-			return selfhost_compiler_go_goStringLiteralNext(raw, index+2, out+selfhost_compiler_go_goStringLiteralEscaped([]rune(raw)[index+1]))
+		case []rune(raw)[index] == '\\' && int(int32(index+1+runeInt32Zero)) < len([]rune(raw)) == true:
+			return selfhost_compiler_go_goStringLiteralNext(raw, int(int32(index+2+runeInt32Zero)), out+selfhost_compiler_go_goStringLiteralEscaped([]rune(raw)[int(int32(index+1+runeInt32Zero))]))
 		default:
-			return selfhost_compiler_go_goStringLiteralNext(raw, index+1, out+selfhost_compiler_go_goStringLiteralPlain([]rune(raw)[index]))
+			return selfhost_compiler_go_goStringLiteralNext(raw, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_go_goStringLiteralPlain([]rune(raw)[index]))
 		}
 	}()
 }
@@ -9753,7 +10152,7 @@ func selfhost_compiler_go_emitGoTypeArgList(args []string, index int, out string
 		if index >= len(args) {
 			return out
 		} else {
-			args, index, out = args, index+1, out+func() string {
+			args, index, out = args, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -9773,7 +10172,7 @@ func selfhost_compiler_go_emitGoBlockNoContext(statements []IRExpr, index int, r
 				return out
 			}
 		} else {
-			statements, index, returns, returnType, level, out = statements, index+1, returns, returnType, level, out+selfhost_compiler_go_emitGoStatementNoContext(statements[index], index == len(statements)-1, returns, level)
+			statements, index, returns, returnType, level, out = statements, int(int32(index+1+runeInt32Zero)), returns, returnType, level, out+selfhost_compiler_go_emitGoStatementNoContext(statements[index], index == int(int32(len(statements)-1+runeInt32Zero)), returns, level)
 			continue
 		}
 	}
@@ -9863,7 +10262,10 @@ func selfhost_compiler_go_goCoalesceResultType(expr IRExpr, expected string) str
 	}()
 	return func() string {
 		if strings.HasSuffix(candidate, "?") {
-			return func() string { runes := []rune(candidate); return string(runes[0 : len([]rune(candidate))-1]) }()
+			return func() string {
+				runes := []rune(candidate)
+				return string(runes[0:int(int32(len([]rune(candidate))-1+runeInt32Zero))])
+			}()
 		}
 		return func() string {
 			if candidate == "Null" {
@@ -9891,10 +10293,13 @@ func selfhost_compiler_go_emitGoTernary(expr IRExpr) string {
 
 func selfhost_compiler_go_goFunctionType(typeName string) string {
 	parts := func() []string {
-		parts := strings.Split((func() string { runes := []rune(typeName); return string(runes[5 : len([]rune(typeName))-1]) }()), "|")
+		parts := strings.Split((func() string {
+			runes := []rune(typeName)
+			return string(runes[5:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()), "|")
 		return parts
 	}()
-	last := len(parts) - 1
+	last := int(int32(len(parts) - 1 + runeInt32Zero))
 	return "func(" + selfhost_compiler_go_goFunctionParamTypes(parts, 0, last, "") + ") " + selfhost_compiler_go_goType(parts[last])
 }
 
@@ -9903,7 +10308,7 @@ func selfhost_compiler_go_goFunctionParamTypes(parts []string, index int, last i
 		if index >= last {
 			return out
 		} else {
-			parts, index, last, out = parts, index+1, last, out+func() string {
+			parts, index, last, out = parts, int(int32(index+1+runeInt32Zero)), last, out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -9988,11 +10393,11 @@ func selfhost_compiler_go_emitGoCall(expr IRExpr) string {
 			return "append([]string(nil), os.Args[1:]...)"
 		case moduleCallKey(expr) == "process.exit":
 			return "func() struct{} { os.Exit(" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + "); return struct{}{} }()"
-		case moduleCallKey(expr) == "int.toString":
+		case moduleCallKey(expr) == "int32.toString":
 			return "strconv.Itoa(" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + ")"
-		case moduleCallKey(expr) == "int.toDouble":
+		case moduleCallKey(expr) == "int32.toDouble":
 			return "float64(" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + ")"
-		case moduleCallKey(expr) == "int.toBigInt":
+		case moduleCallKey(expr) == "int32.toBigInt":
 			return "int64(" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int4.fromInt":
 			return "func() int8 { n := (" + selfhost_compiler_go_emitGoExpr(expr.children[1]) + ") & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()"
@@ -10231,7 +10636,7 @@ func selfhost_compiler_go_emitGoCoreToString(receiver IRExpr) string {
 		switch {
 		case receiver.text == "Bool":
 			return "strconv.FormatBool(" + selfhost_compiler_go_emitGoExpr(receiver) + ")"
-		case (receiver.text == "Int") || (receiver.text == "int4") || (receiver.text == "int8") || (receiver.text == "int16") || (receiver.text == "int64") || (receiver.text == "uint") || (receiver.text == "uint8") || (receiver.text == "uint16") || (receiver.text == "uint64"):
+		case (receiver.text == "Int32") || (receiver.text == "int4") || (receiver.text == "int8") || (receiver.text == "int16") || (receiver.text == "int64") || (receiver.text == "uint") || (receiver.text == "uint8") || (receiver.text == "uint16") || (receiver.text == "uint64"):
 			return "strconv.Itoa(int(" + selfhost_compiler_go_emitGoExpr(receiver) + "))"
 		case receiver.text == "Double":
 			return "strconv.FormatFloat(" + selfhost_compiler_go_emitGoExpr(receiver) + ", 'f', -1, 64)"
@@ -10259,10 +10664,13 @@ func selfhost_compiler_go_emitGoLambda(expr IRExpr) string {
 
 func selfhost_compiler_go_goFunctionReturnType(typeName string) string {
 	parts := func() []string {
-		parts := strings.Split((func() string { runes := []rune(typeName); return string(runes[5 : len([]rune(typeName))-1]) }()), "|")
+		parts := strings.Split((func() string {
+			runes := []rune(typeName)
+			return string(runes[5:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()), "|")
 		return parts
 	}()
-	return parts[len(parts)-1]
+	return parts[int(int32(len(parts)-1+runeInt32Zero))]
 }
 
 func selfhost_compiler_go_emitGoSelector(expr IRExpr) string {
@@ -10315,7 +10723,7 @@ func selfhost_compiler_go_emitGoExprListFrom(exprs []IRExpr, index int, out stri
 		if index >= len(exprs) {
 			return out
 		} else {
-			exprs, index, out = exprs, index+1, out+func() string {
+			exprs, index, out = exprs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -10331,7 +10739,7 @@ func selfhost_compiler_go_emitGoMapEntries(entries []IRExpr, index int, out stri
 		if index >= len(entries) {
 			return out
 		} else {
-			entries, index, out = entries, index+1, out+func() string {
+			entries, index, out = entries, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -10347,7 +10755,7 @@ func selfhost_compiler_go_emitGoFields(fields []IRExpr, index int, out string) s
 		if index >= len(fields) {
 			return out
 		} else {
-			fields, index, out = fields, index+1, out+func() string {
+			fields, index, out = fields, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -10383,7 +10791,7 @@ func selfhost_compiler_go_hasFunction(functions []IRFunction, name string, index
 			if functions[index].macro == false && functions[index].name == name {
 				return true
 			} else {
-				functions, name, index = functions, name, index+1
+				functions, name, index = functions, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10404,13 +10812,13 @@ func selfhost_compiler_go_functionsUseTemplate(functions []IRFunction, index int
 			return false
 		} else {
 			if functions[index].macro {
-				functions, index = functions, index+1
+				functions, index = functions, int(int32(index+1+runeInt32Zero))
 				continue
 			} else {
 				if selfhost_compiler_go_exprUsesTemplate(functions[index].body) {
 					return true
 				} else {
-					functions, index = functions, index+1
+					functions, index = functions, int(int32(index+1+runeInt32Zero))
 					continue
 				}
 			}
@@ -10426,7 +10834,7 @@ func selfhost_compiler_go_structsUseTemplate(structs []IRStructType, index int) 
 			if selfhost_compiler_go_functionsUseTemplate(structs[index].methods, 0) {
 				return true
 			} else {
-				structs, index = structs, index+1
+				structs, index = structs, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10441,7 +10849,7 @@ func selfhost_compiler_go_enumsUseTemplate(enums []IREnumType, index int) bool {
 			if selfhost_compiler_go_functionsUseTemplate(enums[index].methods, 0) {
 				return true
 			} else {
-				enums, index = enums, index+1
+				enums, index = enums, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10460,7 +10868,7 @@ func selfhost_compiler_go_exprChildrenUseTemplate(children []IRExpr, index int) 
 			if selfhost_compiler_go_exprUsesTemplate(children[index]) {
 				return true
 			} else {
-				children, index = children, index+1
+				children, index = children, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10477,13 +10885,13 @@ func selfhost_compiler_go_functionsUseToString(functions []IRFunction, index int
 			return false
 		} else {
 			if functions[index].macro {
-				functions, index = functions, index+1
+				functions, index = functions, int(int32(index+1+runeInt32Zero))
 				continue
 			} else {
 				if selfhost_compiler_go_exprUsesToString(functions[index].body) {
 					return true
 				} else {
-					functions, index = functions, index+1
+					functions, index = functions, int(int32(index+1+runeInt32Zero))
 					continue
 				}
 			}
@@ -10499,7 +10907,7 @@ func selfhost_compiler_go_structsUseToString(structs []IRStructType, index int) 
 			if selfhost_compiler_go_functionsUseToString(structs[index].methods, 0) {
 				return true
 			} else {
-				structs, index = structs, index+1
+				structs, index = structs, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10514,7 +10922,7 @@ func selfhost_compiler_go_enumsUseToString(enums []IREnumType, index int) bool {
 			if selfhost_compiler_go_functionsUseToString(enums[index].methods, 0) {
 				return true
 			} else {
-				enums, index = enums, index+1
+				enums, index = enums, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10535,7 +10943,7 @@ func selfhost_compiler_go_exprIsScalarToStringCall(expr IRExpr) bool {
 }
 
 func selfhost_compiler_go_goScalarToStringReceiver(typeName string) bool {
-	return typeName == "Bool" || typeName == "Int" || typeName == "int4" || typeName == "int8" || typeName == "int16" || typeName == "int64" || typeName == "uint" || typeName == "uint8" || typeName == "uint16" || typeName == "uint64" || typeName == "Double" || typeName == "Float" || typeName == "Char" || typeName == "BigInt"
+	return typeName == "Bool" || typeName == "Int32" || typeName == "int4" || typeName == "int8" || typeName == "int16" || typeName == "int64" || typeName == "uint" || typeName == "uint8" || typeName == "uint16" || typeName == "uint64" || typeName == "Double" || typeName == "Float" || typeName == "Char" || typeName == "BigInt"
 }
 
 func selfhost_compiler_go_exprChildrenUseToString(children []IRExpr, index int) bool {
@@ -10546,7 +10954,7 @@ func selfhost_compiler_go_exprChildrenUseToString(children []IRExpr, index int) 
 			if selfhost_compiler_go_exprUsesToString(children[index]) {
 				return true
 			} else {
-				children, index = children, index+1
+				children, index = children, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10559,13 +10967,13 @@ func selfhost_compiler_go_functionsUsePrint(functions []IRFunction, index int) b
 			return false
 		} else {
 			if functions[index].macro {
-				functions, index = functions, index+1
+				functions, index = functions, int(int32(index+1+runeInt32Zero))
 				continue
 			} else {
 				if selfhost_compiler_go_exprUsesPrint(functions[index].body) {
 					return true
 				} else {
-					functions, index = functions, index+1
+					functions, index = functions, int(int32(index+1+runeInt32Zero))
 					continue
 				}
 			}
@@ -10581,7 +10989,7 @@ func selfhost_compiler_go_structsUsePrint(structs []IRStructType, index int) boo
 			if selfhost_compiler_go_functionsUsePrint(structs[index].methods, 0) {
 				return true
 			} else {
-				structs, index = structs, index+1
+				structs, index = structs, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10596,7 +11004,7 @@ func selfhost_compiler_go_enumsUsePrint(enums []IREnumType, index int) bool {
 			if selfhost_compiler_go_functionsUsePrint(enums[index].methods, 0) {
 				return true
 			} else {
-				enums, index = enums, index+1
+				enums, index = enums, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10622,7 +11030,7 @@ func selfhost_compiler_go_exprChildrenUsePrint(children []IRExpr, index int) boo
 			if selfhost_compiler_go_exprUsesPrint(children[index]) {
 				return true
 			} else {
-				children, index = children, index+1
+				children, index = children, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -10779,10 +11187,10 @@ func selfhost_compiler_go_goJSONDeclsForField(file IRFile, fields []IRField, ind
 		case include == true:
 			return func() GoJSONDeclResult {
 				nested := selfhost_compiler_go_goJSONDeclsForType(file, field.typeName, names)
-				return selfhost_compiler_go_goJSONDeclsForFields(file, fields, index+1, nested.names, text+nested.text)
+				return selfhost_compiler_go_goJSONDeclsForFields(file, fields, int(int32(index+1+runeInt32Zero)), nested.names, text+nested.text)
 			}()
 		default:
-			return selfhost_compiler_go_goJSONDeclsForFields(file, fields, index+1, names, text)
+			return selfhost_compiler_go_goJSONDeclsForFields(file, fields, int(int32(index+1+runeInt32Zero)), names, text)
 		}
 	}()
 }
@@ -10815,10 +11223,10 @@ func selfhost_compiler_go_goJSONStructWireField(file IRFile, fields []IRField, i
 					}
 				}()
 				part := "F" + compilerIntToString(index) + " " + selfhost_compiler_go_goJSONDecodeType(file, field.typeName) + " " + selfhost_compiler_go_goJSONTag(field.jsonName)
-				return selfhost_compiler_go_goJSONStructWireFields(file, fields, index+1, out+prefix+part)
+				return selfhost_compiler_go_goJSONStructWireFields(file, fields, int(int32(index+1+runeInt32Zero)), out+prefix+part)
 			}()
 		default:
-			return selfhost_compiler_go_goJSONStructWireFields(file, fields, index+1, out)
+			return selfhost_compiler_go_goJSONStructWireFields(file, fields, int(int32(index+1+runeInt32Zero)), out)
 		}
 	}()
 }
@@ -10864,7 +11272,7 @@ func selfhost_compiler_go_goJSONDeclSeen(names []string, name string, index int)
 					case matched == true:
 						return true
 					default:
-						return selfhost_compiler_go_goJSONDeclSeen(names, name, index+1)
+						return selfhost_compiler_go_goJSONDeclSeen(names, name, int(int32(index+1+runeInt32Zero)))
 					}
 				}()
 			}()
@@ -10877,7 +11285,7 @@ func selfhost_compiler_go_goJSONStructIndex(structs []IRStructType, typeName str
 	return func() int {
 		switch {
 		case done == true:
-			return -1
+			return int(-int32(1))
 		default:
 			return func() int {
 				matched := structs[index].name == typeName
@@ -10886,7 +11294,7 @@ func selfhost_compiler_go_goJSONStructIndex(structs []IRStructType, typeName str
 					case matched == true:
 						return index
 					default:
-						return selfhost_compiler_go_goJSONStructIndex(structs, typeName, index+1)
+						return selfhost_compiler_go_goJSONStructIndex(structs, typeName, int(int32(index+1+runeInt32Zero)))
 					}
 				}()
 			}()
@@ -10959,10 +11367,10 @@ func selfhost_compiler_go_goJSONDecodedFieldAssignment(file IRFile, source strin
 				sourceField := source + ".F" + compilerIntToString(index)
 				value := selfhost_compiler_go_goJSONDecodedValue(file, sourceField, field.typeName)
 				assignment := "__out." + mangleIdent(field.name) + " = " + value + "; "
-				return selfhost_compiler_go_goJSONDecodedFieldAssignments(file, source, fields, index+1, out+assignment)
+				return selfhost_compiler_go_goJSONDecodedFieldAssignments(file, source, fields, int(int32(index+1+runeInt32Zero)), out+assignment)
 			}()
 		default:
-			return selfhost_compiler_go_goJSONDecodedFieldAssignments(file, source, fields, index+1, out)
+			return selfhost_compiler_go_goJSONDecodedFieldAssignments(file, source, fields, int(int32(index+1+runeInt32Zero)), out)
 		}
 	}()
 }
@@ -10974,7 +11382,7 @@ func selfhost_compiler_go_goType(typeName string) string {
 			return "any"
 		case typeName == "Void":
 			return "struct{}"
-		case typeName == "Int":
+		case typeName == "Int32":
 			return "int"
 		case (typeName == "Int4") || (typeName == "Int8"):
 			return "int8"
@@ -11052,7 +11460,10 @@ func selfhost_compiler_go_goNamedType(typeName string) string {
 		if open < 0 {
 			return mangleIdent(typeName)
 		}
-		return mangleIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "[" + selfhost_compiler_go_emitGoTypeArgs(func() string { runes := []rune(typeName); return string(runes[open+1 : len([]rune(typeName))-1]) }()) + "]"
+		return mangleIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "[" + selfhost_compiler_go_emitGoTypeArgs(func() string {
+			runes := []rune(typeName)
+			return string(runes[int(int32(open+1+runeInt32Zero)):int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()) + "]"
 	}()
 }
 
@@ -11070,7 +11481,7 @@ func selfhost_compiler_go_emitGoGenericDeclItems(generics []string, index int, o
 		if index >= len(generics) {
 			return out
 		} else {
-			generics, index, out = generics, index+1, out+func() string {
+			generics, index, out = generics, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -11095,7 +11506,7 @@ func selfhost_compiler_go_emitGoGenericUseItems(generics []string, index int, ou
 		if index >= len(generics) {
 			return out
 		} else {
-			generics, index, out = generics, index+1, out+func() string {
+			generics, index, out = generics, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -11143,7 +11554,7 @@ func selfhost_compiler_go_functionReturnType(functions []IRFunction, name string
 			if functions[index].macro == false && functions[index].name == name {
 				return functions[index].returnType
 			} else {
-				functions, name, index = functions, name, index+1
+				functions, name, index = functions, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -11163,7 +11574,7 @@ func selfhost_compiler_go_resultPayloadType(typeName string) string {
 func selfhost_compiler_go_goZero(typeName string) string {
 	return func() string {
 		switch {
-		case (typeName == "Int") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "Int64") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "UInt64") || (typeName == "BigInt"):
+		case (typeName == "Int32") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "Int64") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "UInt64") || (typeName == "BigInt"):
 			return "0"
 		case (typeName == "Double") || (typeName == "Float"):
 			return "0.0"
@@ -11237,7 +11648,7 @@ func selfhost_compiler_mbt_emitMoonBitUnwrapHelper() string {
 }
 
 func selfhost_compiler_mbt_emitMoonBitPathHelpers() string {
-	return "fn __rune_path_basename(path : String) -> String {\n  let index = path.rev_find(\"/\").unwrap_or(-1)\n  if index < 0 {\n    path\n  } else if index == path.length() - 1 {\n    path\n  } else {\n    path[index + 1:].to_owned()\n  }\n}\n\nfn __rune_path_extname(path : String) -> String {\n  let base = __rune_path_basename(path)\n  let index = base.rev_find(\".\").unwrap_or(-1)\n  if index <= 0 { \"\" } else { base[index:].to_owned() }\n}\n\nfn __rune_path_dirname(path : String) -> String {\n  let index = path.rev_find(\"/\").unwrap_or(-1)\n  if index < 0 {\n    \".\"\n  } else if index == 0 {\n    \"/\"\n  } else {\n    path[:index].to_owned()\n  }\n}\n\nfn __rune_path_join(parts : Array[String]) -> String {\n  __rune_path_normalize(__rune_path_join_parts(parts, 0, \"\"))\n}\n\nfn __rune_path_normalize(path : String) -> String {\n  let absolute = path.has_prefix(\"/\")\n  let pieces = path.split(\"/\").map(fn(part) { part.to_owned() }).to_array()\n  let out = __rune_path_normalize_parts(pieces, 0, absolute, [])\n  let joined = __rune_path_join_parts(out, 0, \"\")\n  if absolute {\n    \"/\" + joined\n  } else if joined.is_empty() {\n    \".\"\n  } else {\n    joined\n  }\n}\n\nfn __rune_path_resolve(parts : Array[String]) -> String {\n  if parts.length() == 0 { \".\" } else { __rune_path_normalize(__rune_path_join(parts)) }\n}\n\nfn __rune_path_relative(from : String, to : String) -> String {\n  let from_parts = __rune_path_parts(__rune_path_resolve([from]))\n  let to_parts = __rune_path_parts(__rune_path_resolve([to]))\n  __rune_path_relative_from_parts(from_parts, to_parts, 0)\n}\n\nfn __rune_path_join_parts(parts : Array[String], index : Int, out : String) -> String {\n  if index >= parts.length() {\n    out\n  } else {\n    __rune_path_join_parts(parts, index + 1, __rune_path_append_part(out, parts[index]))\n  }\n}\n\nfn __rune_path_append_part(out : String, part : String) -> String {\n  if out.is_empty() {\n    part\n  } else if part.is_empty() {\n    out\n  } else {\n    out + \"/\" + part\n  }\n}\n\nfn __rune_path_normalize_parts(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {\n  if index >= parts.length() {\n    out\n  } else {\n    let part = parts[index]\n    if part.is_empty() || part == \".\" {\n      __rune_path_normalize_parts(parts, index + 1, absolute, out)\n    } else if part == \"..\" {\n      __rune_path_normalize_parent(parts, index, absolute, out)\n    } else {\n      __rune_path_normalize_push(parts, index, absolute, out, part)\n    }\n  }\n}\n\nfn __rune_path_normalize_parent(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {\n  if out.length() > 0 {\n    __rune_path_normalize_pop(parts, index, absolute, out)\n  } else if absolute {\n    __rune_path_normalize_parts(parts, index + 1, absolute, out)\n  } else {\n    __rune_path_normalize_push(parts, index, absolute, out, \"..\")\n  }\n}\n\nfn __rune_path_normalize_pop(parts : Array[String], index : Int, absolute : Bool, out : Array[String]) -> Array[String] {\n  __rune_path_normalize_parts(parts, index + 1, absolute, out[:out.length() - 1].to_owned())\n}\n\nfn __rune_path_normalize_push(parts : Array[String], index : Int, absolute : Bool, out : Array[String], part : String) -> Array[String] {\n  __rune_path_normalize_parts(parts, index + 1, absolute, [..out, part])\n}\n\nfn __rune_path_parts(path : String) -> Array[String] {\n  let pieces = __rune_path_normalize(path).split(\"/\").map(fn(part) { part.to_owned() }).to_array()\n  __rune_path_collect_parts(pieces, 0, [])\n}\n\nfn __rune_path_collect_parts(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {\n  if index >= parts.length() {\n    out\n  } else if parts[index].is_empty() {\n    __rune_path_collect_parts(parts, index + 1, out)\n  } else {\n    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])\n  }\n}\n\nfn __rune_path_collect_part(parts : Array[String], index : Int, out : Array[String]) -> Array[String] {\n  if index < parts.length() {\n    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])\n  } else {\n    out\n  }\n}\n\nfn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[String], index : Int) -> String {\n  if index < from_parts.length() && index < to_parts.length() && from_parts[index] == to_parts[index] {\n    __rune_path_relative_from_parts(from_parts, to_parts, index + 1)\n  } else {\n    __rune_path_relative_tail(from_parts, to_parts, index, index, \"\")\n  }\n}\n\nfn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String], from_index : Int, to_index : Int, out : String) -> String {\n  if from_index < from_parts.length() {\n    __rune_path_relative_tail(from_parts, to_parts, from_index + 1, to_index, __rune_path_append_part(out, \"..\"))\n  } else if to_index < to_parts.length() {\n    __rune_path_relative_tail(from_parts, to_parts, from_index, to_index + 1, __rune_path_append_part(out, to_parts[to_index]))\n  } else if out.is_empty() {\n    \".\"\n  } else {\n    out\n  }\n}\n\n"
+	return "fn __rune_path_basename(path : String) -> String {\n  let index = path.rev_find(\"/\").unwrap_or(-1)\n  if index < 0 {\n    path\n  } else if index == path.length() - 1 {\n    path\n  } else {\n    path[index + 1:].to_owned()\n  }\n}\n\nfn __rune_path_extname(path : String) -> String {\n  let base = __rune_path_basename(path)\n  let index = base.rev_find(\".\").unwrap_or(-1)\n  if index <= 0 { \"\" } else { base[index:].to_owned() }\n}\n\nfn __rune_path_dirname(path : String) -> String {\n  let index = path.rev_find(\"/\").unwrap_or(-1)\n  if index < 0 {\n    \".\"\n  } else if index == 0 {\n    \"/\"\n  } else {\n    path[:index].to_owned()\n  }\n}\n\nfn __rune_path_join(parts : Array[String]) -> String {\n  __rune_path_normalize(__rune_path_join_parts(parts, 0, \"\"))\n}\n\nfn __rune_path_normalize(path : String) -> String {\n  let absolute = path.has_prefix(\"/\")\n  let pieces = path.split(\"/\").map(fn(part) { part.to_owned() }).to_array()\n  let out = __rune_path_normalize_parts(pieces, 0, absolute, [])\n  let joined = __rune_path_join_parts(out, 0, \"\")\n  if absolute {\n    \"/\" + joined\n  } else if joined.is_empty() {\n    \".\"\n  } else {\n    joined\n  }\n}\n\nfn __rune_path_resolve(parts : Array[String]) -> String {\n  if parts.length() == 0 { \".\" } else { __rune_path_normalize(__rune_path_join(parts)) }\n}\n\nfn __rune_path_relative(from : String, to : String) -> String {\n  let from_parts = __rune_path_parts(__rune_path_resolve([from]))\n  let to_parts = __rune_path_parts(__rune_path_resolve([to]))\n  __rune_path_relative_from_parts(from_parts, to_parts, 0)\n}\n\nfn __rune_path_join_parts(parts : Array[String], index : Int32, out : String) -> String {\n  if index >= parts.length() {\n    out\n  } else {\n    __rune_path_join_parts(parts, index + 1, __rune_path_append_part(out, parts[index]))\n  }\n}\n\nfn __rune_path_append_part(out : String, part : String) -> String {\n  if out.is_empty() {\n    part\n  } else if part.is_empty() {\n    out\n  } else {\n    out + \"/\" + part\n  }\n}\n\nfn __rune_path_normalize_parts(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {\n  if index >= parts.length() {\n    out\n  } else {\n    let part = parts[index]\n    if part.is_empty() || part == \".\" {\n      __rune_path_normalize_parts(parts, index + 1, absolute, out)\n    } else if part == \"..\" {\n      __rune_path_normalize_parent(parts, index, absolute, out)\n    } else {\n      __rune_path_normalize_push(parts, index, absolute, out, part)\n    }\n  }\n}\n\nfn __rune_path_normalize_parent(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {\n  if out.length() > 0 {\n    __rune_path_normalize_pop(parts, index, absolute, out)\n  } else if absolute {\n    __rune_path_normalize_parts(parts, index + 1, absolute, out)\n  } else {\n    __rune_path_normalize_push(parts, index, absolute, out, \"..\")\n  }\n}\n\nfn __rune_path_normalize_pop(parts : Array[String], index : Int32, absolute : Bool, out : Array[String]) -> Array[String] {\n  __rune_path_normalize_parts(parts, index + 1, absolute, out[:out.length() - 1].to_owned())\n}\n\nfn __rune_path_normalize_push(parts : Array[String], index : Int32, absolute : Bool, out : Array[String], part : String) -> Array[String] {\n  __rune_path_normalize_parts(parts, index + 1, absolute, [..out, part])\n}\n\nfn __rune_path_parts(path : String) -> Array[String] {\n  let pieces = __rune_path_normalize(path).split(\"/\").map(fn(part) { part.to_owned() }).to_array()\n  __rune_path_collect_parts(pieces, 0, [])\n}\n\nfn __rune_path_collect_parts(parts : Array[String], index : Int32, out : Array[String]) -> Array[String] {\n  if index >= parts.length() {\n    out\n  } else if parts[index].is_empty() {\n    __rune_path_collect_parts(parts, index + 1, out)\n  } else {\n    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])\n  }\n}\n\nfn __rune_path_collect_part(parts : Array[String], index : Int32, out : Array[String]) -> Array[String] {\n  if index < parts.length() {\n    __rune_path_collect_parts(parts, index + 1, [..out, parts[index]])\n  } else {\n    out\n  }\n}\n\nfn __rune_path_relative_from_parts(from_parts : Array[String], to_parts : Array[String], index : Int32) -> String {\n  if index < from_parts.length() && index < to_parts.length() && from_parts[index] == to_parts[index] {\n    __rune_path_relative_from_parts(from_parts, to_parts, index + 1)\n  } else {\n    __rune_path_relative_tail(from_parts, to_parts, index, index, \"\")\n  }\n}\n\nfn __rune_path_relative_tail(from_parts : Array[String], to_parts : Array[String], from_index : Int32, to_index : Int32, out : String) -> String {\n  if from_index < from_parts.length() {\n    __rune_path_relative_tail(from_parts, to_parts, from_index + 1, to_index, __rune_path_append_part(out, \"..\"))\n  } else if to_index < to_parts.length() {\n    __rune_path_relative_tail(from_parts, to_parts, from_index, to_index + 1, __rune_path_append_part(out, to_parts[to_index]))\n  } else if out.is_empty() {\n    \".\"\n  } else {\n    out\n  }\n}\n\n"
 }
 
 func selfhost_compiler_mbt_emitMoonBitEnum(enumDecl IREnumType) string {
@@ -11251,7 +11662,7 @@ func selfhost_compiler_mbt_emitMoonBitEnumMembers(members []IREnumMember, index 
 		if index >= len(members) {
 			return out
 		} else {
-			members, index, out = members, index+1, out+selfhost_compiler_mbt_emitMoonBitEnumMember(members[index])
+			members, index, out = members, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_mbt_emitMoonBitEnumMember(members[index])
 			continue
 		}
 	}
@@ -11360,7 +11771,7 @@ func selfhost_compiler_mbt_emitMoonBitBlock(statements []IRExpr, index int, retu
 				return out
 			}
 		} else {
-			statements, index, returns, returnType, level, out = statements, index+1, returns, returnType, level, out+selfhost_compiler_mbt_emitMoonBitStatement(statements[index], index == len(statements)-1, returns, level)
+			statements, index, returns, returnType, level, out = statements, int(int32(index+1+runeInt32Zero)), returns, returnType, level, out+selfhost_compiler_mbt_emitMoonBitStatement(statements[index], index == int(int32(len(statements)-1+runeInt32Zero)), returns, level)
 			continue
 		}
 	}
@@ -11415,7 +11826,7 @@ func selfhost_compiler_mbt_emitMoonBitParams(params []IRParam, index int, out st
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -11431,7 +11842,7 @@ func selfhost_compiler_mbt_emitMoonBitParamTypes(params []IRParam, index int, ou
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -11518,6 +11929,19 @@ func selfhost_compiler_mbt_emitMoonBitExpr(expr IRExpr) string {
 			return "()"
 		case expr.kind == ExprKind_Block:
 			return "{\n" + selfhost_compiler_mbt_emitMoonBitBlock(expr.children, 0, true, "Dynamic", 1, "") + "}"
+		case expr.kind == ExprKind_Loop:
+			return "{\n" + line(1, "while "+selfhost_compiler_mbt_emitMoonBitExpr(expr.children[0])+" {") + selfhost_compiler_mbt_emitMoonBitBlock(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "}"
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(expr.children) > 0 {
+					return "return " + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[0])
+				}
+				return "return"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "break"
+		case expr.kind == ExprKind_Continue:
+			return "continue"
 		default:
 			return "()"
 		}
@@ -11528,7 +11952,10 @@ func selfhost_compiler_mbt_emitMoonBitTemplate(expr IRExpr) string {
 	raw := expr.value
 	inner := func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -11546,7 +11973,7 @@ func selfhost_compiler_mbt_mbtTemplateAccumulate(segments []string, children []I
 		if index >= len(segments) {
 			return out
 		} else {
-			segments, children, index, out = segments, children, index+1, selfhost_compiler_mbt_mbtTemplateAppendStep(segments, children, index, out)
+			segments, children, index, out = segments, children, int(int32(index+1+runeInt32Zero)), selfhost_compiler_mbt_mbtTemplateAppendStep(segments, children, index, out)
 			continue
 		}
 	}
@@ -11591,7 +12018,7 @@ func selfhost_compiler_mbt_joinMoonBitTemplateParts(parts []string, index int, o
 		if index >= len(parts) {
 			return out
 		} else {
-			parts, index, out = parts, index+1, func() string {
+			parts, index, out = parts, int(int32(index+1+runeInt32Zero)), func() string {
 				if index == 0 {
 					return out + parts[index]
 				}
@@ -11618,10 +12045,10 @@ func selfhost_compiler_mbt_mbtStringLiteralChars(raw string, index int, out stri
 func selfhost_compiler_mbt_mbtStringLiteralChar(raw string, index int, out string) string {
 	return func() string {
 		switch {
-		case []rune(raw)[index] == '\\' && index+1 < len([]rune(raw)) == true:
-			return selfhost_compiler_mbt_mbtStringLiteralNext(raw, index+2, out+selfhost_compiler_mbt_mbtStringLiteralEscaped([]rune(raw)[index+1]))
+		case []rune(raw)[index] == '\\' && int(int32(index+1+runeInt32Zero)) < len([]rune(raw)) == true:
+			return selfhost_compiler_mbt_mbtStringLiteralNext(raw, int(int32(index+2+runeInt32Zero)), out+selfhost_compiler_mbt_mbtStringLiteralEscaped([]rune(raw)[int(int32(index+1+runeInt32Zero))]))
 		default:
-			return selfhost_compiler_mbt_mbtStringLiteralNext(raw, index+1, out+selfhost_compiler_mbt_mbtStringLiteralPlain([]rune(raw)[index]))
+			return selfhost_compiler_mbt_mbtStringLiteralNext(raw, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_mbt_mbtStringLiteralPlain([]rune(raw)[index]))
 		}
 	}()
 }
@@ -11811,18 +12238,18 @@ func selfhost_compiler_mbt_emitMoonBitCall(expr IRExpr) string {
 			return "(None : String?)"
 		case moduleCallKey(expr) == "process.argv":
 			return "([] : Array[String])"
-		case moduleCallKey(expr) == "int.toString":
+		case moduleCallKey(expr) == "int32.toString":
 			return "(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ").to_string()"
-		case moduleCallKey(expr) == "int.toDouble":
+		case moduleCallKey(expr) == "int32.toDouble":
 			return "(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ").to_double()"
-		case moduleCallKey(expr) == "int.toBigInt":
+		case moduleCallKey(expr) == "int32.toBigInt":
 			return "BigInt::from_int(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int4.fromInt":
-			return "(fn(__value : Int) -> Int { let __n = __value & 0xf; if __n >= 8 { __n - 16 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
+			return "(fn(__value : Int32) -> Int32 { let __n = __value & 0xf; if __n >= 8 { __n - 16 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int8.fromInt":
-			return "(fn(__value : Int) -> Int { let __n = __value & 0xff; if __n >= 128 { __n - 256 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
+			return "(fn(__value : Int32) -> Int32 { let __n = __value & 0xff; if __n >= 128 { __n - 256 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int16.fromInt":
-			return "(fn(__value : Int) -> Int { let __n = __value & 0xffff; if __n >= 32768 { __n - 65536 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
+			return "(fn(__value : Int32) -> Int32 { let __n = __value & 0xffff; if __n >= 32768 { __n - 65536 } else { __n } })(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int64.fromInt":
 			return "Int64::from_int(" + selfhost_compiler_mbt_emitMoonBitExpr(expr.children[1]) + ")"
 		case (moduleCallKey(expr) == "uint.fromInt") || (moduleCallKey(expr) == "uint8.fromInt") || (moduleCallKey(expr) == "uint16.fromInt"):
@@ -11961,7 +12388,7 @@ func selfhost_compiler_mbt_emitMoonBitPrintArgs(exprs []IRExpr, index int, out s
 				return out
 			}
 		} else {
-			exprs, index, out = exprs, index+1, out+func() string {
+			exprs, index, out = exprs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -12031,7 +12458,7 @@ func selfhost_compiler_mbt_emitMoonBitExprListFrom(exprs []IRExpr, index int, ou
 		if index >= len(exprs) {
 			return out
 		} else {
-			exprs, index, out = exprs, index+1, out+func() string {
+			exprs, index, out = exprs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -12047,7 +12474,7 @@ func selfhost_compiler_mbt_emitMoonBitMapEntries(entries []IRExpr, index int, ou
 		if index >= len(entries) {
 			return out
 		}
-		return selfhost_compiler_mbt_emitMoonBitMapEntries(entries, index+1, out+func() string {
+		return selfhost_compiler_mbt_emitMoonBitMapEntries(entries, int(int32(index+1+runeInt32Zero)), out+func() string {
 			if out == "" {
 				return ""
 			}
@@ -12061,7 +12488,7 @@ func selfhost_compiler_mbt_emitMoonBitFields(fields []IRExpr, index int, out str
 		if index >= len(fields) {
 			return out
 		} else {
-			fields, index, out = fields, index+1, out+func() string {
+			fields, index, out = fields, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -12104,8 +12531,8 @@ func selfhost_compiler_mbt_moonBitType(typeName string) string {
 	switch {
 	case (typeName == "") || (typeName == "Void"):
 		return "Unit"
-	case (typeName == "Int") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16"):
-		return "Int"
+	case (typeName == "Int32") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16"):
+		return "Int32"
 	case (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16"):
 		return "UInt"
 	case typeName == "Int64":
@@ -12127,7 +12554,7 @@ func selfhost_compiler_mbt_moonBitType(typeName string) string {
 	case (typeName == "Dynamic") || (typeName == "Object"):
 		return "Unit"
 	case (typeName == "Data") || (typeName == "@io.Data"):
-		return "Array[Int]"
+		return "Array[Int32]"
 	default:
 		return selfhost_compiler_mbt_moonBitTypeFallback(typeName)
 	}
@@ -12136,7 +12563,10 @@ func selfhost_compiler_mbt_moonBitType(typeName string) string {
 func selfhost_compiler_mbt_moonBitTypeFallback(typeName string) string {
 	return func() string {
 		if strings.HasSuffix(typeName, "?") {
-			return selfhost_compiler_mbt_moonBitType(func() string { runes := []rune(typeName); return string(runes[0 : len([]rune(typeName))-1]) }()) + "?"
+			return selfhost_compiler_mbt_moonBitType(func() string {
+				runes := []rune(typeName)
+				return string(runes[0:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+			}()) + "?"
 		}
 		return func() string {
 			if genericInner(typeName, "Array") != "" {
@@ -12168,7 +12598,10 @@ func selfhost_compiler_mbt_moonBitNamedType(typeName string) string {
 		if open < 0 {
 			return selfhost_compiler_mbt_moonBitTypeIdent(typeName)
 		}
-		return selfhost_compiler_mbt_moonBitTypeIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "[" + selfhost_compiler_mbt_emitMoonBitTypeArgs(func() string { runes := []rune(typeName); return string(runes[open+1 : len([]rune(typeName))-1]) }()) + "]"
+		return selfhost_compiler_mbt_moonBitTypeIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "[" + selfhost_compiler_mbt_emitMoonBitTypeArgs(func() string {
+			runes := []rune(typeName)
+			return string(runes[int(int32(open+1+runeInt32Zero)):int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()) + "]"
 	}()
 }
 
@@ -12181,7 +12614,7 @@ func selfhost_compiler_mbt_emitMoonBitTypeArgList(args []string, index int, out 
 		if index >= len(args) {
 			return out
 		} else {
-			args, index, out = args, index+1, out+func() string {
+			args, index, out = args, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -12195,7 +12628,7 @@ func selfhost_compiler_mbt_emitMoonBitTypeArgList(args []string, index int, out 
 func selfhost_compiler_mbt_moonBitZero(typeName string) string {
 	return func() string {
 		switch {
-		case (typeName == "Int") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16"):
+		case (typeName == "Int32") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16"):
 			return "0"
 		case typeName == "Int64":
 			return "0L"
@@ -12218,7 +12651,7 @@ func selfhost_compiler_mbt_joinMoonBitStrings(values []string, index int, out st
 		if index >= len(values) {
 			return out
 		} else {
-			values, index, out = values, index+1, out+func() string {
+			values, index, out = values, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -12234,7 +12667,7 @@ func selfhost_compiler_mbt_joinMoonBitGenericNames(values []string, index int, o
 		if index >= len(values) {
 			return out
 		} else {
-			values, index, out = values, index+1, out+func() string {
+			values, index, out = values, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -12476,7 +12909,7 @@ func selfhost_compiler_ts_tsLookupBinding(bindings []CompilerTypeBinding, name s
 			if bindings[index].name == name {
 				return bindings[index]
 			} else {
-				bindings, name, index = bindings, name, index+1
+				bindings, name, index = bindings, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12525,7 +12958,7 @@ func selfhost_compiler_ts_rewriteTSBlockStatements(statements []IRExpr, index in
 func selfhost_compiler_ts_rewriteTSBlockStep(statements []IRExpr, index int, structs []IRStructType, enums []IREnumType, bindings []CompilerTypeBinding, out []IRExpr) []IRExpr {
 	statement := selfhost_compiler_ts_rewriteTSStatement(statements[index], structs, enums, bindings)
 	nextBindings := selfhost_compiler_ts_tsStatementBindings(statements[index], structs, enums, bindings)
-	return selfhost_compiler_ts_rewriteTSBlockStatements(statements, index+1, structs, enums, nextBindings, func() []IRExpr {
+	return selfhost_compiler_ts_rewriteTSBlockStatements(statements, int(int32(index+1+runeInt32Zero)), structs, enums, nextBindings, func() []IRExpr {
 		__rune_spread_out := []IRExpr{}
 		__rune_spread_out = append(__rune_spread_out, out...)
 		__rune_spread_out = append(__rune_spread_out, statement)
@@ -12678,7 +13111,7 @@ func selfhost_compiler_ts_tsRewriteArgsFrom(children []IRExpr, index int, struct
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, structs, enums, bindings, out = children, index+1, structs, enums, bindings, func() []IRExpr {
+			children, index, structs, enums, bindings, out = children, int(int32(index+1+runeInt32Zero)), structs, enums, bindings, func() []IRExpr {
 				__rune_spread_out := []IRExpr{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_ts_rewriteTSExpr(children[index], structs, enums, bindings))
@@ -12734,7 +13167,7 @@ func selfhost_compiler_ts_tsStructFieldType(structs []IRStructType, typeName str
 			if structs[index].name == typeName {
 				return selfhost_compiler_ts_tsStructFieldTypeIn(structs[index].fields, fieldName, 0)
 			} else {
-				structs, typeName, fieldName, index = structs, typeName, fieldName, index+1
+				structs, typeName, fieldName, index = structs, typeName, fieldName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12749,7 +13182,7 @@ func selfhost_compiler_ts_tsStructFieldTypeIn(fields []IRField, fieldName string
 			if fields[index].name == fieldName {
 				return fields[index].typeName
 			} else {
-				fields, fieldName, index = fields, fieldName, index+1
+				fields, fieldName, index = fields, fieldName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12775,7 +13208,7 @@ func selfhost_compiler_ts_tsEnumHasInstanceMethod(enums []IREnumType, typeName s
 			if enums[index].name == typeName {
 				return selfhost_compiler_ts_tsStructMethodMatches(enums[index].methods, methodName, 0)
 			} else {
-				enums, typeName, methodName, index = enums, typeName, methodName, index+1
+				enums, typeName, methodName, index = enums, typeName, methodName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12790,7 +13223,7 @@ func selfhost_compiler_ts_tsStructHasInstanceMethod(structs []IRStructType, type
 			if structs[index].name == typeName {
 				return selfhost_compiler_ts_tsStructMethodMatches(structs[index].methods, methodName, 0)
 			} else {
-				structs, typeName, methodName, index = structs, typeName, methodName, index+1
+				structs, typeName, methodName, index = structs, typeName, methodName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12805,7 +13238,7 @@ func selfhost_compiler_ts_tsStructMethodMatches(methods []IRFunction, methodName
 			if methods[index].name == methodName && methods[index].static == false {
 				return true
 			} else {
-				methods, methodName, index = methods, methodName, index+1
+				methods, methodName, index = methods, methodName, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -12821,7 +13254,7 @@ func selfhost_compiler_ts_emitTSImportList(imports []IRTSImport, index int, out 
 		if index >= len(imports) {
 			return out
 		} else {
-			imports, index, out = imports, index+1, out+selfhost_compiler_ts_emitTSImport(imports[index])
+			imports, index, out = imports, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_ts_emitTSImport(imports[index])
 			continue
 		}
 	}
@@ -12840,11 +13273,11 @@ func selfhost_compiler_ts_emitTSImport(importDecl IRTSImport) string {
 func selfhost_compiler_ts_emitTSImportNames(functions []IRFunction, values []IRConst, fnIndex int, valueIndex int, out string) string {
 	for {
 		if fnIndex < len(functions) {
-			functions, values, fnIndex, valueIndex, out = functions, values, fnIndex+1, valueIndex, selfhost_compiler_ts_appendTSImportName(out, functions[fnIndex].name)
+			functions, values, fnIndex, valueIndex, out = functions, values, int(int32(fnIndex+1+runeInt32Zero)), valueIndex, selfhost_compiler_ts_appendTSImportName(out, functions[fnIndex].name)
 			continue
 		} else {
 			if valueIndex < len(values) {
-				functions, values, fnIndex, valueIndex, out = functions, values, fnIndex, valueIndex+1, selfhost_compiler_ts_appendTSImportName(out, values[valueIndex].name)
+				functions, values, fnIndex, valueIndex, out = functions, values, fnIndex, int(int32(valueIndex+1+runeInt32Zero)), selfhost_compiler_ts_appendTSImportName(out, values[valueIndex].name)
 				continue
 			} else {
 				return out
@@ -12911,7 +13344,7 @@ func selfhost_compiler_ts_emitTSPayloadEnumMembers(members []IREnumMember, index
 		if index >= len(members) {
 			return out
 		} else {
-			members, index, out = members, index+1, out+selfhost_compiler_ts_emitTSPayloadEnumMember(members[index], index, index == 0)
+			members, index, out = members, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_ts_emitTSPayloadEnumMember(members[index], index, index == 0)
 			continue
 		}
 	}
@@ -12932,7 +13365,7 @@ func selfhost_compiler_ts_emitTSPayloadTuple(params []IRParam, index int, out st
 		if index >= len(params) {
 			return "[" + out + "]"
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -12948,7 +13381,7 @@ func selfhost_compiler_ts_emitTSPayloadEnumConstructors(enumName string, generic
 		if index >= len(members) {
 			return out
 		} else {
-			enumName, generics, members, index, out = enumName, generics, members, index+1, out+selfhost_compiler_ts_emitTSPayloadEnumConstructor(enumName, generics, members[index], index)
+			enumName, generics, members, index, out = enumName, generics, members, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_ts_emitTSPayloadEnumConstructor(enumName, generics, members[index], index)
 			continue
 		}
 	}
@@ -12969,7 +13402,7 @@ func selfhost_compiler_ts_emitTSParamNames(params []IRParam, index int, out stri
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -12988,7 +13421,7 @@ func selfhost_compiler_ts_tsEnumHasPayload(members []IREnumMember, index int) bo
 			if len(members[index].params) > 0 {
 				return true
 			} else {
-				members, index = members, index+1
+				members, index = members, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -13009,7 +13442,7 @@ func selfhost_compiler_ts_emitTSEnumMembers(members []IREnumMember, index int, o
 		if index >= len(members) {
 			return out
 		} else {
-			members, index, out = members, index+1, out+indent(1)+selfhost_compiler_ts_tsPropertyName(members[index].name)+": "+enumValue(members[index], index)+",\n"
+			members, index, out = members, int(int32(index+1+runeInt32Zero)), out+indent(1)+selfhost_compiler_ts_tsPropertyName(members[index].name)+": "+enumValue(members[index], index)+",\n"
 			continue
 		}
 	}
@@ -13115,7 +13548,7 @@ func selfhost_compiler_ts_emitTSBlock(statements []IRExpr, index int, returns bo
 				return out
 			}
 		} else {
-			statements, index, returns, returnType, level, out = statements, index+1, returns, returnType, level, out+selfhost_compiler_ts_emitTSStatement(statements[index], index == len(statements)-1, returns, returnType, level)
+			statements, index, returns, returnType, level, out = statements, int(int32(index+1+runeInt32Zero)), returns, returnType, level, out+selfhost_compiler_ts_emitTSStatement(statements[index], index == int(int32(len(statements)-1+runeInt32Zero)), returns, returnType, level)
 			continue
 		}
 	}
@@ -13163,7 +13596,7 @@ func selfhost_compiler_ts_emitTSObjectDestructureFields(params []IRParam, index 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -13179,7 +13612,7 @@ func selfhost_compiler_ts_emitTSParams(params []IRParam, index int, out string) 
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -13204,7 +13637,7 @@ func selfhost_compiler_ts_emitTSGenericNames(generics []string, index int, out s
 		if index >= len(generics) {
 			return out
 		} else {
-			generics, index, out = generics, index+1, out+func() string {
+			generics, index, out = generics, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -13231,10 +13664,10 @@ func selfhost_compiler_ts_emitTSConstExportNames(constants []IRConst, index int,
 			return out
 		} else {
 			if constants[index].private {
-				constants, index, out = constants, index+1, out
+				constants, index, out = constants, int(int32(index+1+runeInt32Zero)), out
 				continue
 			} else {
-				constants, index, out = constants, index+1, selfhost_compiler_ts_appendTSExportName(out, constants[index].name)
+				constants, index, out = constants, int(int32(index+1+runeInt32Zero)), selfhost_compiler_ts_appendTSExportName(out, constants[index].name)
 				continue
 			}
 		}
@@ -13247,10 +13680,10 @@ func selfhost_compiler_ts_emitTSExportNames(functions []IRFunction, index int, o
 			return out
 		} else {
 			if functions[index].macro || functions[index].private {
-				functions, index, out = functions, index+1, out
+				functions, index, out = functions, int(int32(index+1+runeInt32Zero)), out
 				continue
 			} else {
-				functions, index, out = functions, index+1, selfhost_compiler_ts_appendTSExportName(out, functions[index].name)
+				functions, index, out = functions, int(int32(index+1+runeInt32Zero)), selfhost_compiler_ts_appendTSExportName(out, functions[index].name)
 				continue
 			}
 		}
@@ -13335,6 +13768,19 @@ func selfhost_compiler_ts_emitTSExpr(expr IRExpr) string {
 			return "{" + selfhost_compiler_ts_emitTSFields(expr.children, 0, "") + "}"
 		case expr.kind == ExprKind_Block:
 			return "(() => {\n" + selfhost_compiler_ts_emitTSBlock(expr.children, 0, true, "Dynamic", 1, "") + "})()"
+		case expr.kind == ExprKind_Loop:
+			return "(() => {\n" + line(1, "while ("+selfhost_compiler_ts_emitTSExpr(expr.children[0])+") {") + selfhost_compiler_ts_emitTSBlock(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "})()"
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(expr.children) > 0 {
+					return "return " + selfhost_compiler_ts_emitTSExpr(expr.children[0])
+				}
+				return "return"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "break"
+		case expr.kind == ExprKind_Continue:
+			return "continue"
 		default:
 			return "undefined"
 		}
@@ -13368,11 +13814,11 @@ func selfhost_compiler_ts_emitTSXMLPart(parent string, tag string, children []IR
 	child := children[index]
 	nextIndex := func() int {
 		if child.kind == ExprKind_XMLElement {
-			return childIndex + 1
+			return int(int32(childIndex + 1 + runeInt32Zero))
 		}
 		return childIndex
 	}()
-	return selfhost_compiler_ts_emitTSXMLChild(parent, tag, child, level, childIndex) + selfhost_compiler_ts_emitTSXMLParts(parent, tag, children, index+1, level, nextIndex)
+	return selfhost_compiler_ts_emitTSXMLChild(parent, tag, child, level, childIndex) + selfhost_compiler_ts_emitTSXMLParts(parent, tag, children, int(int32(index+1+runeInt32Zero)), level, nextIndex)
 }
 
 func selfhost_compiler_ts_emitTSXMLChild(parent string, tag string, child IRExpr, level int, childIndex int) string {
@@ -13400,7 +13846,7 @@ func selfhost_compiler_ts_emitTSXMLExprChild(parent string, child IRExpr, level 
 	childName := parent + "_child" + strconv.Itoa(childIndex)
 	return func() string {
 		if strings.HasPrefix(childType, "Array[") {
-			return line(level, "for (const "+childName+" of "+selfhost_compiler_ts_emitTSExpr(child)+") {") + line(level+1, parent+".appendChild("+childName+");") + line(level, "}")
+			return line(level, "for (const "+childName+" of "+selfhost_compiler_ts_emitTSExpr(child)+") {") + line(int(int32(level+1+runeInt32Zero)), parent+".appendChild("+childName+");") + line(level, "}")
 		}
 		return func() string {
 			if childType == "HTMLElement" {
@@ -13520,7 +13966,10 @@ func selfhost_compiler_ts_emitTSTemplate(expr IRExpr) string {
 	raw := expr.value
 	inner := func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -13544,7 +13993,7 @@ func selfhost_compiler_ts_emitTSTemplateAtom(segments []string, children []IRExp
 		}
 		return textOut
 	}()
-	return selfhost_compiler_ts_emitTSTemplateParts(segments, children, index+1, next)
+	return selfhost_compiler_ts_emitTSTemplateParts(segments, children, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_ts_tsEscapeTemplateText(text string) string {
@@ -13562,10 +14011,10 @@ func selfhost_compiler_ts_tsEscapeTemplateChars(text string, index int, out stri
 
 func selfhost_compiler_ts_tsEscapeTemplateChar(text string, index int, out string) string {
 	return func() string {
-		if []rune(text)[index] == '$' && index+1 < len([]rune(text)) && []rune(text)[index+1] == '{' {
-			return selfhost_compiler_ts_tsEscapeTemplateChars(text, index+2, out+"\\${")
+		if []rune(text)[index] == '$' && int(int32(index+1+runeInt32Zero)) < len([]rune(text)) && []rune(text)[int(int32(index+1+runeInt32Zero))] == '{' {
+			return selfhost_compiler_ts_tsEscapeTemplateChars(text, int(int32(index+2+runeInt32Zero)), out+"\\${")
 		}
-		return selfhost_compiler_ts_tsEscapeTemplateChars(text, index+1, out+string(([]rune(text)[index])))
+		return selfhost_compiler_ts_tsEscapeTemplateChars(text, int(int32(index+1+runeInt32Zero)), out+string(([]rune(text)[index])))
 	}()
 }
 
@@ -13686,11 +14135,11 @@ func selfhost_compiler_ts_emitTSCall(expr IRExpr) string {
 			return "null"
 		case moduleCallKey(expr) == "process.argv":
 			return "[]"
-		case moduleCallKey(expr) == "int.toString":
+		case moduleCallKey(expr) == "int32.toString":
 			return "String(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
-		case moduleCallKey(expr) == "int.toDouble":
+		case moduleCallKey(expr) == "int32.toDouble":
 			return selfhost_compiler_ts_emitTSExpr(expr.children[1])
-		case moduleCallKey(expr) == "int.toBigInt":
+		case moduleCallKey(expr) == "int32.toBigInt":
 			return "BigInt(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
 		case moduleCallKey(expr) == "int4.fromInt":
 			return "((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(" + selfhost_compiler_ts_emitTSExpr(expr.children[1]) + ")"
@@ -13845,7 +14294,7 @@ func selfhost_compiler_ts_emitTSEventParamsTyped(params []IRParam, index int, ou
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out, eventType = params, index+1, out+func() string {
+			params, index, out, eventType = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -13907,7 +14356,7 @@ func selfhost_compiler_ts_emitTSExprListFrom(exprs []IRExpr, index int, out stri
 		if index >= len(exprs) {
 			return out
 		} else {
-			exprs, index, out = exprs, index+1, out+func() string {
+			exprs, index, out = exprs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -13923,7 +14372,7 @@ func selfhost_compiler_ts_emitTSMapEntries(entries []IRExpr, index int, out stri
 		if index >= len(entries) {
 			return out
 		} else {
-			entries, index, out = entries, index+1, out+func() string {
+			entries, index, out = entries, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -13939,7 +14388,7 @@ func selfhost_compiler_ts_emitTSFields(fields []IRExpr, index int, out string) s
 		if index >= len(fields) {
 			return out
 		} else {
-			fields, index, out = fields, index+1, out+func() string {
+			fields, index, out = fields, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if out == "" {
 					return ""
 				}
@@ -13967,7 +14416,7 @@ func selfhost_compiler_ts_tsType(typeName string) string {
 	switch {
 	case (typeName == "") || (typeName == "Void"):
 		return "void"
-	case (typeName == "Int") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "Double") || (typeName == "Float"):
+	case (typeName == "Int32") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "Double") || (typeName == "Float"):
 		return "number"
 	case (typeName == "BigInt") || (typeName == "Int64") || (typeName == "UInt64"):
 		return "bigint"
@@ -13991,7 +14440,10 @@ func selfhost_compiler_ts_tsType(typeName string) string {
 func selfhost_compiler_ts_tsTypeFallback(typeName string) string {
 	return func() string {
 		if strings.HasSuffix(typeName, "?") {
-			return selfhost_compiler_ts_tsType(func() string { runes := []rune(typeName); return string(runes[0 : len([]rune(typeName))-1]) }()) + " | null"
+			return selfhost_compiler_ts_tsType(func() string {
+				runes := []rune(typeName)
+				return string(runes[0:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+			}()) + " | null | undefined"
 		}
 		return func() string {
 			if genericInner(typeName, "Array") != "" {
@@ -14023,7 +14475,10 @@ func selfhost_compiler_ts_tsNamedType(typeName string) string {
 		if open < 0 {
 			return mangleIdent(typeName)
 		}
-		return mangleIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "<" + selfhost_compiler_ts_emitTSTypeArgs(func() string { runes := []rune(typeName); return string(runes[open+1 : len([]rune(typeName))-1]) }()) + ">"
+		return mangleIdent(func() string { runes := []rune(typeName); return string(runes[0:open]) }()) + "<" + selfhost_compiler_ts_emitTSTypeArgs(func() string {
+			runes := []rune(typeName)
+			return string(runes[int(int32(open+1+runeInt32Zero)):int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+		}()) + ">"
 	}()
 }
 
@@ -14036,7 +14491,7 @@ func selfhost_compiler_ts_emitTSTypeArgList(args []string, index int, out string
 		if index >= len(args) {
 			return out
 		} else {
-			args, index, out = args, index+1, out+func() string {
+			args, index, out = args, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -14071,9 +14526,9 @@ func selfhost_compiler_dts_dtsStructs(structs []IRStructType, index int) string 
 		}
 		return func() string {
 			if structs[index].private {
-				return selfhost_compiler_dts_dtsStructs(structs, index+1)
+				return selfhost_compiler_dts_dtsStructs(structs, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsStruct(structs[index]) + selfhost_compiler_dts_dtsStructs(structs, index+1)
+			return selfhost_compiler_dts_dtsStruct(structs[index]) + selfhost_compiler_dts_dtsStructs(structs, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14092,9 +14547,9 @@ func selfhost_compiler_dts_dtsStructFields(fields []IRField, index int) string {
 		}
 		return func() string {
 			if fields[index].private {
-				return selfhost_compiler_dts_dtsStructFields(fields, index+1)
+				return selfhost_compiler_dts_dtsStructFields(fields, int(int32(index+1+runeInt32Zero)))
 			}
-			return indent(1) + selfhost_compiler_dts_dtsPropertyName(fields[index].name) + ": " + selfhost_compiler_dts_dtsType(fields[index].typeName) + ";\n" + selfhost_compiler_dts_dtsStructFields(fields, index+1)
+			return indent(1) + selfhost_compiler_dts_dtsPropertyName(fields[index].name) + ": " + selfhost_compiler_dts_dtsType(fields[index].typeName) + ";\n" + selfhost_compiler_dts_dtsStructFields(fields, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14106,9 +14561,9 @@ func selfhost_compiler_dts_dtsEnums(enums []IREnumType, index int) string {
 		}
 		return func() string {
 			if enums[index].private {
-				return selfhost_compiler_dts_dtsEnums(enums, index+1)
+				return selfhost_compiler_dts_dtsEnums(enums, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsEnum(enums[index]) + selfhost_compiler_dts_dtsEnums(enums, index+1)
+			return selfhost_compiler_dts_dtsEnum(enums[index]) + selfhost_compiler_dts_dtsEnums(enums, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14139,7 +14594,7 @@ func selfhost_compiler_dts_dtsEnumHasPayload(members []IREnumMember, index int) 
 			if len(members[index].params) > 0 {
 				return true
 			} else {
-				members, index = members, index+1
+				members, index = members, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -14158,9 +14613,9 @@ func selfhost_compiler_dts_dtsEnumMembers(members []IREnumMember, index int) str
 func selfhost_compiler_dts_dtsEnumMembersAt(members []IREnumMember, index int) string {
 	return func() string {
 		if members[index].private {
-			return selfhost_compiler_dts_dtsEnumMembers(members, index+1)
+			return selfhost_compiler_dts_dtsEnumMembers(members, int(int32(index+1+runeInt32Zero)))
 		}
-		return indent(1) + "readonly " + selfhost_compiler_dts_dtsPropertyName(members[index].name) + ": " + enumValue(members[index], index) + ";\n" + selfhost_compiler_dts_dtsEnumMembers(members, index+1)
+		return indent(1) + "readonly " + selfhost_compiler_dts_dtsPropertyName(members[index].name) + ": " + enumValue(members[index], index) + ";\n" + selfhost_compiler_dts_dtsEnumMembers(members, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -14176,9 +14631,9 @@ func selfhost_compiler_dts_dtsConsts(constants []IRConst, index int) string {
 func selfhost_compiler_dts_dtsConstsAt(constants []IRConst, index int) string {
 	return func() string {
 		if constants[index].private {
-			return selfhost_compiler_dts_dtsConsts(constants, index+1)
+			return selfhost_compiler_dts_dtsConsts(constants, int(int32(index+1+runeInt32Zero)))
 		}
-		return "declare const " + mangleIdent(constants[index].name) + ": " + selfhost_compiler_dts_dtsType(constants[index].typeName) + ";\n" + selfhost_compiler_dts_dtsConsts(constants, index+1)
+		return "declare const " + mangleIdent(constants[index].name) + ": " + selfhost_compiler_dts_dtsType(constants[index].typeName) + ";\n" + selfhost_compiler_dts_dtsConsts(constants, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -14187,7 +14642,7 @@ func selfhost_compiler_dts_dtsFunctions(functions []IRFunction, index int) strin
 		if index >= len(functions) {
 			return ""
 		}
-		return selfhost_compiler_dts_dtsFunctionAt(functions, index) + selfhost_compiler_dts_dtsFunctions(functions, index+1)
+		return selfhost_compiler_dts_dtsFunctionAt(functions, index) + selfhost_compiler_dts_dtsFunctions(functions, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -14228,7 +14683,7 @@ func selfhost_compiler_dts_dtsGenericNames(generics []string, index int, out str
 		if index >= len(generics) {
 			return out
 		} else {
-			generics, index, out = generics, index+1, out+func() string {
+			generics, index, out = generics, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -14244,7 +14699,7 @@ func selfhost_compiler_dts_dtsParams(params []IRParam, index int, out string) st
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -14341,11 +14796,11 @@ func selfhost_compiler_dts_dtsTypeRefPostfixStep(tokens []Token, index int, type
 	return func() ParsedTypeRef {
 		switch {
 		case token.kind == TokenKind_LBracket:
-			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, selfhost_compiler_dts_dtsSkipBracket(tokens, index+1, 1), selfhost_compiler_dts_dtsApplyTypeArgs(typeRef, selfhost_compiler_dts_dtsBracketArgs(tokens, index)))
+			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, selfhost_compiler_dts_dtsSkipBracket(tokens, int(int32(index+1+runeInt32Zero)), 1), selfhost_compiler_dts_dtsApplyTypeArgs(typeRef, selfhost_compiler_dts_dtsBracketArgs(tokens, index)))
 		case token.kind == TokenKind_Question:
-			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, index+1, nullableTypeRef(typeRef))
+			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, int(int32(index+1+runeInt32Zero)), nullableTypeRef(typeRef))
 		default:
-			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, index+1, typeRef)
+			return selfhost_compiler_dts_dtsTypeRefPostfix(tokens, int(int32(index+1+runeInt32Zero)), typeRef)
 		}
 	}()
 }
@@ -14355,8 +14810,8 @@ func selfhost_compiler_dts_dtsApplyTypeArgs(typeRef ParsedTypeRef, args []Parsed
 }
 
 func selfhost_compiler_dts_dtsBracketArgs(tokens []Token, open int) []ParsedTypeRef {
-	close := selfhost_compiler_dts_dtsBracketClose(tokens, open+1, 1)
-	inner := selfhost_compiler_dts_dtsTokenRangeText(tokens, open+1, close, "")
+	close := selfhost_compiler_dts_dtsBracketClose(tokens, int(int32(open+1+runeInt32Zero)), 1)
+	inner := selfhost_compiler_dts_dtsTokenRangeText(tokens, int(int32(open+1+runeInt32Zero)), close, "")
 	parts := selfhost_compiler_dts_dtsSplitTopLevelTypeArgs(inner)
 	return selfhost_compiler_dts_dtsTypeRefsFromStrings(parts, 0, []ParsedTypeRef{})
 }
@@ -14367,18 +14822,18 @@ func selfhost_compiler_dts_dtsBracketClose(tokens []Token, index int, depth int)
 			return index
 		} else {
 			if tokens[index].kind == TokenKind_LBracket {
-				tokens, index, depth = tokens, index+1, depth+1
+				tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), int(int32(depth+1+runeInt32Zero))
 				continue
 			} else {
 				if tokens[index].kind == TokenKind_RBracket {
 					if depth == 1 {
 						return index
 					} else {
-						tokens, index, depth = tokens, index+1, depth-1
+						tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), int(int32(depth-1+runeInt32Zero))
 						continue
 					}
 				} else {
-					tokens, index, depth = tokens, index+1, depth
+					tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), depth
 					continue
 				}
 			}
@@ -14392,18 +14847,18 @@ func selfhost_compiler_dts_dtsSkipBracket(tokens []Token, index int, depth int) 
 			return index
 		} else {
 			if tokens[index].kind == TokenKind_LBracket {
-				tokens, index, depth = tokens, index+1, depth+1
+				tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), int(int32(depth+1+runeInt32Zero))
 				continue
 			} else {
 				if tokens[index].kind == TokenKind_RBracket {
 					if depth == 1 {
-						return index + 1
+						return int(int32(index + 1 + runeInt32Zero))
 					} else {
-						tokens, index, depth = tokens, index+1, depth-1
+						tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), int(int32(depth-1+runeInt32Zero))
 						continue
 					}
 				} else {
-					tokens, index, depth = tokens, index+1, depth
+					tokens, index, depth = tokens, int(int32(index+1+runeInt32Zero)), depth
 					continue
 				}
 			}
@@ -14425,7 +14880,7 @@ func selfhost_compiler_dts_dtsTokenRangeText(tokens []Token, index int, endExclu
 		if index >= endExclusive || index >= len(tokens) {
 			return out
 		} else {
-			tokens, index, endExclusive, out = tokens, index+1, endExclusive, out+tokens[index].lexeme
+			tokens, index, endExclusive, out = tokens, int(int32(index+1+runeInt32Zero)), endExclusive, out+tokens[index].lexeme
 			continue
 		}
 	}
@@ -14449,18 +14904,18 @@ func selfhost_compiler_dts_dtsSplitTopLevelTypeArgsStep(source string, index int
 	return func() []string {
 		switch {
 		case (ch == '[') || (ch == '('):
-			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, index+1, start, depth+1, out)
+			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, int(int32(index+1+runeInt32Zero)), start, int(int32(depth+1+runeInt32Zero)), out)
 		case (ch == ']') || (ch == ')'):
-			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, index+1, start, depth-1, out)
+			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, int(int32(index+1+runeInt32Zero)), start, int(int32(depth-1+runeInt32Zero)), out)
 		case ch == ',':
 			return func() []string {
 				if depth == 0 {
-					return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, index+1, index+1, depth, selfhost_compiler_dts_dtsPushTypeArg(out, strings.TrimSpace((func() string { runes := []rune(source); return string(runes[start:index]) }()))))
+					return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, int(int32(index+1+runeInt32Zero)), int(int32(index+1+runeInt32Zero)), depth, selfhost_compiler_dts_dtsPushTypeArg(out, strings.TrimSpace((func() string { runes := []rune(source); return string(runes[start:index]) }()))))
 				}
-				return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, index+1, start, depth, out)
+				return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, int(int32(index+1+runeInt32Zero)), start, depth, out)
 			}()
 		default:
-			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, index+1, start, depth, out)
+			return selfhost_compiler_dts_dtsSplitTopLevelTypeArgsLoop(source, int(int32(index+1+runeInt32Zero)), start, depth, out)
 		}
 	}()
 }
@@ -14483,7 +14938,7 @@ func selfhost_compiler_dts_dtsTypeRefsFromStrings(parts []string, index int, out
 
 func selfhost_compiler_dts_dtsTypeRefsFromStringsPush(parts []string, index int, out []ParsedTypeRef) []ParsedTypeRef {
 	out = append(out, selfhost_compiler_dts_parseDtsTypeRef(parts[index]))
-	return selfhost_compiler_dts_dtsTypeRefsFromStrings(parts, index+1, out)
+	return selfhost_compiler_dts_dtsTypeRefsFromStrings(parts, int(int32(index+1+runeInt32Zero)), out)
 }
 
 func selfhost_compiler_dts_dtsTupleParamsFromStrings(parts []string, index int, out []ParsedTypeParam) []ParsedTypeParam {
@@ -14501,7 +14956,7 @@ func selfhost_compiler_dts_dtsTupleParamsFromStringsPush(parts []string, index i
 	param.optional = false
 	param.typeRef = selfhost_compiler_dts_parseDtsTypeRef(parts[index])
 	out = append(out, param)
-	return selfhost_compiler_dts_dtsTupleParamsFromStrings(parts, index+1, out)
+	return selfhost_compiler_dts_dtsTupleParamsFromStrings(parts, int(int32(index+1+runeInt32Zero)), out)
 }
 
 func selfhost_compiler_dts_clearNullableTypeRef(typeRef ParsedTypeRef) ParsedTypeRef {
@@ -14521,7 +14976,7 @@ func selfhost_compiler_dts_dtsTypeRef(typeRef ParsedTypeRef) string {
 }
 
 func selfhost_compiler_dts_dtsNullableTypeRef(typeRef ParsedTypeRef) string {
-	return selfhost_compiler_dts_dtsTypeRef(selfhost_compiler_dts_clearNullableTypeRef(typeRef)) + " | null"
+	return selfhost_compiler_dts_dtsTypeRef(selfhost_compiler_dts_clearNullableTypeRef(typeRef)) + " | null | undefined"
 }
 
 func selfhost_compiler_dts_dtsPlainTypeRef(typeRef ParsedTypeRef) string {
@@ -14547,7 +15002,7 @@ func selfhost_compiler_dts_dtsNamedTypeRef(typeRef ParsedTypeRef) string {
 		switch {
 		case (typeName == "") || (typeName == "Void"):
 			return "void"
-		case (typeName == "Int") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "Byte") || (typeName == "Double") || (typeName == "Float"):
+		case (typeName == "Int32") || (typeName == "Int4") || (typeName == "Int8") || (typeName == "Int16") || (typeName == "UInt") || (typeName == "UInt8") || (typeName == "UInt16") || (typeName == "Byte") || (typeName == "Double") || (typeName == "Float"):
 			return "number"
 		case (typeName == "BigInt") || (typeName == "Int64") || (typeName == "UInt64"):
 			return "bigint"
@@ -14715,7 +15170,7 @@ func selfhost_compiler_dts_dtsTypeRefs(refs []ParsedTypeRef, index int, out stri
 		if index >= len(refs) {
 			return out
 		} else {
-			refs, index, out = refs, index+1, out+func() string {
+			refs, index, out = refs, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -14731,7 +15186,7 @@ func selfhost_compiler_dts_dtsTypeParams(params []ParsedTypeParam, index int, ou
 		if index >= len(params) {
 			return out
 		} else {
-			params, index, out = params, index+1, out+func() string {
+			params, index, out = params, int(int32(index+1+runeInt32Zero)), out+func() string {
 				if index == 0 {
 					return ""
 				}
@@ -14759,7 +15214,7 @@ func selfhost_compiler_dts_dtsTypeParam(param ParsedTypeParam) string {
 
 func selfhost_compiler_dts_dtsExports(file IRFile) string {
 	return func() string {
-		if len(file.structs)+len(file.enums)+len(file.constants)+len(file.functions) == 0 {
+		if int(int32(int(int32(int(int32(len(file.structs)+len(file.enums)+runeInt32Zero))+len(file.constants)+runeInt32Zero))+len(file.functions)+runeInt32Zero)) == 0 {
 			return ""
 		}
 		return "\n" + selfhost_compiler_dts_dtsStructExports(file.structs, 0) + selfhost_compiler_dts_dtsEnumExports(file.enums, 0) + selfhost_compiler_dts_dtsConstExports(file.constants, 0) + selfhost_compiler_dts_dtsFunctionExports(file.functions, 0)
@@ -14773,9 +15228,9 @@ func selfhost_compiler_dts_dtsStructExports(structs []IRStructType, index int) s
 		}
 		return func() string {
 			if structs[index].private {
-				return selfhost_compiler_dts_dtsStructExports(structs, index+1)
+				return selfhost_compiler_dts_dtsStructExports(structs, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsExportTypeAlias(structs[index].name) + selfhost_compiler_dts_dtsStructExports(structs, index+1)
+			return selfhost_compiler_dts_dtsExportTypeAlias(structs[index].name) + selfhost_compiler_dts_dtsStructExports(structs, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14787,9 +15242,9 @@ func selfhost_compiler_dts_dtsEnumExports(enums []IREnumType, index int) string 
 		}
 		return func() string {
 			if enums[index].private {
-				return selfhost_compiler_dts_dtsEnumExports(enums, index+1)
+				return selfhost_compiler_dts_dtsEnumExports(enums, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsExportTypeAlias(enums[index].name) + selfhost_compiler_dts_dtsExportValueAlias(enums[index].name) + selfhost_compiler_dts_dtsEnumExports(enums, index+1)
+			return selfhost_compiler_dts_dtsExportTypeAlias(enums[index].name) + selfhost_compiler_dts_dtsExportValueAlias(enums[index].name) + selfhost_compiler_dts_dtsEnumExports(enums, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14801,9 +15256,9 @@ func selfhost_compiler_dts_dtsConstExports(constants []IRConst, index int) strin
 		}
 		return func() string {
 			if constants[index].private {
-				return selfhost_compiler_dts_dtsConstExports(constants, index+1)
+				return selfhost_compiler_dts_dtsConstExports(constants, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsExportValueAlias(constants[index].name) + selfhost_compiler_dts_dtsConstExports(constants, index+1)
+			return selfhost_compiler_dts_dtsExportValueAlias(constants[index].name) + selfhost_compiler_dts_dtsConstExports(constants, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14815,9 +15270,9 @@ func selfhost_compiler_dts_dtsFunctionExports(functions []IRFunction, index int)
 		}
 		return func() string {
 			if functions[index].macro || functions[index].private {
-				return selfhost_compiler_dts_dtsFunctionExports(functions, index+1)
+				return selfhost_compiler_dts_dtsFunctionExports(functions, int(int32(index+1+runeInt32Zero)))
 			}
-			return selfhost_compiler_dts_dtsExportValueAlias(functions[index].name) + selfhost_compiler_dts_dtsFunctionExports(functions, index+1)
+			return selfhost_compiler_dts_dtsExportValueAlias(functions[index].name) + selfhost_compiler_dts_dtsFunctionExports(functions, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -14862,7 +15317,7 @@ func selfhost_compiler_dts_dtsEscapeName(name string, index int, out string) str
 		if index >= len([]rune(name)) {
 			return out
 		} else {
-			name, index, out = name, index+1, out+selfhost_compiler_dts_dtsEscapeNameChar([]rune(name)[index])
+			name, index, out = name, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_dts_dtsEscapeNameChar([]rune(name)[index])
 			continue
 		}
 	}
@@ -14897,7 +15352,7 @@ func selfhost_compiler_dts_dtsSafeIdent(name string, index int, first bool) bool
 			return true
 		} else {
 			if selfhost_compiler_dts_dtsSafeIdentChar([]rune(name)[index], first) {
-				name, index, first = name, index+1, false
+				name, index, first = name, int(int32(index+1+runeInt32Zero)), false
 				continue
 			} else {
 				return false
@@ -14969,7 +15424,7 @@ func selfhost_compiler_dom_compilerDomEventTypeStep(name string, index int) stri
 		if selfhost_compiler_dom_types_DOM_EVENT_NAMES[index] == name {
 			return selfhost_compiler_dom_types_DOM_EVENT_TYPE_NAMES[index]
 		}
-		return selfhost_compiler_dom_compilerDomEventTypeAt(name, index+1)
+		return selfhost_compiler_dom_compilerDomEventTypeAt(name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -14998,7 +15453,7 @@ func selfhost_compiler_dom_compilerDomElementTypeStep(tag string, index int) str
 		if selfhost_compiler_dom_types_DOM_TAG_NAMES[index] == tag {
 			return selfhost_compiler_dom_types_DOM_TAG_ELEMENT_TYPES[index]
 		}
-		return selfhost_compiler_dom_compilerDomElementType(tag, index+1)
+		return selfhost_compiler_dom_compilerDomElementType(tag, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15025,7 +15480,7 @@ func compilerDomStructViewWithTarget(name string, targetType string) IRStructTyp
 func selfhost_compiler_dom_compilerDomStructIndex(name string, index int) int {
 	return func() int {
 		if index >= len(selfhost_compiler_dom_types_DOM_STRUCT_NAMES) {
-			return -1
+			return int(-int32(1))
 		}
 		return selfhost_compiler_dom_compilerDomStructIndexStep(name, index)
 	}()
@@ -15036,7 +15491,7 @@ func selfhost_compiler_dom_compilerDomStructIndexStep(name string, index int) in
 		if selfhost_compiler_dom_types_DOM_STRUCT_NAMES[index] == name {
 			return index
 		}
-		return selfhost_compiler_dom_compilerDomStructIndex(name, index+1)
+		return selfhost_compiler_dom_compilerDomStructIndex(name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15077,7 +15532,7 @@ func selfhost_compiler_dom_compilerDomCollectField(member string, members []stri
 			return __rune_spread_out
 		}()
 	}()
-	return selfhost_compiler_dom_compilerDomCollectFields(members, targetType, next, index+1)
+	return selfhost_compiler_dom_compilerDomCollectFields(members, targetType, next, int(int32(index+1+runeInt32Zero)))
 }
 
 func selfhost_compiler_dom_compilerDomFieldFromRow(row string, targetType string) IRField {
@@ -15092,7 +15547,10 @@ func selfhost_compiler_dom_compilerDomFieldFromRow(row string, targetType string
 		if colon < 0 {
 			return "Dynamic"
 		}
-		return strings.TrimSpace((func() string { runes := []rune(row); return string(runes[colon+1 : len([]rune(row))]) }()))
+		return strings.TrimSpace((func() string {
+			runes := []rune(row)
+			return string(runes[int(int32(colon+1+runeInt32Zero)):len([]rune(row))])
+		}()))
 	}()
 	isTarget := name == "target" || name == "currentTarget" || name == "srcElement"
 	typeName := func() string {
@@ -15229,14 +15687,14 @@ func selfhost_compiler_compiler_appendDiscoverImportPath(pending []string, baseP
 	skip := importDecl.go_ || importDecl.module
 	return func() []string {
 		if skip {
-			return selfhost_compiler_compiler_appendDiscoverImportPaths(pending, basePath, imports, index+1)
+			return selfhost_compiler_compiler_appendDiscoverImportPaths(pending, basePath, imports, int(int32(index+1+runeInt32Zero)))
 		}
 		return selfhost_compiler_compiler_appendDiscoverImportPaths(func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, pending...)
 			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, importDecl.path))
 			return __rune_spread_out
-		}(), basePath, imports, index+1)
+		}(), basePath, imports, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15255,7 +15713,7 @@ func selfhost_compiler_compiler_discoverMergeSourceFiles(left []SourceFile, righ
 					__rune_spread_out = append(__rune_spread_out, right[index])
 					return __rune_spread_out
 				}()
-			}(), right, index+1
+			}(), right, int(int32(index+1+runeInt32Zero))
 			continue
 		}
 	}
@@ -15266,7 +15724,7 @@ func selfhost_compiler_compiler_compilerContainsSourceFile(files []SourceFile, p
 		if index >= len(files) {
 			return false
 		}
-		return selfhost_compiler_compiler_compilerPathNormalize(files[index].path) == selfhost_compiler_compiler_compilerPathNormalize(path) || selfhost_compiler_compiler_compilerContainsSourceFile(files, path, index+1)
+		return selfhost_compiler_compiler_compilerPathNormalize(files[index].path) == selfhost_compiler_compiler_compilerPathNormalize(path) || selfhost_compiler_compiler_compilerContainsSourceFile(files, path, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15417,7 +15875,7 @@ func selfhost_compiler_compiler_fileHasGoImportAt(imports []IRImport, index int)
 		if imports[index].go_ {
 			return true
 		}
-		return selfhost_compiler_compiler_fileHasGoImportsAt(imports, index+1)
+		return selfhost_compiler_compiler_fileHasGoImportsAt(imports, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15523,7 +15981,7 @@ func selfhost_compiler_compiler_compilerKnownTypes(file IRFile) []string {
 }
 
 func selfhost_compiler_compiler_compilerBuiltinTypes() []string {
-	return []string{"Int", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "HTMLElement", "WebComponent", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"}
+	return []string{"Int32", "Int4", "Int8", "Int16", "Int64", "UInt", "UInt8", "UInt16", "UInt64", "Double", "Float", "Bool", "String", "Char", "BigInt", "Byte", "Bytes", "Object", "Dynamic", "Void", "Null", "Error", "Regex", "Symbol", "MacroContext", "HTMLElement", "WebComponent", "Array", "ReadonlyArray", "Tuple", "ReadonlyTuple", "Map", "Set", "Result"}
 }
 
 func selfhost_compiler_compiler_checkDuplicateDeclarations(file IRFile, errors []string) []string {
@@ -15553,7 +16011,7 @@ func selfhost_compiler_compiler_checkDuplicateStructTypeNames(structs []IRStruct
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructTypeName(structs []IRStructType, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, structs[index].name, index+1)
+	duplicate := selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, structs[index].name, int(int32(index+1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15565,7 +16023,7 @@ func selfhost_compiler_compiler_checkDuplicateStructTypeName(structs []IRStructT
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateStructTypeNames(structs, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateStructTypeNames(structs, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums []IREnumType, structs []IRStructType, index int, errors []string) []string {
@@ -15579,7 +16037,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums []IREnumType, 
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums []IREnumType, structs []IRStructType, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, enums[index].name, index+1) || selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, enums[index].name, 0)
+	duplicate := selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, enums[index].name, int(int32(index+1+runeInt32Zero))) || selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, enums[index].name, 0)
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15591,7 +16049,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumTypeName(enums []IREnumType, s
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums, structs, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateEnumTypeNames(enums, structs, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateFunctionNames(functions []IRFunction, index int, errors []string) []string {
@@ -15605,7 +16063,7 @@ func selfhost_compiler_compiler_checkDuplicateFunctionNames(functions []IRFuncti
 }
 
 func selfhost_compiler_compiler_checkDuplicateFunctionName(functions []IRFunction, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, functions[index].name, functions[index].macro, index-1)
+	duplicate := selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, functions[index].name, functions[index].macro, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15617,7 +16075,7 @@ func selfhost_compiler_compiler_checkDuplicateFunctionName(functions []IRFunctio
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateFunctionNames(functions, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateFunctionNames(functions, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateConstantNames(constants []IRConst, index int, errors []string) []string {
@@ -15631,7 +16089,7 @@ func selfhost_compiler_compiler_checkDuplicateConstantNames(constants []IRConst,
 }
 
 func selfhost_compiler_compiler_checkDuplicateConstantName(constants []IRConst, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, constants[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, constants[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15643,7 +16101,7 @@ func selfhost_compiler_compiler_checkDuplicateConstantName(constants []IRConst, 
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateConstantNames(constants, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateConstantNames(constants, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructMembers(typeDecl IRStructType, errors []string) []string {
@@ -15662,7 +16120,7 @@ func selfhost_compiler_compiler_checkDuplicateStructFields(fields []IRField, ind
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructField(fields []IRField, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, fields[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, fields[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15674,7 +16132,7 @@ func selfhost_compiler_compiler_checkDuplicateStructField(fields []IRField, inde
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateStructFields(fields, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateStructFields(fields, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructMethods(typeName string, methods []IRFunction, index int, errors []string) []string {
@@ -15688,7 +16146,7 @@ func selfhost_compiler_compiler_checkDuplicateStructMethods(typeName string, met
 }
 
 func selfhost_compiler_compiler_checkDuplicateStructMethod(typeName string, methods []IRFunction, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15700,7 +16158,7 @@ func selfhost_compiler_compiler_checkDuplicateStructMethod(typeName string, meth
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateStructMethods(typeName, methods, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateStructMethods(typeName, methods, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumMembers(typeDecl IREnumType, errors []string) []string {
@@ -15719,7 +16177,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumConstructors(enumName string, 
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName string, members []IREnumMember, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, members[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, members[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15731,7 +16189,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumConstructor(enumName string, m
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateEnumConstructors(enumName, members, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateEnumConstructors(enumName, members, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName string, methods []IRFunction, index int, errors []string) []string {
@@ -15745,7 +16203,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName string, metho
 }
 
 func selfhost_compiler_compiler_checkDuplicateEnumMethod(enumName string, methods []IRFunction, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, methods[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15757,7 +16215,7 @@ func selfhost_compiler_compiler_checkDuplicateEnumMethod(enumName string, method
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName, methods, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateEnumMethods(enumName, methods, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_checkDeclarationTypes(file IRFile, knownTypes []string, errors []string) []string {
@@ -15842,7 +16300,7 @@ func selfhost_compiler_compiler_checkDuplicateParams(params []IRParam, index int
 }
 
 func selfhost_compiler_compiler_checkDuplicateParam(params []IRParam, index int, errors []string) []string {
-	duplicate := selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, params[index].name, index-1)
+	duplicate := selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, params[index].name, int(int32(index-1+runeInt32Zero)))
 	next := func() []string {
 		if duplicate {
 			return func() []string {
@@ -15854,7 +16312,7 @@ func selfhost_compiler_compiler_checkDuplicateParam(params []IRParam, index int,
 		}
 		return errors
 	}()
-	return selfhost_compiler_compiler_checkDuplicateParams(params, index+1, next)
+	return selfhost_compiler_compiler_checkDuplicateParams(params, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_compilerMergeGenerics(parentGenerics []string, functionGenerics []string) []string {
@@ -15881,7 +16339,10 @@ func selfhost_compiler_compiler_compilerNormalizeTypeName(typeName string) strin
 	nullable := strings.HasSuffix(typeName, "?")
 	return func() string {
 		if nullable {
-			return selfhost_compiler_compiler_compilerNormalizeTypeName(func() string { runes := []rune(typeName); return string(runes[0 : len([]rune(typeName))-1]) }())
+			return selfhost_compiler_compiler_compilerNormalizeTypeName(func() string {
+				runes := []rune(typeName)
+				return string(runes[0:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+			}())
 		}
 		return typeName
 	}()
@@ -15924,7 +16385,7 @@ func selfhost_compiler_compiler_checkCompilerTypeArgList(args []string, knownTyp
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_checkCompilerTypeArgList(args, knownTypes, generics, selfhost_compiler_compiler_checkCompilerTypeName(strings.TrimSpace(args[index]), knownTypes, generics, errors), index+1)
+		return selfhost_compiler_compiler_checkCompilerTypeArgList(args, knownTypes, generics, selfhost_compiler_compiler_checkCompilerTypeName(strings.TrimSpace(args[index]), knownTypes, generics, errors), int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -15933,7 +16394,10 @@ func selfhost_compiler_compiler_compilerGenericInner(typeName string) string {
 	complete := open >= 0 && strings.HasSuffix(typeName, "]")
 	return func() string {
 		if complete {
-			return func() string { runes := []rune(typeName); return string(runes[open+1 : len([]rune(typeName))-1]) }()
+			return func() string {
+				runes := []rune(typeName)
+				return string(runes[int(int32(open+1+runeInt32Zero)):int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+			}()
 		}
 		return ""
 	}()
@@ -16094,9 +16558,33 @@ func selfhost_compiler_compiler_checkExpr(expr IRExpr, structs []IRStructType, c
 			return selfhost_compiler_compiler_checkThisExpr(bindings, errors)
 		case expr.kind == ExprKind_XMLElement:
 			return selfhost_compiler_compiler_checkXMLElementExpr(expr, structs, callables, errors, bindings)
+		case expr.kind == ExprKind_Loop:
+			return selfhost_compiler_compiler_checkWhileExpr(expr, structs, callables, errors, bindings)
+		case expr.kind == ExprKind_Return:
+			return selfhost_compiler_compiler_checkReturnExpr(expr, structs, callables, errors, bindings)
 		default:
 			return selfhost_compiler_compiler_checkExprDefault(expr, structs, callables, errors, bindings)
 		}
+	}()
+}
+
+func selfhost_compiler_compiler_checkReturnExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
+	return selfhost_compiler_compiler_checkExprDefault(expr, structs, callables, errors, bindings)
+}
+
+func selfhost_compiler_compiler_checkWhileExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
+	checked := selfhost_compiler_compiler_checkExprDefault(expr, structs, callables, errors, bindings)
+	condition := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(expr.children[0], structs, callables, bindings)
+	return func() []string {
+		if condition != "Bool" && condition != "" {
+			return func() []string {
+				__rune_spread_out := []string{}
+				__rune_spread_out = append(__rune_spread_out, checked...)
+				__rune_spread_out = append(__rune_spread_out, "loop condition expects Bool, got "+condition)
+				return __rune_spread_out
+			}()
+		}
+		return checked
 	}()
 }
 
@@ -16171,7 +16659,7 @@ func selfhost_compiler_compiler_checkCallArgExprs(args []IRExpr, index int, stru
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_checkCallArgExprs(args, index+1, structs, callables, selfhost_compiler_compiler_checkExpr(args[index], structs, callables, errors, bindings), bindings)
+		return selfhost_compiler_compiler_checkCallArgExprs(args, int(int32(index+1+runeInt32Zero)), structs, callables, selfhost_compiler_compiler_checkExpr(args[index], structs, callables, errors, bindings), bindings)
 	}()
 }
 
@@ -16258,7 +16746,7 @@ func selfhost_compiler_compiler_compilerObjectSpreadType(members []IRExpr, index
 			if members[index].kind == ExprKind_Spread {
 				return selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(members[index].children[0], structs, callables, bindings)
 			}
-			return selfhost_compiler_compiler_compilerObjectSpreadType(members, index+1, structs, callables, bindings)
+			return selfhost_compiler_compiler_compilerObjectSpreadType(members, int(int32(index+1+runeInt32Zero)), structs, callables, bindings)
 		}()
 	}()
 }
@@ -16277,7 +16765,7 @@ func selfhost_compiler_compiler_compilerObjectTypeMember(members []IRExpr, index
 	member := members[index]
 	return func() string {
 		if member.kind == ExprKind_Spread {
-			return selfhost_compiler_compiler_compilerObjectTypeFields(members, index+1, structs, callables, bindings, out)
+			return selfhost_compiler_compiler_compilerObjectTypeFields(members, int(int32(index+1+runeInt32Zero)), structs, callables, bindings, out)
 		}
 		return selfhost_compiler_compiler_compilerObjectTypeNamedMember(members, index, structs, callables, bindings, out)
 	}()
@@ -16306,7 +16794,7 @@ func selfhost_compiler_compiler_compilerObjectTypeNamedMember(members []IRExpr, 
 			}()
 		}
 	}()
-	return selfhost_compiler_compiler_compilerObjectTypeFields(members, index+1, structs, callables, bindings, out+separator+member.name+":"+typeName)
+	return selfhost_compiler_compiler_compilerObjectTypeFields(members, int(int32(index+1+runeInt32Zero)), structs, callables, bindings, out+separator+member.name+":"+typeName)
 }
 
 func selfhost_compiler_compiler_checkObjectMembers(members []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, objectType string) []string {
@@ -16322,7 +16810,7 @@ func selfhost_compiler_compiler_checkObjectMembers(members []IRExpr, index int, 
 func selfhost_compiler_compiler_checkObjectMember(members []IRExpr, index int, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, objectType string) []string {
 	member := members[index]
 	next := selfhost_compiler_compiler_checkObjectMemberExpr(member, structs, callables, errors, bindings, objectType)
-	return selfhost_compiler_compiler_checkObjectMembers(members, index+1, structs, callables, next, bindings, objectType)
+	return selfhost_compiler_compiler_checkObjectMembers(members, int(int32(index+1+runeInt32Zero)), structs, callables, next, bindings, objectType)
 }
 
 func selfhost_compiler_compiler_checkObjectMemberExpr(member IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding, objectType string) []string {
@@ -16491,7 +16979,7 @@ func selfhost_compiler_compiler_checkPatternBlockBranch(branches []IRExpr, index
 		if complete {
 			return selfhost_compiler_compiler_checkPatternBlockBranchValue(branches, index, branch.children[1], structs, callables, errors, bindings, expected)
 		}
-		return selfhost_compiler_compiler_checkPatternBlockBranches(branches, index+1, structs, callables, errors, bindings, expected)
+		return selfhost_compiler_compiler_checkPatternBlockBranches(branches, int(int32(index+1+runeInt32Zero)), structs, callables, errors, bindings, expected)
 	}()
 }
 
@@ -16501,7 +16989,7 @@ func selfhost_compiler_compiler_checkPatternBlockBranchValue(branches []IRExpr, 
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, patternBindings)
 	nextExpected := selfhost_compiler_compiler_compilerNextPatternBranchType(expected, actual)
 	nextErrors := selfhost_compiler_compiler_checkPatternBranchTypeError(expected, actual, checked)
-	return selfhost_compiler_compiler_checkPatternBlockBranches(branches, index+1, structs, callables, nextErrors, bindings, nextExpected)
+	return selfhost_compiler_compiler_checkPatternBlockBranches(branches, int(int32(index+1+runeInt32Zero)), structs, callables, nextErrors, bindings, nextExpected)
 }
 
 func selfhost_compiler_compiler_compilerPatternBindings(pattern string, bindings []CompilerTypeBinding) []CompilerTypeBinding {
@@ -16513,7 +17001,7 @@ func selfhost_compiler_compiler_compilerPatternBindingParts(parts []string, inde
 		if index >= len(parts) {
 			return bindings
 		} else {
-			parts, index, bindings = parts, index+1, selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace(parts[index]), bindings)
+			parts, index, bindings = parts, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace(parts[index]), bindings)
 			continue
 		}
 	}
@@ -16525,7 +17013,10 @@ func selfhost_compiler_compiler_compilerPatternBindingPart(pattern string, bindi
 		if alias < 0 {
 			return bindings
 		}
-		return selfhost_compiler_compiler_addCompilerValueBinding(selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[0:alias]) }())), bindings), strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[alias+1 : len([]rune(pattern))]) }())), "")
+		return selfhost_compiler_compiler_addCompilerValueBinding(selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string { runes := []rune(pattern); return string(runes[0:alias]) }())), bindings), strings.TrimSpace((func() string {
+			runes := []rune(pattern)
+			return string(runes[int(int32(alias+1+runeInt32Zero)):len([]rune(pattern))])
+		}())), "")
 	}()
 	return func() []CompilerTypeBinding {
 		if alias >= 0 {
@@ -16539,15 +17030,24 @@ func selfhost_compiler_compiler_compilerPatternBindingNonAlias(pattern string, b
 	constructor := selfhost_compiler_compiler_compilerPatternTopLevelIndex(pattern, '(', 0, 0)
 	return func() []CompilerTypeBinding {
 		if constructor > 0 && strings.HasSuffix(pattern, ")") {
-			return selfhost_compiler_compiler_compilerPatternBindings(func() string { runes := []rune(pattern); return string(runes[constructor+1 : len([]rune(pattern))-1]) }(), bindings)
+			return selfhost_compiler_compiler_compilerPatternBindings(func() string {
+				runes := []rune(pattern)
+				return string(runes[int(int32(constructor+1+runeInt32Zero)):int(int32(len([]rune(pattern))-1+runeInt32Zero))])
+			}(), bindings)
 		}
 		return func() []CompilerTypeBinding {
 			if strings.HasPrefix(pattern, "[") && strings.HasSuffix(pattern, "]") {
-				return selfhost_compiler_compiler_compilerPatternBindings(func() string { runes := []rune(pattern); return string(runes[1 : len([]rune(pattern))-1]) }(), bindings)
+				return selfhost_compiler_compiler_compilerPatternBindings(func() string {
+					runes := []rune(pattern)
+					return string(runes[1:int(int32(len([]rune(pattern))-1+runeInt32Zero))])
+				}(), bindings)
 			}
 			return func() []CompilerTypeBinding {
 				if strings.HasPrefix(pattern, "{") && strings.HasSuffix(pattern, "}") {
-					return selfhost_compiler_compiler_compilerMapPatternBindings(func() string { runes := []rune(pattern); return string(runes[1 : len([]rune(pattern))-1]) }(), bindings)
+					return selfhost_compiler_compiler_compilerMapPatternBindings(func() string {
+						runes := []rune(pattern)
+						return string(runes[1:int(int32(len([]rune(pattern))-1+runeInt32Zero))])
+					}(), bindings)
 				}
 				return selfhost_compiler_compiler_compilerPatternSimpleBinding(pattern, bindings)
 			}()
@@ -16564,7 +17064,7 @@ func selfhost_compiler_compiler_compilerMapPatternBindingParts(parts []string, i
 		if index >= len(parts) {
 			return bindings
 		} else {
-			parts, index, bindings = parts, index+1, selfhost_compiler_compiler_compilerMapPatternBindingPart(parts[index], bindings)
+			parts, index, bindings = parts, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerMapPatternBindingPart(parts[index], bindings)
 			continue
 		}
 	}
@@ -16576,7 +17076,10 @@ func selfhost_compiler_compiler_compilerMapPatternBindingPart(part string, bindi
 		if colon < 0 {
 			return bindings
 		}
-		return selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string { runes := []rune(part); return string(runes[colon+1 : len([]rune(part))]) }())), bindings)
+		return selfhost_compiler_compiler_compilerPatternBindingPart(strings.TrimSpace((func() string {
+			runes := []rune(part)
+			return string(runes[int(int32(colon+1+runeInt32Zero)):len([]rune(part))])
+		}())), bindings)
 	}()
 }
 
@@ -16625,21 +17128,21 @@ func selfhost_compiler_compiler_compilerPatternPartsAt(text string, index int, d
 	ch := []rune(text)[index]
 	return func() []string {
 		if ch == ',' && depth == 0 {
-			return selfhost_compiler_compiler_compilerPatternParts(text, index+1, depth, func() []string {
+			return selfhost_compiler_compiler_compilerPatternParts(text, int(int32(index+1+runeInt32Zero)), depth, func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, current)
 				return __rune_spread_out
 			}(), "")
 		}
-		return selfhost_compiler_compiler_compilerPatternParts(text, index+1, selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth), out, current+string(ch))
+		return selfhost_compiler_compiler_compilerPatternParts(text, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth), out, current+string(ch))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerPatternTopLevelIndex(text string, target rune, index int, depth int) int {
 	return func() int {
 		if index >= len([]rune(text)) {
-			return -1
+			return int(-int32(1))
 		}
 		return selfhost_compiler_compiler_compilerPatternTopLevelIndexAt(text, target, index, depth)
 	}()
@@ -16651,18 +17154,18 @@ func selfhost_compiler_compiler_compilerPatternTopLevelIndexAt(text string, targ
 		if ch == target && depth == 0 {
 			return index
 		}
-		return selfhost_compiler_compiler_compilerPatternTopLevelIndex(text, target, index+1, selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth))
+		return selfhost_compiler_compiler_compilerPatternTopLevelIndex(text, target, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerPatternDepthAfter(ch, depth))
 	}()
 }
 
 func selfhost_compiler_compiler_compilerPatternDepthAfter(ch rune, depth int) int {
 	return func() int {
 		if ch == '(' || ch == '[' || ch == '{' {
-			return depth + 1
+			return int(int32(depth + 1 + runeInt32Zero))
 		}
 		return func() int {
 			if ch == ')' || ch == ']' || ch == '}' {
-				return depth - 1
+				return int(int32(depth - 1 + runeInt32Zero))
 			}
 			return depth
 		}()
@@ -16749,7 +17252,7 @@ func selfhost_compiler_compiler_checkObjectDestructureFields(params []IRParam, i
 
 func selfhost_compiler_compiler_checkObjectDestructureField(params []IRParam, index int, sourceType string, fields []IRField, errors []string) []string {
 	fieldName := params[index].typeName
-	duplicate := selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, fieldName, index-1)
+	duplicate := selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, fieldName, int(int32(index-1+runeInt32Zero)))
 	field := selfhost_compiler_compiler_findCompilerStructField(fields, fieldName, 0)
 	next := func() []string {
 		if duplicate {
@@ -16774,7 +17277,7 @@ func selfhost_compiler_compiler_checkObjectDestructureField(params []IRParam, in
 			}
 		}()
 	}()
-	return selfhost_compiler_compiler_checkObjectDestructureFields(params, index+1, sourceType, fields, next)
+	return selfhost_compiler_compiler_checkObjectDestructureFields(params, int(int32(index+1+runeInt32Zero)), sourceType, fields, next)
 }
 
 func selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params []IRParam, name string, index int) bool {
@@ -16793,7 +17296,7 @@ func selfhost_compiler_compiler_compilerDestructureFieldAppearsBeforeAt(params [
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, name, index-1)
+		return selfhost_compiler_compiler_compilerDestructureFieldAppearsBefore(params, name, int(int32(index-1+runeInt32Zero)))
 	}()
 }
 
@@ -16854,7 +17357,7 @@ func selfhost_compiler_compiler_checkXMLChildExprs(children []IRExpr, index int,
 		if index >= len(children) {
 			return errors
 		} else {
-			children, index, tag, structs, callables, errors, bindings = children, index+1, tag, structs, callables, selfhost_compiler_compiler_checkXMLChildExpr(children[index], tag, structs, callables, errors, bindings), bindings
+			children, index, tag, structs, callables, errors, bindings = children, int(int32(index+1+runeInt32Zero)), tag, structs, callables, selfhost_compiler_compiler_checkXMLChildExpr(children[index], tag, structs, callables, errors, bindings), bindings
 			continue
 		}
 	}
@@ -17074,7 +17577,7 @@ func selfhost_compiler_compiler_checkArrayElementType(elements []IRExpr, callabl
 	actual := selfhost_compiler_compiler_inferCompilerArrayLiteralElementType(elem, callables, bindings)
 	nextExpected := selfhost_compiler_compiler_compilerNextArrayElementType(expected, actual)
 	nextErrors := selfhost_compiler_compiler_checkArrayElementTypeError(elem, expected, actual, callables, bindings, errors)
-	return selfhost_compiler_compiler_checkArrayElementTypes(elements, callables, bindings, nextErrors, index+1, nextExpected)
+	return selfhost_compiler_compiler_checkArrayElementTypes(elements, callables, bindings, nextErrors, int(int32(index+1+runeInt32Zero)), nextExpected)
 }
 
 func selfhost_compiler_compiler_compilerNextArrayElementType(expected string, actual string) string {
@@ -17153,7 +17656,7 @@ func selfhost_compiler_compiler_checkMapEntryType(entries []IRExpr, callables []
 	nextKey := selfhost_compiler_compiler_compilerNextMapEntryType(expectedKey, key)
 	nextValue := selfhost_compiler_compiler_compilerNextMapEntryType(expectedValue, value)
 	checked := selfhost_compiler_compiler_checkMapEntryTypeErrors(entry, expectedKey, key, expectedValue, value, errors)
-	return selfhost_compiler_compiler_checkMapEntryTypes(entries, callables, bindings, checked, index+1, nextKey, nextValue)
+	return selfhost_compiler_compiler_checkMapEntryTypes(entries, callables, bindings, checked, int(int32(index+1+runeInt32Zero)), nextKey, nextValue)
 }
 
 func selfhost_compiler_compiler_compilerNextMapEntryType(expected string, actual string) string {
@@ -17282,13 +17785,13 @@ func selfhost_compiler_compiler_checkTupleOrUnknownIndexReceiver(receiver string
 }
 
 func selfhost_compiler_compiler_checkArrayIndexType(index string, errors []string) []string {
-	mismatch := index != "" && index != "Int"
+	mismatch := index != "" && index != "Int32"
 	return func() []string {
 		if mismatch {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, "array index expects Int, got "+index)
+				__rune_spread_out = append(__rune_spread_out, "array index expects Int32, got "+index)
 				return __rune_spread_out
 			}()
 		}
@@ -17312,7 +17815,7 @@ func selfhost_compiler_compiler_checkMapIndexType(expected string, actual string
 }
 
 func selfhost_compiler_compiler_checkTupleIndexType(tuple []string, index string, indexExpr IRExpr, errors []string) []string {
-	mismatch := index != "" && index != "Int"
+	mismatch := index != "" && index != "Int32"
 	return func() []string {
 		if mismatch {
 			return func() []string {
@@ -17774,7 +18277,7 @@ func selfhost_compiler_compiler_compilerIntegerType(base string) bool {
 }
 
 func selfhost_compiler_compiler_compilerSignedIntegerType(base string) bool {
-	return base == "Int" || base == "Int4" || (base == "Int8" || base == "Int16") || base == "Int64"
+	return base == "Int32" || base == "Int4" || (base == "Int8" || base == "Int16") || base == "Int64"
 }
 
 func selfhost_compiler_compiler_compilerUnsignedIntegerType(base string) bool {
@@ -17789,7 +18292,7 @@ func selfhost_compiler_compiler_compilerSupportedMapKeyType(typeName string) boo
 func selfhost_compiler_compiler_compilerParseIntText(text string) int {
 	return func() int {
 		if strings.HasPrefix(text, "-") {
-			return 0 - selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 1, 0)
+			return int(int32(0 - selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 1, 0) + runeInt32Zero))
 		}
 		return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, 0, 0)
 	}()
@@ -17801,7 +18304,7 @@ func selfhost_compiler_compiler_compilerParseUnsignedIntText(text string, index 
 		if done {
 			return out
 		}
-		return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, index+1, out*10+selfhost_compiler_compiler_compilerDigitValue([]rune(text)[index]))
+		return selfhost_compiler_compiler_compilerParseUnsignedIntText(text, int(int32(index+1+runeInt32Zero)), int(int32(int(int32(out*10+runeInt32Zero))+selfhost_compiler_compiler_compilerDigitValue([]rune(text)[index])+runeInt32Zero)))
 	}()
 }
 
@@ -17891,7 +18394,7 @@ func selfhost_compiler_compiler_checkExpectedBlockSelectorExpr(statements []IREx
 		if empty {
 			return errors
 		}
-		return selfhost_compiler_compiler_checkExpectedSelectorExpr(statements[len(statements)-1], structs, callables, bindings, errors)
+		return selfhost_compiler_compiler_checkExpectedSelectorExpr(statements[int(int32(len(statements)-1+runeInt32Zero))], structs, callables, bindings, errors)
 	}()
 }
 
@@ -17919,7 +18422,10 @@ func selfhost_compiler_compiler_checkSelectorReceiverExpr(expr IRExpr, receiver 
 func selfhost_compiler_compiler_checkStructSelectorExpr(expr IRExpr, receiverType string, structs []IRStructType, bindings []CompilerTypeBinding, errors []string) []string {
 	checkedType := func() string {
 		if expr.op == "?." && strings.HasSuffix(receiverType, "?") {
-			return func() string { runes := []rune(receiverType); return string(runes[0 : len([]rune(receiverType))-1]) }()
+			return func() string {
+				runes := []rune(receiverType)
+				return string(runes[0:int(int32(len([]rune(receiverType))-1+runeInt32Zero))])
+			}()
 		}
 		return receiverType
 	}()
@@ -17983,7 +18489,10 @@ func selfhost_compiler_compiler_compilerStructuralObjectFieldType(typeName strin
 	return func() string {
 		if valid {
 			return selfhost_compiler_compiler_compilerStructuralObjectFieldTypeInParts(func() []string {
-				parts := strings.Split((func() string { runes := []rune(typeName); return string(runes[1 : len([]rune(typeName))-1]) }()), ";")
+				parts := strings.Split((func() string {
+					runes := []rune(typeName)
+					return string(runes[1:int(int32(len([]rune(typeName))-1+runeInt32Zero))])
+				}()), ";")
 				return parts
 			}(), fieldName, 0)
 		}
@@ -17999,7 +18508,7 @@ func selfhost_compiler_compiler_compilerStructuralObjectFieldTypeInParts(parts [
 		return func() string {
 			switch {
 			case selfhost_compiler_compiler_compilerStructuralObjectFieldTypePart(parts[index], fieldName) == "":
-				return selfhost_compiler_compiler_compilerStructuralObjectFieldTypeInParts(parts, fieldName, index+1)
+				return selfhost_compiler_compiler_compilerStructuralObjectFieldTypeInParts(parts, fieldName, int(int32(index+1+runeInt32Zero)))
 			default:
 				return selfhost_compiler_compiler_compilerStructuralObjectFieldTypePart(parts[index], fieldName)
 			}
@@ -18113,7 +18622,7 @@ func selfhost_compiler_compiler_compilerStructHasFromJsonAt(typeDecl IRStructTyp
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl, expected, index+1)
+		return selfhost_compiler_compiler_compilerStructHasFromJson(typeDecl, expected, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -18141,7 +18650,7 @@ func selfhost_compiler_compiler_checkBlockExprStep(statements []IRExpr, index in
 	statement := statements[index]
 	nextErrors := selfhost_compiler_compiler_checkExpr(statement, structs, callables, errors, bindings)
 	nextBindings := selfhost_compiler_compiler_blockBindingsAfterStatement(statement, structs, callables, bindings)
-	return selfhost_compiler_compiler_checkBlockExpr(statements, index+1, structs, callables, nextErrors, nextBindings)
+	return selfhost_compiler_compiler_checkBlockExpr(statements, int(int32(index+1+runeInt32Zero)), structs, callables, nextErrors, nextBindings)
 }
 
 func selfhost_compiler_compiler_checkStructExpr(expr IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
@@ -18216,7 +18725,7 @@ func selfhost_compiler_compiler_checkStructExprFieldValue(typeName string, field
 			}()
 		}
 	}()
-	return selfhost_compiler_compiler_checkStructExprFieldValues(typeName, fields, typeDecl, index+1, structs, callables, next, bindings)
+	return selfhost_compiler_compiler_checkStructExprFieldValues(typeName, fields, typeDecl, int(int32(index+1+runeInt32Zero)), structs, callables, next, bindings)
 }
 
 func selfhost_compiler_compiler_checkStructFieldType(typeName string, fieldName string, value IRExpr, expected string, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string) []string {
@@ -18250,9 +18759,9 @@ func selfhost_compiler_compiler_checkStructMissingField(typeName string, expecte
 	present := selfhost_compiler_compiler_compilerExprFieldContains(fields, field.name, 0)
 	return func() []string {
 		if present {
-			return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, index+1, errors)
+			return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, int(int32(index+1+runeInt32Zero)), errors)
 		}
-		return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, index+1, func() []string {
+		return selfhost_compiler_compiler_checkStructMissingFields(typeName, expectedFields, fields, int(int32(index+1+runeInt32Zero)), func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, errors...)
 			__rune_spread_out = append(__rune_spread_out, "missing field "+typeName+"."+field.name)
@@ -18277,7 +18786,7 @@ func selfhost_compiler_compiler_compilerExprFieldContainsAt(fields []IRExpr, nam
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerExprFieldContains(fields, name, index+1)
+		return selfhost_compiler_compiler_compilerExprFieldContains(fields, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -18367,7 +18876,7 @@ func selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params []IRP
 		if done {
 			return bindings
 		}
-		return selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params, index+1, sourceType, structs, selfhost_compiler_compiler_addCompilerValueBinding(bindings, params[index].name, selfhost_compiler_compiler_compilerObjectDestructureFieldType(params[index], sourceType, structs)))
+		return selfhost_compiler_compiler_bindCompilerObjectDestructureParams(params, int(int32(index+1+runeInt32Zero)), sourceType, structs, selfhost_compiler_compiler_addCompilerValueBinding(bindings, params[index].name, selfhost_compiler_compiler_compilerObjectDestructureFieldType(params[index], sourceType, structs)))
 	}()
 }
 
@@ -18400,9 +18909,9 @@ func selfhost_compiler_compiler_dropCompilerTypeBindingStep(bindings []CompilerT
 	matched := bindings[index].name == name
 	return func() []CompilerTypeBinding {
 		if matched {
-			return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, index+1, out)
+			return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, int(int32(index+1+runeInt32Zero)), out)
 		}
-		return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, index+1, func() []CompilerTypeBinding {
+		return selfhost_compiler_compiler_dropCompilerTypeBinding(bindings, name, int(int32(index+1+runeInt32Zero)), func() []CompilerTypeBinding {
 			__rune_spread_out := []CompilerTypeBinding{}
 			__rune_spread_out = append(__rune_spread_out, out...)
 			__rune_spread_out = append(__rune_spread_out, bindings[index])
@@ -18415,7 +18924,7 @@ func selfhost_compiler_compiler_checkExprCall(expr IRExpr, structs []IRStructTyp
 	identifierCall := expr.kind == ExprKind_Call && len(expr.children) > 0 && expr.children[0].kind == ExprKind_Identifier
 	return func() []string {
 		if identifierCall {
-			return selfhost_compiler_compiler_checkIdentifierCall(expr, expr.children[0].name, len(expr.children)-1, structs, callables, errors, bindings)
+			return selfhost_compiler_compiler_checkIdentifierCall(expr, expr.children[0].name, int(int32(len(expr.children)-1+runeInt32Zero)), structs, callables, errors, bindings)
 		}
 		return selfhost_compiler_compiler_checkSelectorCall(expr, structs, callables, errors, bindings)
 	}()
@@ -18465,7 +18974,7 @@ func selfhost_compiler_compiler_checkAtSelectorCall(expr IRExpr, selector IRExpr
 				if compilerGoPackageImportPath(importPath) != "" {
 					return errors
 				}
-				return selfhost_compiler_compiler_checkIdentifierCall(expr, selector.name, len(expr.children)-1, structs, callables, errors, bindings)
+				return selfhost_compiler_compiler_checkIdentifierCall(expr, selector.name, int(int32(len(expr.children)-1+runeInt32Zero)), structs, callables, errors, bindings)
 			}()
 		}
 	}()
@@ -18568,7 +19077,7 @@ func selfhost_compiler_compiler_checkGoStmtStringLiteral(expr IRExpr, errors []s
 }
 
 func selfhost_compiler_compiler_compilerCallArgCount(expr IRExpr) int {
-	return len(expr.children) - 1
+	return int(int32(len(expr.children) - 1 + runeInt32Zero))
 }
 
 func selfhost_compiler_compiler_checkIdentifierSelectorCall(expr IRExpr, selector IRExpr, receiver IRExpr, structs []IRStructType, callables []CompilerCallable, errors []string, bindings []CompilerTypeBinding) []string {
@@ -18590,7 +19099,7 @@ func selfhost_compiler_compiler_checkStaticSelectorCall(expr IRExpr, selector IR
 		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
-					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
+					return selfhost_compiler_compiler_checkCallableCall(callable, expr, int(int32(len(expr.children)-1+runeInt32Zero)), structs, callables, bindings, errors)
 				}
 				return func() []string {
 					__rune_spread_out := []string{}
@@ -18623,7 +19132,7 @@ func selfhost_compiler_compiler_checkKnownInstanceSelectorCall(expr IRExpr, sele
 		if found {
 			return func() []string {
 				if selfhost_compiler_compiler_checkCallableVisibility(callable, bindings) {
-					return selfhost_compiler_compiler_checkCallableCall(callable, expr, len(expr.children)-1, structs, callables, bindings, errors)
+					return selfhost_compiler_compiler_checkCallableCall(callable, expr, int(int32(len(expr.children)-1+runeInt32Zero)), structs, callables, bindings, errors)
 				}
 				return func() []string {
 					__rune_spread_out := []string{}
@@ -18766,7 +19275,7 @@ func selfhost_compiler_compiler_checkCallableArgTypes(callable CompilerCallable,
 
 func selfhost_compiler_compiler_checkCallableArgType(callable CompilerCallable, expr IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, errors []string, index int) []string {
 	expected := callable.paramTypes[index]
-	arg := expr.children[index+1]
+	arg := expr.children[int(int32(index+1+runeInt32Zero))]
 	checked := selfhost_compiler_compiler_checkExpectedExprType(arg, expected, structs, callables, bindings, errors)
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(arg, structs, callables, bindings)
 	mismatch := selfhost_compiler_compiler_compilerShouldCheckArgType(expected, actual) && selfhost_compiler_compiler_compilerTypesCompatible(expected, actual) == false
@@ -18775,13 +19284,13 @@ func selfhost_compiler_compiler_checkCallableArgType(callable CompilerCallable, 
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, checked...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerArgumentTypeError(callable.name, index+1, actual, expected))
+				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerArgumentTypeError(callable.name, int(int32(index+1+runeInt32Zero)), actual, expected))
 				return __rune_spread_out
 			}()
 		}
 		return checked
 	}()
-	return selfhost_compiler_compiler_checkCallableArgTypes(callable, expr, structs, callables, bindings, next, index+1)
+	return selfhost_compiler_compiler_checkCallableArgTypes(callable, expr, structs, callables, bindings, next, int(int32(index+1+runeInt32Zero)))
 }
 
 func selfhost_compiler_compiler_compilerArgumentTypeError(name string, index int, actual string, expected string) string {
@@ -18800,18 +19309,28 @@ func selfhost_compiler_compiler_checkFunctionReturn(fn IRFunction, structs []IRS
 	expected := fn.returnType
 	checked := selfhost_compiler_compiler_checkExpectedExprType(fn.body, expected, structs, callables, bindings, errors)
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(fn.body, structs, callables, bindings)
+	emptyMapBody := fn.body.kind == ExprKind_Block && len(fn.body.children) == 0 && selfhost_compiler_compiler_isCompilerMapType(expected)
 	shouldCheck := expected != "" && expected != "Dynamic" && actual != ""
 	return func() []string {
 		if shouldCheck {
 			return func() []string {
-				if expected == "WebComponent" && actual == "HTMLElement" && selfhost_compiler_compiler_compilerExprCanBuildWebComponent(fn.body) {
+				if emptyMapBody {
 					return checked
 				}
-				return selfhost_compiler_compiler_checkFunctionReturnType(fn.name, expected, actual, checked)
+				return func() []string {
+					if expected == "WebComponent" && actual == "HTMLElement" && selfhost_compiler_compiler_compilerExprCanBuildWebComponent(fn.body) {
+						return checked
+					}
+					return selfhost_compiler_compiler_checkFunctionReturnType(fn.name, expected, actual, checked)
+				}()
 			}()
 		}
 		return checked
 	}()
+}
+
+func selfhost_compiler_compiler_isCompilerMapType(typeName string) bool {
+	return strings.HasPrefix(typeName, "Map[") || strings.HasPrefix(typeName, "Record[")
 }
 
 func selfhost_compiler_compiler_compilerExprCanBuildWebComponent(expr IRExpr) bool {
@@ -18834,7 +19353,7 @@ func selfhost_compiler_compiler_compilerLastExprCanBuildWebComponent(exprs []IRE
 		if len(exprs) == 0 {
 			return false
 		}
-		return selfhost_compiler_compiler_compilerExprCanBuildWebComponent(exprs[len(exprs)-1])
+		return selfhost_compiler_compiler_compilerExprCanBuildWebComponent(exprs[int(int32(len(exprs)-1+runeInt32Zero))])
 	}()
 }
 
@@ -18857,7 +19376,10 @@ func selfhost_compiler_compiler_compilerTypesCompatible(expected string, actual 
 	nullable := strings.HasSuffix(expected, "?")
 	return func() bool {
 		if nullable {
-			return actual == "Null" || selfhost_compiler_compiler_compilerTypesCompatible(func() string { runes := []rune(expected); return string(runes[0 : len([]rune(expected))-1]) }(), actual)
+			return actual == "Null" || selfhost_compiler_compiler_compilerTypesCompatible(func() string {
+				runes := []rune(expected)
+				return string(runes[0:int(int32(len([]rune(expected))-1+runeInt32Zero))])
+			}(), actual)
 		}
 		return selfhost_compiler_compiler_compilerNonNullableTypesCompatible(expected, actual)
 	}()
@@ -18919,7 +19441,7 @@ func selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected []s
 		if done {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerTypesCompatible(strings.TrimSpace(expected[index]), strings.TrimSpace(actual[index])) && selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, index+1)
+		return selfhost_compiler_compiler_compilerTypesCompatible(strings.TrimSpace(expected[index]), strings.TrimSpace(actual[index])) && selfhost_compiler_compiler_compilerGenericArgListsCompatibleAt(expected, actual, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -18959,7 +19481,10 @@ func selfhost_compiler_compiler_compilerLeftNullableComparable(left string, righ
 		if rightNull {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerTypesComparable(func() string { runes := []rune(left); return string(runes[0 : len([]rune(left))-1]) }(), right)
+		return selfhost_compiler_compiler_compilerTypesComparable(func() string {
+			runes := []rune(left)
+			return string(runes[0:int(int32(len([]rune(left))-1+runeInt32Zero))])
+		}(), right)
 	}()
 }
 
@@ -18979,7 +19504,10 @@ func selfhost_compiler_compiler_compilerRightNullableInnerComparable(left string
 		if leftNull {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerTypesComparable(left, func() string { runes := []rune(right); return string(runes[0 : len([]rune(right))-1]) }())
+		return selfhost_compiler_compiler_compilerTypesComparable(left, func() string {
+			runes := []rune(right)
+			return string(runes[0:int(int32(len([]rune(right))-1+runeInt32Zero))])
+		}())
 	}()
 }
 
@@ -19043,7 +19571,7 @@ func selfhost_compiler_compiler_compilerTupleLiteralTypes(elements []IRExpr, cal
 		if done {
 			return out
 		}
-		return selfhost_compiler_compiler_compilerTupleLiteralTypes(elements, callables, bindings, index+1, out+selfhost_compiler_compiler_compilerTupleTypeSeparator(index)+selfhost_compiler_compiler_inferCompilerExprType(elements[index], callables, bindings))
+		return selfhost_compiler_compiler_compilerTupleLiteralTypes(elements, callables, bindings, int(int32(index+1+runeInt32Zero)), out+selfhost_compiler_compiler_compilerTupleTypeSeparator(index)+selfhost_compiler_compiler_inferCompilerExprType(elements[index], callables, bindings))
 	}()
 }
 
@@ -19130,7 +19658,7 @@ func selfhost_compiler_compiler_compilerTrimTypes(types []string, index int, out
 		if done {
 			return out
 		}
-		return selfhost_compiler_compiler_compilerTrimTypes(types, index+1, func() []string {
+		return selfhost_compiler_compiler_compilerTrimTypes(types, int(int32(index+1+runeInt32Zero)), func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, out...)
 			__rune_spread_out = append(__rune_spread_out, strings.TrimSpace(types[index]))
@@ -19157,7 +19685,7 @@ func selfhost_compiler_compiler_inferCompilerExprType(expr IRExpr, callables []C
 		case expr.kind == ExprKind_XMLElement:
 			return "HTMLElement"
 		case expr.kind == ExprKind_Int:
-			return "Int"
+			return "Int32"
 		case expr.kind == ExprKind_Double:
 			return "Double"
 		case expr.kind == ExprKind_BigInt:
@@ -19176,6 +19704,19 @@ func selfhost_compiler_compiler_inferCompilerExprType(expr IRExpr, callables []C
 			return selfhost_compiler_compiler_inferCompilerBlockType(expr, callables, bindings)
 		case expr.kind == ExprKind_Ternary:
 			return selfhost_compiler_compiler_inferCompilerTernaryType(expr, callables, bindings)
+		case expr.kind == ExprKind_Loop:
+			return "Void"
+		case expr.kind == ExprKind_Return:
+			return func() string {
+				if len(expr.children) > 0 {
+					return selfhost_compiler_compiler_inferCompilerExprType(expr.children[0], callables, bindings)
+				}
+				return "Void"
+			}()
+		case expr.kind == ExprKind_Break:
+			return "Void"
+		case expr.kind == ExprKind_Continue:
+			return "Void"
 		case expr.kind == ExprKind_Unary:
 			return selfhost_compiler_compiler_inferCompilerUnaryType(expr, callables, bindings)
 		case expr.kind == ExprKind_Postfix:
@@ -19252,7 +19793,10 @@ func selfhost_compiler_compiler_inferCompilerStructSelectorType(expr IRExpr, rec
 	optional := expr.op == "?."
 	checkedType := func() string {
 		if optional && strings.HasSuffix(receiverType, "?") {
-			return func() string { runes := []rune(receiverType); return string(runes[0 : len([]rune(receiverType))-1]) }()
+			return func() string {
+				runes := []rune(receiverType)
+				return string(runes[0:int(int32(len([]rune(receiverType))-1+runeInt32Zero))])
+			}()
 		}
 		return receiverType
 	}()
@@ -19293,7 +19837,7 @@ func selfhost_compiler_compiler_inferCompilerArrayElementType(elements []IRExpr,
 func selfhost_compiler_compiler_inferCompilerArrayElementTypeAt(elements []IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding, index int, expected string) string {
 	actual := selfhost_compiler_compiler_inferCompilerArrayLiteralElementType(elements[index], callables, bindings)
 	next := selfhost_compiler_compiler_compilerNextArrayElementType(expected, actual)
-	return selfhost_compiler_compiler_inferCompilerArrayElementType(elements, callables, bindings, index+1, next)
+	return selfhost_compiler_compiler_inferCompilerArrayElementType(elements, callables, bindings, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_inferCompilerArrayLiteralElementType(elem IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
@@ -19331,7 +19875,7 @@ func selfhost_compiler_compiler_inferCompilerMapKeyType(entries []IRExpr, callab
 		if done {
 			return expected
 		}
-		return selfhost_compiler_compiler_inferCompilerMapKeyType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryKeyType(entries[index], callables, bindings)))
+		return selfhost_compiler_compiler_inferCompilerMapKeyType(entries, callables, bindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryKeyType(entries[index], callables, bindings)))
 	}()
 }
 
@@ -19341,7 +19885,7 @@ func selfhost_compiler_compiler_inferCompilerMapValueType(entries []IRExpr, call
 		if done {
 			return expected
 		}
-		return selfhost_compiler_compiler_inferCompilerMapValueType(entries, callables, bindings, index+1, selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryValueType(entries[index], callables, bindings)))
+		return selfhost_compiler_compiler_inferCompilerMapValueType(entries, callables, bindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerNextMapEntryType(expected, selfhost_compiler_compiler_inferCompilerMapEntryValueType(entries[index], callables, bindings)))
 	}()
 }
 
@@ -19444,14 +19988,14 @@ func selfhost_compiler_compiler_inferCompilerPatternBranchTypeWithStructs(branch
 		if complete {
 			return selfhost_compiler_compiler_inferCompilerPatternBranchValueTypeWithStructs(branches, index, branch.children[1], structs, callables, bindings, expected)
 		}
-		return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, index+1, structs, callables, bindings, expected)
+		return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, int(int32(index+1+runeInt32Zero)), structs, callables, bindings, expected)
 	}()
 }
 
 func selfhost_compiler_compiler_inferCompilerPatternBranchValueTypeWithStructs(branches []IRExpr, index int, value IRExpr, structs []IRStructType, callables []CompilerCallable, bindings []CompilerTypeBinding, expected string) string {
 	actual := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(value, structs, callables, bindings)
 	next := selfhost_compiler_compiler_inferCompilerPatternCommonType(expected, actual)
-	return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, index+1, structs, callables, bindings, next)
+	return selfhost_compiler_compiler_inferCompilerPatternBranchTypesWithStructs(branches, int(int32(index+1+runeInt32Zero)), structs, callables, bindings, next)
 }
 
 func selfhost_compiler_compiler_inferCompilerPatternCommonType(expected string, actual string) string {
@@ -19667,7 +20211,7 @@ func selfhost_compiler_compiler_inferCompilerBlockTypeStepWithStructs(statements
 	statement := statements[index]
 	statementType := selfhost_compiler_compiler_inferCompilerExprTypeWithStructs(statement, structs, callables, bindings)
 	nextBindings := selfhost_compiler_compiler_blockBindingsAfterStatement(statement, structs, callables, bindings)
-	return selfhost_compiler_compiler_inferCompilerBlockTypeAtWithStructs(statements, index+1, structs, callables, nextBindings, statementType)
+	return selfhost_compiler_compiler_inferCompilerBlockTypeAtWithStructs(statements, int(int32(index+1+runeInt32Zero)), structs, callables, nextBindings, statementType)
 }
 
 func selfhost_compiler_compiler_inferCompilerTernaryType(expr IRExpr, callables []CompilerCallable, bindings []CompilerTypeBinding) string {
@@ -19814,7 +20358,7 @@ func selfhost_compiler_compiler_findCompilerCallableAt(callables []CompilerCalla
 		if matched {
 			return callables[index]
 		}
-		return selfhost_compiler_compiler_findCompilerCallable(callables, name, index+1)
+		return selfhost_compiler_compiler_findCompilerCallable(callables, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -19924,7 +20468,7 @@ func selfhost_compiler_compiler_findCompilerTypeBindingAt(bindings []CompilerTyp
 		if matched {
 			return bindings[index]
 		}
-		return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, index+1)
+		return selfhost_compiler_compiler_findCompilerTypeBinding(bindings, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -19944,7 +20488,7 @@ func selfhost_compiler_compiler_findCompilerStructAt(structs []IRStructType, nam
 		if matched {
 			return structs[index]
 		}
-		return selfhost_compiler_compiler_findCompilerStruct(structs, name, index+1)
+		return selfhost_compiler_compiler_findCompilerStruct(structs, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -19968,7 +20512,7 @@ func selfhost_compiler_compiler_findCompilerStructFieldAt(fields []IRField, name
 		if matched {
 			return fields[index]
 		}
-		return selfhost_compiler_compiler_findCompilerStructField(fields, name, index+1)
+		return selfhost_compiler_compiler_findCompilerStructField(fields, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -19988,7 +20532,7 @@ func selfhost_compiler_compiler_compilerContainsAt(values []string, value string
 			if values[index] == value {
 				return true
 			} else {
-				values, value, index = values, value, index+1
+				values, value, index = values, value, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -20005,7 +20549,7 @@ func selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs []IRStruc
 			if structs[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, index+1)
+			return selfhost_compiler_compiler_compilerStructNameAppearsAfter(structs, name, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20020,7 +20564,7 @@ func selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums []IREnumType,
 			if enums[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, index+1)
+			return selfhost_compiler_compiler_compilerEnumNameAppearsAfter(enums, name, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20041,7 +20585,7 @@ func selfhost_compiler_compiler_compilerFunctionNameAppearsBeforeAt(functions []
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, name, macro, index-1)
+		return selfhost_compiler_compiler_compilerFunctionNameAppearsBefore(functions, name, macro, int(int32(index-1+runeInt32Zero)))
 	}()
 }
 
@@ -20061,7 +20605,7 @@ func selfhost_compiler_compiler_compilerConstNameAppearsBeforeAt(constants []IRC
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, name, index-1)
+		return selfhost_compiler_compiler_compilerConstNameAppearsBefore(constants, name, int(int32(index-1+runeInt32Zero)))
 	}()
 }
 
@@ -20075,7 +20619,7 @@ func selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields []IRField,
 			if fields[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, index-1)
+			return selfhost_compiler_compiler_compilerFieldNameAppearsBefore(fields, name, int(int32(index-1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20090,7 +20634,7 @@ func selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods []IRFunc
 			if methods[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, index-1)
+			return selfhost_compiler_compiler_compilerMethodNameAppearsBefore(methods, name, int(int32(index-1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20105,7 +20649,7 @@ func selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members []IR
 			if members[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, index-1)
+			return selfhost_compiler_compiler_compilerEnumMemberNameAppearsBefore(members, name, int(int32(index-1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20120,7 +20664,7 @@ func selfhost_compiler_compiler_compilerParamNameAppearsBefore(params []IRParam,
 			if params[index].name == name {
 				return true
 			}
-			return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, index-1)
+			return selfhost_compiler_compiler_compilerParamNameAppearsBefore(params, name, int(int32(index-1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20156,7 +20700,7 @@ func selfhost_compiler_compiler_compilerCoreMacroBindings(files []SourceFile, in
 		if done {
 			return bindings
 		}
-		return selfhost_compiler_compiler_compilerCoreMacroBindings(files, index+1, selfhost_compiler_compiler_compilerCoreFileMacroBindings(files[index], bindings))
+		return selfhost_compiler_compiler_compilerCoreMacroBindings(files, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerCoreFileMacroBindings(files[index], bindings))
 	}()
 }
 
@@ -20172,7 +20716,10 @@ func selfhost_compiler_compiler_compilerCoreFileMacroBindings(file SourceFile, b
 
 func selfhost_compiler_compiler_compilerCoreModuleName(path string) string {
 	slash := strings.LastIndex(path, "/")
-	base := func() string { runes := []rune(path); return string(runes[slash+1 : len([]rune(path))]) }()
+	base := func() string {
+		runes := []rune(path)
+		return string(runes[int(int32(slash+1+runeInt32Zero)):len([]rune(path))])
+	}()
 	dot := strings.LastIndex(base, ".")
 	return func() string {
 		if dot < 0 {
@@ -20188,7 +20735,7 @@ func selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module string, f
 		if done {
 			return bindings
 		}
-		return selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module, functions, index+1, func() []CompilerModuleMacroBinding {
+		return selfhost_compiler_compiler_compilerAddModuleMacroFunctions(module, functions, int(int32(index+1+runeInt32Zero)), func() []CompilerModuleMacroBinding {
 			__rune_spread_out := []CompilerModuleMacroBinding{}
 			__rune_spread_out = append(__rune_spread_out, bindings...)
 			__rune_spread_out = append(__rune_spread_out, CompilerModuleMacroBinding{module: module, binding: selfhost_compiler_compiler_compilerMacroBindingFromFunction(functions[index])})
@@ -20314,7 +20861,7 @@ func selfhost_compiler_compiler_compilerGenericTypeRefArgs(generics []string, in
 
 func selfhost_compiler_compiler_compilerGenericTypeRefArgsStep(generics []string, index int, line int, column int, out []ParsedTypeRef) []ParsedTypeRef {
 	out = append(out, selfhost_compiler_compiler_compilerTypeRef(generics[index], line, column))
-	return selfhost_compiler_compiler_compilerGenericTypeRefArgs(generics, index+1, line, column, out)
+	return selfhost_compiler_compiler_compilerGenericTypeRefArgs(generics, int(int32(index+1+runeInt32Zero)), line, column, out)
 }
 
 func selfhost_compiler_compiler_compilerTypeRef(name string, line int, column int) ParsedTypeRef {
@@ -20341,7 +20888,7 @@ func selfhost_compiler_compiler_compilerHasFromJsonMethodAt(methods []ParsedFunc
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerHasFromJsonMethod(methods, index+1)
+		return selfhost_compiler_compiler_compilerHasFromJsonMethod(methods, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -20366,7 +20913,7 @@ func selfhost_compiler_compiler_compilerHasAnnotationStep(annotations []ParsedAn
 		if matched {
 			return true
 		}
-		return selfhost_compiler_compiler_compilerHasAnnotationAt(annotations, marker, module, name, index+1)
+		return selfhost_compiler_compiler_compilerHasAnnotationAt(annotations, marker, module, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -20394,7 +20941,7 @@ func selfhost_compiler_compiler_compilerMacroMethodErrors(types []ParsedType, in
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerMacroMethodErrors(types, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodErrors(types[index].methods, 0, errors))
+		return selfhost_compiler_compiler_compilerMacroMethodErrors(types, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerMacroTypeMethodErrors(types[index].methods, 0, errors))
 	}()
 }
 
@@ -20404,7 +20951,7 @@ func selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods []ParsedFu
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods, index+1, selfhost_compiler_compiler_compilerMacroTypeMethodError(methods[index], errors))
+		return selfhost_compiler_compiler_compilerMacroTypeMethodErrors(methods, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerMacroTypeMethodError(methods[index], errors))
 	}()
 }
 
@@ -20428,7 +20975,7 @@ func selfhost_compiler_compiler_compilerMacroFunctionErrors(functions []ParsedFu
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerMacroFunctionErrors(functions, index+1, selfhost_compiler_compiler_compilerMacroFunctionError(functions[index], errors))
+		return selfhost_compiler_compiler_compilerMacroFunctionErrors(functions, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerMacroFunctionError(functions[index], errors))
 	}()
 }
 
@@ -20503,7 +21050,7 @@ func selfhost_compiler_compiler_compilerParsedMacroChildPurityMessageAt(children
 	return func() string {
 		switch {
 		case message == "":
-			return selfhost_compiler_compiler_compilerParsedMacroChildPurityMessage(children, index+1)
+			return selfhost_compiler_compiler_compilerParsedMacroChildPurityMessage(children, int(int32(index+1+runeInt32Zero)))
 		default:
 			return message
 		}
@@ -20604,7 +21151,7 @@ func selfhost_compiler_compiler_compilerTypeAnnotationErrors(types []ParsedType,
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, moduleBindings, errors))
+		return selfhost_compiler_compiler_compilerTypeAnnotationErrors(types, functions, moduleBindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerTypeAnnotationError(types[index], functions, moduleBindings, errors))
 	}()
 }
 
@@ -20621,7 +21168,7 @@ func selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields []ParsedFie
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, moduleBindings, 0, errors))
+		return selfhost_compiler_compiler_compilerFieldAnnotationErrors(fields, functions, moduleBindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerAnnotationListErrors(fields[index].annotations, functions, moduleBindings, 0, errors))
 	}()
 }
 
@@ -20631,7 +21178,7 @@ func selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members []Par
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, moduleBindings, 0, errors))
+		return selfhost_compiler_compiler_compilerEnumMemberAnnotationErrors(members, functions, moduleBindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerAnnotationListErrors(members[index].annotations, functions, moduleBindings, 0, errors))
 	}()
 }
 
@@ -20641,7 +21188,7 @@ func selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions []Par
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, moduleBindings, 0, errors))
+		return selfhost_compiler_compiler_compilerFunctionAnnotationErrors(functions, topLevelFunctions, moduleBindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerAnnotationListErrors(functions[index].annotations, topLevelFunctions, moduleBindings, 0, errors))
 	}()
 }
 
@@ -20651,7 +21198,7 @@ func selfhost_compiler_compiler_compilerAnnotationListErrors(annotations []Parse
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, moduleBindings, index+1, selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, moduleBindings, errors))
+		return selfhost_compiler_compiler_compilerAnnotationListErrors(annotations, functions, moduleBindings, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerAnnotationError(annotations[index], functions, moduleBindings, errors))
 	}()
 }
 
@@ -20753,7 +21300,7 @@ func selfhost_compiler_compiler_compilerFindModuleMacroBinding(bindings []Compil
 			if bindings[index].module == module && bindings[index].binding.name == name {
 				return bindings[index]
 			}
-			return selfhost_compiler_compiler_compilerFindModuleMacroBinding(bindings, module, name, index+1)
+			return selfhost_compiler_compiler_compilerFindModuleMacroBinding(bindings, module, name, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -20783,7 +21330,7 @@ func selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation Parse
 		if done {
 			return errors
 		}
-		return selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation, binding, index+1, selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation, binding, index, errors))
+		return selfhost_compiler_compiler_compilerAnnotationArgTypeErrors(annotation, binding, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation, binding, index, errors))
 	}()
 }
 
@@ -20797,7 +21344,7 @@ func selfhost_compiler_compiler_compilerAnnotationArgTypeError(annotation Parsed
 			return func() []ParseError {
 				__rune_spread_out := []ParseError{}
 				__rune_spread_out = append(__rune_spread_out, errors...)
-				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError(selfhost_compiler_compiler_compilerArgumentTypeError(binding.name, index+1, actual, expected), annotation.line, annotation.column))
+				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_compilerParseError(selfhost_compiler_compiler_compilerArgumentTypeError(binding.name, int(int32(index+1+runeInt32Zero)), actual, expected), annotation.line, annotation.column))
 				return __rune_spread_out
 			}()
 		}
@@ -20817,7 +21364,7 @@ func selfhost_compiler_compiler_compilerParsedAnnotationArgType(expr ParsedExpr)
 		case expr.kind == ExprKind_XMLElement:
 			return "HTMLElement"
 		case expr.kind == ExprKind_Int:
-			return "Int"
+			return "Int32"
 		case expr.kind == ExprKind_Double:
 			return "Double"
 		case expr.kind == ExprKind_BigInt:
@@ -20850,7 +21397,7 @@ func selfhost_compiler_compiler_findCompilerMacroBindingAt(functions []ParsedFun
 		if matched {
 			return selfhost_compiler_compiler_compilerMacroBindingFromFunction(functions[index])
 		}
-		return selfhost_compiler_compiler_findCompilerMacroBinding(functions, name, index+1)
+		return selfhost_compiler_compiler_findCompilerMacroBinding(functions, name, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -20869,7 +21416,7 @@ func selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params []ParsedPa
 		if done {
 			return out
 		}
-		return selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params, index+1, func() []string {
+		return selfhost_compiler_compiler_compilerVisibleMacroParamTypes(params, int(int32(index+1+runeInt32Zero)), func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, out...)
 			__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
@@ -20884,7 +21431,7 @@ func selfhost_compiler_compiler_compilerParsedParamTypeNames(params []ParsedPara
 		if done {
 			return out
 		}
-		return selfhost_compiler_compiler_compilerParsedParamTypeNames(params, index+1, func() []string {
+		return selfhost_compiler_compiler_compilerParsedParamTypeNames(params, int(int32(index+1+runeInt32Zero)), func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, out...)
 			__rune_spread_out = append(__rune_spread_out, typeRefToString(params[index].typeRef))
@@ -20976,7 +21523,7 @@ func selfhost_compiler_compiler_compilerMergeParsedImports(imports []ParsedImpor
 		if index >= len(extra) {
 			return imports
 		} else {
-			imports, extra, index = selfhost_compiler_compiler_compilerAppendParsedImportIfMissing(imports, extra[index]), extra, index+1
+			imports, extra, index = selfhost_compiler_compiler_compilerAppendParsedImportIfMissing(imports, extra[index]), extra, int(int32(index+1+runeInt32Zero))
 			continue
 		}
 	}
@@ -21004,7 +21551,7 @@ func selfhost_compiler_compiler_compilerParsedImportContains(imports []ParsedImp
 			if imports[index].path == path && imports[index].go_ == go_ && imports[index].module == module {
 				return true
 			} else {
-				imports, path, go_, module, index = imports, path, go_, module, index+1
+				imports, path, go_, module, index = imports, path, go_, module, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -21047,12 +21594,12 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockStep(statements
 	return func() []ParsedExpr {
 		switch {
 		case isAlias == true:
-			return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(statements, index+1, selfhost_compiler_compiler_addCompilerNamespaceAlias(aliases, alias), out)
+			return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(statements, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_addCompilerNamespaceAlias(aliases, alias), out)
 		default:
 			return func() []ParsedExpr {
 				expanded := selfhost_compiler_compiler_expandCompilerNamespaceAliases(statement, aliases)
 				nextAliases := selfhost_compiler_compiler_compilerNamespaceAliasesAfterBinding(expanded, aliases)
-				return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(statements, index+1, nextAliases, func() []ParsedExpr {
+				return selfhost_compiler_compiler_expandCompilerNamespaceAliasBlockChildren(statements, int(int32(index+1+runeInt32Zero)), nextAliases, func() []ParsedExpr {
 					__rune_spread_out := []ParsedExpr{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, expanded)
@@ -21081,7 +21628,7 @@ func selfhost_compiler_compiler_dropCompilerNamespaceAliasParams(aliases []Compi
 		if index >= len(params) {
 			return aliases
 		} else {
-			aliases, params, index = selfhost_compiler_compiler_dropCompilerNamespaceAlias(aliases, params[index].name, 0, []CompilerNamespaceAlias{}), params, index+1
+			aliases, params, index = selfhost_compiler_compiler_dropCompilerNamespaceAlias(aliases, params[index].name, 0, []CompilerNamespaceAlias{}), params, int(int32(index+1+runeInt32Zero))
 			continue
 		}
 	}
@@ -21142,7 +21689,7 @@ func selfhost_compiler_compiler_expandCompilerNamespaceAliasChildrenList(childre
 		if index >= len(children) {
 			return out
 		} else {
-			children, index, aliases, out = children, index+1, aliases, func() []ParsedExpr {
+			children, index, aliases, out = children, int(int32(index+1+runeInt32Zero)), aliases, func() []ParsedExpr {
 				__rune_spread_out := []ParsedExpr{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_expandCompilerNamespaceAliases(children[index], aliases))
@@ -21242,10 +21789,10 @@ func selfhost_compiler_compiler_dropCompilerNamespaceAlias(aliases []CompilerNam
 			return out
 		} else {
 			if aliases[index].name == name {
-				aliases, name, index, out = aliases, name, index+1, out
+				aliases, name, index, out = aliases, name, int(int32(index+1+runeInt32Zero)), out
 				continue
 			} else {
-				aliases, name, index, out = aliases, name, index+1, func() []CompilerNamespaceAlias {
+				aliases, name, index, out = aliases, name, int(int32(index+1+runeInt32Zero)), func() []CompilerNamespaceAlias {
 					__rune_spread_out := []CompilerNamespaceAlias{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, aliases[index])
@@ -21265,7 +21812,7 @@ func selfhost_compiler_compiler_findCompilerNamespaceAlias(aliases []CompilerNam
 			if aliases[index].name == name {
 				return aliases[index]
 			} else {
-				aliases, name, index = aliases, name, index+1
+				aliases, name, index = aliases, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -21293,7 +21840,7 @@ func selfhost_compiler_compiler_compilerRenameDeclarationNameStep(annotations []
 		if matched {
 			return selfhost_compiler_compiler_compilerAnnotationStringArg(annotation, 0, fallback)
 		}
-		return selfhost_compiler_compiler_compilerRenameDeclarationNameAt(annotations, fallback, index+1)
+		return selfhost_compiler_compiler_compilerRenameDeclarationNameAt(annotations, fallback, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -21310,7 +21857,10 @@ func selfhost_compiler_compiler_compilerAnnotationStringArg(annotation ParsedAnn
 func selfhost_compiler_compiler_compilerUnquoteString(raw string) string {
 	return func() string {
 		if len([]rune(raw)) >= 2 {
-			return func() string { runes := []rune(raw); return string(runes[1 : len([]rune(raw))-1]) }()
+			return func() string {
+				runes := []rune(raw)
+				return string(runes[1:int(int32(len([]rune(raw))-1+runeInt32Zero))])
+			}()
 		}
 		return raw
 	}()
@@ -21386,7 +21936,7 @@ func selfhost_compiler_compiler_lowerTypeScriptImportForRuneFile(files []SourceF
 		if shouldLoad {
 			return selfhost_compiler_compiler_lowerTypeScriptImportPathForRuneFile(files, basePath, imports, index, out)
 		}
-		return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, index+1, out)
+		return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, int(int32(index+1+runeInt32Zero)), out)
 	}()
 }
 
@@ -21401,7 +21951,7 @@ func selfhost_compiler_compiler_lowerTypeScriptImportPathForRuneFile(files []Sou
 		}
 		return selfhost_compiler_compiler_mergeCompilerIRFile(out, selfhost_compiler_compiler_lowerTypeScriptSourceFile(file, importDecl.path))
 	}()
-	return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, index+1, next)
+	return selfhost_compiler_compiler_lowerTypeScriptImportsForRuneFile(files, basePath, imports, int(int32(index+1+runeInt32Zero)), next)
 }
 
 func selfhost_compiler_compiler_appendImportPaths(pending []string, basePath string, imports []IRImport, index int) []string {
@@ -21418,7 +21968,7 @@ func selfhost_compiler_compiler_appendImportPath(pending []string, basePath stri
 	skip := imports[index].go_ || imports[index].module
 	return func() []string {
 		if skip {
-			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, index+1)
+			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, int(int32(index+1+runeInt32Zero)))
 		}
 		return selfhost_compiler_compiler_appendImportPathIfRune(pending, basePath, imports, index)
 	}()
@@ -21428,14 +21978,14 @@ func selfhost_compiler_compiler_appendImportPathIfRune(pending []string, basePat
 	typeScript := imports[index].module || strings.HasSuffix(imports[index].path, ".ts")
 	return func() []string {
 		if typeScript {
-			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, index+1)
+			return selfhost_compiler_compiler_appendImportPaths(pending, basePath, imports, int(int32(index+1+runeInt32Zero)))
 		}
 		return selfhost_compiler_compiler_appendImportPaths(func() []string {
 			__rune_spread_out := []string{}
 			__rune_spread_out = append(__rune_spread_out, pending...)
 			__rune_spread_out = append(__rune_spread_out, selfhost_compiler_compiler_resolveCompilerImportPath(basePath, imports[index].path))
 			return __rune_spread_out
-		}(), basePath, imports, index+1)
+		}(), basePath, imports, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -21466,7 +22016,7 @@ func selfhost_compiler_compiler_findSourceFileExactAt(files []SourceFile, path s
 		if matched {
 			return files[index]
 		}
-		return selfhost_compiler_compiler_findSourceFileExact(files, path, index+1)
+		return selfhost_compiler_compiler_findSourceFileExact(files, path, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -21486,7 +22036,7 @@ func selfhost_compiler_compiler_findSourceFileBasenameAt(files []SourceFile, pat
 		if matched {
 			return files[index]
 		}
-		return selfhost_compiler_compiler_findSourceFileBasename(files, path, index+1)
+		return selfhost_compiler_compiler_findSourceFileBasename(files, path, int(int32(index+1+runeInt32Zero)))
 	}()
 }
 
@@ -21574,13 +22124,13 @@ func selfhost_compiler_compiler_compilerPathNormalizePart(parts []string, index 
 	part := parts[index]
 	return func() []string {
 		if len(part) == 0 || part == "." {
-			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, out)
+			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, int(int32(index+1+runeInt32Zero)), absolute, out)
 		}
 		return func() []string {
 			if part == ".." {
 				return selfhost_compiler_compiler_compilerPathNormalizeParent(parts, index, absolute, out)
 			}
-			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, func() []string {
+			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, int(int32(index+1+runeInt32Zero)), absolute, func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, part)
@@ -21591,16 +22141,16 @@ func selfhost_compiler_compiler_compilerPathNormalizePart(parts []string, index 
 }
 
 func selfhost_compiler_compiler_compilerPathNormalizeParent(parts []string, index int, absolute bool, out []string) []string {
-	canPop := len(out) > 0 && out[len(out)-1] != ".."
+	canPop := len(out) > 0 && out[int(int32(len(out)-1+runeInt32Zero))] != ".."
 	return func() []string {
 		if canPop {
-			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, append([]string{}, out[0:len(out)-1]...))
+			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, int(int32(index+1+runeInt32Zero)), absolute, append([]string{}, out[0:int(int32(len(out)-1+runeInt32Zero))]...))
 		}
 		return func() []string {
 			if absolute {
-				return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, out)
+				return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, int(int32(index+1+runeInt32Zero)), absolute, out)
 			}
-			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, index+1, absolute, func() []string {
+			return selfhost_compiler_compiler_compilerPathNormalizeParts(parts, int(int32(index+1+runeInt32Zero)), absolute, func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, "..")
@@ -21615,7 +22165,7 @@ func selfhost_compiler_compiler_compilerPathJoinParts(parts []string, index int,
 		if index >= len(parts) {
 			return out
 		} else {
-			parts, index, out = parts, index+1, selfhost_compiler_compiler_compilerPathJoin(out, parts[index])
+			parts, index, out = parts, int(int32(index+1+runeInt32Zero)), selfhost_compiler_compiler_compilerPathJoin(out, parts[index])
 			continue
 		}
 	}
@@ -21638,7 +22188,10 @@ func selfhost_compiler_compiler_compilerPathBasename(path string) string {
 		if slash < 0 {
 			return path
 		}
-		return func() string { runes := []rune(path); return string(runes[slash+1 : len([]rune(path))]) }()
+		return func() string {
+			runes := []rune(path)
+			return string(runes[int(int32(slash+1+runeInt32Zero)):len([]rune(path))])
+		}()
 	}()
 }
 
@@ -21709,7 +22262,7 @@ func selfhost_compiler_compiler_pushTypeScriptFunction(imports IRTSImport, text 
 		func() int {
 			imports.functions = append(imports.functions, IRFunction{name: name, private: false, static: false, routine: routine, macro: false, receiverType: "", generics: []string{}, params: func() []IRParam {
 				if open >= 0 && close > open {
-					return selfhost_compiler_compiler_parseTypeScriptParams(func() string { runes := []rune(text); return string(runes[open+1 : close]) }())
+					return selfhost_compiler_compiler_parseTypeScriptParams(func() string { runes := []rune(text); return string(runes[int(int32(open+1+runeInt32Zero)):close]) }())
 				}
 				return []IRParam{}
 			}(), returnType: returnType, body: emptyIRExpr(), tailLoop: false, tailLoopName: "", tailLoopGroup: "", sourcePath: "", line: 0, column: 0})
@@ -21752,15 +22305,18 @@ func selfhost_compiler_compiler_typeScriptReturnTypeName(text string) string {
 	close := strings.Index(text, ")")
 	colon := func() int {
 		if close >= 0 {
-			return strings.Index((func() string { runes := []rune(text); return string(runes[close+1 : len([]rune(text))]) }()), ":")
+			return strings.Index((func() string {
+				runes := []rune(text)
+				return string(runes[int(int32(close+1+runeInt32Zero)):len([]rune(text))])
+			}()), ":")
 		}
-		return -1
+		return int(-int32(1))
 	}()
 	return func() string {
 		if close >= 0 && colon >= 0 {
 			return selfhost_compiler_compiler_typeScriptTextType(strings.TrimSpace((func() string {
 				runes := []rune(text)
-				return string(runes[close+1+colon+1 : selfhost_compiler_compiler_typeScriptReturnTypeEnd(text)])
+				return string(runes[int(int32(int(int32(int(int32(close+1+runeInt32Zero))+colon+runeInt32Zero))+1+runeInt32Zero)):selfhost_compiler_compiler_typeScriptReturnTypeEnd(text)])
 			}())))
 		}
 		return "Dynamic"
@@ -21791,7 +22347,10 @@ func selfhost_compiler_compiler_typeScriptValueTypeName(text string) string {
 		}
 		return selfhost_compiler_compiler_typeScriptTextType(strings.TrimSpace((func() string {
 			runes := []rune(text)
-			return string(runes[colon+1 : selfhost_compiler_compiler_typeScriptNameEnd(func() string { runes := []rune(text); return string(runes[colon+1 : len([]rune(text))]) }())+colon+1])
+			return string(runes[int(int32(colon+1+runeInt32Zero)):int(int32(int(int32(selfhost_compiler_compiler_typeScriptNameEnd(func() string {
+				runes := []rune(text)
+				return string(runes[int(int32(colon+1+runeInt32Zero)):len([]rune(text))])
+			}())+colon+runeInt32Zero))+1+runeInt32Zero))])
 		}())))
 	}()
 }
@@ -21826,7 +22385,10 @@ func selfhost_compiler_compiler_parseTypeScriptParam(text string) IRParam {
 		if colon < 0 {
 			return "Dynamic"
 		}
-		return selfhost_compiler_compiler_typeScriptTextType(strings.TrimSpace((func() string { runes := []rune(text); return string(runes[colon+1 : len([]rune(text))]) }())))
+		return selfhost_compiler_compiler_typeScriptTextType(strings.TrimSpace((func() string {
+			runes := []rune(text)
+			return string(runes[int(int32(colon+1+runeInt32Zero)):len([]rune(text))])
+		}())))
 	}(), line: 0, column: 0}
 }
 

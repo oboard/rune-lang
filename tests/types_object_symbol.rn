@@ -1,7 +1,7 @@
 User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 
   isAdult() -> Bool => .age >= 18
 
@@ -10,7 +10,7 @@ User: {
 
 Address: {
   city: String
-  zip: Int
+  zip: Int32
 }
 
 Profile: {
@@ -19,7 +19,7 @@ Profile: {
   active: Bool
 }
 
-acceptObject(value: Object) -> Int => 1
+acceptObject(value: Object) -> Int32 => 1
 
 readScore(row) => row.points + row.bonus
 
@@ -62,7 +62,7 @@ readScore(row) => row.points + row.bonus
     name: "core",
     age: 4,
 
-    nextAge() -> Int => .age + 1,
+    nextAge() -> Int32 => .age + 1,
     title(prefix: String) -> String => prefix + .name
   }
 

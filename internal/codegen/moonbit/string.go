@@ -1,7 +1,7 @@
 package moonbitcodegen
 
 func (g *generator) stringRuntime() {
-	g.line("fn rune_string_compare(left : String, right : String) -> Int {")
+	g.line("fn rune_string_compare(left : String, right : String) -> Int32 {")
 	g.indent++
 	g.line("let left_chars : Array[Char] = left.iter().collect()")
 	g.line("let right_chars : Array[Char] = right.iter().collect()")
@@ -22,13 +22,13 @@ func (g *generator) stringRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_string_length(value : String) -> Int {")
+	g.line("fn rune_string_length(value : String) -> Int32 {")
 	g.indent++
 	g.line("value.iter().count()")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_string_at(value : String, index : Int) -> Char {")
+	g.line("fn rune_string_at(value : String, index : Int32) -> Char {")
 	g.indent++
 	g.line("let mut i = 0")
 	g.line("let mut out = '\\u{0}'")
@@ -42,7 +42,7 @@ func (g *generator) stringRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_string_slice(value : String, start : Int, end : Int) -> String {")
+	g.line("fn rune_string_slice(value : String, start : Int32, end : Int32) -> String {")
 	g.indent++
 	g.line("let builder = StringBuilder()")
 	g.line("let mut i = 0")

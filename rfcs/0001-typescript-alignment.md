@@ -36,7 +36,7 @@
 | 标准库 | `core/` 下 43 个模块目录，全部靠 `"%module.intrinsic"` 字符串体声明，共约 253 个唯一 intrinsic 名 |
 | 后端分发 | `internal/codegen/{go,typescript,moonbit}/intrinsic.go` 各自维护一份 intrinsic → 目标代码的映射（约 190 / 210 / 320 个 `case`） |
 | 模块调用 | 用户侧写法 `@io.println`、`@json.stringify`、`@fs.readFile`；检查器只承认 `core/<m>/<m>.rn` 里声明过的形状 |
-| 整数类型 | `Int` 在 Go 端是平台字长的 `int`（64 位平台上为 64 位），MoonBit 端是 `Int`，TS 端是 `number`；MoonBit 上游已把该类型改名为 `Int32` |
+| 整数类型 | `Int32` 在 Go 端是平台字长的 `int`（64 位平台上为 64 位），MoonBit 端是 `Int32`，TS 端是 `number`；MoonBit 上游已把该类型改名为 `Int32` |
 | 文件导入 | `@"./helper.rn"` + `+` 前缀控制跨文件可见性，没有 `import/export` |
 | TS 摄入 | `internal/compiler/ts_import.go` 已用 `go-typescript-eslint` 解析 `.ts`，但只抽取 <code>export function</code> / <code>export const/let/var</code> 的**签名**，不导入语句体 |
 | TS 声明 | `internal/tsdecl/` 已能解析 `lib.dom.d.ts`，并生成 `selfhost/compiler/dom_types.rn`（事件名、标签名、事件接口形状），说明"从 .d.ts 拿类型"这条路已经验证过 |
@@ -49,8 +49,9 @@
    `map`、`filter`…），但调用方式不同：Rune 用 `value.split(",")` 可以，`@string.fromChars` 不行；
    TS 的 `Array.length` 是属性，Rune 是 `length()` 方法。对齐需要逐个 API 收敛，而不是推倒重来。
 2. `core/` 的存在使"标准库等于 TypeScript"无法成立：同一功能两套来源，检查器、LSP、三个后端都要维护两套。
-3. Rune 目前**没有** `if` / `for` / `while` / `class` / `try` / `union type` / `import/export`，
-   而这些都是 TS 的日常语法。不做，就不可能"TS 与 Rune 互转"。
+3. Rune 目前**没有** `if` / 经典 `for` / `class` / `try` / `union type` / `import/export`，
+   循环写作 `* (cond) { ... }`、`^` / `^>` 控制跳出与继续；这些都是 TS 的日常语法。
+   不补齐，就不可能"TS 与 Rune 互转"。
 4. 当前 TS 后端是在 **IR 上**直接生成文本，没有"保真打印"能力；做往返必须在**AST 层**加 emitter。
 
 ---
@@ -103,11 +104,14 @@ lib set = lib.es5.d.ts + lib.es2015..2023.*.d.ts + (dom ? lib.dom.d.ts : []) + �
 
 | 层 | 内容 | 用途 |
 | --- | --- | --- |
-| **Rune Core** | TS Profile 的同构子集：`let/const`、`if/else`、`for/for-of/for-in/while/do`、`switch`、`break/continue`、`return`、`function`、`class`、`try/catch/finally/throw`、`interface`、`type`、`enum`、`import/export`、可选 `async/await` | TS 互转的落点；Go/MoonBit 的直接输入 |
-| **Rune Sugar** | 现有表达力特性：`x { pattern => ... }`、XML 表达式、`$signal`、`~routine`、`?` 解包、`T: Trait` 结构约束、`:=`/`~=` | 手写 Rune 时的人体工学；**单向降糖到 Core**，不参与 TS 往返 |
+| **Rune Core** | TS Profile 的同构子集：`x := v`（不可变）/`x :=: v`（可变）、`cond ? { } : { }`、`for (const x of xs)`、`* (cond) { ... }`、`^`/`^>`、`return`、`function`、`class`、`try/catch/finally/throw`、`interface`、`type`、`enum`、`import/export`（过渡期 `@"./m.rune"`）、可选 `async/await` | TS 互转的落点；Go/MoonBit 的直接输入 |
+| **Rune Sugar** | 现有表达力特性：`x { pattern => ... }`、XML 表达式、`$signal`、`~routine`、`?` 解包、`T: Trait` 结构约束 | 手写 Rune 时的人体工学；**单向降糖到 Core**，不参与 TS 往返 |
 
 **关键约束**：Sugar 不允许改变 Core 的语义。任何 Sugar 必须在 `internal/ir/lower.go` 里
 有明确的 Core 展开规则，并保证 `lower(sugar) ≡ lower(desugared)`。
+
+“同构”指 **AST/语义同构**，不是文本同构：TS 的 `while` 由 tsfront 降为 Rune 的
+`* (cond)`，`break` / `continue` 分别降为 `^` / `^>`；反向由 astprint 还原。
 
 **收益**：往返只需要守住一个窄核心；Rune 的差异化表达力不用丢。
 
@@ -135,8 +139,8 @@ export function main(): void {
 
 ### D4 数值模型：`number` 为主，`Int32` 为可选定宽扩展
 
-TS 里**没有**整数类型，`number` 是 f64。Rune 现在的 `Int` 在 Go 端映射到平台字长的 `int`
-（64 位平台上即 64 位），在 MoonBit 端映射到 `Int`，与 TS 冲突。
+TS 里**没有**整数类型，`number` 是 f64。Rune 现在的 `Int32` 在 Go 端映射到平台字长的 `int`
+（64 位平台上即 64 位），在 MoonBit 端映射到 `Int32`，与 TS 冲突。
 
 同时，MoonBit 上游最近把整数类型改名为 **`Int32`**。Rune 跟随上游，把 `Int` **重命名为 `Int32`**，
 并明确它是 32 位二补码整数、溢出按位回绕（与 MoonBit `Int32`、JS `x | 0` 对齐）。
@@ -154,10 +158,11 @@ TS 里**没有**整数类型，`number` 是 f64。Rune 现在的 `Int` 在 Go �
 - 位运算只对 `Int32`、`Int64`、`BigInt` 等整数类型开放；TS 侧 `x | 0` 这类"用位运算截断"写法
   在 `ts → rune` 时映射为 `Int32`，回程还原为同样的位运算表达式。
 - 迁移动作：
-  - 类型名 `Int` → `Int32`（`internal/checker` 的 `Int` 常量、`core/int` → `core/int32`、
+  - 类型名 `Int32` → `Int32`（`internal/checker` 的 `Int32` 常量、`core/int` → `core/int32`、
     `%int.*` → `%int32.*`，过渡期用，M4 后随 `core/` 退役）；
-  - Go 后端类型从 `int` 改为 `int32`（语义变更：溢出改为 32 位回绕，与名字一致）；
-  - MoonBit 后端类型从 `Int` 改为 `Int32`（对齐上游改名）；
+  - Go 后端保持 `int` 作为承载类型（避免 `len`/索引的全量转换），但 Int32 的算术与
+    位运算在生成处按 32 位回绕（`int(int32(...))`），语义与名字一致；
+  - MoonBit 后端类型从 `Int32` 改为 `Int32`（对齐上游改名）；
   - `Int8` / `Int16` / `Int64` / `UInt*` 保持不变。
 
 #### D4.1 已接受的往返损失
@@ -219,7 +224,9 @@ TS 的日常代码离不开 Union 与 class。缺一样，往返就不成立。
 5. **`switch`**
    - 新增语句形式（现有 `subject { ... }` 保留为 Sugar），fallthrough 规则与 TS 一致。
 6. **`if` / 循环**
-   - 直接暴露为语句；IR 的 `IfStmt` / `LoopExpr` 复活并补齐 TS / MoonBit / interpreter 的支持。
+   - 条件仍以 `cond ? { ... } : { ... }` 表达式表达；循环语句为
+     `* (cond) { ... }`，`^` 跳出、`^>` 继续；
+   - IR 的 `IfStmt` / `LoopExpr` 复活并补齐 TS / MoonBit / interpreter 的支持。
 
 ### D7 只支持静态 TS：动态特性一律拒绝
 
@@ -340,19 +347,20 @@ target triple = <backend> × <capability set>
 | `import {x} from "./m"` | 同形（扩展名 `.rune`） | D3 |
 | `export default f` | 同形 | |
 | `declare` / `namespace` | 不进入 Profile | 仅 `.d.ts` 摄入，不能在 `.rune` 里写 |
-| `const x: T = ... as T` | 同形 | |
+| `const x: T = v` | `x := v : T` | 不可变绑定 |
+| `let x: T = v` / `var x` | `x :=: v : T` | 可变绑定；`:=:` 才允许后续 `=` 赋值 |
 | `@decorator` | 首版不支持 | 诊断拒绝 |
 
 ### 5.2 语句
 
 | TypeScript | Rune Core | Sugar（Rune 独有） |
 | --- | --- | --- |
-| `if/else` | `if/else`（新增） | `cond ? a : b`（已有） |
+| `if/else` | `cond ? { ... } : { ... }` | 三元块表达式（已有） |
 | `for(;;)` / `for-of` / `for-in` | 新增 | `.each` / `.map`（现有 API） |
-| `while` / `do-while` | 新增 | 递归 |
+| `while` / `do-while` | `* (cond) { ... }`（`do-while` 由 tsfront 降糖） | 递归 |
 | `switch` | 新增 | `subject { p => ... }`（现有） |
-| `try/catch/finally`、`throw` | 新增 | `?` 解包（Routine 内） |
-| `break/continue[/label]` | 新增 | — |
+| `try/catch/finally`、`throw` | `{ } !? { e => } -- { }`、`!! value` | `?` 解包（Routine 内） |
+| `break/continue[/label]` | `^` / `^>`（label 首版不支持） | — |
 | `return` | 新增（`=>` 尾部表达式为 Sugar） | — |
 
 ### 5.3 表达式
@@ -449,7 +457,7 @@ Rune:  xs.length()      xs.each(f)         xs.push(x)
 tests/conformance/
   es/            Array/String/Map/Set/JSON/Math 行为
   types/         union 收窄、可选链、null/undefined、class 继承
-  control/       if/for/while/switch/try-finally/break-continue-label
+  control/       if/for-of/loop-symbols/switch/try-finally
   node/          fs/path/process
   roundtrip/     ts → rune → ts（L1/L2）、rune → ts → rune（L3）
   negative/      D7 拒绝用例（每个错误码至少一条）
@@ -497,9 +505,10 @@ CI 矩阵（必须全绿才算阶段完成）：
 
 ### M2：语法补齐（4–6 周，可与 M3 并行）
 
-- [ ] parser/checker/AST：`import/export`、`if/else`、`for/for-of/for-in`、`while/do`、`switch`、
-      `break/continue`、`return`、`union`、`Undefined`、`class`、`try/catch/finally/throw`、`new`。
-- [ ] 整数改名：`Int` → `Int32`（checker 常量、`core/int` → `core/int32`、`%int.*` → `%int32.*`），
+- [ ] parser/checker/AST：`import/export`、`if/else`、`for/for-of/for-in`、`* (cond)` 循环、
+      `^`/`^>`、`switch`、`return`、`union`、`Undefined`、`class`、
+      `try/catch/finally/throw`、`new`。
+- [ ] 整数改名：`Int32` → `Int32`（checker 常量、`core/int` → `core/int32`、`%int.*` → `%int32.*`），
       Go 后端改出 `int32`、MoonBit 后端改出 `Int32`；整数语义固定为 32 位二补码回绕。
 - [ ] lowering：上述结构进 IR；`LoopExpr`/`IfStmt` 补齐 TS / MoonBit / interpreter。
 - [ ] 语法与类型映射文档：`docs/language/ts-compat.md`（含差异清单）。
@@ -563,7 +572,7 @@ D7 用例全部报稳定错误码。
 1. `@io.println(x)` → `console.log(x)`
 2. `@json.stringify(x)` → `JSON.stringify(x)`
 3. `@"./a.rn"` + `+` → `import/export`
-4. `Int` 重命名为 `Int32`，且 Go 后端由 `int` 改为 `int32`（溢出行为变为 32 位回绕）
+4. `Int` 重命名为 `Int32`，溢出行为变为 32 位回绕（Go 后端用 `int` 承载、运算处收窄）
 5. `xs.length()` → `xs.length`（方法形式保留为 Sugar，一个版本后移除）
 6. D7 动态特性从"可能能用"变为"确定不支持"
 7. 已接受的有损往返：`Int32 → TS number → Double`（值不丢，类型标注丢失，见 D4.1）
@@ -586,7 +595,7 @@ D7 用例全部报稳定错误码。
 
 ## 12. 待决问题
 
-1. **已决：`Int` 改名 `Int32`**（对齐 MoonBit 上游），并长期保留为可选扩展；接受
+1. **已决：`Int32` 改名 `Int32`**（对齐 MoonBit 上游），并长期保留为可选扩展；接受
    `Int32 → ts → Double` 的类型标注损失。新的待决点是：`Int32` 与 `Double` 之间是否允许**隐式**互转？
    建议：只允许字面量与显式转换，避免 32 位回绕在不经意间发生。
 2. **异常 vs `Result`**：TS 转来的代码天然用 `try/catch`；手写 Rune 更习惯 `?` + `Result`。
@@ -635,6 +644,9 @@ D7 用例全部报稳定错误码。
 | `RUNE-DYN-008` | 对未声明全局赋值 / 隐式 `any` |
 | `RUNE-DYN-009` | 对 `any` 值做成员访问 |
 | `RUNE-DYN-010` | 运行时字符串索引反射（`globalThis[name]`） |
+| `RUNE-DYN-011` | 使用 `debugger` |
+| `RUNE-DYN-012` | 使用 `require()` |
+| `RUNE-DYN-013` | 使用 `call` / `apply` 改变 this 绑定 |
 | `RUNE-CAP-001` | API 在目标后端不可用（如 DOM on go） |
 | `RUNE-PROFILE-001` | 使用 `declare` / `namespace` 等 Profile 外语法 |
 
@@ -692,3 +704,203 @@ func adults(users []User) []string {
   return out.Unwrap()
 }
 ```
+
+## 附录 C：本次实现状态（2026-11-12）
+
+已落地：
+
+- `Int` → `Int32` 全链路重命名：checker 常量与类型解析、`core/int` → `core/int32`、
+  `%int.*` → `%int32.*`、Go / TypeScript / MoonBit 三端 intrinsic 分发。
+- 宿主 Go 后端与自举解释器对 Int32 算术/位运算做 32 位回绕；整数字面量超出 32 位时按回绕输出。
+- `selfhost/` 源码与 bootstrap 产物同步重命名；`rune check/run/test/go/ts/mbt` 自举路径可用。
+- 文档、示例、测试、VSCode 语法与 snippet 同步到 Int32。
+- 顺带修复了两个原本失败的用例：对象方法体的 lookahead（支持 `name(params) -> R =>`）、
+  空 `{}` 在 `Map` 上下文中的类型推断。
+- M0：`tests/conformance/` 骨架与 `internal/conformance` 执行器落地，首批覆盖
+  Int32 回绕、三元表达式、记录类型、`if/else`；执行器支持 interpreter / Go / TS / MoonBit
+  四个 target（缺少 node/moon 时自动跳过）。
+- M1 基础：`internal/libenv` 可以合并加载 `lib.es5.d.ts` / `lib.dom.d.ts`，带能力标注
+  （`es.core` / `dom` / `node`）与版本探测；`tools/ts-lib/VERSION` 锁定 TypeScript 6.0.3；
+  `core/` 标记为冻结，不再新增模块或 intrinsic。
+- Conformance 首轮跑出的两个跨端差异已修：Go codegen 用 `runeInt32Zero` 阻止常量折叠
+  提前报 int32 溢出；解释器 `println` 多参数改为空格分隔，与 Go/TS/MoonBit 对齐。
+- M2 第一步修正：`if` 语句同样偏离了 Rune 原有语法，已从宿主 parser 移除。
+  原有条件表达式仍为 `cond ? { ... } : { ... }`（支持块分支）；TS `if` 由 tsfront
+  降为同样的三元块表达式。
+- M2 第二步修正：此前加入的 `switch (value) { case ... }` 语法偏离了 Rune 原有
+  模式分支写法，已移除。原始语法仍为 `{ 1 => "one"; _ => "other" }`，四端
+  conformance 使用该形式；TS `switch` 的转换（建议降为 if/else 或模式分支）待后续实现。
+- M2 第三步：`for (const value of array) { ... }` 已支持（`let` 同样接受）。
+  宿主将其降为 `array.each((value) => { ... })`，四端 conformance 通过；selfhost
+  parser 同样降为 Call/Lambda，formatter 保留 for-of 写法，`check/run/test/fmt` 已验证。
+  当前仅支持 Array，且不支持 `break` / `continue`。
+- M2 第四步：`while (cond) { ... }` 已支持。宿主新增 `ast.WhileExpr` / `ir.WhileExpr`，
+  checker 校验 Bool 条件，解释器与 Go/TS/MoonBit codegen 均实现；selfhost parser 解析为
+  `ExprKind.Loop`，checker/infer/interpreter/formatter 同步支持。四端 conformance 通过。
+- M2 第五步：`return expr` / 裸 `return` 已支持。宿主新增 `ast.ReturnStmt` / `ir.ReturnStmt`，
+  解释器通过 return 信号传播到函数边界；非尾位置的 `if` 降为 `ir.IfStmt`，避免
+  return 被三元 IIFE 吞掉。自举 parser 新增 `ExprKind.Return`，checker/infer/interpreter/
+  formatter 同步支持，四端 conformance 通过。
+- M2 第六步：`break` / `continue` 已支持（当前作用于 `while`）。宿主新增
+  `ast.BreakStmt` / `ast.ContinueStmt` / `ir.BreakStmt`，解释器通过控制信号处理；
+  自举 parser 新增 `ExprKind.Break` / `Continue`，解释器与 formatter 同步支持。
+  四端 conformance 通过。
+- M3 起步：新增 `internal/tsfront`，可把 TypeScript 的导出函数、局部变量、
+  `return`、`if`、`while`、`break`/`continue`、`console.log`、二元/一元表达式转成
+  Rune AST；`number` 映射为 `Double`。转换结果已通过 checker → IR → Go codegen
+  并实际 `go run` 验证。union / class / try-catch / 泛型仍会明确拒绝。
+- M3 第二步：新增 `internal/astprint`（Rune AST → 源码）与 `rune ts2rune`
+  命令；已打通 `ts -> rune -> check -> run -> build`。同时修复自举解释器
+  Double 运算结果打印为空的问题（通过 `@go.expr("fmt.Sprint($value)")` 格式化）。
+- M3 第三步：tsfront 增加数组字面量、数组索引、for-of、逻辑/条件表达式、
+  update 表达式等；自举解释器 Double 输出统一走 `fmt.Sprint`，与 Go/TS 的
+  `1` 而非 `1.0` 对齐。
+- M3 第四步：将 TypeScript 解析器依赖 vendored 到 `third_party/go-typescript-eslint`
+  并修补两个上游 bug：对象字面量属性值被误当类型注解、标识符后的 `<` 被误判为
+  泛型实参。tsfront 现已支持对象字面量和裸 `<` 比较。
+- M3 第五步：修补模板字符串 lexer 续扫（`}` 后恢复 TemplateMiddle/Tail），
+  `${...}` 模板字符串现已支持；`rune ts2rune` 产物可运行并输出正确字符串。
+- M3 第六步：tsfront 支持箭头函数/函数表达式回调，`Array.map` 等回调 API
+  已可用于 TS → Rune → run。
+- M3 第七步：tsfront 支持基础 `import`/`export`，TS 模块路径自动映射为
+  `.rune` 扩展名；`ts2rune` 产出的多文件工程可直接 `rune run`。
+  含 `if (` 的源码在 `go/ts/mbt` 生成时走宿主编译器 bridge，避免自举 emitter 的
+  无类型三元表达式问题。
+
+2026-11-13 增量：
+
+- D7 负例落地：`internal/tsfront` 新增稳定的 `RUNE-DYN-001…013` 与
+  `RUNE-PROFILE-001` 诊断，覆盖 `eval`、`Function`、`with`、`Proxy`/`Reflect`、
+  原型篡改、动态 `import()`、`arguments`、`globalThis[...]`、`debugger`、
+  `require()`、`call`/`apply`、`declare`/`namespace`/generator/decorator。
+  `tests/conformance/negative/*.ts` 与 `internal/conformance/negative_test.go`
+  逐条断言错误码。D7 扫描在转换前执行，保证不会退化为泛化的「unsupported node」。
+- 顺带修复 vendored TS parser 的三个阻塞问题：文件首行注释导致解析失败、
+  `import(...)` 被当成静态 import 声明、关键字不能作为属性名/`require` 表达式。
+- union 类型：AST 新增 `TypeUnion`，parser 支持 `A | B`（含泛型/函数类型成员），
+  checker 支持联合解析、赋值兼容、`UnionOf` 去重展平与 `NullableOf` 合并。
+- `typeof` 表达式与收窄：新增 `ast.TypeOfExpr` / `ir.TypeOfExpr`；
+  `typeof x == "tag"`、`===`、`!=`、`!==` 与左右交换都能收窄 union；
+  `if` 无 `else` 且 then 分支为 `Never` 时，后续语句自动应用取反收窄。
+- 三端 union 行为：TS 原生 `A | B`；Go 用 `any` + `runeTypeof`/`runeAs*`
+  检查转换；解释器动态执行；MoonBit 在 codegen 前以
+  `MoonBit backend does not support union types yet` 明确拒绝（原生枚举待做）。
+- `internal/astprint` 输出 `A | B`；`ts2rune` 新增 union/`typeof` 转换；
+  新增 `tests/conformance/types/union_typeof.rn`，interpreter/go/ts 三端通过；
+  `internal/tsfront` 新增 TS union + typeof → Go 实际运行测试。
+- 过渡 bridge：含 ` | ` 或 `typeof ` 的源码在 `rune check` / `rune run` /
+  `rune build` 走宿主参考实现，避免自举前端尚未实现的语法造成错误；
+  这是临时方案，后续需在 selfhost parser/checker/interpreter 补齐。
+- 文档：新增 `docs/language/ts-compat.md` 与 `docs/zh/language/ts-compat.md`，
+  记录接受语法、类型映射、union 收窄、D7 错误码与往返级别。
+- class 子集：`tsfront` 把 class 降为 Rune struct + `<Class>_new` 工厂 +
+  `<Class>_<method>` 静态函数；支持字段、构造函数（仅 `this.field = value`）、
+  实例方法与 static 方法，`new C(...)` / `C.m()` 自动重写。继承、访问器、
+  static 字段、复杂构造函数以 `RUNE-PROFILE-002` 明确拒绝。
+  新增 `tests/conformance/types/class_struct.rn`，四端通过；`tsfront` 测试
+  完成 TS → Rune → Go 实际运行（输出 3 / 0）。
+- L1 往返：新增 `tests/conformance/roundtrip/{union,class,control}.ts` 与
+  `internal/conformance/roundtrip_test.go`，跑通 `ts -> rune -> 打印 -> 重解析
+  -> ts -> node`，并断言 Rune printer 是不动点。
+- 顺带修复 `astprint` 的存量问题：可变绑定应打印 `:=:`（原 `~=` 无法解析）、
+  公开类型/枚举需打印 `+` 前缀（否则重解析后变成私有）、类型/枚举/方法此前
+  完全没有输出。
+- 能力诊断起步：`rune check --target go|mbt` 现在在 check 阶段对 DOM 专属全局
+  （`document`/`window`/`navigator`/`localStorage`/`sessionStorage`/`history`/
+  `location`）报 `RUNE-CAP-001`，`--target ts` 放行；目录级 check 暂未接线。
+- `undefined` 值：新增 `UndefinedLiteral`，checker/IR/解释器/三端 codegen 与
+  `typeof` 全线打通；Go 用 `runeUndefined` 哨兵、TS 原生 `undefined`、
+  MoonBit 用 `None`。`typeof undefined == "undefined"` 已加入 union conformance。
+- `try/catch/finally` 与 `throw`：使用符号语法——裸块后接 `!? { e => ... }`
+  （带绑定 catch）、`?! { ... }`（无绑定 catch）、`-- { ... }`（finally），
+  `!! value` 表示 throw；新增语句级 `TryStmt` / `ThrowStmt`；
+  解释器用可捕获的 `throwSignal`，TS 原生 `try/catch`，Go 用闭包内
+  `panic`/`recover` + `runeThrown`。Go 目前明确拒绝 try 内部的
+  `return`/`break`/`continue`（闭包无法跳回外层函数）。
+  新增 `tests/conformance/control/try_catch.rn`（interpreter/go/ts 通过）与
+  `roundtrip/try*.ts`（含 return-in-try 的 TS 语义），MoonBit 显式拒绝。
+- `rune test` 增加 host bridge：含 try/throw/union/typeof/undefined 的测试文件
+  改走宿主参考解释器，避免自举解释器的不支持语法导致假失败。
+- D7 收尾：`RUNE-DYN-008`（未标注参数/字段的隐式 any、未声明全局赋值）与
+  `RUNE-DYN-009`（对 `any`/`unknown` 值做成员访问）已接入 tsfront；负例覆盖
+  implicit_any / undeclared_global / any_member / any_member_param /
+  class_field_implicit_any。
+- 经典 `for(init; cond; update)`：`tsfront` 将其降为 init + `while`，并把
+  `continue` 改写为「先执行 update 再 continue」，保持 TS 后置迭代语义。
+  同时修复 Go/TS/MoonBit 的嵌套 BlockExpr 内联、循环体内 `return` 的类型化、
+  Double `i++` 的 Go/MoonBit 生成，以及 vendored TS parser 的 for-var 分号问题。
+  新增 `roundtrip/for_loop.ts` 与 tsfront → Go 实际运行测试；Rune 源仍无
+  原生经典 for 语法。
+- `do { } while (cond)`：`tsfront` 降为 `while (true)`，continue 改写为
+  「先检查 cond，再 continue」，保证每次迭代只求值一次条件；新增
+  `roundtrip/do_while.ts`，TS 端通过，Go/MoonBit 手工验证输出 1/3/1。
+- 修复尾位置 `if` 含 `break/continue/return/throw` 时被错误降为三元表达式的问题；
+  TS 一元 `!` 现在总是输出 `!(...)`，避免 `!i < 3` 的优先级错误。
+- class 单继承：派生 struct 扁平化基类字段，未 override 的基类方法复制到派生
+  类型；`Child_new` 调用一次 `Base_new` 后拷贝基类字段。支持 `super(...)`、
+  override、继承方法调用；`super.method()` 降为 `__super_<method>` 别名调用，
+  static 方法以 `Child_<method>` 继承；带初始化的 static 字段降为顶层常量。
+  基类类型多态、可变 static 字段、访问器仍拒绝。
+  新增 `roundtrip/class_inherit.ts` 与 tsfront → Go 实际运行测试。
+- `console.log(...)` 内建别名：checker 将 Rune 源中的 `console.log` 归一化为
+  `@io.println`，支持多参数空格分隔；新增 `es/console_log.rn` 四端 conformance。
+  这是 M6 文档去 `@io.` 的第一步。
+- `for-of` 改为下标式 `while` 降糖（可迭代对象只求值一次），
+  `break`/`continue` 现在作用于真实循环；新增
+  `control/for_of_break_continue.rn` 四端用例与 `roundtrip/for_of.ts`。
+- class `get` 访问器：降为 `get_<property>()` 方法；当接收者类型静态可知时，
+  `obj.prop` 改写为 `obj.get_prop()`。`set` 访问器因字段可变性尚未跨端落地而显式
+  拒绝。新增 `roundtrip/class_getter.ts` 与 tsfront 测试。
+- 循环与绑定语法校正：Rune 源码循环统一为 `* (cond) { ... }`，`^` / `^>` 表示
+  `break` / `continue`；`while` / `break` / `continue` 关键字仅保留为兼容别名。
+  `:=` 是不可变绑定，`:=:` 才是可变绑定；自举 formatter 已修复可变绑定被打印成
+  `:=` 的问题。宿主 parser/astprint、自举 parser/formatter、conformance 与文档
+  已同步，新增 `control/loop_symbols.rn` 覆盖 `^` / `^>` 的四端行为。
+
+已知差距（后续项）：
+
+- 自举 Go emitter（`selfhost/compiler/go.rn`）尚未按表达式类型做 Int32 收窄；
+  目前回绕语义在宿主 Go codegen 与自举解释器中生效，`rune build` 走自举 emitter 时
+  仍以宿主字长 `int` 运算。
+- 自举 Go/TS/MoonBit emitter 尚未为 `if` 生成类型化分支，`go/ts/mbt` 目前通过
+  `requiresHostCompilerBridge` 的 `if (` 检测回到宿主编译器；下一步是让自举 emitter
+  直接消费 `If` 节点，去掉该 bridge。
+- 自举 Go/TS/MoonBit emitter 也尚未实现 `Match`，因此 `switch (` 同样通过 bridge
+  回到宿主编译器；TS `switch` 的 fallthrough 与 case 内 `break` 语义尚未实现。
+- `for-of` 已改为下标式 `* (cond)` 循环降糖，支持 `^`/`^>`；仍只支持 Array，
+  不支持 Set 等非 Array iterable。
+- 自举 Go/TS/MoonBit emitter 对循环内 `^` / `^>` 的作用域与“循环内重新赋值”的
+  可变性推导仍不完整；宿主 parser 已支持，含循环的源码在 `go/ts/mbt` 生成时继续走
+  宿主编译器 bridge。
+- `return` 在自举 emitter 中尚未处理“if 分支块内 return”的类型化作用域，
+  因此包含 `return` 的源码在 `go/ts/mbt` 生成时走宿主编译器 bridge。
+- `^` / `^>` 在自举 emitter 的嵌套分支中仍有作用域问题，代码生成走 host bridge。
+- `tsfront` 已提供 `rune ts2rune` 与源码打印器，但仍只覆盖保守子集。
+  缺少分号的单行 `return` / `^` / `^>` 仍会预处理补分号。
+  try-catch、`for(;;)`、do-while、泛型、JSX 暂不支持；union、`typeof` 与
+  class 基础子集已支持。
+- class 继承为字段/方法扁平化，不支持基类类型多态；setter 访问器、可变 static
+  字段、装饰器仍未实现。
+- Go 后端的 try/catch/finally 是闭包 + panic/recover，内部 `return` / `^` / `^>`
+  会明确报 codegen 错误；后续需要信号变量或语句级展开来补齐。
+- `rune fmt` 仍走自举 formatter；try/catch 可被重新输出，但 `} catch` 的
+  规范空白与自举 formatter 的既有输出尚未完全对齐。
+- union 的 MoonBit 后端尚未落地原生 tagged union；当前为显式 codegen 错误。
+- 收窄仅覆盖 `typeof` 判别；判别字段（discriminant）、`instanceof`、`in`
+  与 `switch` 穷尽收窄尚未实现。
+- `import` 目前只保留模块路径，不校验 named/default specifier；Rune 的文件
+  导入会暴露目标文件所有 `+` 声明，没有 TS 的符号级导入语义。
+- 自举解释器内部用 Int32 承载所有整数，`Int64` 超出 32 位的值暂时无法完整表示。
+- `TestSelfhostCompilerTargetOutputsTypecheck` 需要较长超时（本机约 55–70 分钟），
+  这是自举编译器解释执行的固有成本，不是断言失败。
+
+验证（2026-11-13）：
+
+- `go build ./...` 与 `git diff --check`：通过。
+- `go test $(go list ./... | grep -v internal/selfhostrunner) -count=1 -timeout 20m`：全部通过。
+- `go test ./internal/selfhostrunner -run 'TestRunSelfhostBootstrapTestsIR|TestRunFunctionIRReturnsStructuredValue'`：
+  通过（约 14s）。
+- `go test ./internal/selfhostrunner -run 'TestRunCoreModuleTestsIR|TestRunSelfhostBootstrapTestsIR'`：
+  通过（约 516s）。
+- `go test ./internal/selfhostrunner -run '^TestSelfhostCompilerTargetOutputsTypecheck$' -timeout 150m`：
+  通过（约 3464s）。

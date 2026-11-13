@@ -1,0 +1,13 @@
+// expect: positive
+// expect: non-positive
+// targets: interpreter,go,ts,mbt
+early(value: Int32) -> String => (value > 0) ? {
+  "positive"
+} : {
+  "non-positive"
+}
+
+main() => {
+  @io.println(early(1))
+  @io.println(early(0))
+}

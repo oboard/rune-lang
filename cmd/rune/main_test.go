@@ -12,7 +12,38 @@ import (
 	"testing"
 
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/parser"
 )
+
+func TestCapabilityDiagnosticsForDOMOnGo(t *testing.T) {
+	file, errs := parser.Parse(`main() => {
+  document.createElement("div")
+}`)
+	if len(errs) > 0 {
+		t.Fatalf("Parse() errors = %v", errs)
+	}
+	diags := capabilityDiagnostics("dom.rn", file, "go")
+	if len(diags) != 1 || diags[0].Code != "RUNE-CAP-001" {
+		t.Fatalf("capabilityDiagnostics(go) = %#v", diags)
+	}
+	if diags := capabilityDiagnostics("dom.rn", file, "ts"); len(diags) != 0 {
+		t.Fatalf("capabilityDiagnostics(ts) = %#v, want none", diags)
+	}
+}
+
+func TestTesterUsesHostBridgeForTrySource(t *testing.T) {
+	dir := t.TempDir()
+	tryFile := filepath.Join(dir, "try.rn")
+	writeTestFile(t, tryFile, "main() => { try { throw \"x\" } catch (err) { @io.println(err) } }\n")
+	if !testerUsesHostBridge(tryFile) {
+		t.Fatal("testerUsesHostBridge(try) = false, want true")
+	}
+	plainFile := filepath.Join(dir, "plain.rn")
+	writeTestFile(t, plainFile, "main() => @io.println(1)\n")
+	if testerUsesHostBridge(plainFile) {
+		t.Fatal("testerUsesHostBridge(plain) = true, want false")
+	}
+}
 
 func BenchmarkSelfhostLexer(b *testing.B) {
 	source, err := os.ReadFile(filepath.Join("..", "..", "selfhost", "parser", "parser.rn"))
@@ -154,25 +185,25 @@ func TestRuneCLIDeclarationSelfhostMatchesHost(t *testing.T) {
 		src  string
 	}{
 		{"empty", "main() => 0\n"},
-		{"simple_fn", "+ answer() -> Int => 42\n"},
+		{"simple_fn", "+ answer() -> Int32 => 42\n"},
 		{"struct", "+ User: { name: String, active: Bool }\n"},
 		{"nested_struct", `+ Address: { street: String, city: String }
 + User: { name: String, address: Address }
 `},
 		{"generic_box", "+ Box[T]: { value: T }\n"},
 		{"generic_constrained", "+ Pair[L, R]: { left: L, right: R }\n"},
-		{"array_return", "+ nums() -> Array[Int] => [1, 2, 3]\n"},
+		{"array_return", "+ nums() -> Array[Int32] => [1, 2, 3]\n"},
 		{"arr_of_struct", "+ users() -> Array[User] => []\n+ User: { name: String }\n"},
 		{"nullable", "+ maybe() -> String? => null\n"},
 		{"enum", "+ Color: { Red, Green, Blue }\n"},
 		{"enum_value", "+ Priority: { Low = 1, Medium = 5, High = 10 }\n"},
 		{"payload_enum", "+ Shape: { Circle(radius: Double), Square(side: Double) }\n"},
 		{"map_of_string", "+ config() -> Map[String, String] => {}\n"},
-		{"readonly_arr", "+ bits() -> ReadonlyArray[Int] => [0, 1]\n"},
-		{"tuple2", "+ pipe() -> Tuple[Int, String] => [1, \"a\"]\n"},
-		{"multi_fn", `+ add(a: Int, b: Int) -> Int => a + b
-+ sub(a: Int, b: Int) -> Int => a - b
-+ multiply(a: Int, b: Int) -> Int => a * b
+		{"readonly_arr", "+ bits() -> ReadonlyArray[Int32] => [0, 1]\n"},
+		{"tuple2", "+ pipe() -> Tuple[Int32, String] => [1, \"a\"]\n"},
+		{"multi_fn", `+ add(a: Int32, b: Int32) -> Int32 => a + b
++ sub(a: Int32, b: Int32) -> Int32 => a - b
++ multiply(a: Int32, b: Int32) -> Int32 => a * b
 `},
 	}
 	for _, tc := range cases {
@@ -199,7 +230,7 @@ func TestRuneCLIDeclarationSelfhostMatchesHost(t *testing.T) {
 func TestRuneCLITypeScriptUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
-	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int32 => 42\n")
 	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
 
 	var out bytes.Buffer
@@ -227,13 +258,45 @@ func TestRuneCLITypeScriptUsesSelfhostCompiler(t *testing.T) {
 	}
 }
 
+func TestRuneCLITypeScriptToRune(t *testing.T) {
+	dir := t.TempDir()
+	tsPath := filepath.Join(dir, "sample.ts")
+	runePath := filepath.Join(dir, "sample.rune")
+	writeTestFile(t, tsPath, `export function add(a: number, b: number): number {
+  return a + b
+}
+
+export function main(): void {
+  console.log(add(1, 2))
+}
+`)
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	if err := runRuneCLI([]string{"ts2rune", tsPath, "-o", runePath}, strings.NewReader(""), &out, &errOut); err != nil {
+		t.Fatalf("runRuneCLI(ts2rune) error = %v, stderr = %s", err, errOut.String())
+	}
+	data, err := os.ReadFile(runePath)
+	if err != nil {
+		t.Fatalf("ReadFile(%s) error = %v", runePath, err)
+	}
+	converted := string(data)
+	if !strings.Contains(converted, "add(a: Double, b: Double) -> Double") {
+		t.Fatalf("converted Rune missing add signature:\n%s", converted)
+	}
+	var checkOut bytes.Buffer
+	var checkErr bytes.Buffer
+	if err := runRuneCLI([]string{"check", runePath}, strings.NewReader(""), &checkOut, &checkErr); err != nil {
+		t.Fatalf("runRuneCLI(check) error = %v, stderr = %s", err, checkErr.String())
+	}
+}
+
 func TestRuneCLITypeScriptRewritesInstanceMethodCalls(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "main.rn")
 	writeTestFile(t, path, `User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
   isAdult() -> Bool => .age >= 18
 }
 main() => {
@@ -266,7 +329,7 @@ main() => {
 func TestRuneCLIGoUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
-	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int32 => 42\n")
 	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
 
 	var out bytes.Buffer
@@ -443,11 +506,11 @@ func TestSelfhostCheckerResolvesCoreModuleMacro(t *testing.T) {
 
 func TestSelfhostCheckerAcceptsConstructorPatternBindings(t *testing.T) {
 	result := checkSelfhostSourceWithCore(`Expr: {
-  Num(value: Int)
+  Num(value: Int32)
   Mul(expr1: Expr, expr2: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Num(value) => value
   Mul(expr1, expr2) => eval(expr1) * eval(expr2)
 }
@@ -673,7 +736,7 @@ main() => @io.println(greet("Rune"))
 func TestSelfhostTypeScriptRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
-	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int32 => 42\n")
 	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
 
 	src, diags := selfhostTypeScriptRuntimeSource(entry)
@@ -775,14 +838,14 @@ func TestCompileMoonBitProjectToTempSupportsNet(t *testing.T) {
 func TestSelfhostMoonBitRuntimeSourceUsesSelfhostCompilerImportGraph(t *testing.T) {
 	dir := t.TempDir()
 	entry := filepath.Join(dir, "main.rn")
-	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int => 42\n")
+	writeTestFile(t, filepath.Join(dir, "helper.rn"), "+ answer() -> Int32 => 42\n")
 	writeTestFile(t, entry, "@\"helper.rn\"\nmain() => @io.println(answer())\n")
 
 	src, diags := selfhostMoonBitRuntimeSource(entry)
 	if len(diags) > 0 {
 		t.Fatalf("selfhostMoonBitRuntimeSource() diagnostics = %v", diags)
 	}
-	if !strings.Contains(src, "fn answer() -> Int") {
+	if !strings.Contains(src, "fn answer() -> Int32") {
 		t.Fatalf("runtime MoonBit = %q, want imported answer", src)
 	}
 }

@@ -31,7 +31,7 @@
 
 compilerDomEventTypeAt(
   name: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= DOM_EVENT_NAMES.length() ? "Event"
     : compilerDomEventTypeStep(name, index)
@@ -39,7 +39,7 @@ compilerDomEventTypeAt(
 
 compilerDomEventTypeStep(
   name: String,
-  index: Int
+  index: Int32
 ) -> String => (
   DOM_EVENT_NAMES[index] == name ? DOM_EVENT_TYPE_NAMES[index]
     : compilerDomEventTypeAt(name, index + 1)
@@ -60,7 +60,7 @@ compilerDomEventTypeStep(
 
 compilerDomElementType(
   tag: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= DOM_TAG_NAMES.length() ? "EventTarget"
     : compilerDomElementTypeStep(tag, index)
@@ -68,7 +68,7 @@ compilerDomElementType(
 
 compilerDomElementTypeStep(
   tag: String,
-  index: Int
+  index: Int32
 ) -> String => (
   DOM_TAG_NAMES[index] == tag ? DOM_TAG_ELEMENT_TYPES[index]
     : compilerDomElementType(tag, index + 1)
@@ -99,16 +99,16 @@ compilerDomElementTypeStep(
 
 compilerDomStructIndex(
   name: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= DOM_STRUCT_NAMES.length() ? -1
     : compilerDomStructIndexStep(name, index)
 )
 
 compilerDomStructIndexStep(
   name: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   DOM_STRUCT_NAMES[index] == name ? index
     : compilerDomStructIndex(name, index + 1)
 )
@@ -153,7 +153,7 @@ compilerDomCollectFields(
   members: Array[String],
   targetType: String,
   acc: Array[IRField],
-  index: Int
+  index: Int32
 ) -> Array[IRField] => (
   index >= members.length() ? acc
     : compilerDomCollectField(members[index], members, targetType, acc, index)
@@ -167,7 +167,7 @@ compilerDomCollectField(
   members: Array[String],
   targetType: String,
   acc: Array[IRField],
-  index: Int
+  index: Int32
 ) -> Array[IRField] => {
   next := member.includes("(") ? acc
     : [..acc, compilerDomFieldFromRow(member, targetType)]

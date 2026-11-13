@@ -94,7 +94,7 @@ Imported Rune declarations are private by default. Add `+` before a helper
 declaration in `helper.rn` when callers in other files should use it:
 
 ```rune
-+ helper() -> Int => 42
++ helper() -> Int32 => 42
 ```
 
 The self-hosted lexer, parser, IR, interpreter, CLI parser, and compiler emitter
@@ -118,7 +118,7 @@ after the CLI and compiler execution paths are self-hosted.
 Rune functions are mappings from parameters to expressions:
 
 ```rune
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 
 main() => {
   @io.println(add(1, 2))
@@ -133,7 +133,7 @@ member with `-` when it should stay private.
 Blocks return their final expression:
 
 ```rune
-sum(a: Int, b: Int) => {
+sum(a: Int32, b: Int32) => {
   result := a + b
   result
 }
@@ -142,7 +142,7 @@ sum(a: Int, b: Int) => {
 Pattern bodies are supported for single-parameter functions:
 
 ```rune
-fib(n: Int) -> Int => {
+fib(n: Int32) -> Int32 => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)
@@ -163,7 +163,7 @@ value {
 The built-in scalar types are:
 
 ```text
-Int
+Int32
 String
 Char
 Bool
@@ -176,9 +176,9 @@ Struct types use symbolic object syntax:
 
 ```rune
 User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 }
 
 main() => {
@@ -197,7 +197,7 @@ Methods live inside type declarations. Inside a method, `.field` means
 
 ```rune
 User: {
-  age: Int
+  age: Int32
 
   isAdult() -> Bool => .age >= 18
 }
@@ -243,9 +243,9 @@ Named struct arguments are preserved:
 
 ```rune
 Return: {
-  b: Int
+  b: Int32
   z: Bool
-  a: Int
+  a: Int32
 }
 
 fun(flag) => {
@@ -285,7 +285,7 @@ arr.map(value => value * 2)
 Lambda parameter annotations are supported:
 
 ```rune
-(value: Int) => value + 1
+(value: Int32) => value + 1
 (user: User) => user.name
 ```
 
@@ -350,7 +350,7 @@ Inline Go FFI:
 ```rune
 @go.import("fmt")
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 
 main() => {
   name := "oboard"

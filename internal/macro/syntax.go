@@ -1062,7 +1062,7 @@ func intField(node *interpreter.Struct, name string) (int, error) {
 	}
 	number, ok := value.(int)
 	if !ok {
-		return 0, fmt.Errorf("%s.%s must be an Int", node.TypeName, name)
+		return 0, fmt.Errorf("%s.%s must be an Int32", node.TypeName, name)
 	}
 	return number, nil
 }

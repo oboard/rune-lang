@@ -8,6 +8,6 @@
   div(other: UInt) -> UInt => "%uint.div"
 }
 
-+ fromInt(value: Int) -> UInt => "%uint.fromInt"
++ fromInt(value: Int32) -> UInt => "%uint.fromInt"
 
-+ toInt(value: UInt) -> Int => "%uint.toInt"
++ toInt(value: UInt) -> Int32 => "%uint.toInt"

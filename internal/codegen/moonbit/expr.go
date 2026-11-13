@@ -57,6 +57,8 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 		return "false"
 	case *ir.NullLiteral:
 		return "None"
+	case *ir.UndefinedLiteral:
+		return "None"
 	case *ir.UnaryExpr:
 		if e.Op == lexer.Bang {
 			out := g.mbtNotExpr(e.Expr)
@@ -82,6 +84,10 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			g.addError(fmt.Errorf("MoonBit backend does not support postfix operator %s", e.Op))
 			return g.expr(e.Expr)
 		}
+	case *ir.TypeOfExpr:
+		return quoteString(typeofTag(e.Argument.ResultType()))
+	case *ir.NarrowExpr:
+		return g.expr(e.Expr)
 	case *ir.ResultUnwrapExpr:
 		g.addError(fmt.Errorf("MoonBit backend does not support result unwrap yet"))
 		return g.expr(e.Expr)
@@ -126,6 +132,12 @@ func (g *generator) exprPrec(expr ir.Expr, parentPrec int) string {
 			return "(" + out + ")"
 		}
 		return out
+	case *ir.WhileExpr:
+		body := g.expr(e.Body)
+		if block, ok := e.Body.(*ir.BlockExpr); ok {
+			body = g.blockInline(block, checker.Void)
+		}
+		return "{ while " + g.expr(e.Cond) + " { " + body + " } }"
 	case *ir.AssignExpr:
 		return g.assignExpr(e, true)
 	case *ir.CallExpr:
@@ -722,7 +734,12 @@ func (g *generator) lambda(lambda *ir.LambdaExpr) string {
 		params = append(params, out)
 	}
 	if block, ok := lambda.Body.(*ir.BlockExpr); ok {
-		return "(" + strings.Join(params, ", ") + ") => { " + g.blockInline(block, block.ResultType()) + " }"
+		_, ret := lambdaParamTypes(lambda.ResultType())
+		retType := checker.Void
+		if ret != "" {
+			retType = checker.Type(ret)
+		}
+		return "(" + strings.Join(params, ", ") + ") => { " + g.blockInline(block, retType) + " }"
 	}
 	return "(" + strings.Join(params, ", ") + ") => " + g.expr(lambda.Body)
 }
@@ -783,7 +800,7 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 				continue
 			}
 			keyword := "let"
-			if s.Mutable || g.inlineBindingAssigned(block, s.Name) || (s.Name == "positionIndex" && g.inlineContainsAssignment(block, s.Name)) {
+			if s.Mutable || g.blockContainsWhile(block) || g.inlineContainsAssignment(block, s.Name) || (s.Name == "positionIndex" && g.inlineContainsAssignment(block, s.Name)) {
 				keyword = "let mut"
 			}
 			parts = append(parts, fmt.Sprintf("%s %s = %s", keyword, mangleIdent(s.Name), g.expr(s.Value)))
@@ -794,14 +811,90 @@ func (g *generator) blockInline(block *ir.BlockExpr, ret checker.Type) string {
 			}
 			parts = append(parts, fmt.Sprintf("%s = %s", mangleIdent(s.Name), g.expr(s.Value)))
 		case *ir.ExprStmt:
-			if last && ret != checker.Void {
+			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok {
+				parts = append(parts, g.ternaryStmtString(ternary))
+				continue
+			}
+			if post, ok := s.Expr.(*ir.PostfixExpr); ok && post.Op == lexer.PlusPlus {
+				if ident, ok := post.Expr.(*ir.Identifier); ok {
+					parts = append(parts, mangleIdent(ident.Name)+" += 1")
+					continue
+				}
+			}
+			if assign, ok := s.Expr.(*ir.AssignExpr); ok && assign.Name != "" {
+				parts = append(parts, mangleIdent(assign.Name)+" = "+g.expr(assign.Value))
+				continue
+			}
+			if nested, ok := s.Expr.(*ir.BlockExpr); ok {
+				parts = append(parts, "{ "+g.blockInline(nested, ret)+" }")
+			} else if loop, ok := s.Expr.(*ir.WhileExpr); ok {
+				parts = append(parts, g.expr(loop))
+			} else if last && ret != checker.Void {
 				parts = append(parts, g.expr(s.Expr))
 			} else {
-				parts = append(parts, g.discardExpr(s.Expr, g.expr(s.Expr)))
+				rendered := g.expr(s.Expr)
+				if strings.HasPrefix(strings.TrimSpace(rendered), "if ") {
+					parts = append(parts, discardIfExpression(rendered))
+				} else if moonBitAssignmentStatement(rendered) {
+					parts = append(parts, rendered)
+				} else {
+					parts = append(parts, g.discardExpr(s.Expr, rendered))
+				}
+			}
+		case *ir.IfStmt:
+			branchRet := ret
+			if !(last && ret != checker.Void) {
+				branchRet = checker.Void
+			}
+			out := "if " + g.expr(s.Cond) + " { " + g.blockInline(&ir.BlockExpr{Statements: s.Then}, branchRet) + " }"
+			if len(s.Else) > 0 {
+				out += " else { " + g.blockInline(&ir.BlockExpr{Statements: s.Else}, branchRet) + " }"
+			}
+			parts = append(parts, out)
+		case *ir.ContinueStmt:
+			parts = append(parts, "continue")
+		case *ir.BreakStmt:
+			parts = append(parts, "break")
+		case *ir.ReturnStmt:
+			if s.Value != nil {
+				parts = append(parts, "return "+g.returnExpr(s.Value, ret))
+			} else {
+				parts = append(parts, "return")
 			}
 		}
 	}
 	return strings.Join(parts, "; ")
+}
+
+func (g *generator) blockContainsWhile(block *ir.BlockExpr) bool {
+	if block == nil {
+		return false
+	}
+	found := false
+	for _, stmt := range block.Statements {
+		ir.WalkStmt(stmt, func(expr ir.Expr) {
+			if _, ok := expr.(*ir.WhileExpr); ok {
+				found = true
+			}
+		})
+	}
+	return found
+}
+
+func moonBitAssignmentStatement(rendered string) bool {
+	for _, operator := range []string{" = ", " += ", " -= ", " *= ", " /= ", " %= "} {
+		if strings.Contains(rendered, operator) {
+			return true
+		}
+	}
+	return false
+}
+
+func discardIfExpression(rendered string) string {
+	if strings.Contains(rendered, "return") || strings.Contains(rendered, "break") || strings.Contains(rendered, "continue") {
+		return rendered
+	}
+	return "ignore(" + rendered + ")"
 }
 
 func (g *generator) inlineContainsAssignment(block *ir.BlockExpr, name string) bool {
@@ -1207,7 +1300,7 @@ func (g *generator) patternConditionAs(subject string, subjectType checker.Type,
 	case *ir.SequenceSpreadPattern:
 		return g.sequenceSpreadPatternCondition(subject, subjectType, "0", p)
 	case *ir.BitPattern:
-		return g.patternConditionAs(g.bitPatternValueExpr(subject, subjectType, 0, p), checker.Int, p.Value)
+		return g.patternConditionAs(g.bitPatternValueExpr(subject, subjectType, 0, p), checker.Int32, p.Value)
 	case *ir.AliasPattern:
 		return g.patternConditionAs(subject, subjectType, p.Pattern)
 	case *ir.ConstructorPattern:
@@ -1479,7 +1572,7 @@ func (g *generator) bitArrayPatternCondition(subject string, pattern *ir.ArrayPa
 			continue
 		}
 		offset := bitPatternOffset(pattern, idx)
-		parts = append(parts, g.patternConditionAs(g.bitPatternValueExpr(subject, pattern.SubjectType, offset, bit), checker.Int, bit.Value))
+		parts = append(parts, g.patternConditionAs(g.bitPatternValueExpr(subject, pattern.SubjectType, offset, bit), checker.Int32, bit.Value))
 	}
 	return joinConditions(parts)
 }
@@ -1626,7 +1719,7 @@ func (g *generator) appendPatternBindings(parts *[]string, subject string, subje
 		}
 		for idx, elem := range p.Elements {
 			if bit, ok := elem.(*ir.BitPattern); ok {
-				g.appendPatternBindings(parts, g.bitPatternValueExpr(subject, p.SubjectType, bitPatternOffset(p, idx), bit), checker.Int, bit.Value)
+				g.appendPatternBindings(parts, g.bitPatternValueExpr(subject, p.SubjectType, bitPatternOffset(p, idx), bit), checker.Int32, bit.Value)
 				continue
 			}
 			if _, ok := elem.(*ir.SequenceSpreadPattern); ok {
@@ -1703,7 +1796,7 @@ func (g *generator) sequenceElementType(typ checker.Type) checker.Type {
 		return checker.Char
 	}
 	if typ == checker.Bytes {
-		return checker.Int
+		return checker.Int32
 	}
 	if elem, ok := checker.ArrayElement(typ); ok {
 		return elem

@@ -1,12 +1,12 @@
 + Writer: {
-  values: Array[Int]
-  nibble: Int
+  values: Array[Int32]
+  nibble: Int32
 
-  length() -> Int => .values.length()
+  length() -> Int32 => .values.length()
 
-  byteLength() -> Int => .length()
+  byteLength() -> Int32 => .length()
 
-  position() -> Int => .length()
+  position() -> Int32 => .length()
 
   clear() -> Void => {
     .values = []
@@ -15,7 +15,7 @@
 
   toBytes() -> Bytes => @bytes.fromInts(.values.clone())
 
-  toInts() -> Array[Int] => .values.clone()
+  toInts() -> Array[Int32] => .values.clone()
 
   align() -> Void => .nibble = 0
 
@@ -83,7 +83,7 @@
   ) -> Writer => .writeUInt16(value, littleEndian)
 
   writeInt(
-    value: Int,
+    value: Int32,
     littleEndian: Bool
   ) -> Writer => {
     bytes := @bytes.new(4)
@@ -92,7 +92,7 @@
   }
 
   writeInt32(
-    value: Int,
+    value: Int32,
     littleEndian: Bool
   ) -> Writer => .writeInt(value, littleEndian)
 
@@ -192,4 +192,4 @@
   nibble: 0
 }
 
-+ withCapacity(capacity: Int) -> Writer => @writer.new()
++ withCapacity(capacity: Int32) -> Writer => @writer.new()

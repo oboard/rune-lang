@@ -7,12 +7,16 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 	visit(expr)
 	switch e := expr.(type) {
 	case *Identifier, *AtExpr, *ThisExpr, *IntegerLiteral, *DoubleLiteral, *BigIntLiteral,
-		*StringLiteral, *CharLiteral, *RegexLiteral, *BoolLiteral, *NullLiteral:
+		*StringLiteral, *CharLiteral, *RegexLiteral, *BoolLiteral, *NullLiteral, *UndefinedLiteral:
 	case *TemplateLiteral:
 		for _, part := range e.Parts {
 			WalkExpr(part.Expr, visit)
 		}
 	case *UnaryExpr:
+		WalkExpr(e.Expr, visit)
+	case *TypeOfExpr:
+		WalkExpr(e.Argument, visit)
+	case *NarrowExpr:
 		WalkExpr(e.Expr, visit)
 	case *PostfixExpr:
 		WalkExpr(e.Expr, visit)
@@ -96,6 +100,9 @@ func WalkExpr(expr Expr, visit func(Expr)) {
 				WalkStmt(stmt, visit)
 			}
 		}
+	case *WhileExpr:
+		WalkExpr(e.Cond, visit)
+		WalkExpr(e.Body, visit)
 	}
 }
 
@@ -120,6 +127,18 @@ func WalkStmt(stmt Stmt, visit func(Expr)) {
 	case *ContinueStmt:
 	case *ReturnStmt:
 		WalkExpr(s.Value, visit)
+	case *ThrowStmt:
+		WalkExpr(s.Value, visit)
+	case *TryStmt:
+		for _, stmt := range s.Body {
+			WalkStmt(stmt, visit)
+		}
+		for _, stmt := range s.Catch {
+			WalkStmt(stmt, visit)
+		}
+		for _, stmt := range s.Finally {
+			WalkStmt(stmt, visit)
+		}
 	case *MultiAssignStmt:
 		for _, value := range s.Values {
 			WalkExpr(value, visit)

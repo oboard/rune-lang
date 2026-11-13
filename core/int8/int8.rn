@@ -8,6 +8,6 @@
   div(other: Int8) -> Int8 => "%int8.div"
 }
 
-+ fromInt(value: Int) -> Int8 => "%int8.fromInt"
++ fromInt(value: Int32) -> Int8 => "%int8.fromInt"
 
-+ toInt(value: Int8) -> Int => "%int8.toInt"
++ toInt(value: Int8) -> Int32 => "%int8.toInt"

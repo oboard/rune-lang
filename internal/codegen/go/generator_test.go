@@ -11,7 +11,7 @@ import (
 )
 
 func TestGenerateFibProgram(t *testing.T) {
-	src := `fib(n: Int) => {
+	src := `fib(n: Int32) => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)
@@ -38,7 +38,7 @@ main() => {
 		`"fmt"`,
 		`func fib(n int) int`,
 		`case n == 0:`,
-		`return fib(n-1) + fib(n-2)`,
+		`return int(int32(fib(int(int32(n-1+runeInt32Zero))) + fib(int(int32(n-2+runeInt32Zero))) + runeInt32Zero))`,
 		`func main_()`,
 		`fmt.Println(fib(10))`,
 		`func main()`,
@@ -109,13 +109,13 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 }
 
 func TestGenerateArrayAliasAndOpenRangePatterns(t *testing.T) {
-	src := `score(values: Array[Int]) -> Int => values {
+	src := `score(values: Array[Int32]) -> Int32 => values {
   [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   [] => 0
   _ => 1
 }
 
-sign(value: Int) -> Int => value {
+sign(value: Int32) -> Int32 => value {
   _..<0 => -1
   0 => 0
   1..<_ => 1
@@ -157,7 +157,7 @@ sign(value: Int) -> Int => value {
 func TestGenerateOrPatternBlock(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => typeName
 }
 `
@@ -176,7 +176,7 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 	wantParts := []string{
 		`case (typeName == "") || (typeName == "Void"):`,
 		`return "void"`,
-		`case (typeName == "Int") || (typeName == "Double"):`,
+		`case (typeName == "Int32") || (typeName == "Double"):`,
 		`return "number"`,
 	}
 	for _, want := range wantParts {
@@ -187,7 +187,7 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 }
 
 func TestGenerateUnicodeIdentifiers(t *testing.T) {
-	src := `计算✅(数值🐉: Int) -> Int => {
+	src := `计算✅(数值🐉: Int32) -> Int32 => {
   增量📈 := 1
   数值🐉 + 增量📈
 }
@@ -208,7 +208,7 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 	wantParts := []string{
 		`func ` + mangleIdent("计算✅") + `(` + mangleIdent("数值🐉") + ` int) int`,
 		mangleIdent("增量📈") + ` := 1`,
-		`return ` + mangleIdent("数值🐉") + ` + ` + mangleIdent("增量📈"),
+		`return int(int32(` + mangleIdent("数值🐉") + ` + ` + mangleIdent("增量📈") + ` + runeInt32Zero))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -221,7 +221,7 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 }
 
 func TestGenerateTemplateLiteral(t *testing.T) {
-	src := "label(count: Int, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
+	src := "label(count: Int32, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
 		t.Fatalf("parse errors: %v", parseErrs)
@@ -267,16 +267,16 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 
 func TestGenerateDestructuringPatterns(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
-pointScore(point: Point) -> Int => point {
+pointScore(point: Point) -> Int32 => point {
   { x, y: yy, .. } => x + yy
   _ => 0
 }
 
-mapScore(values: Map[String, Int]) -> Int => values {
+mapScore(values: Map[String, Int32]) -> Int32 => values {
   { "a": value, .. } => value
   _ => 0
 }
@@ -296,7 +296,7 @@ mapScore(values: Map[String, Int]) -> Int => values {
 	wantParts := []string{
 		`x := match`,
 		`yy := match`,
-		`return x + yy`,
+		`return int(int32(x + yy + runeInt32Zero))`,
 		`func() bool { _, ok`,
 		`value := match`,
 		`return value`,
@@ -310,9 +310,9 @@ mapScore(values: Map[String, Int]) -> Int => values {
 
 func TestGenerateStructProgram(t *testing.T) {
 	src := `User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 
   isAdult() => .age >= 18
 }
@@ -360,8 +360,8 @@ main() => {
 
 func TestGenerateObjectDestructureProgram(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
 main() => {
@@ -390,7 +390,7 @@ main() => {
 		`destructure1 := point`,
 		`x := destructure1.x`,
 		`y := destructure1.y`,
-		`fmt.Println(x + y)`,
+		`fmt.Println(int(int32(x + y + runeInt32Zero)))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -406,7 +406,7 @@ func TestGenerateEnumProgram(t *testing.T) {
 }
 
 Container: {
-  Completed: Int
+  Completed: Int32
 }
 
 statusText(status: Status) -> String => status {
@@ -466,7 +466,7 @@ main() => {
 func TestGenerateInlineGoFFI(t *testing.T) {
 	src := `@go.import("fmt")
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 
 main() => {
   name := "oboard"
@@ -586,7 +586,7 @@ func TestGenerateArraySpread(t *testing.T) {
 }
 
 func TestGenerateArrayReduce(t *testing.T) {
-	src := `sum(values: Array[Int]) -> Int => values.reduce(0, (accumulator, value) => accumulator + value)
+	src := `sum(values: Array[Int32]) -> Int32 => values.reduce(0, (accumulator, value) => accumulator + value)
 `
 	file, parseErrs := parser.Parse(src)
 	if len(parseErrs) > 0 {
@@ -603,7 +603,7 @@ func TestGenerateArrayReduce(t *testing.T) {
 
 	wantParts := []string{
 		`range array1`,
-		`return accumulator + value`,
+		`return int(int32(accumulator + value + runeInt32Zero))`,
 		`return result2`,
 	}
 	for _, want := range wantParts {
@@ -647,8 +647,8 @@ func TestGenerateSignalProgram(t *testing.T) {
 	wantParts := []string{
 		`type runeSignal[T comparable] struct`,
 		`count := newRuneSignal(0)`,
-		`double := newRuneSignal(count.Get() * 2)`,
-		`count.Watch(func(_, _ int) { double.Set(count.Get() * 2) })`,
+		`double := newRuneSignal(int(int32(count.Get()*2 + runeInt32Zero)))`,
+		`count.Watch(func(_, _ int) { double.Set(int(int32(count.Get()*2 + runeInt32Zero))) })`,
 		`effect1 := func() {`,
 		`fmt.Println(count.Get())`,
 		`fmt.Println(double.Get())`,
@@ -658,7 +658,7 @@ func TestGenerateSignalProgram(t *testing.T) {
 		`effect1()`,
 		`double.Watch(func(_, _ int) { scheduleEffect3() })`,
 		`count.Watch(func(old int, new int) { fmt.Println(old); fmt.Println(new) })`,
-		`count.Set(count.Get() + 1)`,
+		`count.Set(int(int32(count.Get() + 1 + runeInt32Zero)))`,
 	}
 	for _, want := range wantParts {
 		if !strings.Contains(got, want) {
@@ -703,7 +703,7 @@ func TestGenerateArrayProgram(t *testing.T) {
 		`for _, value := range arr`,
 		`fmt.Println(value)`,
 		`mapped := func() []int`,
-		`result = append(result, value+1)`,
+		`result = append(result, int(int32(value+1+runeInt32Zero)))`,
 		`fmt.Println(mapped[0])`,
 	}
 	for _, want := range wantParts {
@@ -863,7 +863,7 @@ func TestGenerateBytesIntrinsicProgram(t *testing.T) {
 		`type runeBytes struct`,
 		`bytes := newRuneBytes(16)`,
 		`bytes.SetUInt8(0, func() uint8 { n := int(255); return uint8(n) }())`,
-		`bytes.SetInt16(1, func() int16 { n := int(0 - 1234); return int16(n) }(), true)`,
+		`bytes.SetInt16(1, func() int16 { n := int(int(int32(0 - 1234 + runeInt32Zero))); return int16(n) }(), true)`,
 		`bytes.SetUInt64(4, uint64(123456), false)`,
 		`bytes.SetFloat(12, float32(1.5), true)`,
 		`fmt.Println(bytes.GetUInt8(0))`,
@@ -962,7 +962,7 @@ func TestGenerateAnonymousObjectProgram(t *testing.T) {
 		`greet   func()`,
 		`nextAge func() int`,
 		`fmt.Println("Hello, my name is " + obj.name)`,
-		`return obj.age + 1`,
+		`return int(int32(obj.age + 1 + runeInt32Zero))`,
 		`var obj2 struct`,
 		`parent struct`,
 		`name   string`,
@@ -1027,7 +1027,7 @@ User: {
   name: String
   #json.ignore
   password: String
-  age: Int
+  age: Int32
 }
 
 main() => {
@@ -1104,7 +1104,7 @@ User: {
   name: String
   #json.ignore
   password: String
-  scores: Array[Int]
+  scores: Array[Int32]
 }
 
 main() => {
@@ -1208,7 +1208,7 @@ func TestGenerateNetUsesRuneBytes(t *testing.T) {
 }
 
 func TestGenerateRoutineCallsWaitAtProgramExit(t *testing.T) {
-	src := `~ test(count: Int) => {
+	src := `~ test(count: Int32) => {
   @io.println("Hello World" + count.toString())
 }
 
@@ -1295,9 +1295,9 @@ main() => {
 
 func TestGenerateAnnotatedFunctionValueCallWithAnonymousArgument(t *testing.T) {
 	src := `Return: {
-  b: Int
+  b: Int32
   z: Bool
-  a: Int
+  a: Int32
 }
 
 fun(flag) => {
@@ -1403,11 +1403,11 @@ func TestGenerateRegexProgram(t *testing.T) {
 
 func TestGeneratePayloadEnumPatterns(t *testing.T) {
 	src := `Expr: {
-  Lit(value: Int)
+  Lit(value: Int32)
   Add(left: Expr, right: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Add(Lit(left), Lit(0)) => left
   Add(left, right) => eval(left) + eval(right)
   Lit(value) => value
@@ -1450,12 +1450,12 @@ main() => @io.println(eval(Add(Lit(2), Lit(0))))
 
 func TestGenerateMapLikePatternCachesGet(t *testing.T) {
 	src := `Lookup: {
-  entries: Map[String, Int]
+  entries: Map[String, Int32]
 
-  get(key: String) -> Int? => .entries[key]
+  get(key: String) -> Int32? => .entries[key]
 }
 
-score(values: Lookup) -> Int => values {
+score(values: Lookup) -> Int32 => values {
   { "b"? : null, "a": x, .. } => x
   { "b"? : b, .. } => b ?? 0
 }

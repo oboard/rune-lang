@@ -14,8 +14,8 @@ func (c *checker) resolveType(name string) Type {
 
 func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool) Type {
 	switch name {
-	case "Int":
-		return Int
+	case "Int32":
+		return Int32
 	case "Int4":
 		return Int4
 	case "Int8":
@@ -46,6 +46,8 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 		return Bool
 	case "Null":
 		return Null
+	case "Undefined", "undefined":
+		return Undefined
 	case "Object":
 		return Object
 	case "Bytes":
@@ -77,6 +79,17 @@ func (c *checker) resolveTypeWithGenerics(name string, generics map[string]bool)
 	case "WebComponent":
 		return WebComponent
 	default:
+		if members, ok := parseUnionType(name); ok {
+			resolved := make([]Type, 0, len(members))
+			for _, member := range members {
+				typ := c.resolveTypeWithGenerics(member, generics)
+				if typ == Unknown && !isDynamicTypeName(member) {
+					return Unknown
+				}
+				resolved = append(resolved, typ)
+			}
+			return UnionOf(resolved)
+		}
 		if strings.HasPrefix(name, "&") {
 			traitName := strings.TrimPrefix(name, "&")
 			if c.info.Traits[traitName] != nil {
@@ -157,8 +170,24 @@ func (c *checker) typesCompatible(expected Type, actual Type, generics []string)
 	if actual == Never {
 		return true
 	}
+	if members, ok := parseUnionType(string(expected)); ok {
+		for _, member := range members {
+			if c.typesCompatible(Type(member), actual, generics) {
+				return true
+			}
+		}
+		return false
+	}
+	if members, ok := parseUnionType(string(actual)); ok {
+		for _, member := range members {
+			if !c.typesCompatible(expected, Type(member), generics) {
+				return false
+			}
+		}
+		return true
+	}
 	if expectedInner, ok := parseNullableType(string(expected)); ok {
-		if actual == Null {
+		if actual == Null || actual == Undefined {
 			return true
 		}
 		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
@@ -344,6 +373,32 @@ func ArrayOf(elem Type) Type {
 	return Type("Array[" + string(elem) + "]")
 }
 
+// UnionOf flattens, de-duplicates and canonicalizes a union. A single member
+// collapses to that member, so `T | T` is just `T`.
+func UnionOf(members []Type) Type {
+	parts := make([]string, 0, len(members))
+	seen := map[string]bool{}
+	for _, member := range members {
+		if member == "" || member == Unknown {
+			return Unknown
+		}
+		for _, part := range flattenUnionMember(string(member)) {
+			if part == "" || seen[part] {
+				continue
+			}
+			seen[part] = true
+			parts = append(parts, part)
+		}
+	}
+	if len(parts) == 0 {
+		return Unknown
+	}
+	if len(parts) == 1 {
+		return Type(parts[0])
+	}
+	return Type(strings.Join(parts, "|"))
+}
+
 func MapOf(key Type, value Type) Type {
 	return genericTypeOf("Map", []Type{key, value})
 }
@@ -359,6 +414,9 @@ func genericTypeOf(base string, args []Type) Type {
 func NullableOf(elem Type) Type {
 	if elem == Null {
 		return Null
+	}
+	if _, ok := parseUnionType(string(elem)); ok {
+		return UnionOf([]Type{elem, Null})
 	}
 	if _, ok := parseNullableType(string(elem)); ok {
 		return elem
@@ -688,8 +746,24 @@ func typesCompatibleWithSet(expected Type, actual Type, generics map[string]bool
 	if actual == Never {
 		return true
 	}
+	if members, ok := parseUnionType(string(expected)); ok {
+		for _, member := range members {
+			if typesCompatibleWithSet(Type(member), actual, generics) {
+				return true
+			}
+		}
+		return false
+	}
+	if members, ok := parseUnionType(string(actual)); ok {
+		for _, member := range members {
+			if !typesCompatibleWithSet(expected, Type(member), generics) {
+				return false
+			}
+		}
+		return true
+	}
 	if expectedInner, ok := parseNullableType(string(expected)); ok {
-		if actual == Null {
+		if actual == Null || actual == Undefined {
 			return true
 		}
 		if actualInner, actualNullable := parseNullableType(string(actual)); actualNullable {
@@ -750,7 +824,7 @@ func isObjectLike(typ Type) bool {
 	switch baseTypeName(typ) {
 	case "Array", "Map", "Set", "WeakMap", "WeakSet", "Record", "Tuple", "ReadonlyArray", "ReadonlyTuple":
 		return true
-	case string(Int), string(Int4), string(Int8), string(Int16), string(Int64),
+	case string(Int32), string(Int4), string(Int8), string(Int16), string(Int64),
 		string(Double), string(Float), string(BigInt), string(UInt), string(UInt8),
 		string(UInt16), string(UInt64), string(String), string(Char), string(Bool), string(Null),
 		string(Void), string(Symbol), string(Regex), string(Bytes), string(Buffer),
@@ -827,6 +901,9 @@ func (c *checker) unifyTypes(left Type, right Type) (Type, bool) {
 			return Unknown, false
 		}
 		return NullableOf(elem), true
+	}
+	if isUnionType(left) || isUnionType(right) {
+		return UnionOf([]Type{left, right}), true
 	}
 	if leftElem, ok := parseArrayType(string(left)); ok {
 		rightElem, rightArray := parseArrayType(string(right))

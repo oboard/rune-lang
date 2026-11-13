@@ -51,11 +51,11 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		if len(args) == 1 {
 			return args[0] + ".iter().collect()", true
 		}
-	case "int.toString", "bigint.toString":
+	case "int32.toString", "bigint.toString":
 		if len(args) == 1 {
 			return fmt.Sprintf("(%s).to_string()", args[0]), true
 		}
-	case "int.toDouble", "float.toDouble":
+	case "int32.toDouble", "float.toDouble":
 		if len(args) == 1 {
 			return fmt.Sprintf("(%s).to_double()", args[0]), true
 		}
@@ -103,7 +103,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		if len(args) == 1 {
 			return args[0], true
 		}
-	case "int.toBigInt", "bigint.fromInt":
+	case "int32.toBigInt", "bigint.fromInt":
 		if len(args) == 1 {
 			return fmt.Sprintf("BigInt::from_int(%s)", args[0]), true
 		}
@@ -297,7 +297,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayIntrinsicCall(fn, receiver, args, call.Args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "string."):
 		return g.stringIntrinsicCall(fn, receiver, args, call.ResultType()), true
-	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
+	case strings.HasPrefix(fn.Intrinsic, "int32."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
 		return g.primitiveIntrinsicCall(fn, sel.Receiver, receiver, args, call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "bytes."):
 		return g.bytesIntrinsicCall(fn, receiver, args, call.ResultType()), true
@@ -328,11 +328,11 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 
 func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, rawReceiver ir.Expr, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
-	case "int.toString", "char.toString", "bool.toString":
+	case "int32.toString", "char.toString", "bool.toString":
 		return fmt.Sprintf("(%s).to_string()", receiver)
-	case "int.toDouble":
+	case "int32.toDouble":
 		return fmt.Sprintf("(%s).to_double()", receiver)
-	case "int.toBigInt":
+	case "int32.toBigInt":
 		return fmt.Sprintf("BigInt::from_int(%s)", receiver)
 	case "double.trunc":
 		return fmt.Sprintf("(%s).trunc()", receiver)
@@ -357,19 +357,19 @@ func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, rawReceiver ir.E
 		if len(args) == 1 {
 			return fmt.Sprintf("(%s) != (%s)", receiver, args[0])
 		}
-	case "int.add", "int16.add", "int8.add", "int4.add", "int64.add", "uint.add", "uint16.add", "uint8.add", "uint64.add", "double.add", "float.add", "bigint.add":
+	case "int32.add", "int16.add", "int8.add", "int4.add", "int64.add", "uint.add", "uint16.add", "uint8.add", "uint64.add", "double.add", "float.add", "bigint.add":
 		if len(args) == 1 {
 			return receiver + " + " + args[0]
 		}
-	case "int.sub", "int16.sub", "int8.sub", "int4.sub", "int64.sub", "uint.sub", "uint16.sub", "uint8.sub", "uint64.sub", "double.sub", "float.sub", "bigint.sub":
+	case "int32.sub", "int16.sub", "int8.sub", "int4.sub", "int64.sub", "uint.sub", "uint16.sub", "uint8.sub", "uint64.sub", "double.sub", "float.sub", "bigint.sub":
 		if len(args) == 1 {
 			return receiver + " - " + args[0]
 		}
-	case "int.mul", "int16.mul", "int8.mul", "int4.mul", "int64.mul", "uint.mul", "uint16.mul", "uint8.mul", "uint64.mul", "double.mul", "float.mul", "bigint.mul":
+	case "int32.mul", "int16.mul", "int8.mul", "int4.mul", "int64.mul", "uint.mul", "uint16.mul", "uint8.mul", "uint64.mul", "double.mul", "float.mul", "bigint.mul":
 		if len(args) == 1 {
 			return receiver + " * " + args[0]
 		}
-	case "int.div", "int16.div", "int8.div", "int4.div", "int64.div", "uint.div", "uint16.div", "uint8.div", "uint64.div", "double.div", "float.div", "bigint.div":
+	case "int32.div", "int16.div", "int8.div", "int4.div", "int64.div", "uint.div", "uint16.div", "uint8.div", "uint64.div", "double.div", "float.div", "bigint.div":
 		if len(args) == 1 {
 			return receiver + " / " + args[0]
 		}
@@ -904,7 +904,7 @@ func (g *generator) bytesWriteUInt64BitsExpr(receiver string, index string, bits
 func (g *generator) streamModuleCall(fn *stdlib.Function, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
 	case "buffer.new", "writer.new", "writer.withCapacity":
-		return "([] : Array[Int])"
+		return "([] : Array[Int32])"
 	case "buffer.fromBytes":
 		if len(args) == 1 {
 			return args[0] + ".copy()"

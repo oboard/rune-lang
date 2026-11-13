@@ -169,7 +169,7 @@ AST coverage is established across the entire bootstrap test corpus.
   All parity cases currently supported pass, including `json.name`/`json.ignore`
   module annotations and nested struct type references. The remaining blocker
   is not parser/annotations but generic instantiation references in struct
-  literals (e.g., `Box[Int] { value: 1 }`), which the selfhost parser does not
+  literals (e.g., `Box[Int32] { value: 1 }`), which the selfhost parser does not
   yet recognize in this shape.
 - [ ] Define a self-hosted analysis API suitable for incremental documents.
 - [ ] Port diagnostics, hover, completion, navigation, rename, formatting, and

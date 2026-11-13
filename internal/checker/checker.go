@@ -14,7 +14,7 @@ type Type string
 
 const (
 	Unknown       Type = "Unknown"
-	Int           Type = "Int"
+	Int32         Type = "Int32"
 	Int4          Type = "Int4"
 	Int8          Type = "Int8"
 	Int16         Type = "Int16"
@@ -30,6 +30,7 @@ const (
 	Char          Type = "Char"
 	Bool          Type = "Bool"
 	Null          Type = "Null"
+	Undefined     Type = "Undefined"
 	Object        Type = "Object"
 	Bytes         Type = "Bytes"
 	Buffer        Type = "Buffer"

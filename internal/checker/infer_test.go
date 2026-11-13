@@ -36,10 +36,10 @@ half(value) => value / 2
 		{"suffix", String, String},
 		{"forward", String, String},
 		{"helper", String, String},
-		{"increment", Int, Int},
-		{"decrement", Int, Int},
-		{"scale", Int, Int},
-		{"half", Int, Int},
+		{"increment", Int32, Int32},
+		{"decrement", Int32, Int32},
+		{"scale", Int32, Int32},
+		{"half", Int32, Int32},
 	} {
 		fn := info.Functions[tc.name]
 		if fn == nil {
@@ -82,7 +82,7 @@ func TestWebComponentReturnAcceptsXMLLiteral(t *testing.T) {
 func TestAnonymousObjectLiteralUsesExpectedStructReturnType(t *testing.T) {
 	src := `User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 make() -> User => {
@@ -110,7 +110,7 @@ make() -> User => {
 func TestAnonymousObjectLiteralInfersStructReturnTypeFromSpread(t *testing.T) {
 	src := `User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 rename(user: User, name: String) => {
@@ -176,8 +176,8 @@ main() => {
 	if len(callTypes) != 2 {
 		t.Fatalf("add calls = %d, want 2", len(callTypes))
 	}
-	if callTypes[0] != Int || callTypes[1] != Double {
-		t.Fatalf("add call types = %v, want [Int Double]", callTypes)
+	if callTypes[0] != Int32 || callTypes[1] != Double {
+		t.Fatalf("add call types = %v, want [Int32 Double]", callTypes)
 	}
 }
 
@@ -224,7 +224,7 @@ User: {
 }
 
 Plain: {
-  id: Int
+  id: Int32
 }
 
 nameOf[T: &Named](value: T) -> String => value.name
@@ -250,7 +250,7 @@ func TestGenericTraitConstraintRejectsMissingMembers(t *testing.T) {
 }
 
 Plain: {
-  id: Int
+  id: Int32
 }
 
 nameOf[T: &Named](value: T) -> String => value.name
@@ -335,7 +335,7 @@ func TestLambdaArgumentToNonFunctionStdlibParamIsRejected(t *testing.T) {
 	_, diags := Check(file)
 	for _, diag := range diags {
 		if strings.Contains(diag.Message, "argument 1 to @array.push has type") &&
-			strings.Contains(diag.Message, "expected Int") {
+			strings.Contains(diag.Message, "expected Int32") {
 			return
 		}
 	}

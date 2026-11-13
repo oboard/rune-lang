@@ -61,6 +61,31 @@ type ExprStmt struct {
 	Pos  lexer.Position
 }
 
+// ThrowStmt raises a value that `try` can catch.
+type ThrowStmt struct {
+	Value Expr
+	Pos   lexer.Position
+}
+
+func (*ThrowStmt) stmtNode() {}
+func (s *ThrowStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+// TryStmt is the statement form of try/catch/finally.
+type TryStmt struct {
+	Body      []Stmt
+	CatchName string
+	Catch     []Stmt
+	Finally   []Stmt
+	Pos       lexer.Position
+}
+
+func (*TryStmt) stmtNode() {}
+func (s *TryStmt) Position() lexer.Position {
+	return s.Pos
+}
+
 func (*ExprStmt) stmtNode() {}
 func (s *ExprStmt) Position() lexer.Position {
 	return s.Pos

@@ -163,6 +163,15 @@ func (c *checker) finishInferredParams(info *FuncInfo, body ast.Expr, env map[st
 }
 
 func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[string]Type) Type {
+	previousReturn := c.currentReturn
+	if fn.Name == "main" && !fn.Macro {
+		c.currentReturn = Void
+	} else if info != nil {
+		c.currentReturn = info.Return
+	}
+	defer func() {
+		c.currentReturn = previousReturn
+	}()
 	if info != nil && info.Routine {
 		c.routineDepth++
 		c.unwrapErrors = append(c.unwrapErrors, Unknown)
@@ -182,6 +191,9 @@ func (c *checker) inferFunctionBody(fn *ast.Function, info *FuncInfo, env map[st
 	}
 	if info == nil || !info.Routine {
 		c.unwrapErrors = append(c.unwrapErrors, Unknown)
+	}
+	if info != nil && !info.ReturnDeclared && c.currentReturn != Unknown && (ret == Void || ret == Never || ret == Unknown) {
+		ret = c.currentReturn
 	}
 	return ret
 }
@@ -210,6 +222,10 @@ func (c *checker) inferConstDecl(constant *ast.ConstDecl) Type {
 }
 
 func (c *checker) inferExprExpected(expr ast.Expr, env map[string]Type, expected Type) Type {
+	if block, ok := expr.(*ast.BlockExpr); ok && len(block.Statements) == 0 && isMapLikeType(expected) {
+		c.info.ExprTypes[expr] = expected
+		return expected
+	}
 	previous := c.expectedType
 	c.expectedType = expected
 	typ := c.inferExpr(expr, env)
@@ -264,8 +280,8 @@ func (c *checker) inferredParamUseType(body ast.Expr, name string, selfFunction 
 		case *ast.BinaryExpr:
 			switch e.Op {
 			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent, lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
-				walk(e.Left, Int)
-				walk(e.Right, Int)
+				walk(e.Left, Int32)
+				walk(e.Right, Int32)
 			case lexer.AndAnd, lexer.OrOr:
 				walk(e.Left, Bool)
 				walk(e.Right, Bool)
@@ -279,6 +295,18 @@ func (c *checker) inferredParamUseType(body ast.Expr, name string, selfFunction 
 			if e.Alternative != nil {
 				walk(e.Alternative, expected)
 			}
+		case *ast.IfExpr:
+			walk(e.Cond, Bool)
+			walk(e.Then, expected)
+			if e.Else != nil {
+				walk(e.Else, expected)
+			}
+		case *ast.ForOfExpr:
+			walk(e.Iterable, Unknown)
+			walk(e.Body, Unknown)
+		case *ast.WhileExpr:
+			walk(e.Cond, Bool)
+			walk(e.Body, Unknown)
 		case *ast.CallExpr:
 			if ident, ok := e.Callee.(*ast.Identifier); ok && selfFunction != "" && ident.Name == selfFunction && expected != Unknown {
 				for _, arg := range e.Args {
@@ -337,6 +365,10 @@ func exprCanBuildWebComponent(expr ast.Expr) bool {
 		return e.Alternative != nil &&
 			exprCanBuildWebComponent(e.Consequence) &&
 			exprCanBuildWebComponent(e.Alternative)
+	case *ast.IfExpr:
+		return e.Else != nil &&
+			exprCanBuildWebComponent(e.Then) &&
+			exprCanBuildWebComponent(e.Else)
 	case *ast.MatchExpr:
 		if len(e.Branches) == 0 {
 			return false
@@ -373,7 +405,7 @@ func (c *checker) inferExpr(expr ast.Expr, env map[string]Type) Type {
 func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 	switch e := expr.(type) {
 	case *ast.IntegerLiteral:
-		return Int
+		return Int32
 	case *ast.DoubleLiteral:
 		return Double
 	case *ast.BigIntLiteral:
@@ -396,6 +428,8 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		return Bool
 	case *ast.NullLiteral:
 		return Null
+	case *ast.UndefinedLiteral:
+		return Undefined
 	case *ast.Identifier:
 		if typ, ok := env[e.Name]; ok {
 			return typ
@@ -528,6 +562,9 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		default:
 			return Unknown
 		}
+	case *ast.TypeOfExpr:
+		c.inferExpr(e.Argument, env)
+		return String
 	case *ast.PostfixExpr:
 		typ := c.inferExpr(e.Expr, env)
 		switch e.Op {
@@ -648,11 +685,11 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 		if condition != Bool && condition != Unknown {
 			c.errorf(e.Condition.Position(), "ternary condition expects Bool, got %s", condition)
 		}
-		consequence := c.inferExpr(e.Consequence, env)
+		consequence := c.inferExpr(e.Consequence, c.narrowEnv(e.Condition, env, true))
 		if e.Alternative == nil {
 			return Void
 		}
-		alternative := c.inferExpr(e.Alternative, env)
+		alternative := c.inferExpr(e.Alternative, c.narrowEnv(e.Condition, env, false))
 		result, ok := c.mergeFunctionValueTypes(consequence, alternative)
 		if !ok {
 			result, ok = c.unifyTypes(consequence, alternative)
@@ -662,6 +699,50 @@ func (c *checker) inferExprType(expr ast.Expr, env map[string]Type) Type {
 			return Unknown
 		}
 		return result
+	case *ast.IfExpr:
+		condition := c.inferExpr(e.Cond, env)
+		if condition != Bool && condition != Unknown {
+			c.errorf(e.Cond.Position(), "if condition expects Bool, got %s", condition)
+		}
+		thenType := c.inferExpr(e.Then, c.narrowEnv(e.Cond, env, true))
+		if e.Else == nil {
+			if thenType == Never {
+				return Never
+			}
+			return Void
+		}
+		elseType := c.inferExpr(e.Else, c.narrowEnv(e.Cond, env, false))
+		result, ok := c.mergeFunctionValueTypes(thenType, elseType)
+		if !ok {
+			result, ok = c.unifyTypes(thenType, elseType)
+		}
+		if !ok {
+			c.errorf(e.Pos, "if branches return %s and %s", thenType, elseType)
+			return Unknown
+		}
+		return result
+	case *ast.ForOfExpr:
+		iterable := c.inferExpr(e.Iterable, env)
+		element, ok := ArrayElement(iterable)
+		if !ok && iterable != Unknown {
+			c.errorf(e.Iterable.Position(), "for-of expects Array, got %s", iterable)
+			element = Unknown
+		}
+		bodyEnv := cloneEnv(env)
+		bodyEnv[e.Name] = element
+		c.loopDepth++
+		c.inferExpr(e.Body, bodyEnv)
+		c.loopDepth--
+		return Void
+	case *ast.WhileExpr:
+		condition := c.inferExpr(e.Cond, env)
+		if condition != Bool && condition != Unknown {
+			c.errorf(e.Cond.Position(), "loop condition expects Bool, got %s", condition)
+		}
+		c.loopDepth++
+		c.inferExpr(e.Body, env)
+		c.loopDepth--
+		return Void
 	case *ast.AssignExpr:
 		if target, ok := e.Target.(*ast.IndexExpr); ok {
 			return c.inferIndexAssign(target, e.Value, env)
@@ -934,6 +1015,7 @@ func validateRegexFlags(flags string) string {
 }
 
 func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
+	c.normalizeConsoleLog(call, env)
 	callExpected := c.expectedType
 	c.expectedType = Unknown
 	argTypes := make([]Type, 0, len(call.Args))
@@ -1181,6 +1263,23 @@ func (c *checker) inferCall(call *ast.CallExpr, env map[string]Type) Type {
 		c.applyExpectedType(call.Callee, refined)
 	}
 	return ret
+}
+
+// normalizeConsoleLog maps the TypeScript spelling `console.log` onto the
+// built-in println shim. A user-declared `console` value shadows the alias.
+func (c *checker) normalizeConsoleLog(call *ast.CallExpr, env map[string]Type) {
+	sel, ok := call.Callee.(*ast.SelectorExpr)
+	if !ok || sel.Name != "log" {
+		return
+	}
+	ident, ok := sel.Receiver.(*ast.Identifier)
+	if !ok || ident.Name != "console" {
+		return
+	}
+	if _, shadowed := env["console"]; shadowed {
+		return
+	}
+	call.Callee = &ast.SelectorExpr{Receiver: &ast.AtExpr{Name: "io"}, Name: "println", Pos: sel.Pos}
 }
 
 func (c *checker) inferQualifiedEnumConstructor(sel *ast.SelectorExpr, call *ast.CallExpr, argTypes []Type, env map[string]Type) (Type, bool) {
@@ -1510,7 +1609,7 @@ func (c *checker) refineUnknownIdentifierType(expr ast.Expr, actual Type, expect
 
 func (c *checker) numericBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
 	if left == Unknown && right == Unknown {
-		return Int
+		return Int32
 	}
 	if left == Unknown && c.isArithmeticLikeType(right, expr.Op) {
 		return right
@@ -1616,7 +1715,7 @@ func traitHasSelfBinaryMethod(trait *TraitInfo, name string) bool {
 
 func (c *checker) bitwiseBinaryType(expr *ast.BinaryExpr, left Type, right Type) Type {
 	if left == Unknown && right == Unknown {
-		return Int
+		return Int32
 	}
 	if left == Unknown && isBitwiseType(right) {
 		return right
@@ -1653,7 +1752,7 @@ func isIntegerType(typ Type) bool {
 
 func isSignedIntegerType(typ Type) bool {
 	switch typ {
-	case Int, Int4, Int8, Int16, Int64:
+	case Int32, Int4, Int8, Int16, Int64:
 		return true
 	default:
 		return false
@@ -1809,7 +1908,7 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 					out[ident.Name] = fields
 				}
 				if expected == Unknown {
-					expected = Int
+					expected = Int32
 				}
 				fields[e.Name] = FieldInfo{Name: e.Name, Type: expected}
 				return
@@ -1818,8 +1917,8 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 		case *ast.BinaryExpr:
 			switch e.Op {
 			case lexer.Plus, lexer.Minus, lexer.Star, lexer.Slash, lexer.Percent, lexer.BitAnd, lexer.BitOr, lexer.BitXor, lexer.ShiftLeft, lexer.ShiftRight, lexer.UnsignedShiftRight:
-				walk(e.Left, Int)
-				walk(e.Right, Int)
+				walk(e.Left, Int32)
+				walk(e.Right, Int32)
 			case lexer.AndAnd, lexer.OrOr:
 				walk(e.Left, Bool)
 				walk(e.Right, Bool)
@@ -1833,6 +1932,18 @@ func inferParamFields(body ast.Expr, names []string) map[string]map[string]Field
 			if e.Alternative != nil {
 				walk(e.Alternative, expected)
 			}
+		case *ast.IfExpr:
+			walk(e.Cond, Bool)
+			walk(e.Then, expected)
+			if e.Else != nil {
+				walk(e.Else, expected)
+			}
+		case *ast.ForOfExpr:
+			walk(e.Iterable, Unknown)
+			walk(e.Body, Unknown)
+		case *ast.WhileExpr:
+			walk(e.Cond, Bool)
+			walk(e.Body, Unknown)
 		case *ast.UnaryExpr:
 			walk(e.Expr, expected)
 		case *ast.PostfixExpr:

@@ -4,6 +4,6 @@
 
 + env(name: String) -> String? => "%process.env"
 
-+ exit(code: Int) -> Never => "%process.exit"
++ exit(code: Int32) -> Never => "%process.exit"
 
 + platform() -> String => "%process.platform"

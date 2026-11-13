@@ -96,7 +96,7 @@ func TestDeclaredBoolCharAlternativesRewriteToPatternPredicate(t *testing.T) {
 func TestFunctionOrPatternBlockChecksAliasPattern(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => typeName
 }
 `
@@ -128,7 +128,7 @@ func TestFunctionOrPatternBlockChecksAliasPattern(t *testing.T) {
 func TestMatchOrPatternChecksAliasPattern(t *testing.T) {
 	src := `tsType(typeName: String) -> String => typeName {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => typeName
 }
 `
@@ -168,8 +168,8 @@ func TestPatternPredicateDoesNotStealValidBitwise(t *testing.T) {
 	if len(diags) > 0 {
 		t.Fatalf("check diagnostics: %v", diags)
 	}
-	if got := info.Functions["mask"].Return; got != Int {
-		t.Fatalf("mask return = %s, want Int", got)
+	if got := info.Functions["mask"].Return; got != Int32 {
+		t.Fatalf("mask return = %s, want Int32", got)
 	}
 	if _, ok := file.Functions[0].Body.(*ast.BinaryExpr); !ok {
 		t.Fatalf("body = %T, want BinaryExpr", file.Functions[0].Body)

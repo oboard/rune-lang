@@ -30,7 +30,7 @@ func TestIterInternalMethodsAreNotPublic(t *testing.T) {
 		t.Fatalf("parse errors: %v", parseErrs)
 	}
 	_, diags := Check(file)
-	if !hasDiagnostic(diags, `type Iter[Int] has no method "toArrayFrom"`) {
+	if !hasDiagnostic(diags, `type Iter[Int32] has no method "toArrayFrom"`) {
 		t.Fatalf("diagnostics = %#v, want hidden Iter.toArrayFrom", diags)
 	}
 }

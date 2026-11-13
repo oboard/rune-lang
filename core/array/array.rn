@@ -1,12 +1,12 @@
 + Array[T]: {
-  length() -> Int => "%array.len"
+  length() -> Int32 => "%array.len"
 
   isEmpty() -> Bool => .length() == 0
 
-  push(value: T) -> Int => "%array.push"
+  push(value: T) -> Int32 => "%array.push"
 
   #alias("[_]=_")
-  set(index: Int, value: T) -> T => "%array.set"
+  set(index: Int32, value: T) -> T => "%array.set"
 
   pop() -> T => "%array.pop"
 
@@ -15,8 +15,8 @@
   last() -> T => "%array.last"
 
   slice(
-    start: Int,
-    end: Int
+    start: Int32,
+    end: Int32
   ) -> Array[T] => "%array.slice"
 
   clone() -> Array[T] => "%array.clone"
@@ -28,7 +28,7 @@
   each[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> R
   ) -> Void => "%array.each"
@@ -36,7 +36,7 @@
   map[U](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> U
   ) -> Array[U] => "%array.map"
@@ -46,7 +46,7 @@
     callbackfn: (
       accumulator: U,
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> U
   ) -> U => "%array.reduce"
@@ -56,7 +56,7 @@
     callbackfn: (
       accumulator: U,
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> U
   ) -> U => "%array.foldl"
@@ -66,11 +66,11 @@
     callbackfn: (
       accumulator: U,
       value: T,
-      index?: Int,
+      index?: Int32,
       array?: Array[T]
     ) -> U
   ) -> U => "%array.foldr"
 
   #alias("_[_]")
-  at(index: Int) -> T => "%array.at"
+  at(index: Int32) -> T => "%array.at"
 }

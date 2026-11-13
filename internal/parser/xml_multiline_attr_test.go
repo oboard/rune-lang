@@ -7,7 +7,7 @@ func TestParseMultilineXMLEventAttributes(t *testing.T) {
 main() => {
   $list := [{ name: "one" }]
   <div>
-    {$list.map((item, index: Int) => (
+    {$list.map((item, index: Int32) => (
       <input value={item.name} @change={(e) => { $list.set(index, {..item, name: e.target?.value ?? ""}) }} />
     ))}
     <input

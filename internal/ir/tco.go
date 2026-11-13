@@ -17,6 +17,16 @@ type LoopExpr struct {
 
 func (*LoopExpr) exprNode() {}
 
+// WhileExpr is a conditional loop expression. The body runs while Cond is
+// true; it yields Void and is normally discarded in statement position.
+type WhileExpr struct {
+	ExprBase
+	Cond Expr
+	Body Expr
+}
+
+func (*WhileExpr) exprNode() {}
+
 // IfStmt models a statement-level conditional with explicit then/else bodies.
 type IfStmt struct {
 	Cond Expr
@@ -37,6 +47,15 @@ type ContinueStmt struct {
 
 func (*ContinueStmt) stmtNode() {}
 func (s *ContinueStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+type BreakStmt struct {
+	Pos lexer.Position
+}
+
+func (*BreakStmt) stmtNode() {}
+func (s *BreakStmt) Position() lexer.Position {
 	return s.Pos
 }
 

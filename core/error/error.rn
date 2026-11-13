@@ -1,5 +1,5 @@
 + Error: {
-  code: Int
+  code: Int32
   message: String
   cause: Error?
 }

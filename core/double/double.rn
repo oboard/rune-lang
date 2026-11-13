@@ -7,11 +7,11 @@
 
   div(other: Double) -> Double => "%double.div"
 
-  trunc() -> Int => "%double.trunc"
+  trunc() -> Int32 => "%double.trunc"
 
-  floor() -> Int => "%double.floor"
+  floor() -> Int32 => "%double.floor"
 
-  ceil() -> Int => "%double.ceil"
+  ceil() -> Int32 => "%double.ceil"
 
-  round() -> Int => "%double.round"
+  round() -> Int32 => "%double.round"
 }

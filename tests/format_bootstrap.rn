@@ -14,6 +14,81 @@
 `)
 }
 
+? "selfhost formatter preserves if expressions" {
+  formatted := formatSource("sign(value)=>if (value > 0) { 1 } else { 2 }")
+  @assert.eq(formatted, `sign(value) => if (value > 0) {
+  1
+} else {
+  2
+}
+`)
+}
+
+? "selfhost formatter preserves switch expressions" {
+  formatted := formatSource(`label(value: Int32) -> String => switch (value) {
+  case 1: {
+    "one"
+  }
+  default: {
+    "other"
+  }
+}`)
+  @assert.eq(formatted, `label(value: Int32) -> String => switch (value) {
+  case 1: {
+    "one"
+  }
+  default: {
+    "other"
+  }
+}
+`)
+}
+
+? "selfhost formatter preserves for-of expressions" {
+  formatted := formatSource("main()=>{for (const value of values) {@io.println(value)}}")
+  @assert.eq(formatted, `main() => {
+  for (const value of values) {
+    @io.println(value)
+  }
+}
+`)
+}
+
+? "selfhost formatter preserves loop expressions and mutable bindings" {
+  formatted := formatSource("main()=>{\n  i:=:0\n  * (i<3) { i = i + 1 }\n}")
+  @assert.eq(formatted, `main() => {
+  i :=: 0
+  * (i < 3) {
+    i = i + 1
+  }
+}
+`)
+}
+
+? "selfhost formatter preserves return statements" {
+  formatted := formatSource("early(value: Int32) -> String => { if (value > 0) { return \"positive\" } \"non-positive\" }")
+  @assert.eq(formatted, `early(value: Int32) -> String => {
+  if (value > 0) {
+    return "positive"
+  }
+  "non-positive"
+}
+`)
+}
+
+? "selfhost formatter preserves break and continue" {
+  formatted := formatSource("main()=>{\n  * (true) { ^ }\n  * (true) { ^> }\n}")
+  @assert.eq(formatted, `main() => {
+  * (true) {
+    ^
+  }
+  * (true) {
+    ^>
+  }
+}
+`)
+}
+
 ? "selfhost formatter expands arrays onto separate lines" {
   formatted := formatSource(`render() => {
   $list := [TodoItem {
@@ -50,7 +125,7 @@
   formatted := formatSource(`@"helper.rn"
 Status:{Completed=0 Fail=1}
 main()=>{values:={"a":1,"b":2}value:=flag?1:other?2:3}
-classify(values:Array[Int])->Int=>values{[0,..rest]@whole=>rest.length()+whole.length() _=>0}`)
+classify(values:Array[Int32])->Int32=>values{[0,..rest]@whole=>rest.length()+whole.length() _=>0}`)
   @assert.eq(formatted, `@"helper.rn"
 
 Status: {
@@ -66,7 +141,7 @@ main() => {
   value := (flag ? 1 : (other ? 2 : 3))
 }
 
-classify(values: Array[Int]) -> Int => values {
+classify(values: Array[Int32]) -> Int32 => values {
   [0,..rest]@whole => rest.length() + whole.length()
   _ => 0
 }

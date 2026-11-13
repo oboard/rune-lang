@@ -201,8 +201,8 @@ func TestInterpreterReadsInputIntrinsics(t *testing.T) {
 
 func TestInterpreterRunsObjectDestructure(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
 main() => {
@@ -260,21 +260,21 @@ main() => {
 
 func TestInterpreterRunsDestructuringPatterns(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
-pointScore(point: Point) -> Int => point {
+pointScore(point: Point) -> Int32 => point {
   { x, y: yy, .. } => x + yy
   _ => 0
 }
 
-optionalPoint(point: Point) -> Int => point {
+optionalPoint(point: Point) -> Int32 => point {
   { z?: 1, .. } => 7
   _ => 0
 }
 
-mapScore(values: Map[String, Int]) -> Int => values {
+mapScore(values: Map[String, Int32]) -> Int32 => values {
   { "a": value, .. } => value
   { "missing"?: null, .. } => 7
   _ => 0
@@ -307,8 +307,8 @@ main() => {
 
 func TestInterpreterStructSpreadMergesFields(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
 main() => {

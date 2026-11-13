@@ -22,14 +22,14 @@ func TestGenerateMainPrintln(t *testing.T) {
 }
 
 func TestGeneratePatternBlockFib(t *testing.T) {
-	src := `fib(n: Int) -> Int => {
+	src := `fib(n: Int32) -> Int32 => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)
 }`
 	got := generateSource(t, src)
 	for _, want := range []string{
-		"(n : Int) -> Int {",
+		"(n : Int32) -> Int32 {",
 		"match n {",
 		"0 => 0",
 		"_ =>",
@@ -129,8 +129,8 @@ func TestGenerateBufferReaderWriterIntrinsics(t *testing.T) {
 	got := generateSource(t, src)
 	for _, want := range []string{
 		"pub struct Buffer {",
-		"values : Array[Int]",
-		"pub fn buffer_new() -> Array[Int]",
+		"values : Array[Int32]",
+		"pub fn buffer_new() -> Array[Int32]",
 		"Buffer::{ values: [] }",
 		"let buffer = buffer_new()",
 		"(writer.toInts())[4]",
@@ -443,7 +443,7 @@ func TestGenerateNotParenthesizesAndExpr(t *testing.T) {
 func TestGenerateEscapesReservedIdentifiers(t *testing.T) {
 	src := `Token: {
   module: String
-  static: Int
+  static: Int32
 }
 
 useReserved(method: String) -> String => {
@@ -453,7 +453,7 @@ useReserved(method: String) -> String => {
 	got := generateSource(t, src)
 	for _, want := range []string{
 		"module_ : String",
-		"static_ : Int",
+		"static_ : Int32",
 		"method_ : String",
 		"let member_ = Token::{ module_: method_, static_: 1 }",
 		"member_.module_",
@@ -487,7 +487,7 @@ main() => @io.println(Kind.B)`
 func TestGeneratePublicDeclarationsWithoutKeepalive(t *testing.T) {
 	src := `Token: {
   kind: Kind
-  offset: Int
+  offset: Int32
 }
 
 Kind: {
@@ -538,8 +538,8 @@ func TestGenerateNetIntrinsics(t *testing.T) {
 		"server : @socket.TcpServer",
 		"async fn rune_net_connect(address : String) -> Result[RuneTCPConnection, String]",
 		"async fn rune_net_listen(address : String) -> Result[RuneTCPListener, String]",
-		"async fn rune_net_connection_read(connection : RuneTCPConnection, length : Int) -> Result[Array[Int], String]",
-		"async fn rune_net_connection_write(connection : RuneTCPConnection, data : Array[Int]) -> Result[Int, String]",
+		"async fn rune_net_connection_read(connection : RuneTCPConnection, length : Int32) -> Result[Array[Int32], String]",
+		"async fn rune_net_connection_write(connection : RuneTCPConnection, data : Array[Int32]) -> Result[Int32, String]",
 		"async fn rune_net_listener_accept(listener : RuneTCPListener) -> Result[RuneTCPConnection, String]",
 		"rune_net_listen(\"127.0.0.1:0\")",
 		"rune_net_listener_accept(listener)",
@@ -578,7 +578,7 @@ func TestGenerateIterAndStringBuffer(t *testing.T) {
 		"iter_new(() =>",
 		"values.next()",
 		"first.0",
-		".map((value : Int) => value * 2).to_array()",
+		".map((value : Int32) => value * 2).to_array()",
 		"while __index",
 		"StringBuilder()",
 		`write_string(" core")`,
@@ -638,4 +638,33 @@ func generateSource(t *testing.T, src string) string {
 		t.Fatalf("GenerateIR() error = %v\nsource:\n%s", err, got)
 	}
 	return got
+}
+
+func TestGenerateRejectsUnionTypes(t *testing.T) {
+	prog, diags := compiler.AnalyzeSource("union.rn", `describe(value: String | Double) -> String => "x"
+main() => @io.println(describe("a"))`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	_, err := moonbitcodegen.GenerateIR(prog.IR)
+	if err == nil || !strings.Contains(err.Error(), "union types") {
+		t.Fatalf("GenerateIR() error = %v, want union rejection", err)
+	}
+}
+
+func TestGenerateRejectsTryCatch(t *testing.T) {
+	prog, diags := compiler.AnalyzeSource("try.rn", `main() => {
+  try {
+    @io.println("body")
+  } catch (err) {
+    @io.println(err)
+  }
+}`)
+	if len(diags) > 0 {
+		t.Fatalf("AnalyzeSource() diagnostics = %#v", diags)
+	}
+	_, err := moonbitcodegen.GenerateIR(prog.IR)
+	if err == nil || !strings.Contains(err.Error(), "try/catch/throw") {
+		t.Fatalf("GenerateIR() error = %v, want try/catch rejection", err)
+	}
 }

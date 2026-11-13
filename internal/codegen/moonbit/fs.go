@@ -3,13 +3,13 @@ package moonbitcodegen
 func (g *generator) fsRuntime() {
 	g.line("struct RuneFileStat {")
 	g.indent++
-	g.line("size : Int")
+	g.line("size : Int32")
 	g.line("isFile : Bool")
 	g.line("isDirectory : Bool")
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_fs_read_file(path : String) -> Result[Array[Int], String] {")
+	g.line("async fn rune_fs_read_file(path : String) -> Result[Array[Int32], String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -37,7 +37,7 @@ func (g *generator) fsRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_fs_write_file(path : String, data : Array[Int]) -> Result[Unit, String] {")
+	g.line("async fn rune_fs_write_file(path : String, data : Array[Int32]) -> Result[Unit, String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++

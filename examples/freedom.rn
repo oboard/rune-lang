@@ -1,7 +1,7 @@
 Println: {
-  return: Int
-  func: Int
-  def: Int
+  return: Int32
+  func: Int32
+  def: Int32
 }
 
 main() => {

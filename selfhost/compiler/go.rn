@@ -45,7 +45,7 @@ emitGoTailLoopGroups(file: IRFile) -> String => (
 goHasTailLoopGroup(
   functions: Array[IRFunction],
   group: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (functions[index].tailLoopGroup == group) || goHasTailLoopGroup(functions, group, index + 1)
@@ -60,7 +60,7 @@ emitGoLexerScanTailLoopGroup(file: IRFile) -> String => {
 goFindLexerScanTailLoopFunction(
   functions: Array[IRFunction],
   scan: Bool,
-  index: Int
+  index: Int32
 ) -> IRFunction => (
   index >= functions.length() ? emptyIRFunction()
     : (scan ? functions[index].name.endsWith("_scan") || (functions[index].name == "scan") : functions[index].name.endsWith("_scanLexed") || (functions[index].name == "scanLexed")) ? functions[index]
@@ -86,19 +86,19 @@ emitGoLexerScanDispatcher(
 emitGoLexerScanCase(
   file: IRFile,
   fn: IRFunction,
-  level: Int
+  level: Int32
 ) -> String => line(level, "{") + line(level + 1, "state := __scanState") + line(level + 1, "tokens := __scanTokens") + emitGoLexerTailExpr(file, fn.body, level + 1) + line(level, "}")
 
 emitGoLexerScanLexedCase(
   file: IRFile,
   fn: IRFunction,
-  level: Int
+  level: Int32
 ) -> String => line(level, "{") + line(level + 1, "lexed := __scanLexed") + line(level + 1, "tokens := __scanLexedTokens") + emitGoLexerTailExpr(file, fn.body, level + 1) + line(level, "}")
 
 emitGoLexerTailExpr(
   file: IRFile,
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Block => emitGoLexerTailBlock(file, expr.children, 0, level)
   ExprKind.Ternary => line(level, "if " + emitGoExpr(expr.children[0]) + " {") + emitGoLexerTailExpr(file, expr.children[1], level + 1) + line(level, "} else {") + emitGoLexerTailExpr(file, expr.children[2], level + 1) + line(level, "}")
@@ -109,8 +109,8 @@ emitGoLexerTailExpr(
 emitGoLexerTailBlock(
   file: IRFile,
   children: Array[IRExpr],
-  index: Int,
-  level: Int
+  index: Int32,
+  level: Int32
 ) -> String => (
   index >= children.length() ? ""
     : index == (children.length() - 1) ? emitGoLexerTailExpr(file, children[index], level)
@@ -120,7 +120,7 @@ emitGoLexerTailBlock(
 emitGoLexerTailCall(
   file: IRFile,
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => (
   isGoLexerTailMemberCall(expr, true) ? line(level, "__scanState, __scanTokens = " + emitGoExpr(expr.children[1]) + ", " + emitGoExpr(expr.children[2])) + line(level, "__pc = 0") + line(level, "continue")
     : isGoLexerTailMemberCall(expr, false) ? line(level, "__scanLexed, __scanLexedTokens = " + emitGoExpr(expr.children[1]) + ", " + emitGoExpr(expr.children[2])) + line(level, "__pc = 1") + line(level, "continue")
@@ -141,7 +141,7 @@ emitGoImports(file: IRFile) -> String => {
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.platform"), "runtime")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "process.argv") || fileUsesModuleCall(file, "process.exit"), "os")
   imports = appendGoImportIf(imports, fileUsesDoubleMath(file), "math")
-  imports = appendGoImportIf(imports, (fileUsesModuleCall(file, "int.toString") || fileUsesModuleCall(file, "bigint.toString")) || fileUsesToString(file), "strconv")
+  imports = appendGoImportIf(imports, (fileUsesModuleCall(file, "int32.toString") || fileUsesModuleCall(file, "bigint.toString")) || fileUsesToString(file), "strconv")
   imports = appendGoImportIf(imports, fileUsesUnwrap(file), "reflect")
   imports = appendGoImportIf(imports, fileUsesModuleCall(file, "json.parse") || fileUsesModuleCall(file, "json.stringify"), "encoding/json")
   empty := imports.length() == 0
@@ -154,7 +154,7 @@ emitGoImports(file: IRFile) -> String => {
 appendGoImportDecls(
   imports: Array[String],
   importDecls: Array[IRImport],
-  index: Int
+  index: Int32
 ) -> Array[String] => {
   done := index >= importDecls.length()
   done {
@@ -193,7 +193,7 @@ appendGoImportIf(
 goImportContains(
   imports: Array[String],
   path: String,
-  index: Int
+  index: Int32
 ) -> Bool => {
   done := index >= imports.length()
   done {
@@ -210,7 +210,7 @@ goImportContains(
 
 emitGoImportLines(
   imports: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= imports.length() ? out
@@ -460,7 +460,7 @@ emitGoPayloadEnum(
 emitGoPayloadEnumTags(
   enumName: String,
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -471,7 +471,7 @@ emitGoPayloadEnumConstructors(
   enumName: String,
   generics: Array[String],
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -493,7 +493,7 @@ emitGoPayloadEnumConstructor(
 
 emitGoParamNames(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -509,7 +509,7 @@ enumHasPayload(
 
 enumHasPayloadAt(
   members: Array[IREnumMember],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= members.length() ? false
     : (
@@ -521,7 +521,7 @@ enumHasPayloadAt(
 emitGoEnumMembers(
   enumName: String,
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -593,7 +593,7 @@ inferredGoReturnType(
 ) -> String => (
   fn.returnType != "" ? fn.returnType
     : (
-      fn.body.kind == ExprKind.PatternBlock ? "Int"
+      fn.body.kind == ExprKind.PatternBlock ? "Int32"
         : inferGoExprReturnType(fn.body)
     )
 )
@@ -622,7 +622,7 @@ inferGoStatementReturnType(
 
 emitGoFunctionParams(
   fn: IRFunction,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fn.params.length() ? out
@@ -638,7 +638,7 @@ inferredGoParamType(
 ) -> String => (
   param.typeName != "" ? param.typeName
     : (
-      (fn.body.kind == ExprKind.PatternBlock) && (fn.params.length() == 1) ? "Int"
+      (fn.body.kind == ExprKind.PatternBlock) && (fn.params.length() == 1) ? "Int32"
         : ""
     )
 )
@@ -648,7 +648,7 @@ emitGoBody(
   expr: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Block => emitGoBlock(file, expr.children, 0, returns, returnType, level, "")
   ExprKind.PatternBlock => emitGoPatternBlock(file, expr, returns, returnType, level)
@@ -665,7 +665,7 @@ emitGoTailLoopBody(
   file: IRFile,
   fn: IRFunction,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => line(level, "for {") + emitGoTailLoopExpr(file, fn, fn.body, returnType, level + 1) + line(level, "}")
 
 emitGoTailLoopExpr(
@@ -673,7 +673,7 @@ emitGoTailLoopExpr(
   fn: IRFunction,
   expr: IRExpr,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Ternary => emitGoTailLoopTernary(file, fn, expr, returnType, level)
   ExprKind.Call => (
@@ -688,7 +688,7 @@ emitGoTailLoopTernary(
   fn: IRFunction,
   expr: IRExpr,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => line(level, "if " + emitGoExpr(expr.children[0]) + " {") + emitGoTailLoopExpr(file, fn, expr.children[1], returnType, level + 1) + line(level, "} else {") + emitGoTailLoopExpr(file, fn, expr.children[2], returnType, level + 1) + line(level, "}")
 
 isGoTailSelfCall(
@@ -698,7 +698,7 @@ isGoTailSelfCall(
 
 emitGoTailLoopParamNames(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -713,7 +713,7 @@ emitGoPatternBlock(
   expr: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => {
   out :=: line(level, "switch n {")
   out = out + emitGoPatternBranches(file, expr.children, 0, returns, returnType, level + 1, "")
@@ -727,10 +727,10 @@ emitGoPatternBlock(
 emitGoPatternBranches(
   file: IRFile,
   branches: Array[IRExpr],
-  index: Int,
+  index: Int32,
   returns: Bool,
   returnType: String,
-  level: Int,
+  level: Int32,
   out: String
 ) -> String => (
   index >= branches.length() ? out
@@ -742,7 +742,7 @@ emitGoPatternBranch(
   branch: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => {
   pattern := branch.children[0]
   value := branch.children[1]
@@ -758,7 +758,7 @@ emitGoPatternBranchBody(
   value: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => (
   returns ? line(level, "return " + emitGoExprExpectedForFile(file, value, returnType))
     : line(level, emitGoExpr(value))
@@ -771,10 +771,10 @@ emitGoPatternCondition(
 emitGoBlock(
   file: IRFile,
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   returns: Bool,
   returnType: String,
-  level: Int,
+  level: Int32,
   out: String
 ) -> String => (
   index >= statements.length() ? (
@@ -790,7 +790,7 @@ emitGoStatement(
   last: Bool,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Let => emitGoLet(file, expr, level)
   ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
@@ -811,7 +811,7 @@ goStatementReturnsValue(
 emitGoLet(
   file: IRFile,
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => {
   value := emitGoLetValue(file, expr)
   payload := unwrapPayloadType(file, expr.children[0])
@@ -850,7 +850,7 @@ emitGoLetValue(
 
 emitGoObjectDestructure(
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => {
   source := emitGoExpr(expr.children[0])
   out :=: ""
@@ -860,7 +860,7 @@ emitGoObjectDestructure(
 
 emitGoParams(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -903,6 +903,10 @@ emitGoExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Object => emitGoInferredObject(expr)
   ExprKind.XMLElement => "/* XML is only supported by the TypeScript backend */"
   ExprKind.Block => ("func() any {\n" + emitGoBlockNoContext(expr.children, 0, true, "Dynamic", 1, "")) + "}()"
+  ExprKind.Loop => "func() {\n" + line(1, "for " + emitGoExpr(expr.children[0]) + " {") + emitGoBlockNoContext(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "}()"
+  ExprKind.Return => expr.children.length() > 0 ? "return " + emitGoExpr(expr.children[0]) : "return"
+  ExprKind.Break => "break"
+  ExprKind.Continue => "continue"
   _ => "nil"
 }
 
@@ -922,7 +926,7 @@ goStructuralObjectType(
 
 goStructuralObjectFields(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= parts.length() ? out
@@ -969,7 +973,7 @@ emitGoTemplate(expr: IRExpr) -> String => {
 goTemplateAccumulate(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= segments.length() ? out
@@ -979,7 +983,7 @@ goTemplateAccumulate(
 goTemplateAppendStep(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => {
   withText := (
@@ -994,7 +998,7 @@ goTemplateAppendStep(
 
 joinGoTemplateParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= parts.length() ? out
@@ -1011,7 +1015,7 @@ goStringLiteral(raw: String) -> String => ("\"" + goStringLiteralChars(raw, 0, "
 
 goStringLiteralChars(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= raw.length() ? out
@@ -1020,7 +1024,7 @@ goStringLiteralChars(
 
 goStringLiteralChar(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => ((raw.at(index) == '\\') && ((index + 1) < raw.length())) {
   true => goStringLiteralNext(raw, index + 2, out + goStringLiteralEscaped(raw.at(index + 1)))
@@ -1065,7 +1069,7 @@ goStringLiteralPlain(ch: Char) -> String => (
 
 goStringLiteralNext(
   raw: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => goStringLiteralChars(raw, index, out)
 
@@ -1119,7 +1123,7 @@ emitGoTypeArgs(args: String) -> String => emitGoTypeArgList(args.split(","), 0, 
 
 emitGoTypeArgList(
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= args.length() ? out
@@ -1131,10 +1135,10 @@ emitGoTypeArgList(
 
 emitGoBlockNoContext(
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   returns: Bool,
   returnType: String,
-  level: Int,
+  level: Int32,
   out: String
 ) -> String => (
   index >= statements.length() ? (
@@ -1148,7 +1152,7 @@ emitGoStatementNoContext(
   expr: IRExpr,
   last: Bool,
   returns: Bool,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Let => line(level, (mangleIdent(expr.name) + " := ") + emitGoExpr(expr.children[0])) + line(level, "_ = " + mangleIdent(expr.name))
   ExprKind.ObjectDestructure => emitGoObjectDestructure(expr, level)
@@ -1247,8 +1251,8 @@ goFunctionType(
 
 goFunctionParamTypes(
   parts: Array[String],
-  index: Int,
-  last: Int,
+  index: Int32,
+  last: Int32,
   out: String
 ) -> String => (
   index >= last ? out
@@ -1295,9 +1299,9 @@ emitGoCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "process.env" => "(*string)(nil)"
   "process.argv" => "append([]string(nil), os.Args[1:]...)"
   "process.exit" => ("func() struct{} { os.Exit(" + emitGoExpr(expr.children[1])) + "); return struct{}{} }()"
-  "int.toString" => ("strconv.Itoa(" + emitGoExpr(expr.children[1])) + ")"
-  "int.toDouble" => ("float64(" + emitGoExpr(expr.children[1])) + ")"
-  "int.toBigInt" => ("int64(" + emitGoExpr(expr.children[1])) + ")"
+  "int32.toString" => ("strconv.Itoa(" + emitGoExpr(expr.children[1])) + ")"
+  "int32.toDouble" => ("float64(" + emitGoExpr(expr.children[1])) + ")"
+  "int32.toBigInt" => ("int64(" + emitGoExpr(expr.children[1])) + ")"
   "int4.fromInt" => ("func() int8 { n := (" + emitGoExpr(expr.children[1])) + ") & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()"
   "int8.fromInt" => ("func() int8 { n := int(" + emitGoExpr(expr.children[1])) + "); return int8(n) }()"
   "int16.fromInt" => ("func() int16 { n := int(" + emitGoExpr(expr.children[1])) + "); return int16(n) }()"
@@ -1453,7 +1457,7 @@ emitGoCoreToString(
   receiver: IRExpr
 ) -> String => receiver.text {
   "Bool" => ("strconv.FormatBool(" + emitGoExpr(receiver)) + ")"
-  "Int" | "int4" | "int8" | "int16" | "int64" | "uint" | "uint8" | "uint16" | "uint64" => ("strconv.Itoa(int(" + emitGoExpr(receiver)) + "))"
+  "Int32" | "int4" | "int8" | "int16" | "int64" | "uint" | "uint8" | "uint16" | "uint64" => ("strconv.Itoa(int(" + emitGoExpr(receiver)) + "))"
   "Double" => ("strconv.FormatFloat(" + emitGoExpr(receiver)) + ", 'f', -1, 64)"
   "Float" => ("strconv.FormatFloat(float64(" + emitGoExpr(receiver)) + "), 'f', -1, 32)"
   "Char" => ("string(" + emitGoExpr(receiver)) + ")"
@@ -1502,13 +1506,13 @@ emitGoAtSelector(expr: IRExpr) -> String => {
 
 emitGoExprList(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => emitGoExprListFrom(exprs, index, out)
 
 emitGoExprListFrom(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= exprs.length() ? out
@@ -1520,7 +1524,7 @@ emitGoExprListFrom(
 
 emitGoMapEntries(
   entries: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= entries.length() ? out
@@ -1532,7 +1536,7 @@ emitGoMapEntries(
 
 emitGoFields(
   fields: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fields.length() ? out
@@ -1556,7 +1560,7 @@ hasMain(file: IRFile) -> Bool => hasFunction(file.functions, "main", 0)
 hasFunction(
   functions: Array[IRFunction],
   name: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -1571,7 +1575,7 @@ fileUsesTemplate(file: IRFile) -> Bool => (functionsUseTemplate(file.functions, 
 
 functionsUseTemplate(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -1585,7 +1589,7 @@ functionsUseTemplate(
 
 structsUseTemplate(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : (
@@ -1596,7 +1600,7 @@ structsUseTemplate(
 
 enumsUseTemplate(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : (
@@ -1609,7 +1613,7 @@ exprUsesTemplate(expr: IRExpr) -> Bool => (expr.kind == ExprKind.Template) || ex
 
 exprChildrenUseTemplate(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : (
@@ -1622,7 +1626,7 @@ fileUsesToString(file: IRFile) -> Bool => (functionsUseToString(file.functions, 
 
 functionsUseToString(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -1636,7 +1640,7 @@ functionsUseToString(
 
 structsUseToString(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : (
@@ -1647,7 +1651,7 @@ structsUseToString(
 
 enumsUseToString(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : (
@@ -1667,11 +1671,11 @@ exprIsScalarToStringCall(
 
 goScalarToStringReceiver(
   typeName: String
-) -> Bool => (((((((((((((typeName == "Bool") || (typeName == "Int")) || (typeName == "int4")) || (typeName == "int8")) || (typeName == "int16")) || (typeName == "int64")) || (typeName == "uint")) || (typeName == "uint8")) || (typeName == "uint16")) || (typeName == "uint64")) || (typeName == "Double")) || (typeName == "Float")) || (typeName == "Char")) || (typeName == "BigInt")
+) -> Bool => (((((((((((((typeName == "Bool") || (typeName == "Int32")) || (typeName == "int4")) || (typeName == "int8")) || (typeName == "int16")) || (typeName == "int64")) || (typeName == "uint")) || (typeName == "uint8")) || (typeName == "uint16")) || (typeName == "uint64")) || (typeName == "Double")) || (typeName == "Float")) || (typeName == "Char")) || (typeName == "BigInt")
 
 exprChildrenUseToString(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : (
@@ -1682,7 +1686,7 @@ exprChildrenUseToString(
 
 functionsUsePrint(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -1696,7 +1700,7 @@ functionsUsePrint(
 
 structsUsePrint(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : (
@@ -1707,7 +1711,7 @@ structsUsePrint(
 
 enumsUsePrint(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : (
@@ -1723,7 +1727,7 @@ exprUsesPrint(expr: IRExpr) -> Bool => moduleCallKey(expr) {
 
 exprChildrenUsePrint(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : (
@@ -1860,7 +1864,7 @@ goJSONDeclsForNewStruct(
 goJSONDeclsForFields(
   file: IRFile,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   names: Array[String],
   text: String
 ) -> GoJSONDeclResult => {
@@ -1874,7 +1878,7 @@ goJSONDeclsForFields(
 goJSONDeclsForField(
   file: IRFile,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   names: Array[String],
   text: String
 ) -> GoJSONDeclResult => {
@@ -1892,7 +1896,7 @@ goJSONDeclsForField(
 goJSONStructWireFields(
   file: IRFile,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   done := index >= fields.length()
@@ -1905,7 +1909,7 @@ goJSONStructWireFields(
 goJSONStructWireField(
   file: IRFile,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   field := fields[index]
@@ -1940,7 +1944,7 @@ goJSONOmitType(typeName: String) -> Bool => typeName ~ ("" | "Void" | "Symbol")
 goJSONDeclSeen(
   names: Array[String],
   name: String,
-  index: Int
+  index: Int32
 ) -> Bool => {
   done := index >= names.length()
   done {
@@ -1958,8 +1962,8 @@ goJSONDeclSeen(
 goJSONStructIndex(
   structs: Array[IRStructType],
   typeName: String,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   done := index >= structs.length()
   done {
     true => -1
@@ -2022,7 +2026,7 @@ goJSONDecodedFieldAssignments(
   file: IRFile,
   source: String,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   done := index >= fields.length()
@@ -2036,7 +2040,7 @@ goJSONDecodedFieldAssignment(
   file: IRFile,
   source: String,
   fields: Array[IRField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   field := fields[index]
@@ -2055,7 +2059,7 @@ goJSONDecodedFieldAssignment(
 goType(typeName: String) -> String => typeName {
   "" => "any"
   "Void" => "struct{}"
-  "Int" => "int"
+  "Int32" => "int"
   "Int4" | "Int8" => "int8"
   "Int16" => "int16"
   "Int64" => "int64"
@@ -2113,7 +2117,7 @@ emitGoGenericsDecl(
 
 emitGoGenericDeclItems(
   generics: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= generics.length() ? out
@@ -2132,7 +2136,7 @@ emitGoGenericsUse(
 
 emitGoGenericUseItems(
   generics: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= generics.length() ? out
@@ -2169,7 +2173,7 @@ callReturnType(
 functionReturnType(
   functions: Array[IRFunction],
   name: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= functions.length() ? ""
     : (
@@ -2189,7 +2193,7 @@ resultPayloadType(
 }
 
 goZero(typeName: String) -> String => typeName {
-  "Int" | "Int4" | "Int8" | "Int16" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt64" | "BigInt" => "0"
+  "Int32" | "Int4" | "Int8" | "Int16" | "Int64" | "UInt" | "UInt8" | "UInt16" | "UInt64" | "BigInt" => "0"
   "Double" | "Float" => "0.0"
   "String" => "\"\""
   "Char" => "'\\x00'"

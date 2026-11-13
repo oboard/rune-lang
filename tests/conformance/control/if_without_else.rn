@@ -1,0 +1,9 @@
+// expect: yes
+// targets: interpreter,go,ts,mbt
+main() => {
+  (1 > 0) ? {
+    @io.println("yes")
+  } : {
+    @io.println("no")
+  }
+}

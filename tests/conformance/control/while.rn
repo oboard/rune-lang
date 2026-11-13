@@ -1,0 +1,16 @@
+// expect: 0
+// expect: 1
+// expect: 2
+// targets: interpreter,go,ts,mbt
+
+
+// *	loop	重复
+// ^	break	向上跳出循环
+// ^>	continue	向上跳转，再向前继续
+main() => {
+  i :=: 0
+  * (i < 3) {
+    @io.println(i)
+    i = i + 1
+  }
+}

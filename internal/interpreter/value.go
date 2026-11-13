@@ -17,6 +17,12 @@ type nullValue struct{}
 
 var NullValue Value = nullValue{}
 
+type undefinedValue struct{}
+
+// UndefinedValue is the `undefined` singleton, distinct from NullValue so
+// `typeof` can report "undefined".
+var UndefinedValue Value = undefinedValue{}
+
 type Char rune
 
 type Array struct {

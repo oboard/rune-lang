@@ -1,0 +1,15 @@
+// expect: one
+// expect: two
+// expect: other
+// targets: interpreter,go,ts,mbt
+label(value: Int32) -> String => {
+  1 => "one"
+  2 => "two"
+  _ => "other"
+}
+
+main() => {
+  @io.println(label(1))
+  @io.println(label(2))
+  @io.println(label(9))
+}

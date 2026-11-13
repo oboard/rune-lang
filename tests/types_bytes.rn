@@ -1,4 +1,4 @@
-? "bitwise operators on Int" {
+? "bitwise operators on Int32" {
   @assert.eq(6 & 3, 2)
   @assert.eq(6 | 3, 7)
   @assert.eq(6 ^ 3, 5)

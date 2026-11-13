@@ -50,8 +50,18 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 		return e.Value, nil
 	case *ir.NullLiteral:
 		return NullValue, nil
+	case *ir.UndefinedLiteral:
+		return UndefinedValue, nil
 	case *ir.UnaryExpr:
 		return i.evalUnary(e, env)
+	case *ir.TypeOfExpr:
+		value, err := i.eval(e.Argument, env)
+		if err != nil {
+			return nil, err
+		}
+		return runtimeTypeof(value), nil
+	case *ir.NarrowExpr:
+		return i.eval(e.Expr, env)
 	case *ir.PostfixExpr:
 		return i.evalPostfix(e, env)
 	case *ir.ResultUnwrapExpr:
@@ -208,12 +218,39 @@ func (i *Interpreter) eval(expr ir.Expr, env *Env) (Value, error) {
 			return nil, err
 		}
 		return i.evalPatternBlock(&ir.PatternBlock{ExprBase: e.ExprBase, Branches: e.Branches}, subject, env)
+	case *ir.WhileExpr:
+		return i.evalWhile(e, env)
 	case *ir.XMLElement:
 		return nil, fmt.Errorf("XML is only supported by the TypeScript backend")
 	case *ir.WatchExpr:
 		return nil, fmt.Errorf("watch expressions are only supported by generated backends")
 	default:
 		return nil, fmt.Errorf("unsupported expression %T", expr)
+	}
+}
+
+func (i *Interpreter) evalWhile(expr *ir.WhileExpr, env *Env) (Value, error) {
+	for {
+		condition, err := i.eval(expr.Cond, env)
+		if err != nil {
+			return nil, err
+		}
+		keepGoing, ok := condition.(bool)
+		if !ok {
+			return nil, fmt.Errorf("loop condition expects Bool")
+		}
+		if !keepGoing {
+			return nil, nil
+		}
+		if _, err := i.eval(expr.Body, env); err != nil {
+			switch err.(type) {
+			case *continueSignal:
+				continue
+			case *breakSignal:
+				return nil, nil
+			}
+			return nil, err
+		}
 	}
 }
 
@@ -280,7 +317,7 @@ func (i *Interpreter) evalPostfix(expr *ir.PostfixExpr, env *Env) (Value, error)
 func incrementValue(value Value) (Value, error) {
 	switch n := value.(type) {
 	case int:
-		return n + 1, nil
+		return int(int32(n) + 1), nil
 	case int8:
 		return n + 1, nil
 	case int16:
@@ -315,7 +352,7 @@ func (i *Interpreter) evalUnary(expr *ir.UnaryExpr, env *Env) (Value, error) {
 	case lexer.Minus:
 		switch n := value.(type) {
 		case int:
-			return -n, nil
+			return int(-int32(n)), nil
 		case int8:
 			return -n, nil
 		case int16:
@@ -334,7 +371,7 @@ func (i *Interpreter) evalUnary(expr *ir.UnaryExpr, env *Env) (Value, error) {
 	case lexer.Tilde:
 		switch n := value.(type) {
 		case int:
-			return ^n, nil
+			return int(^int32(n)), nil
 		case int8:
 			return ^n, nil
 		case int16:
@@ -449,7 +486,11 @@ func evalNumericBytes(op lexer.Kind, left Value, right Value) (Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("arithmetic operands must have matching numeric types")
 		}
-		return evalSignedNumericBytes(op, l, r)
+		out, err := evalSignedNumericBytes(op, int32(l), int32(r))
+		if err != nil {
+			return nil, err
+		}
+		return int(out.(int32)), nil
 	case int8:
 		r, ok := right.(int8)
 		if !ok {
@@ -527,7 +568,7 @@ func evalNumericBytes(op lexer.Kind, left Value, right Value) (Value, error) {
 }
 
 type signedNumber interface {
-	~int | ~int8 | ~int16 | ~int64
+	~int | ~int8 | ~int16 | ~int32 | ~int64
 }
 
 type unsignedNumber interface {
@@ -596,7 +637,11 @@ func evalBitwiseBytes(op lexer.Kind, left Value, right Value) (Value, error) {
 		if !ok {
 			return nil, fmt.Errorf("bitwise operands must have matching integer types")
 		}
-		return evalSignedBitwiseBytes(op, l, r)
+		out, err := evalSignedBitwiseBytes(op, int32(l), int32(r))
+		if err != nil {
+			return nil, err
+		}
+		return int(out.(int32)), nil
 	case int8:
 		r, ok := right.(int8)
 		if !ok {
@@ -945,7 +990,7 @@ func indexValue(receiver Value, index Value) (Value, error) {
 	case *Array:
 		i, ok := index.(int)
 		if !ok {
-			return nil, fmt.Errorf("array index expects Int")
+			return nil, fmt.Errorf("array index expects Int32")
 		}
 		if i < 0 || i >= len(value.Elements) {
 			return nil, fmt.Errorf("array index %d out of range", i)
@@ -954,7 +999,7 @@ func indexValue(receiver Value, index Value) (Value, error) {
 	case *Tuple:
 		i, ok := index.(int)
 		if !ok {
-			return nil, fmt.Errorf("tuple index expects Int")
+			return nil, fmt.Errorf("tuple index expects Int32")
 		}
 		if i < 0 || i >= len(value.Elements) {
 			return nil, fmt.Errorf("tuple index %d out of range", i)
@@ -981,7 +1026,7 @@ func typeName(value Value) string {
 	case nil:
 		return "Void"
 	case int:
-		return string(checker.Int)
+		return string(checker.Int32)
 	case int8:
 		return string(checker.Int8)
 	case int16:
@@ -1004,6 +1049,8 @@ func typeName(value Value) string {
 		return string(checker.UInt64)
 	case nullValue:
 		return string(checker.Null)
+	case undefinedValue:
+		return string(checker.Undefined)
 	case string:
 		return string(checker.String)
 	case Char:
@@ -1034,5 +1081,29 @@ func typeName(value Value) string {
 		return v.TypeName
 	default:
 		return fmt.Sprintf("%T", value)
+	}
+}
+
+// runtimeTypeof implements the `typeof` tag set used by the TS profile.
+// Rune's Null maps to "object" (matching JavaScript), while an unset/void value
+// maps to "undefined".
+func runtimeTypeof(value Value) string {
+	switch value.(type) {
+	case nil:
+		return "undefined"
+	case undefinedValue:
+		return "undefined"
+	case nullValue:
+		return "object"
+	case bool:
+		return "boolean"
+	case string, Char:
+		return "string"
+	case int, int8, int16, int64, uint, uint8, uint16, uint64, float32, float64, *big.Int:
+		return "number"
+	case Closure, stdlibFunctionValue, *stdlibFunctionValue:
+		return "function"
+	default:
+		return "object"
 	}
 }

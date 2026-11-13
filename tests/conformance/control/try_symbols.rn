@@ -1,0 +1,26 @@
+// expect: boom
+// expect: finally
+// expect: number
+// targets: interpreter,go,ts
+run() => {
+  {
+    !! "boom"
+  } !? {
+    err => @io.println(err)
+  } -- {
+    @io.println("finally")
+  }
+}
+
+number() => {
+  {
+    !! 1
+  } ?! {
+    @io.println("number")
+  }
+}
+
+main() => {
+  run()
+  number()
+}

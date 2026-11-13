@@ -6,10 +6,10 @@ import (
 )
 
 var (
-	interfaceRE  = regexp.MustCompile(`(?m)^interface\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
-	typeAliasRE  = regexp.MustCompile(`(?m)^type\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
-	valueDeclRE  = regexp.MustCompile(`(?m)^declare\s+(?:var|let|const)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*:`)
-	funcDeclRE   = regexp.MustCompile(`(?m)^declare\s+(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	interfaceRE = regexp.MustCompile(`(?m)^interface\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	typeAliasRE = regexp.MustCompile(`(?m)^type\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
+	valueDeclRE = regexp.MustCompile(`(?m)^declare\s+(?:var|let|const)\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*:`)
+	funcDeclRE  = regexp.MustCompile(`(?m)^declare\s+(?:async\s+)?function\s+([A-Za-z_$][A-Za-z0-9_$]*)`)
 )
 
 // Parse processes a TypeScript declaration source, specialising in

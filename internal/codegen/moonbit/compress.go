@@ -1,7 +1,7 @@
 package moonbitcodegen
 
 func (g *generator) compressRuntime() {
-	g.line("async fn rune_compress_gzip(data : Array[Int]) -> Result[Array[Int], String] {")
+	g.line("async fn rune_compress_gzip(data : Array[Int32]) -> Result[Array[Int32], String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -22,7 +22,7 @@ func (g *generator) compressRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_compress_gunzip(data : Array[Int]) -> Result[Array[Int], String] {")
+	g.line("async fn rune_compress_gunzip(data : Array[Int32]) -> Result[Array[Int32], String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -55,7 +55,7 @@ func (g *generator) compressRuntime() {
 	g.line("")
 	g.compressBytesFunction("unzstd", "@zstd.decompress")
 	g.line("")
-	g.line("async fn rune_compress_gzip_text(value : String) -> Result[Array[Int], String] {")
+	g.line("async fn rune_compress_gzip_text(value : String) -> Result[Array[Int32], String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -76,7 +76,7 @@ func (g *generator) compressRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("async fn rune_compress_gunzip_text(data : Array[Int]) -> Result[String, String] {")
+	g.line("async fn rune_compress_gunzip_text(data : Array[Int32]) -> Result[String, String] {")
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -107,7 +107,7 @@ func (g *generator) compressRuntime() {
 }
 
 func (g *generator) compressBytesFunction(name string, callee string) {
-	g.linef("async fn rune_compress_%s(data : Array[Int]) -> Result[Array[Int], String] {", name)
+	g.linef("async fn rune_compress_%s(data : Array[Int32]) -> Result[Array[Int32], String] {", name)
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -124,7 +124,7 @@ func (g *generator) compressBytesFunction(name string, callee string) {
 }
 
 func (g *generator) compressTextEncodeFunction(name string) {
-	g.linef("async fn rune_compress_%s_text(value : String) -> Result[Array[Int], String] {", name)
+	g.linef("async fn rune_compress_%s_text(value : String) -> Result[Array[Int32], String] {", name)
 	g.indent++
 	g.line("try {")
 	g.indent++
@@ -148,7 +148,7 @@ func (g *generator) compressTextDecodeFunction(name string) {
 	case "unzstd":
 		codec = "zstd"
 	}
-	g.linef("async fn rune_compress_%s_text(data : Array[Int]) -> Result[String, String] {", name)
+	g.linef("async fn rune_compress_%s_text(data : Array[Int32]) -> Result[String, String] {", name)
 	g.indent++
 	g.line("try {")
 	g.indent++

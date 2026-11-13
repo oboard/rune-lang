@@ -1,5 +1,5 @@
 + Set[T]: {
-  size() -> Int => "%set.size"
+  size() -> Int32 => "%set.size"
 
   has(value: T) -> Bool => "%set.has"
 

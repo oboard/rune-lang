@@ -53,6 +53,64 @@ func (s *AssignStmt) Position() lexer.Position {
 	return s.Pos
 }
 
+// ReturnStmt returns from the enclosing function. Value is nil for a bare
+// `return`.
+type ReturnStmt struct {
+	Value Expr
+	Pos   lexer.Position
+}
+
+func (*ReturnStmt) stmtNode() {}
+func (s *ReturnStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+type BreakStmt struct {
+	Pos lexer.Position
+}
+
+func (*BreakStmt) stmtNode() {}
+func (s *BreakStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+type ContinueStmt struct {
+	Pos lexer.Position
+}
+
+// ThrowStmt raises a value. `try` catches it as an ordinary value; the
+// interpreter and TS backend preserve the thrown value instead of wrapping it
+// in a string message.
+type ThrowStmt struct {
+	Value Expr
+	Pos   lexer.Position
+}
+
+func (*ThrowStmt) stmtNode() {}
+func (s *ThrowStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+// TryStmt is statement-form `try { } catch (e) { } finally { }`. Try is not an
+// expression, matching TypeScript; a function should return after the block.
+type TryStmt struct {
+	Body      *BlockExpr
+	CatchName string
+	Catch     *BlockExpr
+	Finally   *BlockExpr
+	Pos       lexer.Position
+}
+
+func (*TryStmt) stmtNode() {}
+func (s *TryStmt) Position() lexer.Position {
+	return s.Pos
+}
+
+func (*ContinueStmt) stmtNode() {}
+func (s *ContinueStmt) Position() lexer.Position {
+	return s.Pos
+}
+
 type ExprStmt struct {
 	Expr Expr
 	Pos  lexer.Position

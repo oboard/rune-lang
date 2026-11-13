@@ -1,26 +1,26 @@
 + Reader: {
   values: Bytes
-  offset: Int
-  nibble: Int
+  offset: Int32
+  nibble: Int32
 
-  length() -> Int => .values.length()
+  length() -> Int32 => .values.length()
 
-  byteLength() -> Int => .length()
+  byteLength() -> Int32 => .length()
 
-  position() -> Int => .offset
+  position() -> Int32 => .offset
 
-  remaining() -> Int => .length() - .offset
+  remaining() -> Int32 => .length() - .offset
 
   isEmpty() -> Bool => .remaining() == 0
 
-  seek(position: Int) -> Int => {
+  seek(position: Int32) -> Int32 => {
     .values.slice(position, position)
     .offset = position
     .nibble = 0
     .offset
   }
 
-  skip(count: Int) -> Int => .seek(.offset + count)
+  skip(count: Int32) -> Int32 => .seek(.offset + count)
 
   align() -> Void => (.nibble == 1) {
     true => .alignNibble()
@@ -32,16 +32,16 @@
     .nibble = 0
   }
 
-  take(length: Int) -> Bytes => {
+  take(length: Int32) -> Bytes => {
     .align()
     out := .values.slice(.offset, .offset + length)
     .offset = .offset + length
     out
   }
 
-  read(length: Int) -> Bytes => .take(length)
+  read(length: Int32) -> Bytes => .take(length)
 
-  readBytes(length: Int) -> Bytes => .take(length)
+  readBytes(length: Int32) -> Bytes => .take(length)
 
   readInt4() -> Int4 => {
     value := .values.getInt4((.offset * 2) + .nibble)
@@ -52,7 +52,7 @@
     value
   }
 
-  setNibble(value: Int) -> Void => .nibble = value
+  setNibble(value: Int32) -> Void => .nibble = value
 
   advanceNibble() -> Void => {
     .nibble = 0
@@ -75,9 +75,9 @@
     littleEndian: Bool
   ) -> UInt16 => .readUInt16(littleEndian)
 
-  readInt(littleEndian: Bool) -> Int => .take(4).getInt(0, littleEndian)
+  readInt(littleEndian: Bool) -> Int32 => .take(4).getInt(0, littleEndian)
 
-  readInt32(littleEndian: Bool) -> Int => .readInt(littleEndian)
+  readInt32(littleEndian: Bool) -> Int32 => .readInt(littleEndian)
 
   readUInt(littleEndian: Bool) -> UInt => .take(4).getUInt(0, littleEndian)
 

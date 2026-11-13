@@ -1,0 +1,7 @@
+// expect: hello
+// expect: a 1
+// targets: interpreter,go,ts,mbt
+main() => {
+  console.log("hello")
+  console.log("a", 1)
+}

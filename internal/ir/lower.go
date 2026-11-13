@@ -110,6 +110,15 @@ func LowerStmt(stmt ast.Stmt, info *checker.Info) Stmt {
 type lowerer struct {
 	info     *checker.Info
 	expected map[ast.Expr]checker.Type
+	scope    map[string]checker.Type
+}
+
+func cloneScope(scope map[string]checker.Type) map[string]checker.Type {
+	out := make(map[string]checker.Type, len(scope))
+	for name, typ := range scope {
+		out[name] = typ
+	}
+	return out
 }
 
 func (l lowerer) exprType(expr ast.Expr) checker.Type {
@@ -302,7 +311,12 @@ func (l lowerer) function(fn *ast.Function, receiver string) *Function {
 			out.Return = checker.Type(returnName)
 		}
 	}
-	out.Body = l.exprExpected(fn.Body, out.Return)
+	fnLowerer := l
+	fnLowerer.scope = map[string]checker.Type{}
+	for _, param := range out.Params {
+		fnLowerer.scope[param.Name] = param.Type
+	}
+	out.Body = fnLowerer.exprExpected(fn.Body, out.Return)
 	return out
 }
 
@@ -376,7 +390,14 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 				name = value.LinkName
 			}
 		}
-		return &Identifier{ExprBase: l.base(e), Name: name}
+		out := &Identifier{ExprBase: l.base(e), Name: name}
+		if declared, ok := l.scope[e.Name]; ok && checker.IsUnionType(declared) {
+			actual := l.exprType(e)
+			if actual != checker.Unknown && actual != declared && !checker.IsUnionType(actual) {
+				return &NarrowExpr{ExprBase: l.base(e), Expr: out, AssertType: actual}
+			}
+		}
+		return out
 	case *ast.AtExpr:
 		return &AtExpr{ExprBase: l.base(e), Name: e.Name, Path: e.Path, SourcePath: e.SourcePath}
 	case *ast.ThisExpr:
@@ -403,8 +424,12 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return &BoolLiteral{ExprBase: l.base(e), Value: e.Value}
 	case *ast.NullLiteral:
 		return &NullLiteral{ExprBase: l.base(e)}
+	case *ast.UndefinedLiteral:
+		return &UndefinedLiteral{ExprBase: l.base(e)}
 	case *ast.UnaryExpr:
 		return &UnaryExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
+	case *ast.TypeOfExpr:
+		return &TypeOfExpr{ExprBase: l.base(e), Argument: l.expr(e.Argument)}
 	case *ast.PostfixExpr:
 		return &PostfixExpr{ExprBase: l.base(e), Op: e.Op, Expr: l.expr(e.Expr)}
 	case *ast.ResultUnwrapExpr:
@@ -420,6 +445,32 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 			alternative = l.exprWithType(e.Alternative, resultType)
 		}
 		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Condition), Consequence: l.exprWithType(e.Consequence, resultType), Alternative: alternative}
+	case *ast.IfExpr:
+		resultType := l.exprType(ast.Expr(e))
+		var alternative Expr
+		if e.Else != nil {
+			alternative = l.exprWithType(e.Else, resultType)
+		}
+		return &TernaryExpr{ExprBase: l.base(e), Condition: l.expr(e.Cond), Consequence: l.exprWithType(e.Then, resultType), Alternative: alternative}
+	case *ast.ForOfExpr:
+		iterableType := l.exprType(e.Iterable)
+		element, _ := checker.ArrayElement(iterableType)
+		// Rune has no for statement. TS for-of is lowered to the equivalent
+		// `values.map((value) => { ... })` call, keeping the original syntax.
+		lambdaType := checker.FuncOfTypes([]checker.Type{element}, checker.Void)
+		lambda := &LambdaExpr{
+			ExprBase: ExprBase{Pos: e.Pos, Type: lambdaType},
+			Params:   []string{e.Name},
+			Body:     l.expr(e.Body),
+		}
+		selector := &SelectorExpr{
+			ExprBase: ExprBase{Pos: e.Pos, Type: lambdaType},
+			Receiver: l.expr(e.Iterable),
+			Name:     "each",
+		}
+		return &CallExpr{ExprBase: l.base(e), Callee: selector, Args: []Expr{lambda}}
+	case *ast.WhileExpr:
+		return &WhileExpr{ExprBase: l.base(e), Cond: l.expr(e.Cond), Body: l.expr(e.Body)}
 	case *ast.AssignExpr:
 		return &AssignExpr{ExprBase: l.base(e), Name: e.Name, Target: l.expr(e.Target), Value: l.expr(e.Value)}
 	case *ast.CallExpr:
@@ -503,8 +554,25 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 		return out
 	case *ast.BlockExpr:
 		out := &BlockExpr{ExprBase: l.base(e)}
-		for _, stmt := range e.Statements {
-			out.Statements = append(out.Statements, l.stmt(stmt))
+		if len(e.Statements) == 0 {
+			if _, _, ok := checker.MapKeyValue(out.Type); ok {
+				return &MapLiteral{ExprBase: out.ExprBase}
+			}
+		}
+		blockLower := l
+		blockLower.scope = cloneScope(l.scope)
+		for index, stmt := range e.Statements {
+			if index == len(e.Statements)-1 {
+				if tail, ok := stmt.(*ast.ExprStmt); ok {
+					if ifExpr, ok := tail.Expr.(*ast.IfExpr); ok && astIfContainsControlFlow(ifExpr) {
+						out.Statements = append(out.Statements, blockLower.ifStmt(ifExpr))
+						continue
+					}
+					out.Statements = append(out.Statements, &ExprStmt{Expr: blockLower.expr(tail.Expr), Pos: tail.Pos})
+					continue
+				}
+			}
+			out.Statements = append(out.Statements, blockLower.stmt(stmt))
 		}
 		return out
 	case *ast.PatternBlock:
@@ -532,6 +600,50 @@ func (l lowerer) expr(expr ast.Expr) Expr {
 	default:
 		return nil
 	}
+}
+
+// astIfContainsControlFlow reports whether an if-expression contains a
+// statement that cannot be represented by an expression ternary (return,
+// break, continue, throw). Tail-position ifs with such branches must lower to
+// IfStmt so codegen keeps the control-flow target.
+func astIfContainsControlFlow(expr *ast.IfExpr) bool {
+	if expr == nil {
+		return false
+	}
+	if astExprContainsControlFlow(expr.Then) {
+		return true
+	}
+	return expr.Else != nil && astExprContainsControlFlow(expr.Else)
+}
+
+func astExprContainsControlFlow(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case nil:
+		return false
+	case *ast.BlockExpr:
+		for _, stmt := range e.Statements {
+			if astStmtContainsControlFlow(stmt) {
+				return true
+			}
+		}
+	case *ast.IfExpr:
+		return astIfContainsControlFlow(e)
+	}
+	return false
+}
+
+func astStmtContainsControlFlow(stmt ast.Stmt) bool {
+	switch s := stmt.(type) {
+	case *ast.ReturnStmt, *ast.BreakStmt, *ast.ContinueStmt, *ast.ThrowStmt:
+		return true
+	case *ast.ExprStmt:
+		return astExprContainsControlFlow(s.Expr)
+	case *ast.TryStmt:
+		if astExprContainsControlFlow(s.Body) || astExprContainsControlFlow(s.Catch) || astExprContainsControlFlow(s.Finally) {
+			return true
+		}
+	}
+	return false
 }
 
 func (l lowerer) structFieldExpr(typeName string, fieldName string, value ast.Expr) Expr {
@@ -630,6 +742,9 @@ func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 		} else if l.info != nil {
 			typ = l.info.BindingTypes[s]
 		}
+		if l.scope != nil {
+			l.scope[s.Name] = typ
+		}
 		return &LetStmt{Name: s.Name, Mutable: s.Mutable, Signal: s.Signal, Value: l.exprExpected(s.Value, typ), Type: typ, Pos: s.Pos}
 	case *ast.ObjectDestructureStmt:
 		value := l.expr(s.Value)
@@ -652,10 +767,56 @@ func (l lowerer) stmt(stmt ast.Stmt) Stmt {
 		return out
 	case *ast.AssignStmt:
 		return &AssignStmt{Name: s.Name, Value: l.expr(s.Value), Pos: s.Pos}
+	case *ast.ReturnStmt:
+		return &ReturnStmt{Value: l.expr(s.Value), Pos: s.Pos}
+	case *ast.ThrowStmt:
+		return &ThrowStmt{Value: l.expr(s.Value), Pos: s.Pos}
+	case *ast.TryStmt:
+		body := l.branchStmts(s.Body)
+		var catch, finally []Stmt
+		if s.Catch != nil {
+			catch = l.branchStmts(s.Catch)
+		}
+		if s.Finally != nil {
+			finally = l.branchStmts(s.Finally)
+		}
+		return &TryStmt{Body: body, CatchName: s.CatchName, Catch: catch, Finally: finally, Pos: s.Pos}
+	case *ast.BreakStmt:
+		return &BreakStmt{Pos: s.Pos}
+	case *ast.ContinueStmt:
+		return &ContinueStmt{Pos: s.Pos}
 	case *ast.ExprStmt:
+		if ifExpr, ok := s.Expr.(*ast.IfExpr); ok {
+			return l.ifStmt(ifExpr)
+		}
 		return &ExprStmt{Expr: l.expr(s.Expr), Pos: s.Pos}
 	default:
 		return nil
+	}
+}
+
+func (l lowerer) ifStmt(expr *ast.IfExpr) *IfStmt {
+	stmt := &IfStmt{Cond: l.expr(expr.Cond), Then: l.branchStmts(expr.Then), Pos: expr.Pos}
+	if expr.Else != nil {
+		stmt.Else = l.branchStmts(expr.Else)
+	}
+	return stmt
+}
+
+func (l lowerer) branchStmts(expr ast.Expr) []Stmt {
+	switch e := expr.(type) {
+	case *ast.BlockExpr:
+		out := make([]Stmt, 0, len(e.Statements))
+		for _, stmt := range e.Statements {
+			out = append(out, l.stmt(stmt))
+		}
+		return out
+	case *ast.IfExpr:
+		return []Stmt{l.ifStmt(e)}
+	case nil:
+		return nil
+	default:
+		return []Stmt{&ExprStmt{Expr: l.expr(expr), Pos: expr.Position()}}
 	}
 }
 

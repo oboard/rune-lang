@@ -113,8 +113,8 @@ func (c *checker) inferIndexExpr(expr *ast.IndexExpr, env map[string]Type) Type 
 		if _, ok := c.info.Stdlib.FunctionByAlias("array", "_[_]"); !ok {
 			c.errorf(expr.Pos, "array index operator is not declared in core/array")
 		}
-		if index != Int && index != Unknown {
-			c.errorf(expr.Index.Position(), "array index expects Int, got %s", index)
+		if index != Int32 && index != Unknown {
+			c.errorf(expr.Index.Position(), "array index expects Int32, got %s", index)
 		}
 		if optional {
 			return makeNullable(elem)
@@ -156,8 +156,8 @@ func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env ma
 			return Void
 		}
 		bindings := c.arrayTypeBindings(fn, elem)
-		if index != Int && index != Unknown {
-			c.errorf(target.Index.Position(), "array index expects Int, got %s", index)
+		if index != Int32 && index != Unknown {
+			c.errorf(target.Index.Position(), "array index expects Int32, got %s", index)
 		}
 		expected := c.resolveDeclaredType(fn.Return, bindings)
 		if expected == Unknown || expected == "" || expected == "Void" {
@@ -176,7 +176,7 @@ func (c *checker) inferIndexAssign(target *ast.IndexExpr, value ast.Expr, env ma
 
 func mapKeyType(typ Type) bool {
 	switch typ {
-	case String, Char, Bool, Int, Int4, Int8, Int16, Int64, UInt, UInt8, UInt16, UInt64, Double, Float:
+	case String, Char, Bool, Int32, Int4, Int8, Int16, Int64, UInt, UInt8, UInt16, UInt64, Double, Float:
 		return true
 	default:
 		return false
@@ -247,8 +247,8 @@ func isPublicStdlibReceiverMethod(receiverName string, methodName string) bool {
 func StdlibReceiverModule(receiver Type) (string, string, bool) {
 	base := baseTypeName(receiver)
 	switch base {
-	case "Int":
-		return "int", "Int", true
+	case "Int32":
+		return "int32", "Int32", true
 	case "Double":
 		return "double", "Double", true
 	case "Float":
@@ -434,6 +434,17 @@ func (c *checker) resolveDeclaredType(name string, bindings map[string]Type) Typ
 	if typ, ok := bindings[name]; ok {
 		return typ
 	}
+	if members, ok := parseUnionType(name); ok {
+		resolved := make([]Type, 0, len(members))
+		for _, member := range members {
+			typ := c.resolveDeclaredType(member, bindings)
+			if typ == Unknown {
+				return Unknown
+			}
+			resolved = append(resolved, typ)
+		}
+		return UnionOf(resolved)
+	}
 	if inner, ok := parseNullableType(name); ok {
 		innerType := c.resolveDeclaredType(inner, bindings)
 		if innerType == Unknown {
@@ -473,11 +484,61 @@ func parseNullableType(name string) (string, bool) {
 	return strings.TrimSuffix(name, "?"), true
 }
 
+// parseUnionType splits a canonical union at top-level `|` only. Nested
+// generic/object/function types keep their separators.
+func parseUnionType(name string) ([]string, bool) {
+	parts := splitUnionParts(name)
+	if len(parts) < 2 {
+		return nil, false
+	}
+	return parts, true
+}
+
+func splitUnionParts(name string) []string {
+	var parts []string
+	depth := 0
+	start := 0
+	for i := 0; i < len(name); i++ {
+		switch name[i] {
+		case '[', '{', '(':
+			depth++
+		case ']', '}', ')':
+			if depth > 0 {
+				depth--
+			}
+		case '|':
+			if depth == 0 {
+				parts = append(parts, name[start:i])
+				start = i + 1
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return []string{name}
+	}
+	return append(parts, name[start:])
+}
+
+func flattenUnionMember(name string) []string {
+	if parts, ok := parseUnionType(name); ok {
+		return parts
+	}
+	return []string{name}
+}
+
+func isUnionType(typ Type) bool {
+	_, ok := parseUnionType(string(typ))
+	return ok
+}
+
 // makeNullable wraps a type in the nullable form `T?`. Null stays Null,
 // Unknown stays Unknown, and an already-nullable type is unchanged.
 func makeNullable(t Type) Type {
 	if t == Null || t == Unknown {
 		return t
+	}
+	if _, ok := parseUnionType(string(t)); ok {
+		return UnionOf([]Type{t, Null})
 	}
 	if _, ok := parseNullableType(string(t)); ok {
 		return t

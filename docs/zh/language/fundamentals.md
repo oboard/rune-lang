@@ -12,7 +12,7 @@ examples 和 tests 已支持的语法为准。
 
 User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 isAdult(user: User) -> Bool => user.age >= 18
@@ -69,9 +69,9 @@ ok := true
 missing := null
 ```
 
-整数字面量类型是 `Int`。带小数点或指数的字面量类型是 `Double`。以 `n`
+整数字面量类型是 `Int32`。带小数点或指数的字面量类型是 `Double`。以 `n`
 结尾的字面量类型是 `BigInt`。单引号字符字面量类型是 `Char`。`true` 和
-`false` 类型是 `Bool`。`null` 的类型是 `Null`，可以流入 `Int?`、
+`false` 类型是 `Bool`。`null` 的类型是 `Null`，可以流入 `Int32?`、
 `String?` 这样的可空类型。
 
 ## 内置类型
@@ -79,7 +79,7 @@ missing := null
 面向用户的内置标量和特殊类型包括：
 
 ```text
-Int
+Int32
 Double
 BigInt
 String
@@ -114,8 +114,8 @@ main() => {
 泛型类型应用使用方括号：
 
 ```rune
-values: Array[Int]
-scores: Map[String, Int]
+values: Array[Int32]
+scores: Map[String, Int32]
 seen: Set[String]
 ```
 
@@ -123,7 +123,7 @@ seen: Set[String]
 回调检查：
 
 ```rune
-each[R](callback: (value: Int, index?: Int, array?: Array[Int]) -> R) -> Void
+each[R](callback: (value: Int32, index?: Int32, array?: Array[Int32]) -> R) -> Void
 ```
 
 ## 运算符
@@ -157,7 +157,7 @@ count++
 * / %
 ```
 
-数值运算要求两侧是相同的数值类型。`%` 支持 `Int` 和 `BigInt`，不支持
+数值运算要求两侧是相同的数值类型。`%` 支持 `Int32` 和 `BigInt`，不支持
 `Double`。`+` 也用于字符串拼接，但只要任意一侧是字符串，两侧都必须是
 `String`。
 
@@ -169,7 +169,7 @@ count++
 ```
 
 `&&` 和 `||` 会短路求值，并要求操作数是布尔值。有序比较支持类型相同的
-`Int`、`Double`、`BigInt`、`String` 或 `Char`。
+`Int32`、`Double`、`BigInt`、`String` 或 `Char`。
 
 位运算符 `~`、`&`、`|`、`^`、`<<`、`>>` 和 `>>>` 要求操作数是匹配的整数
 类型。`>>>` 要求左操作数是无符号整数。
@@ -180,7 +180,7 @@ count++
 `Void`：
 
 ```rune
-sum(a: Int, b: Int) -> Int => {
+sum(a: Int32, b: Int32) -> Int32 => {
   result := a + b
   result
 }
@@ -190,15 +190,15 @@ sum(a: Int, b: Int) -> Int => {
 
 ```rune
 value := 1
-mutable ~= 1
+count :=: 0
 $signal := 0
 ```
 
-`:=` 创建普通局部绑定。`~=` 表示可变意图。`$name :=` 创建用于响应式代码的 signal
-绑定。赋值使用 `=`：
+`:=` 创建不可变的局部绑定，`:=:` 创建可变绑定。`$name :=` 创建用于响应式代码的
+signal 绑定。对可变绑定的赋值使用 `=`：
 
 ```rune
-count ~= 0
+count :=: 0
 count = count + 1
 ```
 
@@ -213,7 +213,7 @@ count = count + 1
 函数把参数映射到一个函数体表达式：
 
 ```rune
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 ```
 
 顶层声明和枚举成员默认是 private。在函数、类型或枚举成员前加 `+`，可以让
@@ -254,7 +254,7 @@ trait 能力。
 在函数前加 `~` 可以把它标记为 routine：
 
 ```rune
-~ test(count: Int) => {
+~ test(count: Int32) => {
   @io.println("Hello World" + count.toString())
 }
 
@@ -279,7 +279,7 @@ Result[T, E]: {
 }
 
 Error: {
-  code: Int
+  code: Int32
   message: String
   cause: Error?
 }
@@ -303,7 +303,7 @@ Lambda 参数必须写在括号中：
 
 ```rune
 values.map((value) => value * 2)
-values.map((value: Int, index: Int) => value + index)
+values.map((value: Int32, index: Int32) => value + index)
 ```
 
 下面的写法是无效的：
@@ -315,7 +315,7 @@ values.map(value => value * 2)
 Lambda 函数体可以是表达式，也可以是代码块：
 
 ```rune
-handle := (value: Int) => {
+handle := (value: Int32) => {
   next := value + 1
   next
 }
@@ -364,7 +364,7 @@ user := User::fromJson(text)
 函数体可以是一个模式块。这种形式主要用于单参数函数：
 
 ```rune
-fib(n: Int) -> Int => {
+fib(n: Int32) -> Int32 => {
   0 => 0
   1 => 1
   _ => fib(n - 1) + fib(n - 2)
@@ -374,7 +374,7 @@ fib(n: Int) -> Int => {
 任意表达式都可以用 `subject { pattern => expression }` 进行匹配：
 
 ```rune
-label(value: Int) -> String => value {
+label(value: Int32) -> String => value {
   <0 => "negative"
   0 => "zero"
   _ => "positive"
@@ -385,7 +385,7 @@ label(value: Int) -> String => value {
 
 ```rune
 _          // 通配
-1          // Int 字面量
+1          // Int32 字面量
 1.5        // Double 字面量
 1n         // BigInt 字面量
 "text"     // String 字面量
@@ -414,7 +414,7 @@ Err(error)
 ```rune
 Limit := 99
 
-classify(value: Int) -> String => value {
+classify(value: Int32) -> String => value {
   _..<0 => "negative"
   0..=Limit => "small"
   _ => "big"
@@ -454,7 +454,7 @@ readUser("user.json") {
 Rune 支持 C 风格条件表达式：
 
 ```rune
-choose(flag: Bool) -> Int => flag ? 1 : 2
+choose(flag: Bool) -> Int32 => flag ? 1 : 2
 ```
 
 条件必须是 `Bool`。真分支和假分支必须能统一为同一个结果类型。三元表达式会
@@ -478,7 +478,7 @@ middle := [2, 3]
 values := [1, ...middle, 4]
 ```
 
-索引使用 `Int`：
+索引使用 `Int32`：
 
 ```rune
 first := values[0]
@@ -507,9 +507,9 @@ doubled := values.map((value) => value * 2)
 
 ```rune
 User: {
-  id: Int
+  id: Int32
   name: String
-  age: Int
+  age: Int32
 
   isAdult() -> Bool => .age >= 18
   label(prefix: String) -> String => prefix + .name
@@ -589,7 +589,7 @@ account := {
   name: "core"
   age: 4
 
-  nextAge() -> Int => .age + 1
+  nextAge() -> Int32 => .age + 1
   title(prefix: String) -> String => prefix + .name
 }
 ```
@@ -630,7 +630,7 @@ main() => @io.println(helper())
 API，需要给对应声明加 `+`：
 
 ```rune
-+ helper() -> Int => 42
++ helper() -> Int32 => 42
 ```
 
 相对路径基于当前导入文件解析。导入路径必须显式包含文件后缀。
@@ -713,7 +713,7 @@ Go 后端支持通过 `@go` 内联 Go：
 ```rune
 @go.import("fmt")
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 
 main() => {
   name := "Ada"
@@ -740,6 +740,7 @@ Go 字符串里的 `$name` 会被重写为 Rune 绑定对应的生成后 Go 标�
 
 ## 当前语法边界
 
-Rune 目前刻意保持较小的语法面。当前 parser 中没有 `if`、`for`、`while`、
-显式 `impl`、`class` 或异常语法。对应能力请使用已支持的结构化 trait、
-match 表达式、三元表达式、递归、数组回调和核心模块。
+Rune 目前刻意保持较小的语法面。当前 parser 中没有 `if` 关键字、经典
+`for(;;)`、显式 `impl` 或 `class` 语法。对应能力请使用已支持的结构化 trait、
+match 表达式、三元表达式、递归、数组回调和核心模块。循环写作
+`* (cond) { ... }`；循环体内用 `^` 跳出、用 `^>` 继续下一轮。

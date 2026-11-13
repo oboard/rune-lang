@@ -109,7 +109,7 @@ render() -> HTMLElement => {
 func TestMethodDefinitionAndRename(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
-    age: Int
+    age: Int32
 
     isAdult() => .age >= 18
 }
@@ -147,7 +147,7 @@ main() => {
 func TestImportDefinitionJumpsToFile(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "helper.rn")
-	writeLSPFile(t, helperPath, `+ helper() -> Int => 1
+	writeLSPFile(t, helperPath, `+ helper() -> Int32 => 1
 `)
 	mainPath := filepath.Join(dir, "main.rn")
 	uri := fileURI(mainPath)
@@ -170,7 +170,7 @@ main() => helper()
 func TestImportedFunctionDefinitionJumpsToSourceFile(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "helper.rn")
-	writeLSPFile(t, helperPath, `+ helper() -> Int => 1
+	writeLSPFile(t, helperPath, `+ helper() -> Int32 => 1
 `)
 	mainPath := filepath.Join(dir, "main.rn")
 	uri := fileURI(mainPath)
@@ -252,9 +252,9 @@ main() => {
 func TestStructLiteralTypeHoverAndSemanticToken(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
-    id: Int
+    id: Int32
     name: String
-    age: Int
+    age: Int32
 
     isAdult() -> Bool => .age >= 18
 }
@@ -271,7 +271,7 @@ main() => {
 
 	hover := s.hover(uri, positionOf(src, "User {\n        id", "User")).(map[string]any)
 	value := hoverValue(hover)
-	for _, want := range []string{"User: {", "id: Int", "name: String", "age: Int", "isAdult() -> Bool"} {
+	for _, want := range []string{"User: {", "id: Int32", "name: String", "age: Int32", "isAdult() -> Bool"} {
 		if !strings.Contains(value, want) {
 			t.Fatalf("hover = %q, want %q", value, want)
 		}
@@ -320,7 +320,7 @@ func TestSemanticTokensIgnoreImportedSourcePositions(t *testing.T) {
 	dir := t.TempDir()
 	helperPath := filepath.Join(dir, "helper.rn")
 	writeLSPFile(t, helperPath, `Imported: {
-  value: Int
+  value: Int32
 }
 
 ~ importedTask() => {}
@@ -440,7 +440,7 @@ func TestArrayMethodDefinitionUsesCoreStub(t *testing.T) {
 	}
 	hover := s.hover(uri, positionOf(src, "arr.map", "map")).(map[string]any)
 	value := hoverValue(hover)
-	if !strings.Contains(value, "Array.map[U](callbackfn: (T, Int, Array[T]) -> U) -> Array[U]") {
+	if !strings.Contains(value, "Array.map[U](callbackfn: (T, Int32, Array[T]) -> U) -> Array[U]") {
 		t.Fatalf("hover = %q, want array map signature", value)
 	}
 	if !strings.Contains(value, "core/array/array.rn") {
@@ -452,7 +452,7 @@ func TestArrayMemberCompletionUsesReceiverType(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
     solution := {
-        arraySum(values: Array[Int]) -> Int => {
+        arraySum(values: Array[Int32]) -> Int32 => {
             values.
         }
     }
@@ -475,8 +475,8 @@ func TestArrayMemberCompletionUsesReceiverType(t *testing.T) {
 			break
 		}
 	}
-	if !strings.Contains(reduceDetail, "Array[Int].reduce[U]") || !strings.Contains(reduceDetail, "(U, Int, Int, Array[Int]) -> U") {
-		t.Fatalf("reduce detail = %q, want Array[Int] reducer signature", reduceDetail)
+	if !strings.Contains(reduceDetail, "Array[Int32].reduce[U]") || !strings.Contains(reduceDetail, "(U, Int32, Int32, Array[Int32]) -> U") {
+		t.Fatalf("reduce detail = %q, want Array[Int32] reducer signature", reduceDetail)
 	}
 }
 
@@ -541,7 +541,7 @@ func TestCodeLensIncludesSingletonTests(t *testing.T) {
 
 func TestFunctionReferencesFindCallSites(t *testing.T) {
 	uri := "file:///tmp/main.rn"
-	src := `helper(value: Int) => value + 1
+	src := `helper(value: Int32) => value + 1
 
 main() => {
     helper(1)
@@ -700,9 +700,9 @@ func TestAnonymousObjectHover(t *testing.T) {
 	objValue := hoverValue(objHover)
 	wantObject := `obj: {
   name: String
-  age: Int
+  age: Int32
   greet: () -> Void
-  nextAge: () -> Int
+  nextAge: () -> Int32
 }`
 	if !strings.Contains(objValue, wantObject) {
 		t.Fatalf("hover = %q, want %s", objValue, wantObject)
@@ -714,7 +714,7 @@ func TestAnonymousObjectHover(t *testing.T) {
 	}
 
 	nextAgeHover := s.hover(uri, positionOf(src, "obj.nextAge", "nextAge")).(map[string]any)
-	if got := hoverValue(nextAgeHover); !strings.Contains(got, "nextAge: () -> Int") {
+	if got := hoverValue(nextAgeHover); !strings.Contains(got, "nextAge: () -> Int32") {
 		t.Fatalf("hover = %q, want nextAge function field type", got)
 	}
 }
@@ -723,13 +723,13 @@ func TestAnonymousObjectMethodSelfReferenceHover(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `main() => {
     solution := {
-        emptyIntArray() -> Array[Int] => {
+        emptyIntArray() -> Array[Int32] => {
             out := [0]
             out.pop()
             out
         }
-        lc002AddTwoNumbersDigits(left: Array[Int], right: Array[Int]) -> Array[Int] => .lc002AddDigits(left, right, 0, 0, .emptyIntArray())
-        lc002AddDigits(left: Array[Int], right: Array[Int], index: Int, carry: Int, out: Array[Int]) -> Array[Int] => out
+        lc002AddTwoNumbersDigits(left: Array[Int32], right: Array[Int32]) -> Array[Int32] => .lc002AddDigits(left, right, 0, 0, .emptyIntArray())
+        lc002AddDigits(left: Array[Int32], right: Array[Int32], index: Int32, carry: Int32, out: Array[Int32]) -> Array[Int32] => out
     }
 }
 `
@@ -737,7 +737,7 @@ func TestAnonymousObjectMethodSelfReferenceHover(t *testing.T) {
 
 	hover := s.hover(uri, positionOf(src, ".lc002AddDigits(left", "lc002AddDigits")).(map[string]any)
 	got := hoverValue(hover)
-	want := "lc002AddDigits: (Array[Int], Array[Int], Int, Int, Array[Int]) -> Array[Int]"
+	want := "lc002AddDigits: (Array[Int32], Array[Int32], Int32, Int32, Array[Int32]) -> Array[Int32]"
 	if !strings.Contains(got, want) {
 		t.Fatalf("hover = %q, want %q", got, want)
 	}
@@ -825,7 +825,7 @@ main() => {
 
 	hover := s.hover(uri, positionOf(src, "fun(flag)", "fun")).(map[string]any)
 	value := hoverValue(hover)
-	if !strings.Contains(value, "fun(flag: Bool) -> Int") {
+	if !strings.Contains(value, "fun(flag: Bool) -> Int32") {
 		t.Fatalf("hover = %q, want inferred fun signature", value)
 	}
 
@@ -842,14 +842,14 @@ main() => {
 			break
 		}
 	}
-	if !strings.Contains(detail, "fun(flag: Bool) -> Int") {
+	if !strings.Contains(detail, "fun(flag: Bool) -> Int32") {
 		t.Fatalf("completion detail = %q, want inferred fun signature", detail)
 	}
 }
 
 func TestRoutineFunctionHoverUsesRuneSignature(t *testing.T) {
 	uri := "file:///tmp/routine_hover.rn"
-	src := `~ test(count: Int) => {
+	src := `~ test(count: Int32) => {
   @io.println(count.toString())
 }
 
@@ -864,7 +864,7 @@ main() => {
 		positionOf(src, "test(1)", "test"),
 	} {
 		hover := s.hover(uri, pos).(map[string]any)
-		if got := hoverValue(hover); !strings.Contains(got, "test: ~ (count: Int) -> Void") {
+		if got := hoverValue(hover); !strings.Contains(got, "test: ~ (count: Int32) -> Void") {
 			t.Fatalf("hover = %q, want routine function signature", got)
 		}
 	}
@@ -911,7 +911,7 @@ func TestSemanticTokensMarkSignalVariables(t *testing.T) {
 
 func TestSemanticTokensDoNotRecolorCompileTimeExpression(t *testing.T) {
 	uri := "file:///tmp/consteval.rn"
-	src := `double(value: Int) -> Int => value * 2
+	src := `double(value: Int32) -> Int32 => value * 2
 
 main() => double(21)'
 `
@@ -927,7 +927,7 @@ main() => double(21)'
 
 func TestCompileTimeRangesWrapExpression(t *testing.T) {
 	uri := "file:///tmp/consteval.rn"
-	src := `double(value: Int) -> Int => value * 2
+	src := `double(value: Int32) -> Int32 => value * 2
 
 main() => double(21)'
 `
@@ -1075,7 +1075,7 @@ increment(value) => value + 1
 	if got := countHintAt(hints, forwardArrow, "-> String "); got != 1 {
 		t.Fatalf("forward return hints = %d, want 1; all hints %#v", got, hints)
 	}
-	if got := countHintAt(hints, valuePos, ": Int"); got != 1 {
+	if got := countHintAt(hints, valuePos, ": Int32"); got != 1 {
 		t.Fatalf("value hints = %d, want 1; all hints %#v", got, hints)
 	}
 }
@@ -1097,8 +1097,8 @@ func TestInlayHintsShowInferredLocalVariableTypes(t *testing.T) {
 	if countHintAt(hints, outPos, ": Array[String]") != 1 {
 		t.Fatalf("inlay hints = %#v, want one inferred Array[String] hint for out", hints)
 	}
-	if !inlayLabelsContain(hints, ": Int") {
-		t.Fatalf("inlay hints = %#v, want inferred Int hint for count", hints)
+	if !inlayLabelsContain(hints, ": Int32") {
+		t.Fatalf("inlay hints = %#v, want inferred Int32 hint for count", hints)
 	}
 	if inlayLabelsContain(hints, ": String") {
 		t.Fatalf("inlay hints = %#v, declared variables must not receive a type hint", hints)
@@ -1107,12 +1107,12 @@ func TestInlayHintsShowInferredLocalVariableTypes(t *testing.T) {
 
 func TestInlayHintsShowCallArgumentNames(t *testing.T) {
 	uri := "file:///tmp/call_args.rn"
-	src := `fib(n: Int) -> Int => n
+	src := `fib(n: Int32) -> Int32 => n
 
 Counter: {
-  value: Int
+  value: Int32
 
-  add(amount: Int) -> Int => .value + amount
+  add(amount: Int32) -> Int32 => .value + amount
 }
 
 main() => {
@@ -1157,17 +1157,17 @@ func TestSignalHoverShowsDependencyChain(t *testing.T) {
 `
 	s := &server{docs: map[string]string{uri: src}}
 	countHover := hoverValue(s.hover(uri, positionOf(src, "$count :=", "count")).(map[string]any))
-	if !strings.Contains(countHover, "count: Int") || !strings.Contains(countHover, "signal") {
+	if !strings.Contains(countHover, "count: Int32") || !strings.Contains(countHover, "signal") {
 		t.Fatalf("count hover = %q, want signal type", countHover)
 	}
 	doubleHover := hoverValue(s.hover(uri, positionOf(src, "$double :=", "double")).(map[string]any))
-	if !strings.Contains(doubleHover, "double: Int") ||
+	if !strings.Contains(doubleHover, "double: Int32") ||
 		!strings.Contains(doubleHover, "computed") ||
 		!strings.Contains(doubleHover, "deps: double -> count") {
 		t.Fatalf("double hover = %q, want computed dependency chain", doubleHover)
 	}
 	quadHover := hoverValue(s.hover(uri, positionOf(src, "@io.println($quadruple)", "quadruple")).(map[string]any))
-	if !strings.Contains(quadHover, "quadruple: Int") ||
+	if !strings.Contains(quadHover, "quadruple: Int32") ||
 		!strings.Contains(quadHover, "computed") ||
 		!strings.Contains(quadHover, "deps: quadruple -> double -> count") {
 		t.Fatalf("quadruple hover = %q, want nested dependency chain", quadHover)
@@ -1314,16 +1314,16 @@ main() => {
 
 	hover := s.hover(uri, positionOf(src, "f :=", "f")).(map[string]any)
 	value := hoverValue(hover)
-	want := "f: {\n  b: Int\n  z: Bool\n  a: Int\n} -> {\n  k: Int\n}"
+	want := "f: {\n  b: Int32\n  z: Bool\n  a: Int32\n} -> {\n  k: Int32\n}"
 	if !strings.Contains(value, want) {
 		t.Fatalf("hover = %q, want %q", value, want)
 	}
 
 	hints := s.inlayHints(uri).([]map[string]any)
 	if !inlayLabelsContain(hints, ": Bool") ||
-		!inlayLabelsContain(hints, "-> Int ") ||
-		!inlayLabelsContain(hints, ": { b: Int z: Bool a: Int }") ||
-		!inlayLabelsContain(hints, "-> { k: Int } ") {
+		!inlayLabelsContain(hints, "-> Int32 ") ||
+		!inlayLabelsContain(hints, ": { b: Int32 z: Bool a: Int32 }") ||
+		!inlayLabelsContain(hints, "-> { k: Int32 } ") {
 		t.Fatalf("inlay hints = %#v, want inferred named and anonymous function hints", hints)
 	}
 }
@@ -1332,7 +1332,7 @@ func TestInferredStructReturnObjectLiteralHover(t *testing.T) {
 	uri := "file:///tmp/inferred_struct_return.rn"
 	src := `User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 make() -> User => {
@@ -1364,9 +1364,9 @@ main() => {
 func TestLambdaParamsRefineToNamedStructArgument(t *testing.T) {
 	uri := "file:///tmp/named_return.rn"
 	src := `Return: {
-  b: Int
+  b: Int32
   z: Bool
-  a: Int
+  a: Int32
 }
 
 fun(flag) => {
@@ -1420,9 +1420,9 @@ fun(flag) => {
 func TestAnnotatedLambdaParamsAcceptAnonymousStructArgument(t *testing.T) {
 	uri := "file:///tmp/annotated_lambda_anon_arg.rn"
 	src := `Return: {
-  b: Int
+  b: Int32
   z: Bool
-  a: Int
+  a: Int32
 }
 
 fun(flag) => {
@@ -1451,7 +1451,7 @@ fun(flag) => {
 		t.Fatalf("x hover = %q, want Return", got)
 	}
 	hints := s.inlayHints(uri).([]map[string]any)
-	if !inlayLabelsContain(hints, "-> { k: Int } ") {
+	if !inlayLabelsContain(hints, "-> { k: Int32 } ") {
 		t.Fatalf("inlay hints = %#v, want anonymous lambda return hint", hints)
 	}
 }
@@ -1488,14 +1488,14 @@ r(flag) => {
 	_, lspDiags := s.analyzeWithWarnings(uri, true)
 
 	hover := s.hover(uri, positionOf(src, "j({", "j")).(map[string]any)
-	if got := hoverValue(hover); !strings.Contains(got, "j: {") || !strings.Contains(got, "} -> {") || !strings.Contains(got, "k: Int") {
+	if got := hoverValue(hover); !strings.Contains(got, "j: {") || !strings.Contains(got, "} -> {") || !strings.Contains(got, "k: Int32") {
 		t.Fatalf("hover = %q, want inferred function signature", got)
 	}
 	foundUnknownType := false
 	foundUndefinedFunction := false
 	for _, diag := range diagnosticsToLSP(lspDiags) {
 		message, _ := diag["message"].(string)
-		if strings.Contains(message, `unknown type "{k:Int}"`) {
+		if strings.Contains(message, `unknown type "{k:Int32}"`) {
 			foundUnknownType = true
 		}
 		if strings.Contains(message, "undefined function j") {
@@ -1536,7 +1536,7 @@ r(flag) => {
 `
 	s := &server{docs: map[string]string{uri: src}}
 	_, diags := compiler.AnalyzeSource(uri, src)
-	if !diagnosticsContain(diags, "match branch returns {b: Int} -> {onlyRight: Int, k: Int}, expected {a: Int} -> {k: Int, onlyLeft: Bool}") {
+	if !diagnosticsContain(diags, "match branch returns {b: Int32} -> {onlyRight: Int32, k: Int32}, expected {a: Int32} -> {k: Int32, onlyLeft: Bool}") {
 		t.Fatalf("diagnostics = %#v, want function branch mismatch", diags)
 	}
 
@@ -1544,9 +1544,9 @@ r(flag) => {
 		name string
 		want string
 	}{
-		{name: "h", want: "h(x: Int) -> Int"},
-		{name: "f", want: "f(x: {\n  a: Int\n}) -> {\n  k: Int\n  onlyLeft: Bool\n}"},
-		{name: "g", want: "g(y: {\n  b: Int\n}) -> {\n  onlyRight: Int\n  k: Int\n}"},
+		{name: "h", want: "h(x: Int32) -> Int32"},
+		{name: "f", want: "f(x: {\n  a: Int32\n}) -> {\n  k: Int32\n  onlyLeft: Bool\n}"},
+		{name: "g", want: "g(y: {\n  b: Int32\n}) -> {\n  onlyRight: Int32\n  k: Int32\n}"},
 	}
 	for _, tc := range cases {
 		hover := s.hover(uri, positionOf(src, tc.name+"(", tc.name)).(map[string]any)

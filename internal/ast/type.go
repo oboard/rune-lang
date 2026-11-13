@@ -10,6 +10,7 @@ const (
 	TypeTuple
 	TypeFunction
 	TypeGrouped
+	TypeUnion
 	TypeRaw
 )
 
@@ -46,6 +47,12 @@ func RawType(canonical string) Type {
 
 func GroupedType(elem Type) Type {
 	return Type{Kind: TypeGrouped, Elem: typePtr(elem)}
+}
+
+// UnionType builds `A | B`. Members are stored in source order; use
+// checker.UnionOf for the canonical type string.
+func UnionType(members []Type) Type {
+	return Type{Kind: TypeUnion, Args: append([]Type(nil), members...)}
 }
 
 func TupleType(elements []TypeParam) Type {
@@ -104,6 +111,12 @@ func (t Type) Canonical() string {
 			return ""
 		}
 		return t.Elem.Canonical()
+	case TypeUnion:
+		parts := make([]string, 0, len(t.Args))
+		for _, member := range t.Args {
+			parts = append(parts, member.Canonical())
+		}
+		return strings.Join(parts, "|")
 	case TypeRaw:
 		return t.Raw
 	default:
@@ -149,6 +162,12 @@ func (t Type) Display() string {
 			return ""
 		}
 		return "(" + t.Elem.Display() + ")"
+	case TypeUnion:
+		parts := make([]string, 0, len(t.Args))
+		for _, member := range t.Args {
+			parts = append(parts, member.Display())
+		}
+		return strings.Join(parts, " | ")
 	case TypeRaw:
 		if t.DisplayText != "" {
 			return t.DisplayText

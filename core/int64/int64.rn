@@ -8,6 +8,6 @@
   div(other: Int64) -> Int64 => "%int64.div"
 }
 
-+ fromInt(value: Int) -> Int64 => "%int64.fromInt"
++ fromInt(value: Int32) -> Int64 => "%int64.fromInt"
 
-+ toInt(value: Int64) -> Int => "%int64.toInt"
++ toInt(value: Int64) -> Int32 => "%int64.toInt"

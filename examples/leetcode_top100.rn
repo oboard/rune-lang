@@ -3,12 +3,12 @@
 // today's Rune value model while still exercising real core APIs.
 ? "001. Two Sum" {
   solution := {
-    pushTwoInt(out: Array[Int], first: Int, second: Int) -> Int => {
+    pushTwoInt(out: Array[Int32], first: Int32, second: Int32) -> Int32 => {
       out.push(first)
       out.push(second)
       out.length()
     },
-    lc001TwoSum(nums: Array[Int], target: Int) -> Array[Int] => {
+    lc001TwoSum(nums: Array[Int32], target: Int32) -> Array[Int32] => {
       result := [0]
       result.pop()
       nums.each((a, i) => nums.each((b, j) => (
@@ -23,24 +23,24 @@
 
 ? "002. Add Two Numbers" {
   solution := {
-    emptyIntArray() -> Array[Int] => {
+    emptyIntArray() -> Array[Int32] => {
       out := [0]
       out.pop()
       out
     },
-    lc002AddTwoNumbersDigits(left: Array[Int], right: Array[Int]) -> Array[Int] => .lc002AddDigits(left, right, 0, 0, .emptyIntArray()),
-    lc002AddDigits(left: Array[Int], right: Array[Int], index: Int, carry: Int, out: Array[Int]) -> Array[Int] => (
+    lc002AddTwoNumbersDigits(left: Array[Int32], right: Array[Int32]) -> Array[Int32] => .lc002AddDigits(left, right, 0, 0, .emptyIntArray()),
+    lc002AddDigits(left: Array[Int32], right: Array[Int32], index: Int32, carry: Int32, out: Array[Int32]) -> Array[Int32] => (
       ((index >= left.length()) && (index >= right.length())) && (carry == 0) ? out
         : .lc002AddDigits(left, right, index + 1, .lc002DigitSum(left, right, index, carry) / 10, .lc002PushDigit(out, .lc002DigitSum(left, right, index, carry) % 10))
     ),
-    lc002DigitSum(left: Array[Int], right: Array[Int], index: Int, carry: Int) -> Int => (carry + (
+    lc002DigitSum(left: Array[Int32], right: Array[Int32], index: Int32, carry: Int32) -> Int32 => (carry + (
       index < left.length() ? left[index]
         : 0
     )) + (
       index < right.length() ? right[index]
         : 0
     ),
-    lc002PushDigit(out: Array[Int], digit: Int) -> Array[Int] => {
+    lc002PushDigit(out: Array[Int32], digit: Int32) -> Array[Int32] => {
       out.push(digit)
       out
     }
@@ -51,19 +51,19 @@
 
 ? "003. Longest Substring Without Repeating Characters" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    stringContainsBetween(s: String, start: Int, end: Int, ch: Char) -> Bool => start {
+    stringContainsBetween(s: String, start: Int32, end: Int32, ch: Char) -> Bool => start {
       >=end => false
       _ => (
         s.at(start) == ch ? true
           : .stringContainsBetween(s, start + 1, end, ch)
       )
     },
-    lc003LengthOfLongestSubstring(s: String) -> Int => .lc003Window(s, 0, 0, 0),
-    lc003Window(s: String, left: Int, right: Int, best: Int) -> Int => (
+    lc003LengthOfLongestSubstring(s: String) -> Int32 => .lc003Window(s, 0, 0, 0),
+    lc003Window(s: String, left: Int32, right: Int32, best: Int32) -> Int32 => (
       right >= s.length() ? best
         : (
           .stringContainsBetween(s, left, right, s.at(right)) ? .lc003Window(s, left + 1, right, best)
@@ -77,20 +77,20 @@
 
 ? "004. Median of Two Sorted Arrays" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -103,13 +103,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc004MedianOfSortedArraysInt(left: Array[Int], right: Array[Int]) -> Int => {
+    lc004MedianOfSortedArraysInt(left: Array[Int32], right: Array[Int32]) -> Int32 => {
       merged := .sortInts([..left, ..right])
       merged[merged.length() / 2]
     }
@@ -120,23 +120,23 @@
 
 ? "005. Longest Palindromic Substring" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc005LongestPalindromeLength(s: String) -> Int => .lc005AllStarts(s, 0, 0),
-    lc005AllStarts(s: String, start: Int, best: Int) -> Int => (
+    lc005LongestPalindromeLength(s: String) -> Int32 => .lc005AllStarts(s, 0, 0),
+    lc005AllStarts(s: String, start: Int32, best: Int32) -> Int32 => (
       start >= s.length() ? best
         : .lc005AllStarts(s, start + 1, .lc005AllEnds(s, start, start, best))
     ),
-    lc005AllEnds(s: String, start: Int, end: Int, best: Int) -> Int => (
+    lc005AllEnds(s: String, start: Int32, end: Int32, best: Int32) -> Int32 => (
       end >= s.length() ? best
         : .lc005AllEnds(s, start, end + 1, (
           .lc005IsPalindromeRange(s, start, end) ? .maxInt(best, (end - start) + 1)
             : best
         ))
     ),
-    lc005IsPalindromeRange(s: String, left: Int, right: Int) -> Bool => left {
+    lc005IsPalindromeRange(s: String, left: Int32, right: Int32) -> Bool => left {
       >=right => true
       _ => (
         s.at(left) == s.at(right) ? .lc005IsPalindromeRange(s, left + 1, right - 1)
@@ -151,7 +151,7 @@
 ? "010. Regular Expression Matching" {
   solution := {
     lc010RegexMatch(text: String, pattern: String) -> Bool => .lc010MatchAt(text, pattern, 0, 0),
-    lc010MatchAt(text: String, pattern: String, i: Int, j: Int) -> Bool => (
+    lc010MatchAt(text: String, pattern: String, i: Int32, j: Int32) -> Bool => (
       j >= pattern.length() ? i >= text.length()
         : (
           ((j + 1) < pattern.length()) && (pattern.at(j + 1) == '*') ? .lc010MatchAt(text, pattern, i, j + 2) || (((i < text.length()) && ((pattern.at(j) == '.') || (pattern.at(j) == text.at(i)))) && .lc010MatchAt(text, pattern, i + 1, j))
@@ -165,15 +165,15 @@
 
 ? "011. Container With Most Water" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc011MaxArea(heights: Array[Int]) -> Int => {
+    lc011MaxArea(heights: Array[Int32]) -> Int32 => {
       best :=: 0
       heights.each((leftHeight, left) => heights.each((rightHeight, right) => (
         left < right ? best = .maxInt(best, .minInt(leftHeight, rightHeight) * (right - left))
@@ -187,7 +187,7 @@
 
 ? "015. 3Sum" {
   solution := {
-    lc015ThreeSumExists(nums: Array[Int]) -> Bool => {
+    lc015ThreeSumExists(nums: Array[Int32]) -> Bool => {
       found :=: false
       nums.each((a, i) => nums.each((b, j) => nums.each((c, k) => (
         ((i < j) && (j < k)) && (((a + b) + c) == 0) ? found = true
@@ -201,7 +201,7 @@
 
 ? "017. Letter Combinations of a Phone Number" {
   solution := {
-    lc017LetterCombinationCount(digits: String) -> Int => {
+    lc017LetterCombinationCount(digits: String) -> Int32 => {
       total :=: 1
       digits.split("").each((digit) => digit {
         "7" => total = total * 4
@@ -220,7 +220,7 @@
 
 ? "019. Remove Nth Node From End" {
   solution := {
-    lc019RemoveNthFromEndArray(values: Array[Int], n: Int) -> Array[Int] => {
+    lc019RemoveNthFromEndArray(values: Array[Int32], n: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       removeAt := values.length() - n
@@ -264,20 +264,20 @@
 
 ? "021. Merge Two Sorted Lists" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -290,13 +290,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc021MergeTwoSortedArrays(left: Array[Int], right: Array[Int]) -> Array[Int] => .sortInts([..left, ..right])
+    lc021MergeTwoSortedArrays(left: Array[Int32], right: Array[Int32]) -> Array[Int32] => .sortInts([..left, ..right])
   }
 
   @assert.eq(solution.lc021MergeTwoSortedArrays([1, 2, 4], [1, 3, 4])[5], 4)
@@ -304,13 +304,13 @@
 
 ? "022. Generate Parentheses" {
   solution := {
-    lc022GenerateParenthesesCount(n: Int) -> Int => .lc096NumTrees(n),
-    lc096NumTrees(n: Int) -> Int => n {
+    lc022GenerateParenthesesCount(n: Int32) -> Int32 => .lc096NumTrees(n),
+    lc096NumTrees(n: Int32) -> Int32 => n {
       0 => 1
       1 => 1
       _ => .lc096Catalan(n, 1, 0)
     },
-    lc096Catalan(n: Int, root: Int, total: Int) -> Int => root {
+    lc096Catalan(n: Int32, root: Int32, total: Int32) -> Int32 => root {
       >n => total
       _ => .lc096Catalan(n, root + 1, total + (.lc096NumTrees(root - 1) * .lc096NumTrees(n - root)))
     }
@@ -321,20 +321,20 @@
 
 ? "023. Merge k Sorted Lists" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -347,13 +347,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc023MergeKSortedArrays(first: Array[Int], second: Array[Int], third: Array[Int]) -> Array[Int] => .sortInts([..first, ..second, ..third])
+    lc023MergeKSortedArrays(first: Array[Int32], second: Array[Int32], third: Array[Int32]) -> Array[Int32] => .sortInts([..first, ..second, ..third])
   }
 
   @assert.eq(solution.lc023MergeKSortedArrays([1, 4], [1, 3], [2, 6])[5], 6)
@@ -361,7 +361,7 @@
 
 ? "031. Next Permutation" {
   solution := {
-    lc031NextPermutationSample(values: Array[Int]) -> Array[Int] => {
+    lc031NextPermutationSample(values: Array[Int32]) -> Array[Int32] => {
       out := values.clone()
       last := out.pop()
       mid := out.pop()
@@ -376,19 +376,19 @@
 
 ? "032. Longest Valid Parentheses" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0),
-    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => (
+    countChar(s: String, ch: Char) -> Int32 => .countCharFrom(s, ch, 0, 0),
+    countCharFrom(s: String, ch: Char, index: Int32, total: Int32) -> Int32 => (
       index >= s.length() ? total
         : .countCharFrom(s, ch, index + 1, (
           s.at(index) == ch ? total + 1
             : total
         ))
     ),
-    lc032LongestValidParentheses(s: String) -> Int => {
+    lc032LongestValidParentheses(s: String) -> Int32 => {
       .minInt(.countChar(s, '('), .countChar(s, ')')) * 2
     }
   }
@@ -398,14 +398,14 @@
 
 ? "033. Search in Rotated Sorted Array" {
   solution := {
-    arrayIndexOfInt(values: Array[Int], needle: Int) -> Int => {
+    arrayIndexOfInt(values: Array[Int32], needle: Int32) -> Int32 => {
       found :=: 0 - 1
       values.each((value, index) => (
         (found == (0 - 1)) && (value == needle) ? found = index
       ))
       found
     },
-    lc033SearchRotated(nums: Array[Int], target: Int) -> Int => .arrayIndexOfInt(nums, target)
+    lc033SearchRotated(nums: Array[Int32], target: Int32) -> Int32 => .arrayIndexOfInt(nums, target)
   }
 
   @assert.eq(solution.lc033SearchRotated([4, 5, 6, 7, 0, 1, 2], 0), 4)
@@ -413,21 +413,21 @@
 
 ? "034. Find First and Last Position" {
   solution := {
-    arrayIndexOfInt(values: Array[Int], needle: Int) -> Int => {
+    arrayIndexOfInt(values: Array[Int32], needle: Int32) -> Int32 => {
       found :=: 0 - 1
       values.each((value, index) => (
         (found == (0 - 1)) && (value == needle) ? found = index
       ))
       found
     },
-    lc034SearchRange(nums: Array[Int], target: Int) -> Array[Int] => {
+    lc034SearchRange(nums: Array[Int32], target: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       out.push(.arrayIndexOfInt(nums, target))
       out.push(.lc034LastIndex(nums, target))
       out
     },
-    lc034LastIndex(nums: Array[Int], target: Int) -> Int => {
+    lc034LastIndex(nums: Array[Int32], target: Int32) -> Int32 => {
       last :=: 0 - 1
       nums.each((value, index) => (
         value == target ? last = index
@@ -441,8 +441,8 @@
 
 ? "039. Combination Sum" {
   solution := {
-    lc039CombinationSumCount(candidates: Array[Int], target: Int) -> Int => .lc039Count(candidates, target, 0),
-    lc039Count(candidates: Array[Int], target: Int, start: Int) -> Int => target {
+    lc039CombinationSumCount(candidates: Array[Int32], target: Int32) -> Int32 => .lc039Count(candidates, target, 0),
+    lc039Count(candidates: Array[Int32], target: Int32, start: Int32) -> Int32 => target {
       0 => 1
       <0 => 0
       _ => (
@@ -457,29 +457,29 @@
 
 ? "042. Trapping Rain Water" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc042TrapRainWater(height: Array[Int]) -> Int => {
+    lc042TrapRainWater(height: Array[Int32]) -> Int32 => {
       total :=: 0
       height.each((value, index) => (
         (index > 0) && (index < (height.length() - 1)) ? total = total + .maxInt(0, .minInt(.lc042MaxLeft(height, index), .lc042MaxRight(height, index)) - value)
       ))
       total
     },
-    lc042MaxLeft(height: Array[Int], index: Int) -> Int => {
+    lc042MaxLeft(height: Array[Int32], index: Int32) -> Int32 => {
       best :=: 0
       height.each((value, i) => (
         i < index ? best = .maxInt(best, value)
       ))
       best
     },
-    lc042MaxRight(height: Array[Int], index: Int) -> Int => {
+    lc042MaxRight(height: Array[Int32], index: Int32) -> Int32 => {
       best :=: 0
       height.each((value, i) => (
         i > index ? best = .maxInt(best, value)
@@ -493,12 +493,12 @@
 
 ? "045. Jump Game II" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc045JumpGameII(nums: Array[Int]) -> Int => .lc045Greedy(nums, 0, 0, 0, 0),
-    lc045Greedy(nums: Array[Int], index: Int, jumps: Int, end: Int, farthest: Int) -> Int => (
+    lc045JumpGameII(nums: Array[Int32]) -> Int32 => .lc045Greedy(nums, 0, 0, 0, 0),
+    lc045Greedy(nums: Array[Int32], index: Int32, jumps: Int32, end: Int32, farthest: Int32) -> Int32 => (
       index >= (nums.length() - 1) ? jumps
         : .lc045Greedy(nums, index + 1, (
           index == end ? jumps + 1
@@ -515,11 +515,11 @@
 
 ? "046. Permutations" {
   solution := {
-    factorial(n: Int) -> Int => n {
+    factorial(n: Int32) -> Int32 => n {
       <=1 => 1
       _ => n * .factorial(n - 1)
     },
-    lc046PermutationsCount(values: Array[Int]) -> Int => .factorial(values.length())
+    lc046PermutationsCount(values: Array[Int32]) -> Int32 => .factorial(values.length())
   }
 
   @assert.eq(solution.lc046PermutationsCount([1, 2, 3]), 6)
@@ -527,7 +527,7 @@
 
 ? "048. Rotate Image" {
   solution := {
-    lc048RotateMatrix2(flat: Array[Int]) -> Array[Int] => [flat[2], flat[0], flat[3], flat[1]]
+    lc048RotateMatrix2(flat: Array[Int32]) -> Array[Int32] => [flat[2], flat[0], flat[3], flat[1]]
   }
 
   @assert.eq(solution.lc048RotateMatrix2([1, 2, 3, 4])[0], 3)
@@ -535,15 +535,15 @@
 
 ? "049. Group Anagrams" {
   solution := {
-    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0),
-    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => (
+    countChar(s: String, ch: Char) -> Int32 => .countCharFrom(s, ch, 0, 0),
+    countCharFrom(s: String, ch: Char, index: Int32, total: Int32) -> Int32 => (
       index >= s.length() ? total
         : .countCharFrom(s, ch, index + 1, (
           s.at(index) == ch ? total + 1
             : total
         ))
     ),
-    lc049GroupAnagramsCount(words: Array[String]) -> Int => {
+    lc049GroupAnagramsCount(words: Array[String]) -> Int32 => {
       groups := [""]
       groups.pop()
       words.each((word) => (
@@ -559,7 +559,7 @@
       found
     },
     lc049IsAnagram(left: String, right: String) -> Bool => (left.length() == right.length()) && .lc049SameCounts(left, right, 0),
-    lc049SameCounts(left: String, right: String, index: Int) -> Bool => (index >= left.length()) || ((.countChar(left, left.at(index)) == .countChar(right, left.at(index))) && .lc049SameCounts(left, right, index + 1))
+    lc049SameCounts(left: String, right: String, index: Int32) -> Bool => (index >= left.length()) || ((.countChar(left, left.at(index)) == .countChar(right, left.at(index))) && .lc049SameCounts(left, right, index + 1))
   }
 
   @assert.eq(solution.lc049GroupAnagramsCount(["eat", "tea", "tan", "ate", "nat", "bat"]), 3)
@@ -567,16 +567,16 @@
 
 ? "053. Maximum Subarray" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    arraySum(values: Array[Int]) -> Int => {
+    arraySum(values: Array[Int32]) -> Int32 => {
       total :=: 0
       values.each((value) => total = total + value)
       total
     },
-    lc053MaxSubArray(nums: Array[Int]) -> Int => {
+    lc053MaxSubArray(nums: Array[Int32]) -> Int32 => {
       best :=: nums[0]
       nums.each((left, i) => nums.each((right, j) => (
         i <= j ? best = .maxInt(best, .arraySum(nums.slice(i, j + 1)))
@@ -590,11 +590,11 @@
 
 ? "055. Jump Game" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc055CanJump(nums: Array[Int]) -> Bool => {
+    lc055CanJump(nums: Array[Int32]) -> Bool => {
       farthest :=: 0
       nums.each((jump, index) => (
         index <= farthest ? farthest = .maxInt(farthest, index + jump)
@@ -608,11 +608,11 @@
 
 ? "056. Merge Intervals" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc056MergeIntervalsCount(flat: Array[Int]) -> Int => {
+    lc056MergeIntervalsCount(flat: Array[Int32]) -> Int32 => {
       count :=: 0
       currentEnd :=: 0 - 1
       flat.each((value, index) => (
@@ -630,7 +630,7 @@
 
 ? "062. Unique Paths" {
   solution := {
-    lc062UniquePaths(m: Int, n: Int) -> Int => (
+    lc062UniquePaths(m: Int32, n: Int32) -> Int32 => (
       (m == 1) || (n == 1) ? 1
         : .lc062UniquePaths(m - 1, n) + .lc062UniquePaths(m, n - 1)
     )
@@ -641,11 +641,11 @@
 
 ? "064. Minimum Path Sum" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc064MinPathSum2x2(grid: Array[Int]) -> Int => (grid[0] + .minInt(grid[1], grid[2])) + grid[3]
+    lc064MinPathSum2x2(grid: Array[Int32]) -> Int32 => (grid[0] + .minInt(grid[1], grid[2])) + grid[3]
   }
 
   @assert.eq(solution.lc064MinPathSum2x2([1, 3, 1, 1]), 3)
@@ -653,11 +653,11 @@
 
 ? "070. Climbing Stairs" {
   solution := {
-    fibLike(n: Int) -> Int => n {
+    fibLike(n: Int32) -> Int32 => n {
       <=2 => n
       _ => .fibLike(n - 1) + .fibLike(n - 2)
     },
-    lc070ClimbStairs(n: Int) -> Int => .fibLike(n)
+    lc070ClimbStairs(n: Int32) -> Int32 => .fibLike(n)
   }
 
   @assert.eq(solution.lc070ClimbStairs(3), 3)
@@ -665,12 +665,12 @@
 
 ? "072. Edit Distance" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc072EditDistance(a: String, b: String) -> Int => .lc072Edit(a, b, a.length(), b.length()),
-    lc072Edit(a: String, b: String, i: Int, j: Int) -> Int => i {
+    lc072EditDistance(a: String, b: String) -> Int32 => .lc072Edit(a, b, a.length(), b.length()),
+    lc072Edit(a: String, b: String, i: Int32, j: Int32) -> Int32 => i {
       0 => j
       _ => j {
         0 => i
@@ -687,20 +687,20 @@
 
 ? "075. Sort Colors" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -713,13 +713,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc075SortColors(nums: Array[Int]) -> Array[Int] => .sortInts(nums)
+    lc075SortColors(nums: Array[Int32]) -> Array[Int32] => .sortInts(nums)
   }
 
   @assert.eq(solution.lc075SortColors([2, 0, 2, 1, 1, 0])[0], 0)
@@ -727,31 +727,31 @@
 
 ? "076. Minimum Window Substring" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0),
-    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => (
+    countChar(s: String, ch: Char) -> Int32 => .countCharFrom(s, ch, 0, 0),
+    countCharFrom(s: String, ch: Char, index: Int32, total: Int32) -> Int32 => (
       index >= s.length() ? total
         : .countCharFrom(s, ch, index + 1, (
           s.at(index) == ch ? total + 1
             : total
         ))
     ),
-    lc076MinWindowLength(s: String, target: String) -> Int => .lc076Start(s, target, 0, s.length() + 1),
-    lc076Start(s: String, target: String, start: Int, best: Int) -> Int => (
+    lc076MinWindowLength(s: String, target: String) -> Int32 => .lc076Start(s, target, 0, s.length() + 1),
+    lc076Start(s: String, target: String, start: Int32, best: Int32) -> Int32 => (
       start >= s.length() ? best
         : .lc076Start(s, target, start + 1, .lc076End(s, target, start, start + target.length(), best))
     ),
-    lc076End(s: String, target: String, start: Int, end: Int, best: Int) -> Int => (
+    lc076End(s: String, target: String, start: Int32, end: Int32, best: Int32) -> Int32 => (
       end > s.length() ? best
         : .lc076End(s, target, start, end + 1, (
           .lc076ContainsAll(s.slice(start, end), target, 0) ? .minInt(best, end - start)
             : best
         ))
     ),
-    lc076ContainsAll(window: String, target: String, index: Int) -> Bool => (
+    lc076ContainsAll(window: String, target: String, index: Int32) -> Bool => (
       index >= target.length() ? true
         : (
           .countChar(window, target.at(index)) >= .countChar(target, target.at(index)) ? .lc076ContainsAll(window, target, index + 1)
@@ -765,7 +765,7 @@
 
 ? "078. Subsets" {
   solution := {
-    lc078SubsetsCount(values: Array[Int]) -> Int => (
+    lc078SubsetsCount(values: Array[Int32]) -> Int32 => (
       values.length() == 0 ? 1
         : 2 * .lc078SubsetsCount(values.slice(1, values.length()))
     )
@@ -784,22 +784,22 @@
 
 ? "084. Largest Rectangle in Histogram" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc084LargestRectangleArea(heights: Array[Int]) -> Int => {
+    lc084LargestRectangleArea(heights: Array[Int32]) -> Int32 => {
       best :=: 0
       heights.each((height, i) => heights.each((other, j) => (
         i <= j ? best = .maxInt(best, .lc084MinRange(heights, i, j) * ((j - i) + 1))
       )))
       best
     },
-    lc084MinRange(values: Array[Int], start: Int, end: Int) -> Int => {
+    lc084MinRange(values: Array[Int32], start: Int32, end: Int32) -> Int32 => {
       best :=: values[start]
       values.each((value, index) => (
         (index >= start) && (index <= end) ? best = .minInt(best, value)
@@ -813,7 +813,7 @@
 
 ? "085. Maximal Rectangle" {
   solution := {
-    lc085MaximalRectangleArea(width: Int, height: Int) -> Int => width * height
+    lc085MaximalRectangleArea(width: Int32, height: Int32) -> Int32 => width * height
   }
 
   @assert.eq(solution.lc085MaximalRectangleArea(4, 2), 8)
@@ -821,7 +821,7 @@
 
 ? "094. Binary Tree Inorder Traversal" {
   solution := {
-    lc094InorderHeap(values: Array[Int]) -> Array[Int] => [values[1], values[0], values[2]]
+    lc094InorderHeap(values: Array[Int32]) -> Array[Int32] => [values[1], values[0], values[2]]
   }
 
   @assert.eq(solution.lc094InorderHeap([1, 2, 3])[0], 2)
@@ -829,12 +829,12 @@
 
 ? "096. Unique Binary Search Trees" {
   solution := {
-    lc096NumTrees(n: Int) -> Int => n {
+    lc096NumTrees(n: Int32) -> Int32 => n {
       0 => 1
       1 => 1
       _ => .lc096Catalan(n, 1, 0)
     },
-    lc096Catalan(n: Int, root: Int, total: Int) -> Int => root {
+    lc096Catalan(n: Int32, root: Int32, total: Int32) -> Int32 => root {
       >n => total
       _ => .lc096Catalan(n, root + 1, total + (.lc096NumTrees(root - 1) * .lc096NumTrees(n - root)))
     }
@@ -845,7 +845,7 @@
 
 ? "098. Validate Binary Search Tree" {
   solution := {
-    lc098IsValidBSTInorder(values: Array[Int]) -> Bool => {
+    lc098IsValidBSTInorder(values: Array[Int32]) -> Bool => {
       ok :=: true
       values.each((value, index) => (
         (index > 0) && (value <= values[index - 1]) ? ok = false
@@ -859,7 +859,7 @@
 
 ? "101. Symmetric Tree" {
   solution := {
-    lc101IsSymmetricFlat(values: Array[Int]) -> Bool => ((values[1] == values[2]) && (values[3] == values[6])) && (values[4] == values[5])
+    lc101IsSymmetricFlat(values: Array[Int32]) -> Bool => ((values[1] == values[2]) && (values[3] == values[6])) && (values[4] == values[5])
   }
 
   @assert.eq(solution.lc101IsSymmetricFlat([1, 2, 2, 3, 4, 4, 3]), true)
@@ -867,7 +867,7 @@
 
 ? "102. Binary Tree Level Order Traversal" {
   solution := {
-    lc102LevelOrderCount(values: Array[Int]) -> Int => values.length()
+    lc102LevelOrderCount(values: Array[Int32]) -> Int32 => values.length()
   }
 
   @assert.eq(solution.lc102LevelOrderCount([3, 9, 20]), 3)
@@ -875,7 +875,7 @@
 
 ? "104. Maximum Depth of Binary Tree" {
   solution := {
-    lc104MaxDepthHeap(values: Array[Int]) -> Int => values.length() {
+    lc104MaxDepthHeap(values: Array[Int32]) -> Int32 => values.length() {
       0 => 0
       1 => 1
       2 => 2
@@ -888,7 +888,7 @@
 
 ? "105. Construct Binary Tree from Preorder and Inorder" {
   solution := {
-    lc105BuildTreeRoot(preorder: Array[Int], inorder: Array[Int]) -> Int => preorder[0]
+    lc105BuildTreeRoot(preorder: Array[Int32], inorder: Array[Int32]) -> Int32 => preorder[0]
   }
 
   @assert.eq(solution.lc105BuildTreeRoot([3, 9, 20], [9, 3, 20]), 3)
@@ -896,7 +896,7 @@
 
 ? "114. Flatten Binary Tree to Linked List" {
   solution := {
-    lc114FlattenPreorder(values: Array[Int]) -> Array[Int] => values
+    lc114FlattenPreorder(values: Array[Int32]) -> Array[Int32] => values
   }
 
   @assert.eq(solution.lc114FlattenPreorder([1, 2, 5])[2], 5)
@@ -904,11 +904,11 @@
 
 ? "121. Best Time to Buy and Sell Stock" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc121MaxProfit(prices: Array[Int]) -> Int => {
+    lc121MaxProfit(prices: Array[Int32]) -> Int32 => {
       best :=: 0
       prices.each((buy, i) => prices.each((sell, j) => (
         i < j ? best = .maxInt(best, sell - buy)
@@ -922,11 +922,11 @@
 
 ? "128. Longest Consecutive Sequence" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc128LongestConsecutive(nums: Array[Int]) -> Int => {
+    lc128LongestConsecutive(nums: Array[Int32]) -> Int32 => {
       set := @set.new(0)
       nums.each((value) => set.add(value))
       best :=: 0
@@ -935,7 +935,7 @@
       ))
       best
     },
-    lc128Run(set: Set[Int], value: Int) -> Int => (
+    lc128Run(set: Set[Int32], value: Int32) -> Int32 => (
       set.has(value) ? 1 + .lc128Run(set, value + 1)
         : 0
     )
@@ -946,14 +946,14 @@
 
 ? "136. Single Number" {
   solution := {
-    arrayCountInt(values: Array[Int], needle: Int) -> Int => {
+    arrayCountInt(values: Array[Int32], needle: Int32) -> Int32 => {
       count :=: 0
       values.each((value) => (
         value == needle ? count = count + 1
       ))
       count
     },
-    lc136SingleNumber(nums: Array[Int]) -> Int => {
+    lc136SingleNumber(nums: Array[Int32]) -> Int32 => {
       answer :=: 0
       nums.each((value) => answer = answer + (
         .arrayCountInt(nums, value) == 1 ? value
@@ -982,7 +982,7 @@
 
 ? "141. Linked List Cycle" {
   solution := {
-    lc141HasCycleFromPos(pos: Int) -> Bool => pos >= 0
+    lc141HasCycleFromPos(pos: Int32) -> Bool => pos >= 0
   }
 
   @assert.eq(solution.lc141HasCycleFromPos(1), true)
@@ -990,7 +990,7 @@
 
 ? "142. Linked List Cycle II" {
   solution := {
-    lc142CycleStartIndex(pos: Int) -> Int => pos
+    lc142CycleStartIndex(pos: Int32) -> Int32 => pos
   }
 
   @assert.eq(solution.lc142CycleStartIndex(2), 2)
@@ -998,7 +998,7 @@
 
 ? "146. LRU Cache" {
   solution := {
-    lc146LRUCacheFinalValue(ops: Array[Int]) -> Int => ops.last()
+    lc146LRUCacheFinalValue(ops: Array[Int32]) -> Int32 => ops.last()
   }
 
   @assert.eq(solution.lc146LRUCacheFinalValue([1, 2, 3]), 3)
@@ -1006,20 +1006,20 @@
 
 ? "148. Sort List" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -1032,13 +1032,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc148SortListArray(values: Array[Int]) -> Array[Int] => .sortInts(values)
+    lc148SortListArray(values: Array[Int32]) -> Array[Int32] => .sortInts(values)
   }
 
   @assert.eq(solution.lc148SortListArray([4, 2, 1, 3])[0], 1)
@@ -1046,16 +1046,16 @@
 
 ? "152. Maximum Product Subarray" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    arrayProduct(values: Array[Int]) -> Int => {
+    arrayProduct(values: Array[Int32]) -> Int32 => {
       total :=: 1
       values.each((value) => total = total * value)
       total
     },
-    lc152MaxProduct(nums: Array[Int]) -> Int => {
+    lc152MaxProduct(nums: Array[Int32]) -> Int32 => {
       best :=: nums[0]
       nums.each((left, i) => nums.each((right, j) => (
         i <= j ? best = .maxInt(best, .arrayProduct(nums.slice(i, j + 1)))
@@ -1069,14 +1069,14 @@
 
 ? "155. Min Stack" {
   solution := {
-    arrayMin(values: Array[Int]) -> Int => {
+    arrayMin(values: Array[Int32]) -> Int32 => {
       best :=: values[0]
       values.each((value) => (
         value < best ? best = value
       ))
       best
     },
-    lc155MinStackMin(values: Array[Int]) -> Int => .arrayMin(values)
+    lc155MinStackMin(values: Array[Int32]) -> Int32 => .arrayMin(values)
   }
 
   @assert.eq(solution.lc155MinStackMin([2, 0, 3, 0]), 0)
@@ -1084,7 +1084,7 @@
 
 ? "160. Intersection of Two Linked Lists" {
   solution := {
-    lc160IntersectionValue(leftTail: Int, rightTail: Int) -> Int => (
+    lc160IntersectionValue(leftTail: Int32, rightTail: Int32) -> Int32 => (
       leftTail == rightTail ? leftTail
         : 0 - 1
     )
@@ -1095,14 +1095,14 @@
 
 ? "169. Majority Element" {
   solution := {
-    arrayCountInt(values: Array[Int], needle: Int) -> Int => {
+    arrayCountInt(values: Array[Int32], needle: Int32) -> Int32 => {
       count :=: 0
       values.each((value) => (
         value == needle ? count = count + 1
       ))
       count
     },
-    lc169MajorityElement(nums: Array[Int]) -> Int => {
+    lc169MajorityElement(nums: Array[Int32]) -> Int32 => {
       winner :=: nums[0]
       nums.each((value) => (
         .arrayCountInt(nums, value) > (nums.length() / 2) ? winner = value
@@ -1116,12 +1116,12 @@
 
 ? "198. House Robber" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc198Rob(nums: Array[Int]) -> Int => .lc198RobAt(nums, 0),
-    lc198RobAt(nums: Array[Int], index: Int) -> Int => (
+    lc198Rob(nums: Array[Int32]) -> Int32 => .lc198RobAt(nums, 0),
+    lc198RobAt(nums: Array[Int32], index: Int32) -> Int32 => (
       index >= nums.length() ? 0
         : .maxInt(nums[index] + .lc198RobAt(nums, index + 2), .lc198RobAt(nums, index + 1))
     )
@@ -1132,11 +1132,11 @@
 
 ? "200. Number of Islands" {
   solution := {
-    boolToInt(value: Bool) -> Int => (
+    boolToInt(value: Bool) -> Int32 => (
       value ? 1
         : 0
     ),
-    lc200NumIslandsRows(row1: String, row2: String, row3: String) -> Int => (.boolToInt(row1.includes("1")) + .boolToInt(row2.includes("1"))) + .boolToInt(row3.includes("1"))
+    lc200NumIslandsRows(row1: String, row2: String, row3: String) -> Int32 => (.boolToInt(row1.includes("1")) + .boolToInt(row2.includes("1"))) + .boolToInt(row3.includes("1"))
   }
 
   @assert.eq(solution.lc200NumIslandsRows("110", "010", "001"), 3)
@@ -1144,7 +1144,7 @@
 
 ? "206. Reverse Linked List" {
   solution := {
-    lc206ReverseListArray(values: Array[Int]) -> Array[Int] => values.reverse()
+    lc206ReverseListArray(values: Array[Int32]) -> Array[Int32] => values.reverse()
   }
 
   @assert.eq(solution.lc206ReverseListArray([1, 2, 3])[0], 3)
@@ -1152,7 +1152,7 @@
 
 ? "207. Course Schedule" {
   solution := {
-    lc207CanFinish(numCourses: Int, prerequisites: Array[Int]) -> Bool => prerequisites.length() < (numCourses * 2)
+    lc207CanFinish(numCourses: Int32, prerequisites: Array[Int32]) -> Bool => prerequisites.length() < (numCourses * 2)
   }
 
   @assert.eq(solution.lc207CanFinish(2, [1, 0]), true)
@@ -1168,8 +1168,8 @@
 
 ? "210. Course Schedule II" {
   solution := {
-    lc207CanFinish(numCourses: Int, prerequisites: Array[Int]) -> Bool => prerequisites.length() < (numCourses * 2),
-    lc210FindOrderCount(numCourses: Int, prerequisites: Array[Int]) -> Int => (
+    lc207CanFinish(numCourses: Int32, prerequisites: Array[Int32]) -> Bool => prerequisites.length() < (numCourses * 2),
+    lc210FindOrderCount(numCourses: Int32, prerequisites: Array[Int32]) -> Int32 => (
       .lc207CanFinish(numCourses, prerequisites) ? numCourses
         : 0
     )
@@ -1180,20 +1180,20 @@
 
 ? "215. Kth Largest Element in an Array" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -1206,13 +1206,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc215KthLargest(nums: Array[Int], k: Int) -> Int => {
+    lc215KthLargest(nums: Array[Int32], k: Int32) -> Int32 => {
       sorted := .sortInts(nums)
       sorted[sorted.length() - k]
     }
@@ -1223,7 +1223,7 @@
 
 ? "221. Maximal Square" {
   solution := {
-    lc221MaximalSquare(side: Int) -> Int => side * side
+    lc221MaximalSquare(side: Int32) -> Int32 => side * side
   }
 
   @assert.eq(solution.lc221MaximalSquare(3), 9)
@@ -1231,7 +1231,7 @@
 
 ? "226. Invert Binary Tree" {
   solution := {
-    lc226InvertTreeFlat(values: Array[Int]) -> Array[Int] => [values[0], values[2], values[1]]
+    lc226InvertTreeFlat(values: Array[Int32]) -> Array[Int32] => [values[0], values[2], values[1]]
   }
 
   @assert.eq(solution.lc226InvertTreeFlat([4, 2, 7])[1], 7)
@@ -1239,7 +1239,7 @@
 
 ? "230. Kth Smallest Element in a BST" {
   solution := {
-    lc230KthSmallest(inorder: Array[Int], k: Int) -> Int => inorder[k - 1]
+    lc230KthSmallest(inorder: Array[Int32], k: Int32) -> Int32 => inorder[k - 1]
   }
 
   @assert.eq(solution.lc230KthSmallest([1, 2, 3], 2), 2)
@@ -1247,8 +1247,8 @@
 
 ? "234. Palindrome Linked List" {
   solution := {
-    lc234IsPalindromeList(values: Array[Int]) -> Bool => .lcArrayEqual(values, values.reverse()),
-    lcArrayEqual(left: Array[Int], right: Array[Int]) -> Bool => {
+    lc234IsPalindromeList(values: Array[Int32]) -> Bool => .lcArrayEqual(values, values.reverse()),
+    lcArrayEqual(left: Array[Int32], right: Array[Int32]) -> Bool => {
       ok :=: left.length() == right.length()
       left.each((value, index) => (
         !((index < right.length()) && (value == right[index])) ? ok = false
@@ -1262,12 +1262,12 @@
 
 ? "238. Product of Array Except Self" {
   solution := {
-    arrayProduct(values: Array[Int]) -> Int => {
+    arrayProduct(values: Array[Int32]) -> Int32 => {
       total :=: 1
       values.each((value) => total = total * value)
       total
     },
-    lc238ProductExceptSelf(nums: Array[Int]) -> Array[Int] => {
+    lc238ProductExceptSelf(nums: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       nums.each((value, index) => out.push(.arrayProduct(nums.slice(0, index)) * .arrayProduct(nums.slice(index + 1, nums.length()))))
@@ -1280,14 +1280,14 @@
 
 ? "239. Sliding Window Maximum" {
   solution := {
-    arrayMax(values: Array[Int]) -> Int => {
+    arrayMax(values: Array[Int32]) -> Int32 => {
       best :=: values[0]
       values.each((value) => (
         value > best ? best = value
       ))
       best
     },
-    lc239SlidingWindowMaximum(nums: Array[Int], k: Int) -> Array[Int] => {
+    lc239SlidingWindowMaximum(nums: Array[Int32], k: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       nums.each((value, index) => (
@@ -1302,14 +1302,14 @@
 
 ? "240. Search a 2D Matrix II" {
   solution := {
-    arrayContainsInt(values: Array[Int], needle: Int) -> Bool => {
+    arrayContainsInt(values: Array[Int32], needle: Int32) -> Bool => {
       found :=: false
       values.each((value) => (
         value == needle ? found = true
       ))
       found
     },
-    lc240SearchMatrixFlat(values: Array[Int], target: Int) -> Bool => .arrayContainsInt(values, target)
+    lc240SearchMatrixFlat(values: Array[Int32], target: Int32) -> Bool => .arrayContainsInt(values, target)
   }
 
   @assert.eq(solution.lc240SearchMatrixFlat([1, 4, 7, 11, 2, 5], 5), true)
@@ -1317,12 +1317,12 @@
 
 ? "279. Perfect Squares" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc279NumSquares(n: Int) -> Int => .lc279Squares(n, 1, n),
-    lc279Squares(n: Int, square: Int, best: Int) -> Int => (
+    lc279NumSquares(n: Int32) -> Int32 => .lc279Squares(n, 1, n),
+    lc279Squares(n: Int32, square: Int32, best: Int32) -> Int32 => (
       (square * square) > n ? best
         : .lc279Squares(n, square + 1, (
           (square * square) == n ? 1
@@ -1336,15 +1336,15 @@
 
 ? "283. Move Zeroes" {
   solution := {
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushIntAndReturnInt(out: Array[Int], value: Int, result: Int) -> Int => {
+    pushIntAndReturnInt(out: Array[Int32], value: Int32, result: Int32) -> Int32 => {
       out.push(value)
       result
     },
-    lc283MoveZeroes(nums: Array[Int]) -> Array[Int] => {
+    lc283MoveZeroes(nums: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       zeros :=: 0
@@ -1354,7 +1354,7 @@
       ))
       .lc283AppendZeroes(out, zeros)
     },
-    lc283AppendZeroes(values: Array[Int], count: Int) -> Array[Int] => count {
+    lc283AppendZeroes(values: Array[Int32], count: Int32) -> Array[Int32] => count {
       <=0 => values
       _ => .lc283AppendZeroes(.pushIntAndReturn(values, 0), count - 1)
     }
@@ -1365,14 +1365,14 @@
 
 ? "287. Find the Duplicate Number" {
   solution := {
-    arrayCountInt(values: Array[Int], needle: Int) -> Int => {
+    arrayCountInt(values: Array[Int32], needle: Int32) -> Int32 => {
       count :=: 0
       values.each((value) => (
         value == needle ? count = count + 1
       ))
       count
     },
-    lc287FindDuplicate(nums: Array[Int]) -> Int => {
+    lc287FindDuplicate(nums: Array[Int32]) -> Int32 => {
       duplicate :=: 0
       nums.each((value) => (
         .arrayCountInt(nums, value) > 1 ? duplicate = value
@@ -1386,7 +1386,7 @@
 
 ? "297. Serialize and Deserialize Binary Tree" {
   solution := {
-    lc297SerializeTreeLength(values: Array[Int]) -> Int => values.length()
+    lc297SerializeTreeLength(values: Array[Int32]) -> Int32 => values.length()
   }
 
   @assert.eq(solution.lc297SerializeTreeLength([1, 2, 3]), 3)
@@ -1394,16 +1394,16 @@
 
 ? "300. Longest Increasing Subsequence" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc300LengthOfLIS(nums: Array[Int]) -> Int => {
+    lc300LengthOfLIS(nums: Array[Int32]) -> Int32 => {
       best :=: 1
       nums.each((value, index) => best = .maxInt(best, .lc300LisEndingAt(nums, index)))
       best
     },
-    lc300LisEndingAt(nums: Array[Int], end: Int) -> Int => {
+    lc300LisEndingAt(nums: Array[Int32], end: Int32) -> Int32 => {
       best :=: 1
       nums.each((value, index) => (
         (index < end) && (value < nums[end]) ? best = .maxInt(best, 1 + .lc300LisEndingAt(nums, index))
@@ -1417,12 +1417,12 @@
 
 ? "309. Best Time to Buy and Sell Stock with Cooldown" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc309MaxProfitCooldown(prices: Array[Int]) -> Int => .lc309Profit(prices, 0, true),
-    lc309Profit(prices: Array[Int], day: Int, canBuy: Bool) -> Int => (
+    lc309MaxProfitCooldown(prices: Array[Int32]) -> Int32 => .lc309Profit(prices, 0, true),
+    lc309Profit(prices: Array[Int32], day: Int32, canBuy: Bool) -> Int32 => (
       day >= prices.length() ? 0
         : (
           canBuy ? .maxInt((0 - prices[day]) + .lc309Profit(prices, day + 1, false), .lc309Profit(prices, day + 1, true))
@@ -1436,25 +1436,25 @@
 
 ? "322. Coin Change" {
   solution := {
-    minInt(a: Int, b: Int) -> Int => (
+    minInt(a: Int32, b: Int32) -> Int32 => (
       a < b ? a
         : b
     ),
-    lc322CoinChange(coins: Array[Int], amount: Int) -> Int => {
+    lc322CoinChange(coins: Array[Int32], amount: Int32) -> Int32 => {
       result := .lc322Coin(coins, amount)
       (
         result > 9999 ? 0 - 1
           : result
       )
     },
-    lc322Coin(coins: Array[Int], amount: Int) -> Int => {
+    lc322Coin(coins: Array[Int32], amount: Int32) -> Int32 => {
       amount {
         0 => 0
         <0 => 10000
         _ => .lc322Try(coins, amount, 0, 10000)
       }
     },
-    lc322Try(coins: Array[Int], amount: Int, index: Int, best: Int) -> Int => (
+    lc322Try(coins: Array[Int32], amount: Int32, index: Int32, best: Int32) -> Int32 => (
       index >= coins.length() ? best
         : .lc322Try(coins, amount, index + 1, .minInt(best, 1 + .lc322Coin(coins, amount - coins[index])))
     )
@@ -1465,7 +1465,7 @@
 
 ? "328. Odd Even Linked List" {
   solution := {
-    lc328OddEvenList(values: Array[Int]) -> Array[Int] => {
+    lc328OddEvenList(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value, index) => (
@@ -1483,16 +1483,16 @@
 
 ? "337. House Robber III" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc198Rob(nums: Array[Int]) -> Int => .lc198RobAt(nums, 0),
-    lc198RobAt(nums: Array[Int], index: Int) -> Int => (
+    lc198Rob(nums: Array[Int32]) -> Int32 => .lc198RobAt(nums, 0),
+    lc198RobAt(nums: Array[Int32], index: Int32) -> Int32 => (
       index >= nums.length() ? 0
         : .maxInt(nums[index] + .lc198RobAt(nums, index + 2), .lc198RobAt(nums, index + 1))
     ),
-    lc337RobTreeLinear(values: Array[Int]) -> Int => .lc198Rob(values)
+    lc337RobTreeLinear(values: Array[Int32]) -> Int32 => .lc198Rob(values)
   }
 
   @assert.eq(solution.lc337RobTreeLinear([3, 2, 3]), 6)
@@ -1500,17 +1500,17 @@
 
 ? "338. Counting Bits" {
   solution := {
-    absInt(value: Int) -> Int => (
+    absInt(value: Int32) -> Int32 => (
       value < 0 ? 0 - value
         : value
     ),
-    lc338CountBitsSum(n: Int) -> Int => .lc338BitsLoop(0, n, 0),
-    lc338BitsLoop(value: Int, limit: Int, total: Int) -> Int => value {
+    lc338CountBitsSum(n: Int32) -> Int32 => .lc338BitsLoop(0, n, 0),
+    lc338BitsLoop(value: Int32, limit: Int32, total: Int32) -> Int32 => value {
       >limit => total
       _ => .lc338BitsLoop(value + 1, limit, total + .lc461HammingDistance(value, 0))
     },
-    lc461HammingDistance(left: Int, right: Int) -> Int => .lc461Bits(.absInt(left - right), 0),
-    lc461Bits(value: Int, count: Int) -> Int => value {
+    lc461HammingDistance(left: Int32, right: Int32) -> Int32 => .lc461Bits(.absInt(left - right), 0),
+    lc461Bits(value: Int32, count: Int32) -> Int32 => value {
       0 => count
       _ => .lc461Bits(value / 2, count + (value % 2))
     }
@@ -1521,14 +1521,14 @@
 
 ? "347. Top K Frequent Elements" {
   solution := {
-    arrayCountInt(values: Array[Int], needle: Int) -> Int => {
+    arrayCountInt(values: Array[Int32], needle: Int32) -> Int32 => {
       count :=: 0
       values.each((value) => (
         value == needle ? count = count + 1
       ))
       count
     },
-    lc347TopFrequentFirst(nums: Array[Int]) -> Int => {
+    lc347TopFrequentFirst(nums: Array[Int32]) -> Int32 => {
       best :=: nums[0]
       nums.each((value) => (
         .arrayCountInt(nums, value) > .arrayCountInt(nums, best) ? best = value
@@ -1542,7 +1542,7 @@
 
 ? "394. Decode String" {
   solution := {
-    lc394DecodeStringSimple(count: Int, value: String) -> String => value.repeat(count)
+    lc394DecodeStringSimple(count: Int32, value: String) -> String => value.repeat(count)
   }
 
   @assert.eq(solution.lc394DecodeStringSimple(3, "a"), "aaa")
@@ -1550,7 +1550,7 @@
 
 ? "399. Evaluate Division" {
   solution := {
-    lc399EvaluateDivision(numerator: Int, denominator: Int) -> Int => numerator / denominator
+    lc399EvaluateDivision(numerator: Int32, denominator: Int32) -> Int32 => numerator / denominator
   }
 
   @assert.eq(solution.lc399EvaluateDivision(6, 2), 3)
@@ -1558,7 +1558,7 @@
 
 ? "406. Queue Reconstruction by Height" {
   solution := {
-    lc406ReconstructQueueCount(flatPeople: Array[Int]) -> Int => flatPeople.length() / 2
+    lc406ReconstructQueueCount(flatPeople: Array[Int32]) -> Int32 => flatPeople.length() / 2
   }
 
   @assert.eq(solution.lc406ReconstructQueueCount([7, 0, 4, 4]), 2)
@@ -1566,16 +1566,16 @@
 
 ? "416. Partition Equal Subset Sum" {
   solution := {
-    arraySum(values: Array[Int]) -> Int => {
+    arraySum(values: Array[Int32]) -> Int32 => {
       total :=: 0
       values.each((value) => total = total + value)
       total
     },
-    lc416CanPartition(nums: Array[Int]) -> Bool => (
+    lc416CanPartition(nums: Array[Int32]) -> Bool => (
       (.arraySum(nums) % 2) == 0 ? .lc416Subset(nums, 0, .arraySum(nums) / 2)
         : false
     ),
-    lc416Subset(nums: Array[Int], index: Int, target: Int) -> Bool => target {
+    lc416Subset(nums: Array[Int32], index: Int32, target: Int32) -> Bool => target {
       0 => true
       <0 => false
       _ => (
@@ -1590,13 +1590,13 @@
 
 ? "437. Path Sum III" {
   solution := {
-    arraySum(values: Array[Int]) -> Int => {
+    arraySum(values: Array[Int32]) -> Int32 => {
       total :=: 0
       values.each((value) => total = total + value)
       total
     },
-    lc437PathSumLinear(values: Array[Int], target: Int) -> Int => .lc560SubarraySum(values, target),
-    lc560SubarraySum(nums: Array[Int], k: Int) -> Int => {
+    lc437PathSumLinear(values: Array[Int32], target: Int32) -> Int32 => .lc560SubarraySum(values, target),
+    lc560SubarraySum(nums: Array[Int32], k: Int32) -> Int32 => {
       count :=: 0
       nums.each((left, i) => nums.each((right, j) => (
         (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1
@@ -1610,8 +1610,8 @@
 
 ? "438. Find All Anagrams in a String" {
   solution := {
-    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0),
-    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => (
+    countChar(s: String, ch: Char) -> Int32 => .countCharFrom(s, ch, 0, 0),
+    countCharFrom(s: String, ch: Char, index: Int32, total: Int32) -> Int32 => (
       index >= s.length() ? total
         : .countCharFrom(s, ch, index + 1, (
           s.at(index) == ch ? total + 1
@@ -1619,9 +1619,9 @@
         ))
     ),
     lc049IsAnagram(left: String, right: String) -> Bool => (left.length() == right.length()) && .lc049SameCounts(left, right, 0),
-    lc049SameCounts(left: String, right: String, index: Int) -> Bool => (index >= left.length()) || ((.countChar(left, left.at(index)) == .countChar(right, left.at(index))) && .lc049SameCounts(left, right, index + 1)),
-    lc438FindAnagramsCount(s: String, p: String) -> Int => .lc438Start(s, p, 0, 0),
-    lc438Start(s: String, p: String, index: Int, count: Int) -> Int => (
+    lc049SameCounts(left: String, right: String, index: Int32) -> Bool => (index >= left.length()) || ((.countChar(left, left.at(index)) == .countChar(right, left.at(index))) && .lc049SameCounts(left, right, index + 1)),
+    lc438FindAnagramsCount(s: String, p: String) -> Int32 => .lc438Start(s, p, 0, 0),
+    lc438Start(s: String, p: String, index: Int32, count: Int32) -> Int32 => (
       (index + p.length()) > s.length() ? count
         : .lc438Start(s, p, index + 1, (
           .lc049IsAnagram(s.slice(index, index + p.length()), p) ? count + 1
@@ -1635,15 +1635,15 @@
 
 ? "448. Find All Numbers Disappeared in an Array" {
   solution := {
-    arrayContainsInt(values: Array[Int], needle: Int) -> Bool => {
+    arrayContainsInt(values: Array[Int32], needle: Int32) -> Bool => {
       found :=: false
       values.each((value) => (
         value == needle ? found = true
       ))
       found
     },
-    lc448FindDisappearedCount(nums: Array[Int]) -> Int => .lc448Missing(nums, 1, 0),
-    lc448Missing(nums: Array[Int], value: Int, count: Int) -> Int => (
+    lc448FindDisappearedCount(nums: Array[Int32]) -> Int32 => .lc448Missing(nums, 1, 0),
+    lc448Missing(nums: Array[Int32], value: Int32, count: Int32) -> Int32 => (
       value > nums.length() ? count
         : .lc448Missing(nums, value + 1, (
           .arrayContainsInt(nums, value) ? count
@@ -1657,12 +1657,12 @@
 
 ? "461. Hamming Distance" {
   solution := {
-    absInt(value: Int) -> Int => (
+    absInt(value: Int32) -> Int32 => (
       value < 0 ? 0 - value
         : value
     ),
-    lc461HammingDistance(left: Int, right: Int) -> Int => .lc461Bits(.absInt(left - right), 0),
-    lc461Bits(value: Int, count: Int) -> Int => value {
+    lc461HammingDistance(left: Int32, right: Int32) -> Int32 => .lc461Bits(.absInt(left - right), 0),
+    lc461Bits(value: Int32, count: Int32) -> Int32 => value {
       0 => count
       _ => .lc461Bits(value / 2, count + (value % 2))
     }
@@ -1673,8 +1673,8 @@
 
 ? "494. Target Sum" {
   solution := {
-    lc494TargetSumWays(nums: Array[Int], target: Int) -> Int => .lc494Ways(nums, 0, target),
-    lc494Ways(nums: Array[Int], index: Int, target: Int) -> Int => (
+    lc494TargetSumWays(nums: Array[Int32], target: Int32) -> Int32 => .lc494Ways(nums, 0, target),
+    lc494Ways(nums: Array[Int32], index: Int32, target: Int32) -> Int32 => (
       index >= nums.length() ? target {
         0 => 1
         _ => 0
@@ -1688,12 +1688,12 @@
 
 ? "538. Convert BST to Greater Tree" {
   solution := {
-    arraySum(values: Array[Int]) -> Int => {
+    arraySum(values: Array[Int32]) -> Int32 => {
       total :=: 0
       values.each((value) => total = total + value)
       total
     },
-    lc538GreaterTreeRoot(values: Array[Int]) -> Int => .arraySum(values)
+    lc538GreaterTreeRoot(values: Array[Int32]) -> Int32 => .arraySum(values)
   }
 
   @assert.eq(solution.lc538GreaterTreeRoot([2, 1, 3]), 6)
@@ -1701,11 +1701,11 @@
 
 ? "543. Diameter of Binary Tree" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc543DiameterLinearTree(values: Array[Int]) -> Int => .maxInt(0, values.length() - 1)
+    lc543DiameterLinearTree(values: Array[Int32]) -> Int32 => .maxInt(0, values.length() - 1)
   }
 
   @assert.eq(solution.lc543DiameterLinearTree([1, 2, 3]), 2)
@@ -1713,12 +1713,12 @@
 
 ? "560. Subarray Sum Equals K" {
   solution := {
-    arraySum(values: Array[Int]) -> Int => {
+    arraySum(values: Array[Int32]) -> Int32 => {
       total :=: 0
       values.each((value) => total = total + value)
       total
     },
-    lc560SubarraySum(nums: Array[Int], k: Int) -> Int => {
+    lc560SubarraySum(nums: Array[Int32], k: Int32) -> Int32 => {
       count :=: 0
       nums.each((left, i) => nums.each((right, j) => (
         (i <= j) && (.arraySum(nums.slice(i, j + 1)) == k) ? count = count + 1
@@ -1732,20 +1732,20 @@
 
 ? "581. Shortest Unsorted Continuous Subarray" {
   solution := {
-    pushIntAndKeep(out: Array[Int], value: Int, keep: Bool) -> Bool => {
+    pushIntAndKeep(out: Array[Int32], value: Int32, keep: Bool) -> Bool => {
       out.push(value)
       keep
     },
-    pushIntAndReturn(out: Array[Int], value: Int) -> Array[Int] => {
+    pushIntAndReturn(out: Array[Int32], value: Int32) -> Array[Int32] => {
       out.push(value)
       out
     },
-    pushTwoAndTrue(out: Array[Int], first: Int, second: Int) -> Bool => {
+    pushTwoAndTrue(out: Array[Int32], first: Int32, second: Int32) -> Bool => {
       out.push(first)
       out.push(second)
       true
     },
-    sortedInsert(values: Array[Int], value: Int) -> Array[Int] => {
+    sortedInsert(values: Array[Int32], value: Int32) -> Array[Int32] => {
       out := [0]
       out.pop()
       inserted :=: false
@@ -1758,13 +1758,13 @@
           : .pushIntAndReturn(out, value)
       )
     },
-    sortInts(values: Array[Int]) -> Array[Int] => {
+    sortInts(values: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       values.each((value) => out = .sortedInsert(out, value))
       out
     },
-    lc581FindUnsortedSubarray(nums: Array[Int]) -> Int => {
+    lc581FindUnsortedSubarray(nums: Array[Int32]) -> Int32 => {
       sorted := .sortInts(nums)
       first :=: 0 - 1
       last :=: 0 - 1
@@ -1779,7 +1779,7 @@
           : (last - first) + 1
       )
     },
-    lc581First(first: Int, index: Int) -> Int => (
+    lc581First(first: Int32, index: Int32) -> Int32 => (
       first == (0 - 1) ? index
         : first
     )
@@ -1790,7 +1790,7 @@
 
 ? "617. Merge Two Binary Trees" {
   solution := {
-    lc617MergeTreesRoot(left: Array[Int], right: Array[Int]) -> Int => left[0] + right[0]
+    lc617MergeTreesRoot(left: Array[Int32], right: Array[Int32]) -> Int32 => left[0] + right[0]
   }
 
   @assert.eq(solution.lc617MergeTreesRoot([1], [2]), 3)
@@ -1798,23 +1798,23 @@
 
 ? "621. Task Scheduler" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    countChar(s: String, ch: Char) -> Int => .countCharFrom(s, ch, 0, 0),
-    countCharFrom(s: String, ch: Char, index: Int, total: Int) -> Int => (
+    countChar(s: String, ch: Char) -> Int32 => .countCharFrom(s, ch, 0, 0),
+    countCharFrom(s: String, ch: Char, index: Int32, total: Int32) -> Int32 => (
       index >= s.length() ? total
         : .countCharFrom(s, ch, index + 1, (
           s.at(index) == ch ? total + 1
             : total
         ))
     ),
-    lc621LeastInterval(tasks: String, cooldown: Int) -> Int => {
+    lc621LeastInterval(tasks: String, cooldown: Int32) -> Int32 => {
       maxCount := .lc621MaxTaskCount(tasks, 0, 0)
       .maxInt(tasks.length(), ((maxCount - 1) * (cooldown + 1)) + 1)
     },
-    lc621MaxTaskCount(tasks: String, index: Int, maxCount: Int) -> Int => (
+    lc621MaxTaskCount(tasks: String, index: Int32, maxCount: Int32) -> Int32 => (
       index >= tasks.length() ? maxCount
         : .lc621MaxTaskCount(tasks, index + 1, .maxInt(maxCount, .countChar(tasks, tasks.at(index))))
     )
@@ -1825,14 +1825,14 @@
 
 ? "647. Palindromic Substrings" {
   solution := {
-    lc005IsPalindromeRange(s: String, left: Int, right: Int) -> Bool => left {
+    lc005IsPalindromeRange(s: String, left: Int32, right: Int32) -> Bool => left {
       >=right => true
       _ => (
         s.at(left) == s.at(right) ? .lc005IsPalindromeRange(s, left + 1, right - 1)
           : false
       )
     },
-    lc647CountSubstrings(s: String) -> Int => {
+    lc647CountSubstrings(s: String) -> Int32 => {
       count :=: 0
       s.split("").each((ch, start) => s.split("").each((other, end) => (
         (start <= end) && .lc005IsPalindromeRange(s, start, end) ? count = count + 1
@@ -1846,13 +1846,13 @@
 
 ? "739. Daily Temperatures" {
   solution := {
-    lc739DailyTemperatures(temps: Array[Int]) -> Array[Int] => {
+    lc739DailyTemperatures(temps: Array[Int32]) -> Array[Int32] => {
       out := [0]
       out.pop()
       temps.each((temp, index) => out.push(.lc739WarmerAfter(temps, index, index + 1)))
       out
     },
-    lc739WarmerAfter(temps: Array[Int], start: Int, index: Int) -> Int => (
+    lc739WarmerAfter(temps: Array[Int32], start: Int32, index: Int32) -> Int32 => (
       index >= temps.length() ? 0
         : (
           temps[index] > temps[start] ? index - start
@@ -1866,25 +1866,25 @@
 
 ? "763. Partition Labels" {
   solution := {
-    maxInt(a: Int, b: Int) -> Int => (
+    maxInt(a: Int32, b: Int32) -> Int32 => (
       a > b ? a
         : b
     ),
-    lc763PartitionLabelsCount(s: String) -> Int => {
+    lc763PartitionLabelsCount(s: String) -> Int32 => {
       .lc763PartitionAt(s, 0, 0, 0)
     },
-    lc763PartitionAt(s: String, index: Int, currentEnd: Int, count: Int) -> Int => (
+    lc763PartitionAt(s: String, index: Int32, currentEnd: Int32, count: Int32) -> Int32 => (
       index >= s.length() ? count
         : .lc763PartitionNext(s, index, .maxInt(currentEnd, .lc763LastIndex(s, s.at(index))), count)
     ),
-    lc763PartitionNext(s: String, index: Int, currentEnd: Int, count: Int) -> Int => .lc763PartitionAt(s, index + 1, currentEnd, (
+    lc763PartitionNext(s: String, index: Int32, currentEnd: Int32, count: Int32) -> Int32 => .lc763PartitionAt(s, index + 1, currentEnd, (
       index == currentEnd ? count + 1
         : count
     )),
-    lc763LastIndex(s: String, ch: Char) -> Int => {
+    lc763LastIndex(s: String, ch: Char) -> Int32 => {
       .lc763LastIndexFrom(s, ch, 0, 0)
     },
-    lc763LastIndexFrom(s: String, ch: Char, index: Int, last: Int) -> Int => (
+    lc763LastIndexFrom(s: String, ch: Char, index: Int32, last: Int32) -> Int32 => (
       index >= s.length() ? last
         : .lc763LastIndexFrom(s, ch, index + 1, (
           s.at(index) == ch ? index

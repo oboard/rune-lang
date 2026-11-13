@@ -432,6 +432,19 @@ func (p *Parser) check(kind lexer.Kind) bool {
 	return p.peek().Kind == kind
 }
 
+func (p *Parser) checkKeyword(word string) bool {
+	tok := p.peek()
+	return tok.Kind == lexer.Ident && tok.Lexeme == word
+}
+
+func (p *Parser) matchKeyword(word string) bool {
+	if !p.checkKeyword(word) {
+		return false
+	}
+	p.advance()
+	return true
+}
+
 func (p *Parser) checkNext(kind lexer.Kind) bool {
 	if p.curr+1 >= len(p.tokens) {
 		return kind == lexer.EOF

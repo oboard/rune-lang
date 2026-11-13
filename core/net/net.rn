@@ -1,11 +1,11 @@
 + TCPConnection: {
   ~ read(
-    length: Int
+    length: Int32
   ) -> Result[Bytes, Error] => "%netConnection.read"
 
   ~ write(
     data: Bytes
-  ) -> Result[Int, Error] => "%netConnection.write"
+  ) -> Result[Int32, Error] => "%netConnection.write"
 
   ~ close() -> Result[Void, Error] => "%netConnection.close"
 }

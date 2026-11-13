@@ -137,6 +137,17 @@ func (e *NullLiteral) Position() lexer.Position {
 	return e.Pos
 }
 
+// UndefinedLiteral is the `undefined` value. It is distinct from `null` for
+// `typeof` and for union narrowing.
+type UndefinedLiteral struct {
+	Pos lexer.Position
+}
+
+func (*UndefinedLiteral) exprNode() {}
+func (e *UndefinedLiteral) Position() lexer.Position {
+	return e.Pos
+}
+
 type UnaryExpr struct {
 	Op   lexer.Kind
 	Expr Expr
@@ -189,6 +200,18 @@ type BinaryExpr struct {
 	Pos   lexer.Position
 }
 
+// TypeOfExpr is `typeof value`. Rune exposes it as a static-friendly runtime
+// query: the checker narrows unions from `typeof x == "string"` guards.
+type TypeOfExpr struct {
+	Argument Expr
+	Pos      lexer.Position
+}
+
+func (*TypeOfExpr) exprNode() {}
+func (e *TypeOfExpr) Position() lexer.Position {
+	return e.Pos
+}
+
 func (*BinaryExpr) exprNode() {}
 func (e *BinaryExpr) Position() lexer.Position {
 	return e.Pos
@@ -203,6 +226,49 @@ type TernaryExpr struct {
 
 func (*TernaryExpr) exprNode() {}
 func (e *TernaryExpr) Position() lexer.Position {
+	return e.Pos
+}
+
+// IfExpr is the statement/expression form of `if (cond) { ... } else { ... }`.
+// It lowers to the same branch semantics as TernaryExpr but preserves the
+// TypeScript-compatible surface syntax for formatters and tools.
+type IfExpr struct {
+	Cond Expr
+	Then Expr
+	Else Expr
+	Pos  lexer.Position
+}
+
+func (*IfExpr) exprNode() {}
+func (e *IfExpr) Position() lexer.Position {
+	return e.Pos
+}
+
+// ForOfExpr iterates an Array/Set with `for (const value of iterable) { ... }`.
+// It lowers to the receiver's `each` method on every backend.
+type ForOfExpr struct {
+	Name     string
+	Iterable Expr
+	Body     Expr
+	Pos      lexer.Position
+}
+
+func (*ForOfExpr) exprNode() {}
+func (e *ForOfExpr) Position() lexer.Position {
+	return e.Pos
+}
+
+// WhileExpr is a statement-level loop. Its canonical source form is
+// `* (cond) { ... }`; `while (cond) { ... }` is a compatibility alias. It
+// yields Void.
+type WhileExpr struct {
+	Cond Expr
+	Body Expr
+	Pos  lexer.Position
+}
+
+func (*WhileExpr) exprNode() {}
+func (e *WhileExpr) Position() lexer.Position {
 	return e.Pos
 }
 

@@ -65,7 +65,7 @@ func TestDOMErrorDetection(t *testing.T) {
 	el.noSuchMethod()
 }
 `
-	s := &server{docs: map[string] string{uri: src}}
+	s := &server{docs: map[string]string{uri: src}}
 	_, diags := s.analyze(uri)
 	found := false
 	for _, d := range diags {

@@ -9,7 +9,7 @@ Box[T]: {
 Status: {
   Ready = 1
 }
-main() -> Int => Box { value: 41 }.get() + Status.Ready
+main() -> Int32 => Box { value: 41 }.get() + Status.Ready
 `
   file := lower(source)
   @assert.eq(file.errors.length(), 0)
@@ -65,7 +65,7 @@ main() => null
 }
 
 ? "selfhost ir preserves function source paths" {
-  file := lowerWithSourcePath(`helper() -> Int => 1
+  file := lowerWithSourcePath(`helper() -> Int32 => 1
 `, "helper.rn")
   @assert.eq(file.errors.length(), 0)
   @assert.eq(file.functions.length(), 1)
@@ -130,8 +130,8 @@ Status: {
 }
 
 ? "selfhost ir marks direct self tail loops" {
-  file := lower(`scan(state: Int) -> Int => state < 3 ? scan(state + 1) : state
-nonTail(state: Int) -> Int => 1 + nonTail(state + 1)
+  file := lower(`scan(state: Int32) -> Int32 => state < 3 ? scan(state + 1) : state
+nonTail(state: Int32) -> Int32 => 1 + nonTail(state + 1)
 `)
   lowered := eliminateSelfTailCalls(file)
   @assert.eq(lowered.functions[0].tailLoop, true)
@@ -140,9 +140,9 @@ nonTail(state: Int) -> Int => 1 + nonTail(state + 1)
 }
 
 ? "selfhost ir marks lexer driver mutual tail loop" {
-  file := lower(`Token: { value: Int }
-Lexed: { state: Int, kind: Int }
-scan(state: Int, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
+  file := lower(`Token: { value: Int32 }
+Lexed: { state: Int32, kind: Int32 }
+scan(state: Int32, tokens: Array[Token]) -> Array[Token] => state == 0 ? tokens : scanLexed(Lexed { state: state - 1, kind: 0 }, tokens)
 scanLexed(lexed: Lexed, tokens: Array[Token]) -> Array[Token] => scan(lexed.state, tokens)
 `)
   lowered := eliminateSelfTailCalls(file)

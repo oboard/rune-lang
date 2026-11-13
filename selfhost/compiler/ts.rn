@@ -181,7 +181,7 @@ tsBinding(
 tsLookupBinding(
   bindings: Array[CompilerTypeBinding],
   name: String,
-  index: Int
+  index: Int32
 ) -> CompilerTypeBinding => (
   index >= bindings.length() ? emptyCompilerTypeBinding()
     : (
@@ -225,7 +225,7 @@ rewriteTSBlockExpr(
 
 rewriteTSBlockStatements(
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   structs: Array[IRStructType],
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding],
@@ -237,7 +237,7 @@ rewriteTSBlockStatements(
 
 rewriteTSBlockStep(
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   structs: Array[IRStructType],
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding],
@@ -424,7 +424,7 @@ tsRewriteArgs(
 
 tsRewriteArgsFrom(
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   structs: Array[IRStructType],
   enums: Array[IREnumType],
   bindings: Array[CompilerTypeBinding],
@@ -470,7 +470,7 @@ tsStructFieldType(
   structs: Array[IRStructType],
   typeName: String,
   fieldName: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= structs.length() ? ""
     : (
@@ -482,7 +482,7 @@ tsStructFieldType(
 tsStructFieldTypeIn(
   fields: Array[IRField],
   fieldName: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= fields.length() ? ""
     : (
@@ -509,7 +509,7 @@ tsEnumHasInstanceMethod(
   enums: Array[IREnumType],
   typeName: String,
   methodName: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : (
@@ -522,7 +522,7 @@ tsStructHasInstanceMethod(
   structs: Array[IRStructType],
   typeName: String,
   methodName: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : (
@@ -534,7 +534,7 @@ tsStructHasInstanceMethod(
 tsStructMethodMatches(
   methods: Array[IRFunction],
   methodName: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= methods.length() ? false
     : (
@@ -547,7 +547,7 @@ emitTSConst(constant: IRConst) -> String => ((((("const " + mangleIdent(constant
 
 emitTSImportList(
   imports: Array[IRTSImport],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= imports.length() ? out
@@ -567,8 +567,8 @@ emitTSImport(
 emitTSImportNames(
   functions: Array[IRFunction],
   values: Array[IRConst],
-  fnIndex: Int,
-  valueIndex: Int,
+  fnIndex: Int32,
+  valueIndex: Int32,
   out: String
 ) -> String => (
   fnIndex < functions.length() ? emitTSImportNames(functions, values, fnIndex + 1, valueIndex, appendTSImportName(out, functions[fnIndex].name))
@@ -748,7 +748,7 @@ emitTSPayloadEnum(
 
 emitTSPayloadEnumMembers(
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -757,7 +757,7 @@ emitTSPayloadEnumMembers(
 
 emitTSPayloadEnumMember(
   member: IREnumMember,
-  index: Int,
+  index: Int32,
   first: Bool
 ) -> String => {
   prefix := (
@@ -769,7 +769,7 @@ emitTSPayloadEnumMember(
 
 emitTSPayloadTuple(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? ("[" + out) + "]"
@@ -783,7 +783,7 @@ emitTSPayloadEnumConstructors(
   enumName: String,
   generics: Array[String],
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -794,7 +794,7 @@ emitTSPayloadEnumConstructor(
   enumName: String,
   generics: Array[String],
   member: IREnumMember,
-  index: Int
+  index: Int32
 ) -> String => {
   typeName := mangleIdent(enumName) + emitTSGenericsUse(generics)
   (
@@ -805,7 +805,7 @@ emitTSPayloadEnumConstructor(
 
 emitTSParamNames(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -817,7 +817,7 @@ emitTSParamNames(
 
 tsEnumHasPayload(
   members: Array[IREnumMember],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= members.length() ? false
     : (
@@ -835,7 +835,7 @@ emitTSGenericsUse(
 
 emitTSEnumMembers(
   members: Array[IREnumMember],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= members.length() ? out
@@ -926,7 +926,7 @@ emitTSBody(
   expr: IRExpr,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Block => emitTSBlock(expr.children, 0, returns, returnType, level, "")
   _ => line(level, (
@@ -937,10 +937,10 @@ emitTSBody(
 
 emitTSBlock(
   statements: Array[IRExpr],
-  index: Int,
+  index: Int32,
   returns: Bool,
   returnType: String,
-  level: Int,
+  level: Int32,
   out: String
 ) -> String => (
   index >= statements.length() ? (
@@ -955,7 +955,7 @@ emitTSStatement(
   last: Bool,
   returns: Bool,
   returnType: String,
-  level: Int
+  level: Int32
 ) -> String => expr.kind {
   ExprKind.Let => emitTSLet(expr, level)
   ExprKind.ObjectDestructure => emitTSObjectDestructure(expr, level)
@@ -967,7 +967,7 @@ emitTSStatement(
 
 emitTSLet(
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => line(level, (((tsLetKeyword(expr.op) + mangleIdent(expr.name)) + " = ") + emitTSExpr(expr.children[0])) + ";")
 
 tsLetKeyword(op: String) -> String => op {
@@ -977,12 +977,12 @@ tsLetKeyword(op: String) -> String => op {
 
 emitTSObjectDestructure(
   expr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => line(level, ((("const { " + emitTSObjectDestructureFields(expr.params, 0, "")) + " } = ") + emitTSExpr(expr.children[0])) + ";")
 
 emitTSObjectDestructureFields(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -994,7 +994,7 @@ emitTSObjectDestructureFields(
 
 emitTSParams(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= params.length() ? out
@@ -1013,7 +1013,7 @@ emitTSGenerics(
 
 emitTSGenericNames(
   generics: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= generics.length() ? out
@@ -1033,7 +1033,7 @@ emitTSExports(file: IRFile) -> String => {
 
 emitTSConstExportNames(
   constants: Array[IRConst],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= constants.length() ? out
@@ -1045,7 +1045,7 @@ emitTSConstExportNames(
 
 emitTSExportNames(
   functions: Array[IRFunction],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= functions.length() ? out
@@ -1097,6 +1097,10 @@ emitTSExpr(expr: IRExpr) -> String => expr.kind {
   ExprKind.Struct => ("{" + emitTSFields(expr.children, 0, "")) + "}"
   ExprKind.Object => ("{" + emitTSFields(expr.children, 0, "")) + "}"
   ExprKind.Block => ("(() => {\n" + emitTSBlock(expr.children, 0, true, "Dynamic", 1, "")) + "})()"
+  ExprKind.Loop => "(() => {\n" + line(1, "while (" + emitTSExpr(expr.children[0]) + ") {") + emitTSBlock(expr.children[1].children, 0, false, "Void", 2, "") + line(1, "}") + "})()"
+  ExprKind.Return => expr.children.length() > 0 ? "return " + emitTSExpr(expr.children[0]) : "return"
+  ExprKind.Break => "break"
+  ExprKind.Continue => "continue"
   _ => "undefined"
 }
 
@@ -1109,7 +1113,7 @@ emitTSXMLCreateElement(
 emitTSXMLExprBody(
   expr: IRExpr,
   name: String,
-  level: Int
+  level: Int32
 ) -> String => {
   out := line(level, ((("const " + name) + " = ") + emitTSXMLCreateElement(expr)) + ";")
   out = out + emitTSXMLParts(name, expr.name, expr.children, 0, level, 1)
@@ -1120,9 +1124,9 @@ emitTSXMLParts(
   parent: String,
   tag: String,
   children: Array[IRExpr],
-  index: Int,
-  level: Int,
-  childIndex: Int
+  index: Int32,
+  level: Int32,
+  childIndex: Int32
 ) -> String => (
   index >= children.length() ? ""
     : emitTSXMLPart(parent, tag, children, index, level, childIndex)
@@ -1132,9 +1136,9 @@ emitTSXMLPart(
   parent: String,
   tag: String,
   children: Array[IRExpr],
-  index: Int,
-  level: Int,
-  childIndex: Int
+  index: Int32,
+  level: Int32,
+  childIndex: Int32
 ) -> String => {
   child := children[index]
   nextIndex := (
@@ -1148,8 +1152,8 @@ emitTSXMLChild(
   parent: String,
   tag: String,
   child: IRExpr,
-  level: Int,
-  childIndex: Int
+  level: Int32,
+  childIndex: Int32
 ) -> String => child.kind {
   ExprKind.Field => emitTSXMLAttr(parent, tag, child, level)
   ExprKind.XMLText => line(level, ((parent + ".appendChild(document.createTextNode(") + tsQuoteString(child.value)) + "));")
@@ -1160,8 +1164,8 @@ emitTSXMLChild(
 emitTSXMLNestedChild(
   parent: String,
   child: IRExpr,
-  level: Int,
-  childIndex: Int
+  level: Int32,
+  childIndex: Int32
 ) -> String => {
   name := (parent + "_") + childIndex.toString()
   emitTSXMLExprBody(child, name, level) + line(level, ((parent + ".appendChild(") + name) + ");")
@@ -1170,8 +1174,8 @@ emitTSXMLNestedChild(
 emitTSXMLExprChild(
   parent: String,
   child: IRExpr,
-  level: Int,
-  childIndex: Int
+  level: Int32,
+  childIndex: Int32
 ) -> String => {
   childType := child.text
   childName := (parent + "_child") + childIndex.toString()
@@ -1188,7 +1192,7 @@ emitTSXMLAttr(
   parent: String,
   tag: String,
   attr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => {
   (
     attr.op == "xmlEvent" ? emitTSXMLEventAttr(parent, tag, attr, level)
@@ -1200,7 +1204,7 @@ emitTSXMLEventAttr(
   parent: String,
   tag: String,
   attr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => (
   attr.children.length() == 0 ? ""
     : emitTSXMLEventAttrValue(parent, tag, attr, level, compilerDomEventBaseName(attr.name), compilerDomEventHasModifier(attr.name, "prevent"))
@@ -1210,7 +1214,7 @@ emitTSXMLEventAttrValue(
   parent: String,
   tag: String,
   attr: IRExpr,
-  level: Int,
+  level: Int32,
   eventName: String,
   prevent: Bool
 ) -> String => {
@@ -1247,7 +1251,7 @@ emitTSXMLPlainAttr(
   parent: String,
   tag: String,
   attr: IRExpr,
-  level: Int
+  level: Int32
 ) -> String => {
   (
     attr.children.length() == 0 ? line(level, ((parent + ".setAttribute(") + tsQuoteString(attr.name)) + ", \"\");")
@@ -1282,7 +1286,7 @@ emitTSTemplate(expr: IRExpr) -> String => {
 emitTSTemplateParts(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= segments.length() ? out
@@ -1292,7 +1296,7 @@ emitTSTemplateParts(
 emitTSTemplateAtom(
   segments: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   textOut := out + tsEscapeTemplateText(segments[index])
@@ -1313,7 +1317,7 @@ tsEscapeTemplateText(
 
 tsEscapeTemplateChars(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= text.length() ? out
@@ -1322,7 +1326,7 @@ tsEscapeTemplateChars(
 
 tsEscapeTemplateChar(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   ((text.at(index) == '$') && ((index + 1) < text.length())) && (text.at(index + 1) == '{') ? tsEscapeTemplateChars(text, index + 2, out + "\\${")
@@ -1399,9 +1403,9 @@ emitTSCall(expr: IRExpr) -> String => moduleCallKey(expr) {
   "process.cwd" => "\".\""
   "process.env" => "null"
   "process.argv" => "[]"
-  "int.toString" => ("String(" + emitTSExpr(expr.children[1])) + ")"
-  "int.toDouble" => emitTSExpr(expr.children[1])
-  "int.toBigInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
+  "int32.toString" => ("String(" + emitTSExpr(expr.children[1])) + ")"
+  "int32.toDouble" => emitTSExpr(expr.children[1])
+  "int32.toBigInt" => ("BigInt(" + emitTSExpr(expr.children[1])) + ")"
   "int4.fromInt" => ("((__value: number): number => { const __n = __value & 0xf; return __n >= 8 ? __n - 16 : __n; })(" + emitTSExpr(expr.children[1])) + ")"
   "int8.fromInt" => ("((__value: number): number => (__value << 24) >> 24)(" + emitTSExpr(expr.children[1])) + ")"
   "int16.fromInt" => ("((__value: number): number => (__value << 16) >> 16)(" + emitTSExpr(expr.children[1])) + ")"
@@ -1516,7 +1520,7 @@ emitTSEventLambdaTyped(
 
 emitTSEventParamsTyped(
   params: Array[IRParam],
-  index: Int,
+  index: Int32,
   out: String,
   eventType: String
 ) -> String => (
@@ -1551,13 +1555,13 @@ emitTSAtSelector(expr: IRExpr) -> String => {
 
 emitTSExprList(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => emitTSExprListFrom(exprs, index, out)
 
 emitTSExprListFrom(
   exprs: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= exprs.length() ? out
@@ -1569,7 +1573,7 @@ emitTSExprListFrom(
 
 emitTSMapEntries(
   entries: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= entries.length() ? out
@@ -1581,7 +1585,7 @@ emitTSMapEntries(
 
 emitTSFields(
   fields: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fields.length() ? out
@@ -1599,7 +1603,7 @@ tsBinaryOp(op: String) -> String => op {
 
 tsType(typeName: String) -> String => {
   "" | "Void" => "void"
-  "Int" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Double" | "Float" => "number"
+  "Int32" | "Int4" | "Int8" | "Int16" | "UInt" | "UInt8" | "UInt16" | "Double" | "Float" => "number"
   "BigInt" | "Int64" | "UInt64" => "bigint"
   "String" | "Char" => "string"
   "Bool" => "boolean"
@@ -1613,7 +1617,7 @@ tsType(typeName: String) -> String => {
 tsTypeFallback(
   typeName: String
 ) -> String => (
-  typeName.endsWith("?") ? tsType(typeName.slice(0, typeName.length() - 1)) + " | null"
+  typeName.endsWith("?") ? tsType(typeName.slice(0, typeName.length() - 1)) + " | null | undefined"
     : (
       genericInner(typeName, "Array") != "" ? tsType(genericInner(typeName, "Array")) + "[]"
         : (
@@ -1641,7 +1645,7 @@ emitTSTypeArgs(args: String) -> String => emitTSTypeArgList(args.split(","), 0, 
 
 emitTSTypeArgList(
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= args.length() ? out

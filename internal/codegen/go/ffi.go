@@ -28,12 +28,12 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "fs.readFile" {
 		g.imports["os"] = true
 	}
-	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "int.toString" {
+	if fn, ok := g.stdlibFunctionFromExpr(expr); ok && fn.Intrinsic == "int32.toString" {
 		g.imports["strconv"] = true
 	}
 	if fn, ok := g.stdlibFunctionFromExpr(expr); ok {
 		switch fn.Intrinsic {
-		case "int.toBigInt", "bigint.fromInt", "bigint.toDouble":
+		case "int32.toBigInt", "bigint.fromInt", "bigint.toDouble":
 			g.imports["math/big"] = true
 		case "double.trunc", "double.floor", "double.ceil", "double.round":
 			g.imports["math"] = true
@@ -42,7 +42,7 @@ func (g *generator) collectExprImports(expr ir.Expr) {
 	if call, ok := expr.(*ir.CallExpr); ok {
 		if sel, ok := call.Callee.(*ir.SelectorExpr); ok {
 			switch sel.Receiver.ResultType() {
-			case checker.Int:
+			case checker.Int32:
 				if sel.Name == "toString" {
 					g.imports["strconv"] = true
 				}

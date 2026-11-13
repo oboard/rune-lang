@@ -51,6 +51,10 @@ const (
 	exprObjectDestructure = 44
 	exprError             = 45
 	exprWatch             = 46
+	exprLoop              = 48
+	exprReturn            = 49
+	exprBreak             = 50
+	exprContinue          = 51
 )
 
 type selfhostIRFile struct {
@@ -419,6 +423,9 @@ func selfhostExpr(expr ir.Expr) selfhostIRExpr {
 	case *ir.WatchExpr:
 		base.Kind = exprWatch
 		base.Children = []selfhostIRExpr{selfhostExpr(e.Target), selfhostExpr(e.Handler)}
+	case *ir.WhileExpr:
+		base.Kind = exprLoop
+		base.Children = []selfhostIRExpr{selfhostExpr(e.Cond), selfhostExpr(e.Body)}
 	default:
 		base.Kind = exprError
 		base.Text = fmt.Sprintf("unsupported Go IR expression %T", expr)
@@ -489,6 +496,22 @@ func selfhostStmt(stmt ir.Stmt) selfhostIRExpr {
 		base.Kind = exprAssign
 		base.Name = s.Name
 		base.Children = []selfhostIRExpr{selfhostExpr(s.Value)}
+	case *ir.ReturnStmt:
+		base.Kind = exprReturn
+		if s.Value != nil {
+			base.Children = []selfhostIRExpr{selfhostExpr(s.Value)}
+		}
+	case *ir.BreakStmt:
+		base.Kind = exprBreak
+	case *ir.ContinueStmt:
+		base.Kind = exprContinue
+	case *ir.IfStmt:
+		base.Kind = exprTernary
+		base.Children = []selfhostIRExpr{
+			selfhostExpr(s.Cond),
+			selfhostExpr(&ir.BlockExpr{Statements: s.Then}),
+			selfhostExpr(&ir.BlockExpr{Statements: s.Else}),
+		}
 	case *ir.ExprStmt:
 		return selfhostExpr(s.Expr)
 	default:

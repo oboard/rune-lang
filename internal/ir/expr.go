@@ -117,6 +117,12 @@ type NullLiteral struct {
 
 func (*NullLiteral) exprNode() {}
 
+type UndefinedLiteral struct {
+	ExprBase
+}
+
+func (*UndefinedLiteral) exprNode() {}
+
 type UnaryExpr struct {
 	ExprBase
 	Op   lexer.Kind
@@ -124,6 +130,25 @@ type UnaryExpr struct {
 }
 
 func (*UnaryExpr) exprNode() {}
+
+// TypeOfExpr lowers `typeof value`. The result is always String.
+type TypeOfExpr struct {
+	ExprBase
+	Argument Expr
+}
+
+func (*TypeOfExpr) exprNode() {}
+
+// NarrowExpr marks a value that is statically narrowed from a union to a
+// concrete member. Go emits an assertion/conversion; TS emits a cast; MoonBit
+// does not admit unions and rejects them before this node can appear.
+type NarrowExpr struct {
+	ExprBase
+	Expr       Expr
+	AssertType checker.Type
+}
+
+func (*NarrowExpr) exprNode() {}
 
 type PostfixExpr struct {
 	ExprBase

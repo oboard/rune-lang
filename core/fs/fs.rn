@@ -1,5 +1,5 @@
 + FileStat: {
-  size: Int
+  size: Int32
   isFile: Bool
   isDirectory: Bool
 }

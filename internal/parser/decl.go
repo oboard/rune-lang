@@ -533,6 +533,22 @@ func (p *Parser) parseGenericParams() ([]string, map[string]ast.Type) {
 }
 
 func (p *Parser) parseTypeName() ast.Type {
+	typ := p.parseTypeNamePrimary()
+	if !p.check(lexer.BitOr) {
+		return typ
+	}
+	members := []ast.Type{typ}
+	for p.match(lexer.BitOr) {
+		p.skipNewlines()
+		members = append(members, p.parseTypeNamePrimary())
+	}
+	return ast.UnionType(members)
+}
+
+// parseTypeNamePrimary parses one union member: a simple/generic/function type
+// with an optional nullable suffix. Union parsing loops on this so `A | B | C`
+// stays one flat union instead of nesting.
+func (p *Parser) parseTypeNamePrimary() ast.Type {
 	p.skipNewlines()
 	if p.match(lexer.LParen) {
 		var params []ast.TypeParam
@@ -684,7 +700,7 @@ func (p *Parser) skipAnnotationTokens() {
 
 func (p *Parser) parseBody() ast.Expr {
 	if p.check(lexer.LBrace) {
-		if !p.looksLikePatternBranch() && p.looksLikeObjectLiteralBody() {
+		if !p.looksLikePatternBranch() && (p.looksLikeObjectLiteralBody() || p.looksLikeObjectMethodBody()) {
 			return p.parseAnonymousObjectLiteral()
 		}
 		if !p.looksLikePatternBranch() && p.looksLikeMapLiteralBody() {

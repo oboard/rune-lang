@@ -97,6 +97,8 @@ type checker struct {
 	currentSourcePath   string
 	routineDepth        int
 	unwrapErrors        []Type
+	currentReturn       Type
+	loopDepth           int
 	// domTargetOverrides narrows `e.target` selectors inside a specific DOM
 	// event handler to the handler element's interface (React ChangeEvent<T>
 	// parity). Keyed by the *ast.SelectorExpr node so each handler narrows

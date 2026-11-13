@@ -214,6 +214,10 @@ func (g *generator) body(fn *ir.Function, expr ir.Expr, ret checker.Type) error 
 }
 
 func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
+	return g.blockBody(block, ret, true)
+}
+
+func (g *generator) blockBody(block *ir.BlockExpr, ret checker.Type, tail bool) error {
 	for i, stmt := range block.Statements {
 		last := i == len(block.Statements)-1
 		switch s := stmt.(type) {
@@ -274,24 +278,122 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) error {
 				g.effectScope(block)
 				continue
 			}
+			if nested, ok := s.Expr.(*ir.BlockExpr); ok {
+				if err := g.blockBody(nested, ret, tail && last); err != nil {
+					return err
+				}
+				continue
+			}
 			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok && ternary.Alternative == nil && !(last && ret != checker.Void) {
 				g.conditionalExprStmt(ternary)
+				continue
+			}
+			if loop, ok := s.Expr.(*ir.WhileExpr); ok {
+				if err := g.whileStmt(loop, ret); err != nil {
+					return err
+				}
 				continue
 			}
 			expr := g.expr(s.Expr)
 			if expr == "" {
 				continue
 			}
-			if last && ret != checker.Void {
+			if last && tail && ret != checker.Void {
 				g.lineExpr("return ", g.returnExpr(s.Expr, ret), ";")
 			} else {
 				g.line(g.stmtExpr(s.Expr) + ";")
 			}
+		case *ir.ThrowStmt:
+			g.linef("throw %s;", g.expr(s.Value))
+		case *ir.TryStmt:
+			tryRet := checker.Void
+			if last {
+				tryRet = ret
+			}
+			if err := g.tryStmt(s, tryRet); err != nil {
+				return err
+			}
+		case *ir.ReturnStmt:
+			if ret == checker.Void {
+				if s.Value != nil {
+					g.line(g.stmtExpr(s.Value) + ";")
+				}
+			} else if s.Value != nil {
+				g.linef("return %s;", g.returnExpr(s.Value, ret))
+			} else {
+				g.line("return;")
+			}
+		case *ir.BreakStmt:
+			g.line("break;")
+		case *ir.ContinueStmt:
+			g.line("continue;")
+		case *ir.IfStmt:
+			g.linef("if (%s) {", g.expr(s.Cond))
+			g.indent++
+			if err := g.block(&ir.BlockExpr{Statements: s.Then}, ret); err != nil {
+				return err
+			}
+			g.indent--
+			if len(s.Else) > 0 {
+				g.line("} else {")
+				g.indent++
+				if err := g.block(&ir.BlockExpr{Statements: s.Else}, ret); err != nil {
+					return err
+				}
+				g.indent--
+			}
+			g.line("}")
 		}
 	}
-	if ret != checker.Void && len(block.Statements) == 0 {
+	if tail && ret != checker.Void && len(block.Statements) == 0 {
 		g.linef("return %s;", g.zeroValue(ret))
 	}
+	return nil
+}
+
+func (g *generator) whileStmt(loop *ir.WhileExpr, ret checker.Type) error {
+	g.linef("while (%s) {", g.expr(loop.Cond))
+	g.indent++
+	if block, ok := loop.Body.(*ir.BlockExpr); ok {
+		if err := g.blockBody(block, ret, false); err != nil {
+			return err
+		}
+	} else {
+		g.line(g.stmtExpr(loop.Body) + ";")
+	}
+	g.indent--
+	g.line("}")
+	return nil
+}
+
+func (g *generator) tryStmt(stmt *ir.TryStmt, ret checker.Type) error {
+	g.line("try {")
+	g.indent++
+	if err := g.block(&ir.BlockExpr{Statements: stmt.Body}, ret); err != nil {
+		return err
+	}
+	g.indent--
+	if stmt.Catch != nil {
+		if stmt.CatchName != "" {
+			g.linef("} catch (%s) {", mangleIdent(stmt.CatchName))
+		} else {
+			g.line("} catch {")
+		}
+		g.indent++
+		if err := g.block(&ir.BlockExpr{Statements: stmt.Catch}, ret); err != nil {
+			return err
+		}
+		g.indent--
+	}
+	if len(stmt.Finally) > 0 {
+		g.line("} finally {")
+		g.indent++
+		if err := g.block(&ir.BlockExpr{Statements: stmt.Finally}, ret); err != nil {
+			return err
+		}
+		g.indent--
+	}
+	g.line("}")
 	return nil
 }
 

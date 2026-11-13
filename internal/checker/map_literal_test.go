@@ -29,12 +29,12 @@ func TestMapLiteralInfersKeyAndValueTypes(t *testing.T) {
 	block := file.Functions[0].Body.(*ast.BlockExpr)
 	let := block.Statements[0].(*ast.LetStmt)
 	lit := let.Value.(*ast.MapLiteral)
-	if got, want := DisplayType(info.ExprTypes[lit]), "Map[String, Int]"; got != want {
+	if got, want := DisplayType(info.ExprTypes[lit]), "Map[String, Int32]"; got != want {
 		t.Fatalf("map literal type = %q, want %q", got, want)
 	}
 	last := block.Statements[2].(*ast.ExprStmt)
 	index := last.Expr.(*ast.IndexExpr)
-	if got, want := info.ExprTypes[index], NullableOf(Int); got != want {
+	if got, want := info.ExprTypes[index], NullableOf(Int32); got != want {
 		t.Fatalf("index type = %s, want %s", got, want)
 	}
 }
@@ -57,7 +57,7 @@ func TestMapIndexNullCoalesceReturnsValueType(t *testing.T) {
 	}
 	block := file.Functions[0].Body.(*ast.BlockExpr)
 	stmt := block.Statements[1].(*ast.ExprStmt)
-	if got, want := info.ExprTypes[stmt.Expr], Int; got != want {
+	if got, want := info.ExprTypes[stmt.Expr], Int32; got != want {
 		t.Fatalf("coalesce type = %s, want %s", got, want)
 	}
 }
@@ -82,7 +82,7 @@ func TestMapLiteralInfersIntegerKeys(t *testing.T) {
 	block := file.Functions[0].Body.(*ast.BlockExpr)
 	let := block.Statements[0].(*ast.LetStmt)
 	lit := let.Value.(*ast.MapLiteral)
-	if got, want := DisplayType(info.ExprTypes[lit]), "Map[Int, Int]"; got != want {
+	if got, want := DisplayType(info.ExprTypes[lit]), "Map[Int32, Int32]"; got != want {
 		t.Fatalf("map literal type = %q, want %q", got, want)
 	}
 }
@@ -102,7 +102,7 @@ func TestMapIndexRequiresKeyType(t *testing.T) {
 	_, diags := Check(file)
 	var found bool
 	for _, diag := range diags {
-		if strings.Contains(diag.Message, "map index has type Int, expected String") {
+		if strings.Contains(diag.Message, "map index has type Int32, expected String") {
 			found = true
 			break
 		}

@@ -19,7 +19,7 @@
     replaceValue: String
   ) -> String => "%regex.replaceAll"
 
-  search(string: String) -> Int => "%regex.search"
+  search(string: String) -> Int32 => "%regex.search"
 
   split(string: String) -> Array[String] => "%regex.split"
 
@@ -43,9 +43,9 @@
 
   hasIndices() -> Bool => "%regex.hasIndices"
 
-  lastIndex() -> Int => "%regex.lastIndex"
+  lastIndex() -> Int32 => "%regex.lastIndex"
 
-  setLastIndex(index: Int) -> Int => "%regex.setLastIndex"
+  setLastIndex(index: Int32) -> Int32 => "%regex.setLastIndex"
 }
 
 + new(

@@ -1,17 +1,17 @@
 + String: {
-  length() -> Int => "%string.length"
+  length() -> Int32 => "%string.length"
 
   isEmpty() -> Bool => .length() == 0
 
   toString() -> String => "%string.toString"
 
-  at(index: Int) -> Char => "%string.at"
+  at(index: Int32) -> Char => "%string.at"
 
-  charAt(index: Int) -> Char => "%string.at"
+  charAt(index: Int32) -> Char => "%string.at"
 
   chars() -> Array[Char] => "%string.chars"
 
-  slice(start: Int, end: Int) -> String => "%string.slice"
+  slice(start: Int32, end: Int32) -> String => "%string.slice"
 
   concat(value: String) -> String => "%string.concat"
 
@@ -23,11 +23,11 @@
 
   endsWith(searchString: String) -> Bool => "%string.endsWith"
 
-  indexOf(searchString: String) -> Int => "%string.indexOf"
+  indexOf(searchString: String) -> Int32 => "%string.indexOf"
 
   lastIndexOf(
     searchString: String
-  ) -> Int => "%string.lastIndexOf"
+  ) -> Int32 => "%string.lastIndexOf"
 
   toLowerCase() -> String => "%string.toLowerCase"
 
@@ -39,7 +39,7 @@
 
   trimEnd() -> String => "%string.trimEnd"
 
-  repeat(count: Int) -> String => "%string.repeat"
+  repeat(count: Int32) -> String => "%string.repeat"
 
   replace(
     searchValue: String,

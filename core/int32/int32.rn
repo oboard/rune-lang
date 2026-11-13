@@ -1,15 +1,15 @@
-+ Int: {
-  toString() -> String => "%int.toString"
++ Int32: {
+  toString() -> String => "%int32.toString"
 
-  toDouble() -> Double => "%int.toDouble"
+  toDouble() -> Double => "%int32.toDouble"
 
-  toBigInt() -> BigInt => "%int.toBigInt"
+  toBigInt() -> BigInt => "%int32.toBigInt"
 
-  add(other: Int) -> Int => "%int.add"
+  add(other: Int32) -> Int32 => "%int32.add"
 
-  sub(other: Int) -> Int => "%int.sub"
+  sub(other: Int32) -> Int32 => "%int32.sub"
 
-  mul(other: Int) -> Int => "%int.mul"
+  mul(other: Int32) -> Int32 => "%int32.mul"
 
-  div(other: Int) -> Int => "%int.div"
+  div(other: Int32) -> Int32 => "%int32.div"
 }

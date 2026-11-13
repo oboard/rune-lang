@@ -111,7 +111,7 @@ The `cli` module provides small command, option, argument, parse-result, and
 help-text helpers for building command-line programs:
 
 ```rune
-cmd ~= @cli.command("ship", "Ship a build artifact")
+cmd :=: @cli.command("ship", "Ship a build artifact")
 cmd = @cli.withVersion(cmd, "1.0.0")
 cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
 cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", false, "dist/app"))
@@ -255,13 +255,13 @@ true.toString()
 Boolean operators `!`, `&&`, and `||` are language operators; these receiver
 methods are convenience APIs.
 
-## int, double, bigint
+## int32, double, bigint
 
 Numeric conversion helpers:
 
 ```rune
-@int.toDouble(1)
-@int.toBigInt(1)
+@int32.toDouble(1)
+@int32.toBigInt(1)
 @double.trunc(1.5)
 @double.floor(1.5)
 @double.ceil(1.5)
@@ -317,7 +317,7 @@ bytes.setFloat(8, @float.fromDouble(1.5), true)
 
 `@bytes.fromInts(values)` builds a `Bytes` from byte values. `Bytes`
 supports `length`, `byteLength`, `clone`, `slice`, `toInts`, `get*`, and
-`set*` methods for `Int4`, `Int8`, `UInt8`, `Int16`, `UInt16`, `Int`/`UInt`,
+`set*` methods for `Int4`, `Int8`, `UInt8`, `Int16`, `UInt16`, `Int32`/`UInt`,
 `Int64`/`UInt64`, `Float`, and `Double`. `Uint*`, `Int32`, `Float32`,
 `Float64`, and `BigInt64`/`BigUInt64` aliases are also declared.
 
@@ -403,7 +403,7 @@ surfaces.
 ```rune
 JsonUser: {
   name: String
-  age: Int
+  age: Int32
 }
 
 #json.object
@@ -471,7 +471,7 @@ main() => {
   @go.stmt("fmt.Println($name)")
 }
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 ```
 
 `@go.import` is top-level only. `@go.stmt` and `@go.expr` are Go-backend FFI

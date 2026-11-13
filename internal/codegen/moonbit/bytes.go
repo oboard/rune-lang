@@ -1,9 +1,9 @@
 package moonbitcodegen
 
 func (g *generator) bytesRuntime() {
-	g.line("fn rune_bytes_to_ints(data : Bytes) -> Array[Int] {")
+	g.line("fn rune_bytes_to_ints(data : Bytes) -> Array[Int32] {")
 	g.indent++
-	g.line("let out : Array[Int] = []")
+	g.line("let out : Array[Int32] = []")
 	g.line("let mut index = 0")
 	g.line("while index < data.length() {")
 	g.indent++
@@ -15,7 +15,7 @@ func (g *generator) bytesRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_ints_to_bytes(data : Array[Int]) -> Bytes {")
+	g.line("fn rune_ints_to_bytes(data : Array[Int32]) -> Bytes {")
 	g.indent++
 	g.line("let bytes : Array[Byte] = []")
 	g.line("let mut index = 0")

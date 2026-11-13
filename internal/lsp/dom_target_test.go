@@ -1,9 +1,9 @@
 package lsp
 
 import (
-	"testing"
-	"github.com/oboard/rune-lang/internal/compiler"
 	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/compiler"
+	"testing"
 )
 
 func TestDOMEventTargetCompletion(t *testing.T) {

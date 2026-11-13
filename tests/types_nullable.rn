@@ -1,4 +1,4 @@
-nullableInt(value: Int?) -> Int? => value
+nullableInt(value: Int32?) -> Int32? => value
 
 nullableDouble(
   value: Double?
@@ -14,7 +14,7 @@ nullableString(
 
 nullableBool(value: Bool?) -> Bool? => value
 
-returnNullInt() -> Int? => null
+returnNullInt() -> Int32? => null
 
 returnNullDouble() -> Double? => null
 
@@ -24,7 +24,7 @@ returnNullString() -> String? => null
 
 returnNullBool() -> Bool? => null
 
-returnIntValue() -> Int? => 42
+returnIntValue() -> Int32? => 42
 
 returnDoubleValue() -> Double? => 3.5
 

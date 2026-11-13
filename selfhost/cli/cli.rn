@@ -179,7 +179,13 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
   @cli.withAliases(command, runeAliases())
 }
 
-+ runeCommands() -> Array[CliCommand] => [runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), singlePathCommand("check"), fmtCommand(), testCommand(), @cli.command("repl", ""), lspCommand()]
++ runeCommands() -> Array[CliCommand] => [runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), ts2runeCommand(), checkCommand(), fmtCommand(), testCommand(), @cli.command("repl", ""), lspCommand()]
+
++ checkCommand() -> CliCommand => {
+  command := @cli.command("check", "Parse and type-check Rune source")
+  command = @cli.withOption(command, @cli.option("target", "", "TARGET", "check target (ts, go, mbt)", false, ""))
+  @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
 
 + runeAliases(
 ) -> Array[CliCommandAlias] => [@cli.alias("format", "fmt")]
@@ -205,6 +211,12 @@ emptyInvocation() -> RuneCliInvocation => errorInvocation("", [])
   command := @cli.command(name, "Compile a Rune program")
   command = @cli.withOption(command, @cli.option("output", "o", "FILE", "output file", false, ""))
   @cli.withArgument(command, @cli.argument("path", "Rune source path", true))
+}
+
++ ts2runeCommand() -> CliCommand => {
+  command := @cli.command("ts2rune", "Convert TypeScript source to Rune")
+  command = @cli.withOption(command, @cli.option("output", "o", "FILE", "output Rune file", false, ""))
+  @cli.withArgument(command, @cli.argument("path", "TypeScript source path", true))
 }
 
 + singlePathCommand(

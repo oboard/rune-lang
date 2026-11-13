@@ -1,9 +1,9 @@
 + Buffer: {
-  values: Array[Int]
+  values: Array[Int32]
 
-  length() -> Int => .values.length()
+  length() -> Int32 => .values.length()
 
-  byteLength() -> Int => .length()
+  byteLength() -> Int32 => .length()
 
   isEmpty() -> Bool => .values.isEmpty()
 
@@ -15,11 +15,11 @@
 
   toBytes() -> Bytes => @bytes.fromInts(.values.clone())
 
-  toInts() -> Array[Int] => .values.clone()
+  toInts() -> Array[Int32] => .values.clone()
 
   append(value: UInt8) -> Buffer => .appendInt(@uint8.toInt(value))
 
-  appendInt(value: Int) -> Buffer => {
+  appendInt(value: Int32) -> Buffer => {
     .values.push(value)
     this
   }

@@ -1,0 +1,12 @@
+// expect: 8
+// targets: interpreter,go,ts,mbt
+sumOdd(limit: Int32) -> Int32 => sumOddFrom(1, 0, limit)
+
+sumOddFrom(index: Int32, total: Int32, limit: Int32) -> Int32 =>
+  (index > limit) ? { total } : (index > 4) ? { total } : (index == 2) ? {
+    sumOddFrom(index + 1, total, limit)
+  } : {
+    sumOddFrom(index + 1, total + index, limit)
+  }
+
+main() => @io.println(sumOdd(10))

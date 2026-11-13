@@ -170,7 +170,7 @@ func (i *Interpreter) callRegexMethod(regex *Regex, name string, args []ir.Expr,
 		}
 		index, ok := values[0].(int)
 		if !ok {
-			return nil, fmt.Errorf("regex.setLastIndex expects Int")
+			return nil, fmt.Errorf("regex.setLastIndex expects Int32")
 		}
 		regex.LastIndex = index
 		return regex.LastIndex, nil

@@ -69,7 +69,7 @@ func (g *generator) moduleIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return fmt.Sprintf("runeAssertEqual(%s, %s)", args[0], g.exprAs(call.Args[1], call.Args[0].ResultType())), true
 	case "io.scan", "io.scanLine", "io.readAll":
 		return g.ioModuleCall(fn, args, call.ResultType()), true
-	case "int.toString", "int.toDouble", "int.toBigInt", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
+	case "int32.toString", "int32.toDouble", "int32.toBigInt", "int4.fromInt", "int8.fromInt", "int16.fromInt", "int64.fromInt",
 		"uint.fromInt", "uint8.fromInt", "uint16.fromInt", "uint64.fromInt",
 		"float.fromDouble", "int4.toInt", "int8.toInt", "int16.toInt", "int64.toInt",
 		"uint.toInt", "uint8.toInt", "uint16.toInt", "uint64.toInt", "float.toDouble",
@@ -146,7 +146,7 @@ func (g *generator) receiverIntrinsicCall(call *ir.CallExpr) (string, bool) {
 		return g.arrayMethodCall(call)
 	case strings.HasPrefix(fn.Intrinsic, "map."), strings.HasPrefix(fn.Intrinsic, "weakMap."), strings.HasPrefix(fn.Intrinsic, "set."), strings.HasPrefix(fn.Intrinsic, "weakSet."):
 		return g.mapMethodCall(call)
-	case strings.HasPrefix(fn.Intrinsic, "int."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
+	case strings.HasPrefix(fn.Intrinsic, "int32."), strings.HasPrefix(fn.Intrinsic, "string."), strings.HasPrefix(fn.Intrinsic, "char."), strings.HasPrefix(fn.Intrinsic, "bool."), strings.HasPrefix(fn.Intrinsic, "regex."), strings.HasPrefix(fn.Intrinsic, "double."), strings.HasPrefix(fn.Intrinsic, "float."), strings.HasPrefix(fn.Intrinsic, "bigint."):
 		return g.primitiveIntrinsicCall(fn, g.receiverIntrinsicExpr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
 	case strings.HasPrefix(fn.Intrinsic, "bytes."):
 		return g.bytesReceiverCall(fn, g.expr(sel.Receiver), g.intrinsicArgs(call.Args), call.ResultType()), true
@@ -415,11 +415,11 @@ func (g *generator) numericIntrinsicCall(fn *stdlib.Function, args []string, res
 	}
 	value := args[0]
 	switch fn.Intrinsic {
-	case "int.toString":
+	case "int32.toString":
 		return fmt.Sprintf("strconv.Itoa(%s)", value)
-	case "int.toDouble":
+	case "int32.toDouble":
 		return fmt.Sprintf("float64(%s)", value)
-	case "int.toBigInt", "bigint.fromInt":
+	case "int32.toBigInt", "bigint.fromInt":
 		return fmt.Sprintf("big.NewInt(int64(%s))", value)
 	case "int4.fromInt":
 		return fmt.Sprintf("func() int8 { n := (%s) & 0xf; if n >= 8 { return int8(n - 16) }; return int8(n) }()", value)
@@ -727,11 +727,11 @@ func (g *generator) intrinsicArgs(args []ir.Expr) []string {
 
 func (g *generator) primitiveIntrinsicCall(fn *stdlib.Function, receiver string, args []string, resultType checker.Type) string {
 	switch fn.Intrinsic {
-	case "int.toString":
+	case "int32.toString":
 		return fmt.Sprintf("strconv.Itoa(%s)", receiver)
-	case "int.toDouble":
+	case "int32.toDouble":
 		return fmt.Sprintf("float64(%s)", receiver)
-	case "int.toBigInt":
+	case "int32.toBigInt":
 		return fmt.Sprintf("big.NewInt(int64(%s))", receiver)
 	case "double.trunc":
 		return fmt.Sprintf("int(math.Trunc(%s))", receiver)

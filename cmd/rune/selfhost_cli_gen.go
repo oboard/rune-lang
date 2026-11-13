@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+var runeInt32Zero int
+
+type runeUndefinedValue struct{}
+
+var runeUndefined = runeUndefinedValue{}
+
 type CliCommand struct {
 	name      string
 	version   any
@@ -117,11 +123,11 @@ func cli_aliasesForCommand(aliases []CliCommandAlias, commandName string, index 
 				return func() []string {
 					__rune_spread_out := []string{}
 					__rune_spread_out = append(__rune_spread_out, aliases[index].from)
-					__rune_spread_out = append(__rune_spread_out, cli_aliasesForCommand(aliases, commandName, index+1)...)
+					__rune_spread_out = append(__rune_spread_out, cli_aliasesForCommand(aliases, commandName, int(int32(index+1+runeInt32Zero)))...)
 					return __rune_spread_out
 				}()
 			}
-			return cli_aliasesForCommand(aliases, commandName, index+1)
+			return cli_aliasesForCommand(aliases, commandName, int(int32(index+1+runeInt32Zero)))
 		}()
 	}()
 }
@@ -142,12 +148,12 @@ func cli_appendRestSeparator(args []string, index int, out []string) []string {
 
 func cli_appendRootOptionArgs(rootArgs []string, args []string, index int, consumesNext bool) []string {
 	return func() []string {
-		if consumesNext && index+1 < len(args) {
+		if consumesNext && int(int32(index+1+runeInt32Zero)) < len(args) {
 			return func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, rootArgs...)
 				__rune_spread_out = append(__rune_spread_out, args[index])
-				__rune_spread_out = append(__rune_spread_out, args[index+1])
+				__rune_spread_out = append(__rune_spread_out, args[int(int32(index+1+runeInt32Zero))])
 				return __rune_spread_out
 			}()
 		}
@@ -165,7 +171,7 @@ func cli_appendRuntimeRest(args []string, index int, out []string) []string {
 		if index >= len(args) {
 			return out
 		} else {
-			args, index, out = args, index+1, func() []string {
+			args, index, out = args, int(int32(index+1+runeInt32Zero)), func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, out...)
 				__rune_spread_out = append(__rune_spread_out, args[index])
@@ -200,7 +206,7 @@ func cli_containsAt(values []string, value string, index int) bool {
 			if values[index] == value {
 				return true
 			} else {
-				values, value, index = values, value, index+1
+				values, value, index = values, value, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -223,7 +229,7 @@ func cli_findCommand(commands []CliCommand, name string, index int) CliCommandLo
 			if commands[index].name == name {
 				return CliCommandLookup{command: commands[index], found: true}
 			} else {
-				commands, name, index = commands, name, index+1
+				commands, name, index = commands, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -238,7 +244,7 @@ func cli_findOptionByName(options []CliOption, name string, index int) CliOption
 			if options[index].name == name {
 				return options[index]
 			} else {
-				options, name, index = options, name, index+1
+				options, name, index = options, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -253,7 +259,7 @@ func cli_findOptionByShort(options []CliOption, short string, index int) CliOpti
 			if options[index].short == short {
 				return options[index]
 			} else {
-				options, short, index = options, short, index+1
+				options, short, index = options, short, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -421,7 +427,7 @@ func cli_normalizeTrailingRestArg(command CliCommand, args []string, index int, 
 		}
 		return func() []string {
 			if skipNext {
-				return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+				return cli_normalizeTrailingRestArgsAt(command, args, int(int32(index+1+runeInt32Zero)), func() []string {
 					__rune_spread_out := []string{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, arg)
@@ -430,19 +436,19 @@ func cli_normalizeTrailingRestArg(command CliCommand, args []string, index int, 
 			}
 			return func() []string {
 				if cli_commandOptionConsumesNext(command, arg) {
-					return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+					return cli_normalizeTrailingRestArgsAt(command, args, int(int32(index+1+runeInt32Zero)), func() []string {
 						__rune_spread_out := []string{}
 						__rune_spread_out = append(__rune_spread_out, out...)
 						__rune_spread_out = append(__rune_spread_out, arg)
 						return __rune_spread_out
 					}(), positionalCount, true)
 				}
-				return cli_normalizeTrailingRestArgsAt(command, args, index+1, func() []string {
+				return cli_normalizeTrailingRestArgsAt(command, args, int(int32(index+1+runeInt32Zero)), func() []string {
 					__rune_spread_out := []string{}
 					__rune_spread_out = append(__rune_spread_out, out...)
 					__rune_spread_out = append(__rune_spread_out, arg)
 					return __rune_spread_out
-				}(), positionalCount+cli_positionalIncrement(arg), false)
+				}(), int(int32(positionalCount+cli_positionalIncrement(arg)+runeInt32Zero)), false)
 			}()
 		}()
 	}()
@@ -577,7 +583,10 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 			hasEquals := isLong && eqIndex >= 0
 			func() {
 				if hasEquals {
-					longValue = func() string { runes := []rune(longName); return string(runes[eqIndex+1 : len([]rune(longName))]) }()
+					longValue = func() string {
+						runes := []rune(longName)
+						return string(runes[int(int32(eqIndex+1+runeInt32Zero)):len([]rune(longName))])
+					}()
 					return
 				}
 				longValue = longValue
@@ -693,7 +702,7 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 				}
 				handled = handled
 			}()
-			missingLongValue := isLong && !(handled) && longFound && longTakesValue && !(longHasValue) && index+1 >= len(args)
+			missingLongValue := isLong && !(handled) && longFound && longTakesValue && !(longHasValue) && int(int32(index+1+runeInt32Zero)) >= len(args)
 			func() {
 				if missingLongValue {
 					parseError = "missing value for --" + longName
@@ -711,7 +720,7 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 			useLongNext := isLong && !(handled) && longFound && longTakesValue && !(longHasValue)
 			func() {
 				if useLongNext {
-					longValue = args[index+1]
+					longValue = args[int(int32(index+1+runeInt32Zero))]
 					return
 				}
 				longValue = longValue
@@ -836,8 +845,11 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 							}
 							clusterDone = clusterDone
 						}()
-						shortValue := func() string { runes := []rune(arg); return string(runes[shortIndex+2 : len([]rune(arg))]) }()
-						missingShortValue := active && !(shortHelp) && shortFound && shortTakesValue && len(shortValue) == 0 && index+1 >= len(args)
+						shortValue := func() string {
+							runes := []rune(arg)
+							return string(runes[int(int32(shortIndex+2+runeInt32Zero)):len([]rune(arg))])
+						}()
+						missingShortValue := active && !(shortHelp) && shortFound && shortTakesValue && len(shortValue) == 0 && int(int32(index+1+runeInt32Zero)) >= len(args)
 						func() {
 							if missingShortValue {
 								parseError = "missing value for -" + short
@@ -855,7 +867,7 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 						useShortNext := active && !(shortHelp) && shortFound && shortTakesValue && len(shortValue) == 0 && len(parseError) == 0
 						func() {
 							if useShortNext {
-								shortValue = args[index+1]
+								shortValue = args[int(int32(index+1+runeInt32Zero))]
 								return
 							}
 							shortValue = shortValue
@@ -946,7 +958,7 @@ func cli_parseArgs(command CliCommand, args []string) CliParseResult {
 				}
 				return positionals
 			}()
-			positionIndex = positionIndex + 1
+			positionIndex = int(int32(positionIndex + 1 + runeInt32Zero))
 		}()
 	}
 	for _, argument := range command.arguments {
@@ -1027,7 +1039,7 @@ func cli_resolveAlias(aliases []CliCommandAlias, name string, index int) string 
 			if aliases[index].from == name {
 				return aliases[index].to
 			} else {
-				aliases, name, index = aliases, name, index+1
+				aliases, name, index = aliases, name, int(int32(index+1+runeInt32Zero))
 				continue
 			}
 		}
@@ -1061,7 +1073,7 @@ func cli_rootOptionConsumesNext(root CliCommand, arg string) bool {
 func cli_splitCommandArg(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string, skipNext bool) CliCommandArgs {
 	return func() CliCommandArgs {
 		if skipNext {
-			return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, commandName, commandArgs, false)
+			return cli_splitCommandArgs(root, aliases, args, int(int32(index+1+runeInt32Zero)), rootArgs, commandName, commandArgs, false)
 		}
 		return cli_splitCommandArgValue(root, aliases, args, index, rootArgs, commandName, commandArgs)
 	}()
@@ -1073,7 +1085,7 @@ func cli_splitCommandArgValue(root CliCommand, aliases []CliCommandAlias, args [
 	isRootOption := cli_rootOptionArg(root, arg)
 	return func() CliCommandArgs {
 		if isRootHelp {
-			return cli_splitCommandArgs(root, aliases, args, index+1, func() []string {
+			return cli_splitCommandArgs(root, aliases, args, int(int32(index+1+runeInt32Zero)), func() []string {
 				__rune_spread_out := []string{}
 				__rune_spread_out = append(__rune_spread_out, rootArgs...)
 				__rune_spread_out = append(__rune_spread_out, arg)
@@ -1086,9 +1098,9 @@ func cli_splitCommandArgValue(root CliCommand, aliases []CliCommandAlias, args [
 			}
 			return func() CliCommandArgs {
 				if len(commandName) == 0 {
-					return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, cli_resolveAlias(aliases, arg, 0), commandArgs, false)
+					return cli_splitCommandArgs(root, aliases, args, int(int32(index+1+runeInt32Zero)), rootArgs, cli_resolveAlias(aliases, arg, 0), commandArgs, false)
 				}
-				return cli_splitCommandArgs(root, aliases, args, index+1, rootArgs, commandName, func() []string {
+				return cli_splitCommandArgs(root, aliases, args, int(int32(index+1+runeInt32Zero)), rootArgs, commandName, func() []string {
 					__rune_spread_out := []string{}
 					__rune_spread_out = append(__rune_spread_out, commandArgs...)
 					__rune_spread_out = append(__rune_spread_out, arg)
@@ -1109,7 +1121,7 @@ func cli_splitCommandArgs(root CliCommand, aliases []CliCommandAlias, args []str
 }
 
 func cli_splitRootOptionArg(root CliCommand, aliases []CliCommandAlias, args []string, index int, rootArgs []string, commandName string, commandArgs []string, consumesNext bool) CliCommandArgs {
-	return cli_splitCommandArgs(root, aliases, args, index+1, cli_appendRootOptionArgs(rootArgs, args, index, consumesNext), commandName, commandArgs, consumesNext)
+	return cli_splitCommandArgs(root, aliases, args, int(int32(index+1+runeInt32Zero)), cli_appendRootOptionArgs(rootArgs, args, index, consumesNext), commandName, commandArgs, consumesNext)
 }
 
 func cli_withAliases(command CliCommand, aliases []CliCommandAlias) CliCommand {
@@ -1333,7 +1345,13 @@ func runeCommand() CliCommand {
 }
 
 func runeCommands() []CliCommand {
-	return []CliCommand{runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), singlePathCommand("check"), fmtCommand(), testCommand(), cli_command("repl", ""), lspCommand()}
+	return []CliCommand{runCommand(), buildCommand(), emitCommand("go"), emitCommand("ts"), emitCommand("dts"), emitCommand("mbt"), ts2runeCommand(), checkCommand(), fmtCommand(), testCommand(), cli_command("repl", ""), lspCommand()}
+}
+
+func checkCommand() CliCommand {
+	command := cli_command("check", "Parse and type-check Rune source")
+	command = cli_withOption(command, cli_option("target", "", "TARGET", "check target (ts, go, mbt)", false, ""))
+	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
 }
 
 func runeAliases() []CliCommandAlias {
@@ -1361,6 +1379,12 @@ func emitCommand(name string) CliCommand {
 	command := cli_command(name, "Compile a Rune program")
 	command = cli_withOption(command, cli_option("output", "o", "FILE", "output file", false, ""))
 	return cli_withArgument(command, cli_argument("path", "Rune source path", true))
+}
+
+func ts2runeCommand() CliCommand {
+	command := cli_command("ts2rune", "Convert TypeScript source to Rune")
+	command = cli_withOption(command, cli_option("output", "o", "FILE", "output Rune file", false, ""))
+	return cli_withArgument(command, cli_argument("path", "TypeScript source path", true))
 }
 
 func singlePathCommand(name string) CliCommand {

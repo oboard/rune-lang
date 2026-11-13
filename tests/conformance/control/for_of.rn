@@ -1,0 +1,10 @@
+// expect: 1
+// expect: 2
+// expect: 3
+// targets: interpreter,go,ts,mbt
+main() => {
+  values := [1, 2, 3]
+  values.each((value) => {
+    @io.println(value)
+  })
+}

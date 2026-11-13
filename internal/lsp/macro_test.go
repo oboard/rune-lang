@@ -163,7 +163,7 @@ func TestExpandedMacroShowsFinalDocument(t *testing.T) {
 
 #rename("Generated")
 Original: {
-  value: Int
+  value: Int32
 }
 `
 	uri := "file:///tmp/macro_expansion.rn"
@@ -187,7 +187,7 @@ func TestCodeLensIncludesMacroExpansion(t *testing.T) {
 	uri := "file:///tmp/macro_lens.rn"
 	src := `#macro.renameDeclaration("Generated")
 Original: {
-  value: Int
+  value: Int32
 }
 `
 	s := &server{docs: map[string]string{uri: src}}

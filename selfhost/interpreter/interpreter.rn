@@ -1,4 +1,5 @@
 @"../ir/ir.rn"
+@go.import("fmt")
 
 RuntimeField: {
   name: String
@@ -16,8 +17,8 @@ RuntimeBinding: {
 }
 
 RuntimeEnv: {
-  bindings: Map[Int, RuntimeBinding]
-  bindingCount: Map[String, Int]
+  bindings: Map[Int32, RuntimeBinding]
+  bindingCount: Map[String, Int32]
 }
 
 PatternMatchResult: {
@@ -67,7 +68,7 @@ ReceiverMethodResult: {
 JsonParseResult: {
   ok: Bool
   value: RuntimeValue
-  index: Int
+  index: Int32
   error: String
 }
 
@@ -97,11 +98,11 @@ Interpreter: {
   functions: Array[IRFunction]
   structs: Array[IRStructType]
   enums: Array[IREnumType]
-  closures: Map[Int, RuntimeClosure]
-  closureCount: Map[String, Int]
+  closures: Map[Int32, RuntimeClosure]
+  closureCount: Map[String, Int32]
   output: Array[String]
-  outputLog: Map[Int, String]
-  outputCount: Map[String, Int]
+  outputLog: Map[Int32, String]
+  outputCount: Map[String, Int32]
   fsFiles: Map[String, String]
   fsFileBytes: Map[String, Array[RuntimeValue]]
   fsFileExists: Map[String, Bool]
@@ -118,8 +119,8 @@ Interpreter: {
 
 RegexMatch: {
   found: Bool
-  start: Int
-  end: Int
+  start: Int32
+  end: Int32
   groups: Array[String]
 }
 
@@ -127,7 +128,7 @@ RegexMatch: {
   Void
   Null
   Bool(value: Bool)
-  Int(value: Int, typeName: String)
+  Int(value: Int32, typeName: String)
   Double(value: Double, text: String, typeName: String)
   String(value: String, typeName: String)
   Char(value: Char)
@@ -137,8 +138,8 @@ RegexMatch: {
   Set(entries: Array[RuntimeEntry])
   Struct(typeName: String, fields: Array[RuntimeField])
   Module(name: String)
-  Closure(index: Int)
-  Enum(typeName: String, name: String, value: Int, payload: Array[RuntimeValue])
+  Closure(index: Int32)
+  Enum(typeName: String, name: String, value: Int32, payload: Array[RuntimeValue])
 }
 
 RuntimeValueKind: {
@@ -317,10 +318,10 @@ nullValue() -> RuntimeValue => RuntimeValue.Null
 
 boolValue(value: Bool) -> RuntimeValue => RuntimeValue.Bool(value)
 
-intValue(value: Int) -> RuntimeValue => RuntimeValue.Int(value, "")
+intValue(value: Int32) -> RuntimeValue => RuntimeValue.Int(value, "")
 
 typedIntValue(
-  value: Int,
+  value: Int32,
   typeName: String
 ) -> RuntimeValue => RuntimeValue.Int(value, typeName)
 
@@ -376,18 +377,18 @@ moduleValue(
   name: String
 ) -> RuntimeValue => RuntimeValue.Module(name)
 
-closureValue(index: Int) -> RuntimeValue => RuntimeValue.Closure(index)
+closureValue(index: Int32) -> RuntimeValue => RuntimeValue.Closure(index)
 
 enumValue(
   typeName: String,
   name: String,
-  value: Int
+  value: Int32
 ) -> RuntimeValue => RuntimeValue.Enum(typeName, name, value, emptyRuntimeArray())
 
 enumPayloadValue(
   typeName: String,
   name: String,
-  value: Int,
+  value: Int32,
   payload: Array[RuntimeValue]
 ) -> RuntimeValue => RuntimeValue.Enum(typeName, name, value, payload)
 
@@ -429,7 +430,7 @@ runtimeText(
   _ => ""
 }
 
-runtimeInt(value: RuntimeValue) -> Int => value {
+runtimeInt(value: RuntimeValue) -> Int32 => value {
   Int(v, typeName) => v
   Enum(typeName, name, v, payload) => v
   Closure(index) => index
@@ -490,7 +491,7 @@ runtimeTypeName(
 
 runtimeClosureIndex(
   value: RuntimeValue
-) -> Int => value {
+) -> Int32 => value {
   Closure(index) => index
   _ => -1
 }
@@ -574,6 +575,18 @@ evalExpr(
   ExprKind.Object => evalObjectLiteral(interpreter, env, expr)
   ExprKind.Block => evalBlock(interpreter, env, expr)
   ExprKind.Match => evalMatch(interpreter, env, expr)
+  ExprKind.Loop => evalWhile(interpreter, env, expr)
+  ExprKind.Return => evalReturn(interpreter, env, expr)
+  ExprKind.Break => EvalResult {
+    ok: false,
+    error: "__break__",
+    value: voidValue()
+  }
+  ExprKind.Continue => EvalResult {
+    ok: false,
+    error: "__continue__",
+    value: voidValue()
+  }
   ExprKind.PatternBlock => errorResult("pattern block cannot be evaluated without a subject")
   ExprKind.Let => evalLet(interpreter, env, expr)
   ExprKind.ObjectDestructure => evalObjectDestructure(interpreter, env, expr)
@@ -691,7 +704,7 @@ evalUnaryValue(
     )
 )
 
-bitwiseNotInt(value: Int) -> Int => (0 - value) - 1
+bitwiseNotInt(value: Int32) -> Int32 => (0 - value) - 1
 
 evalPostfix(
   interpreter: Interpreter,
@@ -714,7 +727,7 @@ evalPostfixIdentifier(
     !found.found ? errorResult("undefined name " + name)
       : (
         runtimeKind(found.value) == RuntimeValueKind.Int ? assignExisting(env, name, intValue(runtimeInt(found.value) + 1), found.value)
-          : errorResult("operator '++' expects Int")
+          : errorResult("operator '++' expects Int32")
       )
   )
 }
@@ -858,9 +871,9 @@ evalBitwiseValues(
 
 bitwiseInt(
   op: String,
-  left: Int,
-  right: Int
-) -> Int => (
+  left: Int32,
+  right: Int32
+) -> Int32 => (
   op == "&" ? left & right
     : (
       op == "|" ? left | right
@@ -911,7 +924,7 @@ evalNumericBinary(
   )))
     : (
       (runtimeKind(left) == RuntimeValueKind.Double) && (runtimeKind(right) == RuntimeValueKind.Double) ? (
-        op == "%" ? errorResult("operator '%' expects Int")
+        op == "%" ? errorResult("operator '%' expects Int32")
           : okResult(doubleRuntimeValue((
             op == "+" ? runtimeDouble(left) + runtimeDouble(right)
               : (
@@ -936,10 +949,10 @@ isBigIntRuntime(
 
 parseBigIntRuntime(
   value: RuntimeValue
-) -> Int => parseIntText(runtimeText(value))
+) -> Int32 => parseIntText(runtimeText(value))
 
 bigIntRuntimeValue(
-  value: Int
+  value: Int32
 ) -> RuntimeValue => bigIntValue(intToString(value))
 
 evalBigIntBinary(
@@ -1013,9 +1026,9 @@ bigIntAddAbs(
 bigIntAddAbsLoop(
   left: String,
   right: String,
-  leftIndex: Int,
-  rightIndex: Int,
-  carry: Int,
+  leftIndex: Int32,
+  rightIndex: Int32,
+  carry: Int32,
   out: String
 ) -> String => (
   ((leftIndex < 0) && (rightIndex < 0)) && (carry == 0) ? out
@@ -1025,9 +1038,9 @@ bigIntAddAbsLoop(
 bigIntAddAbsStep(
   left: String,
   right: String,
-  leftIndex: Int,
-  rightIndex: Int,
-  carry: Int,
+  leftIndex: Int32,
+  rightIndex: Int32,
+  carry: Int32,
   out: String
 ) -> String => {
   sum := (bigIntDigitAt(left, leftIndex) + bigIntDigitAt(right, rightIndex)) + carry
@@ -1042,9 +1055,9 @@ bigIntSubAbs(
 bigIntSubAbsLoop(
   left: String,
   right: String,
-  leftIndex: Int,
-  rightIndex: Int,
-  borrow: Int,
+  leftIndex: Int32,
+  rightIndex: Int32,
+  borrow: Int32,
   out: String
 ) -> String => (
   leftIndex < 0 ? out
@@ -1054,9 +1067,9 @@ bigIntSubAbsLoop(
 bigIntSubAbsStep(
   left: String,
   right: String,
-  leftIndex: Int,
-  rightIndex: Int,
-  borrow: Int,
+  leftIndex: Int32,
+  rightIndex: Int32,
+  borrow: Int32,
   out: String
 ) -> String => {
   raw := (bigIntDigitAt(left, leftIndex) - borrow) - bigIntDigitAt(right, rightIndex)
@@ -1073,8 +1086,8 @@ bigIntSubAbsStep(
 
 bigIntDigitAt(
   text: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index < 0 ? 0
     : digitValue(text.at(index))
 )
@@ -1082,7 +1095,7 @@ bigIntDigitAt(
 bigIntCompareAbs(
   left: String,
   right: String
-) -> Int => {
+) -> Int32 => {
   cleanLeft := trimBigIntZeros(left)
   cleanRight := trimBigIntZeros(right)
   (
@@ -1110,7 +1123,7 @@ trimBigIntZeros(text: String) -> String => {
 
 trimBigIntZerosAt(
   text: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= text.length() ? ""
     : (
@@ -1122,6 +1135,8 @@ trimBigIntZerosAt(
 doubleRuntimeValue(
   value: Double
 ) -> RuntimeValue => doubleValue(value, "")
+
+doubleToString(value: Double) -> String => @go.expr("fmt.Sprint($value)")
 
 evalOrderedDouble(
   left: RuntimeValue,
@@ -1223,6 +1238,52 @@ evalTernary(
               )
           )
       )
+  )
+}
+
+evalWhile(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  expr: IRExpr
+) -> EvalResult => {
+  condition := evalExpr(interpreter, env, expr.children[0])
+  (
+    !condition.ok ? condition
+      : runtimeKind(condition.value) != RuntimeValueKind.Bool ? errorResult("loop condition expects Bool")
+        : runtimeBool(condition.value) ? evalWhileBody(interpreter, env, expr)
+          : okResult(voidValue())
+  )
+}
+
+evalWhileBody(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  expr: IRExpr
+) -> EvalResult => {
+  body := evalExpr(interpreter, env, expr.children[1])
+  (
+    !body.ok ? (
+      body.error == "__break__" ? okResult(voidValue())
+        : body.error == "__continue__" ? evalWhile(interpreter, env, expr)
+          : body
+    )
+      : evalWhile(interpreter, env, expr)
+  )
+}
+
+evalReturn(
+  interpreter: Interpreter,
+  env: RuntimeEnv,
+  expr: IRExpr
+) -> EvalResult => {
+  value := expr.children.length() > 0 ? evalExpr(interpreter, env, expr.children[0]) : okResult(voidValue())
+  (
+    !value.ok ? value
+      : EvalResult {
+        ok: false,
+        error: "__return__",
+        value: value.value
+      }
   )
 }
 
@@ -1449,14 +1510,14 @@ evalArgsChecked(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> EvalArgsResult => evalArgsCheckedLoop(interpreter, env, children, index, [])
 
 evalArgsCheckedLoop(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> EvalArgsResult => (
   index >= children.length() ? EvalArgsResult {
@@ -1471,7 +1532,7 @@ evalArgsCheckedNext(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> EvalArgsResult => {
   value := evalExpr(interpreter, env, children[index])
@@ -1489,14 +1550,14 @@ evalArgs(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeValue] => evalArgsLoop(interpreter, env, children, index, [])
 
 evalArgsLoop(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= children.length() ? out
@@ -1507,7 +1568,7 @@ evalArgsNext(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   value := evalExpr(interpreter, env, children[index])
@@ -1542,7 +1603,7 @@ evalTemplateParts(
   env: RuntimeEnv,
   parts: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> EvalResult => (
   index >= parts.length() ? okResult(stringValue(out))
@@ -1554,7 +1615,7 @@ evalTemplatePart(
   env: RuntimeEnv,
   parts: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> EvalResult => {
   next := out + parts[index]
@@ -1569,7 +1630,7 @@ evalTemplateExprPart(
   env: RuntimeEnv,
   parts: Array[String],
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: String
 ) -> EvalResult => {
   value := evalExpr(interpreter, env, children[index])
@@ -1615,7 +1676,7 @@ callClosure(
 
 nextClosureIndex(
   interpreter: Interpreter
-) -> Int => {
+) -> Int32 => {
   index := interpreter.closureCount["count"] ?? 0
   interpreter.closureCount["count"] = index + 1
   index
@@ -1636,7 +1697,7 @@ interpreterOutput(
 
 interpreterOutputLoop(
   interpreter: Interpreter,
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= (interpreter.outputCount["count"] ?? 0) ? out
@@ -1645,7 +1706,7 @@ interpreterOutputLoop(
 
 interpreterOutputNext(
   interpreter: Interpreter,
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => {
   interpreterOutputLoop(interpreter, index + 1, pushString(out, interpreter.outputLog[index] ?? ""))
@@ -1681,7 +1742,7 @@ globalEnv(
 bindConstants(
   interpreter: Interpreter,
   env: RuntimeEnv,
-  index: Int
+  index: Int32
 ) -> RuntimeEnv => (
   index >= interpreter.file.constants.length() ? env
     : bindConstants(interpreter, bindConstant(interpreter, env, interpreter.file.constants[index]), index + 1)
@@ -1760,7 +1821,7 @@ interpreterRuntimeValue(
 
 stringArrayValues(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   (
@@ -1771,7 +1832,7 @@ stringArrayValues(
 
 stringArrayValuesNext(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   stringArrayValues(values, index + 1, pushRuntime(out, stringValue(values[index])))
@@ -1836,7 +1897,7 @@ reflectRuntimeValueKind(
 
 reflectRuntimeValues(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? out
@@ -1845,7 +1906,7 @@ reflectRuntimeValues(
 
 reflectRuntimeValuesNext(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   reflectRuntimeValues(values, index + 1, pushRuntime(out, reflectRuntimeValue(values[index])))
@@ -1853,7 +1914,7 @@ reflectRuntimeValuesNext(
 
 reflectRuntimeEntries(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= entries.length() ? out
@@ -1862,7 +1923,7 @@ reflectRuntimeEntries(
 
 reflectRuntimeEntriesNext(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   entry := entries[index]
@@ -1877,7 +1938,7 @@ reflectRuntimeEntriesNext(
 
 reflectRuntimeFields(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= fields.length() ? out
@@ -1886,7 +1947,7 @@ reflectRuntimeFields(
 
 reflectRuntimeFieldsNext(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   field := fields[index]
@@ -1906,7 +1967,12 @@ evalFunctionBody(
 ) -> EvalResult => {
   value := evalExpr(interpreter, env, fn.body)
   (
-    !value.ok ? value
+    !value.ok ? (
+      value.error == "__return__" ? (
+        fn.returnType == "Void" ? okResult(voidValue())
+          : okResult(value.value)
+      ) : value
+    )
       : (
         fn.returnType == "Void" ? okResult(voidValue())
           : value
@@ -1918,7 +1984,7 @@ bindArgs(
   env: RuntimeEnv,
   params: Array[IRParam],
   args: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> RuntimeEnv => (
   index >= params.length() ? env
     : bindArgs(envDefine(env, params[index].name, (
@@ -2293,7 +2359,7 @@ fsDirExists(
 fsSize(
   interpreter: Interpreter,
   path: String
-) -> Int => (
+) -> Int32 => (
   fsFileExists(interpreter, path) ? (
     (interpreter.fsFileBytes[path] ?? emptyRuntimeArray()).length() > 0 ? (interpreter.fsFileBytes[path] ?? emptyRuntimeArray()).length()
       : (interpreter.fsFiles[path] ?? "").length()
@@ -2302,7 +2368,7 @@ fsSize(
 )
 
 fileStatValue(
-  size: Int,
+  size: Int32,
   isFile: Bool,
   isDirectory: Bool
 ) -> RuntimeValue => structValue("FileStat", [RuntimeField {
@@ -2359,7 +2425,7 @@ fsKnownFilePaths(
 fsKnownDirPathsFromKeys(
   interpreter: Interpreter,
   keys: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= keys.length() ? out
@@ -2372,7 +2438,7 @@ fsKnownDirPathsFromKeys(
 fsKnownFilePathsFromKeys(
   interpreter: Interpreter,
   keys: Array[String],
-  index: Int,
+  index: Int32,
   dirs: Array[String],
   out: Array[String]
 ) -> Array[String] => (
@@ -2387,7 +2453,7 @@ fsReaddirValues(
   interpreter: Interpreter,
   path: String,
   paths: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= paths.length() ? out
@@ -2404,7 +2470,7 @@ fsDirectChild(
 
 appendStringArrays(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= values.length() ? out
@@ -2413,7 +2479,7 @@ appendStringArrays(
 
 iteratorValue(
   values: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> RuntimeValue => structValue("Iterator", [RuntimeField {
   name: "values",
   value: arrayValue(values)
@@ -2445,9 +2511,9 @@ iterNewValue(
 )
 
 iterRangeValues(
-  current: Int,
-  end: Int,
-  step: Int,
+  current: Int32,
+  end: Int32,
+  step: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   step == 0 ? out
@@ -2465,7 +2531,7 @@ iterRangeValues(
 
 iterRepeatValues(
   value: RuntimeValue,
-  count: Int,
+  count: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   count <= 0 ? out
@@ -2485,7 +2551,7 @@ runtimeStringArray(
 
 runtimeStringArrayAt(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= values.length() ? out
@@ -2564,7 +2630,7 @@ pathIsAbsolute(path: String) -> Bool => path.startsWith("/")
 
 pathJoinParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= parts.length() ? out
@@ -2584,7 +2650,7 @@ pathAppendPart(
 
 pathNormalizeParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => (
@@ -2594,7 +2660,7 @@ pathNormalizeParts(
 
 pathNormalizePart(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => {
@@ -2610,7 +2676,7 @@ pathNormalizePart(
 
 pathNormalizeParent(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => (
@@ -2623,14 +2689,14 @@ pathNormalizeParent(
 
 pathNormalizePop(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String]
 ) -> Array[String] => pathNormalizeParts(parts, index + 1, absolute, out.slice(0, out.length() - 1))
 
 pathNormalizePush(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   absolute: Bool,
   out: Array[String],
   part: String
@@ -2644,7 +2710,7 @@ pathParts(path: String) -> Array[String] => {
 
 pathCollectParts(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= parts.length() ? out
@@ -2656,14 +2722,14 @@ pathCollectParts(
 
 pathCollectPart(
   parts: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => pathCollectParts(parts, index + 1, [..out, parts[index]])
 
 pathRelativeFromParts(
   fromParts: Array[String],
   toParts: Array[String],
-  index: Int
+  index: Int32
 ) -> String => (
   (index < fromParts.length()) && ((index < toParts.length()) && (fromParts[index] == toParts[index])) ? pathRelativeFromParts(fromParts, toParts, index + 1)
     : pathRelativeTail(fromParts, toParts, index, index, "")
@@ -2672,8 +2738,8 @@ pathRelativeFromParts(
 pathRelativeTail(
   fromParts: Array[String],
   toParts: Array[String],
-  fromIndex: Int,
-  toIndex: Int,
+  fromIndex: Int32,
+  toIndex: Int32,
   out: String
 ) -> String => (
   fromIndex < fromParts.length() ? pathRelativeTail(fromParts, toParts, fromIndex + 1, toIndex, pathAppendPart(out, ".."))
@@ -2861,8 +2927,8 @@ runtimeBuffer(
 
 readerValue(
   values: Array[RuntimeValue],
-  offset: Int,
-  nibble: Int
+  offset: Int32,
+  nibble: Int32
 ) -> RuntimeValue => structValue("Reader", [RuntimeField {
   name: "data",
   value: arrayValue(values)
@@ -2880,15 +2946,15 @@ runtimeReaderData(
 
 runtimeReaderOffset(
   value: RuntimeValue
-) -> Int => runtimeInt(runtimeStructField(value, "offset"))
+) -> Int32 => runtimeInt(runtimeStructField(value, "offset"))
 
 runtimeReaderNibble(
   value: RuntimeValue
-) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
+) -> Int32 => runtimeInt(runtimeStructField(value, "nibble"))
 
 writerValue(
   values: Array[RuntimeValue],
-  nibble: Int
+  nibble: Int32
 ) -> RuntimeValue => structValue("Writer", [RuntimeField {
   name: "data",
   value: arrayValue(values)
@@ -2903,10 +2969,10 @@ runtimeWriterData(
 
 runtimeWriterNibble(
   value: RuntimeValue
-) -> Int => runtimeInt(runtimeStructField(value, "nibble"))
+) -> Int32 => runtimeInt(runtimeStructField(value, "nibble"))
 
 bytesZeroes(
-  count: Int,
+  count: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   count <= 0 ? out
@@ -2915,7 +2981,7 @@ bytesZeroes(
 
 bytesFromInts(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> RuntimeValue => (
   index >= values.length() ? bytesValue(out)
@@ -2949,15 +3015,15 @@ callIntModuleFunction(
   name {
     "toString" => args[0] {
       Int(raw, typeName) => okResult(stringValue(intToString(raw)))
-      _ => errorResult("int.toString expects Int")
+      _ => errorResult("int.toString expects Int32")
     }
     "toDouble" => args[0] {
       Int(raw, typeName) => okResult(doubleRuntimeValue(raw.toDouble()))
-      _ => errorResult("int.toDouble expects Int")
+      _ => errorResult("int.toDouble expects Int32")
     }
     "toBigInt" => args[0] {
       Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
-      _ => errorResult("int.toBigInt expects Int")
+      _ => errorResult("int.toBigInt expects Int32")
     }
     _ => callImportedModuleFunction(interpreter, env, "int", name, children)
   }
@@ -2973,7 +3039,7 @@ callBigIntModuleFunction(
   name {
     "fromInt" => args[0] {
       Int(raw, typeName) => okResult(bigIntRuntimeValue(raw))
-      _ => errorResult("bigint.fromInt expects Int")
+      _ => errorResult("bigint.fromInt expects Int32")
     }
     "toDouble" => (
       isBigIntRuntime(args[0]) ? okResult(doubleRuntimeValue(parseBigIntRuntime(args[0]).toDouble()))
@@ -3037,7 +3103,7 @@ numericFromInt(
   value: RuntimeValue
 ) -> EvalResult => value {
   Int(raw, typeName) => okResult(typedIntValue(wrapNumericInt(module, raw), numericTypeName(module)))
-  _ => errorResult("numeric conversion expects Int")
+  _ => errorResult("numeric conversion expects Int32")
 }
 
 numericToInt(
@@ -3080,8 +3146,8 @@ numericTypeName(
 
 wrapNumericInt(
   module: String,
-  value: Int
-) -> Int => module {
+  value: Int32
+) -> Int32 => module {
   "int4" => wrapSignedInt(value, 16, 8)
   "int8" => wrapSignedInt(value, 256, 128)
   "int16" => wrapSignedInt(value, 65536, 32768)
@@ -3091,10 +3157,10 @@ wrapNumericInt(
 }
 
 wrapSignedInt(
-  value: Int,
-  modulus: Int,
-  half: Int
-) -> Int => {
+  value: Int32,
+  modulus: Int32,
+  half: Int32
+) -> Int32 => {
   n := positiveModulo(value, modulus)
   (
     n >= half ? n - modulus
@@ -3103,9 +3169,9 @@ wrapSignedInt(
 }
 
 positiveModulo(
-  value: Int,
-  modulus: Int
-) -> Int => {
+  value: Int32,
+  modulus: Int32
+) -> Int32 => {
   n := value % modulus
   (
     n < 0 ? n + modulus
@@ -3113,33 +3179,33 @@ positiveModulo(
   )
 }
 
-doubleTruncToInt(value: Double) -> Int => (value < 0.0) {
+doubleTruncToInt(value: Double) -> Int32 => (value < 0.0) {
   true => 0 - doubleFloorToInt(0.0 - value)
   false => doubleFloorToInt(value)
 }
 
-doubleFloorToInt(value: Double) -> Int => (value < 0.0) {
+doubleFloorToInt(value: Double) -> Int32 => (value < 0.0) {
   true => 0 - doubleCeilPositiveToInt(0.0 - value)
   false => doubleFloorPositiveToInt(value)
 }
 
-doubleCeilToInt(value: Double) -> Int => (value < 0.0) {
+doubleCeilToInt(value: Double) -> Int32 => (value < 0.0) {
   true => 0 - doubleFloorPositiveToInt(0.0 - value)
   false => doubleCeilPositiveToInt(value)
 }
 
-doubleRoundToInt(value: Double) -> Int => (value < 0.0) {
+doubleRoundToInt(value: Double) -> Int32 => (value < 0.0) {
   true => 0 - doubleFloorToInt((0.0 - value) + 0.5)
   false => doubleFloorToInt(value + 0.5)
 }
 
 doubleFloorPositiveToInt(
   value: Double
-) -> Int => doubleFloorSearch(value, 0, doubleUpperBound(value, 1))
+) -> Int32 => doubleFloorSearch(value, 0, doubleUpperBound(value, 1))
 
 doubleCeilPositiveToInt(
   value: Double
-) -> Int => {
+) -> Int32 => {
   floor := doubleFloorPositiveToInt(value)
   (
     floor.toDouble() == value ? floor
@@ -3149,27 +3215,27 @@ doubleCeilPositiveToInt(
 
 doubleUpperBound(
   value: Double,
-  upper: Int
-) -> Int => (
+  upper: Int32
+) -> Int32 => (
   upper.toDouble() > value ? upper
     : doubleUpperBound(value, upper * 2)
 )
 
 doubleFloorSearch(
   value: Double,
-  low: Int,
-  high: Int
-) -> Int => (
+  low: Int32,
+  high: Int32
+) -> Int32 => (
   (low + 1) >= high ? low
     : doubleFloorSearchStep(value, low, high, (low + high) / 2)
 )
 
 doubleFloorSearchStep(
   value: Double,
-  low: Int,
-  high: Int,
-  mid: Int
-) -> Int => (
+  low: Int32,
+  high: Int32,
+  mid: Int32
+) -> Int32 => (
   mid.toDouble() <= value ? doubleFloorSearch(value, mid, high)
     : doubleFloorSearch(value, low, mid)
 )
@@ -3212,7 +3278,7 @@ cliContainsString(
 cliContainsStringAt(
   values: Array[RuntimeValue],
   value: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= values.length() ? false
     : (
@@ -3540,7 +3606,7 @@ cliSplitCommandArgs(
   root: RuntimeValue,
   aliases: Array[RuntimeValue],
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   rootArgs: Array[RuntimeValue],
   commandName: String,
   commandArgs: Array[RuntimeValue],
@@ -3563,7 +3629,7 @@ cliSplitCommandArg(
   root: RuntimeValue,
   aliases: Array[RuntimeValue],
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   rootArgs: Array[RuntimeValue],
   commandName: String,
   commandArgs: Array[RuntimeValue],
@@ -3577,7 +3643,7 @@ cliSplitCommandArgValue(
   root: RuntimeValue,
   aliases: Array[RuntimeValue],
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   rootArgs: Array[RuntimeValue],
   commandName: String,
   commandArgs: Array[RuntimeValue]
@@ -3602,7 +3668,7 @@ cliSplitRootOptionArg(
   root: RuntimeValue,
   aliases: Array[RuntimeValue],
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   rootArgs: Array[RuntimeValue],
   commandName: String,
   commandArgs: Array[RuntimeValue],
@@ -3653,7 +3719,7 @@ cliLongOptionName(arg: String) -> String => {
 cliResolveAlias(
   aliases: Array[RuntimeValue],
   name: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= aliases.length() ? name
     : (
@@ -3665,7 +3731,7 @@ cliResolveAlias(
 cliFindCommandValue(
   commands: Array[RuntimeValue],
   name: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   (name == "") || (index >= commands.length()) ? emptyValue()
     : (
@@ -3682,9 +3748,9 @@ cliNormalizeTrailingRestArgs(
 cliNormalizeTrailingRestArgsAt(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue],
-  positionalCount: Int,
+  positionalCount: Int32,
   skipNext: Bool
 ) -> Array[RuntimeValue] => (
   index >= args.length() ? out
@@ -3694,9 +3760,9 @@ cliNormalizeTrailingRestArgsAt(
 cliNormalizeTrailingRestArg(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue],
-  positionalCount: Int,
+  positionalCount: Int32,
   skipNext: Bool
 ) -> Array[RuntimeValue] => {
   arg := runtimeText(args[index])
@@ -3723,7 +3789,7 @@ cliCommandOptionConsumesNext(
 
 cliAppendRestSeparator(
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   runtimeText(args[index]) == "--" ? cliAppendRuntimeRest(args, index, out)
@@ -3732,7 +3798,7 @@ cliAppendRestSeparator(
 
 cliAppendRuntimeRest(
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= args.length() ? out
@@ -3757,7 +3823,7 @@ cliInitialParseState(
 
 cliDefaultValues(
   options: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   values: RuntimeValue
 ) -> RuntimeValue => (
   index >= options.length() ? values
@@ -3766,7 +3832,7 @@ cliDefaultValues(
 
 cliDefaultValuesNext(
   options: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   values: RuntimeValue
 ) -> RuntimeValue => {
   option := options[index]
@@ -3782,7 +3848,7 @@ cliDefaultValuesNext(
 cliParseArgsLoop(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => (
   index >= args.length() ? state
@@ -3792,7 +3858,7 @@ cliParseArgsLoop(
 cliParseArg(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => {
   arg := runtimeText(args[index])
@@ -3816,7 +3882,7 @@ cliParseArg(
 
 cliParseRest(
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => (
   index >= args.length() ? state
@@ -3826,7 +3892,7 @@ cliParseRest(
 cliParseLong(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   raw: String
 ) -> CliParseState => {
@@ -3858,7 +3924,7 @@ cliParseLong(
 cliParseLongOption(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   option: RuntimeValue,
   name: String,
@@ -3878,7 +3944,7 @@ cliParseLongOption(
 cliParseShort(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   cluster: String
 ) -> CliParseState => cliParseShortAt(command, args, index, state, cluster, 0)
@@ -3886,10 +3952,10 @@ cliParseShort(
 cliParseShortAt(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   cluster: String,
-  pos: Int
+  pos: Int32
 ) -> CliParseState => (
   pos >= cluster.length() ? cliParseArgsLoop(command, args, index + 1, state)
     : cliParseShortOne(command, args, index, state, cluster, pos)
@@ -3898,10 +3964,10 @@ cliParseShortAt(
 cliParseShortOne(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   cluster: String,
-  pos: Int
+  pos: Int32
 ) -> CliParseState => {
   short := cluster.slice(pos, pos + 1)
   option := cliFindOptionByShort(runtimeArray(cliField(command, "options")), short, 0)
@@ -3917,10 +3983,10 @@ cliParseShortOne(
 cliParseShortOption(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   cluster: String,
-  pos: Int,
+  pos: Int32,
   option: RuntimeValue,
   short: String
 ) -> CliParseState => (
@@ -3931,10 +3997,10 @@ cliParseShortOption(
 cliParseShortValue(
   command: RuntimeValue,
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   cluster: String,
-  pos: Int,
+  pos: Int32,
   option: RuntimeValue,
   short: String
 ) -> CliParseState => {
@@ -3964,7 +4030,7 @@ cliFinalizeParse(
 
 cliCheckRequiredOptions(
   options: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => (
   (index >= options.length()) || (state.error != "") ? state
@@ -3973,7 +4039,7 @@ cliCheckRequiredOptions(
 
 cliCheckRequiredOption(
   options: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => {
   option := options[index]
@@ -3986,7 +4052,7 @@ cliCheckRequiredOption(
 
 cliBindPositionals(
   arguments: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => (
   index >= arguments.length() ? cliCheckUnexpectedArgument(arguments, state)
@@ -3995,7 +4061,7 @@ cliBindPositionals(
 
 cliBindPresentPositionals(
   arguments: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState
 ) -> CliParseState => (
   (index >= arguments.length()) || (index >= state.positionalValues.length()) ? state
@@ -4004,7 +4070,7 @@ cliBindPresentPositionals(
 
 cliBindPositional(
   arguments: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   state: CliParseState,
   requireMissing: Bool
 ) -> CliParseState => {
@@ -4053,7 +4119,7 @@ cliHelpText(
 cliHelpCommands(
   commands: Array[RuntimeValue],
   aliases: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   commands.isEmpty() ? out
@@ -4088,7 +4154,7 @@ cliHelpCommand(
 cliHelpAliases(
   aliases: Array[RuntimeValue],
   commandName: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= aliases.length() ? out
@@ -4103,7 +4169,7 @@ cliHelpAliases(
 
 cliHelpUsageArgs(
   args: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= args.length() ? out
@@ -4119,7 +4185,7 @@ cliHelpUsageArg(
 
 cliHelpOptions(
   options: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= options.length() ? out
@@ -4149,7 +4215,7 @@ cliHelpOption(
 cliFindOptionByName(
   options: Array[RuntimeValue],
   name: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   (name == "") || (index >= options.length()) ? emptyValue()
     : (
@@ -4161,7 +4227,7 @@ cliFindOptionByName(
 cliFindOptionByShort(
   options: Array[RuntimeValue],
   short: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   (short == "") || (index >= options.length()) ? emptyValue()
     : (
@@ -4356,7 +4422,7 @@ jsonStringify(
 jsonStringifyValues(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= values.length() ? out
@@ -4366,7 +4432,7 @@ jsonStringifyValues(
 jsonStringifyEntries(
   interpreter: Interpreter,
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= entries.length() ? out
@@ -4379,7 +4445,7 @@ jsonStringifyEntries(
 jsonStringifySetEntries(
   interpreter: Interpreter,
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= entries.length() ? out
@@ -4393,7 +4459,7 @@ jsonStringifyFields(
   interpreter: Interpreter,
   typeName: String,
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fields.length() ? out
@@ -4404,7 +4470,7 @@ jsonStringifyField(
   interpreter: Interpreter,
   typeName: String,
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   field := fields[index]
@@ -4426,7 +4492,7 @@ jsonQuote(text: String) -> String => ("\"" + jsonEscapeText(text, 0, "")) + "\""
 
 jsonEscapeText(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= text.length() ? out
@@ -4467,7 +4533,7 @@ jsonDecodeArrayValues(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   elementType: String,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? out
@@ -4487,7 +4553,7 @@ jsonDecodeFields(
   interpreter: Interpreter,
   value: RuntimeValue,
   structType: IRStructType,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeField]
 ) -> Array[RuntimeField] => (
   index >= structType.fields.length() ? out
@@ -4515,7 +4581,7 @@ jsonDecodeField(
 jsonDefaultFields(
   interpreter: Interpreter,
   structType: IRStructType,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeField]
 ) -> Array[RuntimeField] => (
   index >= structType.fields.length() ? out
@@ -4595,7 +4661,7 @@ findJsonStructField(
 findJsonStructFieldAt(
   fields: Array[IRField],
   fieldName: String,
-  index: Int
+  index: Int32
 ) -> IRField => {
   done := index >= fields.length()
   (
@@ -4607,7 +4673,7 @@ findJsonStructFieldAt(
 findJsonStructFieldStep(
   fields: Array[IRField],
   fieldName: String,
-  index: Int
+  index: Int32
 ) -> IRField => {
   matched := fields[index].name == fieldName
   (
@@ -4629,7 +4695,7 @@ emptyJsonIRField() -> IRField => {
 regexValue(
   source: String,
   flags: String,
-  lastIndex: Int
+  lastIndex: Int32
 ) -> RuntimeValue => structValue("Regex", [RuntimeField {
   name: "source",
   value: stringValue(source)
@@ -4658,8 +4724,8 @@ regexLiteralValue(
 
 lastRegexSlash(
   raw: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index <= 0 ? -1
     : (
       raw.at(index) == '/' ? index
@@ -4677,11 +4743,11 @@ regexFlags(
 
 regexLastIndex(
   value: RuntimeValue
-) -> Int => runtimeInt(runtimeStructField(value, "lastIndex"))
+) -> Int32 => runtimeInt(runtimeStructField(value, "lastIndex"))
 
 regexSetLastIndexValue(
   value: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => setRuntimeField(value, "lastIndex", intValue(index))
 
 callRegexMethod(
@@ -4721,7 +4787,7 @@ callRegexMethod(
 
 regexStartIndex(
   receiver: RuntimeValue
-) -> Int => (
+) -> Int32 => (
   regexHasFlag(regexFlags(receiver), 'g') || regexHasFlag(regexFlags(receiver), 'y') ? regexLastIndex(receiver)
     : 0
 )
@@ -4771,8 +4837,8 @@ regexNoMatch() -> RegexMatch => {
 }
 
 regexFound(
-  start: Int,
-  end: Int,
+  start: Int32,
+  end: Int32,
   groups: Array[String]
 ) -> RegexMatch => {
   found: true,
@@ -4785,7 +4851,7 @@ regexFind(
   source: String,
   flags: String,
   input: String,
-  start: Int
+  start: Int32
 ) -> RegexMatch => (
   (start < 0) || (start > input.length()) ? regexNoMatch()
     : regexFindAt(source, flags, input, start)
@@ -4795,7 +4861,7 @@ regexFindAt(
   source: String,
   flags: String,
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => (
   index > input.length() ? regexNoMatch()
     : regexFindCandidate(source, flags, input, index)
@@ -4805,7 +4871,7 @@ regexFindCandidate(
   source: String,
   flags: String,
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   found := regexMatchAt(source, flags, input, index)
   (
@@ -4818,7 +4884,7 @@ regexMatchAt(
   source: String,
   flags: String,
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => source {
   "rune\\s+(\\d+)" => regexMatchRuneDigitsWithGroup(flags, input, index)
   "rune\\s+\\d+" => regexMatchRuneDigits(flags, input, index)
@@ -4834,7 +4900,7 @@ regexMatchAt(
 regexMatchRuneDigits(
   flags: String,
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => (
   regexRegionEquals(input, index, "rune", regexHasFlag(flags, 'i')) && regexSpaceAt(input, index + 4) ? regexMatchRuneDigitsTail(input, index)
     : regexNoMatch()
@@ -4842,7 +4908,7 @@ regexMatchRuneDigits(
 
 regexMatchRuneDigitsTail(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   afterSpaces := consumeSpaces(input, index + 4)
   afterDigits := consumeDigits(input, afterSpaces)
@@ -4855,7 +4921,7 @@ regexMatchRuneDigitsTail(
 regexMatchRuneDigitsWithGroup(
   flags: String,
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => (
   regexRegionEquals(input, index, "rune", regexHasFlag(flags, 'i')) && regexSpaceAt(input, index + 4) ? regexMatchRuneDigitsWithGroupTail(input, index)
     : regexNoMatch()
@@ -4863,7 +4929,7 @@ regexMatchRuneDigitsWithGroup(
 
 regexMatchRuneDigitsWithGroupTail(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   afterSpaces := consumeSpaces(input, index + 4)
   afterDigits := consumeDigits(input, afterSpaces)
@@ -4875,7 +4941,7 @@ regexMatchRuneDigitsWithGroupTail(
 
 regexMatchWordDashDigits(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   wordEnd := consumeWord(input, index)
   digitStart := wordEnd + 1
@@ -4888,7 +4954,7 @@ regexMatchWordDashDigits(
 
 regexMatchLettersDigits(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   lettersEnd := consumeLowerLetters(input, index)
   digitsEnd := consumeDigits(input, lettersEnd)
@@ -4900,7 +4966,7 @@ regexMatchLettersDigits(
 
 regexMatchDigitsGroup(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   end := consumeDigits(input, index)
   (
@@ -4911,7 +4977,7 @@ regexMatchDigitsGroup(
 
 regexMatchDigits(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   end := consumeDigits(input, index)
   (
@@ -4922,7 +4988,7 @@ regexMatchDigits(
 
 regexMatchUpper(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => {
   end := consumeUpperLetters(input, index)
   (
@@ -4933,7 +4999,7 @@ regexMatchUpper(
 
 regexMatchCommaSpaces(
   input: String,
-  index: Int
+  index: Int32
 ) -> RegexMatch => (
   (index < input.length()) && (input.at(index) == ',') ? regexFound(index, consumeSpaces(input, index + 1), [input.slice(index, consumeSpaces(input, index + 1))])
     : regexNoMatch()
@@ -4943,7 +5009,7 @@ regexMatchAllValues(
   source: String,
   flags: String,
   input: String,
-  index: Int,
+  index: Int32,
   groups: Bool,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
@@ -4959,7 +5025,7 @@ regexMatchAllValues(
 
 regexNextSearchIndex(
   found: RegexMatch
-) -> Int => (
+) -> Int32 => (
   found.end > found.start ? found.end
     : found.end + 1
 )
@@ -4977,7 +5043,7 @@ regexReplaceLoop(
   flags: String,
   input: String,
   replacement: String,
-  index: Int,
+  index: Int32,
   out: String,
   all: Bool
 ) -> String => {
@@ -4999,7 +5065,7 @@ regexExpandReplacement(
 regexExpandReplacementAt(
   replacement: String,
   found: RegexMatch,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= replacement.length() ? out
@@ -5011,7 +5077,7 @@ regexExpandReplacementAt(
 
 regexGroup(
   found: RegexMatch,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= found.groups.length() ? ""
     : found.groups[index]
@@ -5020,7 +5086,7 @@ regexGroup(
 regexSplit(
   source: String,
   input: String,
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => {
   found := regexFind(source, "", input, index)
@@ -5032,7 +5098,7 @@ regexSplit(
 
 stringsToRuntime(
   values: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? out
@@ -5046,7 +5112,7 @@ canonicalRegexFlags(
 canonicalRegexFlagsInOrder(
   flags: String,
   order: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= order.length() ? out
@@ -5063,7 +5129,7 @@ regexHasFlag(
 
 regexEscape(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= text.length() ? out
@@ -5079,7 +5145,7 @@ regexEscapeNeedsSlash(ch: Char) -> Bool => (((((((((((((ch == '\\') || (ch == '.
 
 regexRegionEquals(
   input: String,
-  index: Int,
+  index: Int32,
   needle: String,
   ignoreCase: Bool
 ) -> Bool => (
@@ -5089,10 +5155,10 @@ regexRegionEquals(
 
 regexRegionEqualsAt(
   input: String,
-  index: Int,
+  index: Int32,
   needle: String,
   ignoreCase: Bool,
-  offset: Int
+  offset: Int32
 ) -> Bool => (
   offset >= needle.length() ? true
     : (
@@ -5142,23 +5208,23 @@ lowerAsciiChar(ch: Char) -> Char => ch {
 
 consumeDigits(
   input: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index < input.length()) && isDigitChar(input.at(index)) ? consumeDigits(input, index + 1)
     : index
 )
 
 consumeSpaces(
   input: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index < input.length()) && regexSpaceAt(input, index) ? consumeSpaces(input, index + 1)
     : index
 )
 
 regexSpaceAt(
   input: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index < input.length() ? (input.at(index) == ' ') || (input.at(index) == '\t')
     : false
@@ -5166,24 +5232,24 @@ regexSpaceAt(
 
 consumeWord(
   input: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index < input.length()) && isWordChar(input.at(index)) ? consumeWord(input, index + 1)
     : index
 )
 
 consumeLowerLetters(
   input: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index < input.length()) && isLowerLetter(input.at(index)) ? consumeLowerLetters(input, index + 1)
     : index
 )
 
 consumeUpperLetters(
   input: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index < input.length()) && isUpperLetter(input.at(index)) ? consumeUpperLetters(input, index + 1)
     : index
 )
@@ -5196,7 +5262,7 @@ isUpperLetter(ch: Char) -> Bool => (ch >= 'A') && (ch <= 'Z')
 
 jsonOk(
   value: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> JsonParseResult => {
   ok: true,
   value: value,
@@ -5215,7 +5281,7 @@ jsonError(
 
 parseJsonValue(
   text: String,
-  index: Int
+  index: Int32
 ) -> JsonParseResult => (
   index >= text.length() ? jsonError("unexpected end of json")
     : parseJsonValueAt(text, skipJsonSpace(text, index))
@@ -5223,7 +5289,7 @@ parseJsonValue(
 
 parseJsonValueAt(
   text: String,
-  index: Int
+  index: Int32
 ) -> JsonParseResult => {
   ch := text.at(index)
   (
@@ -5249,7 +5315,7 @@ parseJsonValueAt(
 
 parseJsonObject(
   text: String,
-  index: Int,
+  index: Int32,
   entries: Array[RuntimeEntry]
 ) -> JsonParseResult => {
   pos := skipJsonSpace(text, index)
@@ -5261,7 +5327,7 @@ parseJsonObject(
 
 parseJsonObjectEntry(
   text: String,
-  index: Int,
+  index: Int32,
   entries: Array[RuntimeEntry]
 ) -> JsonParseResult => {
   key := parseJsonString(text, index)
@@ -5273,7 +5339,7 @@ parseJsonObjectEntry(
 
 parseJsonObjectValue(
   text: String,
-  index: Int,
+  index: Int32,
   entries: Array[RuntimeEntry],
   key: String
 ) -> JsonParseResult => (
@@ -5283,7 +5349,7 @@ parseJsonObjectValue(
 
 parseJsonObjectAfterColon(
   text: String,
-  index: Int,
+  index: Int32,
   entries: Array[RuntimeEntry],
   key: String
 ) -> JsonParseResult => {
@@ -5299,7 +5365,7 @@ parseJsonObjectAfterColon(
 
 parseJsonObjectNext(
   text: String,
-  index: Int,
+  index: Int32,
   entries: Array[RuntimeEntry]
 ) -> JsonParseResult => (
   (index < text.length()) && (text.at(index) == ',') ? parseJsonObject(text, index + 1, entries)
@@ -5311,7 +5377,7 @@ parseJsonObjectNext(
 
 parseJsonArray(
   text: String,
-  index: Int,
+  index: Int32,
   values: Array[RuntimeValue]
 ) -> JsonParseResult => {
   pos := skipJsonSpace(text, index)
@@ -5323,7 +5389,7 @@ parseJsonArray(
 
 parseJsonArrayValue(
   text: String,
-  index: Int,
+  index: Int32,
   values: Array[RuntimeValue]
 ) -> JsonParseResult => {
   value := parseJsonValue(text, index)
@@ -5335,7 +5401,7 @@ parseJsonArrayValue(
 
 parseJsonArrayNext(
   text: String,
-  index: Int,
+  index: Int32,
   values: Array[RuntimeValue]
 ) -> JsonParseResult => (
   (index < text.length()) && (text.at(index) == ',') ? parseJsonArray(text, index + 1, values)
@@ -5347,7 +5413,7 @@ parseJsonArrayNext(
 
 parseJsonString(
   text: String,
-  index: Int
+  index: Int32
 ) -> JsonParseResult => (
   (index >= text.length()) || (text.at(index) != '"') ? jsonError("expected json string")
     : parseJsonStringLoop(text, index + 1, "")
@@ -5355,7 +5421,7 @@ parseJsonString(
 
 parseJsonStringLoop(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> JsonParseResult => (
   index >= text.length() ? jsonError("unterminated json string")
@@ -5370,7 +5436,7 @@ parseJsonStringLoop(
 
 parseJsonStringEscape(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> JsonParseResult => (
   (index + 1) >= text.length() ? jsonError("unterminated json escape")
@@ -5391,7 +5457,7 @@ jsonEscapedChar(ch: Char) -> Char => ch {
 
 parseJsonNumber(
   text: String,
-  index: Int
+  index: Int32
 ) -> JsonParseResult => {
   end := jsonNumberEnd(text, index)
   (
@@ -5402,8 +5468,8 @@ parseJsonNumber(
 
 jsonNumberEnd(
   text: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= text.length() ? index
     : (
       isJsonNumberChar(text.at(index)) ? jsonNumberEnd(text, index + 1)
@@ -5415,8 +5481,8 @@ isJsonNumberChar(ch: Char) -> Bool => ((ch >= '0') && (ch <= '9')) || (ch == '-'
 
 skipJsonSpace(
   text: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= text.length() ? index
     : (
       isJsonSpace(text.at(index)) ? skipJsonSpace(text, index + 1)
@@ -5537,7 +5603,7 @@ callMutableArraySet(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   (
-    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("Array.set index expects Int")
+    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("Array.set index expects Int32")
       : callMutableArraySetAt(env, receiverExpr, receiver, runtimeInt(args[0]), args[1])
   )
 }
@@ -5546,7 +5612,7 @@ callMutableArraySetAt(
   env: RuntimeEnv,
   receiverExpr: IRExpr,
   receiver: RuntimeValue,
-  index: Int,
+  index: Int32,
   value: RuntimeValue
 ) -> EvalResult => {
   values := runtimeArray(receiver)
@@ -5873,7 +5939,7 @@ setRuntimeFieldAt(
   fields: Array[RuntimeField],
   name: String,
   value: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> Array[RuntimeField] => (
   index >= fields.length() ? fields
     : (
@@ -5884,7 +5950,7 @@ setRuntimeFieldAt(
 
 setRuntimeFieldValue(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   name: String,
   value: RuntimeValue
 ) -> Array[RuntimeField] => {
@@ -6023,7 +6089,7 @@ arraySetMethod(
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
     Int(index, _) => okResult(runtimeArray(receiver).set(index, args[1]))
-    _ => errorResult("Array.set index expects Int")
+    _ => errorResult("Array.set index expects Int32")
   }
 }
 
@@ -6076,7 +6142,7 @@ arrayAtMethod(
   args := evalArgs(interpreter, env, children, 1)
   args[0] {
     Int(index, _) => indexArrayValue(runtimeArray(receiver), index)
-    _ => errorResult("Array.at index expects Int")
+    _ => errorResult("Array.at index expects Int32")
   }
 }
 
@@ -6098,7 +6164,7 @@ reduceArrayLoop(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int,
+  index: Int32,
   accumulator: RuntimeValue
 ) -> EvalResult => (index >= values.length()) {
   true => okResult(accumulator)
@@ -6109,7 +6175,7 @@ reduceArrayReverseLoop(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int,
+  index: Int32,
   accumulator: RuntimeValue
 ) -> EvalResult => (index < 0) {
   true => okResult(accumulator)
@@ -6120,7 +6186,7 @@ reduceArrayNext(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int,
+  index: Int32,
   accumulator: RuntimeValue,
   reverse: Bool
 ) -> EvalResult => {
@@ -6138,7 +6204,7 @@ callEachLoop(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> EvalResult => (index >= values.length()) {
   true => okResult(voidValue())
   false => callEachNext(interpreter, values, callback, index)
@@ -6148,7 +6214,7 @@ callEachNext(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   result := callClosureValue(interpreter, callback, [values[index], intValue(index), arrayValue(values)])
   result.ok {
@@ -6161,7 +6227,7 @@ mapArrayLoop(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (index >= values.length()) {
   true => out
@@ -6172,7 +6238,7 @@ mapArrayNext(
   interpreter: Interpreter,
   values: Array[RuntimeValue],
   callback: RuntimeValue,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   result := callClosureValue(interpreter, callback, [values[index], intValue(index), arrayValue(values)])
@@ -6216,7 +6282,7 @@ stringCharsMethod(
 
 stringCharsToRuntimeValues(
   text: String,
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> EvalResult => (
   index >= text.length() ? okResult(arrayValue(out))
@@ -6235,7 +6301,7 @@ stringFromCharsMethod(
 
 stringFromRuntimeChars(
   chars: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> EvalResult => (
   index >= chars.length() ? okResult(stringValue(out))
@@ -6251,7 +6317,7 @@ stringAtMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   (
-    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("String.at index expects Int")
+    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("String.at index expects Int32")
       : indexStringValue(runtimeText(receiver), runtimeInt(args[0]))
   )
 }
@@ -6329,14 +6395,14 @@ stringRepeatMethod(
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
   (
-    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("String.repeat count expects Int")
+    runtimeKind(args[0]) != RuntimeValueKind.Int ? errorResult("String.repeat count expects Int32")
       : okResult(stringValue(repeatString(runtimeText(receiver), runtimeInt(args[0]), "")))
   )
 }
 
 repeatString(
   text: String,
-  count: Int,
+  count: Int32,
   out: String
 ) -> String => (
   count <= 0 ? out
@@ -6425,7 +6491,7 @@ mapDeleteMethod(
 
 mapDeleteAt(
   receiver: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   runtimeEntries(receiver).set(index, RuntimeEntry {
     key: voidValue(),
@@ -6443,7 +6509,7 @@ mapClearMethod(
 
 mapClearEntries(
   entries: Array[RuntimeEntry],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeEntry] => (
   index >= entries.length() ? entries
     : mapClearEntryAt(entries, index)
@@ -6451,7 +6517,7 @@ mapClearEntries(
 
 mapClearEntryAt(
   entries: Array[RuntimeEntry],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeEntry] => {
   entries.set(index, RuntimeEntry {
     key: voidValue(),
@@ -6509,7 +6575,7 @@ setAddMethod(
 
 mapKeys(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= entries.length() ? out
@@ -6521,7 +6587,7 @@ mapKeys(
 
 mapValues(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= entries.length() ? out
@@ -6535,7 +6601,7 @@ mapEachLoop(
   interpreter: Interpreter,
   receiver: RuntimeValue,
   callback: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> EvalResult => (
   index >= runtimeEntries(receiver).length() ? okResult(voidValue())
     : (
@@ -6548,7 +6614,7 @@ mapEachNext(
   interpreter: Interpreter,
   receiver: RuntimeValue,
   callback: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   entry := runtimeEntries(receiver)[index]
   result := callClosureValue(interpreter, callback, [entry.value, entry.key, receiver])
@@ -6600,7 +6666,7 @@ mapSet(
 
 mapSetEntry(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   entry: RuntimeEntry
 ) -> Array[RuntimeEntry] => (
   index >= 0 ? setExistingEntry(entries, index, entry)
@@ -6609,7 +6675,7 @@ mapSetEntry(
 
 setExistingEntry(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   entry: RuntimeEntry
 ) -> Array[RuntimeEntry] => {
   entries.set(index, entry)
@@ -6627,8 +6693,8 @@ pushEntry(
 mapEntryIndex(
   entries: Array[RuntimeEntry],
   key: RuntimeValue,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= entries.length() ? -1
     : (
       entryIsDeleted(entries[index]) ? mapEntryIndex(entries, key, index + 1)
@@ -6645,9 +6711,9 @@ entryIsDeleted(
 
 mapEntryCount(
   entries: Array[RuntimeEntry],
-  index: Int,
-  count: Int
-) -> Int => (
+  index: Int32,
+  count: Int32
+) -> Int32 => (
   index >= entries.length() ? count
     : mapEntryCount(entries, index + 1, (
       entryIsDeleted(entries[index]) ? count
@@ -6712,7 +6778,7 @@ callIteratorMethod(
 
 iterNextResult(
   values: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> RuntimeValue => arrayValue([(
   index < values.length() ? values[index]
     : nullValue()
@@ -6722,7 +6788,7 @@ iteratorEachMethod(
   interpreter: Interpreter,
   env: RuntimeEnv,
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   children: Array[IRExpr]
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
@@ -6733,7 +6799,7 @@ iteratorMapMethod(
   interpreter: Interpreter,
   env: RuntimeEnv,
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   children: Array[IRExpr]
 ) -> EvalResult => {
   args := evalArgs(interpreter, env, children, 1)
@@ -6860,7 +6926,7 @@ netConnectionMethodResult(
 
 netConnectionReadResult(
   receiver: RuntimeValue,
-  length: Int
+  length: Int32
 ) -> ReceiverMethodResult => (
   netConnectionClosed(receiver) ? receiverMethodResult(receiver, resultErr("connection is closed"))
     : netConnectionReadOpenResult(receiver, length)
@@ -6868,7 +6934,7 @@ netConnectionReadResult(
 
 netConnectionReadOpenResult(
   receiver: RuntimeValue,
-  length: Int
+  length: Int32
 ) -> ReceiverMethodResult => {
   data := netConnectionData(receiver)
   count := (
@@ -6956,8 +7022,8 @@ bytesSetResult(
 
 bytesGetInt4(
   data: Array[RuntimeValue],
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   value := runtimeInt(data[index / 2])
   nibble := (
     (index % 2) == 0 ? value / 16
@@ -6971,8 +7037,8 @@ bytesGetInt4(
 
 bytesSetInt4(
   data: Array[RuntimeValue],
-  index: Int,
-  value: Int
+  index: Int32,
+  value: Int32
 ) -> Array[RuntimeValue] => {
   byteIndex := index / 2
   old := runtimeInt(data[byteIndex])
@@ -6987,8 +7053,8 @@ bytesSetInt4(
 
 bytesSetByte(
   data: Array[RuntimeValue],
-  offset: Int,
-  value: Int
+  offset: Int32,
+  value: Int32
 ) -> Array[RuntimeValue] => {
   data.set(offset, intValue(positiveModulo(value, 256)))
   data
@@ -6996,66 +7062,69 @@ bytesSetByte(
 
 bytesGetSigned(
   data: Array[RuntimeValue],
-  offset: Int,
-  size: Int,
+  offset: Int32,
+  size: Int32,
   little: Bool
-) -> Int => {
+) -> Int32 => {
   raw := bytesReadUnsigned(data, offset, size, little)
-  sign := pow2((size * 8) - 1)
-  (
-    ((raw / sign) % 2) != 0 ? raw - pow2(size * 8)
-      : raw
-  )
+  size >= 4 ? raw
+    : {
+      sign := pow2((size * 8) - 1)
+      (
+        ((raw / sign) % 2) != 0 ? raw - pow2(size * 8)
+          : raw
+      )
+    }
 }
 
 bytesWriteSigned(
   data: Array[RuntimeValue],
-  offset: Int,
-  value: Int,
-  size: Int,
+  offset: Int32,
+  value: Int32,
+  size: Int32,
   little: Bool
 ) -> Array[RuntimeValue] => (
-  size >= 8 ? bytesWriteUnsigned(data, offset, value, size, little)
+  size >= 4 ? bytesWriteUnsigned(data, offset, value, size, little)
     : bytesWriteUnsigned(data, offset, positiveModulo(value, pow2(size * 8)), size, little)
 )
 
 bytesReadUnsigned(
   data: Array[RuntimeValue],
-  offset: Int,
-  size: Int,
+  offset: Int32,
+  size: Int32,
   little: Bool
-) -> Int => (
+) -> Int32 => (
   little ? bytesReadUnsignedLittle(data, offset, size, 0, 0)
     : bytesReadUnsignedBig(data, offset, size, 0, 0)
 )
 
 bytesReadUnsignedLittle(
   data: Array[RuntimeValue],
-  offset: Int,
-  size: Int,
-  index: Int,
-  out: Int
-) -> Int => (
+  offset: Int32,
+  size: Int32,
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= size ? out
     : bytesReadUnsignedLittle(data, offset, size, index + 1, out + (runtimeInt(data[offset + index]) * pow2(8 * index)))
 )
 
 bytesReadUnsignedBig(
   data: Array[RuntimeValue],
-  offset: Int,
-  size: Int,
-  index: Int,
-  out: Int
-) -> Int => (
+  offset: Int32,
+  size: Int32,
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= size ? out
     : bytesReadUnsignedBig(data, offset, size, index + 1, (out * 256) + runtimeInt(data[offset + index]))
 )
 
 bytesWriteUnsigned(
   data: Array[RuntimeValue],
-  offset: Int,
-  value: Int,
-  size: Int,
+  offset: Int32,
+  value: Int32,
+  size: Int32,
   little: Bool
 ) -> Array[RuntimeValue] => (
   little ? bytesWriteUnsignedLittle(data, offset, value, size, 0)
@@ -7064,29 +7133,41 @@ bytesWriteUnsigned(
 
 bytesWriteUnsignedLittle(
   data: Array[RuntimeValue],
-  offset: Int,
-  value: Int,
-  size: Int,
-  index: Int
+  offset: Int32,
+  value: Int32,
+  size: Int32,
+  index: Int32
 ) -> Array[RuntimeValue] => (
   index >= size ? data
-    : bytesWriteUnsignedLittle(bytesSetByte(data, offset + index, (value / pow2(8 * index)) % 256), offset, value, size, index + 1)
+    : {
+      byte := (
+        index >= 4 ? (value < 0 ? 255 : 0)
+          : (value >> (8 * index)) & 255
+      )
+      bytesWriteUnsignedLittle(bytesSetByte(data, offset + index, byte), offset, value, size, index + 1)
+    }
 )
 
 bytesWriteUnsignedBig(
   data: Array[RuntimeValue],
-  offset: Int,
-  value: Int,
-  size: Int,
-  index: Int
+  offset: Int32,
+  value: Int32,
+  size: Int32,
+  index: Int32
 ) -> Array[RuntimeValue] => (
   index >= size ? data
-    : bytesWriteUnsignedBig(bytesSetByte(data, offset + index, (value / pow2(8 * ((size - index) - 1))) % 256), offset, value, size, index + 1)
+    : {
+      byte := (
+        (size > 4) && (index < (size - 4)) ? (value < 0 ? 255 : 0)
+          : (value >> (8 * ((size - index) - 1))) & 255
+      )
+      bytesWriteUnsignedBig(bytesSetByte(data, offset + index, byte), offset, value, size, index + 1)
+    }
 )
 
 bytesWriteFloatValue(
   data: Array[RuntimeValue],
-  offset: Int,
+  offset: Int32,
   value: Double,
   little: Bool,
   doubleWidth: Bool
@@ -7097,7 +7178,7 @@ bytesWriteFloatValue(
 
 bytesWriteKnownFloat(
   data: Array[RuntimeValue],
-  offset: Int,
+  offset: Int32,
   value: Double,
   little: Bool
 ) -> Array[RuntimeValue] => (
@@ -7107,7 +7188,7 @@ bytesWriteKnownFloat(
 
 bytesWriteKnownDouble(
   data: Array[RuntimeValue],
-  offset: Int,
+  offset: Int32,
   value: Double,
   little: Bool
 ) -> Array[RuntimeValue] => (
@@ -7117,9 +7198,9 @@ bytesWriteKnownDouble(
 
 bytesWriteBytes(
   data: Array[RuntimeValue],
-  offset: Int,
-  values: Array[Int],
-  index: Int
+  offset: Int32,
+  values: Array[Int32],
+  index: Int32
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? data
     : bytesWriteBytes(bytesSetByte(data, offset + index, values[index]), offset, values, index + 1)
@@ -7127,7 +7208,7 @@ bytesWriteBytes(
 
 bytesGetFloatValue(
   data: Array[RuntimeValue],
-  offset: Int,
+  offset: Int32,
   little: Bool,
   doubleWidth: Bool
 ) -> RuntimeValue => (
@@ -7164,8 +7245,8 @@ readerMethodResult(
 
 readerReadInt4Result(
   data: Array[RuntimeValue],
-  offset: Int,
-  nibble: Int
+  offset: Int32,
+  nibble: Int32
 ) -> ReceiverMethodResult => {
   value := bytesGetInt4(data, (offset * 2) + nibble)
   nextOffset := (
@@ -7214,13 +7295,13 @@ receiverMethodResult(
 
 writerAlignedData(
   data: Array[RuntimeValue],
-  nibble: Int
+  nibble: Int32
 ) -> Array[RuntimeValue] => data
 
 writerWriteInt4Result(
   data: Array[RuntimeValue],
-  nibble: Int,
-  value: Int
+  nibble: Int32,
+  value: Int32
 ) -> ReceiverMethodResult => {
   aligned := data
   nextData := (
@@ -7237,9 +7318,9 @@ writerWriteInt4Result(
 
 writerWriteNumberResult(
   data: Array[RuntimeValue],
-  nibble: Int,
-  value: Int,
-  size: Int,
+  nibble: Int32,
+  value: Int32,
+  size: Int32,
   little: Bool,
   signed: Bool
 ) -> ReceiverMethodResult => {
@@ -7256,7 +7337,7 @@ writerWriteNumberResult(
 
 writerWriteFloatResult(
   data: Array[RuntimeValue],
-  nibble: Int,
+  nibble: Int32,
   value: Double,
   little: Bool,
   doubleWidth: Bool
@@ -7275,8 +7356,8 @@ writerWriteFloatResult(
 
 writerWriteBytesResult(
   data: Array[RuntimeValue],
-  nibble: Int,
-  values: Array[Int]
+  nibble: Int32,
+  values: Array[Int32]
 ) -> ReceiverMethodResult => {
   updated := writerValue(appendIntBytes(writerAlignedData(data, nibble), values, 0), 0)
   receiverMethodResult(updated, updated)
@@ -7284,7 +7365,7 @@ writerWriteBytesResult(
 
 appendZeroBytes(
   data: Array[RuntimeValue],
-  count: Int
+  count: Int32
 ) -> Array[RuntimeValue] => (
   count <= 0 ? data
     : appendZeroBytes(pushRuntime(data, intValue(0)), count - 1)
@@ -7292,8 +7373,8 @@ appendZeroBytes(
 
 appendIntBytes(
   data: Array[RuntimeValue],
-  values: Array[Int],
-  index: Int
+  values: Array[Int32],
+  index: Int32
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? data
     : appendIntBytes(pushRuntime(data, intValue(positiveModulo(values[index], 256))), values, index + 1)
@@ -7429,7 +7510,7 @@ indexValue(
 
 indexArrayValue(
   values: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> EvalResult => (
   (index < 0) || (index >= values.length()) ? errorResult((("array index out of bounds: " + intToString(index)) + " length ") + intToString(values.length()))
     : okResult(values[index])
@@ -7437,7 +7518,7 @@ indexArrayValue(
 
 indexStringValue(
   text: String,
-  index: Int
+  index: Int32
 ) -> EvalResult => (
   (index < 0) || (index >= text.length()) ? errorResult((("string index out of bounds: " + intToString(index)) + " length ") + intToString(text.length()))
     : okResult(charValue(text.at(index)))
@@ -7464,7 +7545,7 @@ evalArrayElements(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= children.length() ? out
@@ -7475,7 +7556,7 @@ evalArrayElement(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => {
   child := children[index]
@@ -7498,7 +7579,7 @@ appendArrayElement(
 appendRuntimeArray(
   out: Array[RuntimeValue],
   values: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeValue] => (
   index >= values.length() ? out
     : appendRuntimeArray(pushRuntime(out, values[index]), values, index + 1)
@@ -7520,7 +7601,7 @@ evalMapEntries(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeEntry]
 ) -> Array[RuntimeEntry] => (
   index >= children.length() ? out
@@ -7531,7 +7612,7 @@ evalMapEntry(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeEntry]
 ) -> Array[RuntimeEntry] => {
   entry := children[index]
@@ -7569,7 +7650,7 @@ evalFields(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeField]
 ) -> Array[RuntimeField] => (
   index >= children.length() ? out
@@ -7580,7 +7661,7 @@ evalField(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeField]
 ) -> Array[RuntimeField] => {
   field := children[index]
@@ -7598,7 +7679,7 @@ evalField(
 mergeRuntimeFields(
   out: Array[RuntimeField],
   fields: Array[RuntimeField],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeField] => (
   index >= fields.length() ? out
     : mergeRuntimeFields(mergeRuntimeField(out, fields[index]), fields, index + 1)
@@ -7615,8 +7696,8 @@ mergeRuntimeField(
 runtimeFieldIndex(
   fields: Array[RuntimeField],
   name: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= fields.length() ? -1
     : (
       fields[index].name == name ? index
@@ -7626,15 +7707,15 @@ runtimeFieldIndex(
 
 replaceRuntimeFieldAt(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   field: RuntimeField
 ) -> Array[RuntimeField] => collectRuntimeFields(fields, index, field, 0, [])
 
 collectRuntimeFields(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   field: RuntimeField,
-  current: Int,
+  current: Int32,
   out: Array[RuntimeField]
 ) -> Array[RuntimeField] => (
   current >= fields.length() ? out
@@ -7649,7 +7730,7 @@ fillObjectFields(
   env: RuntimeEnv,
   out: Array[RuntimeField],
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeField] => (
   index >= children.length() ? out
     : fillObjectField(interpreter, env, out, children, index)
@@ -7660,7 +7741,7 @@ fillObjectField(
   env: RuntimeEnv,
   out: Array[RuntimeField],
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Array[RuntimeField] => {
   field := children[index]
   value := (
@@ -7697,7 +7778,7 @@ evalBlockLoop(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int,
+  index: Int32,
   previous: RuntimeValue
 ) -> EvalResult => (
   index >= children.length() ? okResult(previous)
@@ -7708,7 +7789,7 @@ evalBlockNext(
   interpreter: Interpreter,
   env: RuntimeEnv,
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   value := evalExpr(interpreter, env, children[index])
   (
@@ -7760,7 +7841,7 @@ destructureFields(
   env: RuntimeEnv,
   value: RuntimeValue,
   params: Array[IRParam],
-  index: Int
+  index: Int32
 ) -> EvalResult => (
   index >= params.length() ? okResult(voidValue())
     : destructureField(env, value, params, index)
@@ -7770,7 +7851,7 @@ destructureField(
   env: RuntimeEnv,
   value: RuntimeValue,
   params: Array[IRParam],
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   field := fieldLookup(runtimeFields(value), params[index].typeName, 0)
   (
@@ -7796,7 +7877,7 @@ evalMatchBranch(
   env: RuntimeEnv,
   subject: RuntimeValue,
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   matched := (
     index >= children.length() ? PatternMatchResult {
@@ -7826,7 +7907,7 @@ evalPatternBlockBranch(
   env: RuntimeEnv,
   subject: RuntimeValue,
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> EvalResult => {
   matched := (
     index >= children.length() ? PatternMatchResult {
@@ -7858,7 +7939,7 @@ envDefine(
   env
 }
 
-envBindingCount(env: RuntimeEnv) -> Int => env.bindingCount["count"] ?? 0
+envBindingCount(env: RuntimeEnv) -> Int32 => env.bindingCount["count"] ?? 0
 
 envGet(
   env: RuntimeEnv,
@@ -7868,7 +7949,7 @@ envGet(
 envGetAt(
   env: RuntimeEnv,
   name: String,
-  index: Int
+  index: Int32
 ) -> EnvLookup => (
   index < 0 ? EnvLookup {
     found: false,
@@ -7893,8 +7974,8 @@ envCopy(env: RuntimeEnv) -> RuntimeEnv => envCopyLoop(env, emptyEnv(), 0, envBin
 envCopyLoop(
   env: RuntimeEnv,
   out: RuntimeEnv,
-  index: Int,
-  count: Int
+  index: Int32,
+  count: Int32
 ) -> RuntimeEnv => (
   index >= count ? out
     : envCopyLoop(env, envCopyBinding(env, out, index), index + 1, count)
@@ -7903,7 +7984,7 @@ envCopyLoop(
 envCopyBinding(
   env: RuntimeEnv,
   out: RuntimeEnv,
-  index: Int
+  index: Int32
 ) -> RuntimeEnv => {
   binding := env.bindings[index] ?? emptyRuntimeBinding()
   out.bindings[index] = binding
@@ -7925,7 +8006,7 @@ envAssign(
 
 envSet(
   env: RuntimeEnv,
-  index: Int,
+  index: Int32,
   name: String,
   value: RuntimeValue
 ) -> Bool => {
@@ -7939,8 +8020,8 @@ envSet(
 envIndex(
   env: RuntimeEnv,
   name: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index < 0 ? -1
     : (
       (env.bindings[index] ?? emptyRuntimeBinding()).name == name ? index
@@ -7956,7 +8037,7 @@ findFunction(
 findFunctionAt(
   functions: Array[IRFunction],
   name: String,
-  index: Int
+  index: Int32
 ) -> IRFunction => (
   index >= functions.length() ? emptyIRFunction()
     : (
@@ -7973,7 +8054,7 @@ findTest(
 findTestAt(
   tests: Array[IRTest],
   name: String,
-  index: Int
+  index: Int32
 ) -> IRTest => (
   index >= tests.length() ? IRTest {
     name: "",
@@ -8024,7 +8105,7 @@ findStruct(
 findStructAt(
   structs: Array[IRStructType],
   name: String,
-  index: Int
+  index: Int32
 ) -> IRStructType => (
   index >= structs.length() ? emptyIRStructType()
     : (
@@ -8041,7 +8122,7 @@ findEnum(
 findEnumAt(
   enums: Array[IREnumType],
   name: String,
-  index: Int
+  index: Int32
 ) -> IREnumType => (
   index >= enums.length() ? emptyIREnumType()
     : (
@@ -8065,7 +8146,7 @@ findMethod(
 findMethodAt(
   methods: Array[IRFunction],
   name: String,
-  index: Int
+  index: Int32
 ) -> IRFunction => (
   index >= methods.length() ? emptyIRFunction()
     : (
@@ -8114,7 +8195,7 @@ findEnumConstructor(
 findEnumConstructorAt(
   enums: Array[IREnumType],
   memberName: String,
-  index: Int,
+  index: Int32,
   found: EnumConstructorLookup
 ) -> EnumConstructorLookup => (
   index >= enums.length() ? found
@@ -8124,7 +8205,7 @@ findEnumConstructorAt(
 findEnumConstructorInType(
   enumDecl: IREnumType,
   memberName: String,
-  index: Int,
+  index: Int32,
   found: EnumConstructorLookup
 ) -> EnumConstructorLookup => (
   index >= enumDecl.members.length() ? found
@@ -8151,7 +8232,7 @@ findEnumMemberAt(
   enums: Array[IREnumType],
   typeName: String,
   memberName: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   index >= enums.length() ? emptyValue()
     : (
@@ -8163,7 +8244,7 @@ findEnumMemberAt(
 findEnumTypeMember(
   enumDecl: IREnumType,
   memberName: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   index >= enumDecl.members.length() ? emptyValue()
     : (
@@ -8175,7 +8256,7 @@ findEnumTypeMember(
 fieldLookup(
   fields: Array[RuntimeField],
   name: String,
-  index: Int
+  index: Int32
 ) -> FieldLookup => (
   index >= fields.length() ? FieldLookup {
     found: false,
@@ -8193,7 +8274,7 @@ fieldLookup(
 runtimeArrayContains(
   values: Array[RuntimeValue],
   value: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= values.length() ? false
     : (
@@ -8246,7 +8327,7 @@ runtimeEqual(
 runtimeArrayEqual(
   left: Array[RuntimeValue],
   right: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> Bool => (
   left.length() != right.length() ? false
     : (
@@ -8261,7 +8342,7 @@ runtimeArrayEqual(
 runtimeFieldsEqual(
   left: Array[RuntimeField],
   right: Array[RuntimeField],
-  index: Int
+  index: Int32
 ) -> Bool => (
   left.length() != right.length() ? false
     : (
@@ -8276,7 +8357,7 @@ runtimeFieldsEqual(
 runtimeEntriesEqual(
   left: Array[RuntimeEntry],
   right: Array[RuntimeEntry],
-  index: Int
+  index: Int32
 ) -> Bool => (
   left.length() != right.length() ? false
     : (
@@ -8322,7 +8403,7 @@ runtimeValueKindName(
             : (
               runtimeKind(value) == RuntimeValueKind.Int ? intToString(runtimeInt(value))
                 : (
-                  runtimeKind(value) == RuntimeValueKind.Double ? runtimeText(value)
+                  runtimeKind(value) == RuntimeValueKind.Double ? doubleToString(runtimeDouble(value))
                     : (
                       runtimeKind(value) == RuntimeValueKind.String ? formatRuntimeString(value)
                         : (
@@ -8356,7 +8437,7 @@ runtimeValueKindName(
 
 joinRuntimeValues(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= values.length() ? out
@@ -8368,7 +8449,7 @@ joinRuntimeValues(
 
 formatValues(
   values: Array[RuntimeValue],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= values.length() ? out
@@ -8380,7 +8461,7 @@ formatValues(
 
 formatFields(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= fields.length() ? out
@@ -8392,7 +8473,7 @@ formatFields(
 
 formatEntries(
   entries: Array[RuntimeEntry],
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= entries.length() ? out
@@ -8416,7 +8497,7 @@ formatRuntimeBigInt(
     : text + "n"
 )
 
-parseIntText(text: String) -> Int => (
+parseIntText(text: String) -> Int32 => (
   text.startsWith("-") ? 0 - parseUnsignedInt(text, 1, 0)
     : (
       text.startsWith("+") ? parseUnsignedInt(text, 1, 0)
@@ -8424,23 +8505,26 @@ parseIntText(text: String) -> Int => (
     )
 )
 
-intToString(value: Int) -> String => (
-  value == 0 ? "0"
+intToString(value: Int32) -> String => (
+  value == (0 - 2147483647 - 1) ? "-2147483648"
     : (
-      value < 0 ? "-" + unsignedIntToString(0 - value, "")
-        : unsignedIntToString(value, "")
+      value == 0 ? "0"
+        : (
+          value < 0 ? "-" + unsignedIntToString(0 - value, "")
+            : unsignedIntToString(value, "")
+        )
     )
 )
 
 unsignedIntToString(
-  value: Int,
+  value: Int32,
   out: String
 ) -> String => (
   value <= 0 ? out
     : unsignedIntToString(value / 10, digitString(value % 10) + out)
 )
 
-digitString(value: Int) -> String => (
+digitString(value: Int32) -> String => (
   value == 0 ? "0"
     : (
       value == 1 ? "1"
@@ -8471,9 +8555,9 @@ digitString(value: Int) -> String => (
 
 parseUnsignedInt(
   text: String,
-  index: Int,
-  out: Int
-) -> Int => (
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= text.length() ? out
     : (
       isDigitChar(text.at(index)) ? parseUnsignedInt(text, index + 1, (out * 10) + digitValue(text.at(index)))
@@ -8494,7 +8578,7 @@ parseDoubleText(text: String) -> Double => {
   scaleDouble(parseDecimalText(baseText), parseIntText(expText))
 }
 
-exponentIndex(text: String) -> Int => {
+exponentIndex(text: String) -> Int32 => {
   lower := text.indexOf("e")
   (
     lower >= 0 ? lower
@@ -8512,7 +8596,7 @@ parseDecimalText(text: String) -> Double => {
 
 parseFractionText(
   text: String,
-  index: Int,
+  index: Int32,
   out: Double,
   scale: Double
 ) -> Double => (
@@ -8525,7 +8609,7 @@ parseFractionText(
 
 scaleDouble(
   value: Double,
-  exponent: Int
+  exponent: Int32
 ) -> Double => (
   exponent == 0 ? value
     : (
@@ -8536,7 +8620,7 @@ scaleDouble(
 
 isDigitChar(ch: Char) -> Bool => (ch >= '0') && (ch <= '9')
 
-digitValue(ch: Char) -> Int => (
+digitValue(ch: Char) -> Int32 => (
   ch == '0' ? 0
     : (
       ch == '1' ? 1
@@ -8572,7 +8656,7 @@ decodeQuoted(raw: String) -> String => (
 
 decodeEscapes(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => (
   index >= text.length() ? out
@@ -8581,7 +8665,7 @@ decodeEscapes(
 
 decodeEscapeStep(
   text: String,
-  index: Int,
+  index: Int32,
   out: String
 ) -> String => {
   ch := text.at(index)
@@ -8809,7 +8893,7 @@ runtimeStructField(
 runtimeStructFieldAt(
   fields: Array[RuntimeField],
   name: String,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => (
   index >= fields.length() ? voidValue()
     : (
@@ -8821,7 +8905,7 @@ runtimeStructFieldAt(
 matchMapPatternEntries(
   subject: RuntimeValue,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   index >= parts.length() ? patternMatched(env)
@@ -8834,7 +8918,7 @@ matchMapPatternEntries(
 matchMapPatternEntry(
   subject: RuntimeValue,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   entry := parts[index]
@@ -8860,7 +8944,7 @@ matchMapPatternEntry(
 matchMapPatternEntryValue(
   subject: RuntimeValue,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   value: RuntimeValue,
   valuePattern: String,
   env: RuntimeEnv
@@ -8923,7 +9007,7 @@ matchBindingPatternText(
 matchOrPatternTextEnv(
   subject: RuntimeValue,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := (
@@ -8957,8 +9041,8 @@ isQuotedPatternText(
 quotedPatternEndsAt(
   text: String,
   quote: Char,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= text.length() ? -1
     : (
       text.at(index) == '\\' ? quotedPatternEndsAt(text, quote, index + 2)
@@ -8973,20 +9057,20 @@ isAliasPatternText(text: String) -> Bool => topLevelAliasIndex(text, 0, 0, '\x00
 
 topLevelAliasIndex(
   text: String,
-  index: Int,
-  depth: Int,
+  index: Int32,
+  depth: Int32,
   quote: Char
-) -> Int => (
+) -> Int32 => (
   index >= text.length() ? -1
     : topLevelAliasIndexStep(text, index, depth, quote)
 )
 
 topLevelAliasIndexStep(
   text: String,
-  index: Int,
-  depth: Int,
+  index: Int32,
+  depth: Int32,
   quote: Char
-) -> Int => {
+) -> Int32 => {
   ch := text.at(index)
   (
     quote != '\x00' ? (
@@ -9014,7 +9098,7 @@ topLevelAliasIndexStep(
 
 startsWithAt(
   text: String,
-  index: Int,
+  index: Int32,
   needle: String
 ) -> Bool => (
   (index + needle.length()) > text.length() ? false
@@ -9092,7 +9176,7 @@ matchBytesArrayPartsWithRest(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
+  rest: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   suffix := (parts.length() - rest) - 1
@@ -9107,9 +9191,9 @@ matchBytesArrayPrefix(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   index >= rest ? matchBytesArrayRest(subject, values, parts, rest, restLen, env)
@@ -9120,9 +9204,9 @@ matchBytesArrayPrefixPart(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(values[index], parts[index].trim(), env)
@@ -9136,8 +9220,8 @@ matchBytesArrayRest(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
-  restLen: Int,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   binding := restPatternBinding(parts[rest])
@@ -9152,9 +9236,9 @@ matchBytesArraySuffix(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   partIndex >= parts.length() ? patternMatched(env)
@@ -9165,9 +9249,9 @@ matchBytesArraySuffixPart(
   subject: RuntimeValue,
   values: Array[RuntimeValue],
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
@@ -9220,7 +9304,7 @@ sequencePatternValues(
 arrayContainsSequence(
   values: Array[RuntimeValue],
   needle: Array[RuntimeValue],
-  index: Int
+  index: Int32
 ) -> Bool => (
   needle.length() == 0 ? true
     : (
@@ -9235,8 +9319,8 @@ arrayContainsSequence(
 arraySequenceEqualAt(
   values: Array[RuntimeValue],
   needle: Array[RuntimeValue],
-  index: Int,
-  offset: Int
+  index: Int32,
+  offset: Int32
 ) -> Bool => (
   offset >= needle.length() ? true
     : (
@@ -9251,7 +9335,7 @@ isBitArrayPatternText(
 
 isBitArrayPatternTextLoop(
   parts: Array[String],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= parts.length() ? false
     : (
@@ -9287,7 +9371,7 @@ bitPatternLittleEndian(
   name: String
 ) -> Bool => name.endsWith("le")
 
-bitPatternWidth(name: String) -> Int => {
+bitPatternWidth(name: String) -> Int32 => {
   clean := (
     name.endsWith("be") || name.endsWith("le") ? name.slice(1, name.length() - 2)
       : ""
@@ -9322,10 +9406,10 @@ matchBitArrayPatternText(
 
 bitPatternRequiredBits(
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  out: Int
-) -> Int => (
+  index: Int32,
+  rest: Int32,
+  out: Int32
+) -> Int32 => (
   index >= parts.length() ? out
     : (
       (rest >= 0) && (index >= rest) ? bitPatternRequiredBits(parts, index + 1, rest, out)
@@ -9337,8 +9421,8 @@ matchBitArrayPatternParts(
   subject: RuntimeValue,
   data: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  bitOffset: Int,
+  index: Int32,
+  bitOffset: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   rest := restPatternIndex(parts, 0)
@@ -9355,8 +9439,8 @@ matchBitArrayPatternPart(
   subject: RuntimeValue,
   data: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  bitOffset: Int,
+  index: Int32,
+  bitOffset: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   part := parts[index].trim()
@@ -9370,8 +9454,8 @@ matchBitValuePart(
   subject: RuntimeValue,
   data: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  bitOffset: Int,
+  index: Int32,
+  bitOffset: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   part := parts[index].trim()
@@ -9390,7 +9474,7 @@ bindBitRest(
   subject: RuntimeValue,
   data: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
+  rest: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   rest < 0 ? patternMatched(env)
@@ -9401,7 +9485,7 @@ bindBitRestValue(
   subject: RuntimeValue,
   data: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
+  rest: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   requiredBits := bitPatternRequiredBits(parts, 0, rest, 0)
@@ -9417,58 +9501,58 @@ bindBitRestValue(
 
 bitPatternTailWidth(
   parts: Array[String],
-  index: Int,
-  out: Int
-) -> Int => (
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= parts.length() ? out
     : bitPatternTailWidth(parts, index + 1, out + bitPatternWidth(bitPatternName(parts[index].trim())))
 )
 
 readBits(
   data: Array[RuntimeValue],
-  offset: Int,
-  width: Int,
+  offset: Int32,
+  width: Int32,
   littleEndian: Bool
-) -> Int => (
+) -> Int32 => (
   (littleEndian && ((offset % 8) == 0)) && ((width % 8) == 0) ? readLittleEndianBits(data, offset / 8, width / 8, 0, 0)
     : readBigEndianBits(data, offset, width, 0, 0)
 )
 
 readLittleEndianBits(
   data: Array[RuntimeValue],
-  start: Int,
-  count: Int,
-  index: Int,
-  out: Int
-) -> Int => (
+  start: Int32,
+  count: Int32,
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= count ? out
     : readLittleEndianBits(data, start, count, index + 1, out + (runtimeInt(data[start + index]) * pow2(8 * index)))
 )
 
 readBigEndianBits(
   data: Array[RuntimeValue],
-  offset: Int,
-  width: Int,
-  index: Int,
-  out: Int
-) -> Int => (
+  offset: Int32,
+  width: Int32,
+  index: Int32,
+  out: Int32
+) -> Int32 => (
   index >= width ? out
     : readBigEndianBits(data, offset, width, index + 1, (out * 2) + bitAt(data, offset + index))
 )
 
 bitAt(
   data: Array[RuntimeValue],
-  bitIndex: Int
-) -> Int => (runtimeInt(data[bitIndex / 8]) / pow2(7 - (bitIndex % 8))) % 2
+  bitIndex: Int32
+) -> Int32 => (runtimeInt(data[bitIndex / 8]) / pow2(7 - (bitIndex % 8))) % 2
 
-pow2(exp: Int) -> Int => (
+pow2(exp: Int32) -> Int32 => (
   exp <= 0 ? 1
     : 2 * pow2(exp - 1)
 )
 
 bitPatternRuntimeValue(
-  raw: Int,
-  width: Int,
+  raw: Int32,
+  width: Int32,
   signed: Bool,
   name: String
 ) -> RuntimeValue => (
@@ -9477,9 +9561,9 @@ bitPatternRuntimeValue(
 )
 
 signExtendBits(
-  raw: Int,
-  width: Int
-) -> Int => {
+  raw: Int32,
+  width: Int32
+) -> Int32 => {
   sign := pow2(width - 1)
   (
     ((raw / sign) % 2) != 0 ? raw - pow2(width)
@@ -9500,7 +9584,7 @@ bitPatternUnsignedType(
 matchArrayPartsExact(
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   values.length() != parts.length() ? patternNotMatched(env)
@@ -9513,7 +9597,7 @@ matchArrayPartsExact(
 matchArrayPartThen(
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(values[index], parts[index].trim(), env)
@@ -9526,7 +9610,7 @@ matchArrayPartThen(
 matchArrayPartsWithRest(
   values: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
+  rest: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   suffix := (parts.length() - rest) - 1
@@ -9540,9 +9624,9 @@ matchArrayPartsWithRest(
 matchArrayPrefix(
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   index >= rest ? matchArrayRest(values, parts, rest, restLen, env)
@@ -9552,9 +9636,9 @@ matchArrayPrefix(
 matchArrayPrefixPart(
   values: Array[RuntimeValue],
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(values[index], parts[index].trim(), env)
@@ -9567,8 +9651,8 @@ matchArrayPrefixPart(
 matchArrayRest(
   values: Array[RuntimeValue],
   parts: Array[String],
-  rest: Int,
-  restLen: Int,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   binding := restPatternBinding(parts[rest])
@@ -9582,9 +9666,9 @@ matchArrayRest(
 matchArraySuffix(
   values: Array[RuntimeValue],
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   partIndex >= parts.length() ? patternMatched(env)
@@ -9594,9 +9678,9 @@ matchArraySuffix(
 matchArraySuffixPart(
   values: Array[RuntimeValue],
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
@@ -9643,7 +9727,7 @@ sequenceSpreadValue(
 matchStringPartsExact(
   value: String,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   value.length() != parts.length() ? patternNotMatched(env)
@@ -9656,7 +9740,7 @@ matchStringPartsExact(
 matchStringPartThen(
   value: String,
   parts: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(charValue(value.at(index)), parts[index].trim(), env)
@@ -9669,7 +9753,7 @@ matchStringPartThen(
 matchStringPartsWithRest(
   value: String,
   parts: Array[String],
-  rest: Int,
+  rest: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   suffix := (parts.length() - rest) - 1
@@ -9683,9 +9767,9 @@ matchStringPartsWithRest(
 matchStringPrefix(
   value: String,
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   index >= rest ? matchStringRest(value, parts, rest, restLen, env)
@@ -9695,9 +9779,9 @@ matchStringPrefix(
 matchStringPrefixPart(
   value: String,
   parts: Array[String],
-  index: Int,
-  rest: Int,
-  restLen: Int,
+  index: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(charValue(value.at(index)), parts[index].trim(), env)
@@ -9710,8 +9794,8 @@ matchStringPrefixPart(
 matchStringRest(
   value: String,
   parts: Array[String],
-  rest: Int,
-  restLen: Int,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   binding := restPatternBinding(parts[rest])
@@ -9725,9 +9809,9 @@ matchStringRest(
 matchStringSuffix(
   value: String,
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   partIndex >= parts.length() ? patternMatched(env)
@@ -9737,9 +9821,9 @@ matchStringSuffix(
 matchStringSuffixPart(
   value: String,
   parts: Array[String],
-  partIndex: Int,
-  rest: Int,
-  restLen: Int,
+  partIndex: Int32,
+  rest: Int32,
+  restLen: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   valueIndex := (rest + restLen) + ((partIndex - rest) - 1)
@@ -9752,8 +9836,8 @@ matchStringSuffixPart(
 
 restPatternIndex(
   parts: Array[String],
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= parts.length() ? -1
     : (
       parts[index].trim().startsWith("..") && ((index == (parts.length() - 1)) || !isSequenceSpreadPattern(parts[index])) ? index
@@ -9853,7 +9937,7 @@ matchEnumConstructorPatternText(
 matchEnumPayloadArgs(
   payload: Array[RuntimeValue],
   args: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   enumPayloadArgsRest(args) ? matchEnumPayloadRest(payload, args, env)
@@ -9885,7 +9969,7 @@ matchEnumPayloadRest(
 matchEnumPayloadArgsPrefix(
   payload: Array[RuntimeValue],
   args: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   index >= (args.length() - 1) ? patternMatched(env)
@@ -9895,7 +9979,7 @@ matchEnumPayloadArgsPrefix(
 matchEnumPayloadArg(
   payload: Array[RuntimeValue],
   args: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchPatternTextEnv(payload[index], args[index].trim(), env)
@@ -9911,7 +9995,7 @@ matchEnumPayloadArg(
 matchRuntimeValueConstructorArgs(
   subject: RuntimeValue,
   args: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => (
   args.length() != runtimeValuePayloadLength(subject) ? patternNotMatched(env)
@@ -9924,7 +10008,7 @@ matchRuntimeValueConstructorArgs(
 matchRuntimeValueConstructorArg(
   subject: RuntimeValue,
   args: Array[String],
-  index: Int,
+  index: Int32,
   env: RuntimeEnv
 ) -> PatternMatchResult => {
   matched := matchRuntimePatternAtom(runtimeValuePayloadAt(subject, index), args[index].trim(), env)
@@ -9962,7 +10046,7 @@ runtimeValueConstructorName(
 
 runtimeValuePayloadLength(
   value: RuntimeValue
-) -> Int => value {
+) -> Int32 => value {
   Void => 0
   Null => 0
   Bool(raw) => 1
@@ -9982,7 +10066,7 @@ runtimeValuePayloadLength(
 
 runtimeValuePayloadAt(
   value: RuntimeValue,
-  index: Int
+  index: Int32
 ) -> RuntimeValue => value {
   Bool(raw) => (
     index == 0 ? boolValue(raw)
@@ -10050,7 +10134,7 @@ runtimeValuePayloadAt(
 
 runtimeFieldsAsValues(
   fields: Array[RuntimeField],
-  index: Int,
+  index: Int32,
   out: Array[RuntimeValue]
 ) -> Array[RuntimeValue] => (
   index >= fields.length() ? out
@@ -10072,9 +10156,9 @@ splitPatternArgs(
 
 splitPatternArgsLoop(
   text: String,
-  index: Int,
-  start: Int,
-  depth: Int,
+  index: Int32,
+  start: Int32,
+  depth: Int32,
   quote: Char,
   out: Array[String]
 ) -> Array[String] => (
@@ -10084,9 +10168,9 @@ splitPatternArgsLoop(
 
 splitPatternArgsStep(
   text: String,
-  index: Int,
-  start: Int,
-  depth: Int,
+  index: Int32,
+  start: Int32,
+  depth: Int32,
   quote: Char,
   out: Array[String]
 ) -> Array[String] => {
@@ -10105,9 +10189,9 @@ splitPatternArgsStep(
 
 splitPatternArgsUnquoted(
   text: String,
-  index: Int,
-  start: Int,
-  depth: Int,
+  index: Int32,
+  start: Int32,
+  depth: Int32,
   ch: Char,
   out: Array[String]
 ) -> Array[String] => (
@@ -10173,7 +10257,7 @@ isIntText(text: String) -> Bool => (
 
 isUnsignedIntText(
   text: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= text.length() ? true
     : (
@@ -10234,7 +10318,7 @@ isDoubleText(text: String) -> Bool => (
 
 isDoubleTextChars(
   text: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= text.length() ? true
     : (
@@ -10247,7 +10331,7 @@ isDoubleTextChars(
 )
 
 matchIntRangeText(
-  value: Int,
+  value: Int32,
   start: String,
   end: String,
   inclusive: Bool,
@@ -10259,7 +10343,7 @@ matchIntRangeText(
 }
 
 rangeIntBoundOk(
-  value: Int,
+  value: Int32,
   bound: String,
   isStart: Bool,
   inclusive: Bool,

@@ -214,10 +214,19 @@ func (e *xmlEmitter) attr(elemName, tag string, attr ir.XMLAttr) {
 			prefix = "e.preventDefault(); "
 		}
 		if _, ok := attr.Value.(*ir.Identifier); ok {
+			params, _, typed := parseTSFuncType(string(attr.Value.ResultType()))
+			if !prevent && typed && len(params) == 0 {
+				e.linef("%s.addEventListener(%s, () => { %s(); });", elemName, strconv.Quote(eventName), handler)
+				return
+			}
 			e.linef("%s.addEventListener(%s, (e) => { %s%s(e); });", elemName, strconv.Quote(eventName), prefix, handler)
 			return
 		}
-		e.linef("%s.addEventListener(%s, (e) => { %s%s; });", elemName, strconv.Quote(eventName), prefix, handler)
+		if prevent {
+			e.linef("%s.addEventListener(%s, (e) => { %s%s; });", elemName, strconv.Quote(eventName), prefix, handler)
+			return
+		}
+		e.linef("%s.addEventListener(%s, () => { %s; });", elemName, strconv.Quote(eventName), handler)
 		return
 	}
 	if attr.Value == nil {

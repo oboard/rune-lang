@@ -331,6 +331,10 @@ func (p *Parser) parseStructLiteral(typeName *ast.Identifier) ast.Expr {
 }
 
 func (p *Parser) parseUnary() ast.Expr {
+	if tok := p.peek(); tok.Kind == lexer.Ident && tok.Lexeme == "typeof" {
+		p.advance()
+		return &ast.TypeOfExpr{Argument: p.parseUnary(), Pos: tok.Pos}
+	}
 	if p.match(lexer.Minus, lexer.Bang, lexer.Tilde) {
 		op := p.previous()
 		return &ast.UnaryExpr{Op: op.Kind, Expr: p.parseExpression(11), Pos: op.Pos}
@@ -387,6 +391,9 @@ func (p *Parser) parsePrimary() ast.Expr {
 		return &ast.RegexLiteral{Pattern: pattern, Flags: flags, Raw: tok.Lexeme, Pos: tok.Pos}
 	case lexer.Ident:
 		p.advance()
+		if tok.Lexeme == "while" {
+			return p.parseWhileExpr(tok)
+		}
 		if tok.Lexeme == "true" {
 			return &ast.BoolLiteral{Value: true, Pos: tok.Pos}
 		}
@@ -395,6 +402,9 @@ func (p *Parser) parsePrimary() ast.Expr {
 		}
 		if tok.Lexeme == "null" {
 			return &ast.NullLiteral{Pos: tok.Pos}
+		}
+		if tok.Lexeme == "undefined" {
+			return &ast.UndefinedLiteral{Pos: tok.Pos}
 		}
 		return &ast.Identifier{Name: tok.Lexeme, Pos: tok.Pos}
 	case lexer.At:
@@ -457,6 +467,33 @@ func (p *Parser) parsePrimary() ast.Expr {
 		p.advance()
 		return &ast.Identifier{Name: "<error>", Pos: tok.Pos}
 	}
+}
+
+func (p *Parser) parseWhileExpr(keyword lexer.Token) ast.Expr {
+	p.skipNewlines()
+	p.consume(lexer.LParen, "expected '(' after 'while'")
+	cond := p.parseExpression(1)
+	p.consume(lexer.RParen, "expected ')' after loop condition")
+	p.skipNewlines()
+	p.loopDepth++
+	body := p.parseBlock()
+	p.loopDepth--
+	return &ast.WhileExpr{Cond: cond, Body: body, Pos: keyword.Pos}
+}
+
+// parseStarLoopExpr parses the canonical Rune loop form `* (cond) { ... }`.
+// `while (cond) { ... }` remains accepted as a compatibility alias.
+func (p *Parser) parseStarLoopExpr() ast.Expr {
+	star := p.advance()
+	p.skipNewlines()
+	p.consume(lexer.LParen, "expected '(' after '*'")
+	cond := p.parseExpression(1)
+	p.consume(lexer.RParen, "expected ')' after loop condition")
+	p.skipNewlines()
+	p.loopDepth++
+	body := p.parseBlock()
+	p.loopDepth--
+	return &ast.WhileExpr{Cond: cond, Body: body, Pos: star.Pos}
 }
 
 func (p *Parser) parseDollarExpression() ast.Expr {
@@ -759,7 +796,33 @@ func (p *Parser) looksLikeObjectMethodBody() bool {
 	for i < len(p.tokens) && p.tokens[i].Kind == lexer.Newline {
 		i++
 	}
-	return i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow
+	if i < len(p.tokens) && p.tokens[i].Kind == lexer.FatArrow {
+		return true
+	}
+	if i >= len(p.tokens) || p.tokens[i].Kind != lexer.Arrow {
+		return false
+	}
+	depth = 0
+	brackets := 0
+	for i++; i < len(p.tokens); i++ {
+		switch p.tokens[i].Kind {
+		case lexer.LParen:
+			depth++
+		case lexer.RParen:
+			depth--
+		case lexer.LBracket:
+			brackets++
+		case lexer.RBracket:
+			brackets--
+		case lexer.FatArrow:
+			if depth == 0 && brackets == 0 {
+				return true
+			}
+		case lexer.LBrace, lexer.RBrace:
+			return false
+		}
+	}
+	return false
 }
 
 func (p *Parser) parseMapLiteral() ast.Expr {

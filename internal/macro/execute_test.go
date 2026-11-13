@@ -213,10 +213,10 @@ func TestCoreRenameMacroHandlesEveryDeclarationTarget(t *testing.T) {
 	file, parseErrs := parser.Parse(`#macro.renameDeclaration("RenamedArgs")
 Args: {
   #macro.renameDeclaration("renamedField")
-  value: Int
+  value: Int32
 
   #macro.renameDeclaration("renamedMethod")
-  read() -> Int => .value
+  read() -> Int32 => .value
 }
 
 #macro.renameDeclaration("RenamedCommand")

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -14,10 +15,12 @@ import (
 	"strings"
 
 	"github.com/oboard/rune-lang/internal/ast"
+	"github.com/oboard/rune-lang/internal/astprint"
 	"github.com/oboard/rune-lang/internal/checker"
 	gocodegen "github.com/oboard/rune-lang/internal/codegen/go"
 	tscodegen "github.com/oboard/rune-lang/internal/codegen/typescript"
 	"github.com/oboard/rune-lang/internal/compiler"
+	"github.com/oboard/rune-lang/internal/interpreter"
 	"github.com/oboard/rune-lang/internal/ir"
 	"github.com/oboard/rune-lang/internal/lsp"
 	"github.com/oboard/rune-lang/internal/parser"
@@ -25,6 +28,7 @@ import (
 	"github.com/oboard/rune-lang/internal/selfhostrunner"
 	"github.com/oboard/rune-lang/internal/stdlib"
 	"github.com/oboard/rune-lang/internal/tester"
+	"github.com/oboard/rune-lang/internal/tsfront"
 )
 
 func init() {
@@ -109,8 +113,10 @@ func executeRuneCLIInvocation(invocation RuneCliInvocation, stdin io.Reader, std
 		return emitTypeScriptDeclaration(invocation.path, invocation.output, stdout)
 	case "mbt":
 		return emitMoonBit(invocation.path, invocation.output, stdout)
+	case "ts2rune":
+		return convertTypeScriptToRune(invocation.path, invocation.output, stdout, stderr)
 	case "check":
-		return executeSelfhostCheck(invocation.path, stdout, stderr)
+		return executeSelfhostCheck(invocation.path, invocation.target, stdout, stderr)
 	case "test":
 		return executeRuneCLITest(invocation, stdout)
 	case "fmt":
@@ -122,6 +128,21 @@ func executeRuneCLIInvocation(invocation RuneCliInvocation, stdin io.Reader, std
 	default:
 		return fmt.Errorf("unknown command %s", invocation.command)
 	}
+}
+
+func convertTypeScriptToRune(path string, output string, stdout io.Writer, stderr io.Writer) error {
+	source, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	file, diags := tsfront.ConvertSource(path, string(source))
+	if len(diags) > 0 {
+		for _, diag := range diags {
+			fmt.Fprintf(stderr, "%s:%d:%d: %s\n", path, diag.Line, diag.Column, diag.Message)
+		}
+		return fmt.Errorf("convert failed")
+	}
+	return writeGeneratedSource(astprint.File(file), output, stdout)
 }
 
 func executeRuneCLIRun(invocation RuneCliInvocation, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
@@ -149,7 +170,9 @@ func executeRuneCLIBuild(invocation RuneCliInvocation, stdin io.Reader, stdout i
 
 func executeRuneCLITest(invocation RuneCliInvocation, stdout io.Writer) error {
 	var err error
-	if invocation.backendExplicit {
+	if !invocation.backendExplicit && testerUsesHostBridge(invocation.path) {
+		_, err = tester.RunHost(invocation.path, invocation.pattern, stdout)
+	} else if invocation.backendExplicit {
 		_, err = tester.RunWithBackend(invocation.path, invocation.pattern, invocation.backend, stdout)
 	} else {
 		_, err = tester.Run(invocation.path, invocation.pattern, stdout)
@@ -157,11 +180,39 @@ func executeRuneCLITest(invocation RuneCliInvocation, stdout io.Writer) error {
 	return err
 }
 
+func testerUsesHostBridge(path string) bool {
+	if path == "" {
+		path = "tests"
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	if !info.IsDir() {
+		data, err := os.ReadFile(path)
+		return err == nil && usesHostFrontendBridge(string(data))
+	}
+	files, err := runeFiles(path)
+	if err != nil {
+		return false
+	}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err == nil && usesHostFrontendBridge(string(data)) {
+			return true
+		}
+	}
+	return false
+}
+
 func runEntry(entry string, runBackend string, runTarget string, programArgs []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	switch runBackend {
 	case "go":
 		if len(programArgs) > 0 {
 			return fmt.Errorf("selfhost run does not yet support program arguments")
+		}
+		if source, err := os.ReadFile(entry); err == nil && usesHostFrontendBridge(string(source)) {
+			return runWithHostInterpreter(entry, stdin, stdout)
 		}
 		prog, diags := compiler.AnalyzeFile(entry)
 		if len(diags) > 0 {
@@ -213,6 +264,29 @@ func runEntry(entry string, runBackend string, runTarget string, programArgs []s
 	default:
 		return validateBackend(runBackend)
 	}
+}
+
+// runWithHostInterpreter executes programs that use syntax the self-hosted
+// interpreter cannot represent yet (RFC 0001 union types and `typeof`). The
+// host pipeline is the reference implementation, so this keeps `rune run`
+// correct while the self-hosted IR grows the same nodes.
+func runWithHostInterpreter(entry string, stdin io.Reader, stdout io.Writer) error {
+	prog, diags := compiler.AnalyzeFile(entry)
+	if len(diags) > 0 {
+		printDiagnostics(entry, diags)
+		return fmt.Errorf("run failed")
+	}
+	var out bytes.Buffer
+	runner := interpreter.New(prog.IR, interpreter.WithOutput(&out), interpreter.WithInput(stdin))
+	if err := runner.RunMain(); err != nil {
+		return err
+	}
+	if out.Len() > 0 {
+		if _, err := stdout.Write(out.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func selectRunBackend(entry string, requested string, explicit bool) string {
@@ -281,7 +355,40 @@ func requiresHostCompilerBridge(path string, source string) bool {
 	return strings.Contains(path, "selfhost/") ||
 		strings.Contains(source, "@net.") ||
 		strings.Contains(source, "$") ||
+		strings.Contains(source, "if (") ||
+		strings.Contains(source, "switch (") ||
+		strings.Contains(source, "for (") ||
+		strings.Contains(source, "* (") ||
+		strings.Contains(source, "*(") ||
+		strings.Contains(source, "while (") ||
+		strings.Contains(source, "return ") ||
+		strings.Contains(source, "return\n") ||
+		strings.Contains(source, "break") ||
+		strings.Contains(source, "continue") ||
+		usesHostFrontendBridge(source) ||
 		usesMacroAnnotations(source)
+}
+
+// usesHostFrontendBridge reports source constructs the self-hosted front end
+// does not implement yet. They are still first-class in the host pipeline.
+func usesHostFrontendBridge(source string) bool {
+	return strings.Contains(source, " | ") ||
+		strings.Contains(source, "typeof ") ||
+		strings.Contains(source, "undefined") ||
+		strings.Contains(source, "try {") ||
+		strings.Contains(source, "throw ") ||
+		strings.Contains(source, "catch ") ||
+		strings.Contains(source, "finally ") ||
+		strings.Contains(source, "!?") ||
+		strings.Contains(source, "?!") ||
+		strings.Contains(source, "-- {") ||
+		strings.Contains(source, "!! ") ||
+		strings.Contains(source, "* (") ||
+		strings.Contains(source, "*(") ||
+		strings.Contains(source, "while (") ||
+		strings.Contains(source, "for (") ||
+		strings.Contains(source, "__base_") ||
+		strings.Contains(source, "console.")
 }
 
 // usesMacroAnnotations reports whether the source uses any `#module.func`
@@ -492,7 +599,7 @@ func emitMoonBitWithHostImportGraph(path string, output string, stdout io.Writer
 // self-hosted implementation. It uses the generated backend-neutral checker
 // for individual files. Go retains directory traversal and diagnostic rendering
 // until those host integrations have self-hosted replacements.
-func executeSelfhostCheck(path string, out io.Writer, errOut io.Writer) error {
+func executeSelfhostCheck(path string, target string, out io.Writer, errOut io.Writer) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -500,13 +607,30 @@ func executeSelfhostCheck(path string, out io.Writer, errOut io.Writer) error {
 	if info.IsDir() {
 		return checkTarget(path, out)
 	}
-	return checkFileWithSelfhostCompiler(path, out, errOut)
+	return checkFileWithSelfhostCompiler(path, target, out, errOut)
 }
 
-func checkFileWithSelfhostCompiler(path string, out io.Writer, errOut io.Writer) error {
+func checkFileWithSelfhostCompiler(path string, target string, out io.Writer, errOut io.Writer) error {
 	source, err := os.ReadFile(path)
 	if err != nil {
 		return err
+	}
+	if target != "" && target != "ts" {
+		file, parseErrs := parser.Parse(string(source))
+		if len(parseErrs) == 0 {
+			if diags := capabilityDiagnostics(path, file, target); len(diags) > 0 {
+				printDiagnosticsTo(errOut, path, diags)
+				return fmt.Errorf("check failed")
+			}
+		}
+	}
+	if usesHostFrontendBridge(string(source)) {
+		if _, diags := compiler.AnalyzeFile(path); len(diags) > 0 {
+			printDiagnostics(path, diags)
+			return fmt.Errorf("check failed")
+		}
+		fmt.Fprintf(out, "ok %s\n", path)
+		return nil
 	}
 	result := checkSelfhostSourceWithCore(string(source), path)
 	if !result.ok {
@@ -551,6 +675,63 @@ func selfhostCoreSourceFiles() ([]SourceFile, error) {
 		}
 	}
 	return files, nil
+}
+
+// domOnlyGlobals are the host APIs that exist only on the TypeScript backend.
+// RFC 0001 D8 requires this to be a check-time capability error instead of a
+// codegen crash.
+var domOnlyGlobals = map[string]bool{
+	"document":       true,
+	"window":         true,
+	"navigator":      true,
+	"localStorage":   true,
+	"sessionStorage": true,
+	"history":        true,
+	"location":       true,
+}
+
+func capabilityDiagnostics(path string, file *ast.File, target string) []compiler.Diagnostic {
+	if file == nil || target == "" || target == "ts" {
+		return nil
+	}
+	seen := map[string]bool{}
+	var diags []compiler.Diagnostic
+	visit := func(expr ast.Expr) {
+		ident, ok := expr.(*ast.Identifier)
+		if !ok || !domOnlyGlobals[ident.Name] {
+			return
+		}
+		key := fmt.Sprintf("%s:%d:%d", ident.Name, ident.Pos.Line, ident.Pos.Column)
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		diags = append(diags, compiler.Diagnostic{
+			Code:    "RUNE-CAP-001",
+			Message: fmt.Sprintf("`%s` is only available on target ts (current target %s)", ident.Name, target),
+			Pos:     ident.Pos,
+			Path:    path,
+		})
+	}
+	walkFunctions := func(functions []*ast.Function) {
+		for _, fn := range functions {
+			ast.WalkExpr(fn.Body, visit)
+		}
+	}
+	walkFunctions(file.Functions)
+	for _, typ := range file.Types {
+		walkFunctions(typ.Methods)
+	}
+	for _, enum := range file.Enums {
+		walkFunctions(enum.Methods)
+	}
+	for _, constant := range file.Constants {
+		ast.WalkExpr(constant.Value, visit)
+	}
+	for _, test := range file.Tests {
+		ast.WalkExpr(test.Body, visit)
+	}
+	return diags
 }
 
 func stdlibRoot() (string, error) {
@@ -605,7 +786,7 @@ func checkTarget(path string, out io.Writer) error {
 		return err
 	}
 	if !info.IsDir() {
-		return checkFileWithSelfhostCompiler(path, out, os.Stderr)
+		return checkFileWithSelfhostCompiler(path, "", out, os.Stderr)
 	}
 	if isStdlibRoot(path) {
 		if _, err := stdlib.Load(path); err != nil {
@@ -622,7 +803,7 @@ func checkTarget(path string, out io.Writer) error {
 		return fmt.Errorf("no Rune files found in %s", path)
 	}
 	for _, file := range files {
-		if err := checkFileWithSelfhostCompiler(file, io.Discard, os.Stderr); err != nil {
+		if err := checkFileWithSelfhostCompiler(file, "", io.Discard, os.Stderr); err != nil {
 			return err
 		}
 	}
@@ -1306,6 +1487,9 @@ func printDiagnosticsTo(out io.Writer, path string, diags []compiler.Diagnostic)
 		prefix := ""
 		if diag.Severity == checker.SeverityWarning {
 			prefix = "warning: "
+		}
+		if diag.Code != "" && !strings.Contains(diag.Message, diag.Code) {
+			prefix = "[" + diag.Code + "] " + prefix
 		}
 		if diag.Pos.Line > 0 {
 			fmt.Fprintf(out, "%s:%d:%d: %s%s\n", diagPath, diag.Pos.Line, diag.Pos.Column, prefix, diag.Message)

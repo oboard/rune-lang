@@ -108,7 +108,7 @@ TypeScript 后端映射为 `Uint8Array`。
 程序：
 
 ```rune
-cmd ~= @cli.command("ship", "Ship a build artifact")
+cmd :=: @cli.command("ship", "Ship a build artifact")
 cmd = @cli.withVersion(cmd, "1.0.0")
 cmd = @cli.withOption(cmd, @cli.flag("verbose", "v", "enable verbose output"))
 cmd = @cli.withOption(cmd, @cli.option("output", "o", "FILE", "write output", false, "dist/app"))
@@ -311,7 +311,7 @@ bytes.setFloat(8, @float.fromDouble(1.5), true)
 
 `@bytes.fromInts(values)` 可以从字节数组创建 `Bytes`。`Bytes` 支持
 `length`、`byteLength`、`clone`、`slice`、`toInts`，以及面向 `Int4`、
-`Int8`、`UInt8`、`Int16`、`UInt16`、`Int`/`UInt`、`Int64`/`UInt64`、
+`Int8`、`UInt8`、`Int16`、`UInt16`、`Int32`/`UInt`、`Int64`/`UInt64`、
 `Float` 和 `Double` 的 `get*`、`set*` 方法。`Uint*`、`Int32`、
 `Float32`、`Float64`、`BigInt64`/`BigUInt64` 这些别名也已声明。
 
@@ -394,7 +394,7 @@ seen.clear()
 ```rune
 JsonUser: {
   name: String
-  age: Int
+  age: Int32
 }
 
 #json.object
@@ -460,7 +460,7 @@ main() => {
   @go.stmt("fmt.Println($name)")
 }
 
-isAdult(age: Int) -> Bool => @go.expr("$age >= 18")
+isAdult(age: Int32) -> Bool => @go.expr("$age >= 18")
 ```
 
 `@go.import` 只能出现在顶层。`@go.stmt` 和 `@go.expr` 是 Go 后端 FFI escape

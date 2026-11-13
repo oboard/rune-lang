@@ -40,6 +40,12 @@ func Generate(file *ast.File, info *checker.Info) (string, error) {
 }
 
 func GenerateIR(file *ir.File) (string, error) {
+	if err := rejectUnionTypes(file); err != nil {
+		return "", err
+	}
+	if err := rejectTryStatements(file); err != nil {
+		return "", err
+	}
 	if len(file.TSImports) > 0 {
 		return "", fmt.Errorf("MoonBit backend does not support TypeScript imports")
 	}
@@ -590,6 +596,22 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 			}
 			g.linef("%s = %s", mangleIdent(s.Name), g.expr(s.Value))
 		case *ir.ExprStmt:
+			if ternary, ok := s.Expr.(*ir.TernaryExpr); ok {
+				g.line(g.ternaryStmtString(ternary))
+				continue
+			}
+			if loop, ok := s.Expr.(*ir.WhileExpr); ok {
+				g.linef("while %s {", g.expr(loop.Cond))
+				g.indent++
+				if body, ok := loop.Body.(*ir.BlockExpr); ok {
+					g.block(body, ret)
+				} else {
+					g.line(g.expr(loop.Body))
+				}
+				g.indent--
+				g.line("}")
+				continue
+			}
 			if unwrap, ok := s.Expr.(*ir.ResultUnwrapExpr); ok {
 				g.resultUnwrapExprStmt(unwrap, ret, last)
 				continue
@@ -598,8 +620,20 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 				g.effectScope(block)
 				continue
 			}
+			if block, ok := s.Expr.(*ir.BlockExpr); ok && !(last && ret != checker.Void) {
+				g.block(block, ret)
+				continue
+			}
 			expr := g.expr(s.Expr)
 			if expr == "" {
+				continue
+			}
+			if strings.HasPrefix(strings.TrimSpace(expr), "if ") {
+				g.line(discardIfExpression(expr))
+				continue
+			}
+			if moonBitAssignmentStatement(expr) {
+				g.line(expr)
 				continue
 			}
 			if last && ret != checker.Void {
@@ -607,6 +641,36 @@ func (g *generator) block(block *ir.BlockExpr, ret checker.Type) {
 			} else {
 				g.line(g.discardExpr(s.Expr, expr))
 			}
+		case *ir.ReturnStmt:
+			if s.Value != nil {
+				g.line("return " + g.returnExpr(s.Value, ret))
+			} else {
+				g.line("return")
+			}
+		case *ir.BreakStmt:
+			g.line("break")
+		case *ir.ContinueStmt:
+			g.line("continue")
+		case *ir.IfStmt:
+			g.linef("if %s {", g.expr(s.Cond))
+			g.indent++
+			then := g.blockInline(&ir.BlockExpr{Statements: s.Then}, checker.Void)
+			if then == "" {
+				then = "()"
+			}
+			g.line(then)
+			g.indent--
+			if len(s.Else) > 0 {
+				g.line("} else {")
+				g.indent++
+				els := g.blockInline(&ir.BlockExpr{Statements: s.Else}, checker.Void)
+				if els == "" {
+					els = "()"
+				}
+				g.line(els)
+				g.indent--
+			}
+			g.line("}")
 		}
 	}
 	if ret != checker.Void && len(block.Statements) == 0 {
@@ -648,27 +712,46 @@ func (g *generator) effectScope(block *ir.BlockExpr) {
 
 func assignedNames(block *ir.BlockExpr) map[string]bool {
 	assigned := map[string]bool{}
-	for _, stmt := range block.Statements {
-		if assign, ok := stmt.(*ir.AssignStmt); ok {
-			assigned[assign.Name] = true
-		}
-		ir.WalkStmt(stmt, func(expr ir.Expr) {
-			switch e := expr.(type) {
-			case *ir.AssignExpr:
-				if e.Name != "" {
-					assigned[e.Name] = true
-				}
-				if sel, ok := e.Target.(*ir.SelectorExpr); ok {
-					if ident, ok := sel.Receiver.(*ir.Identifier); ok {
-						assigned[ident.Name] = true
-					}
-				}
-			case *ir.PostfixExpr:
-				if ident, ok := e.Expr.(*ir.Identifier); ok {
+	var scanExpr func(ir.Expr)
+	var scanStmt func(ir.Stmt)
+	scanExpr = func(expr ir.Expr) {
+		switch e := expr.(type) {
+		case *ir.AssignExpr:
+			if e.Name != "" {
+				assigned[e.Name] = true
+			}
+			if sel, ok := e.Target.(*ir.SelectorExpr); ok {
+				if ident, ok := sel.Receiver.(*ir.Identifier); ok {
 					assigned[ident.Name] = true
 				}
 			}
-		})
+		case *ir.PostfixExpr:
+			if ident, ok := e.Expr.(*ir.Identifier); ok {
+				assigned[ident.Name] = true
+			}
+		case *ir.BlockExpr:
+			for _, stmt := range e.Statements {
+				scanStmt(stmt)
+			}
+		case *ir.WhileExpr:
+			scanExpr(e.Cond)
+			scanExpr(e.Body)
+		default:
+			ir.WalkExpr(expr, func(child ir.Expr) {
+				if child != expr {
+					scanExpr(child)
+				}
+			})
+		}
+	}
+	scanStmt = func(stmt ir.Stmt) {
+		if assign, ok := stmt.(*ir.AssignStmt); ok {
+			assigned[assign.Name] = true
+		}
+		ir.WalkStmt(stmt, scanExpr)
+	}
+	for _, stmt := range block.Statements {
+		scanStmt(stmt)
 	}
 	return assigned
 }
@@ -767,4 +850,13 @@ func (g *generator) discardExpr(expr ir.Expr, rendered string) string {
 		return rendered
 	}
 	return "ignore(" + rendered + ")"
+}
+
+func (g *generator) ternaryStmtString(ternary *ir.TernaryExpr) string {
+	then := g.discardExpr(ternary.Consequence, g.expr(ternary.Consequence))
+	out := "if " + g.expr(ternary.Condition) + " { " + then + " }"
+	if ternary.Alternative != nil {
+		out += " else { " + g.discardExpr(ternary.Alternative, g.expr(ternary.Alternative)) + " }"
+	}
+	return out
 }

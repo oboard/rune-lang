@@ -506,6 +506,12 @@ func (i *Interpreter) callClosure(fn *Closure, args []Value) (Value, error) {
 func (i *Interpreter) evalFunctionBody(body ir.Expr, ret checker.Type, env *Env) (Value, error) {
 	value, err := i.eval(body, env)
 	if err != nil {
+		if signal, ok := err.(*returnSignal); ok {
+			if ret == checker.Void {
+				return nil, nil
+			}
+			return signal.value, nil
+		}
 		return nil, err
 	}
 	if ret == checker.Void {

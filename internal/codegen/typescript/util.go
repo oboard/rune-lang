@@ -63,8 +63,16 @@ func tsType(typ checker.Type) string {
 	if strings.HasPrefix(string(typ), "&") {
 		return "any"
 	}
+	if checker.IsUnionType(typ) {
+		members, _ := checker.UnionMembers(typ)
+		resolved := make([]string, 0, len(members))
+		for _, member := range members {
+			resolved = append(resolved, tsType(member))
+		}
+		return strings.Join(resolved, " | ")
+	}
 	if inner, ok := parseTSNullableType(string(typ)); ok {
-		return tsType(checker.Type(inner)) + " | null"
+		return tsType(checker.Type(inner)) + " | null | undefined"
 	}
 	if base, args, ok := parseTSGenericType(string(typ)); ok {
 		switch base {
@@ -110,7 +118,7 @@ func tsType(typ checker.Type) string {
 		return "(" + strings.Join(tsParams, ", ") + ") => " + tsType(checker.Type(ret))
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "number"
 	case checker.Double, checker.Float:
 		return "number"
@@ -124,6 +132,8 @@ func tsType(typ checker.Type) string {
 		return "boolean"
 	case checker.Null:
 		return "null"
+	case checker.Undefined:
+		return "undefined"
 	case checker.Object:
 		return "object"
 	case checker.Bytes:
@@ -191,7 +201,7 @@ func isTSGenericResultType(typ checker.Type) bool {
 		return false
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16,
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16,
 		checker.Double, checker.Float, checker.BigInt, checker.Int64, checker.UInt64, checker.String, checker.Char,
 		checker.Bool, checker.Null, checker.Object, checker.Bytes, checker.Buffer, checker.Reader, checker.Writer,
 		checker.StringBuffer, checker.FileStat, checker.TCPConnection, checker.TCPListener, checker.Data,
@@ -339,7 +349,7 @@ func zeroValue(typ checker.Type) string {
 		}
 	}
 	switch typ {
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return "0"
 	case checker.Double, checker.Float:
 		return "0"

@@ -82,7 +82,7 @@ annotationNamed(
 
 annotationString(
   annotation: SyntaxAnnotation,
-  index: Int,
+  index: Int32,
   fallback: String
 ) -> String => (
   index < annotation.args.length() ? annotation.args[index].stringValue
@@ -393,7 +393,7 @@ parserBody(
 containsAt(
   values: Array[String],
   value: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= values.length() ? false
     : (
@@ -834,7 +834,7 @@ splitCommandArgs(
   root: CliCommand,
   aliases: Array[CliCommandAlias],
   args: Array[String],
-  index: Int,
+  index: Int32,
   rootArgs: Array[String],
   commandName: String,
   commandArgs: Array[String],
@@ -854,7 +854,7 @@ splitCommandArg(
   root: CliCommand,
   aliases: Array[CliCommandAlias],
   args: Array[String],
-  index: Int,
+  index: Int32,
   rootArgs: Array[String],
   commandName: String,
   commandArgs: Array[String],
@@ -868,7 +868,7 @@ splitCommandArgValue(
   root: CliCommand,
   aliases: Array[CliCommandAlias],
   args: Array[String],
-  index: Int,
+  index: Int32,
   rootArgs: Array[String],
   commandName: String,
   commandArgs: Array[String]
@@ -892,7 +892,7 @@ splitRootOptionArg(
   root: CliCommand,
   aliases: Array[CliCommandAlias],
   args: Array[String],
-  index: Int,
+  index: Int32,
   rootArgs: Array[String],
   commandName: String,
   commandArgs: Array[String],
@@ -902,7 +902,7 @@ splitRootOptionArg(
 appendRootOptionArgs(
   rootArgs: Array[String],
   args: Array[String],
-  index: Int,
+  index: Int32,
   consumesNext: Bool
 ) -> Array[String] => (
   consumesNext && ((index + 1) < args.length()) ? [..rootArgs, args[index], args[index + 1]]
@@ -946,7 +946,7 @@ longOptionName(arg: String) -> String => {
 findOptionByName(
   options: Array[CliOption],
   name: String,
-  index: Int
+  index: Int32
 ) -> CliOption => (
   index >= options.length() ? emptyOption()
     : (
@@ -958,7 +958,7 @@ findOptionByName(
 findOptionByShort(
   options: Array[CliOption],
   short: String,
-  index: Int
+  index: Int32
 ) -> CliOption => (
   index >= options.length() ? emptyOption()
     : (
@@ -981,7 +981,7 @@ optionFound(option: CliOption) -> Bool => option.name != ""
 findCommand(
   commands: Array[CliCommand],
   name: String,
-  index: Int
+  index: Int32
 ) -> CliCommandLookup => (
   name.isEmpty() || (index >= commands.length()) ? CliCommandLookup {
     command: emptyCommand(),
@@ -1009,7 +1009,7 @@ emptyCommand() -> CliCommand => {
 aliasesForCommand(
   aliases: Array[CliCommandAlias],
   commandName: String,
-  index: Int
+  index: Int32
 ) -> Array[String] => (
   index >= aliases.length() ? []
     : (
@@ -1021,7 +1021,7 @@ aliasesForCommand(
 resolveAlias(
   aliases: Array[CliCommandAlias],
   name: String,
-  index: Int
+  index: Int32
 ) -> String => (
   index >= aliases.length() ? name
     : (
@@ -1038,9 +1038,9 @@ normalizeTrailingRestArgs(
 normalizeTrailingRestArgsAt(
   command: CliCommand,
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String],
-  positionalCount: Int,
+  positionalCount: Int32,
   skipNext: Bool
 ) -> Array[String] => (
   index >= args.length() ? out
@@ -1050,9 +1050,9 @@ normalizeTrailingRestArgsAt(
 normalizeTrailingRestArg(
   command: CliCommand,
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String],
-  positionalCount: Int,
+  positionalCount: Int32,
   skipNext: Bool
 ) -> Array[String] => {
   arg := args[index]
@@ -1073,14 +1073,14 @@ commandOptionConsumesNext(
   arg: String
 ) -> Bool => rootOptionConsumesNext(command, arg)
 
-positionalIncrement(arg: String) -> Int => (
+positionalIncrement(arg: String) -> Int32 => (
   arg.startsWith("-") ? 0
     : 1
 )
 
 appendRestSeparator(
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   args[index] == "--" ? appendRuntimeRest(args, index, out)
@@ -1089,7 +1089,7 @@ appendRestSeparator(
 
 appendRuntimeRest(
   args: Array[String],
-  index: Int,
+  index: Int32,
   out: Array[String]
 ) -> Array[String] => (
   index >= args.length() ? out

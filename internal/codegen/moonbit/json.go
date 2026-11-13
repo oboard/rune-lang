@@ -77,7 +77,7 @@ func (g *generator) jsonValueFromSource(source string, typ checker.Type) string 
 		return fmt.Sprintf("Json::string(%s)", source)
 	case checker.Char:
 		return fmt.Sprintf("Json::string((%s).to_string())", source)
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16, checker.UInt, checker.UInt8, checker.UInt16:
 		return fmt.Sprintf("Json::number((%s).to_double())", source)
 	case checker.Int64, checker.UInt64, checker.BigInt:
 		return fmt.Sprintf("Json::string((%s).to_string())", source)
@@ -199,7 +199,7 @@ func (g *generator) jsonDecodedValue(source string, seed string, typ checker.Typ
 		return fmt.Sprintf("match %s { String(value) => value; _ => %s }", source, seed)
 	case checker.Char:
 		return fmt.Sprintf("match %s { String(value) if value.length() > 0 => value[0].unsafe_to_char(); _ => %s }", source, seed)
-	case checker.Int, checker.Int4, checker.Int8, checker.Int16:
+	case checker.Int32, checker.Int4, checker.Int8, checker.Int16:
 		return fmt.Sprintf("match %s { Number(value, ..) => value.to_int(); _ => %s }", source, seed)
 	case checker.UInt, checker.UInt8, checker.UInt16:
 		return fmt.Sprintf("match %s { Number(value, ..) => value.to_int().to_uint(); _ => %s }", source, seed)

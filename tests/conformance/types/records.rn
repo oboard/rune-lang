@@ -1,0 +1,11 @@
+// expect: Ada 36
+// targets: interpreter,go,ts,mbt
+User: {
+  name: String
+  age: Int32
+}
+
+main() => {
+  user := User { name: "Ada", age: 36 }
+  @io.println(user.name, user.age)
+}

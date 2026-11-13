@@ -1,0 +1,29 @@
+// expect: string:Ada
+// expect: number
+// expect: boolean
+// expect: Ada!
+// expect: true
+// targets: interpreter,go,ts
+describe(value: String | Double | Bool) -> String => (typeof value == "string") ? {
+  "string:" + value
+} : (typeof value == "boolean") ? {
+  "boolean"
+} : {
+  "number"
+}
+
+mark(value: String | Double) -> String => (typeof value != "string") ? {
+  "number"
+} : {
+  value + "!"
+}
+
+isMissing(value: String | Undefined) -> Bool => typeof value == "undefined"
+
+main() => {
+  @io.println(describe("Ada"))
+  @io.println(describe(42.0))
+  @io.println(describe(true))
+  @io.println(mark("Ada"))
+  @io.println(isMissing(undefined))
+}

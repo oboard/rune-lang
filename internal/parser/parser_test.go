@@ -9,7 +9,7 @@ import (
 
 func TestGenericTypeDeclRequiresColon(t *testing.T) {
 	file, errs := Parse(`Array[T] {
-	    length[T]() -> Int => "%array.len"
+	    length[T]() -> Int32 => "%array.len"
 }
 `)
 	if len(errs) == 0 {
@@ -149,7 +149,7 @@ func TestParseTypedBinding(t *testing.T) {
 func TestParseStructLiteralSpreadField(t *testing.T) {
 	file, errs := Parse(`User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 main(existing: User) => User {
@@ -178,7 +178,7 @@ main(existing: User) => User {
 func TestParseStructLiteralRequiresCommaBetweenFields(t *testing.T) {
 	file, errs := Parse(`User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 main() => User {
@@ -197,7 +197,7 @@ main() => User {
 
 func TestGenericTypeDeclWithColon(t *testing.T) {
 	file, errs := Parse(`Array[T]: {
-    length[T]() -> Int => "%array.len"
+    length[T]() -> Int32 => "%array.len"
 }
 `)
 	if len(errs) > 0 {
@@ -345,11 +345,11 @@ Command: {
 
 func TestDeclarationVisibility(t *testing.T) {
 	file, errs := Parse(`Secret: {
-  exposed: Int
-  - value: Int
+  exposed: Int32
+  - value: Int32
 
-  get() -> Int => .exposed
-  - reveal() -> Int => .value
+  get() -> Int32 => .exposed
+  - reveal() -> Int32 => .value
 }
 
 + Status: {
@@ -357,7 +357,7 @@ func TestDeclarationVisibility(t *testing.T) {
   + Hidden = 1
 }
 
-+ add(a: Int, b: Int) -> Int => a + b
++ add(a: Int32, b: Int32) -> Int32 => a + b
 `)
 	if len(errs) > 0 {
 		t.Fatalf("Parse() errors = %v", errs)
@@ -492,7 +492,7 @@ func TestLambdaWithParenthesizedParams(t *testing.T) {
 
 func TestLambdaWithAnnotatedParams(t *testing.T) {
 	file, errs := Parse(`Input: {
-    a: Int
+    a: Int32
 }
 
 main() => {
@@ -598,11 +598,11 @@ func TestConstructorPatternMatch(t *testing.T) {
 
 func TestConstructorPatternWithNestedArgsAndRest(t *testing.T) {
 	file, errs := Parse(`Expr: {
-  Lit(value: Int)
+  Lit(value: Int32)
   Add(left: Expr, right: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Add(Lit(left), Lit(0)) => left
   Add(Lit(_), ..) => 1
   _ => 0
@@ -631,10 +631,10 @@ eval(expr: Expr) -> Int => expr {
 func TestBareUppercasePatternParsesAsBinding(t *testing.T) {
 	file, errs := Parse(`State: {
   Empty
-  Full(value: Int)
+  Full(value: Int32)
 }
 
-read(state: State) -> Int => state {
+read(state: State) -> Int32 => state {
   Empty => 0
   Full(value) => value
 }
@@ -680,7 +680,7 @@ func TestRangePatternMatch(t *testing.T) {
 func TestOrPatternMatch(t *testing.T) {
 	file, errs := Parse(`typeLabel(name: String) -> String => name {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => "other"
 }
 `)
@@ -759,7 +759,7 @@ label := "Rune"
 
 func TestKeywordFreeConstantDoesNotConsumeFollowingPatternFunction(t *testing.T) {
 	file, errs := Parse(`Zero := 0
-classify(value: Int) -> Int => value {
+classify(value: Int32) -> Int32 => value {
   Zero => 0
   _ => 1
 }
@@ -798,7 +798,7 @@ mapScore(values) => values {
 }
 
 func TestMoonBitStyleArrayAliasAndOpenRangePatterns(t *testing.T) {
-	file, errs := Parse(`classify(values: Array[Int]) -> Int => values {
+	file, errs := Parse(`classify(values: Array[Int32]) -> Int32 => values {
   [0, ..rest, last] @ whole => rest.length() + last + whole.length()
   _..<0 => -1
   10..<_ => 1
@@ -831,7 +831,7 @@ func TestMoonBitStyleArrayAliasAndOpenRangePatterns(t *testing.T) {
 }
 
 func TestAsIdentifierIsNotPatternAlias(t *testing.T) {
-	_, errs := Parse(`classify(values: Array[Int]) -> Int => values {
+	_, errs := Parse(`classify(values: Array[Int32]) -> Int32 => values {
   [0] as whole => whole.length()
   _ => 0
 }
@@ -869,7 +869,7 @@ func TestArrayPatternStringSpread(t *testing.T) {
 }
 
 func TestPatternBranchBodyBlock(t *testing.T) {
-	file, errs := Parse(`score(values: Array[Int]) -> Int => values {
+	file, errs := Parse(`score(values: Array[Int32]) -> Int32 => values {
   [x] => {
     y := x + 1
     y
@@ -1005,7 +1005,7 @@ func TestRegexLiteralWithSlashInClassAndEscape(t *testing.T) {
 
 func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
 	file, errs := Parse(`Array[T]: {
-    each(callbackfn: (value: T, index?: Int, array?: Array[T]) -> Void) => "%array.each"
+    each(callbackfn: (value: T, index?: Int32, array?: Array[T]) -> Void) => "%array.each"
 }
 `)
 	if len(errs) > 0 {
@@ -1015,13 +1015,13 @@ func TestFunctionTypeDisplayPreservesNamedParams(t *testing.T) {
 		t.Fatalf("parsed file = %#v, want one array method", file)
 	}
 	param := file.Types[0].Methods[0].Params[0]
-	if param.Type.Canonical() != "Func[T,Int,Array[T],Void]" {
+	if param.Type.Canonical() != "Func[T,Int32,Array[T],Void]" {
 		t.Fatalf("param type = %q, want canonical Func type", param.Type.Canonical())
 	}
 	if param.Type.Kind != ast.TypeFunction || len(param.Type.Params) != 3 || param.Type.Params[1].Name != "index" || !param.Type.Params[1].Optional {
 		t.Fatalf("param type node = %#v, want function type with named optional parameter", param.Type)
 	}
-	wantDisplay := "(value: T, index?: Int, array?: Array[T]) -> Void"
+	wantDisplay := "(value: T, index?: Int32, array?: Array[T]) -> Void"
 	if param.Type.Display() != wantDisplay {
 		t.Fatalf("param type display = %q, want %q", param.Type.Display(), wantDisplay)
 	}

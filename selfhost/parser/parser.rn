@@ -3,9 +3,9 @@
 
 ParserState: {
   tokens: Array[Token]
-  current: Int
+  current: Int32
   errors: Array[ParseError]
-  expressionNesting: Int
+  expressionNesting: Int32
 }
 
 TokenStep: {
@@ -183,8 +183,8 @@ makeExpr(
   op: String,
   params: Array[ParsedParam],
   children: Array[ParsedExpr],
-  line: Int,
-  column: Int
+  line: Int32,
+  column: Int32
 ) -> ParsedExpr => {
   kind: kind,
   text: text,
@@ -266,7 +266,7 @@ parserPrevious(
 
 parserTokenAt(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Token => (
   index >= state.tokens.length() ? emptyToken()
     : state.tokens[index]
@@ -274,7 +274,7 @@ parserTokenAt(
 
 parserKindAt(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> TokenKind => parserTokenAt(state, index).kind
 
 parserCheck(
@@ -289,7 +289,7 @@ parserCheckNext(
 
 stateAt(
   state: ParserState,
-  current: Int
+  current: Int32
 ) -> ParserState => {
   ..state,
   current: current
@@ -1597,7 +1597,13 @@ parseBlockStatement(
 parseStatement(
   state: ParserState
 ) -> ExprStep => (
-  parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state)
+  (parserCheck(state, TokenKind.Star) && parserCheckNext(state, TokenKind.LParen)) ? parseStarLoopExpression(state)
+    : (parserCheck(state, TokenKind.BitXor) && parserCheckNext(state, TokenKind.Greater)) ? parseSymbolLoopControlStatement(state, ExprKind.Continue, "^>")
+    : parserCheck(state, TokenKind.BitXor) ? parseSymbolLoopControlStatement(state, ExprKind.Break, "^")
+    : (parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "break")) ? parseLoopControlStatement(state, ExprKind.Break)
+    : (parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "continue")) ? parseLoopControlStatement(state, ExprKind.Continue)
+    : (parserCheck(state, TokenKind.Ident) && (parserPeek(state).lexeme == "return")) ? parseReturnStatement(state)
+    : parserCheck(state, TokenKind.LBrace) && looksLikeObjectDestructureDecl(state) ? parseObjectDestructureStatement(state)
     : (
       parserCheck(state, TokenKind.LBrace) ? parseBlock(state)
         : (
@@ -1615,6 +1621,51 @@ parseStatement(
         )
     )
 )
+
+parseLoopControlStatement(
+  state: ParserState,
+  kind: ExprKind
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  ExprStep {
+    state: keyword.state,
+    expr: makeExpr(kind, keyword.token.lexeme, "", "", "", [], [], keyword.token.line, keyword.token.column)
+  }
+}
+
+parseSymbolLoopControlStatement(
+  state: ParserState,
+  kind: ExprKind,
+  symbol: String
+) -> ExprStep => {
+  mark := parserAdvance(state)
+  next := kind == ExprKind.Continue ? parserConsume(mark.state, TokenKind.Greater, "expected '>' after '^'").state : mark.state
+  ExprStep {
+    state: next,
+    expr: makeExpr(kind, symbol, "", "", "", [], [], mark.token.line, mark.token.column)
+  }
+}
+
+parseReturnStatement(
+  state: ParserState
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  next := parserPeek(keyword.state)
+  bare := (next.kind == TokenKind.Newline) || (next.kind == TokenKind.RBrace) || (next.kind == TokenKind.EOF)
+  (
+    bare ? ExprStep {
+      state: keyword.state,
+      expr: makeExpr(ExprKind.Return, "return", "", "", "", [], [], keyword.token.line, keyword.token.column)
+    }
+      : {
+        value := parseExpression(keyword.state, 1)
+        ExprStep {
+          state: value.state,
+          expr: makeExpr(ExprKind.Return, "return", "", "", "", [], [value.expr], keyword.token.line, keyword.token.column)
+        }
+      }
+  )
+}
 
 parseDollarStatement(
   state: ParserState
@@ -1743,7 +1794,7 @@ parseAssignStatement(
 
 parseExpression(
   state: ParserState,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => (
   ((minPrec <= 1) && parserCheck(state, TokenKind.LParen)) && looksLikeLambda(state) ? parseLambda(state)
     : parseExpressionLoop(parseUnary(state), minPrec)
@@ -1751,7 +1802,7 @@ parseExpression(
 
 parseExpressionLoop(
   left: ExprStep,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   state := left.state
   expr := left.expr
@@ -1794,7 +1845,7 @@ parseExpressionLoop(
 parseAfterBraceExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => (
   looksLikePatternBlockAfterSubject(state) ? parseExpressionLoop(parseMatchExpression(state, expr), minPrec)
     : (
@@ -1809,7 +1860,7 @@ parseAfterBraceExpression(
 parseCallExpression(
   state: ParserState,
   callee: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   open := parserConsume(state, TokenKind.LParen, "expected '(' after callee")
   args := parseArgumentList(parserSkipNewlines(open.state), [callee], TokenKind.RParen)
@@ -1867,7 +1918,7 @@ parseOneArgument(
 parseIndexExpression(
   state: ParserState,
   receiver: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   open := parserConsume(state, TokenKind.LBracket, "expected '[' after receiver")
   index := parseExpression(parserSkipNewlines(open.state), 1)
@@ -1881,7 +1932,7 @@ parseIndexExpression(
 parseSelectorExpression(
   state: ParserState,
   receiver: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   operator := (
     parserCheck(state, TokenKind.DoubleColon) ? parserConsume(state, TokenKind.DoubleColon, "expected '::'")
@@ -1900,7 +1951,7 @@ parseSelectorExpression(
 parsePostfixExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   op := parserAdvance(state)
   parseExpressionLoop(ExprStep {
@@ -1912,7 +1963,7 @@ parsePostfixExpression(
 parseCompileTimePostfixExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   op := parserAdvance(state)
   parseExpressionLoop(ExprStep {
@@ -1924,7 +1975,7 @@ parseCompileTimePostfixExpression(
 parseWatchExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   arrow := parserAdvance(state)
   handler := parseWatchHandler(parserSkipNewlines(arrow.state))
@@ -1947,7 +1998,7 @@ parseWatchHandler(
 parseAssignmentExpression(
   state: ParserState,
   target: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   op := parserAdvance(state)
   value := parseExpression(parserSkipNewlines(op.state), 1)
@@ -1960,7 +2011,7 @@ parseAssignmentExpression(
 parsePatternPredicateExpression(
   state: ParserState,
   subject: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   op := parserAdvance(state)
   pattern := parsePredicatePatternText(parserSkipNewlines(op.state))
@@ -1979,7 +2030,7 @@ parsePatternPredicateExpression(
 parseQuestionExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => (
   questionIsPostfixUnwrap(state) ? parseExpressionLoop(parseResultUnwrapExpression(state, expr), minPrec)
     : parseTernaryExpression(state, expr, minPrec)
@@ -1988,7 +2039,7 @@ parseQuestionExpression(
 parseQuestionQuestionExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => (
   questionQuestionIsPostfixUnwrap(state) ? parseExpressionLoop(parseResultUnwrapExpressionQQ(state, expr), minPrec)
     : parseBinaryExpression(state, expr, minPrec)
@@ -2019,7 +2070,7 @@ parseResultUnwrapExpressionQQ(
 parseTernaryExpression(
   state: ParserState,
   condition: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   question := parserAdvance(state)
   consequence := parseExpression(parserSkipNewlines(question.state), 1)
@@ -2039,7 +2090,7 @@ parseTernaryAlternative(
   token: Token,
   condition: ParsedExpr,
   consequence: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   alternative := parseExpression(parserSkipNewlines(state), 1)
   parseExpressionLoop(ExprStep {
@@ -2051,7 +2102,7 @@ parseTernaryAlternative(
 parseBinaryExpression(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int
+  minPrec: Int32
 ) -> ExprStep => {
   next := parserSkipNewlines(state)
   advanced := state.expressionNesting > 0
@@ -2072,8 +2123,8 @@ parseBinaryExpression(
 parseBinaryExpressionAtPrec(
   state: ParserState,
   expr: ParsedExpr,
-  minPrec: Int,
-  prec: Int
+  minPrec: Int32,
+  prec: Int32
 ) -> ExprStep => {
   op := parserAdvance(state)
   right := parseExpression(parserSkipNewlines(op.state), prec + 1)
@@ -2105,8 +2156,13 @@ parsePrimary(
   state: ParserState
 ) -> ExprStep => {
   token := parserPeek(state)
-  token.kind {
-    TokenKind.Int => parseLiteral(state, ExprKind.Int)
+  (
+    (token.kind == TokenKind.Ident) && (token.lexeme == "if") ? parseIfExpression(state)
+      : (token.kind == TokenKind.Ident) && (token.lexeme == "switch") ? parseSwitchExpression(state)
+      : (token.kind == TokenKind.Ident) && (token.lexeme == "for") ? parseForOfExpression(state)
+      : (token.kind == TokenKind.Ident) && (token.lexeme == "while") ? parseWhileExpression(state)
+      : token.kind {
+        TokenKind.Int => parseLiteral(state, ExprKind.Int)
     TokenKind.Double => parseLiteral(state, ExprKind.Double)
     TokenKind.BigInt => parseLiteral(state, ExprKind.BigInt)
     TokenKind.String => parseLiteral(state, ExprKind.String)
@@ -2123,6 +2179,197 @@ parsePrimary(
     TokenKind.LParen => parseParenOrTuple(state)
     TokenKind.Less => parseXMLElement(state)
     _ => parsePrimaryError(state)
+      }
+  )
+}
+
+parseIfExpression(
+  state: ParserState
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  open := parserConsume(parserSkipNewlines(keyword.state), TokenKind.LParen, "expected '(' after 'if'")
+  condition := parseExpression(parserSkipNewlines(open.state), 1)
+  close := parserConsume(condition.state, TokenKind.RParen, "expected ')' after if condition")
+  body := parseBraceBody(parserSkipNewlines(close.state))
+  next := parserSkipNewlines(body.state)
+  hasElse := (parserPeek(next).kind == TokenKind.Ident) && (parserPeek(next).lexeme == "else")
+  hasElse ? parseIfElse(next, keyword.token, condition.expr, body.expr)
+    : ExprStep {
+      state: next,
+      expr: makeExpr(ExprKind.Ternary, "", "if", "", "", [], [condition.expr, body.expr], keyword.token.line, keyword.token.column)
+    }
+}
+
+parseIfElse(
+  state: ParserState,
+  keyword: Token,
+  condition: ParsedExpr,
+  thenExpr: ParsedExpr
+) -> ExprStep => {
+  elseToken := parserAdvance(state)
+  afterElse := parserSkipNewlines(elseToken.state)
+  next := parserPeek(afterElse)
+  isIf := (next.kind == TokenKind.Ident) && (next.lexeme == "if")
+  (
+    isIf ? {
+      nested := parseIfExpression(afterElse)
+      ExprStep {
+        state: nested.state,
+        expr: makeExpr(ExprKind.Ternary, "", "if", "", "", [], [condition, thenExpr, nested.expr], keyword.line, keyword.column)
+      }
+    }
+      : {
+        elseBody := parseBraceBody(afterElse)
+        ExprStep {
+          state: elseBody.state,
+          expr: makeExpr(ExprKind.Ternary, "", "if", "", "", [], [condition, thenExpr, elseBody.expr], keyword.line, keyword.column)
+        }
+      }
+  )
+}
+
+parseSwitchExpression(
+  state: ParserState
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  open := parserConsume(parserSkipNewlines(keyword.state), TokenKind.LParen, "expected '(' after 'switch'")
+  subject := parseExpression(parserSkipNewlines(open.state), 1)
+  close := parserConsume(subject.state, TokenKind.RParen, "expected ')' after switch subject")
+  brace := parserConsume(parserSkipNewlines(close.state), TokenKind.LBrace, "expected '{' after switch subject")
+  block := appendChild(makeExpr(ExprKind.Match, "", "switch", "", "", [], [], keyword.token.line, keyword.token.column), subject.expr)
+  parsed := parseSwitchCases(parserSkipNewlines(brace.state), block, false)
+  end := parserConsume(parsed.state, TokenKind.RBrace, "expected '}' after switch")
+  final := parsed.hasDefault ? parsed.block
+    : appendChild(parsed.block, makeExpr(ExprKind.Branch, "_", "", "", "=>", [], [
+      makeExpr(ExprKind.Pattern, "_", "", "", "", [], [], keyword.token.line, keyword.token.column),
+      node(ExprKind.Block, keyword.token)
+    ], keyword.token.line, keyword.token.column))
+  ExprStep {
+    state: end.state,
+    expr: final
+  }
+}
+
+SwitchCasesStep: {
+  state: ParserState
+  block: ParsedExpr
+  hasDefault: Bool
+}
+
+parseSwitchCases(
+  state: ParserState,
+  block: ParsedExpr,
+  hasDefault: Bool
+) -> SwitchCasesStep => {
+  current := parserSkipNewlines(state)
+  (
+    parserCheck(current, TokenKind.RBrace) || parserCheck(current, TokenKind.EOF) ? SwitchCasesStep {
+      state: current,
+      block: block,
+      hasDefault: hasDefault
+    }
+      : parseSwitchCase(current, block, hasDefault)
+  )
+}
+
+parseSwitchCase(
+  state: ParserState,
+  block: ParsedExpr,
+  hasDefault: Bool
+) -> SwitchCasesStep => {
+  token := parserPeek(state)
+  (
+    (token.kind == TokenKind.Ident) && (token.lexeme == "case") ? parseCaseBranch(state, block, hasDefault)
+      : (token.kind == TokenKind.Ident) && (token.lexeme == "default") ? parseDefaultBranch(state, block)
+        : {
+          failed := parserAdvance(parserErrorAt(state, token, "expected 'case' or 'default' in switch"))
+          parseSwitchCases(failed.state, block, hasDefault)
+        }
+  )
+}
+
+parseCaseBranch(
+  state: ParserState,
+  block: ParsedExpr,
+  hasDefault: Bool
+) -> SwitchCasesStep => {
+  keyword := parserAdvance(state)
+  value := parseExpression(parserSkipNewlines(keyword.state), 1)
+  colon := parserConsume(value.state, TokenKind.Colon, "expected ':' after 'case'")
+  body := parseBraceBody(parserSkipNewlines(colon.state))
+  pattern := makeExpr(ExprKind.Pattern, value.expr.text, "", "", "", [], [], value.expr.line, value.expr.column)
+  branch := makeExpr(ExprKind.Branch, value.expr.text, "", "", "=>", [], [pattern, body.expr], value.expr.line, value.expr.column)
+  parseSwitchCases(parserSkipNewlines(body.state), appendChild(block, branch), hasDefault)
+}
+
+parseDefaultBranch(
+  state: ParserState,
+  block: ParsedExpr
+) -> SwitchCasesStep => {
+  keyword := parserAdvance(state)
+  colon := parserConsume(parserSkipNewlines(keyword.state), TokenKind.Colon, "expected ':' after 'default'")
+  body := parseBraceBody(parserSkipNewlines(colon.state))
+  pattern := makeExpr(ExprKind.Pattern, "_", "", "", "", [], [], keyword.token.line, keyword.token.column)
+  branch := makeExpr(ExprKind.Branch, "_", "", "", "=>", [], [pattern, body.expr], keyword.token.line, keyword.token.column)
+  parseSwitchCases(parserSkipNewlines(body.state), appendChild(block, branch), true)
+}
+
+parseForOfExpression(
+  state: ParserState
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  open := parserConsume(parserSkipNewlines(keyword.state), TokenKind.LParen, "expected '(' after 'for'")
+  afterOpen := parserSkipNewlines(open.state)
+  constToken := parserPeek(afterOpen)
+  isDecl := (constToken.kind == TokenKind.Ident) && ((constToken.lexeme == "const") || (constToken.lexeme == "let"))
+  declState := isDecl ? parserAdvance(afterOpen).state : afterOpen
+  name := parserConsume(declState, TokenKind.Ident, "expected loop variable name")
+  ofState := parserSkipNewlines(name.state)
+  ofToken := parserPeek(ofState)
+  afterOf := (ofToken.kind == TokenKind.Ident) && (ofToken.lexeme == "of") ? parserAdvance(ofState).state
+    : parserErrorAt(ofState, ofToken, "expected 'of' in for-of loop")
+  iterable := parseExpression(parserSkipNewlines(afterOf), 1)
+  close := parserConsume(iterable.state, TokenKind.RParen, "expected ')' after for-of iterable")
+  body := parseBraceBody(parserSkipNewlines(close.state))
+  selector := makeExpr(ExprKind.Selector, "each", "each", "", ".", [], [iterable.expr], keyword.token.line, keyword.token.column)
+  param := ParsedParam {
+    name: name.token.lexeme,
+    typeRef: emptyParsedTypeRef(),
+    line: name.token.line,
+    column: name.token.column
+  }
+  lambda := withChildren(withParams(withText(node(ExprKind.Lambda, keyword.token), ""), [param]), [body.expr])
+  ExprStep {
+    state: body.state,
+    expr: makeExpr(ExprKind.Call, "", "for", "", "", [], [selector, lambda], keyword.token.line, keyword.token.column)
+  }
+}
+
+parseWhileExpression(
+  state: ParserState
+) -> ExprStep => {
+  keyword := parserAdvance(state)
+  open := parserConsume(parserSkipNewlines(keyword.state), TokenKind.LParen, "expected '(' after 'while'")
+  condition := parseExpression(parserSkipNewlines(open.state), 1)
+  close := parserConsume(condition.state, TokenKind.RParen, "expected ')' after loop condition")
+  body := parseBraceBody(parserSkipNewlines(close.state))
+  ExprStep {
+    state: body.state,
+    expr: makeExpr(ExprKind.Loop, "while", "while", "", "", [], [condition.expr, body.expr], keyword.token.line, keyword.token.column)
+  }
+}
+
+parseStarLoopExpression(
+  state: ParserState
+) -> ExprStep => {
+  star := parserAdvance(state)
+  open := parserConsume(parserSkipNewlines(star.state), TokenKind.LParen, "expected '(' after '*'")
+  condition := parseExpression(parserSkipNewlines(open.state), 1)
+  close := parserConsume(condition.state, TokenKind.RParen, "expected ')' after loop condition")
+  body := parseBraceBody(parserSkipNewlines(close.state))
+  ExprStep {
+    state: body.state,
+    expr: makeExpr(ExprKind.Loop, "*", "*", "", "", [], [condition.expr, body.expr], star.token.line, star.token.column)
   }
 }
 
@@ -2325,7 +2572,7 @@ normalizeXMLText(text: String) -> String => normalizeXMLTextLoop(text.trim(), 0,
 
 normalizeXMLTextLoop(
   text: String,
-  index: Int,
+  index: Int32,
   spacing: Bool,
   out: String
 ) -> String => (
@@ -2335,7 +2582,7 @@ normalizeXMLTextLoop(
 
 normalizeXMLTextChar(
   text: String,
-  index: Int,
+  index: Int32,
   spacing: Bool,
   out: String
 ) -> String => {
@@ -2366,8 +2613,8 @@ templateInner(raw: String) -> String => (
 
 parseTemplateParts(
   inner: String,
-  index: Int,
-  textStart: Int,
+  index: Int32,
+  textStart: Int32,
   out: String,
   children: Array[ParsedExpr]
 ) -> TemplateParse => (
@@ -2380,8 +2627,8 @@ parseTemplateParts(
 
 parseTemplatePartAt(
   inner: String,
-  index: Int,
-  textStart: Int,
+  index: Int32,
+  textStart: Int32,
   out: String,
   children: Array[ParsedExpr]
 ) -> TemplateParse => {
@@ -2394,8 +2641,8 @@ parseTemplatePartAt(
 
 parseTemplateExprPart(
   inner: String,
-  index: Int,
-  textStart: Int,
+  index: Int32,
+  textStart: Int32,
   out: String,
   children: Array[ParsedExpr]
 ) -> TemplateParse => {
@@ -2412,18 +2659,18 @@ parseTemplateExprPart(
 
 scanTemplateExprEnd(
   inner: String,
-  index: Int,
-  depth: Int
-) -> Int => (
+  index: Int32,
+  depth: Int32
+) -> Int32 => (
   index >= inner.length() ? -1
     : scanTemplateExprEndAt(inner, index, depth)
 )
 
 scanTemplateExprEndAt(
   inner: String,
-  index: Int,
-  depth: Int
-) -> Int => {
+  index: Int32,
+  depth: Int32
+) -> Int32 => {
   ch := inner.at(index)
   ch {
     '"' => scanTemplateExprEnd(inner, skipTemplateQuoted(inner, index + 1, '"'), depth)
@@ -2440,18 +2687,18 @@ scanTemplateExprEndAt(
 
 skipTemplateQuoted(
   text: String,
-  index: Int,
+  index: Int32,
   quote: Char
-) -> Int => (
+) -> Int32 => (
   index >= text.length() ? index
     : skipTemplateQuotedAt(text, index, quote)
 )
 
 skipTemplateQuotedAt(
   text: String,
-  index: Int,
+  index: Int32,
   quote: Char
-) -> Int => {
+) -> Int32 => {
   ch := text.at(index)
   (
     ch == '\\' ? skipTemplateQuoted(text, index + 2, quote)
@@ -3515,7 +3762,7 @@ calleeText(expr: ParsedExpr) -> String => (
     )
 )
 
-precedence(kind: TokenKind) -> Int => (
+precedence(kind: TokenKind) -> Int32 => (
   (kind == TokenKind.QuestionQuestion) || (kind == TokenKind.OrOr) ? 1
     : (
       kind == TokenKind.AndAnd ? 2
@@ -3622,7 +3869,7 @@ skipBalanced(
   state: ParserState,
   openKind: TokenKind,
   closeKind: TokenKind,
-  depth: Int
+  depth: Int32
 ) -> ParserState => (
   parserCheck(state, TokenKind.EOF) || (depth <= 0) ? state
     : skipBalancedStep(state, openKind, closeKind, depth)
@@ -3632,7 +3879,7 @@ skipBalancedStep(
   state: ParserState,
   openKind: TokenKind,
   closeKind: TokenKind,
-  depth: Int
+  depth: Int32
 ) -> ParserState => {
   token := parserPeek(state)
   step := parserAdvance(state)
@@ -3693,12 +3940,12 @@ looksLikeStaticFunctionDecl(
 
 looksLikeFunctionAfterName(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => (parserKindAt(state, index) == TokenKind.LParen) && looksLikeFunctionAfterParams(state, skipBalancedAt(state, index, TokenKind.LParen, TokenKind.RParen))
 
 looksLikeFunctionAfterParams(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   afterParams := skipNewlinesAt(state, index)
   afterReturn := (
@@ -3714,7 +3961,7 @@ looksLikeLambda(
 
 looksLikeLambdaAfterParams(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   afterParams := skipNewlinesAt(state, index)
   afterReturn := (
@@ -3726,8 +3973,8 @@ looksLikeLambdaAfterParams(
 
 skipAnnotationsAt(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   current := skipNewlinesAt(state, index)
   annotation := looksLikeAnnotationAt(state, current)
   annotation ? skipAnnotationsAt(state, skipAnnotationAt(state, current)) : current
@@ -3735,7 +3982,7 @@ skipAnnotationsAt(
 
 looksLikeAnnotationAt(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   kind := parserKindAt(state, index)
   kind {
@@ -3747,8 +3994,8 @@ looksLikeAnnotationAt(
 
 skipAnnotationAt(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   afterName := skipAnnotationNameAt(state, index + 2)
   afterNewlines := skipNewlinesAt(state, afterName)
   hasArgs := parserKindAt(state, afterNewlines) == TokenKind.LParen
@@ -3757,8 +4004,8 @@ skipAnnotationAt(
 
 skipAnnotationNameAt(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   qualified := (parserKindAt(state, index) == TokenKind.Dot) && (parserKindAt(state, index + 1) == TokenKind.Ident)
   qualified ? index + 2 : index
 }
@@ -3785,7 +4032,7 @@ looksLikeObjectDestructureDecl(
 
 scanObjectDestructureDecl(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => (
   parserKindAt(state, index) == TokenKind.RBrace ? false
     : scanObjectDestructureField(state, index)
@@ -3793,7 +4040,7 @@ scanObjectDestructureDecl(
 
 scanObjectDestructureField(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => (
   parserKindAt(state, index) != TokenKind.Ident ? false
     : scanObjectDestructureAfterField(state, index + 1)
@@ -3801,7 +4048,7 @@ scanObjectDestructureField(
 
 scanObjectDestructureAfterField(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => (
   parserKindAt(state, index) == TokenKind.Colon ? (parserKindAt(state, skipNewlinesAt(state, index + 1)) == TokenKind.Ident) && scanObjectDestructureAfterName(state, skipNewlinesAt(state, index + 1) + 1)
     : scanObjectDestructureAfterName(state, index)
@@ -3809,7 +4056,7 @@ scanObjectDestructureAfterField(
 
 scanObjectDestructureAfterName(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   current := skipNewlinesAt(state, index)
   kind := parserKindAt(state, current)
@@ -3824,7 +4071,7 @@ scanObjectDestructureAfterName(
 
 scanObjectDestructureAfterComma(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => (
   parserKindAt(state, index) == TokenKind.RBrace ? scanObjectDestructureAfterClose(state, index + 1)
     : scanObjectDestructureField(state, index)
@@ -3832,7 +4079,7 @@ scanObjectDestructureAfterComma(
 
 scanObjectDestructureAfterClose(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   afterClose := skipNewlinesAt(state, index)
   (parserKindAt(state, afterClose) == TokenKind.Declare) || (parserKindAt(state, afterClose) == TokenKind.MutDeclare)
@@ -3848,7 +4095,7 @@ looksLikePatternBlockAfterSubject(
 
 tokensLookLikePatternBranch(
   state: ParserState,
-  index: Int
+  index: Int32
 ) -> Bool => {
   afterPattern := skipPatternLookahead(state, index)
   (afterPattern >= 0) && (parserKindAt(state, skipNewlinesAt(state, afterPattern)) == TokenKind.FatArrow)
@@ -3856,29 +4103,29 @@ tokensLookLikePatternBranch(
 
 skipPatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index))
+  index: Int32
+) -> Int32 => skipOrPatternLookahead(state, skipSinglePatternLookahead(state, index))
 
 skipOrPatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.BitOr) ? skipOrPatternLookahead(state, skipSinglePatternLookahead(state, skipNewlinesAt(state, index) + 1))
     : index
 )
 
 skipAliasPatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   ((index >= 0) && (parserKindAt(state, skipNewlinesAt(state, index)) == TokenKind.At)) && (parserKindAt(state, skipNewlinesAt(state, index) + 1) == TokenKind.Ident) ? skipNewlinesAt(state, index) + 2
     : index
 )
 
 skipSinglePatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   kind := parserKindAt(state, index)
   after := (
     (((((kind == TokenKind.Underscore) || (kind == TokenKind.Int)) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char) ? index + 1
@@ -3904,8 +4151,8 @@ skipSinglePatternLookahead(
 
 skipRangePatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotEqual) ? skipRangePatternEnd(state, index + 1)
     : (
       (index >= 0) && (parserKindAt(state, index) == TokenKind.DotDotLess) ? skipRangePatternEnd(state, index + 1)
@@ -3918,8 +4165,8 @@ skipRangePatternLookahead(
 
 skipRangePatternEnd(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   kind := parserKindAt(state, index)
   (
     kind == TokenKind.Underscore ? index + 1
@@ -3932,16 +4179,16 @@ skipRangePatternEnd(
 
 skipIdentifierRangeEnd(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   ((parserKindAt(state, index) == TokenKind.Ident) && (parserKindAt(state, index + 1) == TokenKind.Dot)) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
     : index + 1
 )
 
 skipIdentifierPatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   parserKindAt(state, index + 1) == TokenKind.LParen ? skipBalancedAt(state, index + 1, TokenKind.LParen, TokenKind.RParen)
     : (
       (parserKindAt(state, index + 1) == TokenKind.Dot) && (parserKindAt(state, index + 2) == TokenKind.Ident) ? index + 3
@@ -3951,8 +4198,8 @@ skipIdentifierPatternLookahead(
 
 skipComparePatternLookahead(
   state: ParserState,
-  index: Int
-) -> Int => {
+  index: Int32
+) -> Int32 => {
   kind := parserKindAt(state, index)
   (
     (((((kind == TokenKind.Int) || (kind == TokenKind.Double)) || (kind == TokenKind.BigInt)) || (kind == TokenKind.String)) || (kind == TokenKind.Char)) || (kind == TokenKind.Ident) ? index + 1
@@ -3976,8 +4223,8 @@ looksLikeMapLiteralBody(
 
 scanMapLiteralColon(
   state: ParserState,
-  index: Int,
-  depth: Int
+  index: Int32,
+  depth: Int32
 ) -> Bool => {
   kind := parserKindAt(state, index)
   (
@@ -4053,34 +4300,34 @@ isUpperAsciiLetter(ch: Char) -> Bool => (ch >= 'A') && (ch <= 'Z')
 
 skipNewlinesAt(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   parserKindAt(state, index) == TokenKind.Newline ? skipNewlinesAt(state, index + 1)
     : index
 )
 
 skipGenericNamesAt(
   state: ParserState,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   parserKindAt(state, index) == TokenKind.LBracket ? skipBalancedAt(state, index, TokenKind.LBracket, TokenKind.RBracket)
     : index
 )
 
 skipBalancedAt(
   state: ParserState,
-  index: Int,
+  index: Int32,
   openKind: TokenKind,
   closeKind: TokenKind
-) -> Int => skipBalancedAtLoop(state, index, openKind, closeKind, 0)
+) -> Int32 => skipBalancedAtLoop(state, index, openKind, closeKind, 0)
 
 skipBalancedAtLoop(
   state: ParserState,
-  index: Int,
+  index: Int32,
   openKind: TokenKind,
   closeKind: TokenKind,
-  depth: Int
-) -> Int => {
+  depth: Int32
+) -> Int32 => {
   kind := parserKindAt(state, index)
   (
     kind == TokenKind.EOF ? index
@@ -4099,14 +4346,14 @@ skipBalancedAtLoop(
 
 skipTypeNameTokensAt(
   state: ParserState,
-  index: Int
-) -> Int => skipTypeNameTokensAtLoop(state, index, 0)
+  index: Int32
+) -> Int32 => skipTypeNameTokensAtLoop(state, index, 0)
 
 skipTypeNameTokensAtLoop(
   state: ParserState,
-  index: Int,
-  depth: Int
-) -> Int => {
+  index: Int32,
+  depth: Int32
+) -> Int32 => {
   kind := parserKindAt(state, index)
   (
     ((((((kind == TokenKind.Ident) || (kind == TokenKind.Comma)) || (kind == TokenKind.Colon)) || (kind == TokenKind.Question)) || (kind == TokenKind.Arrow)) || (kind == TokenKind.At)) || (kind == TokenKind.Dot) ? skipTypeNameTokensAtLoop(state, index + 1, depth)

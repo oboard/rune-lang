@@ -2,7 +2,7 @@
 
 + CompilerCallable: {
   name: String
-  arity: Int
+  arity: Int32
   returnType: String
   paramTypes: Array[String]
   private: Bool
@@ -16,7 +16,7 @@
 
 + enumValue(
   member: IREnumMember,
-  index: Int
+  index: Int32
 ) -> String => (
   member.value == "" ? compilerIntToString(index)
     : member.value
@@ -71,7 +71,7 @@
 
 + typeArg(
   args: String,
-  index: Int
+  index: Int32
 ) -> String => {
   parts := args.split(",")
   (
@@ -116,13 +116,13 @@
     : ""
 )
 
-+ indent(level: Int) -> String => (
++ indent(level: Int32) -> String => (
   level <= 0 ? ""
     : "  " + indent(level - 1)
 )
 
 + line(
-  level: Int,
+  level: Int32,
   text: String
 ) -> String => (indent(level) + text) + "\n"
 
@@ -130,7 +130,7 @@
 
 functionsUseUnwrap(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -141,7 +141,7 @@ functionsUseUnwrap(
 
 testsUseUnwrap(
   tests: Array[IRTest],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= tests.length() ? false
     : exprUsesUnwrap(tests[index].body) || testsUseUnwrap(tests, index + 1)
@@ -149,7 +149,7 @@ testsUseUnwrap(
 
 structsUseUnwrap(
   structs: Array[IRStructType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : functionsUseUnwrap(structs[index].methods, 0) || structsUseUnwrap(structs, index + 1)
@@ -157,7 +157,7 @@ structsUseUnwrap(
 
 enumsUseUnwrap(
   enums: Array[IREnumType],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : functionsUseUnwrap(enums[index].methods, 0) || enumsUseUnwrap(enums, index + 1)
@@ -176,7 +176,7 @@ enumsUseUnwrap(
 functionsUseModuleCall(
   functions: Array[IRFunction],
   key: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= functions.length() ? false
     : (
@@ -188,7 +188,7 @@ functionsUseModuleCall(
 testsUseModuleCall(
   tests: Array[IRTest],
   key: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= tests.length() ? false
     : exprUsesModuleCall(tests[index].body, key) || testsUseModuleCall(tests, key, index + 1)
@@ -197,7 +197,7 @@ testsUseModuleCall(
 structsUseModuleCall(
   structs: Array[IRStructType],
   key: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= structs.length() ? false
     : functionsUseModuleCall(structs[index].methods, key, 0) || structsUseModuleCall(structs, key, index + 1)
@@ -206,7 +206,7 @@ structsUseModuleCall(
 enumsUseModuleCall(
   enums: Array[IREnumType],
   key: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= enums.length() ? false
     : functionsUseModuleCall(enums[index].methods, key, 0) || enumsUseModuleCall(enums, key, index + 1)
@@ -223,7 +223,7 @@ exprUsesModuleCall(
 exprChildrenUseModuleCall(
   children: Array[IRExpr],
   key: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : exprUsesModuleCall(children[index], key) || exprChildrenUseModuleCall(children, key, index + 1)
@@ -231,14 +231,14 @@ exprChildrenUseModuleCall(
 
 exprChildrenUseUnwrap(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : exprUsesUnwrap(children[index]) || exprChildrenUseUnwrap(children, index + 1)
 )
 
 + compilerIntToString(
-  value: Int
+  value: Int32
 ) -> String => (
   value == 0 ? "0"
     : (
@@ -248,7 +248,7 @@ exprChildrenUseUnwrap(
 )
 
 compilerUnsignedIntToString(
-  value: Int,
+  value: Int32,
   out: String
 ) -> String => (
   value <= 0 ? out
@@ -256,7 +256,7 @@ compilerUnsignedIntToString(
 )
 
 compilerDigitString(
-  value: Int
+  value: Int32
 ) -> String => value {
   0 => "0"
   1 => "1"

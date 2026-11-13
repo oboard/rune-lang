@@ -32,7 +32,7 @@ Rune 是一个用 Go 编写的表达式导向语言工具链。当前实现会�
 DOM 风格程序生成 TypeScript。
 
 ```rune
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 
 main() => {
   @io.println(add(1, 2))

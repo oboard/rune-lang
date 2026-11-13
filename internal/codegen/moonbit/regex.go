@@ -6,7 +6,7 @@ func (g *generator) regexRuntime() {
 	g.line("source : String")
 	g.line("flags : String")
 	g.line("regex : @string.Regex")
-	g.line("mut last_index : Int")
+	g.line("mut last_index : Int32")
 	g.indent--
 	g.line("}")
 	g.line("")
@@ -146,7 +146,7 @@ func (g *generator) regexRuntime() {
 	g.indent--
 	g.line("}")
 	g.line("")
-	g.line("fn rune_regex_search(regex : RuneRegex, input : String) -> Int {")
+	g.line("fn rune_regex_search(regex : RuneRegex, input : String) -> Int32 {")
 	g.indent++
 	g.line("match regex.regex.execute(input) {")
 	g.indent++

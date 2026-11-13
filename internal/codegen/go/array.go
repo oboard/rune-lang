@@ -397,7 +397,7 @@ func (c *stdlibContext) expr(expr ir.Expr, expected checker.Type) string {
 	case *ir.SelectorExpr:
 		return c.expr(e.Receiver, e.Receiver.ResultType()) + "." + mangleIdent(e.Name)
 	case *ir.IndexExpr:
-		return fmt.Sprintf("%s[%s]", c.expr(e.Receiver, e.Receiver.ResultType()), c.expr(e.Index, checker.Int))
+		return fmt.Sprintf("%s[%s]", c.expr(e.Receiver, e.Receiver.ResultType()), c.expr(e.Index, checker.Int32))
 	case *ir.BlockExpr:
 		return c.blockExpr(e, expected)
 	default:

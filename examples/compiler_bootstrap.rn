@@ -1,8 +1,8 @@
 @"../selfhost/compiler/compiler.rn"
 
 main() => {
-  source := `add(a: Int, b: Int) -> Int => a + b
-main() -> Int => add(20, 22)
+  source := `add(a: Int32, b: Int32) -> Int32 => a + b
+main() -> Int32 => add(20, 22)
 `
   ts := compileTypeScript(source)
   go := compileGo(source)

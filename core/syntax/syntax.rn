@@ -20,7 +20,7 @@
 + SyntaxValue: {
   kind: String
   stringValue: String
-  intValue: Int
+  intValue: Int32
   boolValue: Bool
 }
 
@@ -36,7 +36,7 @@
 }
 
 + SyntaxType: {
-  kind: Int
+  kind: Int32
   name: String
   module: String
   nullable: Bool
@@ -84,7 +84,7 @@
   name: String
   private: Bool
   annotations: Array[SyntaxAnnotation]
-  value: Int
+  value: Int32
   hasValue: Bool
   params: Array[SyntaxParam]
 }

@@ -1,34 +1,34 @@
 + Token: {
   kind: TokenKind
   lexeme: String
-  offset: Int
-  line: Int
-  column: Int
+  offset: Int32
+  line: Int32
+  column: Int32
 }
 
 LexState: {
   source: String
   chars: Array[Char]
-  start: Int
-  current: Int
-  line: Int
-  column: Int
-  startLine: Int
-  startColumn: Int
+  start: Int32
+  current: Int32
+  line: Int32
+  column: Int32
+  startLine: Int32
+  startColumn: Int32
   canStartRegex: Bool
-  mode: Int
-  xmlDepth: Int
+  mode: Int32
+  xmlDepth: Int32
   xmlClosing: Bool
   xmlSelfClosed: Bool
-  xmlExprMode: Int
-  xmlExprDepth: Int
+  xmlExprMode: Int32
+  xmlExprDepth: Int32
   // xmlNestedExprMode saves the enclosing XML expression mode while lexing an
   // attribute `{...}` inside an XML element nested in that expression.
-  xmlNestedExprMode: Int
-  xmlNestedExprDepth: Int
+  xmlNestedExprMode: Int32
+  xmlNestedExprDepth: Int32
   xmlInAttributeExpr: Bool
-  xmlAfterMode: Int
-  xmlAfterDepth: Int
+  xmlAfterMode: Int32
+  xmlAfterDepth: Int32
 }
 
 Advanced: {
@@ -111,13 +111,13 @@ ScannedString: {
   Underscore
 }
 
-xmlModeCode() -> Int => 0
+xmlModeCode() -> Int32 => 0
 
-xmlModeTag() -> Int => 1
+xmlModeTag() -> Int32 => 1
 
-xmlModeText() -> Int => 2
+xmlModeText() -> Int32 => 2
 
-xmlModeExpr() -> Int => 3
+xmlModeExpr() -> Int32 => 3
 
 + lex(source: String) -> Array[Token] => scan(LexState {
   source: source,
@@ -220,12 +220,12 @@ finishToken(
 
 lexStateXML(
   state: LexState,
-  mode: Int,
-  depth: Int,
+  mode: Int32,
+  depth: Int32,
   closing: Bool,
   selfClosed: Bool,
-  exprMode: Int,
-  exprDepth: Int
+  exprMode: Int32,
+  exprDepth: Int32
 ) -> LexState => {
   ..state,
   mode: mode,
@@ -248,8 +248,8 @@ enterXMLTagState(
 
 lexStateXMLAfterMode(
   state: LexState,
-  afterMode: Int,
-  afterDepth: Int
+  afterMode: Int32,
+  afterDepth: Int32
 ) -> LexState => {
   ..state,
   xmlAfterMode: afterMode,
@@ -347,7 +347,7 @@ atEnd(state: LexState) -> Bool => state.current >= state.chars.length()
 
 charAt(
   chars: Array[Char],
-  index: Int
+  index: Int32
 ) -> Char => (
   (index < 0) || (index >= chars.length()) ? ' '
     : chars[index]

@@ -1,4 +1,4 @@
-~ test(count: Int) => {
+~ test(count: Int32) => {
   @io.println("Hello World" + count.toString())
 }
 

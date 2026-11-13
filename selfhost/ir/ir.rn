@@ -4,8 +4,8 @@
   path: String
   go: Bool
   module: Bool
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRTSImport: {
@@ -13,15 +13,15 @@
   specifier: String
   functions: Array[IRFunction]
   values: Array[IRConst]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRParam: {
   name: String
   typeName: String
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRExpr: {
@@ -32,8 +32,8 @@
   op: String
   params: Array[IRParam]
   children: Array[IRExpr]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRField: {
@@ -42,8 +42,8 @@
   typeName: String
   jsonName: String
   jsonIgnore: Bool
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IREnumMember: {
@@ -51,8 +51,8 @@
   private: Bool
   value: String
   params: Array[IRParam]
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRFunction: {
@@ -70,8 +70,8 @@
   tailLoopName: String
   tailLoopGroup: String
   sourcePath: String
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRConst: {
@@ -79,8 +79,8 @@
   private: Bool
   typeName: String
   value: IRExpr
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRStructType: {
@@ -90,8 +90,8 @@
   fields: Array[IRField]
   methods: Array[IRFunction]
   sourcePath: String
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IREnumType: {
@@ -101,15 +101,15 @@
   members: Array[IREnumMember]
   methods: Array[IRFunction]
   sourcePath: String
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRTest: {
   name: String
   body: IRExpr
-  line: Int
-  column: Int
+  line: Int32
+  column: Int32
 }
 
 + IRFile: {
@@ -255,7 +255,7 @@ lowerJsonFieldName(
 lowerJsonFieldNameAt(
   annotations: Array[ParsedAnnotation],
   fallback: String,
-  index: Int
+  index: Int32
 ) -> String => {
   done := index >= annotations.length()
   (
@@ -267,7 +267,7 @@ lowerJsonFieldNameAt(
 lowerJsonFieldNameStep(
   annotations: Array[ParsedAnnotation],
   fallback: String,
-  index: Int
+  index: Int32
 ) -> String => {
   annotation := annotations[index]
   matched := (((annotation.marker == "#") && (annotation.module == "json")) && (annotation.name == "name")) && (annotation.args.length() > 0)
@@ -282,7 +282,7 @@ lowerHasAnnotation(
   marker: String,
   module: String,
   name: String,
-  index: Int
+  index: Int32
 ) -> Bool => {
   done := index >= annotations.length()
   (
@@ -296,7 +296,7 @@ lowerHasAnnotationStep(
   marker: String,
   module: String,
   name: String,
-  index: Int
+  index: Int32
 ) -> Bool => {
   annotation := annotations[index]
   matched := ((annotation.marker == marker) && (annotation.module == module)) && (annotation.name == name)
@@ -308,7 +308,7 @@ lowerHasAnnotationStep(
 
 lowerAnnotationStringArg(
   annotation: ParsedAnnotation,
-  index: Int,
+  index: Int32,
   fallback: String
 ) -> String => {
   valid := (index < annotation.args.length()) && (annotation.args[index].kind == ExprKind.String)
@@ -407,8 +407,8 @@ markScanTailLoopGroup(
 scanTailLoopNameCount(
   functions: Array[IRFunction],
   scan: Bool,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= functions.length() ? 0
     : ((scan ? scanTailLoopIsScanName(functions[index].name) : scanTailLoopIsScanLexedName(functions[index].name)) ? 1 : 0) + scanTailLoopNameCount(functions, scan, index + 1)
 )
@@ -423,7 +423,7 @@ scanTailLoopLexerSignatureIsSafe(
 
 scanTailLoopFindScanFunction(
   functions: Array[IRFunction],
-  index: Int
+  index: Int32
 ) -> IRFunction => (
   index >= functions.length() ? emptyIRFunction()
     : scanTailLoopIsScanName(functions[index].name) ? functions[index]
@@ -447,7 +447,7 @@ scanTailLoopGroupIsSafe(
 
 scanTailLoopBlockIsSafe(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   children.length() == 0 ? false
     : index >= (children.length() - 1) ? scanTailLoopGroupIsSafe(children[children.length() - 1])
@@ -463,7 +463,7 @@ scanTailLoopContainsCall(
 
 scanTailLoopChildrenContainCall(
   children: Array[IRExpr],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : scanTailLoopContainsCall(children[index]) || scanTailLoopChildrenContainCall(children, index + 1)
@@ -479,15 +479,15 @@ scanTailLoopIsMemberCall(
 irFunctionNameCount(
   functions: Array[IRFunction],
   name: String,
-  index: Int
-) -> Int => (
+  index: Int32
+) -> Int32 => (
   index >= functions.length() ? 0
     : (functions[index].name == name ? 1 : 0) + irFunctionNameCount(functions, name, index + 1)
 )
 
 markSelfTailLoop(
   fn: IRFunction,
-  nameCount: Int
+  nameCount: Int32
 ) -> IRFunction => {
   eligible := (((((((fn.returnType != "") && (fn.returnType != "Void")) && !fn.routine) && !fn.macro) && (fn.receiverType == "")) && ((fn.generics.length() == 0) && (fn.params.length() > 0))) && (nameCount == 1)) && (irExprContainsSelfCall(fn.body, fn.name) && tailLoopExprIsSafe(fn.body, fn.name, fn.params.length()))
   IRFunction {
@@ -511,7 +511,7 @@ irExprContainsSelfCall(
 irExprChildrenContainSelfCall(
   children: Array[IRExpr],
   name: String,
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= children.length() ? false
     : irExprContainsSelfCall(children[index], name) || irExprChildrenContainSelfCall(children, name, index + 1)
@@ -520,7 +520,7 @@ irExprChildrenContainSelfCall(
 isDirectSelfCall(
   expr: IRExpr,
   name: String,
-  arity: Int
+  arity: Int32
 ) -> Bool => (
   ((expr.kind == ExprKind.Call) && (expr.children.length() > 0)) && (expr.children[0].kind == ExprKind.Identifier) ? ((expr.children[0].name == name) && ((arity < 0) || ((expr.children.length() - 1) == arity)))
     : false
@@ -531,7 +531,7 @@ isDirectSelfCall(
 tailLoopExprIsSafe(
   expr: IRExpr,
   name: String,
-  arity: Int
+  arity: Int32
 ) -> Bool => expr.kind {
   ExprKind.Ternary => (
     expr.children.length() == 3 ? (!irExprContainsSelfCall(expr.children[0], name) && tailLoopExprIsSafe(expr.children[1], name, arity)) && tailLoopExprIsSafe(expr.children[2], name, arity)
@@ -613,7 +613,7 @@ parsedFunctionCompileTimeOnly(
 
 paramsUseSyntaxOnly(
   params: Array[ParsedParam],
-  index: Int
+  index: Int32
 ) -> Bool => (
   index >= params.length() ? false
     : typeRefIsSyntaxOnly(params[index].typeRef) || paramsUseSyntaxOnly(params, index + 1)
@@ -687,7 +687,7 @@ inferIRExprText(
   ExprKind.Template => "String"
   ExprKind.XMLText => "String"
   ExprKind.XMLElement => "HTMLElement"
-  ExprKind.Int => "Int"
+  ExprKind.Int => "Int32"
   ExprKind.Double => "Double"
   ExprKind.BigInt => "BigInt"
   ExprKind.Char => "Char"
@@ -736,7 +736,7 @@ inferIRSelectorCallText(
       : ""
   )
   "isEmpty" => "Bool"
-  "length" | "byteLength" | "size" | "push" => "Int"
+  "length" | "byteLength" | "size" | "push" => "Int32"
   "includes" | "contains" | "startsWith" | "endsWith" => "Bool"
   "toString" | "trim" | "toUpperCase" | "toLowerCase" => "String"
   _ => ""

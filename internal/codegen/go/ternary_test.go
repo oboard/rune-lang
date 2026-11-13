@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenerateTernaryExpression(t *testing.T) {
-	src := `choose(flag: Bool) -> Int => flag ? 1 : 2
+	src := `choose(flag: Bool) -> Int32 => flag ? 1 : 2
 
 main() => {
   @io.println(choose(true))

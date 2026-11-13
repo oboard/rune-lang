@@ -97,7 +97,7 @@ func TestGenerateExportsPublicTypesEnumsAndConstants(t *testing.T) {
 
 + answer := 42
 
-+ add(a: Int, b: Int) -> Int => a + b
++ add(a: Int32, b: Int32) -> Int32 => a + b
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
@@ -271,13 +271,13 @@ func TestGeneratePatternPredicateRange(t *testing.T) {
 }
 
 func TestGenerateArrayAliasAndOpenRangePatterns(t *testing.T) {
-	src := `score(values: Array[Int]) -> Int => values {
+	src := `score(values: Array[Int32]) -> Int32 => values {
   [head, ..rest, tail] @ whole => head + tail + rest.length() + whole.length()
   [] => 0
   _ => 1
 }
 
-sign(value: Int) -> Int => value {
+sign(value: Int32) -> Int32 => value {
   _..<0 => -1
   0 => 0
   1..<_ => 1
@@ -305,7 +305,7 @@ sign(value: Int) -> Int => value {
 func TestGenerateOrPatternBlock(t *testing.T) {
 	src := `tsType(typeName: String) -> String => {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => typeName
 }
 `
@@ -313,7 +313,7 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 	wantParts := []string{
 		`if ((typeName === "") || (typeName === "Void")) {`,
 		`return "void";`,
-		`else if ((typeName === "Int") || (typeName === "Double")) {`,
+		`else if ((typeName === "Int32") || (typeName === "Double")) {`,
 		`return "number";`,
 	}
 	for _, want := range wantParts {
@@ -324,7 +324,7 @@ func TestGenerateOrPatternBlock(t *testing.T) {
 }
 
 func TestGenerateUnicodeIdentifiers(t *testing.T) {
-	src := `+ 计算✅(数值🐉: Int) -> Int => {
+	src := `+ 计算✅(数值🐉: Int32) -> Int32 => {
   增量📈 := 1
   数值🐉 + 增量📈
 }
@@ -344,7 +344,7 @@ func TestGenerateUnicodeIdentifiers(t *testing.T) {
 }
 
 func TestGenerateTemplateLiteral(t *testing.T) {
-	src := "label(count: Int, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
+	src := "label(count: Int32, ch: Char) -> String => `count \\(count) char \\(ch)`\n"
 	got := generateForTest(t, src)
 	want := "return `count ${count} char ${ch}`;"
 	if !strings.Contains(got, want) {
@@ -360,16 +360,16 @@ func TestGenerateTemplateLiteral(t *testing.T) {
 
 func TestGenerateDestructuringPatterns(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
-pointScore(point: Point) -> Int => point {
+pointScore(point: Point) -> Int32 => point {
   { x, y: yy, .. } => x + yy
   _ => 0
 }
 
-mapScore(values: Map[String, Int]) -> Int => values {
+mapScore(values: Map[String, Int32]) -> Int32 => values {
   { "a": value, .. } => value
   _ => 0
 }
@@ -555,7 +555,7 @@ func TestGenerateArraySpread(t *testing.T) {
 }
 
 func TestGenerateArrayFoldr(t *testing.T) {
-	src := `sum(values: Array[Int]) -> Int => values.foldr(0, (accumulator, value) => accumulator + value)
+	src := `sum(values: Array[Int32]) -> Int32 => values.foldr(0, (accumulator, value) => accumulator + value)
 `
 	got := generateForTest(t, src)
 	wantParts := []string{
@@ -576,7 +576,7 @@ func TestGenerateEnumProgram(t *testing.T) {
 }
 
 Container: {
-  Completed: Int
+  Completed: Int32
 }
 
 statusText(status: Status) -> String => status {
@@ -704,7 +704,7 @@ func TestGenerateMapLiteralProgram(t *testing.T) {
 
 func TestGenerateEmptyMapFieldFromStructContext(t *testing.T) {
 	src := `Env: {
-  bindings: Map[Int, String]
+  bindings: Map[Int32, String]
 }
 
 emptyEnv() -> Env => {
@@ -814,7 +814,7 @@ User: {
   name: String
   #json.ignore
   password: String
-  age: Int
+  age: Int32
 }
 
 main() => {
@@ -859,7 +859,7 @@ User: {
   name: String
   #json.ignore
   password: String
-  scores: Array[Int]
+  scores: Array[Int32]
 }
 
 main() => {
@@ -927,7 +927,7 @@ func TestGenerateNetUsesDataViewBytes(t *testing.T) {
 }
 
 func TestGenerateRoutineCallsUseTrackedPromises(t *testing.T) {
-	src := `~ test(count: Int) => {
+	src := `~ test(count: Int32) => {
   @io.println("Hello World" + count.toString())
 }
 
@@ -957,9 +957,9 @@ main() => {
 
 func TestGenerateKeywordObjectFields(t *testing.T) {
 	src := `Println: {
-  return: Int
-  func: Int
-  def: Int
+  return: Int32
+  func: Int32
+  def: Int32
 }
 
 main() => {
@@ -1051,8 +1051,8 @@ func TestGenerateSignalEffectScope(t *testing.T) {
 
 func TestGenerateObjectDestructureProgram(t *testing.T) {
 	src := `Point: {
-  x: Int
-  y: Int
+  x: Int32
+  y: Int32
 }
 
 main() => {
@@ -1078,11 +1078,11 @@ main() => {
 
 func TestGeneratePayloadEnumPatterns(t *testing.T) {
 	src := `Expr: {
-  Lit(value: Int)
+  Lit(value: Int32)
   Add(left: Expr, right: Expr)
 }
 
-eval(expr: Expr) -> Int => expr {
+eval(expr: Expr) -> Int32 => expr {
   Add(Lit(left), Lit(0)) => left
   Add(left, right) => eval(left) + eval(right)
   Lit(value) => value
@@ -1108,12 +1108,12 @@ main() => @io.println(eval(Add(Lit(2), Lit(0))))
 
 func TestGenerateMapLikePatternCachesGet(t *testing.T) {
 	src := `Lookup: {
-  entries: Map[String, Int]
+  entries: Map[String, Int32]
 
-  get(key: String) -> Int? => .entries[key]
+  get(key: String) -> Int32? => .entries[key]
 }
 
-score(values: Lookup) -> Int => values {
+score(values: Lookup) -> Int32 => values {
   { "b"? : null, "a": x, .. } => x
   { "b"? : b, .. } => b ?? 0
 }

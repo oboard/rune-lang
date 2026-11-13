@@ -1,15 +1,15 @@
 @"../selfhost/interpreter/interpreter.rn"
 
 ? "selfhost interpreter runs functions" {
-  result := interpret(`add(a: Int, b: Int) -> Int => a + b
-main() -> Int => add(20, 22)
+  result := interpret(`add(a: Int32, b: Int32) -> Int32 => a + b
+main() -> Int32 => add(20, 22)
 `)
   @assert.eq(result.ok, true)
   @assert.eq(formatRuntimeValue(result.value), "42")
 }
 
 ? "selfhost interpreter runs blocks and lambdas" {
-  source := `main() -> Int => {
+  source := `main() -> Int32 => {
   values := [1, 2, 3, 4]
   total :=: 0
   values.each((value) => total = total + value)
@@ -23,15 +23,15 @@ main() -> Int => add(20, 22)
 
 ? "selfhost interpreter runs maps structs and matches" {
   source := `Point: {
-  x: Int
-  y: Int
-  score() -> Int => .x + .y
+  x: Int32
+  y: Int32
+  score() -> Int32 => .x + .y
 }
-bonus(value: Int) -> Int => value {
+bonus(value: Int32) -> Int32 => value {
   1 => 10
   _ => 0
 }
-main() -> Int => {
+main() -> Int32 => {
   point := Point { x: 20, y: 22 }
   scores := { "base": point.score() }
   scores["base"] = scores["base"] + bonus(1)
@@ -62,7 +62,7 @@ main() -> Bool => {
 ? "selfhost interpreter runs or pattern branches" {
   source := `kind(typeName: String) -> String => typeName {
   "" | "Void" => "void"
-  "Int" | "Double" => "number"
+  "Int32" | "Double" => "number"
   _ => "other"
 }
 main() -> String => kind("Double")
@@ -78,9 +78,9 @@ main() -> String => kind("Double")
   Err(error: E)
 }
 
-read() -> Result[Int, String] => Ok(41)
+read() -> Result[Int32, String] => Ok(41)
 
-main() -> Int => {
+main() -> Int32 => {
   value := read()?
   value + 1
 }
@@ -137,9 +137,9 @@ main() -> String => {
   Err(error: E)
 }
 
-read() -> Result[Int, String] => Err("boom")
+read() -> Result[Int32, String] => Err("boom")
 
-main() -> Int => {
+main() -> Int32 => {
   value := read()?
   value + 1
 }
@@ -209,7 +209,7 @@ main() -> Int => {
 }
 
 ? "selfhost interpreter runs virtual net APIs" {
-  source := `main() -> Int => {
+  source := `main() -> Int32 => {
   listener := @net.listen("loop:1")?
   @io.println(listener.address())
   conn := listener.accept()?

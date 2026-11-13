@@ -12,7 +12,7 @@ assertInterpretValue(
 
 assertInterpretOutput(
   source: String,
-  index: Int,
+  index: Int32,
   want: String
 ) => {
   result := interpret(source)
@@ -36,7 +36,7 @@ assertInterpretOutput(
   seen := @set.new("")
   seen.add(trimmed)
   seen.add(words[1])
-  joined + ":" + @int.toString(scores.getOr("total", 0)) + ":" + @int.toString(seen.size())
+  joined + ":" + @int32.toString(scores.getOr("total", 0)) + ":" + @int32.toString(seen.size())
 }
 `, "rune-LANG:16:2")
 }
@@ -54,7 +54,7 @@ assertInterpretOutput(
   third := @float.toDouble(reader.readFloat32(true))
   buffer := @buffer.fromBytes(bytes.clone())
   buffer.append(@uint8.fromInt(9))
-  @int.toString(first) + ":" + @int.toString(second) + ":" + @int.toString(@double.trunc(third)) + ":" + @int.toString(buffer.length())
+  @int32.toString(first) + ":" + @int32.toString(second) + ":" + @int32.toString(@double.trunc(third)) + ":" + @int32.toString(buffer.length())
 }
 `, "7:-1234:1:8")
 }
@@ -68,7 +68,7 @@ assertInterpretOutput(
   total :=: 0
   @iter.range(1, 4).each((value) => total = total + value)
   symbol := @symbol.for("rune.key")
-  @json.stringify(parsed).includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")
+  @json.stringify(parsed).includes("Rune").toString() + ":" + match[1] + ":" + parts[2] + ":" + @int32.toString(total) + ":" + (@symbol.keyFor(symbol) ?? "")
 }
 `, "true:id:c:6:rune.key")
 }

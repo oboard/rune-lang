@@ -24,7 +24,7 @@
   each[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> R
   ) -> Void => .eachFrom(callbackfn, 0)
@@ -32,19 +32,19 @@
   eachFrom[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> R,
-    index: Int
+    index: Int32
   ) -> Void => .eachNext(callbackfn, index, .next())
 
   eachNext[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> R,
-    index: Int,
+    index: Int32,
     item: (T, Bool)
   ) -> Void => (
     item[1] ? .eachValue(callbackfn, index, item[0])
@@ -54,10 +54,10 @@
   eachValue[R](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> R,
-    index: Int,
+    index: Int32,
     value: T
   ) -> Void => {
     callbackfn(value, index, this)
@@ -67,7 +67,7 @@
   map[U](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> U
   ) -> Array[U] => .mapFrom(callbackfn, 0, [])
@@ -75,20 +75,20 @@
   mapFrom[U](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> U,
-    index: Int,
+    index: Int32,
     out: Array[U]
   ) -> Array[U] => .mapNext(callbackfn, index, out, .next())
 
   mapNext[U](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> U,
-    index: Int,
+    index: Int32,
     out: Array[U],
     item: (T, Bool)
   ) -> Array[U] => (
@@ -99,10 +99,10 @@
   mapValue[U](
     callbackfn: (
       value: T,
-      index?: Int,
+      index?: Int32,
       iter?: Iter[T]
     ) -> U,
-    index: Int,
+    index: Int32,
     out: Array[U],
     value: T
   ) -> Array[U] => {
@@ -134,15 +134,15 @@
 }
 
 + range(
-  start: Int,
-  end: Int
-) -> Iter[Int] => @iter.rangeStep(start, end, 1)
+  start: Int32,
+  end: Int32
+) -> Iter[Int32] => @iter.rangeStep(start, end, 1)
 
 + rangeStep(
-  start: Int,
-  end: Int,
-  step: Int
-) -> Iter[Int] => {
+  start: Int32,
+  end: Int32,
+  step: Int32
+) -> Iter[Int32] => {
   value :=: start - step
   @iter.new(() => {
     value = value + step
@@ -158,7 +158,7 @@
 
 + repeat[T](
   value: T,
-  count: Int
+  count: Int32
 ) -> Iter[T] => {
   index :=: -1
   @iter.new(() => {

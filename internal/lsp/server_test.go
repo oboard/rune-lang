@@ -193,7 +193,7 @@ func TestDiagnosticsExcludeWarningsFromImportedSource(t *testing.T) {
   Second
 }
 
-choose(value: Choice) -> Int => value {
+choose(value: Choice) -> Int32 => value {
   First => 1
   Second => 2
   _ => 3
@@ -264,7 +264,7 @@ func TestDiagnosticsHighlightPostfixOperator(t *testing.T) {
 
 func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
 	uri := "file:///tmp/main.rn"
-	src := "loop(value: Int) -> Int => value == 0 ? 0 : loop(value - 1)\n"
+	src := "loop(value: Int32) -> Int32 => value == 0 ? 0 : loop(value - 1)\n"
 	s := NewSession()
 	s.SetDocument(uri, src)
 	for _, diag := range s.Diagnostics(uri) {
@@ -283,7 +283,7 @@ func TestDiagnosticsIncludeUnusedSelfRecursiveFunction(t *testing.T) {
 
 func TestDiagnosticsIncludesWarnings(t *testing.T) {
 	uri := "file:///tmp/main.rn"
-	src := `choose(aaa: Bool, bbb: Int, ccc: Int) -> Int => (aaa) {
+	src := `choose(aaa: Bool, bbb: Int32, ccc: Int32) -> Int32 => (aaa) {
   true => bbb
   _ => ccc
 }
@@ -303,8 +303,8 @@ func TestDiagnosticsIncludesWarnings(t *testing.T) {
 			}
 			rangeValue := diag["range"].(map[string]any)
 			start := rangeValue["start"].(position)
-			if start.Line != 0 || start.Character != 49 {
-				t.Fatalf("warning start = %d:%d, want 0:49", start.Line, start.Character)
+			if start.Line != 0 || start.Character != 55 {
+				t.Fatalf("warning start = %d:%d, want 0:55", start.Line, start.Character)
 			}
 		}
 	}
@@ -317,7 +317,7 @@ func TestDiagnosticsReportMissingStructLiteralComma(t *testing.T) {
 	uri := "file:///tmp/main.rn"
 	src := `User: {
   name: String
-  age: Int
+  age: Int32
 }
 
 main() => User {

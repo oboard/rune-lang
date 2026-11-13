@@ -52,7 +52,7 @@ func TestAnalyzeFileWithWarningsPreservesImportedDiagnosticPath(t *testing.T) {
   Second
 }
 
-choose(value: Choice) -> Int => value {
+choose(value: Choice) -> Int32 => value {
   First => 1
   Second => 2
   _ => 3
@@ -75,7 +75,7 @@ choose(value: Choice) -> Int => value {
 
 func TestAnalyzeSourceWithWarningsKeepsAnalyzeSourceQuiet(t *testing.T) {
 	src := `Token: {
-  value: Int
+  value: Int32
 }
 
 unused() => 1

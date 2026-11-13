@@ -1,7 +1,7 @@
 Secret: {
-  value: Int
+  value: Int32
 
-  reveal() -> Int => .value
+  reveal() -> Int32 => .value
 }
 
 Status: {
@@ -9,7 +9,7 @@ Status: {
   Hidden = 1
 }
 
-add(a: Int, b: Int) -> Int => a + b
+add(a: Int32, b: Int32) -> Int32 => a + b
 
 ? "private declarations work inside source" {
   secret := Secret {
